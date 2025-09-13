@@ -1,5 +1,6 @@
 import os, re, glob
 import shutil
+import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pandas as pd
@@ -33,7 +34,7 @@ def parquet_append_columns(df: pd.DataFrame, f: str, tmp_suffix:str = '.col.tmp'
     parquet_file = pq.ParquetFile(f)
     new_table = pa.Table.from_pandas(df)
     
-    existing_schema = parquet_file.schema.to_arrow_schema()    
+    existing_schema = parquet_file.schema.to_arrow_schema()
     existing_fields = list(existing_schema)
     new_fields = [field for field in new_table.schema if field.name not in existing_schema.names]
     combined_schema = pa.schema(existing_fields + new_fields)
@@ -56,7 +57,7 @@ def parquet_append_columns(df: pd.DataFrame, f: str, tmp_suffix:str = '.col.tmp'
     os.replace(temp_f, f)
 
 def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False):
-    shots = set()
+    shots = np.array([], dtype=np.uint64)
     pqwriter = None
     schema = None
     
@@ -74,17 +75,18 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False):
                 df = batch.to_pandas()
                 
                 if check_shots and 'shot_number' in df.columns:
-                    mask = ~df['shot_number'].isin(shots)
+                    new_shots = df['shot_number'].values.astype(np.uint64)
+                    mask = ~np.isin(new_shots, shots)
                     df = df[mask]
-                    shots.update(df['shot_number'].tolist())
+                    shots = np.concatenate([shots, new_shots[mask]])
                 
                 if len(df) > 0:
                     table = pa.Table.from_pandas(df)
                     table = table.cast(schema)
-                    pqwriter.write_table(table)                
+                    pqwriter.write_table(table)
             
             if rm_src:
-                os.unlink(f)                            
+                os.unlink(f)
         
     finally:
         if pqwriter is not None:
@@ -124,12 +126,24 @@ def h3_tmp_files(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowe
     del df    
     return files
 
-def h3_merge_files(in_dir, out_dir=GH3_DEFAULT_H3_DIR, rm_src=True):
+def h3_merge_files(in_dir, out_dir=GH3_DEFAULT_H3_DIR, rm_src=True, replace=False):
     files = glob.glob(os.path.join(in_dir,'*.parquet'))
+    
     if len(files) == 0:
         return    
+    
     out_file = os.path.join(out_dir, os.path.basename(in_dir.rstrip('/'))+'.parquet')
+    
+    if is_temp := (os.path.exists(out_file) and not replace):
+        files.insert(0,out_file)
+        files = list(set(files))
+        in_file = out_file
+        out_file += '.tmp'
+    
     parquet_merge_files(out_file, files, check_shots=True, rm_src=rm_src)
+    
+    if is_temp:
+        os.replace(out_file, in_file)
     if rm_src:
         shutil.rmtree(in_dir, ignore_errors=True)
     return out_file
