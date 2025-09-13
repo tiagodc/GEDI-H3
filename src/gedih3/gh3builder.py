@@ -94,7 +94,7 @@ def h3_index_df(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowes
     import h3pandas
     return df.reset_index().h3.geo_to_h3(res, lat_col=lat_col, lng_col=lon_col).h3.h3_to_parent(part).reset_index().set_index(df.index.name)
 
-def h3_tmp_files(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode', dir_path=GH3_DEFAULT_TMP_DIR, land_tiles=[]):
+def h3_tmp_files(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode', dir_path=GH3_DEFAULT_TMP_DIR, roi_tiles=[]):
     if df.empty:
         return
     
@@ -103,7 +103,7 @@ def h3_tmp_files(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowe
     
     files = []
     for i in df.index.unique():
-        if len(land_tiles) > 0 and i not in land_tiles:
+        if len(roi_tiles) > 0 and i not in roi_tiles:
             continue
         
         hex_path = os.path.join(dir_path,i)        
