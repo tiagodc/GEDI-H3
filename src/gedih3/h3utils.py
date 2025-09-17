@@ -1,6 +1,6 @@
 import h3
 from shapely.geometry import Polygon
-import antimeridian
+from antimeridian import fix_polygon
 
 def get_all_h3_hexagons(resolution):
     """Get all H3 hexagons at a given resolution level"""
@@ -32,5 +32,5 @@ def fix_h3_geometry(hex='805bfffffffffff'):
     polygon = Polygon([(lon, lat) for lat, lon in boundary_coords])
     
     # Fix antimeridian crossing
-    fixed_geometry = antimeridian.fix_polygon(polygon)
+    fixed_geometry = fix_polygon(polygon)
     return fixed_geometry
