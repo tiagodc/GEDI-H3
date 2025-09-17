@@ -10,7 +10,7 @@ import warnings
 from pqdm.processes import pqdm
 
 # Import configuration variables
-from config import DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS
+from config import GH3_DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS
 from utils import read_vector_file
 from gedidriver import GEDIFile, soc_file_tree, gedi_subset, dask_h5_merged
 
@@ -173,7 +173,7 @@ class GEDIAccessor:
 
 def download_granule(granule, odir: str = None, subset_vars: List[str] = None):
     gfile = GEDIFile(granule.data_links()[0])
-    odir_soc = os.path.join(odir, 'soc', str(gfile.date.year), gfile.date.strftime('%j'))
+    odir_soc = os.path.join(odir, str(gfile.date.year), gfile.date.strftime('%j'))
     os.makedirs(odir_soc, exist_ok=True)
     opath = earthaccess.download(granule, odir_soc, threads=1, pqdm_kwargs={'disable': True})
     
@@ -206,7 +206,7 @@ def gedi_download(product_vars: Dict, odir: str = None, spatial = None, temporal
         
         if odir is None:
             opaths = gass.link_s3(product=prod)
-        else:        
+        else:
             download_func = partial(download_granule, odir=odir, subset_vars=vars)
             opaths = pqdm(granules, download_func, n_jobs=n_jobs)
         

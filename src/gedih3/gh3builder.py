@@ -6,9 +6,10 @@ import pyarrow.parquet as pq
 import pandas as pd
 import h3pandas
 import dask.dataframe
-    
+
 from config import GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR
 from gedidriver import soc_file_tree, dask_h5_merged
+from daac import gedi_download
 
 def parquet_append_rows(df: pd.DataFrame, f: str, id_col: str = 'shot_number', tmp_suffix: str = '.row.tmp'):    
     parquet_file = pq.ParquetFile(f)
@@ -148,26 +149,60 @@ def h3_merge_files(in_dir, out_dir=GH3_DEFAULT_H3_DIR, rm_src=True, replace=Fals
         shutil.rmtree(in_dir, ignore_errors=True)
     return out_file
 
-def _testit():
+def _testit(odir=None):
+    from datetime import datetime
     from dask.distributed import Client, progress
-    with Client() as client:
+    import psutil
+    print("building from S3")
+    t0 = datetime.now()
+    print("process started at", t0)
+
+    # Track network I/O
+    net_io_start = psutil.net_io_counters()
+    print(f"Initial network stats - Sent: {net_io_start.bytes_sent / (1024**3):.3f} GB, Recv: {net_io_start.bytes_recv / (1024**3):.3f} GB")
+
+    n_jobs=10
+    
+    product_vars = {'L1B': ['minimal'], 'L2A': ['minimal'], 'L4A': ['minimal'], 'L4C': ['*']}
+    spatial = [-50.5,0.5,-50,1]
+    temporal = ('2020-01-01','2020-07-01')
+    
+    print('... downloading')
+    d = gedi_download(product_vars, odir, spatial=spatial, temporal=temporal, n_jobs=n_jobs, to_list=True)
+    
+    with Client(n_workers=n_jobs, threads_per_worker=1) as client:
         print(client.dashboard_link)
         
-        # prod_vars = {'L1B':['rxwaveform'], 'L2A': ['shot_number', 'rh'], 'L4A':['agbd'], 'L4C': ['wsci']}
+        # prod_vars = {'L1B':['rxwaveform'], 'L2A': ['shot_number', 'rh'], 'L4A':['agbd'], 'L4C': ['wsci']}        
         prod_vars = {'L2A': ['shot_number','lon_lowestmode','lat_lowestmode','elev_lowestmode','rh']}
-        all_files = soc_file_tree(GH3_DEFAULT_SOC_DIR, to_list=True)
+        all_files = soc_file_tree(d, to_list=True)
         ddf = dask_h5_merged(all_files, prod_vars)
         
-        print("testing tmp files")    
+        print("... generating tmp files")    
         tmp_files = ddf.map_partitions(h3_tmp_files)
         tmp_files = tmp_files.persist(optimize_graph=False)
         progress(tmp_files)
 
-        print("testing h3 files")    
+        print("... generating h3 files")    
         tmp_h3_dirs = glob.glob(os.path.join(GH3_DEFAULT_TMP_DIR, '*/'))
         h3_files = dask.dataframe.from_map(h3_merge_files, tmp_h3_dirs, rm_src=True)
         h3_files = h3_files.persist(optimize_graph=False)
-        h3_files = progress(h3_files)
-    
+        progress(h3_files)
+
+    t1 = datetime.now()
+    print("process finished at", t1)
+    print(t1 - t0)
+
+    # Calculate network I/O used during the process
+    net_io_end = psutil.net_io_counters()
+    bytes_sent = net_io_end.bytes_sent - net_io_start.bytes_sent
+    bytes_recv = net_io_end.bytes_recv - net_io_start.bytes_recv
+
+    print(f"\nNetwork I/O Summary:")
+    print(f"Downloads: {bytes_recv / (1024**3):.3f} GB")
+    print(f"Uploads: {bytes_sent / (1024**3):.3f} GB")
+    print(f"Total: {(bytes_sent + bytes_recv) / (1024**3):.3f} GB")
+
 if __name__ == '__main__':
-    _testit()
+    # _testit(GH3_DEFAULT_SOC_DIR)  # ~12.5 min
+    _testit() # ~12 min

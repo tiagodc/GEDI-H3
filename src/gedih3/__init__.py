@@ -12,8 +12,8 @@ Main components:
 
 from .daac import GEDIAccessor, search_gedi_data, download_gedi_data
 
-__version__ = "1.0.0"
-__author__ = "GEDI Access Team"
+__version__ = "0.0.1"
+__author__ = ""
 __email__ = ""
 
 # Make key classes and functions available at package level
