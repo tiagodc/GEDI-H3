@@ -74,8 +74,8 @@ def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     return h3_merge_files(in_dir=in_dir, out_dir=out_dir, rm_src=rm_src, replace=replace)
 
 def download_soc(product_vars: Dict, spatial = None, temporal = None, n_jobs=5):
-    if 'l2a' not in product_vars:
-        product_vars = product_vars.update({'l2a': GEDI_L2A_ESSENTIALS})
+    if 'L2A' not in product_vars:
+        product_vars.update({'L2A': GEDI_L2A_ESSENTIALS})
         
     for k,val in product_vars.items():
         if 'shot_number' not in val:
@@ -83,7 +83,7 @@ def download_soc(product_vars: Dict, spatial = None, temporal = None, n_jobs=5):
     
     return gedi_download(product_vars=product_vars, odir=GH3_DEFAULT_SOC_DIR, spatial=spatial, temporal=temporal, n_jobs=n_jobs, to_list=True)
 
-def build_h3db_from_soc(gedi_prod_level='l4c', h3_vars=['wsci'], res=12, part=3, spatial=[-50.5,0.5,-50,1]):
+def build_h3db_from_soc(gedi_prod_level='l4c', h3_vars=['wsci'], res=12, part=3, spatial=None):
     pl = gedi_prod_level.upper()
     build_vars = {}
     if pl == 'L2A':
