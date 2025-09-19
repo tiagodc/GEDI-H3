@@ -1,103 +1,23 @@
 import os, re, glob
 import shutil
-import numpy as np
-import pyarrow as pa
-import pyarrow.parquet as pq
 import pandas as pd
 import h3pandas
+import dask
 import dask.dataframe
+from typing import Union, List, Dict, Optional, Tuple, Any
+from dask.distributed import progress
 
-from config import GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR
+from config import GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS
+from utils import parquet_append_columns, parquet_append_rows, parquet_merge_files
+from h3utils import intersect_h3_geometries
 from gedidriver import soc_file_tree, dask_h5_merged
 from daac import gedi_download
-
-def parquet_append_rows(df: pd.DataFrame, f: str, id_col: str = 'shot_number', tmp_suffix: str = '.row.tmp'):    
-    parquet_file = pq.ParquetFile(f)
-    
-    if id_col:
-        idx = parquet_file.read([id_col]).to_pandas().values.flatten()
-        df = df[~df[id_col].isin(idx)]
-    
-    if df.empty:
-        return
-    
-    new_table = pa.Table.from_pandas(df)
-    
-    temp_f = f + tmp_suffix
-    with pq.ParquetWriter(temp_f, parquet_file.schema.to_arrow_schema()) as writer:
-        for batch in parquet_file.iter_batches():
-            writer.write_batch(batch)        
-        writer.write_table(new_table)
-    
-    os.replace(temp_f, f)
-
-def parquet_append_columns(df: pd.DataFrame, f: str, tmp_suffix:str = '.col.tmp'):
-    parquet_file = pq.ParquetFile(f)
-    new_table = pa.Table.from_pandas(df)
-    
-    existing_schema = parquet_file.schema.to_arrow_schema()
-    existing_fields = list(existing_schema)
-    new_fields = [field for field in new_table.schema if field.name not in existing_schema.names]
-    combined_schema = pa.schema(existing_fields + new_fields)
-
-    temp_f = f + tmp_suffix
-    with pq.ParquetWriter(temp_f, combined_schema) as writer:
-        for batch in parquet_file.iter_batches():
-            batch_dict = batch.to_pydict()
-            for field in new_table.schema:
-                if field.name not in batch.schema.names:
-                    batch_dict[field.name] = [None] * len(batch)
-            writer.write_batch(pa.RecordBatch.from_pydict(batch_dict, combined_schema))
-
-        new_batch_dict = new_table.to_pydict()
-        for field in existing_schema:
-            if field.name not in new_table.schema.names:
-                new_batch_dict[field.name] = [None] * len(new_table)
-        writer.write_batch(pa.RecordBatch.from_pydict(new_batch_dict, combined_schema))
-    
-    os.replace(temp_f, f)
-
-def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False):
-    shots = np.array([], dtype=np.uint64)
-    pqwriter = None
-    schema = None
-    
-    try:
-        for f in flist:
-            if not os.path.exists(f):
-                continue
-                
-            parquet_file = pq.ParquetFile(f)            
-            if schema is None:
-                schema = parquet_file.schema.to_arrow_schema()
-                pqwriter = pq.ParquetWriter(ofile, schema)
-            
-            for batch in parquet_file.iter_batches():
-                df = batch.to_pandas()
-                
-                if check_shots and 'shot_number' in df.columns:
-                    new_shots = df['shot_number'].values.astype(np.uint64)
-                    mask = ~np.isin(new_shots, shots)
-                    df = df[mask]
-                    shots = np.concatenate([shots, new_shots[mask]])
-                
-                if len(df) > 0:
-                    table = pa.Table.from_pandas(df)
-                    table = table.cast(schema)
-                    pqwriter.write_table(table)
-            
-            if rm_src:
-                os.unlink(f)
-        
-    finally:
-        if pqwriter is not None:
-            pqwriter.close()
 
 def h3_index_df(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode'):
     import h3pandas
     return df.reset_index().h3.geo_to_h3(res, lat_col=lat_col, lng_col=lon_col).h3.h3_to_parent(part).reset_index().set_index(df.index.name)
 
-def h3_tmp_files(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode', dir_path=GH3_DEFAULT_TMP_DIR, roi_tiles=[]):
+def h3_tmp_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode', roi_tiles=[]):
     if df.empty:
         return
     
@@ -127,7 +47,7 @@ def h3_tmp_files(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowe
     del df    
     return files
 
-def h3_merge_files(in_dir, out_dir=GH3_DEFAULT_H3_DIR, rm_src=True, replace=False):
+def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     files = glob.glob(os.path.join(in_dir,'*.parquet'))
     
     if len(files) == 0:
@@ -148,6 +68,65 @@ def h3_merge_files(in_dir, out_dir=GH3_DEFAULT_H3_DIR, rm_src=True, replace=Fals
     if rm_src:
         shutil.rmtree(in_dir, ignore_errors=True)
     return out_file
+
+@dask.delayed
+def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
+    return h3_merge_files(in_dir=in_dir, out_dir=out_dir, rm_src=rm_src, replace=replace)
+
+def download_soc(product_vars: Dict, spatial = None, temporal = None, n_jobs=5):
+    if 'l2a' not in product_vars:
+        product_vars = product_vars.update({'l2a': GEDI_L2A_ESSENTIALS})
+        
+    for k,val in product_vars.items():
+        if 'shot_number' not in val:
+            val.append('shot_number')
+    
+    return gedi_download(product_vars=product_vars, odir=GH3_DEFAULT_SOC_DIR, spatial=spatial, temporal=temporal, n_jobs=n_jobs, to_list=True)
+
+def build_h3db_from_soc(gedi_prod_level='l4c', h3_vars=['wsci'], res=12, part=3, spatial=[-50.5,0.5,-50,1]):
+    pl = gedi_prod_level.upper()
+    build_vars = {}
+    if pl == 'L2A':
+        build_vars[pl] = list(set(h3_vars + GEDI_L2A_ESSENTIALS))
+    else:
+        build_vars[pl] = h3_vars
+        build_vars['L2A'] = GEDI_L2A_ESSENTIALS
+    
+    all_soc_files = soc_file_tree(GH3_DEFAULT_SOC_DIR, to_list=True)
+    soc_files = [{k:val for k,val in i.items() if k in build_vars} for i in all_soc_files]
+        
+    ddf = dask_h5_merged(soc_files, build_vars, shots=None, dropna=True)
+    
+    lat_col='lat_lowestmode'
+    lon_col='lon_lowestmode'
+    
+    if 'lat_lowestmode_l2a' in ddf.columns:
+        lat_col+='_l2a'
+    if 'lon_lowestmode_l2a' in ddf.columns:
+        lon_col+='_l2a'
+    
+    h3_tiles = []
+    if spatial is not None:
+        h3_tiles = intersect_h3_geometries(spatial, res=part)
+
+    tmp_dir = os.path.join(GH3_DEFAULT_TMP_DIR, gedi_prod_level.lower())
+    os.makedirs(tmp_dir, exist_ok=True)
+    
+    tmp_files = ddf.map_partitions(h3_tmp_files, res=res, part=part, lat_col=lat_col, lon_col=lon_col, dir_path=tmp_dir, roi_tiles=h3_tiles, meta=pd.Series([], dtype=str))
+    tmp_files = tmp_files.to_delayed()
+    tmp_files = dask.persist(*tmp_files, optimize_graph=False)
+    progress(tmp_files)
+    
+    tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/'))
+    h3_dir = os.path.join(GH3_DEFAULT_H3_DIR, gedi_prod_level.lower())
+    os.makedirs(h3_dir, exist_ok=True)
+        
+    h3_files = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in tmp_h3_dirs]
+    h3_files = dask.persist(*h3_files, optimize_graph=False)
+    progress(h3_files)
+    
+    return list(dask.compute(*h3_files))
+        
 
 def _testit(odir=None):
     from datetime import datetime

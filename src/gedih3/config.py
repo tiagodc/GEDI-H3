@@ -32,10 +32,10 @@ def configure_environment():
 
 configure_environment()
 
-# GEDI mission start date
 GEDI_START_DATE = datetime.strptime('2018-01-01', '%Y-%m-%d')
 
-# GEDI product information with DOIs, DAACs, versions, and formats
+GEDI_L2A_ESSENTIALS = ['shot_number','delta_time','quality_flag','lat_lowestmode','lon_lowestmode','elev_lowestmode']
+
 GEDI_PRODUCTS = {
     'L1B': {
         'doi': '10.5067/GEDI/GEDI01_B.002', 
@@ -51,7 +51,7 @@ GEDI_PRODUCTS = {
         'version': 2, 
         'format': '.h5',
         'description': 'Elevation and height metrics',
-        'default_vars': ['shot_number','rh','lat_lowestmode','lon_lowestmode','elev_lowestmode']
+        'default_vars': GEDI_L2A_ESSENTIALS + ['rh']
     },
     'L2B': {
         'doi': '10.5067/GEDI/GEDI02_B.002', 

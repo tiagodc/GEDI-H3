@@ -1,6 +1,10 @@
+import os
 import logging
 import getpass
 import h5py
+import numpy as np
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pandas as pd
 import geopandas as gpd
 from shapely.ops import orient
@@ -66,9 +70,6 @@ def h5_copy_subset(source_file, dest_file, variables):
                 src.copy(name, dst, name=f"/{name}", expand_soft=True, expand_refs=True)
         src.visit_links(copy_item)
 
-def is_parquet(file: str) -> bool:
-    return file.lower().endswith(('.parquet','.parq','.pq'))
-
 def read_vector_file(filepath: str, crs: Union[str, int] = 4326) -> gpd.GeoDataFrame:
     gdf = gpd.read_parquet(filepath) if is_parquet(filepath) else gpd.read_file(filepath) 
     if crs is not None:
@@ -88,3 +89,87 @@ def read_as_geojson(geofile: str, box_only: bool = False) -> Dict:
     geojson = to_geojson(roi)
     return geojson
 
+def is_parquet(file: str) -> bool:
+    return file.lower().endswith(('.parquet','.parq','.pq'))
+
+def parquet_append_rows(df: pd.DataFrame, f: str, id_col: str = 'shot_number', tmp_suffix: str = '.row.tmp'):    
+    parquet_file = pq.ParquetFile(f)
+    
+    if id_col:
+        idx = parquet_file.read([id_col]).to_pandas().values.flatten()
+        df = df[~df[id_col].isin(idx)]
+    
+    if df.empty:
+        return
+    
+    new_table = pa.Table.from_pandas(df)
+    
+    temp_f = f + tmp_suffix
+    with pq.ParquetWriter(temp_f, parquet_file.schema.to_arrow_schema()) as writer:
+        for batch in parquet_file.iter_batches():
+            writer.write_batch(batch)        
+        writer.write_table(new_table)
+    
+    os.replace(temp_f, f)
+
+def parquet_append_columns(df: pd.DataFrame, f: str, tmp_suffix:str = '.col.tmp'):
+    parquet_file = pq.ParquetFile(f)
+    new_table = pa.Table.from_pandas(df)
+    
+    existing_schema = parquet_file.schema.to_arrow_schema()
+    existing_fields = list(existing_schema)
+    new_fields = [field for field in new_table.schema if field.name not in existing_schema.names]
+    combined_schema = pa.schema(existing_fields + new_fields)
+
+    temp_f = f + tmp_suffix
+    with pq.ParquetWriter(temp_f, combined_schema) as writer:
+        for batch in parquet_file.iter_batches():
+            batch_dict = batch.to_pydict()
+            for field in new_table.schema:
+                if field.name not in batch.schema.names:
+                    batch_dict[field.name] = [None] * len(batch)
+            writer.write_batch(pa.RecordBatch.from_pydict(batch_dict, combined_schema))
+
+        new_batch_dict = new_table.to_pydict()
+        for field in existing_schema:
+            if field.name not in new_table.schema.names:
+                new_batch_dict[field.name] = [None] * len(new_table)
+        writer.write_batch(pa.RecordBatch.from_pydict(new_batch_dict, combined_schema))
+    
+    os.replace(temp_f, f)
+
+def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False):
+    shots = np.array([], dtype=np.uint64)
+    pqwriter = None
+    schema = None
+    
+    try:
+        for f in flist:
+            if not os.path.exists(f):
+                continue
+                
+            parquet_file = pq.ParquetFile(f)            
+            if schema is None:
+                schema = parquet_file.schema.to_arrow_schema()
+                pqwriter = pq.ParquetWriter(ofile, schema)
+            
+            for batch in parquet_file.iter_batches():
+                df = batch.to_pandas()
+                
+                if check_shots and 'shot_number' in df.columns:
+                    new_shots = df['shot_number'].values.astype(np.uint64)
+                    mask = ~np.isin(new_shots, shots)
+                    df = df[mask]
+                    shots = np.concatenate([shots, new_shots[mask]])
+                
+                if len(df) > 0:
+                    table = pa.Table.from_pandas(df)
+                    table = table.cast(schema)
+                    pqwriter.write_table(table)
+            
+            if rm_src:
+                os.unlink(f)
+        
+    finally:
+        if pqwriter is not None:
+            pqwriter.close()

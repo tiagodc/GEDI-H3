@@ -1,6 +1,9 @@
 import h3
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, MultiPolygon, box
 from antimeridian import fix_polygon
+import pandas as pd
+import geopandas as gpd
+import h3pandas
 
 def get_all_h3_hexagons(resolution):
     """Get all H3 hexagons at a given resolution level"""
@@ -26,7 +29,7 @@ def iter_all_h3_hexagons(resolution):
         for child in children:
             yield child
 
-def fix_h3_geometry(hex='805bfffffffffff'):
+def fix_h3_geometry(hex='835b98fffffffff'):
     """Using the antimeridian package for robust handling."""
     boundary_coords = h3.cell_to_boundary(hex)    
     polygon = Polygon([(lon, lat) for lat, lon in boundary_coords])
@@ -34,3 +37,20 @@ def fix_h3_geometry(hex='805bfffffffffff'):
     # Fix antimeridian crossing
     fixed_geometry = fix_polygon(polygon)
     return fixed_geometry
+
+def intersect_h3_geometries(spatial, res):
+    if isinstance(spatial, list):
+        spatial = box(*spatial)
+    elif isinstance(spatial, gpd.GeoSeries) or isinstance(spatial, gpd.GeoDataFrame):
+        spatial = spatial.to_crs(4326)
+        
+    full_h3_list = get_all_h3_hexagons(res)
+    full_h3_geo = [fix_h3_geometry(i) for i in full_h3_list]
+    h3_geo = gpd.GeoSeries(full_h3_geo, index=full_h3_list, crs=4326)
+    
+    h3_intersects = h3_geo.geometry.apply(lambda x: spatial.intersects(x))
+    return h3_intersects[h3_intersects].index.tolist()
+    
+
+
+    
