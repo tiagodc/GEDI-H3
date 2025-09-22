@@ -8,11 +8,12 @@ import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon
 import warnings
 from pqdm.processes import pqdm
+from dask.distributed import progress
 
 # Import configuration variables
 from config import GH3_DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS
-from utils import read_vector_file
-from gedidriver import GEDIFile, soc_file_tree, gedi_subset, dask_h5_merged
+from utils import read_vector_file, geo_to_umm
+from gedidriver import GEDIFile, soc_file_tree, gedi_subset, dask_h5_merged, gedi_vars_expand
 
 class GEDIAccessor:
     """Main class for accessing GEDI data through various methods"""
@@ -24,6 +25,7 @@ class GEDIAccessor:
         self.product_files = {}
         
         if spatial is not None:
+            self.is_bounding_box = False
             self.spatial = self._process_spatial_filter(spatial)
         
         if temporal is not None:
@@ -69,17 +71,20 @@ class GEDIAccessor:
         if product.upper() not in GEDI_PRODUCTS:
             raise ValueError(f"Product must be one of: {list(GEDI_PRODUCTS.keys())}")
         
-        self.product = GEDI_PRODUCTS[product.upper()]        
+        self.product = GEDI_PRODUCTS[product.upper()]
         
         # Build search parameters
         search_params = {"doi": self.product['doi']}
 
         # Handle spatial filtering
         if hasattr(self, 'spatial'):
-            search_params["bounding_box"] = self.spatial
+            if self.is_bounding_box:
+                search_params["bounding_box"] = self.spatial
+            else:
+                search_params["polygon"] = self.spatial
 
         # Handle temporal filtering
-        if hasattr(self, 'spatial'):
+        if hasattr(self, 'temporal'):
             search_params["temporal"] = self.temporal
 
         # Add any additional parameters
@@ -96,18 +101,14 @@ class GEDIAccessor:
     def _process_spatial_filter(self, spatial) -> Optional[Tuple[float, float, float, float]]:
         try:
             if isinstance(spatial, list) and len(spatial) == 4:
+                self.is_bounding_box = True
                 return tuple(spatial)
             
             elif isinstance(spatial, str):
                 if spatial.lower().endswith(('.shp', '.geojson', '.json', '.parquet')):
-                    gdf = read_vector_file(spatial)
-                    return tuple(gdf.total_bounds)
+                    spatial = read_vector_file(spatial)
             
-            elif isinstance(spatial, gpd.GeoDataFrame):
-                return tuple(spatial.total_bounds)
-            
-            elif isinstance(spatial, Polygon):
-                return spatial.bounds
+            return geo_to_umm(spatial)
             
         except Exception as e:
             warnings.warn(f"Could not process spatial filter: {e}")
@@ -192,23 +193,25 @@ def download_granule(granule, odir: str = None, subset_vars: List[str] = None):
             
     return opath
 
-def gedi_download(product_vars: Dict, odir: str = None, spatial = None, temporal = None, n_jobs=5, to_list=False):
+def gedi_download(product_vars: Dict, odir: str = None, spatial = None, temporal = None, n_jobs=5, to_list=False, dask_client=None):
     gass = GEDIAccessor(authenticate=True, spatial=spatial, temporal=temporal)
     
     prod_paths = {}
+    gedi_vars_expand(product_vars)
+    
     for prod, vars in product_vars.items():
-        if "minimal" in vars:
-            vars = GEDI_PRODUCTS[prod]['default_vars']
-        elif "*" in vars or "all" in vars:
-            vars = None
-        
         granules = gass.search_data(product=prod)
         
         if odir is None:
             opaths = gass.link_s3(product=prod)
         else:
             download_func = partial(download_granule, odir=odir, subset_vars=vars)
-            opaths = pqdm(granules, download_func, n_jobs=n_jobs)
+            if dask_client is not None:
+                futures = dask_client.map(download_func, granules)
+                progress(futures)
+                opaths = dask_client.gather(futures)
+            else:
+                opaths = pqdm(granules, download_func, n_jobs=n_jobs)
         
         prod_paths[prod] = opaths
     
@@ -223,7 +226,6 @@ def _testit():
     spatial = [-50.5,0.5,-50,1]
     temporal = ('2020-01-01','2020-07-01')
     # producer_granule_id
-    # polygon
     n_jobs=10
     
     print("testing gedi_download()")    

@@ -1,6 +1,7 @@
 import os
 import logging
 import getpass
+import json
 import h5py
 import numpy as np
 import pyarrow as pa
@@ -8,6 +9,7 @@ import pyarrow.parquet as pq
 import pandas as pd
 import geopandas as gpd
 from shapely.ops import orient
+from shapely.geometry.base import BaseGeometry
 from typing import Union, List, Dict, Optional, Tuple, Any
 
 def set_logger(filename:str=None, level=logging.INFO):
@@ -25,6 +27,20 @@ def set_logger(filename:str=None, level=logging.INFO):
         datefmt='%Y-%m-%d %H:%M:%S %Z',
         handlers=handlers
     )
+
+def json_write(obj, path, mode='w', rewrite=False):
+    if os.path.isfile(path) and not rewrite:
+        obj = json_read(path) | obj
+    with open(path, mode) as file:
+        json.dump(obj, file)
+
+def json_read(path, mode='r'):
+    with open(path, mode) as f:
+        obj = json.load(f)
+        return obj
+
+def is_parquet(file: str) -> bool:
+    return file.lower().endswith(('.parquet','.parq','.pq'))
 
 def h5_traverse(h5_file, root=None):
     def h5py_dataset_iterator(g, prefix=''):
@@ -71,15 +87,37 @@ def h5_copy_subset(source_file, dest_file, variables):
         src.visit_links(copy_item)
 
 def read_vector_file(filepath: str, crs: Union[str, int] = 4326) -> gpd.GeoDataFrame:
-    gdf = gpd.read_parquet(filepath) if is_parquet(filepath) else gpd.read_file(filepath) 
+    geodf = gpd.read_parquet(filepath) if is_parquet(filepath) else gpd.read_file(filepath) 
     if crs is not None:
-        gdf = gdf.to_crs(crs)
-    return gdf
-    
+        geodf = geodf.to_crs(crs)
+    return geodf
+
+def geo_to_umm(obj, simplify_tol: float = 0.01):
+    """
+    Converts a GeoDataFrame or a shapely Polygon to a UMM-style list of coordinates.
+    """   
+    if isinstance(obj, gpd.GeoDataFrame):
+        bounds = obj.geometry.apply(orient, args=(1,))
+        xy = bounds.simplify(simplify_tol).get_coordinates()
+        geo_umm = list(zip(xy.x, xy.y))
+    elif isinstance(obj, BaseGeometry):
+        oriented_geom = orient(obj, 1)
+        simplified_geom = oriented_geom.simplify(simplify_tol)
+        coords = simplified_geom.exterior.coords
+        geo_umm = list(coords)
+    else:
+        raise TypeError(f"Unsupported type: {type(obj)}")
+        
+    return geo_umm
+
 def to_geojson(geodf: gpd.GeoDataFrame) -> Dict:
     geodf.geometry = geodf.geometry.apply(orient, args=(1,))
     geojson = {"shapefile": ("roi.geojson", geodf.geometry.to_json(), "application/geo+json")}
     return geojson
+
+def from_geojson(geojson: Dict) -> gpd.GeoDataFrame:
+    geojson_str = geojson['shapefile'][1]
+    return gpd.read_file(geojson_str)
 
 def read_as_geojson(geofile: str, box_only: bool = False) -> Dict:
     roi = read_vector_file(geofile, crs=4326) 
@@ -88,9 +126,6 @@ def read_as_geojson(geofile: str, box_only: bool = False) -> Dict:
         roi = gpd.GeoDataFrame(geometry=[box(*roi.total_bounds)], columns=['geometry'], crs=roi.crs)
     geojson = to_geojson(roi)
     return geojson
-
-def is_parquet(file: str) -> bool:
-    return file.lower().endswith(('.parquet','.parq','.pq'))
 
 def parquet_append_rows(df: pd.DataFrame, f: str, id_col: str = 'shot_number', tmp_suffix: str = '.row.tmp'):    
     parquet_file = pq.ParquetFile(f)

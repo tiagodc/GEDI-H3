@@ -8,7 +8,7 @@ import dask.dataframe
 from earthaccess.store import EarthAccessFile
 
 from config import GEDI_PRODUCTS
-from utils import h5_copy_subset
+from utils import h5_copy_subset, h5_info
 
 def soc_prod_from_file(file_path):
     f = GEDIFile(file_path)
@@ -70,6 +70,21 @@ def gedi_file_glob(orbit, orbit_granule, track, product: int=1, level: str='B', 
     ver_str = str_build(version, 3)
     ppd_str = str_build(ppds)    
     return f"GEDI{prd_str}_{lev_str}_*_O{orb_str}_{ogr_str}_T{trk_str}_{ppd_str}_{pge_str}_{gen_str}_V{ver_str}*.h5"
+
+def gedi_vars_expand(product_vars):
+    for prod, vars in product_vars.items():
+        if vars is None:
+            continue
+        if "minimal" in vars:
+            product_vars[prod] = GEDI_PRODUCTS[prod]['default_vars']
+        elif "*" in vars or "all" in vars:
+            product_vars[prod] = None
+
+def gedi_vars_from_h5(gedi_file):
+    with h5py.File(gedi_file, 'r') as f:
+        b = [i for i in f.keys() if i.upper().startswith('BEAM')][0]            
+    pl_info = h5_info(gedi_file, root=b)
+    return pl_info.path.str.replace(b,'').str.lstrip('/').tolist()
 
 class GEDIFile:
     def __init__(self, file_path):
