@@ -331,7 +331,7 @@ def load_h5(fpath, columns, which_beams=None, shots=None, include_source=True, d
 
         dfs = {}
         for j in columns:
-            if j == 'rxwaveform' or j == 'txwaveform':
+            if is_wave := (j == 'rxwaveform' or j == 'txwaveform'):
                 is_tx = j == 'txwaveform'
                 d = wfm_extract(f, k, idx, is_tx)
             else:
@@ -339,7 +339,7 @@ def load_h5(fpath, columns, which_beams=None, shots=None, include_source=True, d
                             
             if d.ndim == 2:
                 for col in range(d.shape[-1]):
-                    jj = f"{j}_{col:03d}"
+                    jj = f"{j}_{col:0{4 if is_wave else 3}d}"
                     dfs[jj] = d[:,col]
             else:
                 dfs[j] = d

@@ -212,7 +212,7 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False):
         if pqwriter is not None:
             pqwriter.close()
 
-def parse_gedi_args(args):    
+def parse_gedi_args(args):
     prod_vars = {}
     for k in GEDI_PRODUCTS.keys():
         if hasattr(args, k.lower()):
