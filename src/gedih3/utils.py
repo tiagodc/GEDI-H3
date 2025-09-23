@@ -140,7 +140,7 @@ def parquet_append_rows(df: pd.DataFrame, f: str, id_col: str = 'shot_number', t
     new_table = pa.Table.from_pandas(df)
     
     temp_f = f + tmp_suffix
-    with pq.ParquetWriter(temp_f, parquet_file.schema.to_arrow_schema()) as writer:
+    with pq.ParquetWriter(temp_f, parquet_file.schema.to_arrow_schema(), compression='zstd') as writer:
         for batch in parquet_file.iter_batches():
             writer.write_batch(batch)        
         writer.write_table(new_table)
@@ -157,7 +157,7 @@ def parquet_append_columns(df: pd.DataFrame, f: str, tmp_suffix:str = '.col.tmp'
     combined_schema = pa.schema(existing_fields + new_fields)
 
     temp_f = f + tmp_suffix
-    with pq.ParquetWriter(temp_f, combined_schema) as writer:
+    with pq.ParquetWriter(temp_f, combined_schema, compression='zstd') as writer:
         for batch in parquet_file.iter_batches():
             batch_dict = batch.to_pydict()
             for field in new_table.schema:
@@ -186,10 +186,11 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False):
             parquet_file = pq.ParquetFile(f)            
             if schema is None:
                 schema = parquet_file.schema.to_arrow_schema()
-                pqwriter = pq.ParquetWriter(ofile, schema)
+                pqwriter = pq.ParquetWriter(ofile, schema, compression='zstd')
             
             for batch in parquet_file.iter_batches():
                 df = batch.to_pandas()
+                idx_name = df.index.name
                 
                 if check_shots and 'shot_number' in df.columns:
                     new_shots = df['shot_number'].values.astype(np.uint64)
@@ -198,8 +199,8 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False):
                     shots = np.concatenate([shots, new_shots[mask]])
                 
                 if len(df) > 0:
-                    table = pa.Table.from_pandas(df)
-                    table = table.cast(schema)
+                    df = df.reset_index()[schema.names].set_index(idx_name)
+                    table = pa.Table.from_pandas(df, schema=schema)
                     pqwriter.write_table(table)
             
             if rm_src:

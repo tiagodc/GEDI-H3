@@ -33,7 +33,7 @@ def configure_environment():
 configure_environment()
 
 GEDI_START_DATE = datetime.strptime('2018-01-01', '%Y-%m-%d')
-
+GEDI_BEAMS = ['BEAM0000','BEAM0001','BEAM0010','BEAM0011','BEAM0101','BEAM0110','BEAM1000','BEAM1011']
 GEDI_L2A_ESSENTIALS = ['shot_number','delta_time','quality_flag','lat_lowestmode','lon_lowestmode','elev_lowestmode']
 
 GEDI_PRODUCTS = {

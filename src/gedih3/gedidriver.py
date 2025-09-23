@@ -1,4 +1,5 @@
 import os, h5py, re, glob, yaml, dask
+import itertools
 from typing import Union
 import numpy as np
 import pandas as pd
@@ -7,7 +8,7 @@ from datetime import datetime
 import dask.dataframe
 from earthaccess.store import EarthAccessFile
 
-from config import GEDI_PRODUCTS
+from config import GEDI_PRODUCTS, GEDI_BEAMS
 from utils import h5_copy_subset, h5_info
 
 def soc_prod_from_file(file_path):
@@ -233,7 +234,7 @@ def wfm_extract(h5_file, beam, idx, tx=False):
     
     return process_waveforms(starts, ends, noises, wfs)
 
-def load_h5(fpath, columns, include_source=True, shots=None, dropna=True):
+def load_h5(fpath, columns, which_beams=None, shots=None, include_source=True, dropna=True):
     f = h5py.File(fpath, 'r')
     if 'shot_number' not in columns:
         columns.append('shot_number')
@@ -246,11 +247,18 @@ def load_h5(fpath, columns, include_source=True, shots=None, dropna=True):
         columns += ['noise_mean_corrected','tx_sample_start_index','tx_sample_count']
         columns = list(set(columns))    
     
+    beams = all_beams = [k for k in f.keys() if k.startswith('BEAM')]
+    
     if shots is not None:
         shot_beams = np.uint16(shots % 10000000000000 // 100000000000)
         beams = [f'BEAM{b:04b}' for b in np.unique(shot_beams)]
-    else:
-        beams = [k for k in f.keys() if k.startswith('BEAM')]
+        
+    if which_beams is not None:
+        beams = [b for b in beams if b in which_beams]
+        
+    if len(beams) == 0:
+        f.close()
+        return load_h5(fpath=fpath, columns=columns, include_source=include_source, which_beams=all_beams[[0]]).head(0)
   
     full_df = []
     for k in beams:
@@ -288,7 +296,7 @@ def load_h5(fpath, columns, include_source=True, shots=None, dropna=True):
     
     f.close()    
     full_df = pd.concat(full_df)
-    full_df = full_df.set_index('shot_number')    
+    full_df = full_df.set_index('shot_number')
     
     if include_source:
         full_df['root_file'] = os.path.basename(fpath.path if isinstance(fpath, EarthAccessFile) else fpath)        
@@ -298,7 +306,7 @@ def load_h5(fpath, columns, include_source=True, shots=None, dropna=True):
     
     return full_df
 
-def load_h5_merged(prod_files, prod_vars, shots=None, dropna=True):
+def load_h5_merged(prod_files, prod_vars, which_beams=None, shots=None, dropna=True):
     df = None
     for i, (p, vars) in enumerate(prod_vars.items()):
         ppath = prod_files.get(p)
@@ -306,15 +314,25 @@ def load_h5_merged(prod_files, prod_vars, shots=None, dropna=True):
         if ppath is None:
             continue
         
-        idf = load_h5(fpath=ppath, columns=vars, include_source = i==0, shots=shots, dropna=dropna)
+        idf = load_h5(fpath=ppath, columns=vars, include_source = i==0, which_beams=which_beams, shots=shots, dropna=dropna)
         if df is None:
             df = idf
         else:
             df = df.join(idf, how='inner', rsuffix=f"_{p.lower()}")
     return df
 
-def dask_h5_merged(prod_files_list, prod_vars, shots=None, dropna=True):
-    return dask.dataframe.from_map(load_h5_merged, prod_files_list, shots=shots, prod_vars=prod_vars, dropna=dropna)
+def dask_h5_merged(prod_files_list, prod_vars, which_beams=None, shots=None, dropna=True, by_beam=False):
+    if by_beam:
+        beams = GEDI_BEAMS if which_beams is None else which_beams        
+        
+        def load_by_beam(pfiles_beam_tuple, prod_vars, shots, dropna):
+            pfiles, beam = pfiles_beam_tuple
+            return load_h5_merged(pfiles, prod_vars=prod_vars, which_beams=[beam], shots=shots, dropna=dropna)
+
+        file_beam_combinations = list(itertools.product(prod_files_list, beams))        
+        return dask.dataframe.from_map(load_by_beam, file_beam_combinations, prod_vars=prod_vars, shots=shots,dropna=dropna)                            
+    
+    return dask.dataframe.from_map(load_h5_merged, prod_files_list, which_beams=which_beams, shots=shots, prod_vars=prod_vars, dropna=dropna)
 
 def _testit():
     soc_dir = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/soc'    

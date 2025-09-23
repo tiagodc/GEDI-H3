@@ -9,7 +9,7 @@ from typing import Union, List, Dict, Optional, Tuple, Any
 from dask.distributed import progress
 
 from config import GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS
-from utils import parquet_append_columns, parquet_merge_files, json_write, read_vector_file, to_geojson, read_as_geojson
+from utils import parquet_append_columns, parquet_merge_files, json_read, json_write, read_vector_file, to_geojson, read_as_geojson
 from h3utils import intersect_h3_geometries
 from gedidriver import soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5
 from daac import gedi_download
@@ -19,12 +19,25 @@ class H3BuildLogger:
 
     def __init__(self, odir, prod_vars, res=12, part=3, spatial=None, temporal=None):
         self.odir = odir
-        self.prod_vars = prod_vars
-        self.res = res
-        self.part = part
-        self.temporal = temporal
-        self.status = 'INITIALIZED'
-        self.spatial = self._process_spatial(spatial)
+        
+        self.log_file = os.path.join(self.odir, 'build_log.json')
+        log_data = {}            
+        if os.path.exists(self.log_file):
+            log_data = json_read(self.log_file)
+        
+        self.prod_vars = log_data.get('product_variables', prod_vars)
+        self.res = log_data.get('h3_resolution', res)
+        self.part = log_data.get('h3_partition', part)
+        self.temporal = log_data.get('temporal_filter', temporal)
+        self.spatial = log_data.get('spatial_filter', self._process_spatial(spatial))
+        self.status = log_data.get('status', 'INITIALIZED')
+        
+        if 'orbit_limits' in log_data:
+            self.orbit_limits = log_data['orbit_limits']
+        if 'date_range' in log_data:
+            self.date_range = log_data['date_range']
+        if 'building_product_level' in log_data:
+            self.building_product_level = log_data['building_product_level']
     
     def _process_spatial(self, spatial):
         if spatial is None:
@@ -72,8 +85,7 @@ class H3BuildLogger:
         return log_dict
 
     def save_log(self):
-        log_file = os.path.join(self.odir, 'build_log.json')
-        json_write(self.to_dict(), log_file, mode='w', rewrite=True)
+        json_write(self.to_dict(), self.log_file, mode='w', rewrite=True)
 
 def h3_index_df(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode'):
     import h3pandas
@@ -93,7 +105,7 @@ def h3_part_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_co
         
         hex_path = os.path.join(dir_path,i)        
         hex_df = df.loc[[i]]
-        gedi_name = re.sub('\\.h5$','.parquet', hex_df.root_file.iloc[0])        
+        gedi_name = re.sub('\\.h5$',f'.{hex_df.root_beam.iloc[0]}.parquet', hex_df.root_file.iloc[0])        
         f = os.path.join(hex_path, gedi_name)
         
         if f.endswith('.parquet'):
@@ -169,7 +181,7 @@ def build_h3db_from_soc(gedi_prod_level='l4c', h3_vars=['wsci'], res=12, part=3,
 
     soc_files = [{k:val for k,val in i.items() if k in build_vars} for i in all_soc_files]
         
-    ddf = dask_h5_merged(soc_files, build_vars, shots=None, dropna=True)
+    ddf = dask_h5_merged(soc_files, build_vars, shots=None, dropna=True, by_beam=True)
     
     lat_col='lat_lowestmode'
     lon_col='lon_lowestmode'
@@ -255,12 +267,12 @@ def _testit(odir=None):
     # Track network I/O
     net_io_start = psutil.net_io_counters()
     
-    # product_vars = {'L1B': ['minimal'], 'L2A': ['minimal'], 'L4A': ['minimal'], 'L4C': ['*']}
-    product_vars = {'L2A': ['minimal'], 'L4A': ['minimal'], 'L4C': ['*']}
+    product_vars = {'L1B': ['minimal'], 'L2A': ['minimal'], 'L4A': ['minimal'], 'L4C': ['*']}
+    # product_vars = {'L2A': ['minimal'], 'L4A': ['minimal'], 'L4C': ['*']}
     spatial = [-50.5,0.5,-50,1]
     temporal = ('2020-01-01','2020-07-01')
     # client = Client() 
-    with Client(threads_per_worker=1, processes=True) as client:
+    with Client(n_workers=20, threads_per_worker=1, processes=True) as client:
         print(client.dashboard_link)
         gh3_build_main(product_vars, spatial=spatial, temporal=temporal, res=12, part=3, dask_client=client, direct_access=False)        
 
