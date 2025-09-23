@@ -12,6 +12,8 @@ from shapely.ops import orient
 from shapely.geometry.base import BaseGeometry
 from typing import Union, List, Dict, Optional, Tuple, Any
 
+from .config import GEDI_PRODUCTS
+
 def set_logger(filename:str=None, level=logging.INFO):
     username = getpass.getuser()
     
@@ -209,3 +211,22 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False):
     finally:
         if pqwriter is not None:
             pqwriter.close()
+
+def parse_gedi_args(args):    
+    prod_vars = {}
+    for k in GEDI_PRODUCTS.keys():
+        if hasattr(args, k.lower()):
+            if (vars := getattr(args, k.lower())) is not None:
+                prod_vars[k] = vars
+    return prod_vars
+    
+def parse_dask_args(args):
+    dask_args = {}
+    if args.dask_scheduler:
+        dask_args['address'] = args.dask_scheduler
+    else:
+        dask_args['n_workers'] = args.n_cpus
+        dask_args['threads_per_worker'] = args.threads
+        dask_args['memory_limit'] = f"{args.ram}GB" if args.ram else None
+        dask_args['dashboard_address'] = f":{args.port}" if args.port else None
+    return dask_args    

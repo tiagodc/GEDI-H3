@@ -61,13 +61,13 @@ GEDI_PRODUCTS = {
         'description': 'Canopy cover and vertical profile metrics',
         'default_vars': ['shot_number','cover_z','fhd_normal']
     },
-    'L3': {
-        'doi': '10.3334/ORNLDAAC/1952', 
-        'daac': 'ORNLDAAC', 
-        'version': 2, 
-        'format': '.tif',
-        'description': 'Gridded land surface metrics'
-    },
+    # 'L3': {
+    #     'doi': '10.3334/ORNLDAAC/1952', 
+    #     'daac': 'ORNLDAAC', 
+    #     'version': 2, 
+    #     'format': '.tif',
+    #     'description': 'Gridded land surface metrics'
+    # },
     'L4A': {
         'doi': '10.3334/ORNLDAAC/2056', 
         'daac': 'ORNLDAAC', 
@@ -76,13 +76,13 @@ GEDI_PRODUCTS = {
         'description': 'Footprint level aboveground biomass',
         'default_vars': ['shot_number','agbd']
     },
-    'L4B': {
-        'doi': '10.3334/ORNLDAAC/2299', 
-        'daac': 'ORNLDAAC', 
-        'version': 2.1, 
-        'format': '.tif',
-        'description': 'Gridded aboveground biomass'
-    },
+    # 'L4B': {
+    #     'doi': '10.3334/ORNLDAAC/2299', 
+    #     'daac': 'ORNLDAAC', 
+    #     'version': 2.1, 
+    #     'format': '.tif',
+    #     'description': 'Gridded aboveground biomass'
+    # },
     'L4C': {
         'doi': '10.3334/ORNLDAAC/2338', 
         'daac': 'ORNLDAAC', 

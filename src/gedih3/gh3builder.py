@@ -8,11 +8,11 @@ import dask.dataframe
 from typing import Union, List, Dict, Optional, Tuple, Any
 from dask.distributed import progress
 
-from config import GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS
-from utils import parquet_append_columns, parquet_merge_files, json_read, json_write, read_vector_file, to_geojson, read_as_geojson
-from h3utils import intersect_h3_geometries
-from gedidriver import soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5
-from daac import gedi_download
+from .config import GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS
+from .utils import parquet_append_columns, parquet_merge_files, json_read, json_write, read_vector_file, to_geojson, read_as_geojson
+from .h3utils import intersect_h3_geometries
+from .gedidriver import soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, validate_soc_files
+from .daac import gedi_download
 
 class H3BuildLogger:
     _VALID_STATUSES = ('INITIALIZED', 'DOWNLOADING', 'PARTITIONING', 'MERGING', 'COMPLETED', 'FAILED')
@@ -224,9 +224,9 @@ def build_h3db_from_soc(gedi_prod_level='l4c', h3_vars=['wsci'], res=12, part=3,
         build_logger.save_log()
                
     return list(dask.compute(*h3_files))
-        
-def gh3_build_main(product_vars, spatial=None, temporal=None, res=12, part=3, direct_access=False, dask_client=None):
-    gedi_vars_expand(product_vars)
+
+def gh3_build_main(product_vars, spatial=None, temporal=None, res=12, part=3, direct_access=False, dask_client=None, skip_download=False):
+    product_vars = gedi_vars_expand(product_vars)
 
     if isinstance(spatial, str):
         spatial = read_vector_file(spatial)
@@ -234,8 +234,17 @@ def gh3_build_main(product_vars, spatial=None, temporal=None, res=12, part=3, di
     build_logger = H3BuildLogger(GH3_DEFAULT_DOWNLOAD_DIR, product_vars, res=res, part=part, spatial=spatial, temporal=temporal)
     build_logger.save_log()
 
-    soc_files = download_soc(product_vars, spatial=spatial, temporal=temporal, direct_access=direct_access, dask_client=dask_client, build_logger=build_logger)
-    soc_source = soc_files if direct_access else None
+    soc_source = None
+    if skip_download:
+        validation_report = validate_soc_files(product_vars, soc_dir=GH3_DEFAULT_SOC_DIR)
+        if not validation_report["can_skip"]:
+            build_logger.set_status('FAILED')
+            build_logger.save_log()
+            raise ValueError(validation_report.get('error_msg', "SOC files validation failed."))
+    else:
+        soc_files = download_soc(product_vars, spatial=spatial, temporal=temporal, direct_access=direct_access, dask_client=dask_client, build_logger=build_logger)
+        if direct_access:
+            soc_source = soc_files
     
     try:
         h3_products = {}
@@ -268,13 +277,13 @@ def _testit(odir=None):
     net_io_start = psutil.net_io_counters()
     
     product_vars = {'L1B': ['minimal'], 'L2A': ['minimal'], 'L4A': ['minimal'], 'L4C': ['*']}
-    # product_vars = {'L2A': ['minimal'], 'L4A': ['minimal'], 'L4C': ['*']}
+    # product_vars = {'L2A': ['minimal'], 'L4A': ['shot_number', 'agbd_se'], 'L4C': ['*']}
     spatial = [-50.5,0.5,-50,1]
     temporal = ('2020-01-01','2020-07-01')
     # client = Client() 
     with Client(n_workers=20, threads_per_worker=1, processes=True) as client:
         print(client.dashboard_link)
-        gh3_build_main(product_vars, spatial=spatial, temporal=temporal, res=12, part=3, dask_client=client, direct_access=False)        
+        gh3_build_main(product_vars, spatial=spatial, temporal=temporal, res=12, part=3, dask_client=client, direct_access=False, skip_download=True)        
 
     t1 = datetime.now()
     print("process finished at", t1)
@@ -289,6 +298,3 @@ def _testit(odir=None):
     print(f"Downloads: {bytes_recv / (1024**3):.3f} GB")
     print(f"Uploads: {bytes_sent / (1024**3):.3f} GB")
     print(f"Total: {(bytes_sent + bytes_recv) / (1024**3):.3f} GB")
-
-if __name__ == '__main__':
-    _testit()

@@ -1,15 +1,16 @@
 import os, h5py, re, glob, yaml, dask
 import itertools
-from typing import Union
+from typing import Dict, Union
 import numpy as np
 import pandas as pd
 from numba import njit
 from datetime import datetime
+import dask
 import dask.dataframe
 from earthaccess.store import EarthAccessFile
 
-from config import GEDI_PRODUCTS, GEDI_BEAMS
-from utils import h5_copy_subset, h5_info
+from .config import GEDI_PRODUCTS, GEDI_BEAMS, GH3_DEFAULT_SOC_DIR
+from .utils import h5_copy_subset, h5_info
 
 def soc_prod_from_file(file_path):
     f = GEDIFile(file_path)
@@ -80,12 +81,66 @@ def gedi_vars_expand(product_vars):
             product_vars[prod] = GEDI_PRODUCTS[prod]['default_vars']
         elif "*" in vars or "all" in vars:
             product_vars[prod] = None
+    return product_vars
 
 def gedi_vars_from_h5(gedi_file):
     with h5py.File(gedi_file, 'r') as f:
         b = [i for i in f.keys() if i.upper().startswith('BEAM')][0]            
     pl_info = h5_info(gedi_file, root=b)
     return pl_info.path.str.replace(b,'').str.lstrip('/').tolist()
+
+@dask.delayed
+def _check_soc_file_vars(soc_file, available_products):
+    file_products = {}
+    for prod in available_products.keys():
+        if prod in soc_file:
+            available_vars = gedi_vars_from_h5(soc_file[prod])
+            file_products[prod] = available_vars
+    return file_products
+
+def validate_soc_files(product_vars: Dict, soc_dir: str = GH3_DEFAULT_SOC_DIR):
+    soc_files = soc_file_tree(soc_dir, to_list=True)
+
+    if not soc_files:
+        return False, {"error": "No SOC files found in directory"}
+
+    available_products = {k: set() for k in soc_files[0].keys()}
+    delayed_tasks = [_check_soc_file_vars(soc_file, available_products) for soc_file in soc_files]
+    file_results = dask.compute(*delayed_tasks)
+
+    for file_products in file_results:
+        for prod, vars_list in file_products.items():
+            available_products[prod].update(vars_list)
+
+    available_products = {k: list(v) for k, v in available_products.items()}
+
+    validation_report = {
+        "available_products": available_products,
+        "missing_products": [],
+        "missing_variables": {},
+        "can_skip": True
+    }
+
+    for prod, required_vars in product_vars.items():
+        if prod not in available_products:
+            validation_report["missing_products"].append(prod)
+            validation_report["can_skip"] = False
+        elif required_vars is not None:
+            missing_vars = [v for v in required_vars if v not in set(available_products[prod])]
+            if missing_vars:
+                validation_report["missing_variables"][prod] = missing_vars
+                validation_report["can_skip"] = False
+
+    if not validation_report["can_skip"]:
+        error_msg = "Cannot continue due to missing data.\n"
+        if validation_report.get("missing_products"):
+            error_msg += f"Missing products: {validation_report['missing_products']}\n"
+        if validation_report.get("missing_variables"):
+            for prod, missing_vars in validation_report["missing_variables"].items():
+                error_msg += f"Missing variables in {prod}: {missing_vars}\n"    
+        validation_report['error_msg'] = error_msg.strip()    
+    
+    return validation_report
 
 class GEDIFile:
     def __init__(self, file_path):

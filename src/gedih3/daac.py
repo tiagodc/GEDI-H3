@@ -11,9 +11,9 @@ from pqdm.processes import pqdm
 from dask.distributed import progress
 
 # Import configuration variables
-from config import GH3_DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS
-from utils import read_vector_file, geo_to_umm
-from gedidriver import GEDIFile, soc_file_tree, gedi_subset, dask_h5_merged, gedi_vars_expand
+from .config import GH3_DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS
+from .utils import read_vector_file, geo_to_umm
+from .gedidriver import GEDIFile, soc_file_tree, gedi_subset, dask_h5_merged, gedi_vars_expand
 
 class GEDIAccessor:
     """Main class for accessing GEDI data through various methods"""
@@ -197,7 +197,7 @@ def gedi_download(product_vars: Dict, odir: str = None, spatial = None, temporal
     gass = GEDIAccessor(authenticate=True, spatial=spatial, temporal=temporal)
     
     prod_paths = {}
-    gedi_vars_expand(product_vars)
+    product_vars = gedi_vars_expand(product_vars)
     
     for prod, vars in product_vars.items():
         granules = gass.search_data(product=prod)

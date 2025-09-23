@@ -10,32 +10,15 @@ Main components:
 - utils: Utility functions for geospatial operations
 """
 
-from .daac import GEDIAccessor, search_gedi_data, download_gedi_data
-
 __version__ = "0.0.1"
 __author__ = ""
 __email__ = ""
 
 # Make key classes and functions available at package level
-__all__ = [
-    'GEDIAccessor',
-    'search_gedi_data', 
-    'download_gedi_data'
-]
-
-# Also make configuration available for advanced users
-try:
-    from .config import (
-        GEDI_PRODUCTS, GEDI_DOIS, GEDI_VARIABLES,
-        DEFAULT_DOWNLOAD_DIR, DOWNLOAD_METHODS
-    )
-    __all__.extend([
-        'GEDI_PRODUCTS', 'GEDI_DOIS', 'GEDI_VARIABLES',
-        'DEFAULT_DOWNLOAD_DIR', 'DOWNLOAD_METHODS'
-    ])
-except ImportError:
-    pass  # Config import failed, continue without it
+# __all__ = [
+#     'GEDIAccessor',
+# ]
 
 # Optional: Set up logging
-import logging
-logging.getLogger(__name__).addHandler(logging.NullHandler())
+# import logging
+# logging.getLogger(__name__).addHandler(logging.NullHandler())
