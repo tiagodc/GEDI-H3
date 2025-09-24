@@ -96,9 +96,13 @@ def read_vector_file(filepath: str, crs: Union[str, int] = 4326) -> gpd.GeoDataF
 
 def geo_to_umm(obj, simplify_tol: float = 0.01):
     """
-    Converts a GeoDataFrame or a shapely Polygon to a UMM-style list of coordinates.
+    Converts a GeoDataFrame, shapely Polygon, or GeoJSON dictionary to a UMM-style list of coordinates.
     """   
-    if isinstance(obj, gpd.GeoDataFrame):
+    if isinstance(obj, dict) and 'shapefile' in obj:
+        geodf = from_geojson(obj)
+        xy = geodf.geometry.simplify(simplify_tol).get_coordinates()
+        geo_umm = list(zip(xy.x, xy.y))
+    elif isinstance(obj, gpd.GeoDataFrame):
         bounds = obj.geometry.apply(orient, args=(1,))
         xy = bounds.simplify(simplify_tol).get_coordinates()
         geo_umm = list(zip(xy.x, xy.y))

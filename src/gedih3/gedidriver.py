@@ -77,7 +77,7 @@ def gedi_vars_expand(product_vars):
     for prod, vars in product_vars.items():
         if vars is None:
             continue
-        if "minimal" in vars:
+        if "minimal" in vars or "min" in vars:
             product_vars[prod] = GEDI_PRODUCTS[prod]['default_vars']
         elif "*" in vars or "all" in vars:
             product_vars[prod] = None
@@ -85,7 +85,7 @@ def gedi_vars_expand(product_vars):
 
 def gedi_vars_from_h5(gedi_file):
     with h5py.File(gedi_file, 'r') as f:
-        b = [i for i in f.keys() if i.upper().startswith('BEAM')][0]            
+        b = [i for i in f.keys() if i.upper().startswith('BEAM')][0]
     pl_info = h5_info(gedi_file, root=b)
     return pl_info.path.str.replace(b,'').str.lstrip('/').tolist()
 
@@ -154,6 +154,7 @@ class GEDIFile:
     def parse_file(self, f):
         # check if f is str or s3 link
         self.file_path = f
+        self.file_size = (os.path.getsize(f) / 1e9) if os.path.exists(f) else None
         self.full_name = os.path.basename(f)
         f_base = re.sub(r'\.h5$', '', self.full_name)
         fl = f_base.split('_')

@@ -15,18 +15,21 @@ def getCmdArgs():
     p.add_argument("-l4a", "--l4a", dest="l4a", nargs='+', type=str, default=None, required=False, help="GEDI L4A variables to download")
     p.add_argument("-l4c", "--l4c", dest="l4c", nargs='+', type=str, default=None, required=False, help="GEDI L2A variables to download")
 
-    # p.add_argument("-l3", "--l3", dest="l3", required=False, action='store_true', help="Download GEDI L3")
-    # p.add_argument("-l4cf", "--l4c-fusion", dest="l4c_fusion", required=False, action='store_true', help="Download GEDI L4C Fusion")
-    # p.add_argument("-l4d", "--l4d", dest="l4d", required=False, action='store_true', help="Download GEDI L4D")
-            
-    p.add_argument("-o", "--outdir", dest="outdir", required=False, type=str, default=None, help="output directory for downloaded files (bypass GH3 default path)")    
+    # p.add_argument("-l3", "--l3", dest="l3", action='store_true', help="Download GEDI L3")
+    # p.add_argument("-l4cf", "--l4c-fusion", dest="l4c_fusion", action='store_true', help="Download GEDI L4C Fusion")
+    # p.add_argument("-l4d", "--l4d", dest="l4d", action='store_true', help="Download GEDI L4D")
+    
+    p.add_argument("-r", "--resume", dest="resume", action='store_true', help="resume interrupted downloads")    
+    p.add_argument("-u", "--update", dest="update", action='store_true', help="update existing SOC files")    
+    p.add_argument("-o", "--outdir", dest="outdir", required=False, type=str, default=None, help="output directory for downloaded files (bypass GH3 default path)")
+    
     p.add_argument("-D", "--dask-scheduler", dest="dask_scheduler", type=str, default=None, required=False, help="existing dask scheduler address, e.g. tcp://localhost:8786")
 
     n = max(1, os.cpu_count() // 2)
-    p.add_argument("-n", "--n-cpus", dest="n_cpus", required=False, type=int, default=n, help=f"number of cpu cores to use [default = {n}]")
-    p.add_argument("-t", "--threads", dest="threads", required=False, type=int, default=1, help="number of threads per cpu [default = 1]")
-    p.add_argument("-r", "--ram", dest="ram", required=False, type=int, default=None, help="maximum RAM usage per cpu - in Giga Bytes")
-    p.add_argument("-p", "--port", dest="port", required=False, type=int, default=None, help="port where to open dask dashboard")
+    p.add_argument("-N", "--n-cpus", dest="n_cpus", required=False, type=int, default=n, help=f"number of cpu cores to use [default = {n}]")
+    p.add_argument("-T", "--threads", dest="threads", required=False, type=int, default=1, help="number of threads per cpu [default = 1]")
+    p.add_argument("-R", "--ram", dest="ram", required=False, type=int, default=None, help="maximum RAM usage per cpu - in Giga Bytes")
+    p.add_argument("-P", "--port", dest="port", required=False, type=int, default=None, help="port where to open dask dashboard")
     
     cmdargs = p.parse_args()
     return cmdargs
@@ -59,12 +62,14 @@ if __name__ == "__main__":
     import warnings
     from gedih3.utils import parse_gedi_args, parse_dask_args
     from gedih3.gh3builder import download_soc
+    from gedih3.logger import H3BuildLogger
+    from gedih3.config import GH3_DEFAULT_DOWNLOAD_DIR
     from dask.distributed import Client
     
     prod_vars = parse_gedi_args(args)
     if len(prod_vars) == 0:
-        raise ValueError("No GEDI product selected for download - please select at least one of --l1b, --l2a, --l2b, --l4a, --l4c")
-        
+        raise ValueError("No GEDI product selected for download - please select at least one of --l1b, --l2a, --l2b, --l4a, --l4c")    
+    
     spatial = args.spatial if args.spatial is not None else args.box
     if spatial is None:
         warnings.warn("No spatial filter provided - downloading global data", UserWarning)
@@ -75,15 +80,27 @@ if __name__ == "__main__":
         temporal = None
         warnings.warn("No temporal filter provided - downloading all data", UserWarning)
     
+    build_logger = H3BuildLogger(
+        odir=args.outdir if args.outdir else GH3_DEFAULT_DOWNLOAD_DIR,
+        prod_vars=prod_vars,
+        spatial=spatial,
+        temporal=temporal,
+        resume=args.resume,
+        update=args.update,
+        db_type='soc'
+    )
+
     dask_kwargs = parse_dask_args(args)
     with Client(**dask_kwargs) as client:
         print("Dask client available at", client.dashboard_link)
-        
+
         soc_files = download_soc(
-            product_vars = prod_vars, 
-            spatial = spatial, 
-            temporal = temporal, 
-            direct_access = False, 
+            product_vars=prod_vars,
+            spatial=spatial,
+            temporal=temporal,
+            resume=args.resume,
+            update=args.update,
+            direct_access=False,
             dask_client=client,
-            build_logger=None
+            build_logger=build_logger
         )

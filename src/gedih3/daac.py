@@ -13,7 +13,7 @@ from dask.distributed import progress
 # Import configuration variables
 from .config import GH3_DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS
 from .utils import read_vector_file, geo_to_umm
-from .gedidriver import GEDIFile, soc_file_tree, gedi_subset, dask_h5_merged, gedi_vars_expand
+from .gedidriver import GEDIFile, soc_file_tree, gedi_subset, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5
 
 class GEDIAccessor:
     """Main class for accessing GEDI data through various methods"""
@@ -172,52 +172,68 @@ class GEDIAccessor:
         return all_files
 
 
-def download_granule(granule, odir: str = None, subset_vars: List[str] = None):
+def download_granule(granule, odir: str = None, subset_vars: List[str] = None, resume: bool = False):
     gfile = GEDIFile(granule.data_links()[0])
     odir_soc = os.path.join(odir, str(gfile.date.year), gfile.date.strftime('%j'))
     os.makedirs(odir_soc, exist_ok=True)
+
+    expected_filename = gfile.full_name
+    expected_path = os.path.join(odir_soc, expected_filename)
+
+    if resume and os.path.exists(expected_path):
+        if subset_vars is not None:
+            try:
+                existing_vars = set(gedi_vars_from_h5(expected_path))
+                requested_vars = set(subset_vars)
+                if existing_vars == requested_vars:
+                    return expected_path
+            except Exception:
+                pass
+        else:
+            return expected_path
+
     opath = earthaccess.download(granule, odir_soc, threads=1, pqdm_kwargs={'disable': True})
-    
+
     if len(opath) == 0:
-        return    
-    
+        return
+
     opath = opath[0]
-        
+
     if subset_vars is not None:
         osub = opath.replace('.h5', '_subset.h5')
         osub = gedi_subset(opath, osub, subset_vars)
-                
+
         if osub is not None:
             os.unlink(opath)
             os.rename(osub, opath)
-            
+
     return opath
 
-def gedi_download(product_vars: Dict, odir: str = None, spatial = None, temporal = None, n_jobs=5, to_list=False, dask_client=None):
+def gedi_download(product_vars: Dict, odir: str = None, spatial = None, temporal = None, n_jobs=5, to_list=False, dask_client=None, resume: bool = False):
     gass = GEDIAccessor(authenticate=True, spatial=spatial, temporal=temporal)
-    
+
     prod_paths = {}
     product_vars = gedi_vars_expand(product_vars)
-    
+
     for prod, vars in product_vars.items():
         granules = gass.search_data(product=prod)
-        
+
         if odir is None:
             opaths = gass.link_s3(product=prod)
         else:
-            download_func = partial(download_granule, odir=odir, subset_vars=vars)
+            download_func = partial(download_granule, odir=odir, subset_vars=vars, resume=resume)
             if dask_client is not None:
                 futures = dask_client.map(download_func, granules)
                 progress(futures)
                 opaths = dask_client.gather(futures)
             else:
                 opaths = pqdm(granules, download_func, n_jobs=n_jobs)
-        
+
         prod_paths[prod] = opaths
-    
+
     if to_list:
         prod_paths = list(chain(*prod_paths.values()))
-        
+
     return prod_paths
 
 def _testit():
