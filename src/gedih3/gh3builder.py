@@ -213,11 +213,9 @@ def gh3_build_main(product_vars, spatial=None, temporal=None, res=12, part=3, di
             build_logger.save_log()
             raise ValueError(validation_report.get('error_msg', "SOC files validation failed."))
     else:
-        # Only download SOC if needed for this database type
-        if build_logger.db_type in ('soc', 'both'):
-            soc_files = download_soc(build_logger.prod_vars, spatial=build_logger.spatial, temporal=build_logger.temporal, direct_access=direct_access, resume=resume, update=update, dask_client=dask_client, build_logger=build_logger)
-            if direct_access:
-                soc_source = soc_files
+        soc_files = download_soc(build_logger.prod_vars, spatial=build_logger.spatial, temporal=build_logger.temporal, direct_access=direct_access, resume=resume, update=update, dask_client=dask_client, build_logger=build_logger)
+        if direct_access:
+            soc_source = soc_files
 
     # Only build H3 database if needed
     h3_products = {}
