@@ -228,7 +228,7 @@ class H3BuildLogger:
                 
                 for prod in self.soc_data['products'].keys():
                     self.get_product_info(prod, status='COMPLETED')
-                self.get_product_info(None, status='COMPLETED')
+                self.set_status('COMPLETED')
         
         if self.db_type in ('h3', 'both'):
             pass # Placeholder for future H3-specific logging

@@ -214,7 +214,7 @@ def gh3_build_main(product_vars, spatial=None, temporal=None, res=12, part=3, di
                 h3_files = build_h3db_from_soc(gedi_prod_level=k, h3_vars=val, res=build_logger.res, part=build_logger.part, spatial=build_logger.spatial, build_logger=build_logger, soc_source=soc_source)
                 h3_products[k] = h3_files
         except Exception as e:
-            build_logger.set_status('FAILED', db_target='h3')
+            build_logger.set_status('FAILED')
             build_logger.save_log()
             raise e
 

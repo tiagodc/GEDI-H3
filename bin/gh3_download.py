@@ -87,7 +87,7 @@ if __name__ == "__main__":
         resume=args.resume,
         update=args.update,
         db_type='soc'
-    )
+    )    
 
     dask_kwargs = parse_dask_args(args)
     with Client(**dask_kwargs) as client:
