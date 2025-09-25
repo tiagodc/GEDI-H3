@@ -13,6 +13,7 @@ from dask.distributed import progress
 # Import configuration variables
 from .config import GH3_DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS
 from .utils import read_vector_file, geo_to_umm
+from .logger import H3BuildLogger
 from .gedidriver import GEDIFile, soc_file_tree, gedi_subset, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5
 
 class GEDIAccessor:
@@ -100,13 +101,12 @@ class GEDIAccessor:
     
     def _process_spatial_filter(self, spatial) -> Optional[Tuple[float, float, float, float]]:
         try:
-            if isinstance(spatial, list) and len(spatial) == 4:
+            if (isinstance(spatial, list) or isinstance(spatial, tuple)) and len(spatial) == 4:
                 self.is_bounding_box = True
                 return tuple(spatial)
             
-            elif isinstance(spatial, str):
-                if spatial.lower().endswith(('.shp', '.geojson', '.json', '.parquet')):
-                    spatial = read_vector_file(spatial)
+            elif isinstance(spatial, str) and os.path.exists(spatial):
+                spatial = read_vector_file(spatial)
             
             return geo_to_umm(spatial)
             
@@ -209,27 +209,44 @@ def download_granule(granule, odir: str = None, subset_vars: List[str] = None, r
 
     return opath
 
-def gedi_download(product_vars: Dict, odir: str = None, spatial = None, temporal = None, n_jobs=5, to_list=False, dask_client=None, resume: bool = False):
+def gedi_download(product_vars: Dict, odir: str = None, spatial = None, temporal = None, n_jobs=5, to_list=False, dask_client=None, resume: bool = False, logger: H3BuildLogger = None):
     gass = GEDIAccessor(authenticate=True, spatial=spatial, temporal=temporal)
 
     prod_paths = {}
     product_vars = gedi_vars_expand(product_vars)
 
-    for prod, vars in product_vars.items():
-        granules = gass.search_data(product=prod)
+    try:
+        for prod, vars in product_vars.items():
+            if logger:
+                logger.set_status('DOWNLOADING', prod)
+                logger.save_log()
+                
+            granules = gass.search_data(product=prod)
 
-        if odir is None:
-            opaths = gass.link_s3(product=prod)
-        else:
-            download_func = partial(download_granule, odir=odir, subset_vars=vars, resume=resume)
-            if dask_client is not None:
-                futures = dask_client.map(download_func, granules)
-                progress(futures)
-                opaths = dask_client.gather(futures)
+            if odir is None:
+                opaths = gass.link_s3(product=prod)
             else:
-                opaths = pqdm(granules, download_func, n_jobs=n_jobs)
+                download_func = partial(download_granule, odir=odir, subset_vars=vars, resume=resume)
+                if dask_client is not None:
+                    futures = dask_client.map(download_func, granules)
+                    progress(futures)
+                    opaths = dask_client.gather(futures)
+                else:
+                    opaths = pqdm(granules, download_func, n_jobs=n_jobs)
 
-        prod_paths[prod] = opaths
+            prod_paths[prod] = opaths
+            
+            if logger:
+                logger.set_status('COMPLETED', prod)
+                logger.get_product_info(prod, 'COMPLETED')
+                logger.save_log()
+    
+    except Exception as e:
+        if logger:
+            logger.set_status('FAILED', prod)
+            logger.save_log()
+        raise RuntimeError(f"Error downloading {prod}: {e}")
+
 
     if to_list:
         prod_paths = list(chain(*prod_paths.values()))

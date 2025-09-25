@@ -76,11 +76,11 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
 def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     return h3_merge_files(in_dir=in_dir, out_dir=out_dir, rm_src=rm_src, replace=replace)
 
-def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_access = False, resume=False, update=False, n_jobs=5, dask_client=None, build_logger=None):
+def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_access = False, resume=False, update=False, n_jobs=5, dask_client=None, build_logger: H3BuildLogger = None):
     product_vars = gedi_vars_expand(product_vars)
     
-    if build_logger is not None and (resume or update):
-        product_vars = build_logger.prod_vars
+    if build_logger:
+        product_vars = build_logger.product_vars
         spatial = build_logger.spatial
         temporal = build_logger.temporal    
     
@@ -93,29 +93,14 @@ def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_acc
         if 'shot_number' not in val:
             val.append('shot_number')
 
-    if build_logger is not None:
-        build_logger.set_status('DOWNLOADING', db_target='soc')
+    if build_logger:
+        build_logger.set_status('DOWNLOADING')
         build_logger.save_log()
 
-    soc_files = gedi_download(product_vars=product_vars, odir=None if direct_access else GH3_DEFAULT_SOC_DIR, spatial=spatial, temporal=temporal, resume=resume, n_jobs=n_jobs, to_list=direct_access, dask_client=dask_client)
+    soc_files = gedi_download(product_vars=product_vars, odir=None if direct_access else GH3_DEFAULT_SOC_DIR, spatial=spatial, temporal=temporal, resume = resume or update, n_jobs=n_jobs, to_list=direct_access, dask_client=dask_client, logger=build_logger)
 
-    if not direct_access and build_logger is not None and soc_files:
-        gedi_files = soc_file_tree(GH3_DEFAULT_SOC_DIR, to_list=True)
-        for prod_level, vars_list in product_vars.items():
-            prod_files = [f[prod_level] for f in gedi_files]
-            gedi_prods = [GEDIFile(f) for f in prod_files if f and os.path.exists(f)]
-            gedi_dates = [f.doy_date_str for f in gedi_prods]
-            gedi_orbits = [f.orbit for f in gedi_prods]
-                        
-            build_logger.update_product_info(prod_level, {
-                'variables': vars_list,
-                'file_count': len(prod_files),
-                'size_gb': sum(f.file_size for f in gedi_prods),
-                'date_range': (min(gedi_dates), max(gedi_dates)),
-                'orbit_range': (min(gedi_orbits), max(gedi_orbits))
-            }, db_target='soc')
-
-        build_logger.set_status('COMPLETED', db_target='soc')
+    if build_logger:
+        build_logger.set_status('COMPLETED')
         build_logger.save_log()
 
     return soc_files
@@ -202,7 +187,7 @@ def gh3_build_main(product_vars, spatial=None, temporal=None, res=12, part=3, di
     if isinstance(spatial, str):
         spatial = read_vector_file(spatial)
 
-    build_logger = H3BuildLogger(GH3_DEFAULT_DOWNLOAD_DIR, product_vars, res=res, part=part, spatial=spatial, temporal=temporal, resume=resume, update=update, db_type=db_type)
+    build_logger = H3BuildLogger(product_vars, res=res, part=part, spatial=spatial, temporal=temporal, resume=resume, update=update, db_type=db_type)
     build_logger.save_log()
 
     soc_source = None

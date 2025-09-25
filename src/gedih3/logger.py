@@ -3,9 +3,9 @@ import geopandas as gpd
 from typing import Dict
 from datetime import datetime
 
-from .config import GEDI_PRODUCTS
-from .utils import json_read, json_write, read_as_geojson, to_geojson
-from .gedidriver import gedi_vars_expand
+from .config import GEDI_PRODUCTS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR
+from .utils import json_read, json_write, read_vector_file, to_geojson, from_geojson
+from .gedidriver import GEDIFile, gedi_vars_expand, soc_file_tree, check_soc_file_vars, validate_soc_files
 
 def get_package_version():
     """Get the current package version"""
@@ -21,389 +21,233 @@ def get_package_version():
 
 
 class H3BuildLogger:
-    """
-    Logger class for managing SOC and H3 database operations and metadata.
-
-    This class creates and maintains a structured JSON log file containing
-    information about both SOC (Science Operations Center) and H3 (Hexagonal
-    Hierarchical Geospatial Indexing) databases.
-
-    The log file structure is:
-    {
-        "soc": {
-            "config": {...},
-            "products": {...},
-            "status": "..."
-        },
-        "h3": {
-            "config": {...},
-            "products": {...},
-            "status": "..."
-        },
-        "metadata": {...}
-    }
-    """
-
-    _LOG_FILE_NAME = 'build_log.json'
-    _VALID_STATUSES = ('INITIALIZED', 'DOWNLOADING', 'PARTITIONING', 'MERGING', 'COMPLETED', 'FAILED')
+    _LOG_FILE_NAME = 'gh3_build_log.json'
+    _VALID_STATUSES = ('INITIALIZED', 'DOWNLOADING', 'PARTITIONING', 'MERGING', 'COMPLETED', 'FAILED', 'INTERRUPTED', 'UNKNOWN')
     _VALID_DB_TYPES = ('soc', 'h3', 'both')
 
-    def __init__(self, odir, prod_vars, res=12, part=3, spatial=None, temporal=None, resume=False, update=False, db_type='both'):
-        """
-        Initialize the H3BuildLogger.
-
-        Parameters:
-        -----------
-        odir : str
-            Output directory where the log file will be saved
-        prod_vars : dict
-            Product variables dictionary
-        res : int, default=12
-            H3 resolution
-        part : int, default=3
-            H3 partition level
-        spatial : various, optional
-            Spatial filter (bounding box, file path, or GeoDataFrame)
-        temporal : tuple, optional
-            Temporal filter (start_date, end_date)
-        resume : bool, default=False
-            Whether to resume from existing log
-        update : bool, default=False
-            Whether to update existing log with new parameters
-        db_type : str, default='both'
-            Database type to manage ('soc', 'h3', or 'both')
-        """
-        self.odir = odir
+    def __init__(self, prod_vars, res=12, part=3, spatial=None, temporal=None, resume=False, update=False, db_type='both'):
+        self.odir = GH3_DEFAULT_DOWNLOAD_DIR
         self.db_type = db_type.lower()
-        prod_vars = gedi_vars_expand(prod_vars)
+        
+        self.s3_access = False  # Placeholder for future S3 access handling
+        self.soc_data = {}
+        self.h3_data = {}
+        self.processing_data = {}
 
         if self.db_type not in self._VALID_DB_TYPES:
             raise ValueError(f"Invalid db_type '{db_type}'. Must be one of {self._VALID_DB_TYPES}")
 
         self.log_file = os.path.join(self.odir, self._LOG_FILE_NAME)
-        self.current_timestamp = datetime.now().isoformat()
-
-        # Initialize log structure
         log_data = self._load_log_data()
+        self._parse_log(log_data)
+    
+        if update:
+            self._merge_spatial(spatial)
+            self._merge_temporal(temporal)
+            self._merge_product_vars(prod_vars)
+        
+        if not resume and not update:
+            if log_data:
+                raise ValueError(f"Log file '{self.log_file}' already exists. Use resume or update mode to modify existing log.")
 
-        # Process spatial filter
-        processed_spatial = self._process_spatial(spatial)
+            self.spatial = self._process_spatial(spatial)
+            self.temporal = self._process_temporal(temporal)
+            self.product_vars = gedi_vars_expand(prod_vars)
+            
+            if db_type in ('h3', 'both'):
+                self.res = res
+                self.part = part
 
-        # Handle resume/update logic based on database type
-        if resume and log_data:
-            self._handle_resume_mode(log_data, prod_vars, res, part, processed_spatial, temporal)
-        elif update and log_data:
-            self._handle_update_mode(log_data, prod_vars, res, part, processed_spatial, temporal)
-        else:
-            self._handle_normal_mode(prod_vars, res, part, processed_spatial, temporal)
-
-        # Initialize database sections
-        self._initialize_database_sections(log_data)
-
+    def _now(self):
+        return datetime.now().isoformat()
+    
     def _load_log_data(self):
-        """Load existing log data or initialize empty structure"""
         if os.path.exists(self.log_file):
-            log_data = json_read(self.log_file)
-            # Ensure proper structure
-            if 'soc' not in log_data:
-                log_data['soc'] = {}
-            if 'h3' not in log_data:
-                log_data['h3'] = {}
-            return log_data
+            return json_read(self.log_file)
         else:
-            return {'soc': {}, 'h3': {}}
-
-    def _initialize_database_sections(self, log_data):
-        """Initialize SOC and H3 database sections"""
-        self.soc_data = log_data.get('soc', {})
-        self.h3_data = log_data.get('h3', {})
-
-        # Initialize SOC section if working with SOC database
-        if self.db_type in ('soc', 'both'):
-            if 'config' not in self.soc_data:
-                self.soc_data['config'] = {}
-            if 'products' not in self.soc_data:
-                self.soc_data['products'] = {}
-            if 'status' not in self.soc_data:
-                self.soc_data['status'] = 'INITIALIZED'
-
-            # Update SOC configuration
-            self.soc_data['config'].update({
-                'product_variables': self.prod_vars,
-                'spatial_filter': self.spatial,
-                'temporal_filter': self.temporal,
-                'last_updated': self.current_timestamp
-            })
-
-        # Initialize H3 section if working with H3 database
-        if self.db_type in ('h3', 'both'):
-            if 'config' not in self.h3_data:
-                self.h3_data['config'] = {}
-            if 'products' not in self.h3_data:
-                self.h3_data['products'] = {}
-            if 'status' not in self.h3_data:
-                self.h3_data['status'] = 'INITIALIZED'
-
-            # Update H3 configuration
-            self.h3_data['config'].update({
-                'product_variables': self.prod_vars,
-                'h3_resolution': self.res,
-                'h3_partition': self.part,
-                'spatial_filter': self.spatial,
-                'temporal_filter': self.temporal,
-                'last_updated': self.current_timestamp
-            })
-
-    def _handle_resume_mode(self, log_data, prod_vars, res, part, spatial, temporal):
-        """Handle resume mode - use existing parameters"""
-        soc_config = log_data.get('soc', {}).get('config', {})
-        h3_config = log_data.get('h3', {}).get('config', {})
-
-        # Use SOC config if available, otherwise H3 config, otherwise provided params
-        if self.db_type == 'soc' and soc_config:
-            self.prod_vars = soc_config.get('product_variables', prod_vars)
-            self.spatial = soc_config.get('spatial_filter', spatial)
-            self.temporal = soc_config.get('temporal_filter', temporal)
-        elif self.db_type == 'h3' and h3_config:
-            self.prod_vars = h3_config.get('product_variables', prod_vars)
-            self.res = h3_config.get('h3_resolution', res)
-            self.part = h3_config.get('h3_partition', part)
-            self.spatial = h3_config.get('spatial_filter', spatial)
-            self.temporal = h3_config.get('temporal_filter', temporal)
-        elif self.db_type == 'both':
-            # For both, prefer H3 config, fallback to SOC config
-            config = h3_config if h3_config else soc_config
-            self.prod_vars = config.get('product_variables', prod_vars)
-            self.res = config.get('h3_resolution', res) if 'h3_resolution' in config else res
-            self.part = config.get('h3_partition', part) if 'h3_partition' in config else part
-            self.spatial = config.get('spatial_filter', spatial)
-            self.temporal = config.get('temporal_filter', temporal)
-        else:
-            self._handle_normal_mode(prod_vars, res, part, spatial, temporal)
-
-    def _handle_update_mode(self, log_data, prod_vars, res, part, spatial, temporal):
-        """Handle update mode - merge new parameters with existing ones"""
-        soc_config = log_data.get('soc', {}).get('config', {})
-        h3_config = log_data.get('h3', {}).get('config', {})
-
-        if self.db_type in ('soc', 'both') and soc_config:
-            existing_vars = soc_config.get('product_variables', {})
-            self.prod_vars = self._merge_product_vars(existing_vars, prod_vars)
-            self.spatial = self._merge_spatial(soc_config.get('spatial_filter'), spatial)
-            self.temporal = self._merge_temporal(soc_config.get('temporal_filter'), temporal)
-        else:
-            self.prod_vars = prod_vars
-            self.spatial = spatial
-            self.temporal = temporal
-
-        if self.db_type in ('h3', 'both') and h3_config:
-            self.res = h3_config.get('h3_resolution', res)
-            self.part = h3_config.get('h3_partition', part)
-        else:
-            self.res = res
-            self.part = part
-
-    def _handle_normal_mode(self, prod_vars, res, part, spatial, temporal):
-        """Handle normal initialization mode"""
-        self.prod_vars = prod_vars
-        self.res = res
-        self.part = part
-        self.spatial = spatial
-        self.temporal = temporal
-
+            return {}
+    
+    def _parse_log(self, log_data):
+        if not log_data:
+            return
+        
+        spatial = log_data.get("spatial_filter")
+        temporal = log_data.get("temporal_filter")
+        
+        self.soc_data.update(log_data.get("soc", {}))
+        self.h3_data.update(log_data.get("h3", {}))
+        
+        self.spatial = self._process_spatial(spatial)
+        self.temporal = self._process_temporal(temporal)
+        
+        self.product_vars = log_data.get("soc",{}).get("products",{})
+        if self.product_vars:
+            self.product_vars = {k:val.get('variables') for k,val in self.product_vars.items()}
+    
     def _process_spatial(self, spatial):
-        """Process spatial input into standardized format"""
         if spatial is None:
             return None
-
+        
         if isinstance(spatial, dict) and 'shapefile' in spatial:
-            pass
+            spatial = from_geojson(spatial)
         elif isinstance(spatial, list) and len(spatial) == 4:
-            spatial = tuple(spatial)
+            from shapely.geometry import box
+            spatial = gpd.GeoDataFrame(geometry=[box(*spatial)], crs=4326, index=[0])
         elif isinstance(spatial, str):
-            spatial = read_as_geojson(spatial)
+            if not os.path.exists(spatial):
+                raise FileNotFoundError(f"Spatial file '{spatial}' does not exist.")
+            spatial = read_vector_file(spatial, crs=4326)
         elif isinstance(spatial, gpd.GeoDataFrame):
-            spatial = to_geojson(spatial.to_crs(4326))
+            spatial = spatial.to_crs(epsg=4326)
         else:
             raise ValueError("Invalid spatial input. Must be bounding box list, file path, or GeoDataFrame.")
+        
         return spatial
-
-    def _merge_product_vars(self, existing_vars, new_vars):
-        """Merge new product variables with existing ones"""
-        if not existing_vars:
-            return new_vars
-        if not new_vars:
-            return existing_vars
-
-        merged = existing_vars.copy()
-        for prod, vars_list in new_vars.items():
-            if prod not in merged:
-                merged[prod] = vars_list
-            elif vars_list is not None:
-                if merged[prod] is None:
-                    merged[prod] = vars_list
-                else:
-                    existing_set = set(merged[prod]) if merged[prod] else set()
-                    new_set = set(vars_list) if vars_list else set()
-                    merged[prod] = list(existing_set | new_set)
-        return merged
-
-    def _merge_temporal(self, existing_temporal, new_temporal):
-        """Merge temporal filters - expand time range to include both"""
-        if not existing_temporal:
-            return new_temporal
-        if not new_temporal:
-            return existing_temporal
-
-        # Parse existing temporal
-        if isinstance(existing_temporal, (list, tuple)):
-            start1, end1 = existing_temporal
+    
+    def _process_temporal(self, temporal):
+        if temporal is None:
+            return None
+        
+        if isinstance(temporal, (list, tuple)) and len(temporal) == 2:
+            start, end = temporal
+            if isinstance(start, str):
+                start = datetime.fromisoformat(start.replace('Z', '+00:00'))
+                start = start.strftime('%Y-%m-%d')
+            if isinstance(end, str):
+                end = datetime.fromisoformat(end.replace('Z', '+00:00'))
+                end = end.strftime('%Y-%m-%d')
+            return (start, end)
         else:
-            return new_temporal
-
-        # Parse new temporal
-        if isinstance(new_temporal, (list, tuple)):
-            start2, end2 = new_temporal
+            raise ValueError("Invalid temporal input. Must be a list or tuple of two dates.")
+    
+    def _merge_spatial(self, new_spatial):
+        if new_spatial is None:
+            return
+        
+        if self.spatial is None:
+            self.spatial = self._process_spatial(new_spatial)        
         else:
-            return existing_temporal
+            self.spatial = gpd.overlay(self.spatial, self._process_spatial(new_spatial), how='union')            
 
-        # Convert to datetime for comparison
-        start1_dt = datetime.fromisoformat(start1.replace('Z', '+00:00')) if isinstance(start1, str) else start1
-        end1_dt = datetime.fromisoformat(end1.replace('Z', '+00:00')) if isinstance(end1, str) else end1
-        start2_dt = datetime.fromisoformat(start2.replace('Z', '+00:00')) if isinstance(start2, str) else start2
-        end2_dt = datetime.fromisoformat(end2.replace('Z', '+00:00')) if isinstance(end2, str) else end2
+    def _merge_temporal(self, new_temporal):
+        if new_temporal is None:
+            return
+        if self.temporal is None:
+            self.temporal = self._process_temporal(new_temporal)
+        else:
+            start1, end1 = self.temporal
+            start2, end2 = self._process_temporal(new_temporal)
+            
+            new_start = None if None in (start1, start2) else min(start1, start2)
+            new_end = None if None in (end1, end2) else max(end1, end2)
+            
+            self.temporal = (new_start, new_end)
 
-        # Take earliest start and latest end
-        merged_start = min(start1_dt, start2_dt)
-        merged_end = max(end1_dt, end2_dt)
+    def _merge_product_vars(self, new_prod_vars):
+        if not new_prod_vars:
+            return
+        
+        for prod, vars_list in new_prod_vars.items():
+            if prod not in self.product_vars:
+                self.product_vars[prod] = vars_list
+            elif self.product_vars[prod] is None or vars_list is None:
+                self.product_vars[prod] = None
+            else:
+                existing_set = set(self.product_vars[prod])
+                new_set = set(vars_list)
+                self.product_vars[prod] = list(existing_set | new_set)
 
-        # Return in same format as input
-        return (merged_start.strftime('%Y-%m-%d'), merged_end.strftime('%Y-%m-%d'))
-
-    def _merge_spatial(self, existing_spatial, new_spatial):
-        """Merge spatial filters - union of geometries"""
-        if not existing_spatial:
-            return self._process_spatial(new_spatial)
-        if not new_spatial:
-            return existing_spatial
-
-        # For now, keep the existing spatial filter when merging
-        # More complex spatial merging could be implemented later
-        return existing_spatial
-
-    def set_status(self, new_status: str, db_target=None):
-        """Set status for specific database or both"""
+    def set_status(self, new_status: str, which_product: str=None):
         if new_status not in self._VALID_STATUSES:
             raise ValueError(f"Invalid status '{new_status}'. Must be one of {self._VALID_STATUSES}")
 
-        if db_target is None:
-            db_target = self.db_type
-
-        if db_target in ('soc', 'both') and self.db_type in ('soc', 'both'):
-            self.soc_data['status'] = new_status
-        if db_target in ('h3', 'both') and self.db_type in ('h3', 'both'):
-            self.h3_data['status'] = new_status
-
-    def set_current_level(self, gedi_prod_level: str = None):
-        """Set currently building product level"""
-        if gedi_prod_level is None:
-            if hasattr(self, 'building_product_level'):
-                del self.building_product_level
-            return
-        self.building_product_level = gedi_prod_level.upper()
-
-    def update_product_info(self, product_level: str, info_dict: Dict, db_target=None):
-        """Update product information for SOC or H3 database"""
-        if db_target is None:
-            db_target = self.db_type
-
-        product_level = product_level.upper()
-        timestamp = datetime.now().isoformat()
-
-        # Update product info with essential metadata
-        product_info = {
-            'last_updated': timestamp,
-            'variables': info_dict.get('variables', []),
-            'file_count': info_dict.get('file_count', 0),
-            'size_gb': info_dict.get('size_gb', 0),
+        self.processing_data = {
+            "db_type": self.db_type,
+            "product": which_product if which_product else None,
+            "status": new_status
         }
-
-        # Add database-specific information
-        if db_target in ('soc', 'both') and self.db_type in ('soc', 'both'):
-            if 'products' not in self.soc_data:
-                self.soc_data['products'] = {}
-            self.soc_data['products'][product_level] = product_info.copy()
-            self.soc_data['products'][product_level].update({
-                'date_range': info_dict.get('date_range', None),
-                'orbit_range': info_dict.get('orbit_range', None),
-                'version_info': {
-                    'doi': GEDI_PRODUCTS.get(product_level, {}).get('doi', ''),
-                    'version': GEDI_PRODUCTS.get(product_level, {}).get('version', ''),
-                }
-            })
-
-
-        if db_target in ('h3', 'both') and self.db_type in ('h3', 'both'):
-            if 'products' not in self.h3_data:
-                self.h3_data['products'] = {}
-            self.h3_data['products'][product_level] = product_info.copy()
-            # Add H3-specific info
-            self.h3_data['products'][product_level].update({
-                'h3_tiles': info_dict.get('h3_tiles', []),
-                'parquet_files': info_dict.get('parquet_files', []),
-                'indexed_shots': info_dict.get('indexed_shots', 0),
-                'h3_resolution': self.res,
-                'h3_partition': self.part
-            })
-
-    def get_summary(self):
-        """Get comprehensive summary of both databases"""
-        summary = {
-            'log_file': self.log_file,
-            'db_type': self.db_type,
-            'last_activity': self.current_timestamp
-        }
-
+        
+    def get_product_info(self, prod: str, status: str = 'COMPLETED'):
+        prod = prod.upper()
+        if prod not in GEDI_PRODUCTS:
+            raise ValueError(f"Invalid product '{prod}'. Must be one of {list(GEDI_PRODUCTS.keys())}")        
+        
         if self.db_type in ('soc', 'both'):
-            soc_products = list(self.soc_data.get('products', {}).keys())
-            summary['soc'] = {
-                'status': self.soc_data.get('status', 'UNKNOWN'),
-                'products_available': soc_products,
-                'total_products': len(soc_products),
-                'last_updated': self.soc_data.get('config', {}).get('last_updated', 'Never'),
-                'config': self.soc_data.get('config', {})
-            }
-
+            self.soc_data.setdefault('products', {})
+            self.soc_data['s3_access'] = self.s3_access
+            
+            if prod is None:
+                self.soc_data['status'] = status
+            else:
+                self.soc_data['products'].setdefault(prod, {})
+                self.soc_data['last_modified'] = self._now()
+                
+                prod_log = self.soc_data['products'][prod]
+                prod_log.setdefault('version_info', [])
+                
+                versions = [i.get('doi') for i in prod_log['version_info']]
+                if GEDI_PRODUCTS[prod]['doi'] not in versions:
+                    prod_log['version_info'].append({
+                        'doi': GEDI_PRODUCTS[prod]['doi'],
+                        'version': GEDI_PRODUCTS[prod]['version']
+                    })                                                    
+                
+                prod_log['status'] = status
+                prod_log['last_modified'] = self._now()
+                prod_log['variables'] = self.product_vars.get(prod)
+                
+                if not self.s3_access:
+                    gedi_files = soc_file_tree(GH3_DEFAULT_SOC_DIR, to_list=True)
+        
+                    prod_files = [f[prod] for f in gedi_files]
+                    gedi_prods = [GEDIFile(f) for f in prod_files if f and os.path.exists(f)]
+                    gedi_dates = [f.date.strftime('%Y-%m-%d') for f in gedi_prods]
+                    gedi_orbits = [f.orbit for f in gedi_prods]
+                                
+                    prod_log['file_count'] = len(prod_files)
+                    prod_log['size_gb'] = sum(f.file_size for f in gedi_prods)
+                    prod_log['date_range'] = (min(gedi_dates), max(gedi_dates))
+                    prod_log['orbit_range'] = (min(gedi_orbits), max(gedi_orbits))
+            
         if self.db_type in ('h3', 'both'):
-            h3_products = list(self.h3_data.get('products', {}).keys())
-            summary['h3'] = {
-                'status': self.h3_data.get('status', 'UNKNOWN'),
-                'products_available': h3_products,
-                'total_products': len(h3_products),
-                'last_updated': self.h3_data.get('config', {}).get('last_updated', 'Never'),
-                'config': self.h3_data.get('config', {})
-            }
-
-        return summary
+            pass # Placeholder for future H3-specific logging
+    
+    def set_product_info(self, validate: bool = True):
+        if self.db_type in ('soc', 'both'):
+            self.soc_data['products'] = {}
+            if not self.s3_access:
+                gedi_files = soc_file_tree(GH3_DEFAULT_SOC_DIR, to_list=True, glob_kwargs=None)
+                prod_vars = check_soc_file_vars(soc_file=gedi_files[0], available_products=GEDI_PRODUCTS)
+                
+                if validate:
+                    val_report = validate_soc_files(product_vars=prod_vars, soc_dir=GH3_DEFAULT_SOC_DIR)
+                    if not val_report['can_skip']:
+                        raise ValueError(f"SOC files validation failed: {val_report['error_msg']}")                
+                
+                self.product_vars = prod_vars
+                
+                for prod in self.soc_data['products'].keys():
+                    self.get_product_info(prod, status='COMPLETED')
+                self.get_product_info(None, status='COMPLETED')
+        
+        if self.db_type in ('h3', 'both'):
+            pass # Placeholder for future H3-specific logging
 
     def to_dict(self):
         """Convert logger to dictionary format for JSON serialization"""
         log_dict = {
+            'spatial_filter': to_geojson(self.spatial) if isinstance(self.spatial, gpd.GeoDataFrame) else self.spatial,
+            'temporal_filter': self.temporal,
             'soc': self.soc_data,
             'h3': self.h3_data,
+            'processing': self.processing_data,
             'metadata': {
                 'package_version': get_package_version(),
-                'db_type': self.db_type,
-                'last_modified': self.current_timestamp
-            }
+                'last_modified': self._now()
+            }            
         }
-
-        # Add legacy fields for backward compatibility if needed
-        if hasattr(self, 'building_product_level'):
-            log_dict['metadata']['building_product_level'] = self.building_product_level
 
         return log_dict
 
     def save_log(self):
-        """Save the complete log structure to JSON file"""
         json_write(self.to_dict(), self.log_file, mode='w', rewrite=True)

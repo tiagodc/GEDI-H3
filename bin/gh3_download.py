@@ -81,7 +81,6 @@ if __name__ == "__main__":
         warnings.warn("No temporal filter provided - downloading all data", UserWarning)
     
     build_logger = H3BuildLogger(
-        odir=args.outdir if args.outdir else GH3_DEFAULT_DOWNLOAD_DIR,
         prod_vars=prod_vars,
         spatial=spatial,
         temporal=temporal,
@@ -98,9 +97,9 @@ if __name__ == "__main__":
             product_vars=prod_vars,
             spatial=spatial,
             temporal=temporal,
+            direct_access=False,
             resume=args.resume,
             update=args.update,
-            direct_access=False,
             dask_client=client,
             build_logger=build_logger
         )

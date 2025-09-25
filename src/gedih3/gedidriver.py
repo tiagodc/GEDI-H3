@@ -20,10 +20,11 @@ def soc_prod_from_file(file_path):
 def soc_from_file(file_path):
     return os.path.dirname(os.path.dirname(os.path.dirname(file_path)))
 
-def soc_file_tree(file_struct: Union[str, list], to_list=False):    
+def soc_file_tree(file_struct: Union[str, list], to_list=False, glob_kwargs=None):
     direct_access = False
     if isinstance(file_struct, str) and os.path.isdir(file_struct):
-        file_list = glob.glob(os.path.join(file_struct, '**', '*.h5'), recursive=True)
+        glob_pattern = gedi_file_glob(**glob_kwargs) if glob_kwargs else '*.h5'
+        file_list = glob.glob(os.path.join(file_struct, '**', glob_pattern), recursive=True)
     elif (direct_access := isinstance(file_struct[0], EarthAccessFile)):
         file_list = [i.path for i in file_struct]
     elif isinstance(file_struct[0], str):
@@ -60,7 +61,7 @@ def gedi_subset(source_file, dest_file, variables, subset_beams=None):
         return dest_file
     return None
 
-def gedi_file_glob(orbit, orbit_granule, track, product: int=1, level: str='B', ppds: int=None, pge:int=None, generation:int=None, version:int=None):
+def gedi_file_glob(orbit=None, orbit_granule=None, track=None, product: int=1, level: str='B', ppds: int=None, pge:int=None, generation:int=None, version:int=None):
     str_build = lambda x, digits=2: '*' if x is None else f"{x:0{digits}d}"
     lev_str = '*' if level is None else level.upper()    
     prd_str = str_build(product)
@@ -77,10 +78,17 @@ def gedi_vars_expand(product_vars):
     for prod, vars in product_vars.items():
         if vars is None:
             continue
-        if "minimal" in vars or "min" in vars:
+        if os.path.isfile(vars[0]) and len(vars) == 1:
+            with open(vars[0], 'r') as f:
+                product_vars[prod] = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+        elif "minimal" in vars or "min" in vars:
             product_vars[prod] = GEDI_PRODUCTS[prod]['default_vars']
         elif "*" in vars or "all" in vars:
             product_vars[prod] = None
+        elif isinstance(vars, list):
+            continue
+        else:
+            raise ValueError(f"Unknown variable specification for product {prod}: {vars}")
     return product_vars
 
 def gedi_vars_from_h5(gedi_file):
@@ -89,14 +97,17 @@ def gedi_vars_from_h5(gedi_file):
     pl_info = h5_info(gedi_file, root=b)
     return pl_info.path.str.replace(b,'').str.lstrip('/').tolist()
 
-@dask.delayed
-def _check_soc_file_vars(soc_file, available_products):
+def check_soc_file_vars(soc_file, available_products):
     file_products = {}
     for prod in available_products.keys():
         if prod in soc_file:
             available_vars = gedi_vars_from_h5(soc_file[prod])
             file_products[prod] = available_vars
     return file_products
+
+@dask.delayed
+def _check_soc_file_vars(soc_file, available_products):
+    return check_soc_file_vars(soc_file, available_products)
 
 def validate_soc_files(product_vars: Dict, soc_dir: str = GH3_DEFAULT_SOC_DIR):
     soc_files = soc_file_tree(soc_dir, to_list=True)

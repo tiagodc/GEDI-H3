@@ -122,8 +122,10 @@ def to_geojson(geodf: gpd.GeoDataFrame) -> Dict:
     return geojson
 
 def from_geojson(geojson: Dict) -> gpd.GeoDataFrame:
-    geojson_str = geojson['shapefile'][1]
-    return gpd.read_file(geojson_str)
+    geojson_features = geojson['shapefile'][1]
+    if isinstance(geojson_features, str):
+        geojson_features = json.loads(geojson_features)
+    return gpd.GeoDataFrame.from_features(geojson_features, crs=4326)
 
 def read_as_geojson(geofile: str, box_only: bool = False) -> Dict:
     roi = read_vector_file(geofile, crs=4326) 
