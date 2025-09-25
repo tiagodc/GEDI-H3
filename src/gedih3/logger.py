@@ -48,7 +48,7 @@ class H3BuildLogger:
         
         if not resume and not update:
             if log_data:
-                raise ValueError(f"Log file '{self.log_file}' already exists. Use resume or update mode to modify existing log.")
+                raise ValueError(f"Log file '{self.log_file}' already exists. Use resume or update mode to modify existing database.")
 
             self.spatial = self._process_spatial(spatial)
             self.temporal = self._process_temporal(temporal)
@@ -236,7 +236,7 @@ class H3BuildLogger:
     def to_dict(self):
         """Convert logger to dictionary format for JSON serialization"""
         log_dict = {
-            'spatial_filter': to_geojson(self.spatial) if isinstance(self.spatial, gpd.GeoDataFrame) else self.spatial,
+            'spatial_filter': to_geojson(self.spatial),
             'temporal_filter': self.temporal,
             'soc': self.soc_data,
             'h3': self.h3_data,
