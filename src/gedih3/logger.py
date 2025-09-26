@@ -6,6 +6,7 @@ from datetime import datetime
 from .config import GEDI_PRODUCTS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR
 from .utils import json_read, json_write, read_vector_file, to_geojson, from_geojson
 from .gedidriver import GEDIFile, gedi_vars_expand, soc_file_tree, check_soc_file_vars, validate_soc_files
+from .gh3driver import gh3_list_files
 
 def get_package_version():
     """Get the current package version"""
@@ -22,44 +23,59 @@ def get_package_version():
 
 class H3BuildLogger:
     _LOG_FILE_NAME = 'gh3_build_log.json'
-    _VALID_STATUSES = ('INITIALIZED', 'DOWNLOADING', 'PARTITIONING', 'MERGING', 'COMPLETED', 'FAILED', 'INTERRUPTED', 'UNKNOWN')
+    _VALID_STATUSES = ('INITIALIZING', 'DOWNLOADING','PROCESSING', 'PARTITIONING', 'MERGING', 'COMPLETED', 'FAILED', 'INTERRUPTED', 'UNKNOWN')
     _VALID_DB_TYPES = ('soc', 'h3', 'both')
 
-    def __init__(self, prod_vars, res=12, part=3, spatial=None, temporal=None, resume=False, update=False, db_type='both'):
+    def __init__(self, prod_vars, res:int=12, part:int=3, spatial=None, temporal=None, resume=False, update=False, db_type='both'):
         self.odir = GH3_DEFAULT_DOWNLOAD_DIR
-        self.db_type = db_type.lower()
+        self.set_db_type(db_type)
         
         self.s3_access = False  # Placeholder for future S3 access handling
         self.soc_data = {}
         self.h3_data = {}
         self.processing_data = {}
 
-        if self.db_type not in self._VALID_DB_TYPES:
-            raise ValueError(f"Invalid db_type '{db_type}'. Must be one of {self._VALID_DB_TYPES}")
-
         self.log_file = os.path.join(self.odir, self._LOG_FILE_NAME)
         log_data = self._load_log_data()
         self._parse_log(log_data)
     
+        if self.db_type in ('h3', 'both'):
+            self._set_h3_resolutions(res, part)
+
         if update:
             self._merge_spatial(spatial)
             self._merge_temporal(temporal)
             self._merge_product_vars(prod_vars)
         
-        if not resume and not update:
-            if log_data:
-                raise ValueError(f"Log file '{self.log_file}' already exists. Use resume or update mode to modify existing database.")
+        resuming = resume or update
+        if not resuming and self.db_type in ('soc','both') and self.soc_data:
+            raise ValueError(f"Log file '{self.log_file}' already filled for SOC. Use resume or update mode to modify existing database.")
+        elif not resuming and self.db_type in ('h3','both') and self.h3_data:
+            raise ValueError(f"Log file '{self.log_file}' already filled for H3. Use resume or update mode to modify existing database.")           
 
+        if not resuming:
             self.spatial = self._process_spatial(spatial)
             self.temporal = self._process_temporal(temporal)
             self.product_vars = gedi_vars_expand(prod_vars)
-            
-            if db_type in ('h3', 'both'):
-                self.res = res
-                self.part = part
-
+                
     def _now(self):
         return datetime.now().isoformat()
+    
+    def set_db_type(self, db):
+        db = db.lower()
+        if db not in self._VALID_DB_TYPES:
+            raise ValueError(f"Invalid db_type '{db}'. Must be one of {self._VALID_DB_TYPES}")
+        self.db_type = db
+    
+    def _set_h3_resolutions(self, res=None, part=None):
+        self.res = self.h3_data.get("h3_resolution_level", res)
+        self.part = self.h3_data.get("h3_partition_level", part)
+        
+        if not (self.res and self.part):
+            raise ValueError("H3 resolution and partition levels must be specified for H3 database.")
+          
+        self.h3_data['h3_resolution_level'] = self.res
+        self.h3_data['h3_partition_level'] = self.part
     
     def _load_log_data(self):
         if os.path.exists(self.log_file):
@@ -80,7 +96,7 @@ class H3BuildLogger:
         self.spatial = self._process_spatial(spatial)
         self.temporal = self._process_temporal(temporal)
         
-        self.product_vars = log_data.get("soc",{}).get("products",{})
+        self.product_vars = log_data.get(self.db_type,{}).get("products",{})
         if self.product_vars:
             self.product_vars = {k:val.get('variables') for k,val in self.product_vars.items()}
     
@@ -167,8 +183,15 @@ class H3BuildLogger:
             "status": new_status
         }
         
+        if which_product is None:
+            if self.db_type in ('soc', 'both'):
+                self.soc_data['status'] = new_status
+            if self.db_type in ('h3', 'both'):
+                self.h3_data['status'] = new_status
+        
     def get_product_info(self, prod: str, status: str = 'COMPLETED'):
         prod = prod.upper()
+        
         if prod not in GEDI_PRODUCTS:
             raise ValueError(f"Invalid product '{prod}'. Must be one of {list(GEDI_PRODUCTS.keys())}")        
         
@@ -176,41 +199,56 @@ class H3BuildLogger:
             self.soc_data.setdefault('products', {})
             self.soc_data['s3_access'] = self.s3_access
             
-            if prod is None:
-                self.soc_data['status'] = status
-            else:
-                self.soc_data['products'].setdefault(prod, {})
-                self.soc_data['last_modified'] = self._now()
-                
-                prod_log = self.soc_data['products'][prod]
-                prod_log.setdefault('version_info', [])
-                
-                versions = [i.get('doi') for i in prod_log['version_info']]
-                if GEDI_PRODUCTS[prod]['doi'] not in versions:
-                    prod_log['version_info'].append({
-                        'doi': GEDI_PRODUCTS[prod]['doi'],
-                        'version': GEDI_PRODUCTS[prod]['version']
-                    })                                                    
-                
-                prod_log['status'] = status
-                prod_log['last_modified'] = self._now()
-                prod_log['variables'] = self.product_vars.get(prod)
-                
-                if not self.s3_access:
-                    gedi_files = soc_file_tree(GH3_DEFAULT_SOC_DIR, to_list=True)
-        
-                    prod_files = [f[prod] for f in gedi_files]
-                    gedi_prods = [GEDIFile(f) for f in prod_files if f and os.path.exists(f)]
-                    gedi_dates = [f.date.strftime('%Y-%m-%d') for f in gedi_prods]
-                    gedi_orbits = [f.orbit for f in gedi_prods]
-                                
-                    prod_log['file_count'] = len(prod_files)
-                    prod_log['size_gb'] = sum(f.file_size for f in gedi_prods)
-                    prod_log['date_range'] = (min(gedi_dates), max(gedi_dates))
-                    prod_log['orbit_range'] = (min(gedi_orbits), max(gedi_orbits))
+            self.soc_data['products'].setdefault(prod, {})
+            self.soc_data['last_modified'] = self._now()
             
+            prod_log = self.soc_data['products'][prod]
+            prod_log.setdefault('version_info', [])
+            
+            versions = [i.get('doi') for i in prod_log['version_info']]
+            if GEDI_PRODUCTS[prod]['doi'] not in versions:
+                prod_log['version_info'].append({
+                    'doi': GEDI_PRODUCTS[prod]['doi'],
+                    'version': GEDI_PRODUCTS[prod]['version']
+                })                                                    
+            
+            prod_log['status'] = status
+            prod_log['last_modified'] = self._now()
+            prod_log['variables'] = self.product_vars.get(prod)
+            
+            if not self.s3_access:
+                gedi_files = soc_file_tree(GH3_DEFAULT_SOC_DIR, to_list=True)
+    
+                prod_files = [f[prod] for f in gedi_files]
+                gedi_prods = [GEDIFile(f) for f in prod_files if f and os.path.exists(f)]
+                gedi_dates = [f.date.strftime('%Y-%m-%d') for f in gedi_prods]
+                gedi_orbits = [f.orbit for f in gedi_prods]
+                            
+                prod_log['file_count'] = len(prod_files)
+                prod_log['size_gb'] = sum(f.file_size for f in gedi_prods)
+                prod_log['date_range'] = (min(gedi_dates), max(gedi_dates))
+                prod_log['orbit_range'] = (min(gedi_orbits), max(gedi_orbits))
+        
         if self.db_type in ('h3', 'both'):
-            pass # Placeholder for future H3-specific logging
+            self.h3_data.setdefault('products', {})
+            
+            self.h3_data['products'].setdefault(prod, {})
+            self.h3_data['last_modified'] = self._now()
+            
+            prod_log = self.h3_data['products'][prod]
+            prod_log.setdefault('soc_version_info', {})            
+            prod_log['soc_version_info']['version'] = GEDI_PRODUCTS[prod]['version']
+            
+            prod_log['status'] = status
+            prod_log['last_modified'] = self._now()
+            prod_log['variables'] = self.product_vars.get(prod) # change to h3 vars after build
+                
+            h3_files = gh3_list_files(GH3_DEFAULT_H3_DIR, product=prod)
+                        
+            prod_log['file_count'] = len(h3_files)
+            prod_log['size_gb'] = sum((os.path.getsize(f) / 1e9) for f in h3_files)
+            prod_log['date_range'] = None
+            prod_log['orbit_range'] = None
     
     def set_product_info(self, validate: bool = True):
         if self.db_type in ('soc', 'both'):

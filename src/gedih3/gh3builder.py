@@ -77,12 +77,7 @@ def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     return h3_merge_files(in_dir=in_dir, out_dir=out_dir, rm_src=rm_src, replace=replace)
 
 def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_access = False, resume=False, update=False, n_jobs=5, dask_client=None, build_logger: H3BuildLogger = None):
-    product_vars = gedi_vars_expand(product_vars)
-    
-    if build_logger:
-        product_vars = build_logger.product_vars
-        spatial = build_logger.spatial
-        temporal = build_logger.temporal    
+    product_vars = gedi_vars_expand(product_vars)    
     
     if 'L2A' not in product_vars:
         product_vars.update({'L2A': GEDI_L2A_ESSENTIALS})
@@ -94,6 +89,7 @@ def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_acc
             val.append('shot_number')
 
     if build_logger:
+        build_logger.set_db_type('soc')
         build_logger.set_status('DOWNLOADING')
         build_logger.save_log()
 
@@ -105,10 +101,15 @@ def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_acc
 
     return soc_files
 
-def build_h3db_from_soc(gedi_prod_level='l4c', h3_vars=['wsci'], res=12, part=3, spatial=None, soc_source=None, build_logger=None):
+def build_h3db_from_soc(gedi_prod_level='l4c', h3_vars=['wsci'], res=12, part=3, spatial=None, soc_source=None, version_kwargs=None, build_logger:H3BuildLogger=None):
     pl = gedi_prod_level.upper()
     soc_input = soc_source if soc_source is not None else GH3_DEFAULT_SOC_DIR
-    all_soc_files = soc_file_tree(soc_input, to_list=True)
+    all_soc_files = soc_file_tree(soc_input, to_list=True, glob_kwargs=version_kwargs)
+    
+    if build_logger is not None:
+        build_logger.set_db_type('h3')
+        build_logger.set_status('INITIALIZING', which_product=pl)
+        build_logger.save_log()
     
     if h3_vars is None:
         pl_file = all_soc_files[0][pl]
@@ -141,7 +142,7 @@ def build_h3db_from_soc(gedi_prod_level='l4c', h3_vars=['wsci'], res=12, part=3,
     os.makedirs(tmp_dir, exist_ok=True)
     
     if build_logger is not None:
-        build_logger.set_status('PARTITIONING', db_target='h3')
+        build_logger.set_status('PARTITIONING', which_product=pl)
         build_logger.save_log()
 
     tmp_files = ddf.map_partitions(h3_part_files, res=res, part=part, lat_col=lat_col, lon_col=lon_col, dir_path=tmp_dir, roi_tiles=h3_tiles, meta=pd.Series([], dtype=str))
@@ -150,7 +151,7 @@ def build_h3db_from_soc(gedi_prod_level='l4c', h3_vars=['wsci'], res=12, part=3,
     progress(tmp_files)
 
     if build_logger is not None:
-        build_logger.set_status('MERGING', db_target='h3')
+        build_logger.set_status('MERGING', which_product=pl)
         build_logger.save_log()
 
     tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/'))
@@ -163,66 +164,54 @@ def build_h3db_from_soc(gedi_prod_level='l4c', h3_vars=['wsci'], res=12, part=3,
 
     h3_result = list(dask.compute(*h3_files))
 
-    # Update logger with H3 product information
     if build_logger is not None:
-        # Get H3 tiles from directories
-        h3_tiles_created = [os.path.basename(d.rstrip('/')) for d in tmp_h3_dirs]
-
-        build_logger.update_product_info(pl, {
-            'variables': h3_vars if h3_vars else [],
-            'file_count': len(h3_result),
-            'h3_tiles': h3_tiles_created,
-            'parquet_files': [f for f in h3_result if f and f.endswith('.parquet')],
-            'indexed_shots': 0  # Could be calculated from the dataframes if needed
-        }, db_target='h3')
-
-        build_logger.set_status('COMPLETED', db_target='h3')
+        build_logger.set_status('COMPLETED', which_product=pl)
+        build_logger.get_product_info(pl, 'COMPLETED')
         build_logger.save_log()
 
     return h3_result
 
-def gh3_build_main(product_vars, spatial=None, temporal=None, res=12, part=3, direct_access=False, dask_client=None, skip_download=False, resume=False, update=False, db_type='both'):
+def gh3_build_main(product_vars, spatial=None, temporal=None, res=12, part=3, direct_access=False, dask_client=None, skip_download=False, resume=False, update=False):
     product_vars = gedi_vars_expand(product_vars)
 
     if isinstance(spatial, str):
         spatial = read_vector_file(spatial)
-
+    
+    db_type = 'h3' if skip_download else 'both'
     build_logger = H3BuildLogger(product_vars, res=res, part=part, spatial=spatial, temporal=temporal, resume=resume, update=update, db_type=db_type)
     build_logger.save_log()
 
     soc_source = None
     if skip_download:
-        validation_report = validate_soc_files(build_logger.prod_vars, soc_dir=GH3_DEFAULT_SOC_DIR)
+        validation_report = validate_soc_files(build_logger.product_vars, soc_dir=GH3_DEFAULT_SOC_DIR)
         if not validation_report["can_skip"]:
             build_logger.set_status('FAILED')
             build_logger.save_log()
             raise ValueError(validation_report.get('error_msg', "SOC files validation failed."))
     else:
-        soc_files = download_soc(build_logger.prod_vars, spatial=build_logger.spatial, temporal=build_logger.temporal, direct_access=direct_access, resume=resume, update=update, dask_client=dask_client, build_logger=build_logger)
+        build_logger.set_status('DOWNLOADING')
+        soc_files = download_soc(build_logger.product_vars, spatial=build_logger.spatial, temporal=build_logger.temporal, direct_access=direct_access, resume=resume, update=update, dask_client=dask_client, build_logger=build_logger)
         if direct_access:
             soc_source = soc_files
 
     # Only build H3 database if needed
-    h3_products = {}
-    if build_logger.db_type in ('h3', 'both'):
-        try:
-            for k,val in build_logger.prod_vars.items():
-                build_logger.set_current_level(k)
-                build_logger.save_log()
-
-                print(f"Building H3 database for GEDI {k.upper()}")
-                h3_files = build_h3db_from_soc(gedi_prod_level=k, h3_vars=val, res=build_logger.res, part=build_logger.part, spatial=build_logger.spatial, build_logger=build_logger, soc_source=soc_source)
-                h3_products[k] = h3_files
-        except Exception as e:
-            build_logger.set_status('FAILED')
-            build_logger.save_log()
-            raise e
-
-        build_logger.set_current_level(None)
-
-    # Set final completion status
-    build_logger.set_status('COMPLETED')
+    build_logger.set_db_type('h3')
+    build_logger.set_status('PROCESSING')
     build_logger.save_log()
+    
+    h3_products = {}
+    try:
+        for k,val in build_logger.product_vars.items():
+            print(f"Building H3 database for GEDI {k.upper()}")
+            h3_files = build_h3db_from_soc(gedi_prod_level=k, h3_vars=val, res=build_logger.res, part=build_logger.part, spatial=build_logger.spatial, build_logger=build_logger, soc_source=soc_source)
+            h3_products[k] = h3_files
+    except Exception as e:
+        build_logger.set_status('FAILED', k)
+        build_logger.save_log()
+        raise e
+
+    build_logger.set_status('COMPLETED')
+    build_logger.save_log()    
     return h3_products
 
 def _testit(odir=None):
@@ -241,9 +230,9 @@ def _testit(odir=None):
     spatial = [-50.5,0.5,-50,1]
     temporal = ('2020-01-01','2020-07-01')
     # client = Client() 
-    with Client(n_workers=20, threads_per_worker=1, processes=True) as client:
+    with Client(n_workers=10, threads_per_worker=1, processes=True) as client:
         print(client.dashboard_link)
-        gh3_build_main(product_vars, spatial=spatial, temporal=temporal, res=12, part=3, dask_client=client, direct_access=False, skip_download=True)        
+        gh3_build_main(product_vars, spatial=spatial, temporal=temporal, res=12, part=3, dask_client=client, direct_access=False, skip_download=True, resume=True)        
 
     t1 = datetime.now()
     print("process finished at", t1)

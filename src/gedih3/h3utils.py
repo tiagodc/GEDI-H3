@@ -49,8 +49,4 @@ def intersect_h3_geometries(spatial, res):
     h3_geo = gpd.GeoSeries(full_h3_geo, index=full_h3_list, crs=4326)
     
     h3_intersects = h3_geo.geometry.apply(lambda x: spatial.intersects(x))
-    return h3_intersects[h3_intersects].index.tolist()
-    
-
-
-    
+    return h3_intersects[h3_intersects.values].index.tolist()

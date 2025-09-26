@@ -27,6 +27,25 @@
       }
     }
   },
-  "h3": {},
+  "h3": {
+    "status": "",
+    "last_modified": "",
+    "h3_partition_level": 3,
+    "h3_resolution_level": 12,
+    "products": {
+      "L4C": {
+        "status": "",
+        "last_modified": "",
+        "variables": [],
+        "file_count": 0,
+        "size_gb": 0,
+        "date_range": [],
+        "orbit_range": [],
+        "soc_version_info": {
+          "version":0
+        }
+      }
+    }
+  },
   "img":{}
 }

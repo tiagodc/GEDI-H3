@@ -15,9 +15,6 @@ def getCmdArgs():
     p.add_argument("-l4a", "--l4a", dest="l4a", nargs='+', type=str, default=None, required=False, help="GEDI L4A variables to download")
     p.add_argument("-l4c", "--l4c", dest="l4c", nargs='+', type=str, default=None, required=False, help="GEDI L2A variables to download")
 
-    # p.add_argument("-l3", "--l3", dest="l3", action='store_true', help="Download GEDI L3")
-    # p.add_argument("-l4cf", "--l4c-fusion", dest="l4c_fusion", action='store_true', help="Download GEDI L4C Fusion")
-    # p.add_argument("-l4d", "--l4d", dest="l4d", action='store_true', help="Download GEDI L4D")
     
     p.add_argument("-r", "--resume", dest="resume", action='store_true', help="resume interrupted downloads")    
     p.add_argument("-u", "--update", dest="update", action='store_true', help="update existing SOC files")    
@@ -33,6 +30,50 @@ def getCmdArgs():
     
     cmdargs = p.parse_args()
     return cmdargs
+
+def gh3_build_main(product_vars, spatial=None, temporal=None, res=12, part=3, direct_access=False, dask_client=None, skip_download=False, resume=False, update=False, db_type='both'):
+    product_vars = gedi_vars_expand(product_vars)
+
+    if isinstance(spatial, str):
+        spatial = read_vector_file(spatial)
+
+    build_logger = H3BuildLogger(product_vars, res=res, part=part, spatial=spatial, temporal=temporal, resume=resume, update=update, db_type=db_type)
+    build_logger.save_log()
+
+    soc_source = None
+    if skip_download:
+        validation_report = validate_soc_files(build_logger.prod_vars, soc_dir=GH3_DEFAULT_SOC_DIR)
+        if not validation_report["can_skip"]:
+            build_logger.set_status('FAILED')
+            build_logger.save_log()
+            raise ValueError(validation_report.get('error_msg', "SOC files validation failed."))
+    else:
+        soc_files = download_soc(build_logger.prod_vars, spatial=build_logger.spatial, temporal=build_logger.temporal, direct_access=direct_access, resume=resume, update=update, dask_client=dask_client, build_logger=build_logger)
+        if direct_access:
+            soc_source = soc_files
+
+    # Only build H3 database if needed
+    h3_products = {}
+    if build_logger.db_type in ('h3', 'both'):
+        try:
+            for k,val in build_logger.prod_vars.items():
+                build_logger.set_current_level(k)
+                build_logger.save_log()
+
+                print(f"Building H3 database for GEDI {k.upper()}")
+                h3_files = build_h3db_from_soc(gedi_prod_level=k, h3_vars=val, res=build_logger.res, part=build_logger.part, spatial=build_logger.spatial, build_logger=build_logger, soc_source=soc_source)
+                h3_products[k] = h3_files
+        except Exception as e:
+            build_logger.set_status('FAILED')
+            build_logger.save_log()
+            raise e
+
+        build_logger.set_current_level(None)
+
+    # Set final completion status
+    build_logger.set_status('COMPLETED')
+    build_logger.save_log()
+    return h3_products
 
 if __name__ == "__main__":
     import argparse, os
