@@ -15,11 +15,11 @@ def getCmdArgs():
     p.add_argument("-l4a", "--l4a", dest="l4a", nargs='+', type=str, default=None, required=False, help="GEDI L4A variables to download")
     p.add_argument("-l4c", "--l4c", dest="l4c", nargs='+', type=str, default=None, required=False, help="GEDI L2A variables to download")
 
-    
+    p.add_argument("-s", "--skip-download", dest="skip_download", action='store_true', help="skip downloading and build from local SOC database")
     p.add_argument("-r", "--resume", dest="resume", action='store_true', help="resume interrupted downloads")    
     p.add_argument("-u", "--update", dest="update", action='store_true', help="update existing SOC files")    
     p.add_argument("-o", "--outdir", dest="outdir", required=False, type=str, default=None, help="output directory for downloaded files (bypass GH3 default path)")
-    
+        
     p.add_argument("-D", "--dask-scheduler", dest="dask_scheduler", type=str, default=None, required=False, help="existing dask scheduler address, e.g. tcp://localhost:8786")
 
     n = max(1, os.cpu_count() // 2)
@@ -30,50 +30,6 @@ def getCmdArgs():
     
     cmdargs = p.parse_args()
     return cmdargs
-
-def gh3_build_main(product_vars, spatial=None, temporal=None, res=12, part=3, direct_access=False, dask_client=None, skip_download=False, resume=False, update=False, db_type='both'):
-    product_vars = gedi_vars_expand(product_vars)
-
-    if isinstance(spatial, str):
-        spatial = read_vector_file(spatial)
-
-    build_logger = H3BuildLogger(product_vars, res=res, part=part, spatial=spatial, temporal=temporal, resume=resume, update=update, db_type=db_type)
-    build_logger.save_log()
-
-    soc_source = None
-    if skip_download:
-        validation_report = validate_soc_files(build_logger.prod_vars, soc_dir=GH3_DEFAULT_SOC_DIR)
-        if not validation_report["can_skip"]:
-            build_logger.set_status('FAILED')
-            build_logger.save_log()
-            raise ValueError(validation_report.get('error_msg', "SOC files validation failed."))
-    else:
-        soc_files = download_soc(build_logger.prod_vars, spatial=build_logger.spatial, temporal=build_logger.temporal, direct_access=direct_access, resume=resume, update=update, dask_client=dask_client, build_logger=build_logger)
-        if direct_access:
-            soc_source = soc_files
-
-    # Only build H3 database if needed
-    h3_products = {}
-    if build_logger.db_type in ('h3', 'both'):
-        try:
-            for k,val in build_logger.prod_vars.items():
-                build_logger.set_current_level(k)
-                build_logger.save_log()
-
-                print(f"Building H3 database for GEDI {k.upper()}")
-                h3_files = build_h3db_from_soc(gedi_prod_level=k, h3_vars=val, res=build_logger.res, part=build_logger.part, spatial=build_logger.spatial, build_logger=build_logger, soc_source=soc_source)
-                h3_products[k] = h3_files
-        except Exception as e:
-            build_logger.set_status('FAILED')
-            build_logger.save_log()
-            raise e
-
-        build_logger.set_current_level(None)
-
-    # Set final completion status
-    build_logger.set_status('COMPLETED')
-    build_logger.save_log()
-    return h3_products
 
 if __name__ == "__main__":
     import argparse, os
@@ -90,6 +46,7 @@ if __name__ == "__main__":
         args.l4c = ['*']
         args.n_cpus = 10
         args.port = 9997
+        args.skip_download = True
         # args.dask_scheduler = 'tcp://localhost:8786'
         import sys
         sys.path.insert(0, '/gpfs/data1/vclgp/decontot/repos/gedih3/src')
@@ -102,9 +59,8 @@ if __name__ == "__main__":
 
     import warnings
     from gedih3.utils import parse_gedi_args, parse_dask_args
-    from gedih3.gh3builder import download_soc
+    from gedih3.gh3builder import gh3_build_all
     from gedih3.logger import H3BuildLogger
-    from gedih3.config import GH3_DEFAULT_DOWNLOAD_DIR
     from dask.distributed import Client
     
     prod_vars = parse_gedi_args(args)
@@ -127,18 +83,19 @@ if __name__ == "__main__":
         temporal=temporal,
         resume=args.resume,
         update=args.update,
-        db_type='soc'
+        db_type='h3' if args.skip_download else 'both'
     )
 
     dask_kwargs = parse_dask_args(args)
     with Client(**dask_kwargs) as client:
         print("Dask client available at", client.dashboard_link)
 
-        soc_files = download_soc(
+        h3_files = gh3_build_all(
             product_vars=prod_vars,
             spatial=spatial,
             temporal=temporal,
             direct_access=False,
+            skip_download=args.skip_download,
             resume=args.resume,
             update=args.update,
             dask_client=client,

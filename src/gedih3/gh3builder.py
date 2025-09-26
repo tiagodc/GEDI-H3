@@ -171,79 +171,49 @@ def build_h3db_from_soc(gedi_prod_level='l4c', h3_vars=['wsci'], res=12, part=3,
 
     return h3_result
 
-def gh3_build_main(product_vars, spatial=None, temporal=None, res=12, part=3, direct_access=False, dask_client=None, skip_download=False, resume=False, update=False):
+def gh3_build_all(product_vars, spatial=None, temporal=None, res=12, part=3, direct_access=False, dask_client=None, skip_download=False, resume=False, update=False, build_logger:H3BuildLogger=None):
     product_vars = gedi_vars_expand(product_vars)
 
     if isinstance(spatial, str):
-        spatial = read_vector_file(spatial)
-    
-    db_type = 'h3' if skip_download else 'both'
-    build_logger = H3BuildLogger(product_vars, res=res, part=part, spatial=spatial, temporal=temporal, resume=resume, update=update, db_type=db_type)
-    build_logger.save_log()
+        spatial = read_vector_file(spatial)    
 
     soc_source = None
     if skip_download:
         validation_report = validate_soc_files(build_logger.product_vars, soc_dir=GH3_DEFAULT_SOC_DIR)
         if not validation_report["can_skip"]:
-            build_logger.set_status('FAILED')
-            build_logger.save_log()
+            if build_logger:
+                build_logger.set_status('FAILED')
+                build_logger.save_log()
             raise ValueError(validation_report.get('error_msg', "SOC files validation failed."))
     else:
-        build_logger.set_status('DOWNLOADING')
-        soc_files = download_soc(build_logger.product_vars, spatial=build_logger.spatial, temporal=build_logger.temporal, direct_access=direct_access, resume=resume, update=update, dask_client=dask_client, build_logger=build_logger)
+        if build_logger:
+            build_logger.set_db_type('soc')
+            build_logger.set_status('DOWNLOADING')
+        
+        soc_files = download_soc(product_vars, spatial=spatial, temporal=temporal, direct_access=direct_access, resume=resume, update=update, dask_client=dask_client, build_logger=build_logger)
+        
         if direct_access:
             soc_source = soc_files
 
-    # Only build H3 database if needed
-    build_logger.set_db_type('h3')
-    build_logger.set_status('PROCESSING')
-    build_logger.save_log()
+    if build_logger:
+        build_logger.set_db_type('h3')
+        build_logger.set_status('PROCESSING')
+        build_logger.save_log()
     
     h3_products = {}
     try:
         for k,val in build_logger.product_vars.items():
             print(f"Building H3 database for GEDI {k.upper()}")
-            h3_files = build_h3db_from_soc(gedi_prod_level=k, h3_vars=val, res=build_logger.res, part=build_logger.part, spatial=build_logger.spatial, build_logger=build_logger, soc_source=soc_source)
+            h3_files = build_h3db_from_soc(gedi_prod_level=k, h3_vars=val, res=res, part=part, spatial=spatial, build_logger=build_logger, soc_source=soc_source)
             h3_products[k] = h3_files
     except Exception as e:
-        build_logger.set_status('FAILED', k)
-        build_logger.save_log()
+        if build_logger:
+            build_logger.set_status('FAILED', k)
+            build_logger.save_log()
         raise e
 
-    build_logger.set_status('COMPLETED')
-    build_logger.save_log()    
-    return h3_products
-
-def _testit(odir=None):
-    from datetime import datetime
-    from dask.distributed import Client
-    import psutil
-
-    t0 = datetime.now()
-    print("process started at", t0)
-
-    # Track network I/O
-    net_io_start = psutil.net_io_counters()
+    if build_logger:
+        build_logger.set_status('COMPLETED')
+        build_logger.save_log()    
     
-    product_vars = {'L1B': ['minimal'], 'L2A': ['minimal'], 'L4A': ['minimal'], 'L4C': ['*']}
-    # product_vars = {'L2A': ['minimal'], 'L4A': ['shot_number', 'agbd_se'], 'L4C': ['*']}
-    spatial = [-50.5,0.5,-50,1]
-    temporal = ('2020-01-01','2020-07-01')
-    # client = Client() 
-    with Client(n_workers=10, threads_per_worker=1, processes=True) as client:
-        print(client.dashboard_link)
-        gh3_build_main(product_vars, spatial=spatial, temporal=temporal, res=12, part=3, dask_client=client, direct_access=False, skip_download=True, resume=True)        
-
-    t1 = datetime.now()
-    print("process finished at", t1)
-    print(t1 - t0)
-
-    # Calculate network I/O used during the process
-    net_io_end = psutil.net_io_counters()
-    bytes_sent = net_io_end.bytes_sent - net_io_start.bytes_sent
-    bytes_recv = net_io_end.bytes_recv - net_io_start.bytes_recv
-
-    print(f"\nNetwork I/O Summary:")
-    print(f"Downloads: {bytes_recv / (1024**3):.3f} GB")
-    print(f"Uploads: {bytes_sent / (1024**3):.3f} GB")
-    print(f"Total: {(bytes_sent + bytes_recv) / (1024**3):.3f} GB")
+    return h3_products

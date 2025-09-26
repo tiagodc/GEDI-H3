@@ -48,12 +48,13 @@ class H3BuildLogger:
             self._merge_product_vars(prod_vars)
         
         resuming = resume or update
+        
         if not resuming and self.db_type in ('soc','both') and self.soc_data:
             raise ValueError(f"Log file '{self.log_file}' already filled for SOC. Use resume or update mode to modify existing database.")
         elif not resuming and self.db_type in ('h3','both') and self.h3_data:
             raise ValueError(f"Log file '{self.log_file}' already filled for H3. Use resume or update mode to modify existing database.")           
 
-        if not resuming:
+        if not resuming and not log_data:
             self.spatial = self._process_spatial(spatial)
             self.temporal = self._process_temporal(temporal)
             self.product_vars = gedi_vars_expand(prod_vars)

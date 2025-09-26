@@ -63,7 +63,6 @@ if __name__ == "__main__":
     from gedih3.utils import parse_gedi_args, parse_dask_args
     from gedih3.gh3builder import download_soc
     from gedih3.logger import H3BuildLogger
-    from gedih3.config import GH3_DEFAULT_DOWNLOAD_DIR
     from dask.distributed import Client
     
     prod_vars = parse_gedi_args(args)
