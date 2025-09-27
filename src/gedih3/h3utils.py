@@ -38,13 +38,16 @@ def fix_h3_geometry(hex='835b98fffffffff'):
     fixed_geometry = fix_polygon(polygon)
     return fixed_geometry
 
-def intersect_h3_geometries(spatial, res):
+def intersect_h3_geometries(spatial, res=None, h3_ids=None):
     if isinstance(spatial, list):
         spatial = box(*spatial)
     elif isinstance(spatial, gpd.GeoSeries) or isinstance(spatial, gpd.GeoDataFrame):
         spatial = spatial.to_crs(4326)
-        
-    full_h3_list = get_all_h3_hexagons(res)
+
+    full_h3_list = h3_ids    
+    if h3_ids is None:
+        full_h3_list = get_all_h3_hexagons(res)
+    
     full_h3_geo = [fix_h3_geometry(i) for i in full_h3_list]
     h3_geo = gpd.GeoSeries(full_h3_geo, index=full_h3_list, crs=4326)
     

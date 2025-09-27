@@ -1,6 +1,6 @@
 import os
-import logging
-import getpass
+import pyarrow
+import fiona
 import json
 import h5py
 import numpy as np
@@ -13,22 +13,6 @@ from shapely.geometry.base import BaseGeometry
 from typing import Union, List, Dict, Optional, Tuple, Any
 
 from .config import GEDI_PRODUCTS
-
-def set_logger(filename:str=None, level=logging.INFO):
-    username = getpass.getuser()
-    
-    logging.getLogger().handlers.clear()
-    handlers = [logging.StreamHandler()]
-    
-    if filename:
-        handlers.append(logging.FileHandler(filename))
-    
-    logging.basicConfig(
-        level=level,
-        format=f'%(asctime)s - {username} - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S %Z',
-        handlers=handlers
-    )
 
 def json_write(obj, path, mode='w', rewrite=False):
     if os.path.isfile(path) and not rewrite:
@@ -43,6 +27,26 @@ def json_read(path, mode='r'):
 
 def is_parquet(file: str) -> bool:
     return file.lower().endswith(('.parquet','.parq','.pq'))
+
+def read_parquet_schema(path):
+    """
+    path: parquet file path
+    
+    returns a pandas.DataFrame with the parquet column structure
+    """
+    schema = pyarrow.parquet.read_schema(path, memory_map=True)
+    schema = pd.DataFrame(({"column": name, "dtype": str(pa_dtype)} for name, pa_dtype in zip(schema.names, schema.types)))
+    return schema
+
+def read_geopackage_schema(path):
+    """
+    path: gpkg file path
+    
+    returns a pandas.DataFrame with the gpkg column structure
+    """
+    gpkg_file = fiona.open(path, driver='GPKG')
+    schema = pd.DataFrame([{'column':i, 'dtype':j} for i,j in gpkg_file.schema.get('properties').items()])
+    return schema
 
 def h5_traverse(h5_file, root=None):
     def h5py_dataset_iterator(g, prefix=''):
