@@ -373,9 +373,9 @@ def load_h5(fpath, columns, which_beams=None, shots=None, include_source=True, d
     
     return full_df
 
-def load_h5_merged(prod_files, prod_vars, which_beams=None, shots=None, dropna=True):
+def load_h5_merged(prod_files, product_vars, which_beams=None, shots=None, dropna=True):
     df = None
-    for i, (p, vars) in enumerate(prod_vars.items()):
+    for i, (p, vars) in enumerate(product_vars.items()):
         ppath = prod_files.get(p)
         
         if ppath is None:
@@ -388,30 +388,30 @@ def load_h5_merged(prod_files, prod_vars, which_beams=None, shots=None, dropna=T
             df = df.join(idf, how='inner', rsuffix=f"_{p.lower()}")
     return df
 
-def dask_h5_merged(prod_files_list, prod_vars, which_beams=None, shots=None, dropna=True, by_beam=False):
+def dask_h5_merged(prod_files_list, product_vars, which_beams=None, shots=None, dropna=True, by_beam=False):
     if by_beam:
         beams = GEDI_BEAMS if which_beams is None else which_beams        
         
-        def load_by_beam(pfiles_beam_tuple, prod_vars, shots, dropna):
+        def load_by_beam(pfiles_beam_tuple, product_vars, shots, dropna):
             pfiles, beam = pfiles_beam_tuple
-            return load_h5_merged(pfiles, prod_vars=prod_vars, which_beams=[beam], shots=shots, dropna=dropna)
+            return load_h5_merged(pfiles, product_vars=product_vars, which_beams=[beam], shots=shots, dropna=dropna)
 
         file_beam_combinations = list(itertools.product(prod_files_list, beams))        
-        return dask.dataframe.from_map(load_by_beam, file_beam_combinations, prod_vars=prod_vars, shots=shots,dropna=dropna)                            
+        return dask.dataframe.from_map(load_by_beam, file_beam_combinations, product_vars=product_vars, shots=shots,dropna=dropna)                            
     
-    return dask.dataframe.from_map(load_h5_merged, prod_files_list, which_beams=which_beams, shots=shots, prod_vars=prod_vars, dropna=dropna)
+    return dask.dataframe.from_map(load_h5_merged, prod_files_list, which_beams=which_beams, shots=shots, product_vars=product_vars, dropna=dropna)
 
 def _testit():
     soc_dir = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/soc'    
     fpath = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/soc/2020/014/GEDI02_A_2020014213209_O06178_02_T00931_02_003_01_V002.h5'
-    prod_vars = {'L1B':['rxwaveform'], 'L2A': ['shot_number', 'rh'], 'L4C': ['wsci']}
+    product_vars = {'L1B':['rxwaveform'], 'L2A': ['shot_number', 'rh'], 'L4C': ['wsci']}
     
     gfile = GEDIFile(fpath)
-    pfiles = {p:gfile.search_file(product=int(p[1]), level=p[-1]) for p in prod_vars.keys()}
+    pfiles = {p:gfile.search_file(product=int(p[1]), level=p[-1]) for p in product_vars.keys()}
     
     print("testing load_h5_merged()")
     try:
-        df = load_h5_merged(pfiles, prod_vars)
+        df = load_h5_merged(pfiles, product_vars)
         print("Test successful")
     except Exception as e:
         print(f"Test failed: {e}")
@@ -419,7 +419,7 @@ def _testit():
     print("testing dask_h5_merged()")
     try:
         all_files = soc_file_tree(soc_dir, to_list=True)
-        df = dask_h5_merged(all_files, prod_vars)
+        df = dask_h5_merged(all_files, product_vars)
         print(df.head())
         print("Test successful")
     except Exception as e:

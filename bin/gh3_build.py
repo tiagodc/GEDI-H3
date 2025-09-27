@@ -15,7 +15,7 @@ def getCmdArgs():
     p.add_argument("-l4a", "--l4a", dest="l4a", nargs='+', type=str, default=None, required=False, help="GEDI L4A variables to download")
     p.add_argument("-l4c", "--l4c", dest="l4c", nargs='+', type=str, default=None, required=False, help="GEDI L2A variables to download")
 
-    p.add_argument("-s", "--skip-download", dest="skip_download", action='store_true', help="skip downloading and build from local SOC database")
+    p.add_argument("-S", "--skip-download", dest="skip_download", action='store_true', help="skip downloading and build from local SOC database")
     p.add_argument("-r", "--resume", dest="resume", action='store_true', help="resume interrupted downloads")    
     p.add_argument("-u", "--update", dest="update", action='store_true', help="update existing SOC files")    
     p.add_argument("-o", "--outdir", dest="outdir", required=False, type=str, default=None, help="output directory for downloaded files (bypass GH3 default path)")
@@ -63,8 +63,8 @@ if __name__ == "__main__":
     from gedih3.logger import H3BuildLogger
     from dask.distributed import Client
     
-    prod_vars = parse_gedi_args(args)
-    if len(prod_vars) == 0:
+    product_vars = parse_gedi_args(args)
+    if len(product_vars) == 0:
         raise ValueError("No GEDI product selected for download - please select at least one of --l1b, --l2a, --l2b, --l4a, --l4c")    
     
     spatial = args.spatial if args.spatial is not None else args.box
@@ -78,7 +78,7 @@ if __name__ == "__main__":
         warnings.warn("No temporal filter provided - downloading all data", UserWarning)
     
     build_logger = H3BuildLogger(
-        prod_vars=prod_vars,
+        product_vars=product_vars,
         spatial=spatial,
         temporal=temporal,
         resume=args.resume,
@@ -91,9 +91,9 @@ if __name__ == "__main__":
         print("Dask client available at", client.dashboard_link)
 
         h3_files = gh3_build_all(
-            product_vars=prod_vars,
-            spatial=spatial,
-            temporal=temporal,
+            product_vars=build_logger.product_vars,
+            spatial=build_logger.spatial,
+            temporal=build_logger.temporal,
             direct_access=False,
             skip_download=args.skip_download,
             resume=args.resume,

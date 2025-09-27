@@ -65,8 +65,8 @@ if __name__ == "__main__":
     from gedih3.logger import H3BuildLogger
     from dask.distributed import Client
     
-    prod_vars = parse_gedi_args(args)
-    if len(prod_vars) == 0:
+    product_vars = parse_gedi_args(args)
+    if len(product_vars) == 0:
         raise ValueError("No GEDI product selected for download - please select at least one of --l1b, --l2a, --l2b, --l4a, --l4c")    
     
     spatial = args.spatial if args.spatial is not None else args.box
@@ -80,7 +80,7 @@ if __name__ == "__main__":
         warnings.warn("No temporal filter provided - downloading all data", UserWarning)
     
     build_logger = H3BuildLogger(
-        prod_vars=prod_vars,
+        product_vars=product_vars,
         spatial=spatial,
         temporal=temporal,
         resume=args.resume,
@@ -93,9 +93,9 @@ if __name__ == "__main__":
         print("Dask client available at", client.dashboard_link)
 
         soc_files = download_soc(
-            product_vars=prod_vars,
-            spatial=spatial,
-            temporal=temporal,
+            product_vars=build_logger.product_vars,
+            spatial=build_logger.spatial,
+            temporal=build_logger.temporal,
             direct_access=False,
             resume=args.resume,
             update=args.update,

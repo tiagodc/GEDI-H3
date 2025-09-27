@@ -20,15 +20,15 @@ def get_package_version():
         except:
             return "unknown"
 
-
 class H3BuildLogger:
     _LOG_FILE_NAME = 'gh3_build_log.json'
     _VALID_STATUSES = ('INITIALIZING', 'DOWNLOADING','PROCESSING', 'PARTITIONING', 'MERGING', 'COMPLETED', 'FAILED', 'INTERRUPTED', 'UNKNOWN')
     _VALID_DB_TYPES = ('soc', 'h3', 'both')
 
-    def __init__(self, prod_vars, res:int=12, part:int=3, spatial=None, temporal=None, resume=False, update=False, db_type='both'):
+    def __init__(self, product_vars, res:int=12, part:int=3, spatial=None, temporal=None, resume=False, update=False, db_type='both'):
         self.odir = GH3_DEFAULT_DOWNLOAD_DIR
         self.set_db_type(db_type)
+        resuming = resume or update
         
         self.s3_access = False  # Placeholder for future S3 access handling
         self.soc_data = {}
@@ -37,17 +37,7 @@ class H3BuildLogger:
 
         self.log_file = os.path.join(self.odir, self._LOG_FILE_NAME)
         log_data = self._load_log_data()
-        self._parse_log(log_data)
-    
-        if self.db_type in ('h3', 'both'):
-            self._set_h3_resolutions(res, part)
-
-        if update:
-            self._merge_spatial(spatial)
-            self._merge_temporal(temporal)
-            self._merge_product_vars(prod_vars)
-        
-        resuming = resume or update
+        self._parse_log(log_data)    
         
         if not resuming and self.db_type in ('soc','both') and self.soc_data:
             raise ValueError(f"Log file '{self.log_file}' already filled for SOC. Use resume or update mode to modify existing database.")
@@ -57,7 +47,15 @@ class H3BuildLogger:
         if not resuming and not log_data:
             self.spatial = self._process_spatial(spatial)
             self.temporal = self._process_temporal(temporal)
-            self.product_vars = gedi_vars_expand(prod_vars)
+            self.product_vars = gedi_vars_expand(product_vars)
+
+        if self.db_type in ('h3', 'both'):
+            self._set_h3_resolutions(res, part)
+
+        if update:
+            self._merge_spatial(spatial)
+            self._merge_temporal(temporal)
+            self._merge_product_vars(product_vars)        
                 
     def _now(self):
         return datetime.now().isoformat()
@@ -160,11 +158,11 @@ class H3BuildLogger:
             
             self.temporal = (new_start, new_end)
 
-    def _merge_product_vars(self, new_prod_vars):
-        if not new_prod_vars:
+    def _merge_product_vars(self, new_product_vars):
+        if not new_product_vars:
             return
         
-        for prod, vars_list in new_prod_vars.items():
+        for prod, vars_list in new_product_vars.items():
             if prod not in self.product_vars:
                 self.product_vars[prod] = vars_list
             elif self.product_vars[prod] is None or vars_list is None:

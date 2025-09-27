@@ -102,6 +102,7 @@ def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_acc
     return soc_files
 
 def build_h3db_from_soc(gedi_prod_level='l4c', h3_vars=['wsci'], res=12, part=3, spatial=None, soc_source=None, version_kwargs=None, build_logger:H3BuildLogger=None):
+    # add resume/update logic
     pl = gedi_prod_level.upper()
     soc_input = soc_source if soc_source is not None else GH3_DEFAULT_SOC_DIR
     all_soc_files = soc_file_tree(soc_input, to_list=True, glob_kwargs=version_kwargs)
@@ -204,6 +205,7 @@ def gh3_build_all(product_vars, spatial=None, temporal=None, res=12, part=3, dir
     try:
         for k,val in build_logger.product_vars.items():
             print(f"Building H3 database for GEDI {k.upper()}")
+            # add resume/update logic
             h3_files = build_h3db_from_soc(gedi_prod_level=k, h3_vars=val, res=res, part=part, spatial=spatial, build_logger=build_logger, soc_source=soc_source)
             h3_products[k] = h3_files
     except Exception as e:
