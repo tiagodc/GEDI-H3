@@ -359,7 +359,7 @@ def load_h5(fpath, columns, which_beams=None, shots=None, include_source=True, d
         dfs = pd.DataFrame(dfs)
         if include_source: 
             dfs['root_beam'] = k
-        full_df.append(dfs)        
+        full_df.append(dfs)
     
     f.close()    
     full_df = pd.concat(full_df)
@@ -373,7 +373,7 @@ def load_h5(fpath, columns, which_beams=None, shots=None, include_source=True, d
     
     return full_df
 
-def load_h5_merged(prod_files, product_vars, which_beams=None, shots=None, dropna=True):
+def load_h5_merged(prod_files, product_vars, which_beams=None, shots=None, dropna=True, suffix_all=False):
     df = None
     for i, (p, vars) in enumerate(product_vars.items()):
         ppath = prod_files.get(p)
@@ -381,25 +381,30 @@ def load_h5_merged(prod_files, product_vars, which_beams=None, shots=None, dropn
         if ppath is None:
             continue
         
-        idf = load_h5(fpath=ppath, columns=vars, include_source = i==0, which_beams=which_beams, shots=shots, dropna=dropna)
+        idf = load_h5(fpath=ppath, columns=vars, include_source = suffix_all or i==0, which_beams=which_beams, shots=shots, dropna=dropna)
+        
+        suffix = f"_{p.lower()}"
+        if suffix_all:
+            idf = idf.rename(columns=lambda x: x if x.endswith(suffix) else f"{x}{suffix}")
+
         if df is None:
             df = idf
         else:
-            df = df.join(idf, how='inner', rsuffix=f"_{p.lower()}")
+            df = df.join(idf, how='inner', rsuffix=suffix)
     return df
 
-def dask_h5_merged(prod_files_list, product_vars, which_beams=None, shots=None, dropna=True, by_beam=False):
+def dask_h5_merged(prod_files_list, product_vars, which_beams=None, shots=None, dropna=True, suffix_all=False, by_beam=False):
     if by_beam:
         beams = GEDI_BEAMS if which_beams is None else which_beams        
         
-        def load_by_beam(pfiles_beam_tuple, product_vars, shots, dropna):
+        def load_by_beam(pfiles_beam_tuple, product_vars, shots, dropna, suffix_all):
             pfiles, beam = pfiles_beam_tuple
-            return load_h5_merged(pfiles, product_vars=product_vars, which_beams=[beam], shots=shots, dropna=dropna)
+            return load_h5_merged(pfiles, product_vars=product_vars, which_beams=[beam], shots=shots, dropna=dropna, suffix_all=suffix_all)
 
-        file_beam_combinations = list(itertools.product(prod_files_list, beams))        
-        return dask.dataframe.from_map(load_by_beam, file_beam_combinations, product_vars=product_vars, shots=shots,dropna=dropna)                            
-    
-    return dask.dataframe.from_map(load_h5_merged, prod_files_list, which_beams=which_beams, shots=shots, product_vars=product_vars, dropna=dropna)
+        file_beam_combinations = list(itertools.product(prod_files_list, beams))
+        return dask.dataframe.from_map(load_by_beam, file_beam_combinations, product_vars=product_vars, shots=shots, dropna=dropna, suffix_all=suffix_all)                            
+
+    return dask.dataframe.from_map(load_h5_merged, prod_files_list, which_beams=which_beams, shots=shots, product_vars=product_vars, dropna=dropna, suffix_all=suffix_all)
 
 def _testit():
     soc_dir = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/soc'    

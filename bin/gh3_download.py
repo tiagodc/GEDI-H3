@@ -47,11 +47,11 @@ if __name__ == "__main__":
         args.l2b = ['minimal']
         args.l4a = ['minimal'] 
         args.l4c = ['*']
-        args.n_cpus = 10
+        args.n_cpus = 5
         args.port = 9997
         # args.dask_scheduler = 'tcp://localhost:8786'
         import sys
-        sys.path.insert(0, '/gpfs/data1/vclgp/decontot/repos/gedih3/src')
+        sys.path.insert(0, os.path.abspath('../src/'))
 
     if args.outdir is not None:
         os.environ['GH3_DEFAULT_DOWNLOAD_DIR'] = os.path.abspath(args.outdir)

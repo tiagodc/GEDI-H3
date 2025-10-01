@@ -197,7 +197,7 @@ def download_granule(granule, odir: str = None, subset_vars: List[str] = None, r
     if len(opath) == 0:
         return
 
-    opath = opath[0]
+    opath = str(opath[0])
 
     if subset_vars is not None:
         osub = opath.replace('.h5', '_subset.h5')
