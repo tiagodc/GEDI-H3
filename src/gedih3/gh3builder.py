@@ -177,12 +177,17 @@ def build_h3db_from_soc(gedi_prod_level='l4c', h3_vars=['wsci'], res=12, part=3,
     tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/'))
     h3_dir = os.path.join(GH3_DEFAULT_H3_DIR, gedi_prod_level.lower())
     os.makedirs(h3_dir, exist_ok=True)
-
-    h3_files = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in tmp_h3_dirs]
-    h3_files = dask.persist(*h3_files, optimize_graph=False)
+    
+    mdf = dask_geopandas.read_parquet(tmp_dir, gather_spatial_partitions=False)
+    h3_files = mdf.to_parquet(h3_dir, write_index=True, overwrite=True, compression='zstd', partition_on=[f'h3_{part:02d}', 'year'], compute=False).persist()
     progress(h3_files)
+    h3_result = h3_files.compute()
 
-    h3_result = list(dask.compute(*h3_files))
+    # h3_files = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in tmp_h3_dirs]
+    # h3_files = dask.persist(*h3_files, optimize_graph=False)
+    # progress(h3_files)
+
+    # h3_result = list(dask.compute(*h3_files))
 
     if build_logger is not None:
         build_logger.set_status('COMPLETED', which_product=pl)

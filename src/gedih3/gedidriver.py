@@ -407,7 +407,7 @@ def dask_h5_merged(prod_files_list, product_vars, which_beams=None, shots=None, 
 
     return dask.dataframe.from_map(load_h5_merged, prod_files_list, which_beams=which_beams, shots=shots, product_vars=product_vars, dropna=dropna, suffix_all=suffix_all)
 
-def add_special_columns(df, lon_col:str, lat_col:str, dat_col:str):
+def add_special_columns(df, lon_col:str=None, lat_col:str=None, dat_col:str=None):
     if dat_col:
         df = df.assign(datetime=pd.to_datetime(df[dat_col] + GEDI_START_DATE.timestamp(), unit='s'))
     if lon_col and lat_col:
