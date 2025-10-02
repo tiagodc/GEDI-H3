@@ -47,7 +47,7 @@ if __name__ == "__main__":
         args.l2b = ['minimal']
         args.l4a = ['minimal'] 
         args.l4c = ['*']
-        args.n_cpus = 5
+        args.n_cpus = 3
         args.port = 9997
         # args.dask_scheduler = 'tcp://localhost:8786'
         import sys

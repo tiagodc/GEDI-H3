@@ -39,17 +39,17 @@ if __name__ == "__main__":
         args.box = [-50.5,0.5,-50,1]
         args.date_start = '2020-01-01'
         args.date_end = '2020-07-01'
-        args.l1b = ['minimal']
+        # args.l1b = ['minimal']
         args.l2a = ['minimal']
         args.l2b = ['minimal']
         args.l4a = ['minimal'] 
         args.l4c = ['*']
-        args.n_cpus = 10
+        args.n_cpus = os.cpu_count() // 2
         args.port = 9997
         args.skip_download = True
         # args.dask_scheduler = 'tcp://localhost:8786'
         import sys
-        sys.path.insert(0, '/gpfs/data1/vclgp/decontot/repos/gedih3/src')
+        sys.path.insert(0, os.path.abspath('./src/'))
 
     if args.outdir is not None:
         os.environ['GH3_DEFAULT_DOWNLOAD_DIR'] = os.path.abspath(args.outdir)

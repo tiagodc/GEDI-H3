@@ -5,20 +5,20 @@ import geopandas as gpd
 import h3pandas
 import dask
 import dask.dataframe
+import dask_geopandas
 from typing import Union, List, Dict, Optional, Tuple, Any
 from dask.distributed import progress
 
-from .config import GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS
+from .config import GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS, GEDI_START_DATE
 from .utils import parquet_append_columns, parquet_merge_files, read_vector_file
 from .h3utils import intersect_h3_geometries
-from .gedidriver import GEDIFile, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, validate_soc_files
+from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, validate_soc_files
 from .daac import gedi_download
 from .logger import H3BuildLogger
 
-
 def h3_index_df(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode'):
     import h3pandas
-    return df.reset_index().h3.geo_to_h3(res, lat_col=lat_col, lng_col=lon_col).h3.h3_to_parent(part).reset_index().set_index(df.index.name)
+    return df.reset_index().h3.geo_to_h3(res, lat_col=lat_col, lng_col=lon_col).h3.h3_to_parent(part).reset_index().set_index(f"h3_{res:02d}")
 
 def h3_part_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode', roi_tiles=[]):
     if df.empty:
@@ -122,19 +122,25 @@ def build_h3db_from_soc(gedi_prod_level='l4c', h3_vars=['wsci'], res=12, part=3,
     else:
         build_vars[pl] = h3_vars
         build_vars['L2A'] = GEDI_L2A_ESSENTIALS
-
+    
     soc_files = [{k:val for k,val in i.items() if k in build_vars} for i in all_soc_files]
         
-    ddf = dask_h5_merged(soc_files, build_vars, shots=None, dropna=True, by_beam=True)
+    ddf = dask_h5_merged(soc_files, build_vars, shots=None, dropna=True, by_beam=True, suffix_all=True)
     
     lat_col='lat_lowestmode'
     lon_col='lon_lowestmode'
+    dat_col = 'delta_time'
     
     if 'lat_lowestmode_l2a' in ddf.columns:
         lat_col+='_l2a'
     if 'lon_lowestmode_l2a' in ddf.columns:
         lon_col+='_l2a'
+    if 'delta_time_l2a' in ddf.columns:
+        dat_col+='_l2a'
     
+    # ddf['datetime'] = dask.dataframe.to_datetime(ddf[dat_col] + GEDI_START_DATE.timestamp(), unit='s')
+    # ddf['year'] = ddf.datetime.dt.year
+
     h3_tiles = []
     if spatial is not None:
         h3_tiles = intersect_h3_geometries(spatial, res=part)
@@ -144,12 +150,25 @@ def build_h3db_from_soc(gedi_prod_level='l4c', h3_vars=['wsci'], res=12, part=3,
     
     if build_logger is not None:
         build_logger.set_status('PARTITIONING', which_product=pl)
-        build_logger.save_log()
+        build_logger.save_log()        
+    
+    ddf = ddf.map_partitions(h3_index_df, res=res, part=part, lat_col=lat_col, lon_col=lon_col)
 
-    tmp_files = ddf.map_partitions(h3_part_files, res=res, part=part, lat_col=lat_col, lon_col=lon_col, dir_path=tmp_dir, roi_tiles=h3_tiles, meta=pd.Series([], dtype=str))
-    tmp_files = tmp_files.to_delayed()
-    tmp_files = dask.persist(*tmp_files, optimize_graph=False)
+    if len(h3_tiles) > 0:
+        ddf = ddf[ddf[f'h3_{part:02d}'].isin(h3_tiles)]
+
+    ddf = ddf.map_partitions(add_special_columns, lon_col=lon_col, lat_col=lat_col, dat_col=dat_col)
+    ddf['year'] = ddf.datetime.dt.year
+    ddf = dask_geopandas.from_dask_dataframe(ddf)#, geometry=dask_geopandas.points_from_xy(ddf, x=lon_col, y=lat_col, crs='EPSG:4326'))
+    
+    tmp_files = ddf.to_parquet(tmp_dir, write_index=True, overwrite=True, compression='zstd', partition_on=[f'h3_{part:02d}', 'year'], compute=False).persist()
     progress(tmp_files)
+    tmp_files = tmp_files.compute()
+    
+    # tmp_files = ddf.map_partitions(h3_part_files, res=res, part=part, lat_col=lat_col, lon_col=lon_col, dir_path=tmp_dir, roi_tiles=h3_tiles, meta=pd.Series([], dtype=str))
+    # tmp_files = tmp_files.to_delayed()
+    # tmp_files = dask.persist(*tmp_files, optimize_graph=False)
+    # progress(tmp_files)
 
     if build_logger is not None:
         build_logger.set_status('MERGING', which_product=pl)

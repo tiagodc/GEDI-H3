@@ -3,13 +3,14 @@ import itertools
 from typing import Dict, Union
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 from numba import njit
 from datetime import datetime
 import dask
 import dask.dataframe
 from earthaccess.store import EarthAccessFile
 
-from .config import GEDI_PRODUCTS, GEDI_BEAMS, GH3_DEFAULT_SOC_DIR
+from .config import GEDI_PRODUCTS, GEDI_BEAMS, GEDI_START_DATE, GH3_DEFAULT_SOC_DIR
 from .utils import h5_copy_subset, h5_info
 
 def soc_prod_from_file(file_path):
@@ -405,6 +406,13 @@ def dask_h5_merged(prod_files_list, product_vars, which_beams=None, shots=None, 
         return dask.dataframe.from_map(load_by_beam, file_beam_combinations, product_vars=product_vars, shots=shots, dropna=dropna, suffix_all=suffix_all)                            
 
     return dask.dataframe.from_map(load_h5_merged, prod_files_list, which_beams=which_beams, shots=shots, product_vars=product_vars, dropna=dropna, suffix_all=suffix_all)
+
+def add_special_columns(df, lon_col:str, lat_col:str, dat_col:str):
+    if dat_col:
+        df = df.assign(datetime=pd.to_datetime(df[dat_col] + GEDI_START_DATE.timestamp(), unit='s'))
+    if lon_col and lat_col:
+        df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lon_col], df[lat_col], crs='EPSG:4326'))
+    return df
 
 def _testit():
     soc_dir = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/soc'    
