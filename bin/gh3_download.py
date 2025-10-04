@@ -99,6 +99,5 @@ if __name__ == "__main__":
             direct_access=False,
             resume=args.resume,
             update=args.update,
-            dask_client=client,
-            build_logger=build_logger
+            dask_client=client
         )

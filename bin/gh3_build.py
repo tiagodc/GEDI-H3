@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
     import warnings
     from gedih3.utils import parse_gedi_args, parse_dask_args
-    from gedih3.gh3builder import gh3_build_all
+    from gedih3.gh3builder import build_h3db_from_soc
     from gedih3.logger import H3BuildLogger
     from dask.distributed import Client
     
@@ -88,16 +88,9 @@ if __name__ == "__main__":
 
     dask_kwargs = parse_dask_args(args)
     with Client(**dask_kwargs) as client:
-        print("Dask client available at", client.dashboard_link)
-
-        h3_files = gh3_build_all(
+        print("Dask client available at", client.dashboard_link)        
+        
+        h3_files = build_h3db_from_soc(
             product_vars=build_logger.product_vars,
-            spatial=build_logger.spatial,
-            temporal=build_logger.temporal,
-            direct_access=False,
-            skip_download=args.skip_download,
-            resume=args.resume,
-            update=args.update,
-            dask_client=client,
-            build_logger=build_logger
+            spatial=build_logger.spatial
         )

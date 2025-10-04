@@ -13,7 +13,6 @@ from dask.distributed import progress
 # Import configuration variables
 from .config import GH3_DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS
 from .utils import read_vector_file, geo_to_umm
-from .logger import H3BuildLogger
 from .gedidriver import GEDIFile, soc_file_tree, gedi_subset, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5
 
 class GEDIAccessor:
@@ -209,18 +208,14 @@ def download_granule(granule, odir: str = None, subset_vars: List[str] = None, r
 
     return opath
 
-def gedi_download(product_vars: Dict, odir: str = None, spatial = None, temporal = None, n_jobs=5, to_list=False, dask_client=None, resume: bool = False, logger: H3BuildLogger = None):
+def gedi_download(product_vars: Dict, odir: str = None, spatial = None, temporal = None, n_jobs=5, to_list=False, dask_client=None, resume: bool = False):
     gass = GEDIAccessor(authenticate=True, spatial=spatial, temporal=temporal)
 
     prod_paths = {}
     product_vars = gedi_vars_expand(product_vars)
 
     try:
-        for prod, vars in product_vars.items():
-            if logger:
-                logger.set_status('DOWNLOADING', prod)
-                logger.save_log()
-                
+        for prod, vars in product_vars.items():                
             granules = gass.search_data(product=prod)
 
             if odir is None:
@@ -236,17 +231,8 @@ def gedi_download(product_vars: Dict, odir: str = None, spatial = None, temporal
 
             prod_paths[prod] = opaths
             
-            if logger:
-                logger.set_status('COMPLETED', prod)
-                logger.get_product_info(prod, 'COMPLETED')
-                logger.save_log()
-    
     except Exception as e:
-        if logger:
-            logger.set_status('FAILED', prod)
-            logger.save_log()
         raise RuntimeError(f"Error downloading {prod}: {e}")
-
 
     if to_list:
         prod_paths = list(chain(*prod_paths.values()))
