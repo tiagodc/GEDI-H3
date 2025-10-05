@@ -39,10 +39,10 @@ if __name__ == "__main__":
     args = getCmdArgs()
     
     if DEBUG:
-        args.box = [-50.5,0.5,-50,1]
-        args.date_start = '2020-01-01'
-        args.date_end = '2020-07-01'
-        args.l1b = ['minimal']
+        args.box = [-51,0,-50,1]
+        # args.date_start = '2020-01-01'
+        # args.date_end = '2020-07-01'
+        # args.l1b = ['minimal']
         args.l2a = ['minimal']
         args.l2b = ['minimal']
         args.l4a = ['minimal'] 
@@ -51,7 +51,7 @@ if __name__ == "__main__":
         args.port = 9997
         # args.dask_scheduler = 'tcp://localhost:8786'
         import sys
-        sys.path.insert(0, os.path.abspath('../src/'))
+        sys.path.insert(0, os.path.abspath('./src/'))
 
     if args.outdir is not None:
         os.environ['GH3_DEFAULT_DOWNLOAD_DIR'] = os.path.abspath(args.outdir)
