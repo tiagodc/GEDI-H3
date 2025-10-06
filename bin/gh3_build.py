@@ -42,7 +42,7 @@ if __name__ == "__main__":
         # args.l1b = ['minimal']
         args.l2a = ['minimal']
         args.l2b = ['minimal']
-        args.l4a = ['minimal'] 
+        args.l4a = ['minimal']
         args.l4c = ['*']
         args.n_cpus = 24
         args.port = 9997
@@ -83,7 +83,7 @@ if __name__ == "__main__":
         temporal=temporal,
         resume=args.resume,
         update=args.update,
-        db_type='h3' if args.skip_download else 'both'
+        db_type='h3'
     )
 
     dask_kwargs = parse_dask_args(args)
