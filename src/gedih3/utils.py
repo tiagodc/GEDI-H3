@@ -8,6 +8,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pandas as pd
 import geopandas as gpd
+from dask.distributed import get_client
 from shapely.ops import orient
 from shapely.geometry.base import BaseGeometry
 from typing import Union, List, Dict, Optional, Tuple, Any
@@ -221,6 +222,13 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False):
     finally:
         if pqwriter is not None:
             pqwriter.close()
+
+def get_dask_client():
+    try:
+        client = get_client()
+        return client
+    except (ValueError, RuntimeError):
+        return None
 
 def parse_gedi_args(args):
     prod_vars = {}

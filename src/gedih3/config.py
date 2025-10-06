@@ -4,13 +4,13 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Default download directories
-# GH3_DEFAULT_DOWNLOAD_DIR = Path.home() / 'gedih3_db'
+# GH3_DEFAULT_DOWNLOAD_DIR = str(Path.home() / 'gedih3_db')
 GH3_DEFAULT_DOWNLOAD_DIR = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp'
 GH3_DEFAULT_TMP_DIR = os.path.join(GH3_DEFAULT_DOWNLOAD_DIR, 'tmp')
 GH3_DEFAULT_SOC_DIR = os.path.join(GH3_DEFAULT_DOWNLOAD_DIR, 'soc')
 GH3_DEFAULT_H3_DIR = os.path.join(GH3_DEFAULT_DOWNLOAD_DIR, 'h3')
 
-def configure_environment():
+def configure_environment(mkdirs=False):
     global GH3_DEFAULT_DOWNLOAD_DIR
     global GH3_DEFAULT_TMP_DIR
     global GH3_DEFAULT_SOC_DIR
@@ -27,8 +27,9 @@ def configure_environment():
     GH3_DEFAULT_H3_DIR = os.getenv('GH3_DEFAULT_H3_DIR', os.path.join(GH3_DEFAULT_DOWNLOAD_DIR, 'h3'))
 
     # Create directories if they don't exist
-    for directory in [GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR]:
-        os.makedirs(directory, exist_ok=True)
+    if mkdirs:
+        for directory in [GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR]:
+            os.makedirs(directory, exist_ok=True)
 
 configure_environment()
 

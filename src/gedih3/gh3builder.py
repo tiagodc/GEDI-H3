@@ -1,5 +1,7 @@
-import os, re, glob, h5py
+import os, re, glob, json, h5py
+import warnings
 import shutil
+import numpy as np
 import pandas as pd
 import geopandas as gpd
 import h3pandas
@@ -18,7 +20,7 @@ from .daac import gedi_download
 
 def h3_index_df(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode'):
     import h3pandas
-    return df.reset_index().h3.geo_to_h3(res, lat_col=lat_col, lng_col=lon_col).h3.h3_to_parent(part).reset_index().set_index(f"h3_{res:02d}")
+    return df.dropna(subset=[lat_col, lon_col]).reset_index().h3.geo_to_h3(res, lat_col=lat_col, lng_col=lon_col).h3.h3_to_parent(part).reset_index().set_index(f"h3_{res:02d}")
 
 def h3_part_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode', roi_tiles=[]):
     if df.empty:
@@ -86,7 +88,7 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
 def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     return h3_merge_files(in_dir=in_dir, out_dir=out_dir, rm_src=rm_src, replace=replace)
 
-def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_access = False, resume=False, update=False, n_jobs=5, dask_client=None):
+def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_access = False, resume=False, update=False, n_jobs=5):
     product_vars = gedi_vars_expand(product_vars)    
     
     if 'L2A' not in product_vars:
@@ -98,7 +100,7 @@ def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_acc
         if 'shot_number' not in val:
             val.append('shot_number')
 
-    soc_files = gedi_download(product_vars=product_vars, odir=None if direct_access else GH3_DEFAULT_SOC_DIR, spatial=spatial, temporal=temporal, resume = resume or update, n_jobs=n_jobs, to_list=direct_access, dask_client=dask_client)
+    soc_files = gedi_download(product_vars=product_vars, odir=None if direct_access else GH3_DEFAULT_SOC_DIR, spatial=spatial, temporal=temporal, resume = resume or update, n_jobs=n_jobs, to_list=direct_access)
 
     return soc_files
 
@@ -116,7 +118,15 @@ def build_h3db_from_soc(product_vars, res=12, part=3, spatial=None, soc_source=G
             file = all_soc_files[0].get(k)
             product_vars[k] = gedi_vars_from_h5(file)
 
-    soc_files = [{k:val for k,val in i.items() if k in product_vars} for i in all_soc_files]
+    prod_soc_files = [{k:val for k,val in i.items() if k in product_vars} for i in all_soc_files]
+    
+    soc_files = []
+    for i in prod_soc_files:
+        if not np.isin(product_vars.keys(), i.keys()).all():
+            warnings.warn(f"Skipping file - does not contain all requested GEDI products\n{json.dumps(i, indent=2)}", UserWarning)
+            continue
+        soc_files.append(i)
+        
     ddf = dask_h5_merged(soc_files, product_vars, shots=None, dropna=True, by_beam=True, suffix_all=True)
 
     lat_col='lat_lowestmode'
@@ -160,7 +170,7 @@ def build_h3db_from_soc(product_vars, res=12, part=3, spatial=None, soc_source=G
     h3_files = dask.persist(*h3_files, optimize_graph=False)
     progress(h3_files)
 
-    h3_result = list(dask.compute(*h3_files))
+    h3_result = list(dask.compute(*h3_files))    
 
     return h3_result
 

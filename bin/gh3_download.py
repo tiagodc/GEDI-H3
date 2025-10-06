@@ -42,12 +42,12 @@ if __name__ == "__main__":
         args.box = [-51,0,-50,1]
         # args.date_start = '2020-01-01'
         # args.date_end = '2020-07-01'
-        # args.l1b = ['minimal']
+        args.l1b = ['minimal']
         args.l2a = ['minimal']
         args.l2b = ['minimal']
         args.l4a = ['minimal'] 
         args.l4c = ['*']
-        args.n_cpus = 3
+        args.n_cpus = 32
         args.port = 9997
         # args.dask_scheduler = 'tcp://localhost:8786'
         import sys
@@ -98,6 +98,5 @@ if __name__ == "__main__":
             temporal=build_logger.temporal,
             direct_access=False,
             resume=args.resume,
-            update=args.update,
-            dask_client=client
+            update=args.update
         )

@@ -326,7 +326,7 @@ def load_h5(fpath, columns, which_beams=None, shots=None, include_source=True, d
         
     if len(beams) == 0:
         f.close()
-        return load_h5(fpath=fpath, columns=columns, include_source=include_source, which_beams=all_beams[[0]]).head(0)
+        return load_h5(fpath=fpath, columns=columns, include_source=include_source, which_beams=all_beams[:1]).head(0)
   
     full_df = []
     for k in beams:

@@ -8,11 +8,11 @@ import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon
 import warnings
 from pqdm.processes import pqdm
-from dask.distributed import progress
+from dask.distributed import progress, get_client
 
 # Import configuration variables
 from .config import GH3_DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS
-from .utils import read_vector_file, geo_to_umm
+from .utils import get_dask_client, read_vector_file, geo_to_umm
 from .gedidriver import GEDIFile, soc_file_tree, gedi_subset, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5
 
 class GEDIAccessor:
@@ -208,11 +208,17 @@ def download_granule(granule, odir: str = None, subset_vars: List[str] = None, r
 
     return opath
 
-def gedi_download(product_vars: Dict, odir: str = None, spatial = None, temporal = None, n_jobs=5, to_list=False, dask_client=None, resume: bool = False):
+def gedi_download(product_vars: Dict, odir: str = None, spatial = None, temporal = None, n_jobs=5, to_list=False, resume: bool = False):
     gass = GEDIAccessor(authenticate=True, spatial=spatial, temporal=temporal)
 
     prod_paths = {}
     product_vars = gedi_vars_expand(product_vars)
+    
+    dask_client = get_dask_client()
+    if dask_client is not None:
+        print(f"Using Dask client: {dask_client.dashboard_link}")
+    else:
+        print(f"No Dask client detected, using pqdm with {n_jobs} jobs")
 
     try:
         for prod, vars in product_vars.items():                
