@@ -14,13 +14,9 @@ from dask.distributed import progress
 
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS, GEDI_START_DATE
 from .utils import parquet_append_columns, parquet_merge_files, read_vector_file
-from .h3utils import intersect_h3_geometries
+from .h3utils import intersect_h3_geometries, h3_index_df
 from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, validate_soc_files
 from .daac import gedi_download
-
-def h3_index_df(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode'):
-    import h3pandas
-    return df.dropna(subset=[lat_col, lon_col]).reset_index().h3.geo_to_h3(res, lat_col=lat_col, lng_col=lon_col).h3.h3_to_parent(part).reset_index().set_index(f"h3_{res:02d}")
 
 def h3_part_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode', roi_tiles=[]):
     if df.empty:
