@@ -165,6 +165,10 @@ class SOCDownloadLogger:
         
         self._load_filters_from_log()
         
+        self.new_spatial = None
+        self.new_temporal = None
+        self.update_products = None
+        
         if spatial is not None:
             self.spatial, self.new_spatial = merge_spatial(self.spatial, spatial)
         if temporal is not None:
