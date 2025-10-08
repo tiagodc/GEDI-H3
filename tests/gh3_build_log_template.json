@@ -1,18 +1,13 @@
 {
-  "spatial_filter": [],
-  "temporal_filter": [],
   "metadata": {
     "package_version": "",
     "last_modified": ""
   },
-  "processing": {
-    "db_type": "",
-    "product": "",
-    "status": ""
-  },
   "soc": {
-    "status": "",
+    "spatial_filter": [],
+    "temporal_filter": [],
     "last_modified": "",
+    "status": "",
     "s3_access":false,
     "products": {
       "L1B": {
@@ -47,5 +42,7 @@
       }
     }
   },
-  "img":{}
+  "img":{
+    
+  }
 }

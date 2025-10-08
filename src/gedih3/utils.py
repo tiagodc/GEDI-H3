@@ -94,28 +94,42 @@ def h5_copy_subset(source_file, dest_file, variables):
         src.visit_links(copy_item)
 
 def read_vector_file(filepath: str, crs: Union[str, int] = 4326) -> gpd.GeoDataFrame:
-    geodf = gpd.read_parquet(filepath) if is_parquet(filepath) else gpd.read_file(filepath) 
+    geodf = gpd.read_parquet(filepath) if is_parquet(filepath) else gpd.read_file(filepath)
+    geodf = gpd.GeoDataFrame(geometry=[geodf.union_all()], crs=geodf.crs)
+    
     if crs is not None:
         geodf = geodf.to_crs(crs)
+    
     return geodf
 
-def geo_to_umm(obj, simplify_tol: float = 0.01):
+def geo_to_umm(obj):
     """
     Converts a GeoDataFrame, shapely Polygon, or GeoJSON dictionary to a UMM-style list of coordinates.
     """   
     if isinstance(obj, dict) and 'shapefile' in obj:
         geodf = from_geojson(obj)
-        xy = geodf.geometry.simplify(simplify_tol).get_coordinates()
-        geo_umm = list(zip(xy.x, xy.y))
+        if geodf.geometry.iloc[0].geom_type == 'MultiPolygon':
+            geo_umm = [list(zip(*polygon.exterior.coords.xy)) for polygon in geodf.geometry]
+        else:
+            xy = geodf.geometry.get_coordinates()
+            geo_umm = list(zip(xy.x, xy.y))
+    
     elif isinstance(obj, gpd.GeoDataFrame):
         bounds = obj.geometry.apply(orient, args=(1,))
-        xy = bounds.simplify(simplify_tol).get_coordinates()
-        geo_umm = list(zip(xy.x, xy.y))
+        if bounds.geom_type.iloc[0] == 'MultiPolygon':
+            geo_umm = [list(zip(*polygon.exterior.coords.xy)) for polygon in bounds.geometry]
+        else:
+            xy = bounds.get_coordinates()
+            geo_umm = list(zip(xy.x, xy.y))
+    
     elif isinstance(obj, BaseGeometry):
         oriented_geom = orient(obj, 1)
-        simplified_geom = oriented_geom.simplify(simplify_tol)
-        coords = simplified_geom.exterior.coords
-        geo_umm = list(coords)
+        if oriented_geom.geom_type == 'MultiPolygon':
+            geo_umm = [list(zip(*polygon.exterior.coords.xy)) for polygon in oriented_geom.geoms]
+        else:
+            coords = oriented_geom.exterior.coords
+            geo_umm = list(coords)
+    
     else:
         raise TypeError(f"Unsupported type: {type(obj)}")
         

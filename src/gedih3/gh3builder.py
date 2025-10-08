@@ -84,7 +84,7 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
 def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     return h3_merge_files(in_dir=in_dir, out_dir=out_dir, rm_src=rm_src, replace=replace)
 
-def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_access = False, resume=False, update=False, n_jobs=5):
+def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_access = False, resume=False, update=False, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5):
     product_vars = gedi_vars_expand(product_vars)    
     
     if 'L2A' not in product_vars:
@@ -96,7 +96,7 @@ def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_acc
         if 'shot_number' not in val:
             val.append('shot_number')
 
-    soc_files = gedi_download(product_vars=product_vars, odir=None if direct_access else GH3_DEFAULT_SOC_DIR, spatial=spatial, temporal=temporal, resume = resume or update, n_jobs=n_jobs, to_list=direct_access)
+    soc_files = gedi_download(product_vars=product_vars, odir=odir, spatial=spatial, temporal=temporal, resume = resume or update, n_jobs=n_jobs, to_list=direct_access)
 
     return soc_files
 
@@ -154,11 +154,6 @@ def build_h3db_from_soc(product_vars, res=12, part=3, spatial=None, soc_source=G
     progress(tmp_files)
     tmp_files = tmp_files.compute()
     
-    # tmp_files = ddf.map_partitions(h3_part_files, res=res, part=part, lat_col=lat_col, lon_col=lon_col, dir_path=tmp_dir, roi_tiles=h3_tiles, meta=pd.Series([], dtype=str))
-    # tmp_files = tmp_files.to_delayed()
-    # tmp_files = dask.persist(*tmp_files, optimize_graph=False)
-    # progress(tmp_files)
-
     tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/*/'))
     os.makedirs(h3_dir, exist_ok=True)
     
@@ -166,8 +161,7 @@ def build_h3db_from_soc(product_vars, res=12, part=3, spatial=None, soc_source=G
     h3_files = dask.persist(*h3_files, optimize_graph=False)
     progress(h3_files)
 
-    h3_result = list(dask.compute(*h3_files))    
-
+    h3_result = list(dask.compute(*h3_files))
     return h3_result
 
 def gh3_build_all(product_vars, spatial=None, temporal=None, res=12, part=3, direct_access=False, dask_client=None, skip_download=False, resume=False, update=False):

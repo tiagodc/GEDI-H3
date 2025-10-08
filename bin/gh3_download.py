@@ -18,10 +18,9 @@ def getCmdArgs():
     # p.add_argument("-l3", "--l3", dest="l3", action='store_true', help="Download GEDI L3")
     # p.add_argument("-l4cf", "--l4c-fusion", dest="l4c_fusion", action='store_true', help="Download GEDI L4C Fusion")
     # p.add_argument("-l4d", "--l4d", dest="l4d", action='store_true', help="Download GEDI L4D")
-    
-    p.add_argument("-r", "--resume", dest="resume", action='store_true', help="resume interrupted downloads")    
-    p.add_argument("-u", "--update", dest="update", action='store_true', help="update existing SOC files")    
+        
     p.add_argument("-o", "--outdir", dest="outdir", required=False, type=str, default=None, help="output directory for downloaded files (bypass GH3 default path)")
+    p.add_argument("-r", "--resume", dest="resume", action='store_true', help="validate downloaded files and redownload missing or corrupted files")
     
     p.add_argument("-D", "--dask-scheduler", dest="dask_scheduler", type=str, default=None, required=False, help="existing dask scheduler address, e.g. tcp://localhost:8786")
 
@@ -40,9 +39,9 @@ if __name__ == "__main__":
     
     if DEBUG:
         args.box = [-51,0,-50,1]
-        # args.date_start = '2020-01-01'
-        # args.date_end = '2020-07-01'
-        args.l1b = ['minimal']
+        args.date_start = '2020-01-01'
+        args.date_end = '2022-07-01'
+        # args.l1b = ['minimal']
         args.l2a = ['minimal']
         args.l2b = ['minimal']
         args.l4a = ['minimal'] 
@@ -73,11 +72,11 @@ if __name__ == "__main__":
     if spatial is None:
         warnings.warn("No spatial filter provided - downloading global data", UserWarning)
     
+    temporal = None
     if args.date_start or args.date_end:
         temporal = (args.date_start, args.date_end)
     else:
-        temporal = None
-        warnings.warn("No temporal filter provided - downloading all data", UserWarning)
+        warnings.warn("No temporal filter provided - downloading data from all available dates", UserWarning)
     
     build_logger = H3BuildLogger(
         product_vars=product_vars,
