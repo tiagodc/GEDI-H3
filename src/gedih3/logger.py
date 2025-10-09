@@ -259,9 +259,9 @@ class SOCDownloadLogger:
     def save_log(self, status):
         json_write(self.to_dict(status), self.log_file, mode='w', rewrite=True)
 
-# class H3BuildLogger:
-#     _LOG_FILE_NAME = 'build_log.json'
-#     _VALID_STATUSES = ('INITIALIZING', 'DOWNLOADING','PROCESSING', 'PARTITIONING', 'MERGING', 'COMPLETED', 'FAILED', 'INTERRUPTED', 'UNKNOWN')
+class H3BuildLogger:
+    _LOG_FILE_NAME = 'gh3_build_log.json'
+    _PARENT_DIR = GH3_DEFAULT_H3_DIR
 
 #     def __init__(self, product_vars, res:int=12, part:int=3, spatial=None, temporal=None, db_type='both'):
 #         self.odir = GH3_DEFAULT_DOWNLOAD_DIR
