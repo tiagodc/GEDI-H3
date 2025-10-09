@@ -119,7 +119,7 @@ def build_h3db_from_soc(product_vars, res=12, part=3, spatial=None, soc_source=G
     soc_files = []
     for i in prod_soc_files:
         if not np.isin(product_vars.keys(), i.keys()).all():
-            warnings.warn(f"Skipping file - does not contain all requested GEDI products\n{json.dumps(i, indent=2)}", UserWarning)
+            warnings.warn(f"Skipping file - does not contain all requested GEDI products\n{json.dumps(i, indent=2)}", UserWarning, stacklevel=2)
             continue
         soc_files.append(i)
         
@@ -164,31 +164,31 @@ def build_h3db_from_soc(product_vars, res=12, part=3, spatial=None, soc_source=G
     h3_result = list(dask.compute(*h3_files))
     return h3_result
 
-def gh3_build_all(product_vars, spatial=None, temporal=None, res=12, part=3, direct_access=False, dask_client=None, skip_download=False, resume=False, update=False):
-    product_vars = gedi_vars_expand(product_vars)
+# def gh3_build_all(product_vars, spatial=None, temporal=None, res=12, part=3, direct_access=False, dask_client=None, skip_download=False, resume=False, update=False):
+#     product_vars = gedi_vars_expand(product_vars)
 
-    if isinstance(spatial, str):
-        spatial = read_vector_file(spatial)
+#     if isinstance(spatial, str):
+#         spatial = read_vector_file(spatial)
 
-    soc_source = None
-    if skip_download:
-        validation_report = validate_soc_files(product_vars, soc_dir=GH3_DEFAULT_SOC_DIR)
-        if not validation_report["can_skip"]:
-            raise ValueError(validation_report.get('error_msg', "SOC files validation failed."))
+#     soc_source = None
+#     if skip_download:
+#         validation_report = validate_soc_files(product_vars, soc_dir=GH3_DEFAULT_SOC_DIR)
+#         if not validation_report["can_skip"]:
+#             raise ValueError(validation_report.get('error_msg', "SOC files validation failed."))
 
-        soc_files = download_soc(product_vars, spatial=spatial, temporal=temporal, direct_access=direct_access, resume=resume, update=update, dask_client=dask_client)
+#         soc_files = download_soc(product_vars, spatial=spatial, temporal=temporal, direct_access=direct_access, resume=resume, update=update, dask_client=dask_client)
 
-        if direct_access:
-            soc_source = soc_files
+#         if direct_access:
+#             soc_source = soc_files
     
-    h3_products = {}
-    try:
-        for k,val in product_vars.items():
-            print(f"Building H3 database for GEDI {k.upper()}")
-            # add resume/update logic
-            h3_files = build_h3db_from_soc(gedi_prod_level=k, h3_vars=val, res=res, part=part, spatial=spatial, soc_source=soc_source)
-            h3_products[k] = h3_files
-    except Exception as e:
-        raise e
+#     h3_products = {}
+#     try:
+#         for k,val in product_vars.items():
+#             print(f"Building H3 database for GEDI {k.upper()}")
+#             # add resume/update logic
+#             h3_files = build_h3db_from_soc(gedi_prod_level=k, h3_vars=val, res=res, part=part, spatial=spatial, soc_source=soc_source)
+#             h3_products[k] = h3_files
+#     except Exception as e:
+#         raise e
     
-    return h3_products
+#     return h3_products

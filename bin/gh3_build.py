@@ -9,16 +9,19 @@ def getCmdArgs():
     p.add_argument("-d0", "--date-start", dest="date_start", required=False, type=str, default=None, help="start search date in YYYY-MM-DD format")
     p.add_argument("-d1", "--date-end", dest="date_end", required=False, type=str, default=None, help="end search date in YYYY-MM-DD format")    
     
+    p.add_argument("-hr", "--h3-resolution", dest="h3_resolution", required=False, type=int, default=12, help="H3 level for data indexing [0-15]")    
+    p.add_argument("-hp", "--h3-partition", dest="h3_partition", required=False, type=int, default=3, help="H3 level for file partitioning [0-15]")
+
     p.add_argument("-l1b", "--l1b", dest="l1b", nargs='+', type=str, default=None, required=False, help="GEDI L1B variables to download")
     p.add_argument("-l2a", "--l2a", dest="l2a", nargs='+', type=str, default=None, required=False, help="GEDI L2A variables to download")
     p.add_argument("-l2b", "--l2b", dest="l2b", nargs='+', type=str, default=None, required=False, help="GEDI L2B variables to download")
     p.add_argument("-l4a", "--l4a", dest="l4a", nargs='+', type=str, default=None, required=False, help="GEDI L4A variables to download")
-    p.add_argument("-l4c", "--l4c", dest="l4c", nargs='+', type=str, default=None, required=False, help="GEDI L2A variables to download")
+    p.add_argument("-l4c", "--l4c", dest="l4c", nargs='+', type=str, default=None, required=False, help="GEDI L4C variables to download")
 
+    p.add_argument("-v", "--version", dest="version", required=False, type=int, default=None, help="GEDI data version to download [default = latest version]")
     p.add_argument("-S", "--skip-download", dest="skip_download", action='store_true', help="skip downloading and build from local SOC database")
-    p.add_argument("-r", "--resume", dest="resume", action='store_true', help="resume interrupted downloads")    
-    p.add_argument("-u", "--update", dest="update", action='store_true', help="update existing SOC files")    
     p.add_argument("-o", "--outdir", dest="outdir", required=False, type=str, default=None, help="output directory for downloaded files (bypass GH3 default path)")
+    p.add_argument("-r", "--resume", dest="resume", action='store_true', help="validate downloaded files and redownload missing or corrupted files")
         
     p.add_argument("-D", "--dask-scheduler", dest="dask_scheduler", type=str, default=None, required=False, help="existing dask scheduler address, e.g. tcp://localhost:8786")
 
@@ -36,14 +39,14 @@ if __name__ == "__main__":
     args = getCmdArgs()
     
     if DEBUG:
-        args.box = [-50.5,0.5,-50,1]
+        args.box = [-51,0,-50,1]
         # args.date_start = '2020-01-01'
         # args.date_end = '2020-07-01'
         # args.l1b = ['minimal']
         args.l2a = ['minimal']
-        args.l2b = ['minimal']
+        # args.l2b = ['minimal']
         args.l4a = ['minimal']
-        args.l4c = ['*']
+        args.l4c = ['minimal']
         args.n_cpus = 24
         args.port = 9997
         args.skip_download = True
@@ -58,39 +61,63 @@ if __name__ == "__main__":
         print("Overriding GH3 default output directory - new path is", os.environ['GH3_DEFAULT_DOWNLOAD_DIR'])
 
     import warnings
+    from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR
     from gedih3.utils import parse_gedi_args, parse_dask_args
     from gedih3.gh3builder import build_h3db_from_soc
     from gedih3.logger import H3BuildLogger
-    from dask.distributed import Client
+    from dask.distributed import Client    
     
-    product_vars = parse_gedi_args(args)
-    if len(product_vars) == 0:
-        raise ValueError("No GEDI product selected for download - please select at least one of --l1b, --l2a, --l2b, --l4a, --l4c")    
+    if args.outdir is None:
+        args.outdir = GH3_DEFAULT_H3_DIR
+    os.makedirs(args.outdir, exist_ok=True)
     
+    product_vars = parse_gedi_args(args)    
     spatial = args.spatial if args.spatial is not None else args.box
-    if spatial is None:
-        warnings.warn("No spatial filter provided - downloading global data", UserWarning)
     
-    if args.date_start or args.date_end:
-        temporal = (args.date_start, args.date_end)
-    else:
-        temporal = None
-        warnings.warn("No temporal filter provided - downloading all data", UserWarning)
+    # temporal = None
+    # if args.date_start or args.date_end:
+    #     temporal = (args.date_start, args.date_end)
     
-    build_logger = H3BuildLogger(
+    h3_logger = H3BuildLogger(
         product_vars=product_vars,
         spatial=spatial,
-        temporal=temporal,
-        resume=args.resume,
-        update=args.update,
-        db_type='h3'
+        res=args.h3_resolution,
+        part=args.h3_partition,
+        version=args.version,
+        dir=args.outdir,
     )
+    
+    if not h3_logger.product_vars and not h3_logger.updating:
+        raise ValueError("No GEDI product selected for download - please select at least one of --l1b, --l2a, --l2b, --l4a, --l4c")
+    if h3_logger.get_spatial() is None:
+        warnings.warn("No spatial filter provided - downloading global data", UserWarning)
+
+    if h3_logger.updating:
+        print("Build log exists, checking for updates.")
+
+        if h3_logger.new_spatial is not None:
+            print("Spatial filter updated.")
+        if h3_logger.new_product_vars is not None:
+            print("Product variables updated.")
+
+    print(f"Building GEDI H3 database at {args.outdir}")
+    h3_logger.save_log('PARTITIONING')
 
     dask_kwargs = parse_dask_args(args)
     with Client(**dask_kwargs) as client:
-        print("Dask client available at", client.dashboard_link)        
+        print("Dask dashboard available at:", client.dashboard_link)
+        try:
+            h3_files = build_h3db_from_soc(
+                product_vars=h3_logger.get_product_vars(),
+                spatial=h3_logger.get_spatial(),
+                res=h3_logger.res,
+                part=h3_logger.part,
+                soc_source=GH3_DEFAULT_SOC_DIR,
+                h3_dir=args.outdir,            
+            )
+            
+            h3_logger.save_log('COMPLETED')
         
-        h3_files = build_h3db_from_soc(
-            product_vars=build_logger.product_vars,
-            spatial=build_logger.spatial
-        )
+        except Exception as e:
+            h3_logger.save_log('FAILED')
+            raise e

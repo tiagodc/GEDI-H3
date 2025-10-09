@@ -263,154 +263,94 @@ class H3BuildLogger:
     _LOG_FILE_NAME = 'gh3_build_log.json'
     _PARENT_DIR = GH3_DEFAULT_H3_DIR
 
-#     def __init__(self, product_vars, res:int=12, part:int=3, spatial=None, temporal=None, db_type='both'):
-#         self.odir = GH3_DEFAULT_DOWNLOAD_DIR
-#         self.set_db_type(db_type)
-        
-#         self.s3_access = False  # Placeholder for future S3 access handling
-#         self.soc_data = {}
-#         self.h3_data = {}
-#         self.processing_data = {}
-
-#         self.log_file = os.path.join(self.odir, self._LOG_FILE_NAME)
-#         log_data = self._load_log_data()
-#         self._parse_log(log_data)
-
-#         if not resuming and not log_data:
-#             self.spatial = self._process_spatial(spatial)
-#             self.temporal = self._process_temporal(temporal)
-#             self.product_vars = gedi_vars_expand(product_vars)
-
-#         if self.db_type in ('h3', 'both'):
-#             self._set_h3_resolutions(res, part)
-
-#         if update:
-#             self._merge_spatial(spatial)
-#             self._merge_temporal(temporal)
-#             self._merge_product_vars(product_vars)
-                
-    
-#     def _set_h3_resolutions(self, res=None, part=None):
-#         self.res = self.h3_data.get("h3_resolution_level", res)
-#         self.part = self.h3_data.get("h3_partition_level", part)
-        
-#         if not (self.res and self.part):
-#             raise ValueError("H3 resolution and partition levels must be specified for H3 database.")
-          
-#         self.h3_data['h3_resolution_level'] = self.res
-#         self.h3_data['h3_partition_level'] = self.part
-    
-#     def _load_log_data(self):
-#         if os.path.exists(self.log_file):
-#             return json_read(self.log_file)
-#         else:
-#             return {}
-    
-#     def _parse_log(self, log_data):
-#         if not log_data:
-#             return
-        
-#         spatial = log_data.get("spatial_filter")
-#         temporal = log_data.get("temporal_filter")
-        
-#         self.soc_data.update(log_data.get("soc", {}))
-#         self.h3_data.update(log_data.get("h3", {}))
-        
-#         self.spatial = self._process_spatial(spatial)
-#         self.temporal = self._process_temporal(temporal)
-        
-#         self.product_vars = log_data.get(self.db_type,{}).get("products",{})
-#         if self.product_vars:
-#             self.product_vars = {k:val.get('variables') for k,val in self.product_vars.items()}
-    
-#     def _process_spatial(self, spatial):
-#         if spatial is None:
-#             return None
-        
-#         if isinstance(spatial, dict) and 'shapefile' in spatial:
-#             spatial = from_geojson(spatial)
-#         elif isinstance(spatial, list) and len(spatial) == 4:
-#             from shapely.geometry import box
-#             spatial = gpd.GeoDataFrame(geometry=[box(*spatial)], crs=4326, index=[0])
-#         elif isinstance(spatial, str):
-#             if not os.path.exists(spatial):
-#                 raise FileNotFoundError(f"Spatial file '{spatial}' does not exist.")
-#             spatial = read_vector_file(spatial, crs=4326)
-#         elif isinstance(spatial, gpd.GeoDataFrame):
-#             spatial = spatial.to_crs(epsg=4326)
-#         else:
-#             raise ValueError("Invalid spatial input. Must be bounding box list, file path, or GeoDataFrame.")
-        
-#         return spatial
-    
-#     def _process_temporal(self, temporal):
-#         if temporal is None:
-#             return None
-        
-#         if isinstance(temporal, (list, tuple)) and len(temporal) == 2:
-#             start, end = temporal
-#             if isinstance(start, str):
-#                 start = datetime.fromisoformat(start.replace('Z', '+00:00'))
-#                 start = start.strftime('%Y-%m-%d')
-#             if isinstance(end, str):
-#                 end = datetime.fromisoformat(end.replace('Z', '+00:00'))
-#                 end = end.strftime('%Y-%m-%d')
-#             return (start, end)
-#         else:
-#             raise ValueError("Invalid temporal input. Must be a list or tuple of two dates.")
-    
-#     def _merge_spatial(self, new_spatial):
-#         if new_spatial is None:
-#             return
-        
-#         if self.spatial is None:
-#             self.spatial = self._process_spatial(new_spatial)        
-#         else:
-#             self.spatial = gpd.overlay(self.spatial, self._process_spatial(new_spatial), how='union')            
-
-#     def _merge_temporal(self, new_temporal):
-#         if new_temporal is None:
-#             return
-#         if self.temporal is None:
-#             self.temporal = self._process_temporal(new_temporal)
-#         else:
-#             start1, end1 = self.temporal
-#             start2, end2 = self._process_temporal(new_temporal)
+    def __init__(self, product_vars, spatial=None, res:int=12, part:int=3, version:int=2, dir=None):
+        if dir is not None:
+            self._PARENT_DIR = dir
             
-#             new_start = None if None in (start1, start2) else min(start1, start2)
-#             new_end = None if None in (end1, end2) else max(end1, end2)
+        if product_vars:
+            product_vars = gedi_vars_expand(product_vars)
             
-#             self.temporal = (new_start, new_end)
-
-#     def _merge_product_vars(self, new_product_vars):
-#         if not new_product_vars:
-#             return
+        self.log_file = os.path.join(self._PARENT_DIR, self._LOG_FILE_NAME)
+        self.log_data = load_log_data(self.log_file)
+        self.updating = False
         
-#         for prod, vars_list in new_product_vars.items():
-#             if prod not in self.product_vars:
-#                 self.product_vars[prod] = vars_list
-#             elif self.product_vars[prod] is None or vars_list is None:
-#                 self.product_vars[prod] = None
-#             else:
-#                 existing_set = set(self.product_vars[prod])
-#                 new_set = set(vars_list)
-#                 self.product_vars[prod] = list(existing_set | new_set)
-
-#     def set_status(self, new_status: str, which_product: str=None):
-#         if new_status not in self._VALID_STATUSES:
-#             raise ValueError(f"Invalid status '{new_status}'. Must be one of {self._VALID_STATUSES}")
-
-#         self.processing_data = {
-#             "db_type": self.db_type,
-#             "product": which_product if which_product else None,
-#             "status": new_status
-#         }
+        if not self.log_data:
+            self.product_vars = product_vars
+            self.spatial = parse_spatial(spatial)
+            self.res = res
+            self.part = part
+            self.gedi_version = version
+            return
         
-#         if which_product is None:
-#             if self.db_type in ('soc', 'both'):
-#                 self.soc_data['status'] = new_status
-#             if self.db_type in ('h3', 'both'):
-#                 self.h3_data['status'] = new_status
+        self._load_filters_from_log()
+        
+        self.updating = True
+        self.new_spatial = None
+        self.new_product_vars = None        
+
+        if spatial is not None:
+            self.spatial, self.new_spatial = merge_spatial(self.spatial, spatial)
+        
+        if product_vars is not None:
+            self.product_vars, self.new_product_vars = merge_product_vars(self.product_vars, product_vars)
+
+
+    def _load_filters_from_log(self):
+        self.product_vars = self.log_data.get('products', {})
+        self.product_vars = {k:val.get('variables') for k,val in self.product_vars.items()}        
+        
+        self.spatial = parse_spatial(self.log_data.get('spatial_filter'))
+        self.res = self.log_data.get('h3_resolution_level')
+        self.part = self.log_data.get('h3_partition_level')
+        self.gedi_version = self.log_data.get('gedi_version')
+
+    def get_spatial(self):
+        if not self.updating or self.new_spatial is None:
+            return self.spatial
+
+        if self.new_product_vars is None:
+            return self.new_spatial
+
+        return self.spatial
+
+    def get_product_vars(self):
+        if not self.updating or self.new_product_vars is None:
+            return self.product_vars
+
+        if self.new_spatial is None:
+            return self.new_product_vars
+
+        return self.product_vars
+
+    def to_dict(self, status):
+        if status not in _VALID_STATUSES:
+            raise ValueError(f"Invalid status '{status}'. Must be one of {_VALID_STATUSES}")
+        
+        product_logs = self.log_data.get('products', {})
+        for prod in self.get_product_vars().keys():
+            product_logs[prod] = product_logs.get(prod, {})
+            product_logs[prod]['status'] = status
+            product_logs[prod]['last_modified'] = now()
+            product_logs[prod]['variables'] = self.product_vars.get(prod)
+        
+        log_dict = {
+            'metadata': {
+                'package_version': get_package_version()
+            },
+            'gedi_version': self.gedi_version,
+            'h3_resolution_level': self.res,
+            'h3_partition_level': self.part,
+            'status': status,
+            'last_modified': now(),
+            'spatial_filter': None if self.spatial is None else to_geojson(self.spatial),
+            'products': product_logs
+        }
+
+        return log_dict
+
+    def save_log(self, status):
+        json_write(self.to_dict(status), self.log_file, mode='w', rewrite=True)
+
         
 #     def get_product_info(self, prod: str, status: str = 'COMPLETED'):
 #         prod = prod.upper()
@@ -493,22 +433,3 @@ class H3BuildLogger:
         
 #         if self.db_type in ('h3', 'both'):
 #             pass # Placeholder for future H3-specific logging
-
-#     def to_dict(self):
-#         """Convert logger to dictionary format for JSON serialization"""
-#         log_dict = {
-#             'spatial_filter': to_geojson(self.spatial),
-#             'temporal_filter': self.temporal,
-#             'soc': self.soc_data,
-#             'h3': self.h3_data,
-#             'processing': self.processing_data,
-#             'metadata': {
-#                 'package_version': get_package_version(),
-#                 'last_modified': self._now()
-#             }            
-#         }
-
-#         return log_dict
-
-#     def save_log(self):
-#         json_write(self.to_dict(), self.log_file, mode='w', rewrite=True)

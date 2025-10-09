@@ -104,7 +104,8 @@ if __name__ == "__main__":
                 spatial=soc_logger.get_spatial(),
                 temporal=soc_logger.get_temporal(),
                 direct_access=False,
-                update=True
+                update=True,
+                odir=args.outdir
             )
             
             soc_logger.save_log('COMPLETED')
