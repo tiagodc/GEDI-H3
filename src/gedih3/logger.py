@@ -161,7 +161,7 @@ def merge_product_vars(existing_product_vars, new_product_vars=None):
     return merged_product_vars, new_product_vars
 
 class SOCDownloadLogger:
-    _LOG_FILE_NAME = 'download_log.json'
+    _LOG_FILE_NAME = 'gh3_download_log.json'
     _PARENT_DIR = GH3_DEFAULT_SOC_DIR
 
     def __init__(self, product_vars, spatial=None, temporal=None, dir=None):
