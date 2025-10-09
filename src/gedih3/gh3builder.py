@@ -84,7 +84,7 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
 def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     return h3_merge_files(in_dir=in_dir, out_dir=out_dir, rm_src=rm_src, replace=replace)
 
-def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_access = False, resume=False, update=False, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5):
+def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_access = False, update=False, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5):
     product_vars = gedi_vars_expand(product_vars)    
     
     if 'L2A' not in product_vars:
@@ -96,7 +96,7 @@ def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_acc
         if 'shot_number' not in val:
             val.append('shot_number')
 
-    soc_files = gedi_download(product_vars=product_vars, odir=odir, spatial=spatial, temporal=temporal, resume = resume or update, n_jobs=n_jobs, to_list=direct_access)
+    soc_files = gedi_download(product_vars=product_vars, odir=odir, spatial=spatial, temporal=temporal, resume=update, n_jobs=n_jobs, to_list=direct_access)
 
     return soc_files
 

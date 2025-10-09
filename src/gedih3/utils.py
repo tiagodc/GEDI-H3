@@ -106,21 +106,19 @@ def geo_to_umm(obj):
     """
     Converts a GeoDataFrame, shapely Polygon, or GeoJSON dictionary to a UMM-style list of coordinates.
     """   
+    geodf = None
     if isinstance(obj, dict) and 'shapefile' in obj:
         geodf = from_geojson(obj)
-        if geodf.geometry.iloc[0].geom_type == 'MultiPolygon':
+    elif isinstance(obj, gpd.GeoDataFrame):
+        geodf = obj.geometry.apply(orient, args=(1,))
+    
+    if geodf is not None:        
+        geodf = geodf.explode(index_parts=False).reset_index()
+        if len(geodf) > 1:
             geo_umm = [list(zip(*polygon.exterior.coords.xy)) for polygon in geodf.geometry]
         else:
             xy = geodf.geometry.get_coordinates()
-            geo_umm = list(zip(xy.x, xy.y))
-    
-    elif isinstance(obj, gpd.GeoDataFrame):
-        bounds = obj.geometry.apply(orient, args=(1,))
-        if bounds.geom_type.iloc[0] == 'MultiPolygon':
-            geo_umm = [list(zip(*polygon.exterior.coords.xy)) for polygon in bounds.geometry]
-        else:
-            xy = bounds.get_coordinates()
-            geo_umm = list(zip(xy.x, xy.y))
+            geo_umm = list(zip(xy.x, xy.y))    
     
     elif isinstance(obj, BaseGeometry):
         oriented_geom = orient(obj, 1)

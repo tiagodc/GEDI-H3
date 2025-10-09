@@ -120,14 +120,12 @@ class GEDIAccessor:
             # Convert to datetime objects if strings
             if isinstance(start_date, str):
                 start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                start_date = start_date.strftime('%Y-%m-%dT%H:%M:%SZ')
             if isinstance(end_date, str):
                 end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-            
-            # Format as ISO strings
-            start_iso = start_date.strftime('%Y-%m-%dT%H:%M:%SZ')
-            end_iso = end_date.strftime('%Y-%m-%dT%H:%M:%SZ')
-            
-            return (start_iso, end_iso)
+                end_date = end_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+            return (start_date, end_date)
         
         raise ValueError("Temporal filter must be a tuple/list of 2 date strings")
     
@@ -184,10 +182,13 @@ def download_granule(granule, odir: str = None, subset_vars: List[str] = None, r
             try:
                 existing_vars = set(gedi_vars_from_h5(expected_path))
                 requested_vars = set(subset_vars)
-                if existing_vars == requested_vars:
+                if requested_vars.issubset(existing_vars):
                     return expected_path
-            except Exception:
-                pass
+                else:
+                    os.unlink(expected_path)
+            except Exception as e:
+                warnings.warn(f"Could not read existing file {os.path.basename(expected_path)}, re-downloading.")
+                os.unlink(expected_path)
         else:
             return expected_path
 

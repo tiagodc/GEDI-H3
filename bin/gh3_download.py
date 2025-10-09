@@ -38,64 +38,77 @@ if __name__ == "__main__":
     args = getCmdArgs()
     
     if DEBUG:
-        args.box = [-51,0,-50,1]
-        args.date_start = '2020-01-01'
-        args.date_end = '2022-07-01'
+        # args.box = [-51,0,-50,1]
+        # args.date_start = '2019-01-01'
+        args.date_end = '2025-04-01'
         # args.l1b = ['minimal']
-        args.l2a = ['minimal']
-        args.l2b = ['minimal']
-        args.l4a = ['minimal'] 
-        args.l4c = ['*']
+        # args.l2a = ['minimal']
+        # args.l2b = ['minimal']
+        # args.l4a = ['minimal'] 
+        # args.l4c = ['*']
         args.n_cpus = 32
         args.port = 9997
         # args.dask_scheduler = 'tcp://localhost:8786'
         import sys
         sys.path.insert(0, os.path.abspath('./src/'))
 
-    if args.outdir is not None:
-        os.environ['GH3_DEFAULT_DOWNLOAD_DIR'] = os.path.abspath(args.outdir)
-        from gedih3.config import configure_environment
-        configure_environment()
-        print("Overriding GH3 default output directory - new path is", os.environ['GH3_DEFAULT_DOWNLOAD_DIR'])
-
-    import warnings
+    import warnings    
+    from gedih3.config import GH3_DEFAULT_SOC_DIR
     from gedih3.utils import parse_gedi_args, parse_dask_args
     from gedih3.gh3builder import download_soc
-    from gedih3.logger import H3BuildLogger
+    from gedih3.logger import SOCDownloadLogger
     from dask.distributed import Client
+
+    if args.outdir is None:
+        args.outdir = GH3_DEFAULT_SOC_DIR
+    os.makedirs(args.outdir, exist_ok=True)
     
-    product_vars = parse_gedi_args(args)
-    if len(product_vars) == 0:
-        raise ValueError("No GEDI product selected for download - please select at least one of --l1b, --l2a, --l2b, --l4a, --l4c")    
-    
-    spatial = args.spatial if args.spatial is not None else args.box
-    if spatial is None:
-        warnings.warn("No spatial filter provided - downloading global data", UserWarning)
-    
+    product_vars = parse_gedi_args(args)        
+    spatial = args.spatial if args.spatial is not None else args.box    
     temporal = None
     if args.date_start or args.date_end:
         temporal = (args.date_start, args.date_end)
-    else:
-        warnings.warn("No temporal filter provided - downloading data from all available dates", UserWarning)
     
-    build_logger = H3BuildLogger(
+    soc_logger = SOCDownloadLogger(
         product_vars=product_vars,
         spatial=spatial,
         temporal=temporal,
-        resume=args.resume,
-        update=args.update,
-        db_type='soc'
+        dir=args.outdir
     )
+
+    if not soc_logger.product_vars and not soc_logger.updating:
+        raise ValueError("No GEDI product selected for download - please select at least one of --l1b, --l2a, --l2b, --l4a, --l4c")
+    if soc_logger.get_spatial() is None:
+        warnings.warn("No spatial filter provided - downloading global data", UserWarning)
+    if soc_logger.get_temporal() is None:
+        warnings.warn("No temporal filter provided - downloading data from all available dates", UserWarning)
+
+    if soc_logger.updating:
+        print("Download log exists, resuming downloads.")
+
+        if soc_logger.new_spatial is not None:
+            print("Spatial filter updated.")
+        if soc_logger.new_temporal is not None:
+            print("Temporal filter updated.")
+        if soc_logger.new_product_vars is not None:
+            print("Product variables updated.")
+
+    print(f"Downloading GEDI data to {args.outdir}")
+    soc_logger.save_log('DOWNLOADING')
 
     dask_kwargs = parse_dask_args(args)
     with Client(**dask_kwargs) as client:
-        print("Dask client available at", client.dashboard_link)
-
-        soc_files = download_soc(
-            product_vars=build_logger.product_vars,
-            spatial=build_logger.spatial,
-            temporal=build_logger.temporal,
-            direct_access=False,
-            resume=args.resume,
-            update=args.update
-        )
+        try:            
+            soc_files = download_soc(
+                product_vars=soc_logger.get_product_vars(),
+                spatial=soc_logger.get_spatial(),
+                temporal=soc_logger.get_temporal(),
+                direct_access=False,
+                update=True
+            )
+            
+            soc_logger.save_log('COMPLETED')
+        
+        except Exception as e:
+            soc_logger.save_log('FAILED')
+            raise e
