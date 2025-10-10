@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import pyarrow
 import fiona
@@ -14,6 +15,9 @@ from shapely.geometry.base import BaseGeometry
 from typing import Union, List, Dict, Optional, Tuple, Any
 
 from .config import GEDI_PRODUCTS
+
+def now():
+    return datetime.now().isoformat()
 
 def json_write(obj, path, mode='w', rewrite=False):
     if os.path.isfile(path) and not rewrite:
@@ -107,7 +111,7 @@ def geo_to_umm(obj):
     Converts a GeoDataFrame, shapely Polygon, or GeoJSON dictionary to a UMM-style list of coordinates.
     """   
     geodf = None
-    if isinstance(obj, dict) and 'shapefile' in obj:
+    if isinstance(obj, dict):
         geodf = from_geojson(obj)
     elif isinstance(obj, gpd.GeoDataFrame):
         geodf = obj.geometry.apply(orient, args=(1,))
@@ -135,14 +139,14 @@ def geo_to_umm(obj):
 
 def to_geojson(geodf: gpd.GeoDataFrame) -> Dict:
     geodf.geometry = geodf.geometry.apply(orient, args=(1,))
-    geojson = {"shapefile": ("roi.geojson", geodf.geometry.to_json(), "application/geo+json")}
-    return geojson
+    # geojson = {"shapefile": ("roi.geojson", geodf.geometry.to_json(), "application/geo+json")}
+    return geodf.geometry.to_json()
 
-def from_geojson(geojson: Dict) -> gpd.GeoDataFrame:
-    geojson_features = geojson['shapefile'][1]
-    if isinstance(geojson_features, str):
-        geojson_features = json.loads(geojson_features)
-    return gpd.GeoDataFrame.from_features(geojson_features, crs=4326)
+def from_geojson(geojson) -> gpd.GeoDataFrame:
+    # geojson_features = geojson['shapefile'][1]
+    if isinstance(geojson, str):
+        geojson = json.loads(geojson)
+    return gpd.GeoDataFrame.from_features(geojson, crs=4326)
 
 def read_as_geojson(geofile: str, box_only: bool = False) -> Dict:
     roi = read_vector_file(geofile, crs=4326) 

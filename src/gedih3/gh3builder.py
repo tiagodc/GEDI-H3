@@ -13,10 +13,27 @@ from typing import Union, List, Dict, Optional, Tuple, Any
 from dask.distributed import progress
 
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS, GEDI_START_DATE
-from .utils import parquet_append_columns, parquet_merge_files, read_vector_file
-from .h3utils import intersect_h3_geometries, h3_index_df
+from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_vector_file
+from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
 from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, validate_soc_files
 from .daac import gedi_download
+
+
+def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_access = False, update=False, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5):
+    product_vars = gedi_vars_expand(product_vars)    
+    
+    if 'L2A' not in product_vars:
+        product_vars.update({'L2A': GEDI_L2A_ESSENTIALS})
+
+    for k,val in product_vars.items():
+        if val is None:
+            continue
+        if 'shot_number' not in val:
+            val.append('shot_number')
+
+    soc_files = gedi_download(product_vars=product_vars, odir=odir, spatial=spatial, temporal=temporal, resume=update, n_jobs=n_jobs, to_list=direct_access)
+
+    return soc_files
 
 def h3_part_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode', roi_tiles=[]):
     if df.empty:
@@ -48,6 +65,36 @@ def h3_part_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_co
     del df    
     return files
 
+def h3_write_metadata(h3_file):
+    meta_file = h3_file.replace('.parquet','.metadata.json')
+    h3_part, year = os.path.basename(h3_file).split('.')[:2]
+    
+    df = pd.read_parquet(h3_file, engine='pyarrow', columns=['shot_number','root_file_l2a','datetime'])
+
+    gedi_files = [GEDIFile(f) for f in df['root_file_l2a'].unique()]
+    shot_range = (int(df['shot_number'].min()), int(df['shot_number'].max()))
+    date_range = (df['datetime'].min().strftime('%Y-%m-%d'), df['datetime'].max().strftime('%Y-%m-%d'))
+
+    granule_identifiers = [{'orbit':gf.orbit, 'granule':gf.orbit_granule, 'track':gf.track} for gf in gedi_files]
+    l2a_version = gedi_files[0].version
+
+    h3_polygon = gpd.GeoDataFrame(geometry=[fix_h3_geometry(h3_part)], crs=4326, index=[h3_part])
+
+    meta = {
+        'last_modified': now(),
+        'h3_partition': h3_part,
+        'h3_geometry': to_geojson(h3_polygon),
+        'year': int(year),
+        'shot_count': len(df),
+        'shot_range': shot_range,
+        'date_range': date_range,
+        'l2a_version': l2a_version,
+        'granules': granule_identifiers
+    }
+    
+    json_write(meta, meta_file, rewrite=True)
+    return meta_file    
+
 def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     files = glob.glob(os.path.join(in_dir,'*.parquet'))
     
@@ -65,40 +112,26 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     
     oname = f'{h3part.split('=')[-1]}.{year.split('=')[-1]}.0.parquet'
     out_file = os.path.join(odir, oname)
+    h3_file = out_file
 
     if is_temp := (os.path.exists(out_file) and not replace):
         files.insert(0,out_file)
         files = list(set(files))
-        in_file = out_file
         out_file += '.tmp'
     
     parquet_merge_files(out_file, files, check_shots=True, rm_src=rm_src)
     
     if is_temp:
-        os.replace(out_file, in_file)
+        os.replace(out_file, h3_file)
     if rm_src:
         shutil.rmtree(in_dir, ignore_errors=True)
-    return out_file
+
+    meta_file = h3_write_metadata(h3_file)
+    return h3_file
 
 @dask.delayed
 def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     return h3_merge_files(in_dir=in_dir, out_dir=out_dir, rm_src=rm_src, replace=replace)
-
-def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_access = False, update=False, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5):
-    product_vars = gedi_vars_expand(product_vars)    
-    
-    if 'L2A' not in product_vars:
-        product_vars.update({'L2A': GEDI_L2A_ESSENTIALS})
-
-    for k,val in product_vars.items():
-        if val is None:
-            continue
-        if 'shot_number' not in val:
-            val.append('shot_number')
-
-    soc_files = gedi_download(product_vars=product_vars, odir=odir, spatial=spatial, temporal=temporal, resume=update, n_jobs=n_jobs, to_list=direct_access)
-
-    return soc_files
 
 def build_h3db_from_soc(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAULT_SOC_DIR, version_kwargs=None, tmp_dir=GH3_DEFAULT_TMP_DIR, h3_dir=GH3_DEFAULT_H3_DIR):
     # add resume/update logic

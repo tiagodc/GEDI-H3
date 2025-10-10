@@ -4,7 +4,7 @@ from typing import Dict
 from datetime import datetime
 
 from .config import GEDI_PRODUCTS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR
-from .utils import json_read, json_write, read_vector_file, to_geojson, from_geojson
+from .utils import now, json_read, json_write, read_vector_file, to_geojson, from_geojson
 from .gedidriver import GEDIFile, gedi_vars_expand, soc_file_tree, check_soc_file_vars, validate_soc_files
 from .gh3driver import gh3_list_files
 
@@ -40,14 +40,11 @@ def load_log_data(file_path):
     else:
         return {}
 
-def now():
-    return datetime.now().isoformat()
-
 def parse_spatial(spatial):
     if spatial is None:
         return None
     
-    if isinstance(spatial, dict) and 'shapefile' in spatial:
+    if isinstance(spatial, dict):
         spatial = from_geojson(spatial)
     elif isinstance(spatial, list) and len(spatial) == 4:
         from shapely.geometry import box
