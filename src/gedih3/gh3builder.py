@@ -104,7 +104,10 @@ def h3_read_metadata(h3_file):
     return None
 
 def h3_skip_file(h3_file):
-    pass
+    metadata = h3_read_metadata(h3_file)
+    if metadata is None:
+        return False
+    return True
 
 def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     files = glob.glob(os.path.join(in_dir,'*.parquet'))
