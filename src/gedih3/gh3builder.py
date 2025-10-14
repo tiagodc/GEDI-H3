@@ -13,7 +13,7 @@ from typing import Union, List, Dict, Optional, Tuple, Any
 from dask.distributed import progress
 
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS, GEDI_START_DATE
-from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_vector_file
+from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
 from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, validate_soc_files
 from .daac import gedi_download
@@ -71,6 +71,7 @@ def h3_write_metadata(h3_file):
     
     df = pd.read_parquet(h3_file, engine='pyarrow', columns=['shot_number','root_file_l2a','datetime'])
 
+    cols = read_parquet_schema(h3_file)
     gedi_files = [GEDIFile(f) for f in df['root_file_l2a'].unique()]
     shot_range = (int(df['shot_number'].min()), int(df['shot_number'].max()))
     date_range = (df['datetime'].min().strftime('%Y-%m-%d'), df['datetime'].max().strftime('%Y-%m-%d'))
@@ -89,11 +90,21 @@ def h3_write_metadata(h3_file):
         'shot_range': shot_range,
         'date_range': date_range,
         'l2a_version': l2a_version,
-        'granules': granule_identifiers
+        'granules': granule_identifiers,
+        'columns': cols.columns.tolist()
     }
     
     json_write(meta, meta_file, rewrite=True)
     return meta_file    
+
+def h3_read_metadata(h3_file):
+    meta_file = h3_file.replace('.parquet','.metadata.json')
+    if os.path.exists(meta_file):
+        return json_read(meta_file)
+    return None
+
+def h3_skip_file(h3_file):
+    pass
 
 def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     files = glob.glob(os.path.join(in_dir,'*.parquet'))
@@ -196,32 +207,3 @@ def build_h3db_from_soc(product_vars, res=12, part=3, spatial=None, soc_source=G
 
     h3_result = list(dask.compute(*h3_files))
     return h3_result
-
-# def gh3_build_all(product_vars, spatial=None, temporal=None, res=12, part=3, direct_access=False, dask_client=None, skip_download=False, resume=False, update=False):
-#     product_vars = gedi_vars_expand(product_vars)
-
-#     if isinstance(spatial, str):
-#         spatial = read_vector_file(spatial)
-
-#     soc_source = None
-#     if skip_download:
-#         validation_report = validate_soc_files(product_vars, soc_dir=GH3_DEFAULT_SOC_DIR)
-#         if not validation_report["can_skip"]:
-#             raise ValueError(validation_report.get('error_msg', "SOC files validation failed."))
-
-#         soc_files = download_soc(product_vars, spatial=spatial, temporal=temporal, direct_access=direct_access, resume=resume, update=update, dask_client=dask_client)
-
-#         if direct_access:
-#             soc_source = soc_files
-    
-#     h3_products = {}
-#     try:
-#         for k,val in product_vars.items():
-#             print(f"Building H3 database for GEDI {k.upper()}")
-#             # add resume/update logic
-#             h3_files = build_h3db_from_soc(gedi_prod_level=k, h3_vars=val, res=res, part=part, spatial=spatial, soc_source=soc_source)
-#             h3_products[k] = h3_files
-#     except Exception as e:
-#         raise e
-    
-#     return h3_products
