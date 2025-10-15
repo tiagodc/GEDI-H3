@@ -91,7 +91,7 @@ def h3_write_metadata(h3_file):
         'date_range': date_range,
         'l2a_version': l2a_version,
         'granules': granule_identifiers,
-        'columns': cols.columns.tolist()
+        'columns': cols['column'].tolist()
     }
     
     json_write(meta, meta_file, rewrite=True)
@@ -169,6 +169,8 @@ def build_h3db_from_soc(product_vars, res=12, part=3, spatial=None, soc_source=G
             warnings.warn(f"Skipping file - does not contain all requested GEDI products\n{json.dumps(i, indent=2)}", UserWarning, stacklevel=2)
             continue
         soc_files.append(i)
+        
+    
         
     ddf = dask_h5_merged(soc_files, product_vars, shots=None, dropna=True, by_beam=True, suffix_all=True)
 
