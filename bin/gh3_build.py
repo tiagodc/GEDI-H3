@@ -63,7 +63,7 @@ if __name__ == "__main__":
     import warnings
     from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR
     from gedih3.utils import parse_gedi_args, parse_dask_args
-    from gedih3.gh3builder import build_h3db_from_soc
+    from gedih3.gh3builder import build_h3db
     from gedih3.logger import H3BuildLogger
     from dask.distributed import Client    
     
@@ -95,27 +95,28 @@ if __name__ == "__main__":
     if h3_logger.updating:
         print("Build log exists, checking for updates.")
 
-        if h3_logger.new_spatial is not None:
+        if add_spatial := (h3_logger.new_spatial is not None):
             print("Spatial filter updated.")
-        if h3_logger.new_product_vars is not None:
-            print("Product variables updated.")
+        if add_vars := (h3_logger.new_product_vars is not None):
+            print("Product variables updated.")            
 
     print(f"Building GEDI H3 database at {args.outdir}")
-    h3_logger.save_log('PARTITIONING')
+    h3_logger.save_log('PARTITIONING')    
 
     dask_kwargs = parse_dask_args(args)
     with Client(**dask_kwargs) as client:
         print("Dask dashboard available at:", client.dashboard_link)
         try:
-            h3_files = build_h3db_from_soc(
+            h3_files = build_h3db(
                 product_vars=h3_logger.get_product_vars(),
                 spatial=h3_logger.get_spatial(),
                 res=h3_logger.res,
                 part=h3_logger.part,
                 soc_source=GH3_DEFAULT_SOC_DIR,
-                h3_dir=args.outdir,            
+                h3_dir=args.outdir,
             )
             
+            h3_logger.set_granule_info()
             h3_logger.save_log('COMPLETED')
         
         except Exception as e:

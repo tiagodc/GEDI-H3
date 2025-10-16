@@ -44,7 +44,7 @@ def intersect_h3_geometries(spatial, res=None, h3_ids=None):
     elif isinstance(spatial, gpd.GeoSeries) or isinstance(spatial, gpd.GeoDataFrame):
         spatial = spatial.to_crs(4326)
 
-    full_h3_list = h3_ids    
+    full_h3_list = h3_ids
     if h3_ids is None:
         full_h3_list = get_all_h3_hexagons(res)
     

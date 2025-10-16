@@ -1,4 +1,4 @@
-import os, re, glob, json, h5py
+import os, re, glob, json, h5py, h3
 import warnings
 import shutil
 import numpy as np
@@ -49,7 +49,7 @@ def h3_part_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_co
         
         hex_path = os.path.join(dir_path,i)        
         hex_df = df.loc[[i]]
-        gedi_name = re.sub('\\.h5$',f'.{hex_df.root_beam.iloc[0]}.parquet', hex_df.root_file.iloc[0])        
+        gedi_name = re.sub('\\.h5$',f'.{hex_df.root_beam.iloc[0]}.parquet', hex_df.root_file.iloc[0])
         f = os.path.join(hex_path, gedi_name)
         
         if f.endswith('.parquet'):
@@ -57,7 +57,7 @@ def h3_part_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_co
             if os.path.exists(f):
                 parquet_append_columns(hex_df, f)
             else:
-                hex_df.to_parquet(f, engine='pyarrow')
+                hex_df.to_parquet(f, engine='pyarrow', index=True, compression='zstd')
             
         files.append(f)
         del hex_df
@@ -83,19 +83,19 @@ def h3_write_metadata(h3_file):
 
     meta = {
         'last_modified': now(),
+        'l2a_version': l2a_version,
         'h3_partition': h3_part,
         'h3_geometry': to_geojson(h3_polygon),
         'year': int(year),
         'shot_count': len(df),
         'shot_range': shot_range,
         'date_range': date_range,
-        'l2a_version': l2a_version,
         'granules': granule_identifiers,
         'columns': cols['column'].tolist()
     }
     
     json_write(meta, meta_file, rewrite=True)
-    return meta_file    
+    return meta_file
 
 def h3_read_metadata(h3_file):
     meta_file = h3_file.replace('.parquet','.metadata.json')
@@ -103,11 +103,66 @@ def h3_read_metadata(h3_file):
         return json_read(meta_file)
     return None
 
-def h3_skip_file(h3_file):
-    metadata = h3_read_metadata(h3_file)
-    if metadata is None:
+def h3_merge_metadata(h3_subdir):
+    files = glob.glob(os.path.join(h3_subdir,'*','*.parquet'))
+    year_metadata = [h3_read_metadata(f) for f in files]
+    year_metadata = [m for m in year_metadata if m is not None]
+    
+    if len(year_metadata) == 0:
+        return None
+    
+    mmeta = year_metadata[0].copy()
+    
+    del mmeta['year']
+    mmeta['years'] = set()
+    
+    mmeta['last_modified'] = now()
+    mmeta['shot_range'] = list(mmeta['shot_range'])
+    mmeta['date_range'] = list(mmeta['date_range'])
+    
+    for ym in year_metadata[1:]:
+        mmeta['shot_count'] += ym['shot_count']
+        mmeta['shot_range'][0] = min(mmeta['shot_range'][0], ym['shot_range'][0])
+        mmeta['shot_range'][1] = max(mmeta['shot_range'][1], ym['shot_range'][1])
+        mmeta['date_range'][0] = min(mmeta['date_range'][0], ym['date_range'][0])
+        mmeta['date_range'][1] = max(mmeta['date_range'][1], ym['date_range'][1])
+        mmeta['years'].add(ym['year'])
+        
+        for g in ym['granules']:
+            if g not in mmeta['granules']:
+                mmeta['granules'].append(g)
+    
+    mmeta['years'] = sorted(mmeta['years'])
+    ofile = os.path.join(h3_subdir, f"{mmeta['h3_partition']}.metadata.json")
+    json_write(mmeta, ofile, rewrite=True)
+    return ofile
+
+def h3_skip_part(h3_dir, h3_part, gedi_file):
+    res = h3.get_resolution(h3_part)
+    meta_file = os.path.join(h3_dir, f"h3_{res:02d}={h3_part}", f"{h3_part}.metadata.json")    
+    
+    if not os.path.exists(meta_file):
         return False
-    return True
+    
+    metadata = json_read(meta_file)
+    gf = GEDIFile(gedi_file)
+    granule_id = {'orbit':gf.orbit, 'granule':gf.orbit_granule, 'track':gf.track}
+    
+    return granule_id in metadata['granules']
+
+def h3_add_skip_column(df, h3_dir):
+    if df.empty:
+        df['_skip'] = True
+        return df    
+    h3_col = sorted([c for c in df.columns if re.match(r'h3_\d{2}', c)])[0]
+    h3_part = df[h3_col].iloc[0]
+    gedi_file = df['root_file_l2a'].iloc[0]
+    df = df.assign(_skip=h3_skip_part(h3_dir=h3_dir, h3_part=h3_part, gedi_file=gedi_file))
+    return df
+
+@dask.delayed
+def dh3_merge_metadata(h3_subdir):
+    return h3_merge_metadata(h3_subdir)
 
 def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     files = glob.glob(os.path.join(in_dir,'*.parquet'))
@@ -147,8 +202,9 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
 def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     return h3_merge_files(in_dir=in_dir, out_dir=out_dir, rm_src=rm_src, replace=replace)
 
-def build_h3db_from_soc(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAULT_SOC_DIR, version_kwargs=None, tmp_dir=GH3_DEFAULT_TMP_DIR, h3_dir=GH3_DEFAULT_H3_DIR):
+def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAULT_SOC_DIR, version_kwargs=None, tmp_dir=GH3_DEFAULT_TMP_DIR, h3_dir=GH3_DEFAULT_H3_DIR, verbose=True):
     # add resume/update logic
+      # enable skipping granules entirely
     all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=version_kwargs)
 
     if 'L2A' in product_vars:
@@ -170,8 +226,9 @@ def build_h3db_from_soc(product_vars, res=12, part=3, spatial=None, soc_source=G
             continue
         soc_files.append(i)
         
+    if verbose:
+        print(f"Found {len(soc_files)} GEDI granules with requested products.")
     
-        
     ddf = dask_h5_merged(soc_files, product_vars, shots=None, dropna=True, by_beam=True, suffix_all=True)
 
     lat_col='lat_lowestmode'
@@ -185,6 +242,9 @@ def build_h3db_from_soc(product_vars, res=12, part=3, spatial=None, soc_source=G
     if 'delta_time_l2a' in ddf.columns:
         dat_col+='_l2a'
     
+    if verbose:
+        print(f"Indexing H3 at resolution {res}, partitioning at {part}.")
+
     os.makedirs(tmp_dir, exist_ok=True)
     ddf = ddf.map_partitions(h3_index_df, res=res, part=part, lat_col=lat_col, lon_col=lon_col)
     
@@ -193,22 +253,55 @@ def build_h3db_from_soc(product_vars, res=12, part=3, spatial=None, soc_source=G
         h3_tiles = intersect_h3_geometries(spatial, res=part)
 
     if len(h3_tiles) > 0:
+        if verbose:
+            print(f"Removing H3 partitions outside spatial filter.")
         ddf = ddf[ddf[f'h3_{part:02d}'].isin(h3_tiles)]
+        
+    if os.path.exists(h3_dir):
+        if verbose:
+            print(f"Checking for existing indexed GEDI data to skip.")
+        _meta = ddf._meta.copy()
+        _meta['_skip'] = False
+        ddf = ddf.map_partitions(h3_add_skip_column, h3_dir=h3_dir, meta=_meta)
+        ddf = ddf[~ddf['_skip']]
+        ddf = ddf.drop(columns=['_skip'])
+
+    if verbose:
+        print(f"Adding date and geometry columns to H3 database.")
 
     ddf = ddf.map_partitions(add_special_columns, lon_col=lon_col, lat_col=lat_col, dat_col=dat_col)
     ddf['year'] = ddf.datetime.dt.year
     ddf = dask_geopandas.from_dask_dataframe(ddf)
-    
+
+    if verbose:
+        print(f"Writing partitioned H3 data to temporary directory {tmp_dir}")
+        
     tmp_files = ddf.to_parquet(tmp_dir, write_index=True, overwrite=True, compression='zstd', partition_on=[f'h3_{part:02d}', 'year'], compute=False).persist()
     progress(tmp_files)
     tmp_files = tmp_files.compute()
     
+    if not bool(tmp_files):
+        if verbose:
+            print("No new data to process. Finishing.")
+        return
+    
+    if verbose:
+        print(f"Merging H3 partitions into final database path: {h3_dir}")
+
     tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/*/'))
     os.makedirs(h3_dir, exist_ok=True)
     
     h3_files = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in tmp_h3_dirs]
     h3_files = dask.persist(*h3_files, optimize_graph=False)
     progress(h3_files)
+    
+    if verbose:
+        print("Compiling H3 metadata files.")
+
+    h3_subdirs = glob.glob(os.path.join(h3_dir,'h3_*/'))
+    h3_meta_files = [dh3_merge_metadata(i) for i in h3_subdirs]
+    h3_meta_files = dask.persist(*h3_meta_files, optimize_graph=False)
+    progress(h3_meta_files)
 
     h3_result = list(dask.compute(*h3_files))
     return h3_result

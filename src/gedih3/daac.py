@@ -190,7 +190,12 @@ def download_granule(granule, odir: str = None, subset_vars: List[str] = None, r
                 warnings.warn(f"Could not read existing file {os.path.basename(expected_path)}, re-downloading.")
                 os.unlink(expected_path)
         else:
-            return expected_path
+            try:
+                _ = gedi_vars_from_h5(expected_path)
+                return expected_path
+            except Exception as e:
+                warnings.warn(f"Could not verify existing file {os.path.basename(expected_path)}, re-downloading.")
+                os.unlink(expected_path)
 
     opath = earthaccess.download(granule, odir_soc, threads=1, pqdm_kwargs={'disable': True})
 
