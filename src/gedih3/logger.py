@@ -5,6 +5,7 @@ from datetime import datetime
 
 from .config import GEDI_PRODUCTS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR
 from .utils import now, json_read, json_write, read_vector_file, to_geojson, from_geojson
+from .h3utils import intersect_h3_geometries
 from .gedidriver import GEDIFile, gedi_vars_expand, soc_file_tree, check_soc_file_vars, validate_soc_files
 from .gh3driver import gh3_list_files
 
@@ -307,6 +308,12 @@ class H3BuildLogger:
         
         if 'granules' in self.log_data:
             self.granule_info = self.log_data.get('granules')
+            
+        if 'h3_columns' in self.log_data:
+            self.h3_columns = self.log_data.get('h3_columns')
+            
+        if 'h3_partition_ids' in self.log_data:
+            self.h3_partition_ids = self.log_data.get('h3_partition_ids')
 
     def get_spatial(self):
         if not self.updating or self.new_spatial is None:
@@ -326,21 +333,42 @@ class H3BuildLogger:
 
         return self.product_vars
 
-    def set_granule_info(self):
+    def _adding_h3_parts(self):
+        if not hasattr(self, 'h3_partition_ids'):
+            return True
+        
+        if self.new_spatial is None:
+            return False
+
+        new_h3_parts = set(intersect_h3_geometries(self.new_spatial, res=self.part))
+        existing_parts = set(self.h3_partition_ids)
+
+        return new_h3_parts.issubset(existing_parts)
+
+    def get_finished_granules(self):
+        if hasattr(self, 'granule_info') and self.new_product_vars is None and not self._adding_h3_parts():
+            return self.granule_info
+        return None
+
+    def set_post_build_info(self):
         metadata_files = glob.glob(os.path.join(self._PARENT_DIR, '*', '*.metadata.json'))
         if len(metadata_files) == 0:
             return   
         
         granule_info = []
+        h3_parts = []
         for f in metadata_files:
             fmeta = json_read(f)
-            gran = fmeta.get('granules', []) 
+            gran = fmeta.get('granules', [])
+            h3_parts.append(fmeta.get('h3_partition'))
             for g in gran:
                 if g not in granule_info:
                     granule_info.append(g)
         
         self.granule_info = granule_info
-    
+        self.h3_columns = fmeta.get('columns')
+        self.h3_partition_ids = h3_parts
+
     def to_dict(self, status):
         if status not in _VALID_STATUSES:
             raise ValueError(f"Invalid status '{status}'. Must be one of {_VALID_STATUSES}")
@@ -350,7 +378,7 @@ class H3BuildLogger:
             product_logs[prod] = product_logs.get(prod, {})
             product_logs[prod]['status'] = status
             product_logs[prod]['last_modified'] = now()
-            product_logs[prod]['variables'] = self.product_vars.get(prod)        
+            product_logs[prod]['variables'] = self.product_vars.get(prod)
         
         log_dict = {
             'metadata': {
@@ -367,6 +395,12 @@ class H3BuildLogger:
         
         if hasattr(self, 'granule_info'):
             log_dict['granules'] = self.granule_info
+            
+        if hasattr(self, 'h3_columns'):
+            log_dict['h3_columns'] = self.h3_columns
+
+        if hasattr(self, 'h3_partition_ids'):
+            log_dict['h3_partition_ids'] = self.h3_partition_ids
 
         return log_dict
 

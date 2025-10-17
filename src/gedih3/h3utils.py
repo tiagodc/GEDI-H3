@@ -38,7 +38,7 @@ def fix_h3_geometry(hex:str):
     fixed_geometry = fix_polygon(polygon)
     return fixed_geometry
 
-def intersect_h3_geometries(spatial, res=None, h3_ids=None):
+def intersect_h3_geometries(spatial, res=3, h3_ids=None):
     if isinstance(spatial, list):
         spatial = box(*spatial)
     elif isinstance(spatial, gpd.GeoSeries) or isinstance(spatial, gpd.GeoDataFrame):

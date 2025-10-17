@@ -8,6 +8,7 @@ import h3pandas
 import dask
 import dask.dataframe
 import dask_geopandas
+import dask.bag as dbg
 import itertools
 from typing import Union, List, Dict, Optional, Tuple, Any
 from dask.distributed import progress
@@ -137,7 +138,7 @@ def h3_merge_metadata(h3_subdir):
     json_write(mmeta, ofile, rewrite=True)
     return ofile
 
-def h3_skip_part(h3_dir, h3_part, gedi_file):
+def h3_skip_part(h3_dir, h3_part, gedi_file, cols=None):
     res = h3.get_resolution(h3_part)
     meta_file = os.path.join(h3_dir, f"h3_{res:02d}={h3_part}", f"{h3_part}.metadata.json")    
     
@@ -145,10 +146,17 @@ def h3_skip_part(h3_dir, h3_part, gedi_file):
         return False
     
     metadata = json_read(meta_file)
+
+    skip_cols = True
+    if cols:
+        existing_cols = set(metadata['columns'])
+        cols = set(cols) - {'year', f'h3_{res:02d}'}
+        skip_cols = cols.issubset(existing_cols)
+    
     gf = GEDIFile(gedi_file)
     granule_id = {'orbit':gf.orbit, 'granule':gf.orbit_granule, 'track':gf.track}
     
-    return granule_id in metadata['granules']
+    return skip_cols and granule_id in metadata['granules']
 
 def h3_add_skip_column(df, h3_dir):
     if df.empty:
@@ -157,7 +165,7 @@ def h3_add_skip_column(df, h3_dir):
     h3_col = sorted([c for c in df.columns if re.match(r'h3_\d{2}', c)])[0]
     h3_part = df[h3_col].iloc[0]
     gedi_file = df['root_file_l2a'].iloc[0]
-    df = df.assign(_skip=h3_skip_part(h3_dir=h3_dir, h3_part=h3_part, gedi_file=gedi_file))
+    df = df.assign(_skip=h3_skip_part(h3_dir=h3_dir, h3_part=h3_part, gedi_file=gedi_file, cols=df.columns.tolist()))
     return df
 
 @dask.delayed
@@ -202,7 +210,7 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
 def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     return h3_merge_files(in_dir=in_dir, out_dir=out_dir, rm_src=rm_src, replace=replace)
 
-def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAULT_SOC_DIR, version_kwargs=None, tmp_dir=GH3_DEFAULT_TMP_DIR, h3_dir=GH3_DEFAULT_H3_DIR, verbose=True):
+def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAULT_SOC_DIR, version_kwargs=None, tmp_dir=GH3_DEFAULT_TMP_DIR, h3_dir=GH3_DEFAULT_H3_DIR, skip_granules=None, verbose=True):
     # add resume/update logic
       # enable skipping granules entirely
     all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=version_kwargs)
@@ -219,15 +227,43 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
 
     prod_soc_files = [{k:val for k,val in i.items() if k in product_vars} for i in all_soc_files]
     
-    soc_files = []
-    for i in prod_soc_files:
-        if not np.isin(product_vars.keys(), i.keys()).all():
-            warnings.warn(f"Skipping file - does not contain all requested GEDI products\n{json.dumps(i, indent=2)}", UserWarning, stacklevel=2)
-            continue
-        soc_files.append(i)
+    def _filter_soc_file(prod):
+        # Check if all required products are present
+        if not np.isin(list(product_vars.keys()), list(prod.keys())).all():
+            warnings.warn(
+                f"Skipping file - does not contain all requested GEDI products\n{json.dumps(prod, indent=2)}", 
+                UserWarning, stacklevel=2
+            )
+            return None
         
+        # Check skip_granules if provided
+        if skip_granules is not None:
+            gedifile = GEDIFile(list(prod.values())[0])
+            gran = {'orbit': gedifile.orbit, 'granule': gedifile.orbit_granule, 'track': gedifile.track}
+            if gran in skip_granules:
+                return None
+        
+        return prod
+    
     if verbose:
-        print(f"Found {len(soc_files)} GEDI granules with requested products.")
+        print(f"Checking for existing granules to skip.")
+    
+    bag_result = (
+        dbg.from_sequence(prod_soc_files, partition_size=100)
+          .map(_filter_soc_file)
+          .filter(lambda x: x is not None)
+          .persist()
+    )
+    progress(bag_result)
+    soc_files = bag_result.compute()
+    
+    if len(soc_files) == 0:
+        if verbose:
+            print("No new granules to process. Finishing.")
+        return
+    
+    if verbose:
+        print(f"Found {len(soc_files)} new GEDI granules with requested products.")
     
     ddf = dask_h5_merged(soc_files, product_vars, shots=None, dropna=True, by_beam=True, suffix_all=True)
 
@@ -256,10 +292,11 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
         if verbose:
             print(f"Removing H3 partitions outside spatial filter.")
         ddf = ddf[ddf[f'h3_{part:02d}'].isin(h3_tiles)]
-        
-    if os.path.exists(h3_dir):
+    
+    build_log = os.path.join(h3_dir, 'gh3_build_log.json')
+    if os.path.exists(build_log):
         if verbose:
-            print(f"Checking for existing indexed GEDI data to skip.")
+            print(f"Checking for existing indexed GEDI data to skip.")            
         _meta = ddf._meta.copy()
         _meta['_skip'] = False
         ddf = ddf.map_partitions(h3_add_skip_column, h3_dir=h3_dir, meta=_meta)

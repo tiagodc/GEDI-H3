@@ -114,9 +114,10 @@ if __name__ == "__main__":
                 part=h3_logger.part,
                 soc_source=GH3_DEFAULT_SOC_DIR,
                 h3_dir=args.outdir,
+                skip_granules=h3_logger.get_finished_granules(),
             )
             
-            h3_logger.set_granule_info()
+            h3_logger.set_post_build_info()
             h3_logger.save_log('COMPLETED')
         
         except Exception as e:
