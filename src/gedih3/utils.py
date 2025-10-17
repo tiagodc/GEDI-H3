@@ -1,4 +1,5 @@
 from datetime import datetime
+from itertools import chain
 import os
 import pyarrow
 import fiona
@@ -13,11 +14,33 @@ from dask.distributed import get_client
 from shapely.ops import orient
 from shapely.geometry.base import BaseGeometry
 from typing import Union, List, Dict, Optional, Tuple, Any
+import glob
 
 from .config import GEDI_PRODUCTS
 
 def now():
     return datetime.now().isoformat()
+
+def _glob(x): 
+    return glob.glob(x, recursive=True)
+
+def parallel_glob(parent_dir, pattern, tree_level=2, n_jobs = 1 + os.cpu_count() // 2, engine='threads', show_progress=False):
+    sdirs = glob.glob(os.path.join(parent_dir, *['*/']*tree_level))
+    
+    if len(sdirs) < 2:
+        return glob.glob(os.path.join(parent_dir, '**', pattern), recursive=True)
+    
+    if engine == 'processes':
+        from pqdm.processes import pqdm
+    elif engine == 'threads':
+        from pqdm.threads import pqdm    
+
+    patterns = [os.path.join(i, '**', pattern) for i in sdirs]
+    n_jobs = min(n_jobs, os.cpu_count(), 32)
+    batches = pqdm(patterns, _glob, n_jobs=n_jobs, disable=not show_progress)
+    
+    files = list(chain.from_iterable(batches))
+    return files
 
 def json_write(obj, path, mode='w', rewrite=False):
     if os.path.isfile(path) and not rewrite:

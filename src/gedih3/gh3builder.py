@@ -211,8 +211,9 @@ def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     return h3_merge_files(in_dir=in_dir, out_dir=out_dir, rm_src=rm_src, replace=replace)
 
 def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAULT_SOC_DIR, version_kwargs=None, tmp_dir=GH3_DEFAULT_TMP_DIR, h3_dir=GH3_DEFAULT_H3_DIR, skip_granules=None, verbose=True):
-    # add resume/update logic
-      # enable skipping granules entirely
+    
+    if verbose:
+        print("Listing source SOC files.")
     all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=version_kwargs)
 
     if 'L2A' in product_vars:
@@ -293,7 +294,7 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
             print(f"Removing H3 partitions outside spatial filter.")
         ddf = ddf[ddf[f'h3_{part:02d}'].isin(h3_tiles)]
     
-    build_log = os.path.join(h3_dir, 'gh3_build_log.json')
+    build_log = os.path.join(h3_dir, 'gedih3_build_log.json')
     if os.path.exists(build_log):
         if verbose:
             print(f"Checking for existing indexed GEDI data to skip.")            

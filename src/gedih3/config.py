@@ -60,7 +60,7 @@ GEDI_PRODUCTS = {
         'version': 2, 
         'format': '.h5',
         'description': 'Canopy cover and vertical profile metrics',
-        'default_vars': ['shot_number','cover_z','fhd_normal']
+        'default_vars': ['shot_number','cover_z','fhd_normal', 'pai', 'pgap_theta']
     },
     # 'L3': {
     #     'doi': '10.3334/ORNLDAAC/1952', 
@@ -75,7 +75,7 @@ GEDI_PRODUCTS = {
         'version': 2.1, 
         'format': '.h5',
         'description': 'Footprint level aboveground biomass',
-        'default_vars': ['shot_number','agbd']
+        'default_vars': ['shot_number','agbd','sensitivity','l4_quality_flag']
     },
     # 'L4B': {
     #     'doi': '10.3334/ORNLDAAC/2299', 

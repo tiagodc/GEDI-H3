@@ -1,5 +1,5 @@
 #! python
-DEBUG=True
+DEBUG=False
 
 def getCmdArgs():
     p = argparse.ArgumentParser(description = "Download GEDI data from NASA's SOC")    
@@ -9,8 +9,8 @@ def getCmdArgs():
     p.add_argument("-d0", "--date-start", dest="date_start", required=False, type=str, default=None, help="start search date in YYYY-MM-DD format")
     p.add_argument("-d1", "--date-end", dest="date_end", required=False, type=str, default=None, help="end search date in YYYY-MM-DD format")    
     
-    p.add_argument("-hr", "--h3-resolution", dest="h3_resolution", required=False, type=int, default=12, help="H3 level for data indexing [0-15]")    
-    p.add_argument("-hp", "--h3-partition", dest="h3_partition", required=False, type=int, default=3, help="H3 level for file partitioning [0-15]")
+    p.add_argument("-h3r", "--h3-resolution", dest="h3_resolution", required=False, type=int, default=12, help="H3 level for data indexing [0-15]")    
+    p.add_argument("-h3p", "--h3-partition", dest="h3_partition", required=False, type=int, default=3, help="H3 level for file partitioning [0-15]")
 
     p.add_argument("-l1b", "--l1b", dest="l1b", nargs='+', type=str, default=None, required=False, help="GEDI L1B variables to download")
     p.add_argument("-l2a", "--l2a", dest="l2a", nargs='+', type=str, default=None, required=False, help="GEDI L2A variables to download")
@@ -18,9 +18,11 @@ def getCmdArgs():
     p.add_argument("-l4a", "--l4a", dest="l4a", nargs='+', type=str, default=None, required=False, help="GEDI L4A variables to download")
     p.add_argument("-l4c", "--l4c", dest="l4c", nargs='+', type=str, default=None, required=False, help="GEDI L4C variables to download")
 
-    p.add_argument("-v", "--version", dest="version", required=False, type=int, default=None, help="GEDI data version to download [default = latest version]")
-    p.add_argument("-S", "--skip-download", dest="skip_download", action='store_true', help="skip downloading and build from local SOC database")
     p.add_argument("-o", "--outdir", dest="outdir", required=False, type=str, default=None, help="output directory for downloaded files (bypass GH3 default path)")
+    p.add_argument("-i", '--indir', dest="indir", required=False, type=str, default=None, help="path to local GEDI SOC database to build H3 from")
+    p.add_argument("-s3", "--s3", dest="s3", action='store_true', help="build from directly from the NASA DAACs S3 storage")
+
+    p.add_argument("-v", "--version", dest="version", required=False, type=int, default=2, help="GEDI data version to download [default = latest version]")
     p.add_argument("-r", "--resume", dest="resume", action='store_true', help="validate downloaded files and redownload missing or corrupted files")
         
     p.add_argument("-D", "--dask-scheduler", dest="dask_scheduler", type=str, default=None, required=False, help="existing dask scheduler address, e.g. tcp://localhost:8786")
@@ -44,7 +46,7 @@ if __name__ == "__main__":
         # args.date_end = '2020-07-01'
         # args.l1b = ['minimal']
         args.l2a = ['minimal']
-        # args.l2b = ['minimal']
+        args.l2b = ['minimal']
         args.l4a = ['minimal']
         args.l4c = ['minimal']
         args.n_cpus = 24
@@ -71,12 +73,11 @@ if __name__ == "__main__":
         args.outdir = GH3_DEFAULT_H3_DIR
     os.makedirs(args.outdir, exist_ok=True)
     
-    product_vars = parse_gedi_args(args)    
-    spatial = args.spatial if args.spatial is not None else args.box
-    
-    # temporal = None
-    # if args.date_start or args.date_end:
-    #     temporal = (args.date_start, args.date_end)
+    if args.indir is None:
+        args.indir = GH3_DEFAULT_SOC_DIR
+
+    product_vars = parse_gedi_args(args)
+    spatial = args.spatial if args.spatial is not None else args.box    
     
     h3_logger = H3BuildLogger(
         product_vars=product_vars,
@@ -112,9 +113,10 @@ if __name__ == "__main__":
                 spatial=h3_logger.get_spatial(),
                 res=h3_logger.res,
                 part=h3_logger.part,
-                soc_source=GH3_DEFAULT_SOC_DIR,
-                h3_dir=args.outdir,
+                soc_source=args.indir,
+                h3_dir=h3_logger._PARENT_DIR,
                 skip_granules=h3_logger.get_finished_granules(),
+                version_kwargs={'version': h3_logger.gedi_version},
             )
             
             h3_logger.set_post_build_info()

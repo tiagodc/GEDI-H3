@@ -163,7 +163,7 @@ def merge_product_vars(existing_product_vars, new_product_vars=None):
     return merged_product_vars, new_product_vars
 
 class SOCDownloadLogger:
-    _LOG_FILE_NAME = 'gh3_download_log.json'
+    _LOG_FILE_NAME = 'gedih3_download_log.json'
     _PARENT_DIR = GH3_DEFAULT_SOC_DIR
 
     def __init__(self, product_vars, spatial=None, temporal=None, dir=None):
@@ -262,7 +262,7 @@ class SOCDownloadLogger:
         json_write(self.to_dict(status), self.log_file, mode='w', rewrite=True)
 
 class H3BuildLogger:
-    _LOG_FILE_NAME = 'gh3_build_log.json'
+    _LOG_FILE_NAME = 'gedih3_build_log.json'
     _PARENT_DIR = GH3_DEFAULT_H3_DIR
 
     def __init__(self, product_vars, spatial=None, res:int=12, part:int=3, version:int=None, dir=None):
