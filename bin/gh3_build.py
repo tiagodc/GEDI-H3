@@ -1,5 +1,5 @@
 #! python
-DEBUG=False
+DEBUG=True
 
 def getCmdArgs():
     p = argparse.ArgumentParser(description = "Download GEDI data from NASA's SOC")    
@@ -41,26 +41,20 @@ if __name__ == "__main__":
     args = getCmdArgs()
     
     if DEBUG:
-        args.box = [-51,0,-50,1]
+        # args.box = [-51,0,-50,1]
         # args.date_start = '2020-01-01'
         # args.date_end = '2020-07-01'
         # args.l1b = ['minimal']
-        args.l2a = ['minimal']
-        args.l2b = ['minimal']
-        args.l4a = ['minimal']
-        args.l4c = ['minimal']
-        args.n_cpus = 24
-        args.port = 9997
-        args.skip_download = True
+        # args.l2a = ['minimal']
+        # args.l2b = ['minimal']
+        # args.l4a = ['minimal']
+        # args.l4c = ['minimal']
+        # args.n_cpus = 24
+        # args.port = 9997
+        # args.skip_download = True
         # args.dask_scheduler = 'tcp://localhost:8786'
         import sys
         sys.path.insert(0, os.path.abspath('./src/'))
-
-    if args.outdir is not None:
-        os.environ['GH3_DEFAULT_DOWNLOAD_DIR'] = os.path.abspath(args.outdir)
-        from gedih3.config import configure_environment
-        configure_environment()
-        print("Overriding GH3 default output directory - new path is", os.environ['GH3_DEFAULT_DOWNLOAD_DIR'])
 
     import warnings
     from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR

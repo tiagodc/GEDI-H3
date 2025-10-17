@@ -231,10 +231,6 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     def _filter_soc_file(prod):
         # Check if all required products are present
         if not np.isin(list(product_vars.keys()), list(prod.keys())).all():
-            warnings.warn(
-                f"Skipping file - does not contain all requested GEDI products\n{json.dumps(prod, indent=2)}", 
-                UserWarning, stacklevel=2
-            )
             return None
         
         # Check skip_granules if provided
@@ -281,6 +277,7 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     
     if verbose:
         print(f"Indexing H3 at resolution {res}, partitioning at {part}.")
+        print(f"Using temporary directory: {tmp_dir}")
 
     os.makedirs(tmp_dir, exist_ok=True)
     ddf = ddf.map_partitions(h3_index_df, res=res, part=part, lat_col=lat_col, lon_col=lon_col)
