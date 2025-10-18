@@ -99,7 +99,9 @@ if __name__ == "__main__":
     h3_logger.save_log('PARTITIONING')    
 
     dask_kwargs = parse_dask_args(args)
+
     with Client(**dask_kwargs) as client:
+        warnings.filterwarnings("ignore", message=r"Sending large graph of size.*", category=UserWarning, module="distributed.client")
         print("Dask dashboard available at:", client.dashboard_link)
         try:
             h3_files = build_h3db(

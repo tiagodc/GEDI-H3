@@ -316,8 +316,8 @@ def wfm_extract(h5_file, beam, idx, tx=False):
     
     return process_waveforms(starts, ends, noises, wfs)
 
-def load_h5(fpath, columns, which_beams=None, shots=None, include_source=True, dropna=True):
-    f = h5py.File(fpath, 'r')
+def load_h5(fpath, columns, which_beams=None, shots=None, include_source=True, dropna=True, aws_kwargs={}):
+    f = h5py.File(fpath, mode='r', locking=False, **aws_kwargs)
     if 'shot_number' not in columns:
         columns.append('shot_number')
     
