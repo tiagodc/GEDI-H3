@@ -76,6 +76,14 @@ def read_geopackage_schema(path):
     schema = pd.DataFrame([{'column':i, 'dtype':j} for i,j in gpkg_file.schema.get('properties').items()])
     return schema
 
+def h5_is_valid(file):
+    try:
+        with h5py.File(file, mode='r', locking=False, swmr=True) as f:
+            _ = list(f.keys())
+    except Exception as e:
+        return False
+    return True
+
 def h5_traverse(h5_file, root=None):
     def h5py_dataset_iterator(g, prefix=''):
         for key in g.keys():
@@ -90,7 +98,7 @@ def h5_traverse(h5_file, root=None):
 
     for path, _ in h5py_dataset_iterator(h5_file):
         yield path    
-    
+
 def h5_info(hdf_file, root=None): 
     info_map = {'path':[], 'rows':[], 'cols':[], 'dtype': []}
     with h5py.File(hdf_file, 'r') as f:

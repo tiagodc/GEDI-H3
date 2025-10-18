@@ -14,7 +14,7 @@ from typing import Union, List, Dict, Optional, Tuple, Any
 from dask.distributed import progress
 
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS, GEDI_START_DATE
-from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema
+from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
 from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, validate_soc_files
 from .daac import gedi_download
@@ -239,11 +239,15 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
             gran = {'orbit': gedifile.orbit, 'granule': gedifile.orbit_granule, 'track': gedifile.track}
             if gran in skip_granules:
                 return None
+            
+        for f in prod.values():
+            if not h5_is_valid(f):
+                return None
         
         return prod
     
     if verbose:
-        print(f"Checking for existing granules to skip.")
+        print(f"Checking for incomplete, corrupted, or existing granules to skip.")
     
     bag_result = (
         dbg.from_sequence(prod_soc_files, partition_size=100)
