@@ -408,18 +408,28 @@ def load_h5_merged(prod_files, product_vars, which_beams=None, shots=None, dropn
             df = df.join(idf, how='inner', rsuffix=suffix)
     return df
 
-def dask_h5_merged(prod_files_list, product_vars, which_beams=None, shots=None, dropna=True, suffix_all=False, by_beam=False):
+def dask_h5_merged(prod_files_list, product_vars, which_beams=None, shots=None, dropna=True, suffix_all=False, by_beam=False):    
+    
+    _meta = load_h5_merged(prod_files_list[0], product_vars=product_vars, which_beams=GEDI_BEAMS[:1], dropna=dropna, suffix_all=suffix_all).head(0)    
+    
+    def _load_h5_merged(prod_files, **kwargs):
+        try:
+            return load_h5_merged(prod_files, **kwargs)
+        except Exception as e:
+            print(f"\nError loading file combination:\n{prod_files}")
+            return _meta
+    
     if by_beam:
         beams = GEDI_BEAMS if which_beams is None else which_beams        
         
         def load_by_beam(pfiles_beam_tuple, product_vars, shots, dropna, suffix_all):
             pfiles, beam = pfiles_beam_tuple
-            return load_h5_merged(pfiles, product_vars=product_vars, which_beams=[beam], shots=shots, dropna=dropna, suffix_all=suffix_all)
+            return _load_h5_merged(pfiles, product_vars=product_vars, which_beams=[beam], shots=shots, dropna=dropna, suffix_all=suffix_all)
 
         file_beam_combinations = list(itertools.product(prod_files_list, beams))
-        return dask.dataframe.from_map(load_by_beam, file_beam_combinations, product_vars=product_vars, shots=shots, dropna=dropna, suffix_all=suffix_all)                            
+        return dask.dataframe.from_map(load_by_beam, file_beam_combinations, product_vars=product_vars, shots=shots, dropna=dropna, suffix_all=suffix_all, meta=_meta)
 
-    return dask.dataframe.from_map(load_h5_merged, prod_files_list, which_beams=which_beams, shots=shots, product_vars=product_vars, dropna=dropna, suffix_all=suffix_all)
+    return dask.dataframe.from_map(_load_h5_merged, prod_files_list, which_beams=which_beams, shots=shots, product_vars=product_vars, dropna=dropna, suffix_all=suffix_all, meta=_meta)
 
 def add_special_columns(df, lon_col:str=None, lat_col:str=None, dat_col:str=None):
     if dat_col:
@@ -427,30 +437,3 @@ def add_special_columns(df, lon_col:str=None, lat_col:str=None, dat_col:str=None
     if lon_col and lat_col:
         df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lon_col], df[lat_col], crs='EPSG:4326'))
     return df
-
-def _testit():
-    soc_dir = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/soc'    
-    fpath = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/soc/2020/014/GEDI02_A_2020014213209_O06178_02_T00931_02_003_01_V002.h5'
-    product_vars = {'L1B':['rxwaveform'], 'L2A': ['shot_number', 'rh'], 'L4C': ['wsci']}
-    
-    gfile = GEDIFile(fpath)
-    pfiles = {p:gfile.search_file(product=int(p[1]), level=p[-1]) for p in product_vars.keys()}
-    
-    print("testing load_h5_merged()")
-    try:
-        df = load_h5_merged(pfiles, product_vars)
-        print("Test successful")
-    except Exception as e:
-        print(f"Test failed: {e}")
-    
-    print("testing dask_h5_merged()")
-    try:
-        all_files = soc_file_tree(soc_dir, to_list=True)
-        df = dask_h5_merged(all_files, product_vars)
-        print(df.head())
-        print("Test successful")
-    except Exception as e:
-        print(f"Test failed: {e}")        
-        
-if __name__ == "__main__":
-    _testit()

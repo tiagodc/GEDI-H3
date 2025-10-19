@@ -281,7 +281,6 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     
     if verbose:
         print(f"Indexing H3 at resolution {res}, partitioning at {part}.")
-        print(f"Using temporary directory: {tmp_dir}")
 
     os.makedirs(tmp_dir, exist_ok=True)
     ddf = ddf.map_partitions(h3_index_df, res=res, part=part, lat_col=lat_col, lon_col=lon_col)
@@ -313,7 +312,7 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     ddf = dask_geopandas.from_dask_dataframe(ddf)
 
     if verbose:
-        print(f"Writing partitioned H3 data to temporary directory {tmp_dir}")
+        print(f"Writing partitioned H3 data to temporary directory: {tmp_dir}")
         
     tmp_files = ddf.to_parquet(tmp_dir, write_index=True, overwrite=True, compression='zstd', partition_on=[f'h3_{part:02d}', 'year'], compute=False).persist()
     progress(tmp_files)
