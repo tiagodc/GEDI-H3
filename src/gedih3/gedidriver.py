@@ -9,10 +9,9 @@ from datetime import datetime
 import dask
 import dask.dataframe
 from earthaccess.store import EarthAccessFile
-from pqdm.threads import pqdm
 
 from .config import GEDI_PRODUCTS, GEDI_BEAMS, GEDI_START_DATE, GH3_DEFAULT_SOC_DIR
-from .utils import h5_copy_subset, h5_info, parallel_glob
+from .utils import h5_copy_subset, h5_info
 
 def soc_prod_from_file(file_path):
     f = GEDIFile(file_path)
@@ -22,14 +21,11 @@ def soc_prod_from_file(file_path):
 def soc_from_file(file_path):
     return os.path.dirname(os.path.dirname(os.path.dirname(file_path)))
 
-def _parse_glob_pattern(f):
-    return GEDIFile.from_filename(f).get_glob_pattern(product=None, level=None, ppds=None)
-
-def soc_file_tree(file_struct: Union[str, list], to_list=False, glob_kwargs=None, show_progress=False):
+def soc_file_tree(file_struct: Union[str, list], to_list=False, glob_kwargs=None):
     direct_access = False
     if isinstance(file_struct, str) and os.path.isdir(file_struct):
-        glob_pattern = gedi_file_glob(**glob_kwargs) if glob_kwargs else 'GEDI*.h5'
-        file_list = parallel_glob(file_struct, glob_pattern, show_progress=show_progress)
+        glob_pattern = gedi_file_glob(**glob_kwargs) if glob_kwargs else 'GEDI*.h5'        
+        file_list = glob.glob(os.path.join(file_struct, '**', glob_pattern), recursive=True)
     elif (direct_access := isinstance(file_struct[0], EarthAccessFile)):
         file_list = [i.path for i in file_struct]
     elif isinstance(file_struct[0], str):
@@ -37,25 +33,22 @@ def soc_file_tree(file_struct: Union[str, list], to_list=False, glob_kwargs=None
     else:
         raise ValueError("file_struct must be a directory or a list of file paths (or s3 links)")
     
-    file_globs = np.array(pqdm(file_list, _parse_glob_pattern, n_jobs=os.cpu_count(), disable=not show_progress))
     file_array = np.array(file_struct) if direct_access else np.array(file_list)
     
-    uniq_globs, inv = np.unique(file_globs, return_inverse=True)
-    pat = re.compile(r'^GEDI\*_.*_(O\d{5}_\d{2}_T\d{5}).*\.h5$')
-    orb_tracks = np.array([pat.sub(r'\1', g) for g in uniq_globs])
+    flist = pd.DataFrame({'file_paths': file_list, 'file_links': file_array})
+    fidx = flist.file_paths.str.extract(r'.*GEDI(\d{2})_([A-Z])_.*_(O\d+_\d{2}_T\d+).*\.h5$')
+    
+    valid = fidx.notna().all(axis=1)
+    flist = flist.loc[valid].copy()
+    fidx = fidx.loc[valid]
 
-    prods = np.array(pqdm(file_array.tolist(), soc_prod_from_file, n_jobs=min(32, os.cpu_count()), disable=not show_progress))
+    flist['prod'] = 'L' + fidx[0].astype(int).astype(str) + fidx[1]
+    flist['orb_track'] = fidx[2]
+    flist = flist.sort_values(['orb_track', 'file_paths', 'prod'])
+    flist = flist.pivot_table(index='orb_track', columns='prod', values='file_links', aggfunc='last')
+    flist = flist.dropna()
     
-    order = np.argsort(inv)
-    inv_sorted = inv[order]
-    splits = np.flatnonzero(np.diff(inv_sorted)) + 1
-    groups = np.split(order, splits)
-    
-    soc_tree = {}
-    for gid, grp_idx in enumerate(groups):
-        files_g = file_array[grp_idx].tolist()
-        prods_g = prods[grp_idx].tolist()
-        soc_tree[str(orb_tracks[gid])] = dict(sorted(zip(prods_g, files_g)))
+    soc_tree = flist.T.to_dict()
 
     if to_list:
         soc_tree = list(soc_tree.values())

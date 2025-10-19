@@ -229,11 +229,9 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     prod_soc_files = [{k:val for k,val in i.items() if k in product_vars} for i in all_soc_files]
     
     def _filter_soc_file(prod):
-        # Check if all required products are present
         if not np.isin(list(product_vars.keys()), list(prod.keys())).all():
             return None
         
-        # Check skip_granules if provided
         if skip_granules is not None:
             gedifile = GEDIFile(list(prod.values())[0])
             gran = {'orbit': gedifile.orbit, 'granule': gedifile.orbit_granule, 'track': gedifile.track}
