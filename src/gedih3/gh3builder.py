@@ -11,7 +11,7 @@ import dask_geopandas
 import dask.bag as dbg
 import itertools
 from typing import Union, List, Dict, Optional, Tuple, Any
-from dask.distributed import progress
+from dask.distributed import Client, progress, get_client
 
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS, GEDI_START_DATE
 from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid
@@ -211,7 +211,12 @@ def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     return h3_merge_files(in_dir=in_dir, out_dir=out_dir, rm_src=rm_src, replace=replace)
 
 def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAULT_SOC_DIR, version_kwargs=None, tmp_dir=GH3_DEFAULT_TMP_DIR, h3_dir=GH3_DEFAULT_H3_DIR, skip_granules=None, verbose=True):
-    
+
+    try:
+        client = Client.current()
+    except Exception as e:
+        client = get_client()
+
     if verbose:
         print("Listing source SOC files.")
     all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=version_kwargs)
@@ -247,14 +252,16 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     if verbose:
         print(f"Checking for incomplete, corrupted, or existing granules to skip.")
     
-    bag_result = (
+    bag_task = (
         dbg.from_sequence(prod_soc_files, partition_size=100)
           .map(_filter_soc_file)
           .filter(lambda x: x is not None)
-          .persist()
     )
-    progress(bag_result)
-    soc_files = bag_result.compute()
+    
+    bag_futures = client.compute(bag_task)
+    progress(bag_futures)
+    soc_files = client.gather(bag_futures)
+    del bag_futures, bag_task
     
     if len(soc_files) == 0:
         if verbose:
@@ -312,11 +319,16 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     if verbose:
         print(f"Writing partitioned H3 data to temporary directory: {tmp_dir}")
         
-    tmp_files = ddf.to_parquet(tmp_dir, write_index=True, overwrite=True, compression='zstd', partition_on=[f'h3_{part:02d}', 'year'], compute=False).persist()
-    progress(tmp_files)
-    tmp_files = tmp_files.compute()
+    write_task = ddf.to_parquet(tmp_dir, write_index=True, overwrite=True, compression='zstd', partition_on=[f'h3_{part:02d}', 'year'], compute=False)
+
+    futures = client.compute(write_task, optimize_graph=False)
+    progress(futures)
+    client.gather(futures)
+    del futures, write_task, ddf
     
-    if not bool(tmp_files):
+    tmp_files = glob.glob(os.path.join(tmp_dir, '**', '*.parquet'), recursive=True)
+
+    if len(tmp_files) == 0:
         if verbose:
             print("No new data to process. Finishing.")
         return
@@ -327,17 +339,21 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/*/'))
     os.makedirs(h3_dir, exist_ok=True)
     
-    h3_files = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in tmp_h3_dirs]
-    h3_files = dask.persist(*h3_files, optimize_graph=False)
+    h3_tasks = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in tmp_h3_dirs]
+    
+    h3_files = client.compute(h3_tasks, optimize_graph=False)
     progress(h3_files)
+    h3_files = client.gather(h3_files)
+    del h3_tasks
     
     if verbose:
         print("Compiling H3 metadata files.")
 
     h3_subdirs = glob.glob(os.path.join(h3_dir,'h3_*/'))
-    h3_meta_files = [dh3_merge_metadata(i) for i in h3_subdirs]
-    h3_meta_files = dask.persist(*h3_meta_files, optimize_graph=False)
-    progress(h3_meta_files)
+    meta_tasks = [dh3_merge_metadata(i) for i in h3_subdirs]
+    meta_files = client.compute(meta_tasks, optimize_graph=False)
+    progress(meta_files)
+    meta_files = client.gather(meta_files)
+    del meta_tasks
 
-    h3_result = list(dask.compute(*h3_files))
-    return h3_result
+    return list(h3_files)
