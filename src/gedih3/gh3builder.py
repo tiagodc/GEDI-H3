@@ -212,10 +212,10 @@ def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
 
 def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAULT_SOC_DIR, version_kwargs=None, tmp_dir=GH3_DEFAULT_TMP_DIR, h3_dir=GH3_DEFAULT_H3_DIR, skip_granules=None, verbose=True):
 
-    try:
-        client = Client.current()
-    except Exception as e:
-        client = get_client()
+    # try:
+    #     client = Client.current()
+    # except Exception as e:
+    #     client = get_client()
 
     if verbose:
         print("Listing source SOC files.")
@@ -256,12 +256,18 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
         dbg.from_sequence(prod_soc_files, partition_size=100)
           .map(_filter_soc_file)
           .filter(lambda x: x is not None)
+          .persist()
     )
+
+    progress(bag_task)
+    soc_files = list(bag_task.compute())
+    del bag_task
     
-    bag_futures = client.compute(bag_task)
-    progress(bag_futures)
-    soc_files = client.gather(bag_futures)
-    del bag_futures, bag_task
+    # dask.compute(bag_task)
+    # bag_futures = client.compute(bag_task)
+    # progress(bag_futures)
+    # soc_files = client.gather(bag_futures)
+    # del bag_futures, bag_task
     
     if len(soc_files) == 0:
         if verbose:
@@ -320,11 +326,14 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
         print(f"Writing partitioned H3 data to temporary directory: {tmp_dir}")
         
     write_task = ddf.to_parquet(tmp_dir, write_index=True, overwrite=True, compression='zstd', partition_on=[f'h3_{part:02d}', 'year'], compute=False)
+    write_task = write_task.persist(optimize_graph=False)
+    progress(write_task)
+    del write_task, ddf
 
-    futures = client.compute(write_task, optimize_graph=False)
-    progress(futures)
-    client.gather(futures)
-    del futures, write_task, ddf
+    # futures = client.compute(write_task, optimize_graph=False)
+    # progress(futures)
+    # client.gather(futures)
+    # del futures, write_task, ddf
     
     tmp_files = glob.glob(os.path.join(tmp_dir, '**', '*.parquet'), recursive=True)
 
@@ -340,20 +349,29 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     os.makedirs(h3_dir, exist_ok=True)
     
     h3_tasks = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in tmp_h3_dirs]
-    
-    h3_files = client.compute(h3_tasks, optimize_graph=False)
-    progress(h3_files)
-    h3_files = client.gather(h3_files)
+    h3_tasks = dask.persist(*h3_tasks, optimize_graph=False)
+    progress(h3_tasks)
+    h3_files = list(dask.compute(*h3_tasks))
     del h3_tasks
+
+    # h3_files = client.compute(h3_files, optimize_graph=False)
+    # progress(h3_files)
+    # h3_files = client.gather(h3_files)
+    # del h3_tasks
     
     if verbose:
         print("Compiling H3 metadata files.")
 
     h3_subdirs = glob.glob(os.path.join(h3_dir,'h3_*/'))
     meta_tasks = [dh3_merge_metadata(i) for i in h3_subdirs]
-    meta_files = client.compute(meta_tasks, optimize_graph=False)
-    progress(meta_files)
-    meta_files = client.gather(meta_files)
+    meta_tasks = dask.persist(*meta_tasks, optimize_graph=False)
+    progress(meta_tasks)
+    meta_files = list(dask.compute(*meta_tasks))
     del meta_tasks
 
-    return list(h3_files)
+    # meta_files = client.compute(meta_files, optimize_graph=False)
+    # progress(meta_files)
+    # meta_files = client.gather(meta_files)
+    # del meta_tasks
+
+    return h3_files
