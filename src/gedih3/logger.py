@@ -315,6 +315,9 @@ class H3BuildLogger:
         if 'h3_partition_ids' in self.log_data:
             self.h3_partition_ids = self.log_data.get('h3_partition_ids')
 
+        if 'date_range' in self.log_data:
+            self.date_range = self.log_data.get('date_range')
+
     def get_spatial(self):
         if not self.updating or self.new_spatial is None:
             return self.spatial
@@ -356,15 +359,28 @@ class H3BuildLogger:
             return   
         
         granule_info = []
-        h3_parts = []
+        h3_parts = []        
+        date_min = None
+        date_max = None
         for f in metadata_files:
             fmeta = json_read(f)
             gran = fmeta.get('granules', [])
+            drange = fmeta.get('date_range')
+            
+            if date_min is None:
+                date_min = drange[0]
+            if date_max is None:
+                date_max = drange[1]
+                
+            date_min = min(date_min, drange[0])
+            date_max = max(date_max, drange[1])
+            
             h3_parts.append(fmeta.get('h3_partition'))
             for g in gran:
                 if g not in granule_info:
                     granule_info.append(g)
-        
+
+        self.date_range = (date_min, date_max)
         self.granule_info = granule_info
         self.h3_columns = fmeta.get('columns')
         self.h3_partition_ids = h3_parts
@@ -401,6 +417,9 @@ class H3BuildLogger:
 
         if hasattr(self, 'h3_partition_ids'):
             log_dict['h3_partition_ids'] = self.h3_partition_ids
+
+        if hasattr(self, 'date_range'):
+            log_dict['date_range'] = self.date_range
 
         return log_dict
 

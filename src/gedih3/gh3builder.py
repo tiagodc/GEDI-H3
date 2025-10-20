@@ -234,7 +234,7 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     prod_soc_files = [{k:val for k,val in i.items() if k in product_vars} for i in all_soc_files]
     
     def _filter_soc_file(prod):
-        if not np.isin(list(product_vars.keys()), list(prod.keys())).all():
+        if not set(product_vars.keys()).issubset(set(prod.keys())):
             return None
         
         if skip_granules is not None:
