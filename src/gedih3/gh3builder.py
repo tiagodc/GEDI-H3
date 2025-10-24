@@ -241,7 +241,7 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
             
         for f in prod.values():
             if isinstance(f, EarthAccessFile):
-                continue
+                break
             if not h5_is_valid(f):
                 return None
         
