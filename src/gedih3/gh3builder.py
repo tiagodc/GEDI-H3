@@ -1,5 +1,4 @@
 import os, re, glob, json, h5py, h3
-import warnings
 import shutil
 import numpy as np
 import pandas as pd
@@ -9,9 +8,9 @@ import dask
 import dask.dataframe
 import dask_geopandas
 import dask.bag as dbg
-import itertools
 from typing import Union, List, Dict, Optional, Tuple, Any
-from dask.distributed import Client, progress, get_client
+from earthaccess.store import EarthAccessFile
+from dask.distributed import progress
 
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS, GEDI_START_DATE
 from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid
@@ -32,7 +31,7 @@ def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_acc
         if 'shot_number' not in val:
             val.append('shot_number')
 
-    soc_files = gedi_download(product_vars=product_vars, odir=odir, spatial=spatial, temporal=temporal, resume=update, n_jobs=n_jobs, to_list=direct_access)
+    soc_files = gedi_download(product_vars=product_vars, odir=None if direct_access else odir, spatial=spatial, temporal=temporal, resume=update, n_jobs=n_jobs, to_list=direct_access)
 
     return soc_files
 
@@ -211,12 +210,9 @@ def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     return h3_merge_files(in_dir=in_dir, out_dir=out_dir, rm_src=rm_src, replace=replace)
 
 def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAULT_SOC_DIR, version_kwargs=None, tmp_dir=GH3_DEFAULT_TMP_DIR, h3_dir=GH3_DEFAULT_H3_DIR, skip_granules=None, verbose=True):
-
-    # try:
-    #     client = Client.current()
-    # except Exception as e:
-    #     client = get_client()
-
+    
+    product_vars = gedi_vars_expand(product_vars)
+    
     if verbose:
         print("Listing source SOC files.")
     all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=version_kwargs)
@@ -244,6 +240,8 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
                 return None
             
         for f in prod.values():
+            if isinstance(f, EarthAccessFile):
+                continue
             if not h5_is_valid(f):
                 return None
         
@@ -375,3 +373,42 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     # del meta_tasks
 
     return h3_files
+
+def _testit():
+
+    odir = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/h3_s3/'
+    os.makedirs(odir, exist_ok=True)
+    
+    from dask.distributed import Client    
+    client = Client(n_workers=24, threads_per_worker=1)
+    print(client.dashboard_link)
+    
+    spatial = [-51,0,-50,1]
+    temporal = ['2020-01-01','2020-07-01']
+    gvars = {'L4A':['minimal'],'L4C':['minimal']}    
+    gfiles = download_soc(product_vars=gvars, spatial=spatial, temporal=temporal, direct_access=True)
+    
+    from gedih3.logger import parse_spatial
+    gspatial = parse_spatial(spatial)
+    
+    product_vars=gvars
+    spatial=gspatial
+    res=12
+    part=3
+    soc_source=gfiles
+    h3_dir='/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/h3_s3/'
+    version_kwargs={'version': 2}
+    tmp_dir=GH3_DEFAULT_TMP_DIR
+    skip_granules=None
+    verbose=True
+    
+    h3f = build_h3db(
+                product_vars=gvars,
+                spatial=gspatial,
+                res=12,
+                part=3,
+                soc_source=gfiles,
+                h3_dir=odir,
+                version_kwargs={'version': 2},
+            )
+    

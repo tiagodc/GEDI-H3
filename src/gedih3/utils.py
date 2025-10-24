@@ -56,7 +56,7 @@ def read_geopackage_schema(path):
 
 def h5_is_valid(file):
     try:
-        with h5py.File(file, mode='r', locking=False, swmr=True) as f:
+        with h5py.File(file, mode='r') as f:
             _ = list(f.keys())
     except Exception as e:
         return False
