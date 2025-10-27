@@ -1,0 +1,15 @@
+shot_number
+wsci
+wsci_pi_lower
+wsci_pi_upper
+wsci_quality_flag
+wsci_xy
+wsci_xy_pi_lower
+wsci_xy_pi_upper
+wsci_z
+wsci_z_pi_lower
+wsci_z_pi_upper
+land_cover_data/leaf_off_flag
+land_cover_data/pft_class
+land_cover_data/region_class
+land_cover_data/worldcover_class

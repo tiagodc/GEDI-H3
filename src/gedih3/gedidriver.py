@@ -90,7 +90,10 @@ def gedi_vars_expand(product_vars):
             with open(vars[0], 'r') as f:
                 product_vars[prod] = [line.strip() for line in f if line.strip() and not line.startswith('#')]
         elif "minimal" in vars or "min" in vars:
-            product_vars[prod] = GEDI_PRODUCTS[prod]['default_vars']
+            product_vars[prod] = GEDI_PRODUCTS[prod]['min_vars']
+        elif 'default' in vars or 'def' in vars:
+            with open(GEDI_PRODUCTS[prod]['default_vars_file'], 'r') as f:
+                product_vars[prod] = [line.strip() for line in f if line.strip() and not line.startswith('#')]
         elif "*" in vars or "all" in vars:
             product_vars[prod] = None
         elif isinstance(vars, list):

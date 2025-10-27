@@ -1,0 +1,5 @@
+shot_number
+noise_mean_corrected
+rx_sample_start_index
+rx_sample_count
+rxwaveform

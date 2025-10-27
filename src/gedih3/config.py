@@ -2,6 +2,13 @@ import os
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
+from importlib.resources import files
+
+def get_package_data_path(filename):
+    try:
+        return files('gedih3').joinpath('data', filename)
+    except ModuleNotFoundError:
+        return Path(__file__).parent.joinpath('data', filename)
 
 # Default download directories
 # GH3_DEFAULT_DOWNLOAD_DIR = str(Path.home() / 'gedih3_db')
@@ -44,7 +51,8 @@ GEDI_PRODUCTS = {
         'version': 2, 
         'format': '.h5',
         'description': 'Geolocated waveforms',
-        'default_vars': ['shot_number','noise_mean_corrected','rx_sample_start_index','rx_sample_count','rxwaveform']
+        'min_vars': ['shot_number','noise_mean_corrected','rx_sample_start_index','rx_sample_count','rxwaveform'],
+        'default_vars_file': get_package_data_path('GEDI01_B_DATASETS_002.txt')
     },
     'L2A': {
         'doi': '10.5067/GEDI/GEDI02_A.002', 
@@ -52,7 +60,8 @@ GEDI_PRODUCTS = {
         'version': 2, 
         'format': '.h5',
         'description': 'Elevation and height metrics',
-        'default_vars': GEDI_L2A_ESSENTIALS + ['rh']
+        'min_vars': GEDI_L2A_ESSENTIALS + ['rh'],
+        'default_vars_file': get_package_data_path('GEDI02_A_DATASETS_002.txt')
     },
     'L2B': {
         'doi': '10.5067/GEDI/GEDI02_B.002', 
@@ -60,7 +69,8 @@ GEDI_PRODUCTS = {
         'version': 2, 
         'format': '.h5',
         'description': 'Canopy cover and vertical profile metrics',
-        'default_vars': ['shot_number','cover_z','fhd_normal', 'pai', 'pgap_theta']
+        'min_vars': ['shot_number','cover_z','fhd_normal', 'pai', 'pgap_theta'],
+        'default_vars_file': get_package_data_path('GEDI02_B_DATASETS_002.txt')
     },
     # 'L3': {
     #     'doi': '10.3334/ORNLDAAC/1952', 
@@ -75,7 +85,8 @@ GEDI_PRODUCTS = {
         'version': 2.1, 
         'format': '.h5',
         'description': 'Footprint level aboveground biomass',
-        'default_vars': ['shot_number','agbd','sensitivity','l4_quality_flag']
+        'min_vars': ['shot_number','agbd','sensitivity','l4_quality_flag'],
+        'default_vars_file': get_package_data_path('GEDI04_A_DATASETS_002.txt')
     },
     # 'L4B': {
     #     'doi': '10.3334/ORNLDAAC/2299', 
@@ -90,7 +101,8 @@ GEDI_PRODUCTS = {
         'version': 2, 
         'format': '.h5',
         'description': 'Footprint level structural complexity',
-        'default_vars': ['shot_number','wsci']
+        'min_vars': ['shot_number','wsci', 'wsci_pi_lower', 'wsci_pi_upper', 'wsci_quality_flag', 'worldcover_class'],
+        'default_vars_file': get_package_data_path('GEDI04_C_DATASETS_002.txt')
     }
     # Future products:
     # 'L4C_FUSION': {'doi': '', 'daac': 'ORNLDAAC', 'version': '002', 'format': '.tif'},     
