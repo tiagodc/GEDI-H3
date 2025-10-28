@@ -35,7 +35,7 @@ def configure_environment(mkdirs=False):
 
     # Create directories if they don't exist
     if mkdirs:
-        for directory in [GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR]:
+        for directory in [GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR]:
             os.makedirs(directory, exist_ok=True)
 
 configure_environment()

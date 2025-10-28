@@ -44,10 +44,11 @@ if __name__ == "__main__":
         # args.l1b = ['minimal']
         args.l2a = ['default']
         args.l2b = ['default']
-        args.l4a = ['default'] 
+        args.l4a = ['default']
         args.l4c = ['default']
         args.n_cpus = 32
-        args.port = 9997
+        args.threads = 1
+        args.port = 9998
         # args.dask_scheduler = 'tcp://localhost:8786'
         import sys
         sys.path.insert(0, os.path.abspath('./src/'))

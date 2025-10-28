@@ -229,16 +229,19 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False):
             for batch in parquet_file.iter_batches():
                 df = batch.to_pandas()
                 idx_name = df.index.name
-                
+
                 if check_shots and 'shot_number' in df.columns:
                     new_shots = df['shot_number'].values.astype(np.uint64)
                     mask = ~np.isin(new_shots, shots)
                     df = df[mask]
                     shots = np.concatenate([shots, new_shots[mask]])
-                
+
                 if len(df) > 0:
-                    df = df.reset_index()[schema.names].set_index(idx_name)
-                    table = pa.Table.from_pandas(df, schema=schema)
+                    # Reorder columns efficiently to avoid fragmentation
+                    df_reset = df.reset_index()
+                    df_reordered = df_reset.reindex(columns=schema.names, copy=False)
+                    df_final = df_reordered.set_index(idx_name)
+                    table = pa.Table.from_pandas(df_final, schema=schema)
                     pqwriter.write_table(table)
             
             if rm_src:

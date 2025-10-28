@@ -47,9 +47,9 @@ rx_processing/rg_a5
 rx_processing/rg_error_a5
 rx_processing/rv_a5
 rx_processing/rx_energy_a5
-rx_processing/algorithmrun_flag_a10
-rx_processing/pgap_theta_a10
-rx_processing/rg_a10
-rx_processing/rg_error_a10
-rx_processing/rv_a10
-rx_processing/rx_energy_a10
+# rx_processing/algorithmrun_flag_a10
+# rx_processing/pgap_theta_a10
+# rx_processing/rg_a10
+# rx_processing/rg_error_a10
+# rx_processing/rv_a10
+# rx_processing/rx_energy_a10

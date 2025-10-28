@@ -368,16 +368,16 @@ def load_h5(fpath, columns, which_beams=None, shots=None, include_source=True, d
                 dfs[j] = d
 
         dfs = pd.DataFrame(dfs)
-        if include_source: 
-            dfs['root_beam'] = k
+        if include_source:
+            dfs = dfs.assign(root_beam=k)
         full_df.append(dfs)
-    
-    f.close()    
-    full_df = pd.concat(full_df)
+
+    f.close()
+    full_df = pd.concat(full_df, copy=True)
     full_df = full_df.set_index('shot_number')
-    
+
     if include_source:
-        full_df['root_file'] = os.path.basename(fpath.path if isinstance(fpath, EarthAccessFile) else fpath)        
+        full_df = full_df.assign(root_file=os.path.basename(fpath.path if isinstance(fpath, EarthAccessFile) else fpath))        
     
     if dropna:
         full_df.dropna()
@@ -385,7 +385,7 @@ def load_h5(fpath, columns, which_beams=None, shots=None, include_source=True, d
     return full_df
 
 def load_h5_merged(prod_files, product_vars, which_beams=None, shots=None, dropna=True, suffix_all=False):
-    df = None
+    frames = []
     for i, (p, vars) in enumerate(product_vars.items()):
         ppath = prod_files.get(p)
         
@@ -398,10 +398,17 @@ def load_h5_merged(prod_files, product_vars, which_beams=None, shots=None, dropn
         if suffix_all:
             idf = idf.rename(columns=lambda x: x if x.endswith(suffix) else f"{x}{suffix}")
 
-        if df is None:
-            df = idf
-        else:
-            df = df.join(idf, how='inner', rsuffix=suffix)
+        frames.append(idf)
+    
+    if not frames:
+        return None
+    
+    if not suffix_all:
+        all_cols = [col for frame in frames for col in frame.columns]
+        if len(all_cols) != len(set(all_cols)):
+            raise ValueError("Duplicate columns detected. Remove duplicates or use suffix_all=True to avoid conflicts.")
+
+    df = pd.concat(frames, axis=1, join='inner', copy=True)
     return df
 
 def dask_h5_merged(prod_files_list, product_vars, which_beams=None, shots=None, dropna=True, suffix_all=False, by_beam=False):    
@@ -432,4 +439,4 @@ def add_special_columns(df, lon_col:str=None, lat_col:str=None, dat_col:str=None
         df = df.assign(datetime=pd.to_datetime(df[dat_col] + GEDI_START_DATE.timestamp(), unit='s'))
     if lon_col and lat_col:
         df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lon_col], df[lat_col], crs='EPSG:4326'))
-    return df
+    return df.copy()

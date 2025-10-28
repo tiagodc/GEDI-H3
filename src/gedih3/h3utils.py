@@ -56,4 +56,8 @@ def intersect_h3_geometries(spatial, res=3, h3_ids=None):
 
 def h3_index_df(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode'):
     import h3pandas
-    return df.dropna(subset=[lat_col, lon_col]).reset_index().h3.geo_to_h3(res, lat_col=lat_col, lng_col=lon_col, set_index=True).h3.h3_to_parent(part)
+    df = df.dropna(subset=[lat_col, lon_col])
+    df = df.reset_index()
+    df = df.h3.geo_to_h3(res, lat_col=lat_col, lng_col=lon_col, set_index=True)
+    df = df.h3.h3_to_parent(part)
+    return df.copy()

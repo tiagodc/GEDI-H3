@@ -259,13 +259,7 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
 
     progress(bag_task)
     soc_files = list(bag_task.compute())
-    del bag_task
-    
-    # dask.compute(bag_task)
-    # bag_futures = client.compute(bag_task)
-    # progress(bag_futures)
-    # soc_files = client.gather(bag_futures)
-    # del bag_futures, bag_task
+    del bag_task    
     
     if len(soc_files) == 0:
         if verbose:
@@ -317,21 +311,16 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
         print(f"Adding date and geometry columns to H3 database.")
 
     ddf = ddf.map_partitions(add_special_columns, lon_col=lon_col, lat_col=lat_col, dat_col=dat_col)
-    ddf['year'] = ddf.datetime.dt.year
+    ddf = ddf.assign(year=ddf.datetime.dt.year)
     ddf = dask_geopandas.from_dask_dataframe(ddf)
 
     if verbose:
         print(f"Writing partitioned H3 data to temporary directory: {tmp_dir}")
-        
+
     write_task = ddf.to_parquet(tmp_dir, write_index=True, overwrite=True, compression='zstd', partition_on=[f'h3_{part:02d}', 'year'], compute=False)
     write_task = write_task.persist(optimize_graph=False)
     progress(write_task)
     del write_task, ddf
-
-    # futures = client.compute(write_task, optimize_graph=False)
-    # progress(futures)
-    # client.gather(futures)
-    # del futures, write_task, ddf
     
     tmp_files = glob.glob(os.path.join(tmp_dir, '**', '*.parquet'), recursive=True)
 
@@ -351,11 +340,6 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     progress(h3_tasks)
     h3_files = list(dask.compute(*h3_tasks))
     del h3_tasks
-
-    # h3_files = client.compute(h3_files, optimize_graph=False)
-    # progress(h3_files)
-    # h3_files = client.gather(h3_files)
-    # del h3_tasks
     
     if verbose:
         print("Compiling H3 metadata files.")
@@ -366,11 +350,6 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     progress(meta_tasks)
     meta_files = list(dask.compute(*meta_tasks))
     del meta_tasks
-
-    # meta_files = client.compute(meta_files, optimize_graph=False)
-    # progress(meta_files)
-    # meta_files = client.gather(meta_files)
-    # del meta_tasks
 
     return h3_files
 

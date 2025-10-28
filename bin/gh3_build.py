@@ -20,6 +20,7 @@ def getCmdArgs():
 
     p.add_argument("-o", "--outdir", dest="outdir", required=False, type=str, default=None, help="output directory for downloaded files (bypass GH3 default path)")
     p.add_argument("-i", '--indir', dest="indir", required=False, type=str, default=None, help="path to local GEDI SOC database to build H3 from")
+    p.add_argument("-t", '--tmpdir', dest="tmpdir", required=False, type=str, default=None, help="path to temporary directory for intermediate files")
     p.add_argument("-s3", "--s3", dest="s3", action='store_true', help="build from directly from the NASA DAACs S3 storage")
 
     p.add_argument("-v", "--version", dest="version", required=False, type=int, default=2, help="GEDI data version to download [default = latest version]")
@@ -41,38 +42,40 @@ if __name__ == "__main__":
     args = getCmdArgs()
     
     if DEBUG:
-        # args.spatial = '/gpfs/data1/vclgp/decontot/data/vector/other_boundaries/RO_UF_2022.shp'
-        # args.h3_resolution = 12
-        # args.h3_partition = 3
-        # args.l1b = None
-        # args.l2a = ['minimal']
-        # args.l2b = ['minimal']
-        # args.l4a = ['minimal']
-        # args.l4c = None
-        # args.outdir = 'tmp/h3_rondonia'
-        # args.indir = '/gpfs/data1/vclgp/data/iss_gedi/soc'
-        # args.version = 2
+        args.spatial = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/roi.parquet'
+        args.h3_resolution = 12
+        args.h3_partition = 3
+        args.l1b = None
+        args.l2a = ['/gpfs/data1/vclgp/data/iss_gedi/h3_mock/product_variables/GEDI02_A_vars.txt']
+        args.l2b = ['/gpfs/data1/vclgp/data/iss_gedi/h3_mock/product_variables/GEDI02_B_vars.txt']
+        args.l4a = ['/gpfs/data1/vclgp/data/iss_gedi/h3_mock/product_variables/GEDI04_A_vars.txt']
+        args.l4c = ['/gpfs/data1/vclgp/data/iss_gedi/h3_mock/product_variables/GEDI04_C_vars.txt']
+        args.outdir = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/database'
+        args.tmpdir = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/tmp'
+        args.indir = '/gpfs/data1/vclgp/data/iss_gedi/soc'
+        args.version = 2
         
-        args.box = [-51,0,-50,1]
+        # args.box = [-51,0,-50,1]
         # args.date_start = '2020-01-01'
         # args.date_end = '2020-07-01'
         # args.l1b = ['minimal']
-        args.l2a = ['default']
-        args.l2b = ['default']
-        args.l4a = ['default']
-        args.l4c = ['default']
-        args.n_cpus = 48
+        # args.l2a = ['default']
+        # args.l2b = ['default']
+        # args.l4a = ['default']
+        # args.l4c = ['default']
+
+        args.n_cpus = 32
         args.port = 9997
-        # args.dask_scheduler = 'tcp://localhost:8786'
         import sys
         sys.path.insert(0, os.path.abspath('./src/'))
 
     import warnings
+    import pandas as pd
     from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR
     from gedih3.utils import parse_gedi_args, parse_dask_args
     from gedih3.gh3builder import build_h3db
     from gedih3.logger import H3BuildLogger
-    from dask.distributed import Client    
+    from dask.distributed import Client
     
     if args.outdir is None:
         args.outdir = GH3_DEFAULT_H3_DIR
@@ -113,6 +116,7 @@ if __name__ == "__main__":
 
     with Client(**dask_kwargs) as client:
         warnings.filterwarnings("ignore", message=r"Sending large graph of size.*", category=UserWarning, module="distributed.client")
+        warnings.filterwarnings("ignore", message="DataFrame is highly fragmented", category=pd.errors.PerformanceWarning)
         print("Dask dashboard available at:", client.dashboard_link)
         try:
             h3_files = build_h3db(
@@ -124,6 +128,7 @@ if __name__ == "__main__":
                 h3_dir=h3_logger._PARENT_DIR,
                 skip_granules=h3_logger.get_finished_granules(),
                 version_kwargs={'version': h3_logger.gedi_version},
+                tmp_dir=args.tmpdir
             )
             
             h3_logger.set_post_build_info()

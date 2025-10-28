@@ -56,19 +56,19 @@ geolocation/num_detectedmodes_a5
 geolocation/quality_flag_a5
 geolocation/rh_a5
 geolocation/sensitivity_a5
-geolocation/elev_highestreturn_a10
-geolocation/elev_lowestmode_a10
-geolocation/elev_lowestreturn_a10
-geolocation/lat_highestreturn_a10
-geolocation/lat_lowestmode_a10
-geolocation/lat_lowestreturn_a10
-geolocation/lon_highestreturn_a10
-geolocation/lon_lowestmode_a10
-geolocation/lon_lowestreturn_a10
-geolocation/num_detectedmodes_a10
-geolocation/quality_flag_a10
-geolocation/rh_a10
-geolocation/sensitivity_a10
+# geolocation/elev_highestreturn_a10
+# geolocation/elev_lowestmode_a10
+# geolocation/elev_lowestreturn_a10
+# geolocation/lat_highestreturn_a10
+# geolocation/lat_lowestmode_a10
+# geolocation/lat_lowestreturn_a10
+# geolocation/lon_highestreturn_a10
+# geolocation/lon_lowestmode_a10
+# geolocation/lon_lowestreturn_a10
+# geolocation/num_detectedmodes_a10
+# geolocation/quality_flag_a10
+# geolocation/rh_a10
+# geolocation/sensitivity_a10
 rx_assess/mean_64kadjusted
 rx_assess/mean
 rx_assess/sd_corrected
@@ -91,11 +91,11 @@ rx_processing_a5/toploc
 rx_processing_a5/botloc
 rx_processing_a5/rx_algrunflag
 rx_processing_a5/selected_mode_flag
-rx_processing_a10/zcross
-rx_processing_a10/toploc
-rx_processing_a10/botloc
-rx_processing_a10/rx_algrunflag
-rx_processing_a10/selected_mode_flag
+# rx_processing_a10/zcross
+# rx_processing_a10/toploc
+# rx_processing_a10/botloc
+# rx_processing_a10/rx_algrunflag
+# rx_processing_a10/selected_mode_flag
 land_cover_data/landsat_treecover
 land_cover_data/landsat_water_persistence
 land_cover_data/leaf_off_flag
