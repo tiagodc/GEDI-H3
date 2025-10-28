@@ -11,7 +11,10 @@ shot_number
 solar_azimuth
 solar_elevation
 surface_flag
+lat_lowestmode
+lon_lowestmode
 elev_lowestmode
+quality_flag
 rh
 geolocation/stale_return_flag
 geolocation/elev_highestreturn_a1
