@@ -1,47 +1,75 @@
-name: gedih3
 channels:
-  - conda-for
-  - defaults
+  - conda-forge
 dependencies:
+  # Package managers
   - conda
   - mamba
-  - python[version='>=3.13']
   - pip
+
+  # Core Python
+  - python[version='>=3.13']
+
+  # Core scientific computing
   - numpy[version='>=2.2']
   - pandas[version='>=2.3']
   - scipy
+
+  # Geospatial libraries
   - geopandas[version='>=1.1']
-  - shapely
+  - shapely[version='>=2.0']
   - fiona[version='>=1.10']
   - pyproj
   - rasterio
   - rioxarray[version='>=0.19']
   - antimeridian
-  - folium
+  - geocube[version='>=0.7']
+
+  # H3 geospatial indexing
   - h3[version='>=4.3']
   - h3pandas[version='>=0.3']
+
+  # Parallel computing
   - dask[version='>=2025.5']
   - dask-geopandas[version='>=0.5']
   - distributed
   - numba
+
+  # Data formats
   - pyarrow[version='>=20.0']
   - h5py[version='>=3.14']
   - xarray[version='>=2025.7']
   - netcdf4
+  - pyyaml
+
+  # NASA Earthdata access
   - earthaccess[version='>=0.14']
-  - jupyterlab
-  - ipython
-  - notebook
+
+  # Utilities
   - python-dateutil[version='>=2.9']
   - python-dotenv
   - tqdm
   - pqdm
   - requests
-  - pyyaml
-  - click
+
+  # Development and interactive tools (optional)
+  - jupyterlab
+  - ipython
+  - notebook
   - matplotlib-base
   - bokeh
+  - folium
+
+  # CLI tools (optional)
+  - click
+
+  # Scientific libraries (optional)
   - scikit-learn
+
+  # GDAL/PROJ system libraries
   - gdal
   - proj
   - proj-data
+
+  # Install gedih3 in editable mode via pip
+  # - pip:
+  #   - -e .

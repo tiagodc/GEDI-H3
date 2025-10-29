@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools >= 80.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gedih3"
+version = "0.0.1"
+description = "Functions to download and process GEDI files"
+readme = "README.md"
+authors = [
+    {name = "Tiago de Conto", email = "tiagodc@umd.edu"}
+]
+requires-python = ">=3.13"
+dependencies = [
+    "numpy >= 2.2.6",
+    "pandas >= 2.3.2",
+    "geopandas >= 1.1.1",
+    "shapely >= 2.0.0",
+    "fiona >= 1.10.0",
+    "pyproj",
+    "h3 >= 4.3.0",
+    "h3pandas >= 0.3.0",
+    "antimeridian",
+    "dask >= 2025.5.1",
+    "dask-geopandas >= 0.5.0",
+    "distributed",
+    "numba",
+    "pyarrow >= 20.0.0",
+    "h5py >= 3.14.0",
+    "xarray >= 2025.7.1",
+    "rioxarray >= 0.19.0",
+    "geocube >= 0.7.1",
+    "python-dateutil >= 2.9.0",
+    "python-dotenv",
+    "earthaccess >= 0.14.0",
+    "pqdm",
+    "pyyaml",
+]
+
+[tool.setuptools]
+packages = ["gedih3"]
+package-dir = {"" = "src"}
+script-files = ["bin/gh3_build.py", "bin/gh3_download.py"]
+
+[tool.setuptools.package-data]
+gedih3 = ["data/*.txt", "data/*.json", "data/*.parquet"]

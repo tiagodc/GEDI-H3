@@ -3,3 +3,4 @@
 tmp/
 .dodsrc
 gh3_session.sh
+*.egg-info
