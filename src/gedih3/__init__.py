@@ -29,12 +29,13 @@ __author__ = "Tiago de Conto"
 __email__ = "tiagodc@umd.edu"
 
 from . import config
-from . import daac
-from . import gedidriver
-from . import gh3builder
-from . import gh3driver
-from . import h3utils
 from . import utils
+from . import daac
+from . import h3utils
+from . import sqlutils
+from . import gedidriver
+from . import gh3driver
+from . import gh3builder
 
 __all__ = [
     "__version__",

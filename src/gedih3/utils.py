@@ -1,6 +1,7 @@
 from datetime import datetime
 from itertools import chain
 import os
+import psutil
 import pyarrow
 import fiona
 import json
@@ -19,6 +20,12 @@ from .config import GEDI_PRODUCTS
 
 def now():
     return datetime.now().isoformat()
+
+def get_system_resources(disk_path:str=None):
+    ram = psutil.virtual_memory().total / (1024**3)
+    storage = psutil.disk_usage(os.getcwd() if disk_path is None else disk_path).free / (1024**3)
+    cpus = os.cpu_count()
+    return cpus, ram, storage
 
 def json_write(obj, path, mode='w', rewrite=False):
     if os.path.isfile(path) and not rewrite:

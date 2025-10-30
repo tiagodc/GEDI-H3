@@ -12,7 +12,7 @@ def getCmdArgs():
     p.add_argument("-h3r", "--h3-resolution", dest="h3_resolution", required=False, type=int, default=12, help="H3 level for data indexing [0-15]")    
     p.add_argument("-h3p", "--h3-partition", dest="h3_partition", required=False, type=int, default=3, help="H3 level for file partitioning [0-15]")
 
-    p.add_argument("-l1b", "--l1b", dest="l1b", nargs='+', type=str, default=None, required=False, help="GEDI L1B variables to download")
+    p.add_argument("-l1b", "--l1b", dest="l1b", nargs='+', type=str, default=None, required=False, help="GEDI L1B variables to download") 
     p.add_argument("-l2a", "--l2a", dest="l2a", nargs='+', type=str, default=None, required=False, help="GEDI L2A variables to download")
     p.add_argument("-l2b", "--l2b", dest="l2b", nargs='+', type=str, default=None, required=False, help="GEDI L2B variables to download")
     p.add_argument("-l4a", "--l4a", dest="l4a", nargs='+', type=str, default=None, required=False, help="GEDI L4A variables to download")
@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
     import warnings
     import pandas as pd
-    from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR
+    from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_TMP_DIR
     from gedih3.utils import parse_gedi_args, parse_dask_args
     from gedih3.gh3builder import build_h3db
     from gedih3.logger import H3BuildLogger
@@ -83,6 +83,10 @@ if __name__ == "__main__":
     
     if args.indir is None:
         args.indir = GH3_DEFAULT_SOC_DIR
+        
+    if args.tmpdir is None:
+        args.tmpdir = os.path.join(GH3_DEFAULT_TMP_DIR, 'gh3_build')
+    os.makedirs(args.tmpdir, exist_ok=True)
 
     product_vars = parse_gedi_args(args)
     spatial = args.spatial if args.spatial is not None else args.box    
