@@ -46,6 +46,7 @@ __all__ = [
     "gedidriver",
     "gh3builder",
     "gh3driver",
-    "h3utils",
     "utils",
+    "h3utils",
+    "sqlutils"
 ]

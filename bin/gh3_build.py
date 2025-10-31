@@ -42,32 +42,32 @@ if __name__ == "__main__":
     args = getCmdArgs()
     
     if DEBUG:
-        args.spatial = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/roi.parquet'
-        args.h3_resolution = 12
-        args.h3_partition = 3
-        args.l1b = None
-        args.l2a = ['/gpfs/data1/vclgp/data/iss_gedi/h3_mock/product_variables/GEDI02_A_vars.txt']
-        args.l2b = ['/gpfs/data1/vclgp/data/iss_gedi/h3_mock/product_variables/GEDI02_B_vars.txt']
-        args.l4a = ['/gpfs/data1/vclgp/data/iss_gedi/h3_mock/product_variables/GEDI04_A_vars.txt']
-        args.l4c = ['/gpfs/data1/vclgp/data/iss_gedi/h3_mock/product_variables/GEDI04_C_vars.txt']
-        args.outdir = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/database'
-        args.tmpdir = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/tmp'
-        args.indir = '/gpfs/data1/vclgp/data/iss_gedi/soc'
-        args.version = 2
+        # args.spatial = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/roi.parquet'
+        # args.h3_resolution = 12
+        # args.h3_partition = 3
+        # args.l1b = None
+        # args.l2a = ['/gpfs/data1/vclgp/data/iss_gedi/h3_mock/product_variables/GEDI02_A_vars.txt']
+        # args.l2b = ['/gpfs/data1/vclgp/data/iss_gedi/h3_mock/product_variables/GEDI02_B_vars.txt']
+        # args.l4a = ['/gpfs/data1/vclgp/data/iss_gedi/h3_mock/product_variables/GEDI04_A_vars.txt']
+        # args.l4c = ['/gpfs/data1/vclgp/data/iss_gedi/h3_mock/product_variables/GEDI04_C_vars.txt']
+        # args.outdir = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/database'
+        # args.tmpdir = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/tmp'
+        # args.indir = '/gpfs/data1/vclgp/data/iss_gedi/soc'
+        # args.version = 2
         
-        # args.box = [-51,0,-50,1]
+        args.box = [-51,0,-50,1]
         # args.date_start = '2020-01-01'
         # args.date_end = '2020-07-01'
         # args.l1b = ['minimal']
-        # args.l2a = ['default']
-        # args.l2b = ['default']
-        # args.l4a = ['default']
-        # args.l4c = ['default']
+        args.l2a = ['default']
+        args.l2b = ['default']
+        args.l4a = ['default']
+        args.l4c = ['default']
 
-        args.n_cpus = 32
+        args.n_cpus = 24
         args.port = 9997
-        import sys
-        sys.path.insert(0, os.path.abspath('./src/'))
+        # import sys
+        # sys.path.insert(0, os.path.abspath('./src/'))
 
     import warnings
     import pandas as pd
@@ -120,7 +120,14 @@ if __name__ == "__main__":
 
     with Client(**dask_kwargs) as client:
         warnings.filterwarnings("ignore", message=r"Sending large graph of size.*", category=UserWarning, module="distributed.client")
-        warnings.filterwarnings("ignore", message="DataFrame is highly fragmented", category=pd.errors.PerformanceWarning)
+        
+        def _suppress_pandas_perf_warnings():
+            import warnings
+            import pandas as pd
+            warnings.filterwarnings("ignore", message=r"DataFrame is highly fragmented.*", category=pd.errors.PerformanceWarning)
+        
+        client.run(_suppress_pandas_perf_warnings)
+
         print("Dask dashboard available at:", client.dashboard_link)
         try:
             h3_files = build_h3db(

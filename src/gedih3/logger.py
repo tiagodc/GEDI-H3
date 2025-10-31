@@ -4,7 +4,7 @@ from typing import Dict
 from datetime import datetime
 
 from .config import GEDI_PRODUCTS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR
-from .utils import now, json_read, json_write, read_vector_file, to_geojson, from_geojson
+from .utils import now, json_read, json_write, read_vector_file, to_geojson, from_geojson, parse_spatial, merge_spatial, parse_temporal
 from .h3utils import intersect_h3_geometries
 from .gedidriver import GEDIFile, gedi_vars_expand, soc_file_tree, check_soc_file_vars, validate_soc_files
 from .gh3driver import gh3_list_files
@@ -40,66 +40,6 @@ def load_log_data(file_path):
         return log
     else:
         return {}
-
-def parse_spatial(spatial):
-    if spatial is None:
-        return None
-    
-    if isinstance(spatial, dict):
-        spatial = from_geojson(spatial)
-    elif isinstance(spatial, str):        
-        if os.path.exists(spatial):
-            spatial = read_vector_file(spatial, crs=4326)
-        else:
-            try:
-                spatial = from_geojson(spatial)
-            except:
-                raise ValueError("Invalid spatial input. Must be bounding box list, file path, or GeoDataFrame.")
-    elif isinstance(spatial, list) and len(spatial) == 4:
-        from shapely.geometry import box
-        spatial = gpd.GeoDataFrame(geometry=[box(*spatial)], crs=4326, index=[0])
-    elif isinstance(spatial, gpd.GeoDataFrame):
-        spatial = spatial.to_crs(epsg=4326)
-    else:
-        raise ValueError("Invalid spatial input. Must be bounding box list, file path, or GeoDataFrame.")
-    
-    return spatial
-
-def merge_spatial(existing, new):
-    if new is None:
-        return existing, None
-    
-    new = parse_spatial(new)
-    
-    if existing is None:
-        return new, None
-
-    gdf_union = gpd.overlay(existing, new, how='union').union_all()
-    gdf_union = gpd.GeoDataFrame(geometry=[gdf_union], crs=existing.crs)
-    
-    gdf_sdiff = gpd.overlay(existing, new, how='symmetric_difference').union_all()
-    gdf_sdiff = gpd.GeoDataFrame(geometry=[gdf_sdiff], crs=existing.crs)
-
-    if gdf_sdiff.geometry.iloc[0].is_empty:
-        gdf_sdiff = None
-
-    return gdf_union, gdf_sdiff
-
-def parse_temporal(temporal):
-    if temporal is None:
-        return None
-    
-    if isinstance(temporal, (list, tuple)) and len(temporal) == 2:
-        start, end = temporal
-        if isinstance(start, str):
-            start = datetime.fromisoformat(start.replace('Z', '+00:00'))
-            start = start.strftime('%Y-%m-%d')
-        if isinstance(end, str):
-            end = datetime.fromisoformat(end.replace('Z', '+00:00'))
-            end = end.strftime('%Y-%m-%d')
-        return (start, end)
-    else:
-        raise ValueError("Invalid temporal input. Must be a list or tuple of two dates.")
 
 def merge_temporal(existing, new):
     if existing is None:

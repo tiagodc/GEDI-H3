@@ -218,10 +218,12 @@ def parquet_append_columns(df: pd.DataFrame, f: str, tmp_suffix:str = '.col.tmp'
     
     os.replace(temp_f, f)
 
-def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False):
+def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False, rows_per_group=1_000_000):
     shots = np.array([], dtype=np.uint64)
     pqwriter = None
     schema = None
+    accumulated_tables = []
+    accumulated_rows = 0
     
     try:
         for f in flist:
@@ -233,7 +235,7 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False):
                 schema = parquet_file.schema.to_arrow_schema()
                 pqwriter = pq.ParquetWriter(ofile, schema, compression='zstd')
             
-            for batch in parquet_file.iter_batches():
+            for batch in parquet_file.iter_batches(batch_size=rows_per_group):
                 df = batch.to_pandas()
                 idx_name = df.index.name
 
@@ -249,14 +251,88 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False):
                     df_reordered = df_reset.reindex(columns=schema.names, copy=False)
                     df_final = df_reordered.set_index(idx_name)
                     table = pa.Table.from_pandas(df_final, schema=schema)
-                    pqwriter.write_table(table)
+                    
+                    accumulated_tables.append(table)
+                    accumulated_rows += len(table)
+                    
+                    # Flush when threshold reached
+                    if accumulated_rows >= rows_per_group:
+                        combined_table = pa.concat_tables(accumulated_tables)
+                        pqwriter.write_table(combined_table)
+                        accumulated_tables = []
+                        accumulated_rows = 0
             
             if rm_src:
                 os.unlink(f)
         
+        # Write remaining data
+        if accumulated_tables:
+            combined_table = pa.concat_tables(accumulated_tables)
+            pqwriter.write_table(combined_table)
+        
     finally:
         if pqwriter is not None:
             pqwriter.close()
+
+def parse_temporal(temporal):
+    if temporal is None:
+        return None
+    
+    if isinstance(temporal, (list, tuple)) and len(temporal) == 2:
+        start, end = temporal
+        if isinstance(start, str):
+            start = datetime.fromisoformat(start.replace('Z', '+00:00'))
+            start = start.strftime('%Y-%m-%d')
+        if isinstance(end, str):
+            end = datetime.fromisoformat(end.replace('Z', '+00:00'))
+            end = end.strftime('%Y-%m-%d')
+        return (start, end)
+    else:
+        raise ValueError("Invalid temporal input. Must be a list or tuple of two dates.")
+
+def parse_spatial(spatial):
+    if spatial is None:
+        return None
+    
+    if isinstance(spatial, dict):
+        spatial = from_geojson(spatial)
+    elif isinstance(spatial, str):        
+        if os.path.exists(spatial):
+            spatial = read_vector_file(spatial, crs=4326)
+        else:
+            try:
+                spatial = from_geojson(spatial)
+            except:
+                raise ValueError("Invalid spatial input. Must be bounding box list, file path, or GeoDataFrame.")
+    elif isinstance(spatial, list) and len(spatial) == 4:
+        from shapely.geometry import box
+        spatial = gpd.GeoDataFrame(geometry=[box(*spatial)], crs=4326, index=[0])
+    elif isinstance(spatial, gpd.GeoDataFrame):
+        spatial = spatial.to_crs(epsg=4326)
+    else:
+        raise ValueError("Invalid spatial input. Must be bounding box list, file path, or GeoDataFrame.")
+    
+    return spatial
+
+def merge_spatial(existing, new):
+    if new is None:
+        return existing, None
+    
+    new = parse_spatial(new)
+    
+    if existing is None:
+        return new, None
+
+    gdf_union = gpd.overlay(existing, new, how='union').union_all()
+    gdf_union = gpd.GeoDataFrame(geometry=[gdf_union], crs=existing.crs)
+    
+    gdf_sdiff = gpd.overlay(existing, new, how='symmetric_difference').union_all()
+    gdf_sdiff = gpd.GeoDataFrame(geometry=[gdf_sdiff], crs=existing.crs)
+
+    if gdf_sdiff.geometry.iloc[0].is_empty:
+        gdf_sdiff = None
+
+    return gdf_union, gdf_sdiff
 
 def get_dask_client():
     try:

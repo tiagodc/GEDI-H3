@@ -5,15 +5,13 @@ import dask.dataframe
 from.config import GH3_DEFAULT_H3_DIR
 from .h3utils import intersect_h3_geometries
 
-def gh3_list_files(gh3_root_dir=GH3_DEFAULT_H3_DIR, product=None):
-    if recursive := product is None:
-        product = '**'
-    return glob.glob(os.path.join(gh3_root_dir, product.lower(), '*.parquet'), recursive=recursive)
+def gh3_list_files(gh3_root_dir=GH3_DEFAULT_H3_DIR):
+    return glob.glob(os.path.join(gh3_root_dir, '**', '*.parquet'), recursive=True)
 
-def gh3_list_parts(gh3_root_dir=GH3_DEFAULT_H3_DIR, product=None):
-    files = gh3_list_files(gh3_root_dir=gh3_root_dir, product=product)
-    h3_ids = list({os.path.basename(i).replace('.parquet', '') for i in files})
-    return h3_ids    
+def gh3_list_parts(gh3_root_dir=GH3_DEFAULT_H3_DIR):
+    files = glob.glob(os.path.join(gh3_root_dir, 'h3_*/'))
+    h3_ids = [i.split('=')[-1].rstrip('/') for i in files]
+    return h3_ids
 
 def gh3_load_part(h3_part_id, h3_product_vars, query=None, gh3_dir=GH3_DEFAULT_H3_DIR):
     df = None

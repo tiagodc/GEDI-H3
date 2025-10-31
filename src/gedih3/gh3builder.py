@@ -8,6 +8,7 @@ import dask
 import dask.dataframe
 import dask_geopandas
 import dask.bag as dbg
+import pyarrow.parquet as pq
 from typing import Union, List, Dict, Optional, Tuple, Any
 from earthaccess.store import EarthAccessFile
 from dask.distributed import progress
@@ -203,7 +204,12 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
         shutil.rmtree(in_dir, ignore_errors=True)
 
     meta_file = h3_write_metadata(h3_file)
-    return h3_file
+
+    pq_metadata = pq.read_metadata(h3_file)
+    rel_path = os.path.relpath(h3_file, out_dir)
+    pq_metadata.set_file_path(rel_path)
+
+    return h3_file, pq_metadata
 
 @dask.delayed
 def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
@@ -338,11 +344,20 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     h3_tasks = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in tmp_h3_dirs]
     h3_tasks = dask.persist(*h3_tasks, optimize_graph=False)
     progress(h3_tasks)
-    h3_files = list(dask.compute(*h3_tasks))
+    h3_file_meta = list(dask.compute(*h3_tasks))    
     del h3_tasks
+        
+    h3_files = [hm[0] for hm in h3_file_meta if hm is not None]
+    h3_metas = [hm[1] for hm in h3_file_meta if hm is not None]
     
     if verbose:
         print("Compiling H3 metadata files.")
+        
+    base_schema = pq.read_schema(h3_files[0])
+    pq.write_metadata(schema=base_schema, where=os.path.join(h3_dir, '_metadata'), metadata_collector=h3_metas)
+    
+    cmeta = pq.ParquetDataset(h3_files).schema
+    pq.write_metadata(schema=cmeta, where=os.path.join(h3_dir, '_common_metadata'))
 
     h3_subdirs = glob.glob(os.path.join(h3_dir,'h3_*/'))
     meta_tasks = [dh3_merge_metadata(i) for i in h3_subdirs]

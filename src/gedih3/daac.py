@@ -12,7 +12,7 @@ from dask.distributed import progress, get_client
 
 # Import configuration variables
 from .config import GH3_DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS
-from .utils import get_dask_client, read_vector_file, geo_to_umm
+from .utils import get_dask_client, read_vector_file, geo_to_umm, parse_temporal
 from .gedidriver import GEDIFile, soc_file_tree, gedi_subset, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5
 
 class GEDIAccessor:
@@ -114,20 +114,7 @@ class GEDIAccessor:
             return None
     
     def _process_temporal_filter(self, temporal) -> Tuple[str, str]:
-        if isinstance(temporal, (list, tuple)) and len(temporal) == 2:
-            start_date, end_date = temporal
-            
-            # Convert to datetime objects if strings
-            if isinstance(start_date, str):
-                start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-                start_date = start_date.strftime('%Y-%m-%dT%H:%M:%SZ')
-            if isinstance(end_date, str):
-                end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-                end_date = end_date.strftime('%Y-%m-%dT%H:%M:%SZ')
-
-            return (start_date, end_date)
-        
-        raise ValueError("Temporal filter must be a tuple/list of 2 date strings")
+        return parse_temporal(temporal)
     
     def download_all(self, download_dir: str = None, product: str = None, **kwargs):
         if not self.authenticated:
