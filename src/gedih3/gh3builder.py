@@ -326,6 +326,14 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     write_task = ddf.to_parquet(tmp_dir, write_index=True, overwrite=True, compression='zstd', partition_on=[f'h3_{part:02d}', 'year'], compute=False)
     write_task = write_task.persist(optimize_graph=False)
     progress(write_task)
+    
+    if verbose:
+        print("Clearing dask workers.")
+    
+    from dask.distributed import get_client
+    client = get_client()
+    client.cancel(write_task, force=True)
+
     del write_task, ddf
     
     tmp_files = glob.glob(os.path.join(tmp_dir, '**', '*.parquet'), recursive=True)
@@ -341,23 +349,17 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/*/'))
     os.makedirs(h3_dir, exist_ok=True)
     
-    h3_tasks = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in tmp_h3_dirs]
+    h3_tasks = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=False, replace=False) for i in tmp_h3_dirs]
     h3_tasks = dask.persist(*h3_tasks, optimize_graph=False)
     progress(h3_tasks)
-    h3_file_meta = list(dask.compute(*h3_tasks))    
+    h3_file_meta = list(dask.compute(*h3_tasks))
     del h3_tasks
         
     h3_files = [hm[0] for hm in h3_file_meta if hm is not None]
     h3_metas = [hm[1] for hm in h3_file_meta if hm is not None]
     
     if verbose:
-        print("Compiling H3 metadata files.")
-        
-    base_schema = pq.read_schema(h3_files[0])
-    pq.write_metadata(schema=base_schema, where=os.path.join(h3_dir, '_metadata'), metadata_collector=h3_metas)
-    
-    cmeta = pq.ParquetDataset(h3_files).schema
-    pq.write_metadata(schema=cmeta, where=os.path.join(h3_dir, '_common_metadata'))
+        print("Compiling H3 metadata files.")        
 
     h3_subdirs = glob.glob(os.path.join(h3_dir,'h3_*/'))
     meta_tasks = [dh3_merge_metadata(i) for i in h3_subdirs]
@@ -365,6 +367,15 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     progress(meta_tasks)
     meta_files = list(dask.compute(*meta_tasks))
     del meta_tasks
+
+    if verbose:
+        print("Compiling parquet metadata files.")    
+
+    base_schema = pq.read_schema(h3_files[0])
+    pq.write_metadata(schema=base_schema, where=os.path.join(h3_dir, '_metadata'), metadata_collector=h3_metas)
+
+    cmeta = pq.ParquetDataset(h3_files)
+    pq.write_metadata(schema=cmeta.schema, where=os.path.join(h3_dir, '_common_metadata'))
 
     return h3_files
 

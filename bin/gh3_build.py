@@ -50,8 +50,8 @@ if __name__ == "__main__":
         # args.l2b = ['/gpfs/data1/vclgp/data/iss_gedi/h3_mock/product_variables/GEDI02_B_vars.txt']
         # args.l4a = ['/gpfs/data1/vclgp/data/iss_gedi/h3_mock/product_variables/GEDI04_A_vars.txt']
         # args.l4c = ['/gpfs/data1/vclgp/data/iss_gedi/h3_mock/product_variables/GEDI04_C_vars.txt']
-        # args.outdir = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/database'
-        # args.tmpdir = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/tmp'
+        # args.outdir = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/database_rebuilt'
+        # args.tmpdir = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/tmp/gh3_build'
         # args.indir = '/gpfs/data1/vclgp/data/iss_gedi/soc'
         # args.version = 2
         
@@ -64,10 +64,10 @@ if __name__ == "__main__":
         args.l4a = ['default']
         args.l4c = ['default']
 
-        args.n_cpus = 24
-        args.port = 9997
-        # import sys
-        # sys.path.insert(0, os.path.abspath('./src/'))
+        args.n_cpus = 40
+        args.port = 8887
+        import sys
+        sys.path.insert(0, os.path.abspath('./src/'))
 
     import warnings
     import pandas as pd

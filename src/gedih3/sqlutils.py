@@ -17,6 +17,7 @@ def init_duckdb(threads=None, memory_limit=None, temp_directory=None, max_temp_s
     con.load_extension("spatial")
     con.execute("SET enable_progress_bar = true;")
     con.execute("SET preserve_insertion_order = false;")
+    con.execute("SET parquet_metadata_cache = true;")
     con.execute(f"SET memory_limit='{memory_limit}GB';")
     con.execute(f"SET temp_directory='{temp_directory}';")
     con.execute(f"SET max_temp_directory_size='{max_temp_size}GB';")

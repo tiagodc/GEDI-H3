@@ -218,7 +218,7 @@ def parquet_append_columns(df: pd.DataFrame, f: str, tmp_suffix:str = '.col.tmp'
     
     os.replace(temp_f, f)
 
-def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False, rows_per_group=1_000_000):
+def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False, rows_per_group=100_000):
     shots = np.array([], dtype=np.uint64)
     pqwriter = None
     schema = None
