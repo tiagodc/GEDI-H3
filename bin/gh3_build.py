@@ -1,5 +1,5 @@
 #! python
-DEBUG=True
+DEBUG=False
 
 def getCmdArgs():
     p = argparse.ArgumentParser(description = "Download GEDI data from NASA's SOC")    
