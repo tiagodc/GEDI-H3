@@ -29,13 +29,13 @@ def gh3_part_from_df(df):
     h3_cols = [col for col in df.columns if col.startswith('h3_')]
     return sorted(h3_cols)[0]
 
-def gh3_aggregate_func(df, res, agg='mean', cols=None):
+def gh3_aggregate_func(df, res, agg='mean', cols=None, **kwargs):
     import h3pandas
     h3col = f"h3_{res:02d}"
     g = df.h3.h3_to_parent(resolution=res).groupby(h3col, observed=True)
     if cols is not None:
         g = g[cols]
-    out = g.apply(agg) if callable(agg) else g.agg(agg)
+    out = g.apply(agg, include_groups=False, **kwargs) if callable(agg) else g.agg(agg)
 
     if isinstance(out.columns, pd.MultiIndex):
         out.columns = ['_'.join(map(str, col)).strip() for col in out.columns.values]
@@ -86,14 +86,14 @@ def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR):
 
     return ddf
 
-def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, add_geometry=True):
-    _meta = gh3_aggregate_func(df=gh3_df._meta, res=target_res, agg=agg, cols=columns)
+def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, add_geometry=True, **kwargs):
+    _meta = gh3_aggregate_func(df=gh3_df.head(), res=target_res, agg=agg, cols=columns, **kwargs)
 
     if query is not None:
         gh3_df = gh3_df.query(query)
 
     h3part = gh3_part_from_df(gh3_df)
-    agg_df = gh3_df.groupby(h3part, observed=True).apply(gh3_aggregate_func, res=target_res, agg=agg, include_groups=False, meta=_meta)
+    agg_df = gh3_df.groupby(h3part, observed=True).apply(gh3_aggregate_func, res=target_res, agg=agg, include_groups=False, meta=_meta, **kwargs)
     agg_df = agg_df.set_index(f"h3_{target_res:02d}", sort=False)
     
     if add_geometry:
