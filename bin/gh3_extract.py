@@ -193,11 +193,8 @@ if __name__ == '__main__':
             # Export
             print("Exporting data...")
             part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
-
-            # Remove unused categories from partition column to avoid creating empty directories
             h3_col = f'h3_{part:02d}'
-            ddf[h3_col] = ddf[h3_col].astype(str)
-
+            
             write_task = ddf.to_parquet(args.output,
                                         write_metadata_file=True,
                                         write_index=True,

@@ -90,7 +90,8 @@ def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR):
     
     if region is not None:
         ddf = ddf.clip(region)
-
+        
+    ddf[h3_part_col] = ddf[h3_part_col].astype(str)
     return ddf
 
 def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, add_geometry=True, **kwargs):
