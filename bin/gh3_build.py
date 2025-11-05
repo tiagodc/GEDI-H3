@@ -1,7 +1,7 @@
 #! python
 DEBUG=False
 
-def getCmdArgs():
+def get_cmd_args():
     p = argparse.ArgumentParser(description = "Download GEDI data from NASA's SOC")    
    
     p.add_argument("-s", "--spatial", dest="spatial", required=False, type=str, default=None, help="path to vector (.shp, .gpkg, .kml etc.) file with region of interest")
@@ -39,7 +39,7 @@ def getCmdArgs():
 
 if __name__ == "__main__":
     import argparse, os
-    args = getCmdArgs()
+    args = get_cmd_args()
     
     if DEBUG:
         # args.spatial = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/roi.parquet'
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     import warnings
     import pandas as pd
     from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_TMP_DIR
-    from gedih3.utils import parse_gedi_args, parse_dask_args
+    from gedih3.cliutils import parse_gedi_args, parse_dask_args
     from gedih3.gh3builder import build_h3db
     from gedih3.logger import H3BuildLogger
     from dask.distributed import Client

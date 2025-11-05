@@ -1,7 +1,7 @@
 #! python
 DEBUG=False
 
-def getCmdArgs():
+def get_cmd_args():
     p = argparse.ArgumentParser(description = "Download GEDI data from NASA's SOC")    
    
     p.add_argument("-s", "--spatial", dest="spatial", required=False, type=str, default=None, help="path to vector (.shp, .gpkg, .kml etc.) file with region of interest")
@@ -35,7 +35,7 @@ def getCmdArgs():
 
 if __name__ == "__main__":
     import argparse, os
-    args = getCmdArgs()
+    args = get_cmd_args()
     
     if DEBUG:
         args.box = [-51,0,-50,1]
@@ -55,7 +55,7 @@ if __name__ == "__main__":
 
     import warnings    
     from gedih3.config import GH3_DEFAULT_SOC_DIR
-    from gedih3.utils import parse_gedi_args, parse_dask_args
+    from gedih3.cliutils import parse_gedi_args, parse_dask_args
     from gedih3.gh3builder import download_soc
     from gedih3.logger import SOCDownloadLogger
     from dask.distributed import Client

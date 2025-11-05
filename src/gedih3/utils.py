@@ -11,12 +11,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pandas as pd
 import geopandas as gpd
+import rioxarray
 from dask.distributed import get_client
 from shapely.ops import orient
+from shapely.geometry import box
 from shapely.geometry.base import BaseGeometry
 from typing import Union, List, Dict, Optional, Tuple, Any
-
-from .config import GEDI_PRODUCTS
 
 def now():
     return datetime.now().isoformat()
@@ -122,6 +122,12 @@ def read_vector_file(filepath: str, crs: Union[str, int] = 4326) -> gpd.GeoDataF
     
     return geodf
 
+def read_img_bounds(filepath: str, crs=4326):
+    img = rioxarray.open_rasterio(filepath)
+    bounds = list(img.rio.bounds())
+    geobox = gpd.GeoDataFrame(geometry=[box(*bounds)], crs=img.rio.crs, index=[0])
+    return geobox.to_crs(crs)
+
 def geo_to_umm(obj):
     """
     Converts a GeoDataFrame, shapely Polygon, or GeoJSON dictionary to a UMM-style list of coordinates.
@@ -167,7 +173,6 @@ def from_geojson(geojson) -> gpd.GeoDataFrame:
 def read_as_geojson(geofile: str, box_only: bool = False) -> Dict:
     roi = read_vector_file(geofile, crs=4326) 
     if box_only:
-        from shapely.geometry import box
         roi = gpd.GeoDataFrame(geometry=[box(*roi.total_bounds)], columns=['geometry'], crs=roi.crs)
     geojson = to_geojson(roi)
     return geojson
@@ -298,14 +303,16 @@ def parse_spatial(spatial):
         spatial = from_geojson(spatial)
     elif isinstance(spatial, str):        
         if os.path.exists(spatial):
-            spatial = read_vector_file(spatial, crs=4326)
+            if spatial.lower().endswith(('.tif', '.tiff', '.vrt', '.geotif', '.geotiff', '.img')):
+                spatial = read_img_bounds(spatial, crs=4326)
+            else:
+                spatial = read_vector_file(spatial, crs=4326)
         else:
             try:
                 spatial = from_geojson(spatial)
             except:
                 raise ValueError("Invalid spatial input. Must be bounding box list, file path, or GeoDataFrame.")
     elif isinstance(spatial, list) and len(spatial) == 4:
-        from shapely.geometry import box
         spatial = gpd.GeoDataFrame(geometry=[box(*spatial)], crs=4326, index=[0])
     elif isinstance(spatial, gpd.GeoDataFrame):
         spatial = spatial.to_crs(epsg=4326)
@@ -340,22 +347,3 @@ def get_dask_client():
         return client
     except (ValueError, RuntimeError):
         return None
-
-def parse_gedi_args(args):
-    prod_vars = {}
-    for k in GEDI_PRODUCTS.keys():
-        if hasattr(args, k.lower()):
-            if (vars := getattr(args, k.lower())) is not None:
-                prod_vars[k] = vars
-    return prod_vars
-    
-def parse_dask_args(args):
-    dask_args = {}
-    if args.dask_scheduler:
-        dask_args['address'] = args.dask_scheduler
-    else:
-        dask_args['n_workers'] = args.n_cpus
-        dask_args['threads_per_worker'] = args.threads
-        dask_args['memory_limit'] = f"{args.ram}GB" if args.ram else None
-        dask_args['dashboard_address'] = f":{args.port}" if args.port else None
-    return dask_args    

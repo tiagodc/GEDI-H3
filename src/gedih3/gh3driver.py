@@ -99,5 +99,7 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
     if add_geometry:
         _gmeta = gpd.GeoDataFrame(columns=agg_df._meta.columns.tolist() + ['geometry'], geometry='geometry', crs=4326)
         agg_df = agg_df.map_partitions(gh3_add_geometry, meta=_gmeta)
+        if isinstance(agg_df, dask.dataframe.DataFrame):
+            agg_df = dask_geopandas.from_dask_dataframe(agg_df)
 
     return agg_df

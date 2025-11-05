@@ -33,6 +33,7 @@ from . import utils
 from . import daac
 from . import h3utils
 from . import sqlutils
+from . import cliutils
 from . import gedidriver
 from . import gh3driver
 from . import gh3builder
@@ -48,5 +49,6 @@ __all__ = [
     "gh3driver",
     "utils",
     "h3utils",
-    "sqlutils"
+    "sqlutils",
+    "cliutils"
 ]

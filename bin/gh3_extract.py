@@ -13,9 +13,9 @@ Package: gedih3
 import os
 import sys
 import argparse
-import logging
-from datetime import datetime
 from typing import Optional, List, Dict
+
+from gedih3.cliutils import parse_region, parse_dask_args
 
 def get_cmd_args():
     """Parse command line arguments for GEDI data extraction"""
@@ -24,17 +24,16 @@ def get_cmd_args():
     )
 
     # Output configuration
-    p.add_argument("-o", "--output", dest="output", required=True, type=str,
+    p.add_argument("-o", "--output", dest="output", required=True, type=str, 
                    help="output directory or file path")
-    p.add_argument("-f", "--format", dest="format", required=False, type=str,
-                   default='parquet', help="output file format [default = parquet]")
-    p.add_argument("-m", "--merge", dest="merge", required=False, action='store_true',
+    p.add_argument("-f", "--format", dest="format", required=False, type=str, default='parquet', 
+                   help="output file format [default = parquet]")
+    p.add_argument("-m", "--merge", dest="merge", required=False, action='store_true', 
                    help="merge all partitions and export to single file")
 
     # Spatial filtering
     p.add_argument("-r", "--region", dest="region", required=False, type=str, default=None,
-                   help="path to vector (.shp, .gpkg, .kml, etc.) or raster (.tif) file with ROI, "
-                        "or bounding box as 'W,S,E,N', or ISO3 country code")
+                   help="path to vector (.shp, .gpkg, .kml, etc.) or raster (.tif) file with ROI, or bounding box as 'W,S,E,N', or ISO3 country code")
 
     # Variable selection by product
     p.add_argument("-l2a", "--l2a", dest="l2a", nargs='+', type=str, default=None,
@@ -94,55 +93,6 @@ def get_cmd_args():
                    help="verbose output")
 
     return p.parse_args()
-
-
-def setup_logging(debug: bool = False, verbose: bool = False):
-    """Configure logging level"""
-    if debug:
-        level = logging.DEBUG
-    elif verbose:
-        level = logging.INFO
-    else:
-        level = logging.WARNING
-
-    logging.basicConfig(
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        level=level,
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-
-
-def parse_region(region_str: Optional[str]):
-    """Parse region argument into GeoDataFrame or bbox"""
-    if region_str is None:
-        return None
-
-    import geopandas as gpd
-    from shapely.geometry import box
-    from gedih3.utils import parse_spatial
-
-    # Try as bounding box: "W,S,E,N"
-    if ',' in region_str:
-        try:
-            coords = [float(x.strip()) for x in region_str.split(',')]
-            if len(coords) == 4:
-                return gpd.GeoDataFrame(geometry=[box(*coords)], crs=4326)
-        except ValueError:
-            pass
-
-    # Try as file path
-    if os.path.isfile(region_str):
-        return parse_spatial(region_str)
-
-    # Try as ISO3 country code
-    region_upper = region_str.upper()
-    if len(region_upper) == 3 and region_upper.isalpha():
-        logging.warning(f"ISO3 country code '{region_upper}' provided, but database query not available. "
-                       "Please provide a vector file instead.")
-        return None
-
-    raise ValueError(f"Could not parse region: {region_str}")
-
 
 def collect_columns(args, available_cols: List[str]) -> tuple[Optional[List[str]], Dict[str, List[str]]]:
     """

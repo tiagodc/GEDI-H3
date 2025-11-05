@@ -8,7 +8,7 @@ import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon
 import warnings
 from pqdm.processes import pqdm
-from dask.distributed import progress, get_client
+from dask.distributed import progress
 
 # Import configuration variables
 from .config import GH3_DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS

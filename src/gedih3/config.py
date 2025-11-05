@@ -10,6 +10,8 @@ def get_package_data_path(filename):
     except ModuleNotFoundError:
         return Path(__file__).parent.joinpath('data', filename)
 
+ISO3_COUNTRIES_URL = "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/country_shapes/exports/geojson/"
+
 # Default download directories
 # GH3_DEFAULT_DOWNLOAD_DIR = str(Path.home() / 'gedih3_db')
 GH3_DEFAULT_DOWNLOAD_DIR = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp'
