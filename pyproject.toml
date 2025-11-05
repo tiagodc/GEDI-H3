@@ -40,7 +40,7 @@ dependencies = [
 [tool.setuptools]
 packages = ["gedih3"]
 package-dir = {"" = "src"}
-script-files = ["bin/gh3_build.py", "bin/gh3_download.py"]
+script-files = ["bin/gh3_build.py", "bin/gh3_download.py", "bin/gh3_extract.py"]
 
 [tool.setuptools.package-data]
 gedih3 = ["data/*.txt", "data/*.json", "data/*.parquet"]

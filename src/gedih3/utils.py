@@ -1,5 +1,4 @@
 from datetime import datetime
-from itertools import chain
 import os
 import psutil
 import pyarrow

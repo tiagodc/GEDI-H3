@@ -1,7 +1,12 @@
 import os
-from .config import GEDI_PRODUCTS, ISO3_COUNTRIES_URL
-from .utils import read_vector_file
+import re
+import geopandas as gpd
 from typing import Optional
+
+from .config import GEDI_PRODUCTS, ISO3_COUNTRIES_URL
+from .utils import read_vector_file, parse_spatial
+from .gedidriver import gedi_vars_expand
+from .gh3driver import gh3_read_meta
 
 def parse_gedi_args(args):
     prod_vars = {}
@@ -16,9 +21,9 @@ def parse_dask_args(args):
     if args.dask_scheduler:
         dask_args['address'] = args.dask_scheduler
     else:
-        dask_args['n_workers'] = args.n_cpus
+        dask_args['n_workers'] = args.cores
         dask_args['threads_per_worker'] = args.threads
-        dask_args['memory_limit'] = f"{args.ram}GB" if args.ram else None
+        dask_args['memory_limit'] = f"{args.memory}GB" if args.memory else None
         dask_args['dashboard_address'] = f":{args.port}" if args.port else None
     return dask_args    
 
@@ -26,10 +31,6 @@ def parse_region(region_str: Optional[str]):
     """Parse region argument into GeoDataFrame or bbox"""
     if region_str is None:
         return None
-
-    import geopandas as gpd
-    from shapely.geometry import box
-    from gedih3.utils import parse_spatial
 
     # Try as file path
     if os.path.isfile(region_str):
@@ -67,3 +68,77 @@ def parse_region(region_str: Optional[str]):
             raise ValueError(f"Invalid ISO3 code: {iso3}")
 
     raise ValueError(f"Invalid region specification: {region_str}")
+
+def collect_columns(args):
+    """
+    Collect all requested variables from command line arguments and validate against available columns.
+    Returns: (column_list, product_map)
+    """
+    
+    h3_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)        
+    read_cols = []
+    
+    if args.list is not None:
+        if len(args.list) == 1 and os.path.isfile(args.list[0]):
+            with open(args.list[0], 'r') as f:
+                read_cols += list({line.strip() for line in f if line.strip() and not line.strip().startswith('#')})
+        else:
+            read_cols += list({v.strip() for v in args.list if v.strip()})
+
+        missing = [v for v in read_cols if v not in h3_columns]
+        if missing:
+            raise ValueError(f"The following variables from --list were not found: {', '.join(missing)}")
+
+    product_map = {i: getattr(args, i.lower()) for i in ['L1B', 'L2A', 'L2B', 'L4A', 'L4C'] if getattr(args, i.lower()) is not None}
+    prod_vars = gedi_vars_expand(product_map)
+
+    for prod, vars in prod_vars.items(): 
+        if vars is None:
+            vars = [i for i in h3_columns if i.endswith(f"_{prod.lower()}")]            
+        elif len(vars) == 1 and os.path.isfile(vars[0]):
+            with open(vars[0], 'r') as f:
+                file_vars = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
+            vars = file_vars
+        
+        for var in vars:
+            if '*' in var:
+                var = var.replace('*', '.*')
+            if not var.endswith(f"_{prod.lower()}"):
+                var = f"{var}_{prod.lower()}"
+            
+            h3_vars = [col for col in h3_columns if re.match(var, col)]
+
+            if len(h3_vars) == 0:
+                raise ValueError(f"Variable '{var}' from --{prod.lower()} not found in database columns")
+
+            read_cols += h3_vars
+
+    if args.geo or args.region:
+        read_cols.append('geometry')
+        
+    if args.add_datetime or args.time_start or args.time_end:
+        read_cols.append('datetime')    
+
+    return list(set(read_cols))
+
+def build_query_string(args):
+    """Build pandas query string from arguments"""
+    
+    h3_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)
+    queries = []
+
+    # Quality filter
+    if args.quality:
+        queries += [f"{i} == 1" for i in h3_columns if 'quality_flag' in i]
+
+    # Temporal filters
+    if args.time_start:
+        queries.append(f"datetime >= '{args.time_start}'")
+    if args.time_end:
+        queries.append(f"datetime <= '{args.time_end}'")
+        
+    # Custom query
+    if args.query:
+        queries.append(f"({args.query})")
+
+    return " & ".join(queries) if queries else None

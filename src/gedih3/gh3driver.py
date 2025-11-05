@@ -70,7 +70,11 @@ def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR):
     if region is not None:
         h3_ids = intersect_h3_geometries(region, h3_ids=h3_ids)
         h3_filter['filters'] = [(h3_part_col,'in',h3_ids)]
-    
+
+        if 'columns' in h3_filter:
+            if 'geometry' not in h3_filter['columns']:
+                h3_filter['columns'].append('geometry')
+
     ddf = dask_geopandas.read_parquet(gh3_dir, 
                                       calculate_divisions=False, 
                                       split_row_groups=False, 
@@ -83,6 +87,9 @@ def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR):
         ddf = ddf.query(query)
         if out_cols is not None:
             ddf = ddf[out_cols]
+    
+    if region is not None:
+        ddf = ddf.clip(region)
 
     return ddf
 
