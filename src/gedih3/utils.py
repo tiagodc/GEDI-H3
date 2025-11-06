@@ -12,6 +12,18 @@ from typing import Union, List, Dict, Optional, Tuple, Any
 # - numpy: used in parquet_merge_files
 # - dask.distributed: used in get_dask_client
 
+def get_package_version():
+    """Get the current package version"""
+    try:
+        from importlib.metadata import version
+        return version('gedih3')
+    except ImportError:
+        try:
+            from . import __version__
+            return __version__
+        except:
+            return "unknown"
+
 def now():
     return datetime.now().isoformat()
 

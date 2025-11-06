@@ -41,6 +41,7 @@ dependencies = [
 gh3_build = "gedih3.cli.gh3_build:main"
 gh3_download = "gedih3.cli.gh3_download:main"
 gh3_extract = "gedih3.cli.gh3_extract:main"
+gh3_aggregate = "gedih3.cli.gh3_aggregate:main"
 
 [tool.setuptools]
 packages = ["gedih3", "gedih3.cli"]

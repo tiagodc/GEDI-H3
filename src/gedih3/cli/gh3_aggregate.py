@@ -1,5 +1,5 @@
 #! python
-DEBUG=True
+DEBUG=False
 
 """
 GEDI H3 Data Extraction Tool
@@ -16,6 +16,8 @@ import os
 import sys
 import argparse
 
+TIME_UNITS = ['years', 'months', 'weeks', 'days']
+
 def get_cmd_args():
     """Parse command line arguments for GEDI data extraction"""
     p = argparse.ArgumentParser(
@@ -29,6 +31,20 @@ def get_cmd_args():
                    help="output file format [default = parquet]")
     p.add_argument("-m", "--merge", dest="merge", required=False, action='store_true', 
                    help="merge all partitions and export to single file")
+
+    # Aggregation options
+    p.add_argument("-h3", "--h3-level", dest="h3_level", type=int, required=not DEBUG,
+                   help="aggregate to target H3 resolution level [0-15, lower = coarser]")
+    p.add_argument("-a", "--aggregate", dest="aggregate", required=not DEBUG, type=str, default="mean",
+        help=(
+            "aggregation spec for pandas GroupBy.agg. Accepts any valid pandas aggregator, e.g.\n"
+            "  - 'mean' (single function)\n"
+            "  - ['mean', 'std'] (list of functions)\n"
+            "  - {'var1': 'mean', 'var2': ['min', 'max']} (per-column mapping)\n"
+            "  - callable(s) when used programmatically\n"
+            "[default = mean]"
+        ),
+    )
 
     # Spatial filtering
     p.add_argument("-r", "--region", dest="region", required=False, type=str, default=None,
@@ -49,17 +65,15 @@ def get_cmd_args():
     p.add_argument("-l4c", "--l4c", dest="l4c", nargs='+', type=str, default=None,
                    help="GEDI L4C variables to export [space-separated list]")
 
-    # Geometry options
-    p.add_argument("-g", "--geo", dest="geo", required=False, action='store_true',
-                   help="export as georeferenced points (requires lat/lon columns)")
-
     # Temporal filtering
-    p.add_argument("-t", "--time", dest="add_datetime", required=False, action='store_true',
-                   help="add human-readable 'datetime' column to output")
     p.add_argument("-t0", "--time-start", dest="time_start", type=str, default=None,
                    help="start date to filter shots [YYYY-MM-DD]")
     p.add_argument("-t1", "--time-end", dest="time_end", type=str, default=None,
                    help="end date to filter shots [YYYY-MM-DD]")
+    p.add_argument("-ti", "--time_interval", dest="time_interval", type=int, default=0, required=False, 
+                   help="generate outputs in the given time interval")
+    p.add_argument("-tu", "--time_units", dest="time_units", type=str, default='years', required=False, 
+                   choices=TIME_UNITS, help="time interval units")
 
     # Data filtering
     p.add_argument("-q", "--query", dest="query", required=False, type=str, default=None,
@@ -127,7 +141,7 @@ def main():
         
         if not args.quiet:
             print("\n" + "="*70)
-            print(" GEDI H3 Data Extraction Tool".center(70))
+            print(" GEDI H3 Data Aggregation Tool".center(70))
 
             print(f" gedih3 v{_gh3_version}".center(70))
             print("="*70 + "\n")
@@ -146,10 +160,6 @@ def main():
             print(f"ERROR: Database directory not found: {args.database}")
             print("Please specify a valid database path with -d/--database")
             sys.exit(1)
-
-        # Read metadata
-        if not os.path.exists( os.path.join(args.database, "gedih3_build_log.json") ):
-            raise FileNotFoundError("Could not read database metadata. Invalid database?")
 
         # Parse region
         if args.region:
@@ -182,7 +192,8 @@ def main():
 
             # Load data
             if not args.quiet:
-                print("Loading data from H3 database...")
+                print("Loading data from H3 dataset...")
+
             ddf = gh3.gh3_load(
                 columns=columns,
                 region=region,
@@ -193,13 +204,24 @@ def main():
             if not args.quiet:
                 print(f"  Loaded {ddf.npartitions} partitions")
 
+            if not args.quiet:
+                print("Aggregating data...")
+
+            numeric_columns = [col for col in ddf.columns if ddf[col].dtype.kind in 'biufc']
+            aggdf = gh3.gh3_aggregate(ddf, 
+                                      target_res=args.h3_level,
+                                      agg=args.aggregate,
+                                      columns=numeric_columns,
+                                      add_geometry=True
+                                      )
+
             # Export
             if not args.quiet:
                 print("Exporting data...")
+
             part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
             h3_col = f'h3_{part:02d}'
-            
-            write_task = ddf.to_parquet(args.output,
+            write_task = aggdf.to_parquet(args.output,
                                         write_metadata_file=True,
                                         write_index=True,
                                         overwrite=True,
@@ -215,10 +237,7 @@ def main():
             
             if len(ofiles) == 0:
                 raise RuntimeError("No output files were created.")
-
-            print("Writing dataset metadata")
-            gh3.gh3_write_meta(opath=args.output, tool='gh3_extract', filter=query_str)
-
+            
             if not args.quiet:
                 print(f"\n{'='*70}")
                 print(f" SUCCESS: Data exported to {args.output}")

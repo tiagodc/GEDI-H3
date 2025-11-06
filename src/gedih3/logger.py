@@ -4,7 +4,7 @@ from typing import Dict
 from datetime import datetime
 
 from .config import GEDI_PRODUCTS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR
-from .utils import now, json_read, json_write, read_vector_file, to_geojson, from_geojson, parse_spatial, merge_spatial, parse_temporal
+from .utils import now, json_read, json_write, read_vector_file, to_geojson, from_geojson, parse_spatial, merge_spatial, parse_temporal, get_package_version
 from .h3utils import intersect_h3_geometries
 from .gedidriver import GEDIFile, gedi_vars_expand, soc_file_tree, check_soc_file_vars, validate_soc_files
 from .gh3driver import gh3_list_files
@@ -19,18 +19,6 @@ _VALID_STATUSES = (
     'INTERRUPTED',
     'UNKNOWN'
 )
-
-def get_package_version():
-    """Get the current package version"""
-    try:
-        from importlib.metadata import version
-        return version('gedih3')
-    except ImportError:
-        try:
-            from . import __version__
-            return __version__
-        except:
-            return "unknown"
 
 def load_log_data(file_path):
     if os.path.exists(file_path):

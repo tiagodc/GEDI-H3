@@ -89,7 +89,7 @@ def collect_columns(args):
         if missing:
             raise ValueError(f"The following variables from --list were not found: {', '.join(missing)}")
 
-    product_map = {i: getattr(args, i.lower()) for i in ['L1B', 'L2A', 'L2B', 'L4A', 'L4C'] if getattr(args, i.lower()) is not None}
+    product_map = {i: getattr(args, i.lower()) for i in GEDI_PRODUCTS.keys() if getattr(args, i.lower()) is not None}
     prod_vars = gedi_vars_expand(product_map)
 
     for prod, vars in prod_vars.items(): 
