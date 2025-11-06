@@ -133,11 +133,14 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
 
     return agg_df
 
-def gh3_export_part(df, odir, h3_partition_level, fmt='parquet'):
+def gh3_export_part(df, odir, fmt='parquet'):
     import h3pandas
     os.makedirs(odir, exist_ok=True)
-    h3parent = h3.cell_to_parent(df.index[0], res=h3_partition_level)
+    
+    h3_partition_level = gh3_part_from_df(df)
+    h3parent = df[h3_partition_level].iloc[0]
     opath = os.path.join(odir, f"{h3parent}.{fmt}")
+    
     if is_parquet(opath):
         df.to_parquet(opath)
     else:
