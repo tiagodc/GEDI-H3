@@ -1,4 +1,4 @@
-import os,duckdb
+import os, duckdb
 
 from .config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR
 from .utils import get_system_resources

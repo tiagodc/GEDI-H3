@@ -1,5 +1,5 @@
 #! python
-DEBUG=True
+DEBUG=False
 
 """
 GEDI H3 Data Extraction Tool

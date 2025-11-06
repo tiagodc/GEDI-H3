@@ -1,6 +1,5 @@
 import os
 import re
-import geopandas as gpd
 from typing import Optional
 
 from .config import GEDI_PRODUCTS, ISO3_COUNTRIES_URL
@@ -58,6 +57,7 @@ def parse_region(region_str: Optional[str]):
     if len(region_str) == 3 and region_str.isalpha():
         iso3 = region_str.upper()
         try:
+            import geopandas as gpd
             world = gpd.read_file(ISO3_COUNTRIES_URL)
             match = world[world['iso3'] == iso3]
             if not match.empty:
