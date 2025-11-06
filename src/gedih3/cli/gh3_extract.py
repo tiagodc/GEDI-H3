@@ -98,14 +98,14 @@ def get_cmd_args():
     # Debug options
     p.add_argument("-D", "--debug", dest="debug", required=False, action='store_true',
                    help="enable debug logging")
-    p.add_argument("-v", "--verbose", dest="verbose", required=False, action='store_true',
-                   help="verbose output")
+    p.add_argument("-Q", "--quiet", dest="quiet", required=False, action='store_true',
+                   help="quiet output")
 
     return p.parse_args()
 
-if __name__ == '__main__':
+def main():
     if DEBUG:
-        sys.path.insert(0, os.path.abspath('./src/'))       
+        sys.path.insert(0, os.path.abspath('./src/'))
 
     args = get_cmd_args()
     
@@ -131,11 +131,12 @@ if __name__ == '__main__':
         from gedih3.cliutils import collect_columns, build_query_string, parse_region, parse_dask_args
         from gedih3.config import GH3_DEFAULT_H3_DIR
         
-        print("\n" + "="*70)
-        print(" GEDI H3 Data Extraction Tool".center(70))
+        if not args.quiet:
+            print("\n" + "="*70)
+            print(" GEDI H3 Data Extraction Tool".center(70))
 
-        print(f" gedih3 v{_gh3_version}".center(70))
-        print("="*70 + "\n")
+            print(f" gedih3 v{_gh3_version}".center(70))
+            print("="*70 + "\n")
 
         # Configure database path
         if args.database:
@@ -143,7 +144,8 @@ if __name__ == '__main__':
         else:
             args.database = GH3_DEFAULT_H3_DIR
 
-        print(f"Database: {args.database}")
+        if not args.quiet:
+            print(f"Database: {args.database}")
 
         # Verify database exists
         if not os.path.exists(args.database):
@@ -157,30 +159,36 @@ if __name__ == '__main__':
 
         # Parse region
         if args.region:
-            print(f"Parsing region: {args.region}")
+            if not args.quiet:
+                print(f"Parsing region: {args.region}")
             region = parse_region(args.region)
 
         # Collect columns
-        print("Collecting variables...")
+        if not args.quiet:
+            print("Collecting variables...")
         columns = collect_columns(args)
 
         if len(columns) > 0:
-            print(f"  Total variables: {len(columns)}")
+            if not args.quiet:
+                print(f"  Total variables: {len(columns)}")
         else:
             raise ValueError("No variables selected for extraction. Please specify variables with -l/--list or product-specific options.")
 
         # Build query
         query_str = build_query_string(args)
         if query_str:
-            print(f"Query filter: {query_str}")
+            if not args.quiet:
+                print(f"Query filter: {query_str}")
 
         dask_kwargs = parse_dask_args(args)
 
         with Client(**dask_kwargs) as client:
-            print("Dask dashboard available at:", client.dashboard_link)
+            if not args.quiet:
+                print("Dask dashboard available at:", client.dashboard_link)
 
             # Load data
-            print("Loading data from H3 database...")
+            if not args.quiet:
+                print("Loading data from H3 database...")
             ddf = gh3.gh3_load(
                 columns=columns,
                 region=region,
@@ -188,10 +196,12 @@ if __name__ == '__main__':
                 gh3_dir=args.database
             )
 
-            print(f"  Loaded {ddf.npartitions} partitions")
+            if not args.quiet:
+                print(f"  Loaded {ddf.npartitions} partitions")
 
             # Export
-            print("Exporting data...")
+            if not args.quiet:
+                print("Exporting data...")
             part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
             h3_col = f'h3_{part:02d}'
             
@@ -212,9 +222,10 @@ if __name__ == '__main__':
             if len(ofiles) == 0:
                 raise RuntimeError("No output files were created.")
             
-            print(f"\n{'='*70}")
-            print(f" SUCCESS: Data exported to {args.output}")
-            print(f"{'='*70}\n")
+            if not args.quiet:
+                print(f"\n{'='*70}")
+                print(f" SUCCESS: Data exported to {args.output}")
+                print(f"{'='*70}\n")
 
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user.")
@@ -226,3 +237,6 @@ if __name__ == '__main__':
             import traceback
             traceback.print_exc()
         sys.exit(1)
+
+if __name__ == '__main__':
+    main()

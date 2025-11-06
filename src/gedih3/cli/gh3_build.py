@@ -37,10 +37,10 @@ def get_cmd_args():
     cmdargs = p.parse_args()
     return cmdargs
 
-if __name__ == "__main__":
+def main():
     import argparse, os
     args = get_cmd_args()
-    
+
     if DEBUG:
         # args.spatial = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/roi.parquet'
         # args.h3_resolution = 12
@@ -148,3 +148,6 @@ if __name__ == "__main__":
         except Exception as e:
             h3_logger.save_log('FAILED')
             raise e
+
+if __name__ == "__main__":
+    main()

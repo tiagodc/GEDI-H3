@@ -33,10 +33,10 @@ def get_cmd_args():
     cmdargs = p.parse_args()
     return cmdargs
 
-if __name__ == "__main__":
+def main():
     import argparse, os
     args = get_cmd_args()
-    
+
     if DEBUG:
         args.box = [-51,0,-50,1]
         # args.date_start = '2019-01-01'
@@ -114,3 +114,6 @@ if __name__ == "__main__":
         except Exception as e:
             soc_logger.save_log('FAILED')
             raise e
+
+if __name__ == "__main__":
+    main()

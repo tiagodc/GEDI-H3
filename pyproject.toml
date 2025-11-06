@@ -37,10 +37,14 @@ dependencies = [
     "pyyaml",
 ]
 
+[project.scripts]
+gh3_build = "gedih3.cli.gh3_build:main"
+gh3_download = "gedih3.cli.gh3_download:main"
+gh3_extract = "gedih3.cli.gh3_extract:main"
+
 [tool.setuptools]
-packages = ["gedih3"]
+packages = ["gedih3", "gedih3.cli"]
 package-dir = {"" = "src"}
-script-files = ["bin/gh3_build.py", "bin/gh3_download.py", "bin/gh3_extract.py"]
 
 [tool.setuptools.package-data]
 gedih3 = ["data/*.txt", "data/*.json", "data/*.parquet"]
