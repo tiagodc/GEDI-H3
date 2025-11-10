@@ -113,10 +113,12 @@ def collect_columns(args):
 
             read_cols += h3_vars
 
-    if args.geo or args.region:
+    geo_flag = hasattr(args, 'geo') and args.geo    
+    if geo_flag or args.region:
         read_cols.append('geometry')
-        
-    if args.add_datetime or args.time_start or args.time_end:
+    
+    date_flag = hasattr(args, 'add_datetime') and args.add_datetime
+    if date_flag or args.time_start or args.time_end:
         read_cols.append('datetime')    
 
     return list(set(read_cols))

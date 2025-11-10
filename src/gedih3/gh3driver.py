@@ -115,30 +115,42 @@ def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR):
     ddf[h3_part_col] = ddf[h3_part_col].astype(str)
     return ddf
 
-def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, add_geometry=True, **kwargs):
+def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, add_geometry=True, repartition=False, **kwargs):
     _meta = gh3_aggregate_func(df=gh3_df.head(npartitions=min(gh3_df.npartitions, 10)), res=target_res, agg=agg, cols=columns, **kwargs)
 
     if query is not None:
         gh3_df = gh3_df.query(query)
     
     h3part = gh3_part_from_df(gh3_df)
+    h3agg = f"h3_{target_res:02d}"
     agg_df = gh3_df.groupby(h3part, observed=True).apply(gh3_aggregate_func, res=target_res, agg=agg, cols=columns, include_groups=False, meta=_meta, **kwargs)
-    agg_df = agg_df.reset_index().set_index(f"h3_{target_res:02d}", sort=False)
+    agg_df = agg_df.reset_index().set_index(h3agg, sort=False)
     
     if add_geometry:
         _gmeta = gpd.GeoDataFrame(columns=[h3part] + agg_df._meta.columns.tolist() + ['geometry'], geometry='geometry', crs=4326)
         agg_df = agg_df.map_partitions(gh3_add_geometry, meta=_gmeta)
         if isinstance(agg_df, dask.dataframe.DataFrame):
             agg_df = dask_geopandas.from_dask_dataframe(agg_df)
+            
+    if repartition:
+        uparts = sorted(gh3_df[h3part].unique().compute().tolist())
+        agg_df.index = agg_df.index.rename(h3agg)
+        agg_df = agg_df.reset_index().set_index(h3part, sort=False, divisions=uparts + uparts[-1:])
+        agg_df = agg_df.reset_index().set_index(h3agg, sort=False)
 
     return agg_df
 
+
 def gh3_export_part(df, odir, fmt='parquet'):
     import h3pandas
-    os.makedirs(odir, exist_ok=True)
+    os.makedirs(odir, exist_ok=True)    
+        
+    if hasattr(df, 'name') and df.name is not None:
+        h3parent = df.name
+    else:
+        h3_partition_level = gh3_part_from_df(df)
+        h3parent = df[h3_partition_level].iloc[0]
     
-    h3_partition_level = gh3_part_from_df(df)
-    h3parent = df[h3_partition_level].iloc[0]
     opath = os.path.join(odir, f"{h3parent}.{fmt}")
     
     if is_parquet(opath):

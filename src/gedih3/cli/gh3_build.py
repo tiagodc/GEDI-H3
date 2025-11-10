@@ -28,11 +28,19 @@ def get_cmd_args():
         
     p.add_argument("-D", "--dask-scheduler", dest="dask_scheduler", type=str, default=None, required=False, help="existing dask scheduler address, e.g. tcp://localhost:8786")
 
-    n = max(1, os.cpu_count() // 2)
-    p.add_argument("-N", "--n-cpus", dest="n_cpus", required=False, type=int, default=n, help=f"number of cpu cores to use [default = {n}]")
-    p.add_argument("-T", "--threads", dest="threads", required=False, type=int, default=1, help="number of threads per cpu [default = 1]")
-    p.add_argument("-R", "--ram", dest="ram", required=False, type=int, default=None, help="maximum RAM usage per cpu - in Giga Bytes")
-    p.add_argument("-P", "--port", dest="port", required=False, type=int, default=None, help="port where to open dask dashboard")
+    from gedih3.utils import get_system_resources
+    cpus, ram, storage = get_system_resources()
+    n = max(1, cpus // 4)
+    m = int(max(1, ram / n))
+    
+    p.add_argument("-N", "--cores", dest="cores", required=False, type=int, default=n,
+                   help=f"number of CPU cores to use [default = {n}]")
+    p.add_argument("-T", "--threads", dest="threads", required=False, type=int, default=1,
+                   help="number of threads per CPU core [default = 1]")
+    p.add_argument("-M", "--memory", dest="memory", required=False, type=int, default=m,
+                   help=f"memory limit per worker in GB [default = {m}]")
+    p.add_argument("-P", "--port", dest="port", required=False, type=int, default=8787,
+                   help="port for Dask dashboard [default = 8787]")
     
     cmdargs = p.parse_args()
     return cmdargs

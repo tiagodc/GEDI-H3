@@ -152,6 +152,7 @@ def main():
             raise FileNotFoundError("Could not read database metadata. Invalid database?")
 
         # Parse region
+        region = None
         if args.region:
             if not args.quiet:
                 print(f"Parsing region: {args.region}")

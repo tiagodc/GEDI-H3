@@ -21,8 +21,13 @@ TIME_UNITS = ['years', 'months', 'weeks', 'days']
 def get_cmd_args():
     """Parse command line arguments for GEDI data extraction"""
     p = argparse.ArgumentParser(
-        description="Extract and filter spatially indexed GEDI shots from H3 parquet database"
+        description="Extract and filter spatially indexed GEDI shots from H3 parquet database",
+        formatter_class=argparse.RawTextHelpFormatter
     )
+
+    # Database configuration
+    p.add_argument("-d", "--database", dest="database", required=False, type=str, default=None,
+                   help="path to H3 database directory [default from config or environment]")
 
     # Output configuration
     p.add_argument("-o", "--output", dest="output", required=not DEBUG, type=str, 
@@ -81,10 +86,6 @@ def get_cmd_args():
     p.add_argument("-y", "--quality", dest="quality", required=False, action='store_true',
                    help="apply quality filtering (quality_flag_l2a == 1)")
 
-    # Database configuration
-    p.add_argument("-d", "--database", dest="database", required=False, type=str, default=None,
-                   help="path to H3 database directory [default from config or environment]")
-
     # Computation settings
     p.add_argument("-s", "--dask-scheduler", dest="dask_scheduler", required=False, type=str, default=None,
                    help=f"dask scheduler address (overrides local cluster settings) [default = None]")
@@ -132,6 +133,7 @@ def main():
     
     try:    
         import glob
+        import pandas as pd
         from dask.distributed import Client, progress
         
         from gedih3 import __version__ as _gh3_version
@@ -162,6 +164,7 @@ def main():
             sys.exit(1)
 
         # Parse region
+        region = None
         if args.region:
             if not args.quiet:
                 print(f"Parsing region: {args.region}")
@@ -212,7 +215,8 @@ def main():
                                       target_res=args.h3_level,
                                       agg=args.aggregate,
                                       columns=numeric_columns,
-                                      add_geometry=True
+                                      add_geometry=True,
+                                      repartition=not args.merge
                                       )
 
             # Export
@@ -221,14 +225,23 @@ def main():
 
             part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
             h3_col = f'h3_{part:02d}'
-            write_task = aggdf.to_parquet(args.output,
-                                        write_metadata_file=True,
-                                        write_index=True,
-                                        overwrite=True,
-                                        compression='zstd',
-                                        partition_on=[h3_col],
-                                        compute=False
+            
+            print("... testing exporter")
+            write_task = aggdf.groupby(h3_col, observed=True).apply(gh3.gh3_export_part,
+                                        odir=args.output,
+                                        fmt=args.format,
+                                        include_groups=False,
+                                        meta=pd.Series(dtype=str),
                                         )
+            
+            # write_task = aggdf.to_parquet(args.output,
+            #                             write_metadata_file=True,
+            #                             write_index=True,
+            #                             overwrite=True,
+            #                             compression='zstd',
+            #                             partition_on=[h3_col],
+            #                             compute=False
+            #                             )
             
             write_task = write_task.persist()
             progress(write_task)
