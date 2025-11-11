@@ -7,6 +7,20 @@ from .utils import read_vector_file, parse_spatial
 from .gedidriver import gedi_vars_expand
 from .gh3driver import gh3_read_meta
 
+VALID_FORMATS = ['parquet', 'shp', 'geojson', 'gpkg', 'txt', 'csv', 'h5', 'hdf5']
+
+def parse_file_format(args, default='parquet'):
+    file_format = args.output.split('.')[-1].lower() if args.output else None    
+    
+    if file_format in VALID_FORMATS:
+        fmt = file_format
+    else:    
+        fmt = args.format.lower() if args.format else default
+    
+    if fmt not in VALID_FORMATS:
+        raise ValueError(f"Invalid file format: {fmt}. Supported formats are: {', '.join(VALID_FORMATS)}")
+    return fmt    
+
 def parse_gedi_args(args):
     prod_vars = {}
     for k in GEDI_PRODUCTS.keys():

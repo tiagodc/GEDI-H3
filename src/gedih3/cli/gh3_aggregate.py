@@ -36,6 +36,9 @@ def get_cmd_args():
                    help="output file format [default = parquet]")
     p.add_argument("-m", "--merge", dest="merge", required=False, action='store_true', 
                    help="merge all partitions and export to single file")
+    p.add_argument("-H", "--hive", dest="hive", required=False, action='store_true', 
+                   help="export output in hive-compatible directory structure (only for Parquet format)")
+
 
     # Aggregation options
     p.add_argument("-h3", "--h3-level", dest="h3_level", type=int, required=not DEBUG,
@@ -138,7 +141,8 @@ def main():
         
         from gedih3 import __version__ as _gh3_version
         import gedih3.gh3driver as gh3
-        from gedih3.cliutils import collect_columns, build_query_string, parse_region, parse_dask_args
+        from gedih3.utils import is_hive_directory
+        from gedih3.cliutils import collect_columns, build_query_string, parse_region, parse_dask_args, parse_file_format
         from gedih3.config import GH3_DEFAULT_H3_DIR
         
         if not args.quiet:
@@ -161,7 +165,10 @@ def main():
         if not os.path.exists(args.database):
             print(f"ERROR: Database directory not found: {args.database}")
             print("Please specify a valid database path with -d/--database")
-            sys.exit(1)
+            sys.exit(1)        
+        
+        # Parse format
+        args.format = parse_file_format(args)
 
         # Parse region
         region = None
@@ -209,8 +216,10 @@ def main():
 
             if not args.quiet:
                 print("Aggregating data...")
-
+            
+            from_hive = is_hive_directory(args.database, match_str=r'h3_.+=.+')
             numeric_columns = [col for col in ddf.columns if ddf[col].dtype.kind in 'biufc']
+            
             aggdf = gh3.gh3_aggregate(ddf, 
                                       target_res=args.h3_level,
                                       agg=args.aggregate,
@@ -226,37 +235,46 @@ def main():
             part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
             h3_col = f'h3_{part:02d}'
             
-            print("... testing exporter")
-            write_task = aggdf.groupby(h3_col, observed=True).apply(gh3.gh3_export_part,
-                                        odir=args.output,
-                                        fmt=args.format,
-                                        include_groups=False,
-                                        meta=pd.Series(dtype=str),
-                                        )
-            
-            # Ensure H3 index is string type for proper Parquet serialization            
-            # write_task = aggdf.to_parquet(args.output,
-            #                             write_metadata_file=True,
-            #                             write_index=True,
-            #                             overwrite=True,
-            #                             compression='zstd',
-            #                             partition_on=[h3_col],
-            #                             compute=False,
-            #                             schema='infer'
-            #                             )
+            if args.merge:
+                write_task = aggdf
+            elif args.hive:
+                write_task = aggdf.to_parquet(args.output,
+                                            write_metadata_file=True,
+                                            write_index=True,
+                                            overwrite=True,
+                                            compression='zstd',
+                                            partition_on=[h3_col],
+                                            compute=False
+                                            )
+            else:
+                write_task = aggdf.groupby(h3_col, observed=True).apply(gh3.gh3_export_part,
+                            odir=args.output,
+                            fmt=args.format,
+                            include_groups=False,
+                            meta=pd.Series(dtype=str)
+                            )
             
             write_task = write_task.persist()
             progress(write_task)
             
-            ofiles = glob.glob(f"{args.output}/**/*.parquet", recursive=True)
+            if args.merge:
+                aggdf = aggdf.compute()
+                opath = gh3.gh3_export_part(aggdf, odir=args.output, fmt=args.format, is_file_path=True)
+                
+                if not args.quiet:
+                    print(f"\n{'='*70}")
+                    print(f" SUCCESS: merged files exported to {opath}")
+                    print(f"{'='*70}\n")
             
-            if len(ofiles) == 0:
-                raise RuntimeError("No output files were created.")
-            
-            if not args.quiet:
-                print(f"\n{'='*70}")
-                print(f" SUCCESS: {len(ofiles)} files exported to {args.output}")
-                print(f"{'='*70}\n")
+            else:
+                ofiles = glob.glob(f"{args.output}/**/*.parquet", recursive=True)                
+                if len(ofiles) == 0:
+                    raise RuntimeError("No output files were created.")
+                
+                if not args.quiet:
+                    print(f"\n{'='*70}")
+                    print(f" SUCCESS: {len(ofiles)} files exported to {args.output}")
+                    print(f"{'='*70}\n")
 
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user.")

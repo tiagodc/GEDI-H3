@@ -48,6 +48,17 @@ def json_read(path, mode='r'):
 def is_parquet(file: str) -> bool:
     return file.lower().endswith(('.parquet','.parq','.pq'))
 
+def is_hive_directory(dir_path: str, match_str=r'.+=.+') -> bool:
+    if not os.path.isdir(dir_path):
+        return False
+    subdirs = os.listdir(dir_path)    
+    subdirs = [d for d in subdirs if os.path.isdir(os.path.join(dir_path, d))]
+    if match_str is not None:
+        import re
+        pattern = re.compile(match_str)
+        subdirs = [d for d in subdirs if pattern.match(d)]
+    return len(subdirs) > 0    
+
 def read_parquet_schema(path):
     """
     path: parquet file path

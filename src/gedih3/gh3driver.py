@@ -53,7 +53,11 @@ def gh3_part_from_df(df):
 def gh3_aggregate_func(df, res, agg='mean', cols=None, **kwargs):
     import h3pandas
     h3col = f"h3_{res:02d}"
-    g = df.h3.h3_to_parent(resolution=res).groupby(h3col, observed=True)
+    if df.index.name == h3col:
+        g = df.groupby(h3col, observed=True)
+    else:
+        g = df.h3.h3_to_parent(resolution=res).groupby(h3col, observed=True)
+    
     if cols is not None:
         g = g[cols]
     out = g.apply(agg, include_groups=False, **kwargs) if callable(agg) else g.agg(agg)
@@ -61,7 +65,9 @@ def gh3_aggregate_func(df, res, agg='mean', cols=None, **kwargs):
     if isinstance(out.columns, pd.MultiIndex):
         out.columns = ['_'.join(map(str, col)).strip() for col in out.columns.values]
 
-    return out#.reset_index()
+    if isinstance(out.index, pd.MultiIndex):
+        out.index = out.index.get_level_values(0)
+    return out
 
 def gh3_add_geometry(df):
     geo = [fix_h3_geometry(i) for i in df.index]
@@ -123,6 +129,10 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
     
     h3part = gh3_part_from_df(gh3_df)
     h3agg = f"h3_{target_res:02d}"
+    
+    _meta[h3part] = h3part
+    _meta = _meta.reset_index().set_index([h3part, h3agg])
+    
     agg_df = gh3_df.groupby(h3part, observed=True).apply(gh3_aggregate_func, res=target_res, agg=agg, cols=columns, include_groups=False, meta=_meta, **kwargs)
     agg_df = agg_df.reset_index().set_index(h3agg, sort=False)
     
@@ -142,22 +152,35 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
     return agg_df
 
 
-def gh3_export_part(df, odir, fmt='parquet'):
+def gh3_export_part(df, odir, fmt='parquet', is_file_path=False):
     import h3pandas
     os.makedirs(odir, exist_ok=True)    
-        
-    if hasattr(df, 'name') and df.name is not None:
-        h3parent = df.name
-    else:
-        h3_partition_level = gh3_part_from_df(df)
-        h3parent = df[h3_partition_level].iloc[0]
     
-    opath = os.path.join(odir, f"{h3parent}.{fmt}")
+    if is_file_path:
+        odir = odir.rstrip('/')
+        opath = f"{odir}.{fmt}" if not odir.endswith(fmt) else odir
+    else:
+        if hasattr(df, 'name') and df.name.startswith('h3_'):
+            oname = df.name
+        else:
+            h3_partition_level = gh3_part_from_df(df)
+            oname = df[h3_partition_level].iloc[0]
+        
+        opath = os.path.join(odir, f"{oname}.{fmt}")
     
     if is_parquet(opath):
         df.to_parquet(opath)
-    else:
+    elif isinstance(df, gpd.GeoDataFrame):
         df.to_file(opath)
+    elif fmt == 'txt':
+        df.to_csv(opath, sep='\t')
+    elif fmt == 'csv':
+        df.to_csv(opath)
+    elif fmt in ('h5', 'hdf5'):
+        df.to_hdf(opath, key='GEDI', mode='w')
+    else:
+        raise ValueError(f"Unsupported export format: {fmt}")
+    
     return opath
 
 # def gh3_export_parts(df, out_dir, fmt=None):
