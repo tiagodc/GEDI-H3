@@ -1,7 +1,7 @@
 #! python
 DEBUG=False
 
-import os
+import argparse
 
 def get_cmd_args():
     p = argparse.ArgumentParser(description = "Download GEDI data from NASA's SOC")    

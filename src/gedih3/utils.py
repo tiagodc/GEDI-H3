@@ -354,12 +354,12 @@ def parse_spatial(spatial):
     if isinstance(spatial, dict):
         spatial = from_geojson(spatial)
     elif isinstance(spatial, str):
-        if os.path.exists(spatial):
+        if os.path.exists(spatial) or spatial.lower().startswith(('http://', 'https://', 's3://')):
             if spatial.lower().endswith(('.tif', '.tiff', '.vrt', '.geotif', '.geotiff', '.img')):
                 spatial = read_img_bounds(spatial, crs=4326)
             else:
-                spatial = read_vector_file(spatial, crs=4326)
-        else:
+                spatial = read_vector_file(spatial, crs=4326)        
+        else:            
             try:
                 spatial = from_geojson(spatial)
             except:

@@ -1,10 +1,12 @@
 #! python
 DEBUG=False
 
+import argparse
+
 def get_cmd_args():
     p = argparse.ArgumentParser(description = "Download GEDI data from NASA's SOC")    
    
-    p.add_argument("-s", "--spatial", dest="spatial", required=False, type=str, default=None, help="path to vector (.shp, .gpkg, .kml etc.) file with region of interest")
+    p.add_argument("-r", "--region", dest="region", required=False, type=str, default=None, help="path to vector (.shp, .gpkg, .kml etc.) file with region of interest")
     p.add_argument("-b", "--box", dest="box", required=False, type=int, default=None, nargs=4, help="region of interest extent (in degrees) to intersect data (xmin ymin xmax ymax)")
     p.add_argument("-d0", "--date-start", dest="date_start", required=False, type=str, default=None, help="start search date in YYYY-MM-DD format")
     p.add_argument("-d1", "--date-end", dest="date_end", required=False, type=str, default=None, help="end search date in YYYY-MM-DD format")    
@@ -18,15 +20,15 @@ def get_cmd_args():
     p.add_argument("-l4a", "--l4a", dest="l4a", nargs='+', type=str, default=None, required=False, help="GEDI L4A variables to download")
     p.add_argument("-l4c", "--l4c", dest="l4c", nargs='+', type=str, default=None, required=False, help="GEDI L4C variables to download")
 
-    p.add_argument("-o", "--outdir", dest="outdir", required=False, type=str, default=None, help="output directory for downloaded files (bypass GH3 default path)")
+    p.add_argument("-o", "--output", dest="output", required=False, type=str, default=None, help="output directory for downloaded files (bypass GH3 default path)")
     p.add_argument("-i", '--indir', dest="indir", required=False, type=str, default=None, help="path to local GEDI SOC database to build H3 from")
     p.add_argument("-t", '--tmpdir', dest="tmpdir", required=False, type=str, default=None, help="path to temporary directory for intermediate files")
     p.add_argument("-s3", "--s3", dest="s3", action='store_true', help="build from directly from the NASA DAACs S3 storage")
 
     p.add_argument("-v", "--version", dest="version", required=False, type=int, default=2, help="GEDI data version to download [default = latest version]")
-    p.add_argument("-r", "--resume", dest="resume", action='store_true', help="validate downloaded files and redownload missing or corrupted files")
+    # p.add_argument("-r", "--resume", dest="resume", action='store_true', help="validate downloaded files and redownload missing or corrupted files")
         
-    p.add_argument("-D", "--dask-scheduler", dest="dask_scheduler", type=str, default=None, required=False, help="existing dask scheduler address, e.g. tcp://localhost:8786")
+    p.add_argument("-s", "--dask-scheduler", dest="dask_scheduler", type=str, default=None, required=False, help="existing dask scheduler address, e.g. tcp://localhost:8786")
 
     from gedih3.utils import get_system_resources
     cpus, ram, storage = get_system_resources()
@@ -42,11 +44,13 @@ def get_cmd_args():
     p.add_argument("-P", "--port", dest="port", required=False, type=int, default=8787,
                    help="port for Dask dashboard [default = 8787]")
     
+    p.add_argument("-Q", "--quiet", dest="quiet", required=False, action='store_true',
+                help="quiet output")
+    
     cmdargs = p.parse_args()
     return cmdargs
 
 def main():
-    import argparse, os
     args = get_cmd_args()
 
     if DEBUG:
@@ -77,17 +81,24 @@ def main():
         import sys
         sys.path.insert(0, os.path.abspath('./src/'))
 
+    import os
     import warnings
-    import pandas as pd
+    from gedih3 import __version__ as _gh3_version
     from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_TMP_DIR
     from gedih3.cliutils import parse_gedi_args, parse_dask_args
     from gedih3.gh3builder import build_h3db
     from gedih3.logger import H3BuildLogger
     from dask.distributed import Client
     
-    if args.outdir is None:
-        args.outdir = GH3_DEFAULT_H3_DIR
-    os.makedirs(args.outdir, exist_ok=True)
+    if not args.quiet:
+        print("\n" + "="*70)
+        print(" GEDI H3 Database Builder Tool".center(70))
+        print(f" gedih3 v{_gh3_version}".center(70))
+        print("="*70 + "\n")        
+
+    if args.output is None:
+        args.output = GH3_DEFAULT_H3_DIR
+    os.makedirs(args.output, exist_ok=True)
     
     if args.indir is None:
         args.indir = GH3_DEFAULT_SOC_DIR
@@ -97,7 +108,7 @@ def main():
     os.makedirs(args.tmpdir, exist_ok=True)
 
     product_vars = parse_gedi_args(args)
-    spatial = args.spatial if args.spatial is not None else args.box    
+    spatial = args.region if args.region is not None else args.box    
     
     h3_logger = H3BuildLogger(
         product_vars=product_vars,
@@ -105,7 +116,7 @@ def main():
         res=args.h3_resolution,
         part=args.h3_partition,
         version=args.version,
-        dir=args.outdir,
+        dir=args.output,
     )
     
     if not h3_logger.product_vars and not h3_logger.updating:
@@ -121,7 +132,7 @@ def main():
         if add_vars := (h3_logger.new_product_vars is not None):
             print("Product variables updated.")            
 
-    print(f"Building GEDI H3 database at {args.outdir}")
+    print(f"Building GEDI H3 database at {args.output}")
     h3_logger.save_log('PARTITIONING')    
 
     dask_kwargs = parse_dask_args(args)
@@ -152,6 +163,11 @@ def main():
             
             h3_logger.set_post_build_info()
             h3_logger.save_log('COMPLETED')
+            
+            if not args.quiet:
+                print(f"\n{'='*70}")
+                print(f" SUCCESS: {len(h3_files)} files exported to {args.output}")
+                print(f"{'='*70}\n")
         
         except Exception as e:
             h3_logger.save_log('FAILED')

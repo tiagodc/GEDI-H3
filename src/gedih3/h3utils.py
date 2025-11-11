@@ -41,7 +41,7 @@ def intersect_h3_geometries(spatial, res=3, h3_ids=None):
     if isinstance(spatial, list):
         spatial = box(*spatial)
     elif isinstance(spatial, gpd.GeoSeries) or isinstance(spatial, gpd.GeoDataFrame):
-        spatial = spatial.to_crs(4326)
+        spatial = spatial.to_crs(4326).union_all()
 
     full_h3_list = h3_ids
     if h3_ids is None:
@@ -50,8 +50,8 @@ def intersect_h3_geometries(spatial, res=3, h3_ids=None):
     full_h3_geo = [fix_h3_geometry(i) for i in full_h3_list]
     h3_geo = gpd.GeoSeries(full_h3_geo, index=full_h3_list, crs=4326)
     
-    h3_intersects = h3_geo.geometry.apply(lambda x: spatial.intersects(x))
-    return h3_intersects[h3_intersects.values].index.tolist()
+    h3_intersects = h3_geo.sindex.query(spatial, predicate='intersects')
+    return h3_geo.index[h3_intersects].unique().tolist()
 
 def h3_index_df(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode'):    
     import h3pandas

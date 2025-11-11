@@ -56,7 +56,7 @@ def get_cmd_args():
 
     # Spatial filtering
     p.add_argument("-r", "--region", dest="region", required=False, type=str, default=None,
-                   help="path to vector (.shp, .gpkg, .kml, etc.) or raster (.tif) file with ROI, or bounding box as 'W,S,E,N', or ISO3 country code")
+                   help="path to vector (.shp, .gpkg, .kml, etc.) or raster (.tif, .vrt) file with ROI, or bounding box as 'W,S,E,N', or ISO3 country code")
 
     # Variable selection by product
     p.add_argument("-l", "--list", dest="list", nargs='+', type=str, default=None,
@@ -116,9 +116,6 @@ def get_cmd_args():
     return p.parse_args()
 
 def main():
-    if DEBUG:
-        sys.path.insert(0, os.path.abspath('./src/'))
-
     args = get_cmd_args()
     
     if DEBUG:
