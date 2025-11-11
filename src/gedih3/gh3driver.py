@@ -138,6 +138,7 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
         agg_df = agg_df.reset_index().set_index(h3part, sort=False, divisions=uparts + uparts[-1:])
         agg_df = agg_df.reset_index().set_index(h3agg, sort=False)
 
+    agg_df.index = agg_df.index.astype(str)
     return agg_df
 
 

@@ -234,13 +234,15 @@ def main():
                                         meta=pd.Series(dtype=str),
                                         )
             
+            # Ensure H3 index is string type for proper Parquet serialization            
             # write_task = aggdf.to_parquet(args.output,
             #                             write_metadata_file=True,
             #                             write_index=True,
             #                             overwrite=True,
             #                             compression='zstd',
             #                             partition_on=[h3_col],
-            #                             compute=False
+            #                             compute=False,
+            #                             schema='infer'
             #                             )
             
             write_task = write_task.persist()
@@ -253,7 +255,7 @@ def main():
             
             if not args.quiet:
                 print(f"\n{'='*70}")
-                print(f" SUCCESS: Data exported to {args.output}")
+                print(f" SUCCESS: {len(ofiles)} files exported to {args.output}")
                 print(f"{'='*70}\n")
 
     except KeyboardInterrupt:
