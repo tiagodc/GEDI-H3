@@ -368,6 +368,7 @@ def parse_spatial(spatial):
         spatial = gpd.GeoDataFrame(geometry=[box(*spatial)], crs=4326, index=[0])
     elif isinstance(spatial, gpd.GeoDataFrame):
         spatial = spatial.to_crs(epsg=4326)
+        spatial = gpd.GeoDataFrame(geometry=[spatial.union_all()], crs=spatial.crs)
     else:
         raise ValueError("Invalid spatial input. Must be bounding box list, file path, or GeoDataFrame.")
 
