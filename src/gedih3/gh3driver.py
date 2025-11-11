@@ -137,7 +137,7 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
     agg_df = agg_df.reset_index().set_index(h3agg, sort=False)
     
     if add_geometry:
-        _gmeta = gpd.GeoDataFrame(columns=[h3part] + agg_df._meta.columns.tolist() + ['geometry'], geometry='geometry', crs=4326)
+        _gmeta = gpd.GeoDataFrame(columns=agg_df._meta.columns.tolist() + ['geometry'], geometry='geometry', crs=4326)
         agg_df = agg_df.map_partitions(gh3_add_geometry, meta=_gmeta)
         if isinstance(agg_df, dask.dataframe.DataFrame):
             agg_df = dask_geopandas.from_dask_dataframe(agg_df)
@@ -153,6 +153,9 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
 
 
 def gh3_export_part(df, odir, fmt='parquet', is_file_path=False):
+    if df.empty:
+        return ''
+    
     import h3pandas
     os.makedirs(odir, exist_ok=True)    
     
@@ -170,7 +173,9 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False):
     
     if is_parquet(opath):
         df.to_parquet(opath)
-    elif isinstance(df, gpd.GeoDataFrame):
+    elif fmt == 'feather':
+        df.to_feather(opath)
+    elif fmt in ('geojson', 'gpkg', 'shp'):
         df.to_file(opath)
     elif fmt == 'txt':
         df.to_csv(opath, sep='\t')
@@ -182,59 +187,3 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False):
         raise ValueError(f"Unsupported export format: {fmt}")
     
     return opath
-
-# def gh3_export_parts(df, out_dir, fmt=None):
-#     os.makedirs(out_dir, exist_ok=True)
-    
-#     def write_func(xdf, out_dir=out_dir, fmt=fmt):
-#         if len(xdf) == 0: 
-#             return ''
-
-#         if type(xdf.iloc[0]) is xar.DataArray:
-#             attrs = {}
-#             basename="foo"
-#             ak = xdf.iloc[0].attrs.keys()
-#             if 'h3_03_id' in ak:
-#                 basename = str(xdf.iloc[0].attrs['h3_03_id'])
-#                 attrs = {'h3_03_id':basename}
-#             elif 'egi12_id' in ak:
-#                 basename= xdf.iloc[0].attrs['egi12_id']
-#                 attrs = {'egi12_id':basename}
-#                 basename = str(basename)
-            
-#             basename += '.tif' if fmt is None else f'.{fmt}'
-#             out_path = os.path.join(out_dir, basename)
-#             ras = xar.merge(xdf).assign_attrs(**attrs)
-#             ras.rio.to_raster(out_path, BIGTIFF='YES', compress='LZW', TILED='YES', BLOCKXSIZE=256, BLOCKYSIZE=256)
-#             return out_path
-
-#         basename = xdf.index[0]
-#         if type(basename) is str:
-#             basename = h3.cell_to_parent(basename, 3)
-#         elif type(basename) is np.uint64:
-#             basename = egi.egi_to_parent(xdf.copy(), 12).index.value_counts().idxmax()
-#             basename = str(basename)
-
-#         if type(xdf) is gpd.GeoDataFrame:
-#             basename += '.gpkg' if fmt is None else f'.{fmt}'
-#             out_path = os.path.join(out_dir, basename)
-#             if fmt in ['parq', 'parquet', 'pq']:
-#                 xdf.to_parquet(out_path)
-#             else:
-#                 xdf.to_file(out_path)
-#             return out_path
-    
-#         basename += '.parquet' if fmt is None else f'.{fmt}'
-#         out_path = os.path.join(out_dir, basename)
-        
-#         if fmt == 'txt':
-#             xdf.to_csv(out_path, sep='\t')
-#         elif fmt == 'csv':
-#             xdf.to_csv(out_path)
-#         elif fmt == 'h5' or fmt == 'hdf5':
-#             xdf.to_hdf(out_path, key='GEDI', mode='w')
-#         else:
-#             xdf.to_parquet(out_path)
-#         return out_path
-        
-#     return df.map_partitions(write_func, meta=pd.Series(str))

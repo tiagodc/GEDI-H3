@@ -21,6 +21,10 @@ def get_cmd_args():
     p = argparse.ArgumentParser(
         description="Extract and filter spatially indexed GEDI shots from H3 parquet database"
     )
+    
+    # Database configuration
+    p.add_argument("-d", "--database", dest="database", required=False, type=str, default=None,
+                   help="path to H3 database directory [default from config or environment]")
 
     # Output configuration
     p.add_argument("-o", "--output", dest="output", required=not DEBUG, type=str, 
@@ -66,10 +70,6 @@ def get_cmd_args():
                    help="pandas query string for filtering - e.g. 'quality_flag_l2a == 1 & agbd_l4a > 50'")
     p.add_argument("-y", "--quality", dest="quality", required=False, action='store_true',
                    help="apply quality filtering (quality_flag_l2a == 1)")
-
-    # Database configuration
-    p.add_argument("-d", "--database", dest="database", required=False, type=str, default=None,
-                   help="path to H3 database directory [default from config or environment]")
 
     # Computation settings
     p.add_argument("-s", "--dask-scheduler", dest="dask_scheduler", required=False, type=str, default=None,

@@ -247,7 +247,7 @@ def main():
                                             compute=False
                                             )
             else:
-                write_task = aggdf.groupby(h3_col, observed=True).apply(gh3.gh3_export_part,
+                write_task = aggdf.map_partitions(gh3.gh3_export_part,
                             odir=args.output,
                             fmt=args.format,
                             include_groups=False,
