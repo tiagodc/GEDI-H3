@@ -278,6 +278,7 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False, rows_per_g
     schema = None
     accumulated_tables = []
     accumulated_rows = 0
+    merged_bbox = None
 
     try:
         for f in flist:
@@ -285,6 +286,15 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False, rows_per_g
                 continue
 
             parquet_file = pq.ParquetFile(f)
+            
+            if b'geo' in parquet_file.schema_arrow.metadata:
+                geo_meta = json.loads(parquet_file.schema_arrow.metadata[b'geo'])
+                bbox = geo_meta['columns']['geometry']['bbox']
+                if merged_bbox is None:
+                    merged_bbox = bbox
+                else:
+                    merged_bbox = [min(merged_bbox[i], bbox[i]) if i < len(bbox)//2 else max(merged_bbox[i], bbox[i]) for i in range(len(bbox))]
+
             if schema is None:
                 schema = parquet_file.schema.to_arrow_schema()
                 pqwriter = pq.ParquetWriter(ofile, schema, compression='zstd')
@@ -300,7 +310,6 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False, rows_per_g
                     shots = np.concatenate([shots, new_shots[mask]])
 
                 if len(df) > 0:
-                    # Reorder columns efficiently to avoid fragmentation
                     df_reset = df.reset_index()
                     df_reordered = df_reset.reindex(columns=schema.names, copy=False)
                     df_final = df_reordered.set_index(idx_name)
@@ -327,6 +336,15 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False, rows_per_g
     finally:
         if pqwriter is not None:
             pqwriter.close()
+
+        # Update geo metadata with merged bbox
+        if merged_bbox is not None:
+            table = pq.read_table(ofile)
+            geo_meta = json.loads(table.schema.metadata[b'geo'])
+            geo_meta['columns']['geometry']['bbox'] = merged_bbox
+            new_metadata = {**table.schema.metadata, b'geo': json.dumps(geo_meta).encode('utf-8')}
+            table = table.replace_schema_metadata(new_metadata)
+            pq.write_table(table, ofile, compression='zstd')
 
 def parse_temporal(temporal):
     if temporal is None:
