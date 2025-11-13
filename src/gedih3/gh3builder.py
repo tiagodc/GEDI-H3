@@ -14,7 +14,7 @@ from earthaccess.store import EarthAccessFile
 from dask.distributed import progress
 
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS, GEDI_START_DATE
-from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client
+from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, parquet_schema_add_bbox
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
 from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, validate_soc_files
 from .daac import gedi_download
@@ -368,13 +368,21 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     del meta_tasks
 
     if verbose:
-        print("Compiling parquet metadata files.")    
+        print("Compiling parquet metadata files.")
 
     base_schema = pq.read_schema(h3_files[0])
+
+    merged_bbox = None
+    if b'geo' in base_schema.metadata:
+        meta_boxes = np.array([json.loads(meta.metadata[b'geo'])['columns']['geometry']['bbox'] for meta in h3_metas])
+        merged_bbox = meta_boxes[:,:2].min(axis=0).tolist() + meta_boxes[:,2:].max(axis=0).tolist()
+    
+    base_schema = parquet_schema_add_bbox(base_schema, bbox=merged_bbox)    
     pq.write_metadata(schema=base_schema, where=os.path.join(h3_dir, '_metadata'), metadata_collector=h3_metas)
 
     cmeta = pq.ParquetDataset(h3_files)
-    pq.write_metadata(schema=cmeta.schema, where=os.path.join(h3_dir, '_common_metadata'))
+    cmeta_schema = parquet_schema_add_bbox(cmeta.schema, bbox=merged_bbox)
+    pq.write_metadata(schema=cmeta_schema, where=os.path.join(h3_dir, '_common_metadata'))
 
     return h3_files
 

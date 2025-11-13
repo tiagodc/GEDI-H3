@@ -268,35 +268,45 @@ def parquet_append_columns(df, f: str, tmp_suffix:str = '.col.tmp'):
 
     os.replace(temp_f, f)
 
+def parquet_schema_add_bbox(schema, bbox):
+    if bbox is None:
+        return schema    
+    geo_meta = json.loads(schema.metadata[b'geo'])
+    geo_meta['columns']['geometry']['bbox'] = bbox
+    new_metadata = {**schema.metadata, b'geo': json.dumps(geo_meta).encode('utf-8')}
+    return schema.with_metadata(new_metadata)
+    
 def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False, rows_per_group=100_000):
     import numpy as np
     import pandas as pd
     import pyarrow as pa
     import pyarrow.parquet as pq
+    import geoarrow.pyarrow as ga
+
     shots = np.array([], dtype=np.uint64)
     pqwriter = None
     schema = None
     accumulated_tables = []
     accumulated_rows = 0
     merged_bbox = None
-
+    
     try:
+        gds = pq.ParquetDataset(flist)
+        if 'geometry' in gds.schema.names:
+            table = gds.read(columns=['geometry'])
+            geometry_array = ga.as_geoarrow(table['geometry'])
+            bbox = ga.box_agg(geometry_array)
+            merged_bbox = list(bbox.bounds.values())
+
         for f in flist:
             if not os.path.exists(f):
                 continue
 
             parquet_file = pq.ParquetFile(f)
-            
-            if b'geo' in parquet_file.schema_arrow.metadata:
-                geo_meta = json.loads(parquet_file.schema_arrow.metadata[b'geo'])
-                bbox = geo_meta['columns']['geometry']['bbox']
-                if merged_bbox is None:
-                    merged_bbox = bbox
-                else:
-                    merged_bbox = [min(merged_bbox[i], bbox[i]) if i < len(bbox)//2 else max(merged_bbox[i], bbox[i]) for i in range(len(bbox))]
 
             if schema is None:
-                schema = parquet_file.schema.to_arrow_schema()
+                schema = parquet_file.schema.to_arrow_schema()                
+                schema = parquet_schema_add_bbox(schema, bbox=merged_bbox)
                 pqwriter = pq.ParquetWriter(ofile, schema, compression='zstd')
 
             for batch in parquet_file.iter_batches(batch_size=rows_per_group):
@@ -336,15 +346,6 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False, rows_per_g
     finally:
         if pqwriter is not None:
             pqwriter.close()
-
-        # Update geo metadata with merged bbox
-        if merged_bbox is not None:
-            table = pq.read_table(ofile)
-            geo_meta = json.loads(table.schema.metadata[b'geo'])
-            geo_meta['columns']['geometry']['bbox'] = merged_bbox
-            new_metadata = {**table.schema.metadata, b'geo': json.dumps(geo_meta).encode('utf-8')}
-            table = table.replace_schema_metadata(new_metadata)
-            pq.write_table(table, ofile, compression='zstd')
 
 def parse_temporal(temporal):
     if temporal is None:
