@@ -279,9 +279,10 @@ def parquet_schema_add_bbox(schema, bbox):
 def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False, rows_per_group=100_000):
     import numpy as np
     import pandas as pd
+    import geopandas as gpd
     import pyarrow as pa
     import pyarrow.parquet as pq
-    import geoarrow.pyarrow as ga
+    # import geoarrow.pyarrow as ga
 
     shots = np.array([], dtype=np.uint64)
     pqwriter = None
@@ -293,10 +294,12 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False, rows_per_g
     try:
         gds = pq.ParquetDataset(flist)
         if 'geometry' in gds.schema.names:
-            table = gds.read(columns=['geometry'])
-            geometry_array = ga.as_geoarrow(table['geometry'])
-            bbox = ga.box_agg(geometry_array)
-            merged_bbox = list(bbox.bounds.values())
+            geodf = gpd.read_parquet(flist, columns=['geometry'])
+            merged_bbox = list(geodf.total_bounds)
+            # table = gds.read(columns=['geometry'])
+            # geometry_array = ga.as_geoarrow(table['geometry'])
+            # bbox = ga.box_agg(geometry_array)
+            # merged_bbox = list(bbox.bounds.values())
 
         for f in flist:
             if not os.path.exists(f):

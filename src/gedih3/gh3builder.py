@@ -370,7 +370,7 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     if verbose:
         print("Compiling parquet metadata files.")
 
-    import geoarrow.pyarrow
+    # import geoarrow.pyarrow
     base_schema = pq.read_schema(h3_files[0])
     
     merged_bbox = None
