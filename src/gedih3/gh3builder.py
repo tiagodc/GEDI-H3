@@ -348,7 +348,7 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/*/'))
     os.makedirs(h3_dir, exist_ok=True)
     
-    h3_tasks = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=False, replace=False) for i in tmp_h3_dirs]
+    h3_tasks = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in tmp_h3_dirs]
     h3_tasks = dask.persist(*h3_tasks, optimize_graph=False)
     progress(h3_tasks)
     h3_file_meta = list(dask.compute(*h3_tasks))
@@ -370,16 +370,17 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     if verbose:
         print("Compiling parquet metadata files.")
 
+    import geoarrow.pyarrow
     base_schema = pq.read_schema(h3_files[0])
-
+    
     merged_bbox = None
     if b'geo' in base_schema.metadata:
         meta_boxes = np.array([json.loads(meta.metadata[b'geo'])['columns']['geometry']['bbox'] for meta in h3_metas])
         merged_bbox = meta_boxes[:,:2].min(axis=0).tolist() + meta_boxes[:,2:].max(axis=0).tolist()
-    
-    base_schema = parquet_schema_add_bbox(base_schema, bbox=merged_bbox)    
-    pq.write_metadata(schema=base_schema, where=os.path.join(h3_dir, '_metadata'), metadata_collector=h3_metas)
 
+    base_schema = parquet_schema_add_bbox(base_schema, bbox=merged_bbox)
+    pq.write_metadata(schema=base_schema, where=os.path.join(h3_dir, '_metadata'), metadata_collector=h3_metas)
+    
     cmeta = pq.ParquetDataset(h3_files)
     cmeta_schema = parquet_schema_add_bbox(cmeta.schema, bbox=merged_bbox)
     pq.write_metadata(schema=cmeta_schema, where=os.path.join(h3_dir, '_common_metadata'))

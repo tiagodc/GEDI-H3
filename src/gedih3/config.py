@@ -71,7 +71,7 @@ GEDI_PRODUCTS = {
         'version': 2, 
         'format': '.h5',
         'description': 'Canopy cover and vertical profile metrics',
-        'min_vars': ['shot_number','cover_z','fhd_normal', 'pai', 'pgap_theta'],
+        'min_vars': ['shot_number','cover_z','fhd_normal', 'pai_z', 'pgap_theta'],
         'default_vars_file': get_package_data_path('GEDI02_B_DATASETS_002.txt')
     },
     # 'L3': {
@@ -103,7 +103,7 @@ GEDI_PRODUCTS = {
         'version': 2, 
         'format': '.h5',
         'description': 'Footprint level structural complexity',
-        'min_vars': ['shot_number','wsci', 'wsci_pi_lower', 'wsci_pi_upper', 'wsci_quality_flag', 'worldcover_class'],
+        'min_vars': ['shot_number','wsci', 'wsci_pi_lower', 'wsci_pi_upper', 'wsci_quality_flag', 'land_cover_data/worldcover_class'],
         'default_vars_file': get_package_data_path('GEDI04_C_DATASETS_002.txt')
     }
     # Future products:
