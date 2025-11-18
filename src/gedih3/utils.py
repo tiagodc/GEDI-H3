@@ -284,7 +284,7 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False, rows_per_g
     import pyarrow.parquet as pq
     # import geoarrow.pyarrow as ga
 
-    shots = np.array([], dtype=np.uint64)
+    shots = set()
     pqwriter = None
     schema = None
     accumulated_tables = []
@@ -318,25 +318,25 @@ def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False, rows_per_g
 
                 if check_shots and 'shot_number' in df.columns:
                     new_shots = df['shot_number'].values.astype(np.uint64)
-                    mask = ~np.isin(new_shots, shots)
+                    mask = ~np.isin(new_shots, np.array(list(shots)))
+                    if not mask.any():
+                        continue
                     df = df[mask]
-                    shots = np.concatenate([shots, new_shots[mask]])
+                    shots.update(new_shots[mask])
 
-                if len(df) > 0:
-                    df_reset = df.reset_index()
-                    df_reordered = df_reset.reindex(columns=schema.names, copy=False)
-                    df_final = df_reordered.set_index(idx_name)
-                    table = pa.Table.from_pandas(df_final, schema=schema)
+                df_reset = df.reset_index()
+                df_reordered = df_reset.reindex(columns=schema.names, copy=False)
+                df_final = df_reordered.set_index(idx_name)
+                table = pa.Table.from_pandas(df_final, schema=schema)
 
-                    accumulated_tables.append(table)
-                    accumulated_rows += len(table)
+                accumulated_tables.append(table)
+                accumulated_rows += len(table)
 
-                    # Flush when threshold reached
-                    if accumulated_rows >= rows_per_group:
-                        combined_table = pa.concat_tables(accumulated_tables)
-                        pqwriter.write_table(combined_table)
-                        accumulated_tables = []
-                        accumulated_rows = 0
+                if accumulated_rows >= rows_per_group:
+                    combined_table = pa.concat_tables(accumulated_tables)
+                    pqwriter.write_table(combined_table)
+                    accumulated_tables = []
+                    accumulated_rows = 0
 
             if rm_src:
                 os.unlink(f)

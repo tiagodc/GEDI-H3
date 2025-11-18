@@ -326,6 +326,7 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     write_task = ddf.to_parquet(tmp_dir, write_index=True, overwrite=True, compression='zstd', partition_on=[f'h3_{part:02d}', 'year'], compute=False)
     write_task = write_task.persist(optimize_graph=False)
     progress(write_task)
+    print('\n')
     
     if verbose:
         print("Clearing dask workers.")
@@ -349,8 +350,9 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     os.makedirs(h3_dir, exist_ok=True)
     
     h3_tasks = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in tmp_h3_dirs]
-    h3_tasks = dask.persist(*h3_tasks, optimize_graph=False)
+    h3_tasks = dask.persist(*h3_tasks, traverse=False)
     progress(h3_tasks)
+    print('\n')
     h3_file_meta = list(dask.compute(*h3_tasks))
     del h3_tasks
         
@@ -364,6 +366,7 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     meta_tasks = [dh3_merge_metadata(i) for i in h3_subdirs]
     meta_tasks = dask.persist(*meta_tasks, optimize_graph=False)
     progress(meta_tasks)
+    print('\n')
     meta_files = list(dask.compute(*meta_tasks))
     del meta_tasks
 
