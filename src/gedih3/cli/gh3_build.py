@@ -139,7 +139,6 @@ def main():
 
     with Client(**dask_kwargs) as client:
         warnings.filterwarnings("ignore", message=r"Sending large graph of size.*", category=UserWarning, module="distributed.client")
-        
         def _suppress_pandas_perf_warnings():
             import warnings
             import pandas as pd

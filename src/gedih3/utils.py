@@ -276,79 +276,57 @@ def parquet_schema_add_bbox(schema, bbox):
     new_metadata = {**schema.metadata, b'geo': json.dumps(geo_meta).encode('utf-8')}
     return schema.with_metadata(new_metadata)
     
-def parquet_merge_files(ofile, flist, check_shots=True, rm_src=False, rows_per_group=100_000):
+def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_group=100_000):
     import numpy as np
-    import pandas as pd
     import geopandas as gpd
     import pyarrow as pa
     import pyarrow.parquet as pq
-    # import geoarrow.pyarrow as ga
+    import pyarrow.dataset as ds
 
-    shots = set()
-    pqwriter = None
-    schema = None
-    accumulated_tables = []
-    accumulated_rows = 0
+    shots = None
     merged_bbox = None
     
-    try:
-        gds = pq.ParquetDataset(flist)
-        if 'geometry' in gds.schema.names:
-            geodf = gpd.read_parquet(flist, columns=['geometry'])
-            merged_bbox = list(geodf.total_bounds)
-            # table = gds.read(columns=['geometry'])
-            # geometry_array = ga.as_geoarrow(table['geometry'])
-            # bbox = ga.box_agg(geometry_array)
-            # merged_bbox = list(bbox.bounds.values())
+    dataset = ds.dataset(flist, format="parquet")
+    schema = dataset.schema
+    
+    if 'geometry' in schema.names:
+        geodf = gpd.read_parquet(flist, columns=['geometry'])
+        merged_bbox = list(geodf.total_bounds)
+        schema = parquet_schema_add_bbox(schema, bbox=merged_bbox)
+    
+    writer = pq.ParquetWriter(ofile, schema, compression="zstd")
+    shots = None
+    acc = []
+    acc_rows = 0
 
+    scanner = dataset.scanner(batch_size=rows_per_group, use_threads=False)
+    for batch in scanner.to_batches():
+        if check_shots and "shot_number" in batch.schema.names:
+            arr = batch["shot_number"].to_numpy().astype(np.uint64)
+            if shots is None:
+                shots = np.unique(arr)
+            else:
+                keep = ~np.isin(arr, shots, assume_unique=True)
+                if not keep.any():
+                    continue
+                batch = batch.filter(pa.array(keep))
+                shots = np.unique(np.concatenate([shots, arr[keep]]))
+
+        acc.append(pa.Table.from_batches([batch], schema=schema))
+        acc_rows += batch.num_rows
+        if acc_rows >= rows_per_group:
+            writer.write_table(pa.concat_tables(acc))
+            acc.clear()
+            acc_rows = 0
+
+    if acc:
+        writer.write_table(pa.concat_tables(acc))
+    writer.close()
+
+    if rm_src:
         for f in flist:
-            if not os.path.exists(f):
-                continue
-
-            parquet_file = pq.ParquetFile(f)
-
-            if schema is None:
-                schema = parquet_file.schema.to_arrow_schema()                
-                schema = parquet_schema_add_bbox(schema, bbox=merged_bbox)
-                pqwriter = pq.ParquetWriter(ofile, schema, compression='zstd')
-
-            for batch in parquet_file.iter_batches(batch_size=rows_per_group):
-                df = batch.to_pandas()
-                idx_name = df.index.name
-
-                if check_shots and 'shot_number' in df.columns:
-                    new_shots = df['shot_number'].values.astype(np.uint64)
-                    mask = ~np.isin(new_shots, np.array(list(shots)))
-                    if not mask.any():
-                        continue
-                    df = df[mask]
-                    shots.update(new_shots[mask])
-
-                df_reset = df.reset_index()
-                df_reordered = df_reset.reindex(columns=schema.names, copy=False)
-                df_final = df_reordered.set_index(idx_name)
-                table = pa.Table.from_pandas(df_final, schema=schema)
-
-                accumulated_tables.append(table)
-                accumulated_rows += len(table)
-
-                if accumulated_rows >= rows_per_group:
-                    combined_table = pa.concat_tables(accumulated_tables)
-                    pqwriter.write_table(combined_table)
-                    accumulated_tables = []
-                    accumulated_rows = 0
-
-            if rm_src:
+            if os.path.exists(f):
                 os.unlink(f)
-
-        # Write remaining data
-        if accumulated_tables:
-            combined_table = pa.concat_tables(accumulated_tables)
-            pqwriter.write_table(combined_table)
-
-    finally:
-        if pqwriter is not None:
-            pqwriter.close()
 
 def parse_temporal(temporal):
     if temporal is None:

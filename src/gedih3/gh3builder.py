@@ -196,7 +196,7 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
         files = list(set(files))
         out_file += '.tmp'
     
-    parquet_merge_files(out_file, files, check_shots=True, rm_src=rm_src)
+    parquet_merge_files(out_file, files, check_shots=is_temp, rm_src=rm_src)
     
     if is_temp:
         os.replace(out_file, h3_file)
