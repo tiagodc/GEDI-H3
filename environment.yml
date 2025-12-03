@@ -33,6 +33,7 @@ dependencies:
   - dask-geopandas[version='>=0.5']
   - distributed
   - numba
+  - duckdb[version='>=1.4.1']
 
   # Data formats
   - pyarrow[version='>=20.0']
@@ -58,6 +59,7 @@ dependencies:
   - matplotlib-base
   - bokeh
   - folium
+  - ipywidgets
 
   # CLI tools (optional)
   - click
