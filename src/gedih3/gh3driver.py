@@ -86,9 +86,9 @@ def gh3_add_geometry(df):
     gdf = gpd.GeoDataFrame(df, geometry=geo, crs=4326)
     return gdf
 
-def gh3_load_hex(d, columns=None):
+def gh3_load_hex(d, **kwargs):
     files = glob.glob(os.path.join(d, '**/*.parquet'), recursive=True)
-    return gpd.read_parquet(files, columns=columns)
+    return gpd.read_parquet(files, **kwargs)
 
 def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR, from_map=False): 
     h3_part = gh3_read_meta("h3_partition_level", gh3_root_dir=gh3_dir)
@@ -128,8 +128,8 @@ def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR, 
         
         divs = h3_ids + h3_ids[-1:]
         
-        _meta = gh3_load_hex(h3_dirs[0], columns=h3_filter['columns'])
-        ddf = dask.dataframe.from_map(gh3_load_hex, h3_dirs, columns=h3_filter['columns'], meta=_meta)
+        _meta = gh3_load_hex(h3_dirs[0], **h3_filter)
+        ddf = dask.dataframe.from_map(gh3_load_hex, h3_dirs, **h3_filter, meta=_meta)
         ddf = dask_geopandas.from_dask_dataframe(ddf, geometry='geometry')
         ddf = ddf.reset_index().set_index(h3_part_col, sort=False, sorted=True, divisions=divs)
     else:
