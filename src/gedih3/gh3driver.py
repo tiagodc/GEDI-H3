@@ -50,9 +50,21 @@ def gh3_part_from_df(df):
     h3_cols = [col for col in df.columns if col.startswith('h3_')]
     return sorted(h3_cols)[0]
 
+def gh3_reindex(df):
+    if (h3_id := df.index.name) < (h3_col := gh3_part_from_df(df)):
+        kwargs = {}
+        if isinstance(df, (dask.dataframe.DataFrame, dask_geopandas.GeoDataFrame)):
+            kwargs['sort'] = False
+        rdf = df.reset_index().set_index(h3_col, **kwargs)
+        rdf[h3_id] = rdf[h3_id].astype(str)
+        return rdf
+    return df        
+
 def gh3_aggregate_func(df, res, agg='mean', cols=None, **kwargs):
     import h3pandas
+    df = gh3_reindex(df)
     h3col = f"h3_{res:02d}"
+
     if df.index.name == h3col:
         g = df.groupby(h3col, observed=True)
     else:
@@ -74,7 +86,11 @@ def gh3_add_geometry(df):
     gdf = gpd.GeoDataFrame(df, geometry=geo, crs=4326)
     return gdf
 
-def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR): 
+def gh3_load_hex(d, columns=None):
+    files = glob.glob(os.path.join(d, '**/*.parquet'), recursive=True)
+    return gpd.read_parquet(files, columns=columns)
+
+def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR, from_map=False): 
     h3_part = gh3_read_meta("h3_partition_level", gh3_root_dir=gh3_dir)
     h3_part_col = f"h3_{h3_part:02d}"
     h3_ids = gh3_read_meta("h3_partition_ids", gh3_root_dir=gh3_dir)
@@ -100,15 +116,32 @@ def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR):
 
         if 'columns' in h3_filter:
             if 'geometry' not in h3_filter['columns']:
-                h3_filter['columns'].append('geometry')
-
-    ddf = dask_geopandas.read_parquet(gh3_dir, 
-                                      calculate_divisions=False, 
-                                      split_row_groups=False, 
-                                      aggregate_files=False, 
-                                      gather_spatial_partitions=False, 
-                                      ignore_metadata_file=False, 
-                                      **h3_filter)
+                h3_filter['columns'].append('geometry')        
+                
+    if from_map:
+        if region is None:
+            h3_dirs = sorted(glob.glob(os.path.join(gh3_dir, f"{h3_part_col}=*/")))
+            h3_ids = [os.path.basename(i.rstrip('/')).replace(f'{h3_part_col}=', '') for i in h3_dirs]
+        else:
+            h3_ids = sorted(h3_ids)
+            h3_dirs = [os.path.join(gh3_dir, f"{h3_part_col}={hid}/") for hid in h3_ids]
+        
+        divs = h3_ids + h3_ids[-1:]
+        
+        _meta = gh3_load_hex(h3_dirs[0], columns=h3_filter['columns'])
+        ddf = dask.dataframe.from_map(gh3_load_hex, h3_dirs, columns=h3_filter['columns'], meta=_meta)
+        ddf = dask_geopandas.from_dask_dataframe(ddf, geometry='geometry')
+        ddf = ddf.reset_index().set_index(h3_part_col, sort=False, sorted=True, divisions=divs)
+    else:
+        ddf = dask_geopandas.read_parquet(gh3_dir, 
+                                        calculate_divisions=False, 
+                                        split_row_groups=False, 
+                                        aggregate_files=False, 
+                                        gather_spatial_partitions=False, 
+                                        ignore_metadata_file=False, 
+                                        **h3_filter)
+        
+        ddf[h3_part_col] = ddf[h3_part_col].astype(str)
 
     if query is not None:
         ddf = ddf.query(query)
@@ -117,8 +150,7 @@ def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR):
     
     if region is not None:
         ddf = ddf.clip(region)
-        
-    ddf[h3_part_col] = ddf[h3_part_col].astype(str)
+    
     return ddf
 
 def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, add_geometry=True, repartition=False, **kwargs):
@@ -127,13 +159,13 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
     if query is not None:
         gh3_df = gh3_df.query(query)
     
-    h3part = gh3_part_from_df(gh3_df)
+    h3part = gh3_part_from_df(gh3_reindex(gh3_df))
     h3agg = f"h3_{target_res:02d}"
     
     _meta[h3part] = h3part
     _meta = _meta.reset_index().set_index([h3part, h3agg])
     
-    agg_df = gh3_df.groupby(h3part, observed=True).apply(gh3_aggregate_func, res=target_res, agg=agg, cols=columns, include_groups=False, meta=_meta, **kwargs)
+    agg_df = gh3_df.groupby(h3part, observed=True).apply(gh3_aggregate_func, res=target_res, agg=agg, cols=columns, meta=_meta, **kwargs)
     agg_df = agg_df.reset_index().set_index(h3agg, sort=False)
     
     if add_geometry:
@@ -143,7 +175,8 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
             agg_df = dask_geopandas.from_dask_dataframe(agg_df)
             
     if repartition:
-        uparts = sorted(gh3_df[h3part].unique().compute().tolist())
+        gh3_parts = gh3_df.index if gh3_df.index.name == h3part else gh3_df[h3part]
+        uparts = sorted(gh3_parts.unique().compute().tolist())
         agg_df.index = agg_df.index.rename(h3agg)
         agg_df = agg_df.reset_index().set_index(h3part, sort=False, divisions=uparts + uparts[-1:])
         agg_df = agg_df.reset_index().set_index(h3agg, sort=False)

@@ -30,6 +30,15 @@ def parse_gedi_args(args):
     return prod_vars
     
 def parse_dask_args(args):
+    import dask
+
+    # Load dask config from file if specified
+    if hasattr(args, 'dask_config') and args.dask_config:
+        if os.path.isfile(args.dask_config):
+            dask.config.set(config=dask.config.collect([args.dask_config]))
+        else:
+            raise ValueError(f"Dask config file not found: {args.dask_config}")
+
     dask_args = {}
     if args.dask_scheduler:
         dask_args['address'] = args.dask_scheduler
@@ -38,6 +47,9 @@ def parse_dask_args(args):
         dask_args['threads_per_worker'] = args.threads
         dask_args['memory_limit'] = f"{args.memory}GB" if args.memory else None
         dask_args['dashboard_address'] = f":{args.port}" if args.port else None
+        if hasattr(args, 'tmpdir') and args.tmpdir:
+            os.makedirs(args.tmpdir, exist_ok=True)
+            dask_args['local_directory'] = os.path.join(args.tmpdir, 'dask-worker-space')
     return dask_args    
 
 def parse_region(region_str: Optional[str]):

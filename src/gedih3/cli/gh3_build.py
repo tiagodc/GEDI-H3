@@ -3,6 +3,8 @@ DEBUG=False
 
 import argparse
 
+import dask
+
 def get_cmd_args():
     p = argparse.ArgumentParser(description = "Download GEDI data from NASA's SOC")    
    
@@ -29,12 +31,13 @@ def get_cmd_args():
     # p.add_argument("-r", "--resume", dest="resume", action='store_true', help="validate downloaded files and redownload missing or corrupted files")
         
     p.add_argument("-s", "--dask-scheduler", dest="dask_scheduler", type=str, default=None, required=False, help="existing dask scheduler address, e.g. tcp://localhost:8786")
+    p.add_argument("--dask-config", dest="dask_config", type=str, default=None, required=False, help="path to Dask YAML config file")
 
     from gedih3.utils import get_system_resources
     cpus, ram, storage = get_system_resources()
     n = max(1, cpus // 4)
     m = int(max(1, ram / n))
-    
+
     p.add_argument("-N", "--cores", dest="cores", required=False, type=int, default=n,
                    help=f"number of CPU cores to use [default = {n}]")
     p.add_argument("-T", "--threads", dest="threads", required=False, type=int, default=1,
@@ -173,4 +176,11 @@ def main():
             raise e
 
 if __name__ == "__main__":
+    # import dask
+    # dask.config.set({
+    #     'distributed.worker.memory.target': 0.1,  # Start spilling at 60%
+    #     'distributed.worker.memory.spill': 0.2,   # Spill to disk at 70%
+    #     'distributed.worker.memory.pause': 0.8,   # Pause at 80%
+    #     'distributed.worker.memory.terminate': 0.95  # Terminate at 95%
+    # })
     main()
