@@ -4,11 +4,11 @@ import pathlib
 import datetime as dt
 
 from gedih3 import sqlutils
-from gedih3.config import GH3_DEFAULT_DATA_DIR, GH3_DEFAULT_TMP_DIR
+from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR
 
 def get_file_list():
     """Generate a list of all the possible parquet files in the database."""
-    folders = list(pathlib.Path(GH3_DEFAULT_DATA_DIR).glob('h3_03=*'))
+    folders = list(pathlib.Path(GH3_DEFAULT_H3_DIR).glob('h3_03=*'))
     years = range(2019, dt.datetime.now().year + 1)
     files = []
 
@@ -58,8 +58,8 @@ def main():
             con.execute(f"CALL ducklake_add_data_files('gedi_dl', 'data', '{file.as_posix()}', ignore_extra_columns => true);")
         # fmt: on
     
-    print(f"Saving ducklake metadata in {GH3_DEFAULT_DATA_DIR}/gedi.ducklake ...")
-    shutil.move("gedi.ducklake", f"{GH3_DEFAULT_DATA_DIR}/gedi.ducklake")
+    print(f"Saving ducklake metadata in {GH3_DEFAULT_H3_DIR}/gedi.ducklake ...")
+    shutil.move("gedi.ducklake", f"{GH3_DEFAULT_H3_DIR}/gedi.ducklake")
 
 if __name__ == "__main__":
     print("""This script assumes that all files follow the format:\n
