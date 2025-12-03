@@ -1,6 +1,6 @@
 import os, duckdb
 
-from .config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR
+from .config import GH3_DEFAULT_DATA_DIR, GH3_DEFAULT_TMP_DIR
 from .utils import get_system_resources
 
 def init_duckdb(threads=None, memory_limit=None, temp_directory=None, max_temp_size=None):
@@ -31,5 +31,5 @@ def attach_ducklake_db(con, name='gedi_dl'):
         `SELECT ... FROM {name}.data`
     """
     con.sql(f"""--sql
-        ATTACH 'ducklake:{GH3_DEFAULT_H3_DIR}/gedi.ducklake' AS {name};
+        ATTACH 'ducklake:{GH3_DEFAULT_DATA_DIR}/gedi.ducklake' AS {name};
     """)

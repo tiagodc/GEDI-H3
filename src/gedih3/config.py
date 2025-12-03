@@ -18,12 +18,14 @@ GH3_DEFAULT_DOWNLOAD_DIR = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp'
 GH3_DEFAULT_TMP_DIR = os.path.join(GH3_DEFAULT_DOWNLOAD_DIR, 'tmp')
 GH3_DEFAULT_SOC_DIR = os.path.join(GH3_DEFAULT_DOWNLOAD_DIR, 'soc')
 GH3_DEFAULT_H3_DIR = os.path.join(GH3_DEFAULT_DOWNLOAD_DIR, 'h3')
+GH3_DEFAULT_DATA_DIR = os.path.join(GH3_DEFAULT_H3_DIR, 'database_world')
 
 def configure_environment(mkdirs=False):
     global GH3_DEFAULT_DOWNLOAD_DIR
     global GH3_DEFAULT_TMP_DIR
     global GH3_DEFAULT_SOC_DIR
     global GH3_DEFAULT_H3_DIR
+    global GH3_DEFAULT_DATA_DIR
 
     env_file = Path.home() / '.gedih3.env'
     if env_file.exists():
@@ -34,6 +36,7 @@ def configure_environment(mkdirs=False):
     GH3_DEFAULT_TMP_DIR = os.getenv('GH3_DEFAULT_TMP_DIR', os.path.join(GH3_DEFAULT_DOWNLOAD_DIR, 'tmp'))
     GH3_DEFAULT_SOC_DIR = os.getenv('GH3_DEFAULT_SOC_DIR', os.path.join(GH3_DEFAULT_DOWNLOAD_DIR, 'soc'))
     GH3_DEFAULT_H3_DIR = os.getenv('GH3_DEFAULT_H3_DIR', os.path.join(GH3_DEFAULT_DOWNLOAD_DIR, 'h3'))
+    GH3_DEFAULT_DATA_DIR = os.getenv('GH3_DEFAULT_DATA_DIR', os.path.join(GH3_DEFAULT_H3_DIR, 'database_world'))
 
     # Create directories if they don't exist
     if mkdirs:
