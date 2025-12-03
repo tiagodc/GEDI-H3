@@ -204,12 +204,7 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
         shutil.rmtree(in_dir, ignore_errors=True)
 
     meta_file = h3_write_metadata(h3_file)
-
-    # pq_metadata = pq.read_metadata(h3_file)
-    # rel_path = os.path.relpath(h3_file, out_dir)
-    # pq_metadata.set_file_path(rel_path)
-
-    return h3_file#, pq_metadata
+    return h3_file
 
 @dask.delayed
 def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
@@ -357,23 +352,11 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     del h3_tasks
     
     h3_files = [i for i in h3_file_meta if i is not None]
-    # h3_files = [hm[0] for hm in h3_file_meta if hm is not None]
-    # h3_metas = [hm[1] for hm in h3_file_meta if hm is not None]
     
     if verbose:
         print("Gathering parquet metadata.")
 
     h3_files = glob.glob(os.path.join(h3_dir,'**','*.parquet'), recursive=True)
-
-    # def _pq_meta(h3_file):
-    #     pq_metadata = pq.read_metadata(h3_file)
-    #     rel_path = os.path.relpath(h3_file, h3_dir)
-    #     pq_metadata.set_file_path(rel_path)
-    #     return pq_metadata
-    
-    # h3_metas = dbg.from_sequence(h3_files, partition_size=10).map(_pq_meta).persist()
-    # progress(h3_metas)
-    # h3_metas = list(h3_metas.compute())
         
     if verbose:
         print("Compiling H3 metadata files.")        
@@ -386,69 +369,38 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     meta_files = list(dask.compute(*meta_tasks))
     del meta_tasks
 
-    # if verbose:
-    #     print("Compiling parquet metadata files.")
-
-    # base_schema = pq.read_schema(h3_files[0])
-    
-    # merged_bbox = None
-    # if b'geo' in base_schema.metadata:
-    #     def _get_box(meta):
-    #         return json.loads(meta.metadata[b'geo'])['columns']['geometry']['bbox']
-        
-    #     meta_boxes = dbg.from_sequence(h3_metas, partition_size=100).map(_get_box).persist()
-    #     progress(meta_boxes)
-    #     meta_boxes = list(meta_boxes.compute())
-    #     meta_boxes = [i for i in meta_boxes if i is not None]
-    #     meta_boxes = np.array(meta_boxes)
-    #     merged_bbox = meta_boxes[:,:2].min(axis=0).tolist() + meta_boxes[:,2:].max(axis=0).tolist()
-    #     del meta_boxes
-    
-    # del h3_metas    
-    # base_schema = parquet_schema_add_bbox(base_schema, bbox=merged_bbox)
-    # pq.write_metadata(schema=base_schema, where=os.path.join(h3_dir, '_metadata'), metadata_collector=h3_metas)
-    
-    # cmeta = pq.ParquetDataset(h3_files)
-    # cmeta_schema = parquet_schema_add_bbox(cmeta.schema, bbox=merged_bbox)
-    # pq.write_metadata(schema=cmeta_schema, where=os.path.join(h3_dir, '_common_metadata'))
-
     return h3_files
 
-def _testit():
-
-    odir = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/h3_s3/'
-    os.makedirs(odir, exist_ok=True)
+def build_parquet_metadata(gh3_dir):
+    h3_files = glob.glob(os.path.join(gh3_dir,'**','*.parquet'), recursive=True)
     
-    from dask.distributed import Client    
-    client = Client(n_workers=24, threads_per_worker=1)
-    print(client.dashboard_link)
+    if len(h3_files) == 0:
+        return    
     
-    spatial = [-51,0,-50,1]
-    temporal = ['2020-01-01','2020-07-01']
-    gvars = {'L4A':['minimal'],'L4C':['minimal']}    
-    gfiles = download_soc(product_vars=gvars, spatial=spatial, temporal=temporal, direct_access=True)
+    def _pq_meta(h3_file):
+        pq_metadata = pq.read_metadata(h3_file)
+        rel_path = os.path.relpath(h3_file, gh3_dir)
+        pq_metadata.set_file_path(rel_path)
+        return pq_metadata
     
-    from gedih3.logger import parse_spatial
-    gspatial = parse_spatial(spatial)
+    h3_metas = dbg.from_sequence(h3_files, partition_size=10).map(_pq_meta).compute()
+    base_schema = pq.read_schema(h3_files[0])
     
-    product_vars=gvars
-    spatial=gspatial
-    res=12
-    part=3
-    soc_source=gfiles
-    h3_dir='/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/h3_s3/'
-    version_kwargs={'version': 2}
-    tmp_dir=GH3_DEFAULT_TMP_DIR
-    skip_granules=None
-    verbose=True
+    merged_bbox = None
+    if b'geo' in base_schema.metadata:
+        def _get_box(pq_metadata):
+            if b'geo' in pq_metadata.metadata:
+                return json.loads(pq_metadata.metadata[b'geo'])['columns']['geometry']['bbox']
+            return None
+        
+        meta_boxes = dbg.from_sequence(h3_metas, partition_size=100).map(_get_box).filter(lambda x: x is not None).compute()
+        meta_boxes = np.array(meta_boxes)
+        merged_bbox = meta_boxes[:,:2].min(axis=0).tolist() + meta_boxes[:,2:].max(axis=0).tolist()
+        del meta_boxes
     
-    h3f = build_h3db(
-                product_vars=gvars,
-                spatial=gspatial,
-                res=12,
-                part=3,
-                soc_source=gfiles,
-                h3_dir=odir,
-                version_kwargs={'version': 2},
-            )
+    base_schema = parquet_schema_add_bbox(base_schema, bbox=merged_bbox)
+    pq.write_metadata(schema=base_schema, where=os.path.join(gh3_dir, '_metadata'))
     
+    cmeta = pq.ParquetDataset(h3_files)
+    cmeta_schema = parquet_schema_add_bbox(cmeta.schema, bbox=merged_bbox)
+    pq.write_metadata(schema=cmeta_schema, where=os.path.join(gh3_dir, '_common_metadata'))
