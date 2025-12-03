@@ -176,11 +176,4 @@ def main():
             raise e
 
 if __name__ == "__main__":
-    # import dask
-    # dask.config.set({
-    #     'distributed.worker.memory.target': 0.1,  # Start spilling at 60%
-    #     'distributed.worker.memory.spill': 0.2,   # Spill to disk at 70%
-    #     'distributed.worker.memory.pause': 0.8,   # Pause at 80%
-    #     'distributed.worker.memory.terminate': 0.95  # Terminate at 95%
-    # })
     main()

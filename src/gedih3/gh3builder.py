@@ -205,11 +205,11 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
 
     meta_file = h3_write_metadata(h3_file)
 
-    pq_metadata = pq.read_metadata(h3_file)
-    rel_path = os.path.relpath(h3_file, out_dir)
-    pq_metadata.set_file_path(rel_path)
+    # pq_metadata = pq.read_metadata(h3_file)
+    # rel_path = os.path.relpath(h3_file, out_dir)
+    # pq_metadata.set_file_path(rel_path)
 
-    return h3_file, pq_metadata
+    return h3_file#, pq_metadata
 
 @dask.delayed
 def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
@@ -217,165 +217,163 @@ def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
 
 def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAULT_SOC_DIR, version_kwargs=None, tmp_dir=os.path.join(GH3_DEFAULT_TMP_DIR,'gh3_build'), h3_dir=GH3_DEFAULT_H3_DIR, skip_granules=None, verbose=True):
     
-    # product_vars = gedi_vars_expand(product_vars)
+    product_vars = gedi_vars_expand(product_vars)
     
-    # if verbose:
-    #     print("Listing source SOC files.")
-    # all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=version_kwargs)
+    if verbose:
+        print("Listing source SOC files.")
+    all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=version_kwargs)
 
-    # if 'L2A' in product_vars:
-    #     product_vars['L2A'] = list(set(product_vars['L2A'] + GEDI_L2A_ESSENTIALS))
-    # else:
-    #     product_vars['L2A'] = GEDI_L2A_ESSENTIALS
+    if 'L2A' in product_vars:
+        product_vars['L2A'] = list(set(product_vars['L2A'] + GEDI_L2A_ESSENTIALS))
+    else:
+        product_vars['L2A'] = GEDI_L2A_ESSENTIALS
         
-    # for k,val in product_vars.items():
-    #     if val is None:
-    #         file = all_soc_files[0].get(k)
-    #         product_vars[k] = gedi_vars_from_h5(file)
+    for k,val in product_vars.items():
+        if val is None:
+            file = all_soc_files[0].get(k)
+            product_vars[k] = gedi_vars_from_h5(file)
 
-    # prod_soc_files = [{k:val for k,val in i.items() if k in product_vars} for i in all_soc_files]
+    prod_soc_files = [{k:val for k,val in i.items() if k in product_vars} for i in all_soc_files]
     
-    # def _filter_soc_file(prod):
-    #     if not set(product_vars.keys()).issubset(set(prod.keys())):
-    #         return None
+    def _filter_soc_file(prod):
+        if not set(product_vars.keys()).issubset(set(prod.keys())):
+            return None
         
-    #     if skip_granules is not None:
-    #         gedifile = GEDIFile(list(prod.values())[0])
-    #         gran = {'orbit': gedifile.orbit, 'granule': gedifile.orbit_granule, 'track': gedifile.track}
-    #         if gran in skip_granules:
-    #             return None
+        if skip_granules is not None:
+            gedifile = GEDIFile(list(prod.values())[0])
+            gran = {'orbit': gedifile.orbit, 'granule': gedifile.orbit_granule, 'track': gedifile.track}
+            if gran in skip_granules:
+                return None
             
-    #     for f in prod.values():
-    #         if isinstance(f, EarthAccessFile):
-    #             break
-    #         if not h5_is_valid(f):
-    #             return None
+        for f in prod.values():
+            if isinstance(f, EarthAccessFile):
+                break
+            if not h5_is_valid(f):
+                return None
         
-    #     return prod
+        return prod
     
-    # if verbose:
-    #     print(f"Checking for incomplete, corrupted, or existing granules to skip.")
+    if verbose:
+        print(f"Checking for incomplete, corrupted, or existing granules to skip.")
     
-    # bag_task = (
-    #     dbg.from_sequence(prod_soc_files, partition_size=100)
-    #       .map(_filter_soc_file)
-    #       .filter(lambda x: x is not None)
-    #       .persist()
-    # )
+    bag_task = (
+        dbg.from_sequence(prod_soc_files, partition_size=100)
+          .map(_filter_soc_file)
+          .filter(lambda x: x is not None)
+          .persist()
+    )
 
-    # progress(bag_task)
-    # soc_files = list(bag_task.compute())
-    # del bag_task    
+    progress(bag_task)
+    soc_files = list(bag_task.compute())
+    del bag_task    
     
-    # if len(soc_files) == 0:
-    #     if verbose:
-    #         print("No new granules to process. Finishing.")
-    #     return
+    if len(soc_files) == 0:
+        if verbose:
+            print("No new granules to process. Finishing.")
+        return
     
-    # if verbose:
-    #     print(f"Found {len(soc_files)} new GEDI granules with requested products.")
+    if verbose:
+        print(f"Found {len(soc_files)} new GEDI granules with requested products.")
     
-    # ddf = dask_h5_merged(soc_files, product_vars, shots=None, dropna=True, by_beam=True, suffix_all=True)
+    ddf = dask_h5_merged(soc_files, product_vars, shots=None, dropna=True, by_beam=True, suffix_all=True)
 
-    # lat_col='lat_lowestmode'
-    # lon_col='lon_lowestmode'
-    # dat_col = 'delta_time'
+    lat_col='lat_lowestmode'
+    lon_col='lon_lowestmode'
+    dat_col = 'delta_time'
     
-    # if 'lat_lowestmode_l2a' in ddf.columns:
-    #     lat_col+='_l2a'
-    # if 'lon_lowestmode_l2a' in ddf.columns:
-    #     lon_col+='_l2a'
-    # if 'delta_time_l2a' in ddf.columns:
-    #     dat_col+='_l2a'
+    if 'lat_lowestmode_l2a' in ddf.columns:
+        lat_col+='_l2a'
+    if 'lon_lowestmode_l2a' in ddf.columns:
+        lon_col+='_l2a'
+    if 'delta_time_l2a' in ddf.columns:
+        dat_col+='_l2a'
     
-    # if verbose:
-    #     print(f"Indexing H3 at resolution {res}, partitioning at {part}.")
+    if verbose:
+        print(f"Indexing H3 at resolution {res}, partitioning at {part}.")
 
-    # os.makedirs(tmp_dir, exist_ok=True)
-    # ddf = ddf.map_partitions(h3_index_df, res=res, part=part, lat_col=lat_col, lon_col=lon_col)
+    os.makedirs(tmp_dir, exist_ok=True)
+    ddf = ddf.map_partitions(h3_index_df, res=res, part=part, lat_col=lat_col, lon_col=lon_col)
     
-    # h3_tiles = []
-    # if spatial is not None:
-    #     h3_tiles = intersect_h3_geometries(spatial, res=part)
+    h3_tiles = []
+    if spatial is not None:
+        h3_tiles = intersect_h3_geometries(spatial, res=part)
 
-    # if len(h3_tiles) > 0:
-    #     if verbose:
-    #         print(f"Removing H3 partitions outside spatial filter.")
-    #     ddf = ddf[ddf[f'h3_{part:02d}'].isin(h3_tiles)]
+    if len(h3_tiles) > 0:
+        if verbose:
+            print(f"Removing H3 partitions outside spatial filter.")
+        ddf = ddf[ddf[f'h3_{part:02d}'].isin(h3_tiles)]
     
-    # build_log = os.path.join(h3_dir, 'gedih3_build_log.json')
-    # if os.path.exists(build_log):
-    #     if verbose:
-    #         print(f"Checking for existing indexed GEDI data to skip.")            
-    #     _meta = ddf._meta.copy()
-    #     _meta['_skip'] = False
-    #     ddf = ddf.map_partitions(h3_add_skip_column, h3_dir=h3_dir, meta=_meta)
-    #     ddf = ddf[~ddf['_skip']]
-    #     ddf = ddf.drop(columns=['_skip'])
+    build_log = os.path.join(h3_dir, 'gedih3_build_log.json')
+    if os.path.exists(build_log):
+        if verbose:
+            print(f"Checking for existing indexed GEDI data to skip.")            
+        _meta = ddf._meta.copy()
+        _meta['_skip'] = False
+        ddf = ddf.map_partitions(h3_add_skip_column, h3_dir=h3_dir, meta=_meta)
+        ddf = ddf[~ddf['_skip']]
+        ddf = ddf.drop(columns=['_skip'])
 
-    # if verbose:
-    #     print(f"Adding date and geometry columns to H3 database.")
+    if verbose:
+        print(f"Adding date and geometry columns to H3 database.")
 
-    # ddf = ddf.map_partitions(add_special_columns, lon_col=lon_col, lat_col=lat_col, dat_col=dat_col)
-    # ddf = ddf.assign(year=ddf.datetime.dt.year)
-    # ddf = dask_geopandas.from_dask_dataframe(ddf)
+    ddf = ddf.map_partitions(add_special_columns, lon_col=lon_col, lat_col=lat_col, dat_col=dat_col)
+    ddf = ddf.assign(year=ddf.datetime.dt.year)
+    ddf = dask_geopandas.from_dask_dataframe(ddf)
 
-    # if verbose:
-    #     print(f"Writing partitioned H3 data to temporary directory: {tmp_dir}")
+    if verbose:
+        print(f"Writing partitioned H3 data to temporary directory: {tmp_dir}")
 
-    # write_task = ddf.to_parquet(tmp_dir, write_index=True, overwrite=True, compression='zstd', partition_on=[f'h3_{part:02d}', 'year'], compute=False)
-    # write_task = write_task.persist(optimize_graph=False)
-    # progress(write_task)
-    # print('\n')
+    write_task = ddf.to_parquet(tmp_dir, write_index=True, overwrite=True, compression='zstd', partition_on=[f'h3_{part:02d}', 'year'], compute=False)
+    write_task = write_task.persist(optimize_graph=False)
+    progress(write_task)
+    print('\n')
     
-    # if verbose:
-    #     print("Clearing dask workers.")
+    if verbose:
+        print("Clearing dask workers.")
     
-    # client = get_dask_client()
-    # client.cancel(write_task, force=True)
+    client = get_dask_client()
+    client.cancel(write_task, force=True)
 
-    # del write_task, ddf
+    del write_task, ddf
     
-    # tmp_files = glob.glob(os.path.join(tmp_dir, '**', '*.parquet'), recursive=True)
+    tmp_files = glob.glob(os.path.join(tmp_dir, '**', '*.parquet'), recursive=True)
 
-    # if len(tmp_files) == 0:
-    #     if verbose:
-    #         print("No new data to process. Finishing.")
-    #     return
+    if len(tmp_files) == 0:
+        if verbose:
+            print("No new data to process. Finishing.")
+        return
     
-    # if verbose:
-    #     print(f"Merging H3 partitions into final database path: {h3_dir}")
+    if verbose:
+        print(f"Merging H3 partitions into final database path: {h3_dir}")
 
-    # tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/*/'))
-    # os.makedirs(h3_dir, exist_ok=True)
+    tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/*/'))
+    os.makedirs(h3_dir, exist_ok=True)
     
-    # h3_tasks = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in tmp_h3_dirs]
-    # h3_tasks = dask.persist(*h3_tasks, traverse=False)
-    # progress(h3_tasks)
-    # print('\n')
-    # h3_file_meta = list(dask.compute(*h3_tasks))
-    # del h3_tasks
-        
+    h3_tasks = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in tmp_h3_dirs]
+    h3_tasks = dask.persist(*h3_tasks, traverse=False)
+    progress(h3_tasks)
+    print('\n')
+    h3_file_meta = list(dask.compute(*h3_tasks))
+    del h3_tasks
+    
+    h3_files = [i for i in h3_file_meta if i is not None]
     # h3_files = [hm[0] for hm in h3_file_meta if hm is not None]
     # h3_metas = [hm[1] for hm in h3_file_meta if hm is not None]
     
     if verbose:
         print("Gathering parquet metadata.")
 
-    # h3_files = glob.glob(os.path.join(h3_dir,'**','*.parquet'), recursive=True)
-    h3_files = pd.read_csv('/gpfs/data1/vclgp/data/iss_gedi/h3_mock/tmp/gh3_build/h3_files_glob.txt', header=None)[0].tolist()
+    h3_files = glob.glob(os.path.join(h3_dir,'**','*.parquet'), recursive=True)
 
-    def _pq_meta(h3_file):
-        pq_metadata = pq.read_metadata(h3_file)
-        rel_path = os.path.relpath(h3_file, h3_dir)
-        pq_metadata.set_file_path(rel_path)
-        return pq_metadata
+    # def _pq_meta(h3_file):
+    #     pq_metadata = pq.read_metadata(h3_file)
+    #     rel_path = os.path.relpath(h3_file, h3_dir)
+    #     pq_metadata.set_file_path(rel_path)
+    #     return pq_metadata
     
     # h3_metas = dbg.from_sequence(h3_files, partition_size=10).map(_pq_meta).persist()
     # progress(h3_metas)
     # h3_metas = list(h3_metas.compute())
-    from pqdm.threads import pqdm
-    h3_metas = pqdm(h3_files, _pq_meta, n_jobs=10)
         
     if verbose:
         print("Compiling H3 metadata files.")        
@@ -388,32 +386,31 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     meta_files = list(dask.compute(*meta_tasks))
     del meta_tasks
 
-    if verbose:
-        print("Compiling parquet metadata files.")
+    # if verbose:
+    #     print("Compiling parquet metadata files.")
 
-    # import geoarrow.pyarrow
-    base_schema = pq.read_schema(h3_files[0])
+    # base_schema = pq.read_schema(h3_files[0])
     
-    merged_bbox = None
-    if b'geo' in base_schema.metadata:
-        def _get_box(meta):
-            return json.loads(meta.metadata[b'geo'])['columns']['geometry']['bbox']
+    # merged_bbox = None
+    # if b'geo' in base_schema.metadata:
+    #     def _get_box(meta):
+    #         return json.loads(meta.metadata[b'geo'])['columns']['geometry']['bbox']
         
-        meta_boxes = dbg.from_sequence(h3_metas, partition_size=100).map(_get_box).persist()
-        progress(meta_boxes)
-        meta_boxes = list(meta_boxes.compute())
-        meta_boxes = [i for i in meta_boxes if i is not None]
-        meta_boxes = np.array(meta_boxes)
-        merged_bbox = meta_boxes[:,:2].min(axis=0).tolist() + meta_boxes[:,2:].max(axis=0).tolist()
-        del meta_boxes
+    #     meta_boxes = dbg.from_sequence(h3_metas, partition_size=100).map(_get_box).persist()
+    #     progress(meta_boxes)
+    #     meta_boxes = list(meta_boxes.compute())
+    #     meta_boxes = [i for i in meta_boxes if i is not None]
+    #     meta_boxes = np.array(meta_boxes)
+    #     merged_bbox = meta_boxes[:,:2].min(axis=0).tolist() + meta_boxes[:,2:].max(axis=0).tolist()
+    #     del meta_boxes
     
-    del h3_metas    
-    base_schema = parquet_schema_add_bbox(base_schema, bbox=merged_bbox)
-    pq.write_metadata(schema=base_schema, where=os.path.join(h3_dir, '_metadata'), metadata_collector=h3_metas)
+    # del h3_metas    
+    # base_schema = parquet_schema_add_bbox(base_schema, bbox=merged_bbox)
+    # pq.write_metadata(schema=base_schema, where=os.path.join(h3_dir, '_metadata'), metadata_collector=h3_metas)
     
-    cmeta = pq.ParquetDataset(h3_files)
-    cmeta_schema = parquet_schema_add_bbox(cmeta.schema, bbox=merged_bbox)
-    pq.write_metadata(schema=cmeta_schema, where=os.path.join(h3_dir, '_common_metadata'))
+    # cmeta = pq.ParquetDataset(h3_files)
+    # cmeta_schema = parquet_schema_add_bbox(cmeta.schema, bbox=merged_bbox)
+    # pq.write_metadata(schema=cmeta_schema, where=os.path.join(h3_dir, '_common_metadata'))
 
     return h3_files
 
