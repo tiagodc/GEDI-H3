@@ -23,3 +23,13 @@ def init_duckdb(threads=None, memory_limit=None, temp_directory=None, max_temp_s
     con.execute(f"SET max_temp_directory_size='{max_temp_size}GB';")
     con.execute(f"PRAGMA threads={threads};")
     return con
+
+def attach_ducklake_db(con, name='gedi_dl'):
+    """Attach existing ducklake database located in GH3_DEFAULT_H3_DIR.
+
+    Once this function is called, the gedi data can be queried using
+        `SELECT ... FROM {name}.data`
+    """
+    con.sql(f"""--sql
+        ATTACH 'ducklake:{GH3_DEFAULT_H3_DIR}/gedi.ducklake' AS {name};
+    """)
