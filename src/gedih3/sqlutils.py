@@ -31,5 +31,5 @@ def attach_ducklake_db(con, name='gedi_dl'):
         `SELECT ... FROM {name}.data`
     """
     con.sql(f"""--sql
-        ATTACH 'ducklake:{GH3_DEFAULT_H3_DIR}/gedi.ducklake' AS {name};
+        ATTACH 'ducklake:{GH3_DEFAULT_H3_DIR}/gedi.ducklake' AS {name} (READ_ONLY);
     """)
