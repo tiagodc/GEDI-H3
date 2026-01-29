@@ -12,6 +12,7 @@ Main modules:
 - gedih3.gh3builder: H3-indexed database building from GEDI data
 - gedih3.gh3driver: H3 database query and access functions
 - gedih3.h3utils: H3 geospatial indexing utilities
+- gedih3.egi: EGI (EASE Grid Index) square pixel indexing for L4B compatibility
 - gedih3.utils: General utility functions for file I/O and geospatial operations
 
 Usage examples:
@@ -22,6 +23,11 @@ Usage examples:
 
     >>> from gedih3.daac import GEDIAccessor
     >>> from gedih3.config import GEDI_PRODUCTS
+
+    # EGI (EASE Grid Index) for square pixel outputs
+    >>> import gedih3.egi as egi
+    >>> egi_df = egi.egi_dataframe(shots_df, level=6)
+    >>> raster = egi.geodf_to_raster(agg_df)
 """
 
 __version__ = "0.0.1"

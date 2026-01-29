@@ -2,35 +2,32 @@
 DEBUG=False
 
 import argparse
+import logging
 
 def get_cmd_args():
-    p = argparse.ArgumentParser(description = "Download GEDI data from NASA's SOC")    
-   
+    p = argparse.ArgumentParser(description = "Download GEDI data from NASA's DAAC")
+
     p.add_argument("-r", "--region", dest="region", required=False, type=str, default=None,
                    help="path to vector (.shp, .gpkg, .kml, etc.) or raster (.tif, .vrt) file with ROI, or bounding box as 'W,S,E,N', or ISO3 country code")
     p.add_argument("-d0", "--date-start", dest="date_start", required=False, type=str, default=None, help="start search date in YYYY-MM-DD format")
-    p.add_argument("-d1", "--date-end", dest="date_end", required=False, type=str, default=None, help="end search date in YYYY-MM-DD format")    
-    
+    p.add_argument("-d1", "--date-end", dest="date_end", required=False, type=str, default=None, help="end search date in YYYY-MM-DD format")
+
     p.add_argument("-l1b", "--l1b", dest="l1b", nargs='+', type=str, default=None, required=False, help="GEDI L1B variables to download")
     p.add_argument("-l2a", "--l2a", dest="l2a", nargs='+', type=str, default=None, required=False, help="GEDI L2A variables to download")
     p.add_argument("-l2b", "--l2b", dest="l2b", nargs='+', type=str, default=None, required=False, help="GEDI L2B variables to download")
     p.add_argument("-l4a", "--l4a", dest="l4a", nargs='+', type=str, default=None, required=False, help="GEDI L4A variables to download")
-    p.add_argument("-l4c", "--l4c", dest="l4c", nargs='+', type=str, default=None, required=False, help="GEDI L2A variables to download")
+    p.add_argument("-l4c", "--l4c", dest="l4c", nargs='+', type=str, default=None, required=False, help="GEDI L4C variables to download")
 
-    # p.add_argument("-l3", "--l3", dest="l3", action='store_true', help="Download GEDI L3")
-    # p.add_argument("-l4cf", "--l4c-fusion", dest="l4c_fusion", action='store_true', help="Download GEDI L4C Fusion")
-    # p.add_argument("-l4d", "--l4d", dest="l4d", action='store_true', help="Download GEDI L4D")
-        
     p.add_argument("-o", "--outdir", dest="outdir", required=False, type=str, default=None, help="output directory for downloaded files (bypass GH3 default path)")
-    p.add_argument("-r", "--resume", dest="resume", action='store_true', help="validate downloaded files and redownload missing or corrupted files")
-    
-    p.add_argument("-D", "--dask-scheduler", dest="dask_scheduler", type=str, default=None, required=False, help="existing dask scheduler address, e.g. tcp://localhost:8786")
+    p.add_argument("--resume", dest="resume", action='store_true', help="validate downloaded files and redownload missing or corrupted files")
+
+    p.add_argument("-s", "--dask-scheduler", dest="dask_scheduler", type=str, default=None, required=False, help="existing dask scheduler address, e.g. tcp://localhost:8786")
 
     from gedih3.utils import get_system_resources
     cpus, ram, storage = get_system_resources()
     n = max(1, cpus // 4)
     m = int(max(1, ram / n))
-    
+
     p.add_argument("-N", "--cores", dest="cores", required=False, type=int, default=n,
                    help=f"number of CPU cores to use [default = {n}]")
     p.add_argument("-T", "--threads", dest="threads", required=False, type=int, default=1,
@@ -39,19 +36,21 @@ def get_cmd_args():
                    help=f"memory limit per worker in GB [default = {m}]")
     p.add_argument("-P", "--port", dest="port", required=False, type=int, default=8787,
                    help="port for Dask dashboard [default = 8787]")
-    
+
+    p.add_argument("-v", "--verbose", dest="verbose", action="count", default=0,
+                   help="increase output verbosity (-v for INFO, -vv for DEBUG)")
+    p.add_argument("-Q", "--quiet", dest="quiet", required=False, action='store_true',
+                   help="suppress all output except errors")
+
     cmdargs = p.parse_args()
     return cmdargs
 
 def main():
-    import argparse, os
+    import os
     args = get_cmd_args()
 
     if DEBUG:
         args.region = '-51,0,-50,1'
-        # args.date_start = '2019-01-01'
-        # args.date_end = '2025-04-01'
-        # args.l1b = ['minimal']
         args.l2a = ['default']
         args.l2b = ['default']
         args.l4a = ['default']
@@ -59,27 +58,47 @@ def main():
         args.n_cpus = 32
         args.threads = 1
         args.port = 9998
-        # args.dask_scheduler = 'tcp://localhost:8786'
         import sys
         sys.path.insert(0, os.path.abspath('./src/'))
 
-    import warnings
+    from gedih3 import __version__ as _gh3_version
     from gedih3.config import GH3_DEFAULT_SOC_DIR
     from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region
     from gedih3.gh3builder import download_soc
     from gedih3.logger import SOCDownloadLogger
+    from gedih3.logging_config import configure_logging, get_logger
     from dask.distributed import Client
+
+    # Configure logging based on verbosity flags
+    if args.quiet:
+        log_level = logging.ERROR
+    elif args.verbose >= 2:
+        log_level = logging.DEBUG
+    elif args.verbose == 1:
+        log_level = logging.INFO
+    else:
+        log_level = logging.INFO
+
+    configure_logging(level=log_level, verbose=args.verbose >= 1)
+    logger = get_logger(__name__)
+
+    logger.info("")
+    logger.info("=" * 70)
+    logger.info(" GEDI Data Download Tool".center(70))
+    logger.info(f" gedih3 v{_gh3_version}".center(70))
+    logger.info("=" * 70)
+    logger.info("")
 
     if args.outdir is None:
         args.outdir = GH3_DEFAULT_SOC_DIR
     os.makedirs(args.outdir, exist_ok=True)
-    
+
     product_vars = parse_gedi_args(args)
-    spatial = parse_region(args.region) if args.region is not None else None    
+    spatial = parse_region(args.region) if args.region is not None else None
     temporal = None
     if args.date_start or args.date_end:
         temporal = (args.date_start, args.date_end)
-    
+
     soc_logger = SOCDownloadLogger(
         product_vars=product_vars,
         spatial=spatial,
@@ -90,26 +109,26 @@ def main():
     if not soc_logger.product_vars and not soc_logger.updating:
         raise ValueError("No GEDI product selected for download - please select at least one of --l1b, --l2a, --l2b, --l4a, --l4c")
     if soc_logger.get_spatial() is None:
-        warnings.warn("No spatial filter provided - downloading global data", UserWarning)
+        logger.warning("No spatial filter provided - downloading global data")
     if soc_logger.get_temporal() is None:
-        warnings.warn("No temporal filter provided - downloading data from all available dates", UserWarning)
+        logger.warning("No temporal filter provided - downloading data from all available dates")
 
     if soc_logger.updating:
-        print("Download log exists, resuming downloads.")
-
+        logger.info("Download log exists, resuming downloads")
         if soc_logger.new_spatial is not None:
-            print("Spatial filter updated.")
+            logger.info("Spatial filter updated")
         if soc_logger.new_temporal is not None:
-            print("Temporal filter updated.")
+            logger.info("Temporal filter updated")
         if soc_logger.new_product_vars is not None:
-            print("Product variables updated.")
+            logger.info("Product variables updated")
 
-    print(f"Downloading GEDI data to {args.outdir}")
+    logger.info(f"Downloading GEDI data to {args.outdir}")
     soc_logger.save_log('DOWNLOADING')
 
     dask_kwargs = parse_dask_args(args)
     with Client(**dask_kwargs) as client:
-        try:            
+        logger.info(f"Dask dashboard available at: {client.dashboard_link}")
+        try:
             soc_files = download_soc(
                 product_vars=soc_logger.get_product_vars(),
                 spatial=soc_logger.get_spatial(),
@@ -118,11 +137,19 @@ def main():
                 update=True,
                 odir=args.outdir
             )
-            
+
             soc_logger.save_log('COMPLETED')
-        
+
+            n_files = len(soc_files) if soc_files else 0
+            logger.info("")
+            logger.info("=" * 70)
+            logger.info(f" SUCCESS: {n_files} files downloaded to {args.outdir}")
+            logger.info("=" * 70)
+            logger.info("")
+
         except Exception as e:
             soc_logger.save_log('FAILED')
+            logger.error(f"Download failed: {e}")
             raise e
 
 if __name__ == "__main__":

@@ -218,5 +218,417 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False):
         df.to_hdf(opath, key='GEDI', mode='w')
     else:
         raise ValueError(f"Unsupported export format: {fmt}")
-    
+
     return opath
+
+
+# ============================================================================
+# EGI (EASE Grid Index) Support
+# ============================================================================
+# The following functions provide square-pixel indexing using EASE-Grid 2.0
+# (EPSG:6933) for GEDI L4B-compatible outputs.
+
+def egi_aggregate_func(df, level, agg='mean', cols=None, x_col='lon_lowestmode', y_col='lat_lowestmode', **kwargs):
+    """
+    Aggregate H3-indexed DataFrame to EGI (EASE Grid Index) pixels.
+
+    This function converts H3-indexed GEDI data to EGI square pixels,
+    which are compatible with GEDI L4B products and standard raster formats.
+
+    Parameters
+    ----------
+    df : DataFrame or GeoDataFrame
+        H3-indexed GEDI data
+    level : int
+        Target EGI resolution level (1-12)
+    agg : str, list, dict, or callable
+        Aggregation specification (same as pandas groupby.agg)
+    cols : list, optional
+        Columns to aggregate (numeric columns only)
+    x_col : str
+        Longitude column name (default: 'lon_lowestmode')
+    y_col : str
+        Latitude column name (default: 'lat_lowestmode')
+    **kwargs
+        Additional arguments passed to aggregation function
+
+    Returns
+    -------
+    DataFrame or GeoDataFrame
+        EGI-indexed aggregated data
+    """
+    from . import egi
+
+    # Ensure we have the coordinate columns
+    if x_col not in df.columns or y_col not in df.columns:
+        raise ValueError(f"Coordinate columns '{x_col}' and '{y_col}' required for EGI conversion")
+
+    # Add EGI index to the data
+    egi_df = egi.egi_dataframe(df, x_col=x_col, y_col=y_col, level=level, set_index=True)
+
+    # Remove geometry if present (will be regenerated)
+    if 'geometry' in egi_df.columns:
+        egi_df = pd.DataFrame(egi_df.drop(columns='geometry'))
+
+    # Filter to requested columns
+    if cols is not None:
+        egi_df = egi_df[[c for c in cols if c in egi_df.columns]]
+
+    # Aggregate
+    if callable(agg):
+        agg_df = pd.DataFrame(egi_df.groupby(level=0).apply(agg, include_groups=False, **kwargs))
+        if isinstance(agg_df.index, pd.MultiIndex):
+            agg_df.index = agg_df.index.get_level_values(0)
+    else:
+        agg_df = egi_df.groupby(level=0).agg(agg, **kwargs)
+
+    # Flatten MultiIndex columns
+    if isinstance(agg_df.columns, pd.MultiIndex):
+        agg_df.columns = ['_'.join(map(str, col)).strip() for col in agg_df.columns.values]
+
+    return agg_df
+
+
+def egi_add_geometry(df, polygons=True):
+    """
+    Add EGI pixel geometry to an EGI-indexed DataFrame.
+
+    Parameters
+    ----------
+    df : DataFrame
+        EGI-indexed DataFrame
+    polygons : bool
+        If True, use polygon geometries; if False, use centroids
+
+    Returns
+    -------
+    GeoDataFrame
+        GeoDataFrame with geometry column
+    """
+    from . import egi
+    return egi.egi_to_geo(df, polygons=polygons)
+
+
+def egi_aggregate(gh3_df, target_level=6, agg='mean', columns=None, query=None,
+                  add_geometry=True, x_col='lon_lowestmode', y_col='lat_lowestmode',
+                  repartition=False, **kwargs):
+    """
+    Aggregate H3-indexed GEDI data to EGI (EASE Grid Index) square pixels.
+
+    This is the main function for converting H3 hexagon data to EGI square
+    pixels for GEDI L4B-compatible outputs and rasterization.
+
+    Parameters
+    ----------
+    gh3_df : dask GeoDataFrame
+        H3-indexed GEDI data loaded via gh3_load()
+    target_level : int
+        Target EGI resolution level (1-12):
+        - Level 6 (~1km): GEDI baseline
+        - Level 7 (~2km): GEDI threshold
+        - Level 8 (~10km): GEDI wall-to-wall
+    agg : str, list, dict, or callable
+        Aggregation specification (same as pandas groupby.agg)
+    columns : list, optional
+        Columns to aggregate (if None, all numeric columns)
+    query : str, optional
+        Pandas query string for filtering before aggregation
+    add_geometry : bool
+        If True, add pixel polygon geometries to output
+    x_col : str
+        Longitude column name for coordinate lookup
+    y_col : str
+        Latitude column name for coordinate lookup
+    repartition : bool
+        If True, repartition by outer EGI tile for export
+    **kwargs
+        Additional arguments passed to aggregation function
+
+    Returns
+    -------
+    dask GeoDataFrame
+        EGI-indexed aggregated data
+
+    Examples
+    --------
+    >>> # Load H3 data and aggregate to ~1km EGI pixels
+    >>> ddf = gh3.gh3_load(columns=['agbd_l4a', 'rh_098_l2a'], region=study_area)
+    >>> egi_agg = gh3.egi_aggregate(ddf, target_level=6, agg='mean')
+    >>>
+    >>> # Rasterize the result
+    >>> from gedih3 import egi
+    >>> raster = egi.geodf_to_raster(egi_agg.compute())
+    """
+    from . import egi
+
+    # Validate level
+    egi.validate_level(target_level)
+
+    # Build metadata from a sample
+    nparts = min(gh3_df.npartitions, 10)
+    _meta = egi_aggregate_func(
+        df=gh3_df.head(npartitions=nparts),
+        level=target_level,
+        agg=agg,
+        cols=columns,
+        x_col=x_col,
+        y_col=y_col,
+        **kwargs
+    )
+
+    if query is not None:
+        gh3_df = gh3_df.query(query)
+
+    # Get H3 partition column
+    h3part = gh3_part_from_df(gh3_reindex(gh3_df))
+    egi_col = egi.egi_col_name(target_level)
+
+    # Update meta with partition info
+    _meta[h3part] = h3part
+    _meta = _meta.reset_index().set_index([h3part, egi_col])
+
+    # Apply aggregation per H3 partition
+    agg_df = gh3_df.groupby(h3part, observed=True).apply(
+        egi_aggregate_func,
+        level=target_level,
+        agg=agg,
+        cols=columns,
+        x_col=x_col,
+        y_col=y_col,
+        meta=_meta,
+        **kwargs
+    )
+    agg_df = agg_df.reset_index().set_index(egi_col, sort=False)
+
+    # Add geometry if requested
+    if add_geometry:
+        _gmeta = gpd.GeoDataFrame(
+            columns=agg_df._meta.columns.tolist() + ['geometry'],
+            geometry='geometry',
+            crs=egi.EGI_CRS_STRING
+        )
+        agg_df = agg_df.map_partitions(egi_add_geometry, meta=_gmeta)
+        if isinstance(agg_df, dask.dataframe.DataFrame):
+            agg_df = dask_geopandas.from_dask_dataframe(agg_df)
+
+    # Repartition by outer EGI tile if requested
+    if repartition:
+        egi_outer_col = egi.egi_col_name(egi.OUTER_LEVEL)
+        agg_df = agg_df.map_partitions(
+            lambda x: egi.egi_to_parent(x, parent_level=egi.OUTER_LEVEL, set_index=False)
+        )
+        gh3_parts = gh3_df.index if gh3_df.index.name == h3part else gh3_df[h3part]
+        uparts = sorted(gh3_parts.unique().compute().tolist())
+        agg_df.index = agg_df.index.rename(egi_col)
+        agg_df = agg_df.reset_index().set_index(h3part, sort=False, divisions=uparts + uparts[-1:])
+        agg_df = agg_df.reset_index().set_index(egi_col, sort=False)
+
+    return agg_df
+
+
+def egi_export_part(df, odir, fmt='parquet', is_file_path=False):
+    """
+    Export a single EGI partition to file.
+
+    Parameters
+    ----------
+    df : DataFrame or GeoDataFrame
+        EGI-indexed data partition
+    odir : str
+        Output directory or file path
+    fmt : str
+        Output format ('parquet', 'gpkg', 'geojson', 'tif', etc.)
+    is_file_path : bool
+        If True, odir is treated as a complete file path
+
+    Returns
+    -------
+    str
+        Output file path
+    """
+    from . import egi
+    import numpy as np
+
+    if df.empty:
+        return ''
+
+    os.makedirs(odir, exist_ok=True)
+
+    if is_file_path:
+        odir = odir.rstrip('/')
+        opath = f"{odir}.{fmt}" if not odir.endswith(fmt) else odir
+    else:
+        # Determine output filename from EGI outer tile
+        if hasattr(df, 'name') and str(df.name).startswith('egi'):
+            oname = str(df.name)
+        else:
+            # Get dominant outer tile ID
+            _df = df.sample(100) if len(df) > 100 else df
+            outer_df = egi.egi_to_parent(_df, egi.OUTER_LEVEL)
+            oname = str(outer_df.index.value_counts().idxmax())
+
+        opath = os.path.join(odir, f"{oname}.{fmt}")
+
+    # Handle raster export
+    if fmt in ('tif', 'tiff', 'geotiff'):
+        raster = egi.geodf_to_raster(df)
+        egi.export_raster(raster, opath)
+        return opath
+
+    # Handle vector/tabular export
+    if is_parquet(opath):
+        df.to_parquet(opath)
+    elif fmt == 'feather':
+        df.to_feather(opath)
+    elif fmt in ('geojson', 'gpkg', 'shp'):
+        df.to_file(opath)
+    elif fmt == 'txt':
+        df.to_csv(opath, sep='\t')
+    elif fmt == 'csv':
+        df.to_csv(opath)
+    elif fmt in ('h5', 'hdf5'):
+        df.to_hdf(opath, key='GEDI', mode='w')
+    else:
+        raise ValueError(f"Unsupported export format: {fmt}")
+
+    return opath
+
+
+def is_egi_indexed(df):
+    """
+    Check if a DataFrame is EGI-indexed.
+
+    Parameters
+    ----------
+    df : DataFrame or GeoDataFrame
+        DataFrame to check
+
+    Returns
+    -------
+    bool
+        True if EGI-indexed, False otherwise
+    """
+    if df.index.name and str(df.index.name).startswith('egi'):
+        return True
+    egi_cols = [col for col in df.columns if str(col).startswith('egi')]
+    return len(egi_cols) > 0
+
+
+def get_spatial_index_type(df):
+    """
+    Determine the spatial index type of a DataFrame.
+
+    Parameters
+    ----------
+    df : DataFrame or GeoDataFrame
+        DataFrame to check
+
+    Returns
+    -------
+    str
+        'h3', 'egi', or None
+    """
+    # Check index name
+    if df.index.name:
+        if str(df.index.name).startswith('h3_'):
+            return 'h3'
+        if str(df.index.name).startswith('egi'):
+            return 'egi'
+
+    # Check columns
+    h3_cols = [col for col in df.columns if str(col).startswith('h3_')]
+    egi_cols = [col for col in df.columns if str(col).startswith('egi')]
+
+    if egi_cols:
+        return 'egi'
+    if h3_cols:
+        return 'h3'
+
+    return None
+
+
+# ============================================================================
+# Rasterization Support
+# ============================================================================
+
+def gh3_to_raster(
+    gdf,
+    columns=None,
+    output_path=None,
+    compress='LZW'
+):
+    """
+    Convert H3-indexed GeoDataFrame to raster.
+
+    This is a convenience function that wraps the raster module's
+    h3_to_raster function with sensible defaults.
+
+    Parameters
+    ----------
+    gdf : GeoDataFrame
+        H3-indexed GeoDataFrame with polygon geometries
+    columns : list of str, optional
+        Columns to rasterize. If None, all numeric columns.
+    output_path : str, optional
+        If provided, save raster to this path
+    compress : str
+        Compression method for GeoTIFF
+
+    Returns
+    -------
+    xr.Dataset
+        Raster dataset
+
+    Examples
+    --------
+    >>> # Rasterize aggregated data
+    >>> raster = gh3_to_raster(agg_gdf)
+    >>> raster.rio.to_raster("output.tif")
+    >>>
+    >>> # Or save directly
+    >>> raster = gh3_to_raster(agg_gdf, output_path="output.tif")
+    """
+    from .raster import h3_to_raster, export_raster
+
+    xras = h3_to_raster(gdf, columns=columns)
+
+    if output_path:
+        export_raster(xras, output_path, compress=compress)
+
+    return xras
+
+
+def gh3_rasterize_partitions(
+    ddf,
+    output_dir,
+    columns=None,
+    compress='LZW',
+    show_progress=True
+):
+    """
+    Rasterize Dask GeoDataFrame partitions to individual GeoTIFF files.
+
+    Parameters
+    ----------
+    ddf : dask GeoDataFrame
+        H3-indexed Dask GeoDataFrame
+    output_dir : str
+        Output directory for raster files
+    columns : list of str, optional
+        Columns to rasterize
+    compress : str
+        Compression method for GeoTIFF
+    show_progress : bool
+        Show Dask progress bar
+
+    Returns
+    -------
+    list of str
+        Paths to output files
+    """
+    from .raster import rasterize_and_export_partitions, rasterize_h3_partition
+
+    return rasterize_and_export_partitions(
+        ddf, output_dir, rasterize_h3_partition,
+        columns=columns, compress=compress, show_progress=show_progress
+    )

@@ -41,8 +41,10 @@ def get_cmd_args():
 
 
     # Aggregation options
-    p.add_argument("-h3", "--h3-level", dest="h3_level", type=int, required=not DEBUG,
+    p.add_argument("-h3", "--h3-level", dest="h3_level", type=int, required=False, default=None,
                    help="aggregate to target H3 resolution level [0-15, lower = coarser]")
+    p.add_argument("-egi", "--egi-level", dest="egi_level", type=int, required=False, default=None,
+                   help="aggregate to EGI (EASE Grid) square pixels [1-12, GEDI baseline=6]")
     p.add_argument("-a", "--aggregate", dest="aggregate", required=not DEBUG, type=str, default="mean",
         help=(
             "aggregation spec for pandas GroupBy.agg. Accepts any valid pandas aggregator, e.g.\n"
@@ -117,7 +119,7 @@ def get_cmd_args():
 
 def main():
     args = get_cmd_args()
-    
+
     if DEBUG:
         args.output = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/tmp/maryland'
         args.region = '/gpfs/data1/vclgp/decontot/data/vector/other_boundaries/md.shp'
@@ -130,22 +132,34 @@ def main():
         args.database = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/database'
         args.cores = 20
         args.port = 9994
-    
-    try:    
+
+    # Validate aggregation level arguments
+    if args.h3_level is None and args.egi_level is None:
+        print("ERROR: Must specify either -h3/--h3-level or -egi/--egi-level for aggregation target")
+        sys.exit(1)
+    if args.h3_level is not None and args.egi_level is not None:
+        print("ERROR: Cannot specify both -h3/--h3-level and -egi/--egi-level. Choose one.")
+        sys.exit(1)
+
+    use_egi = args.egi_level is not None
+
+    try:
         import glob
         import pandas as pd
         from dask.distributed import Client, progress
-        
+
         from gedih3 import __version__ as _gh3_version
         import gedih3.gh3driver as gh3
         from gedih3.utils import is_hive_directory
         from gedih3.cliutils import collect_columns, build_query_string, parse_region, parse_dask_args, parse_file_format
         from gedih3.config import GH3_DEFAULT_H3_DIR
-        
+
         if not args.quiet:
             print("\n" + "="*70)
-            print(" GEDI H3 Data Aggregation Tool".center(70))
-
+            if use_egi:
+                print(" GEDI EGI (EASE Grid) Data Aggregation Tool".center(70))
+            else:
+                print(" GEDI H3 Data Aggregation Tool".center(70))
             print(f" gedih3 v{_gh3_version}".center(70))
             print("="*70 + "\n")
 
@@ -213,25 +227,48 @@ def main():
 
             if not args.quiet:
                 print("Aggregating data...")
-            
+
             from_hive = is_hive_directory(args.database, match_str=r'h3_.+=.+')
             numeric_columns = [col for col in ddf.columns if ddf[col].dtype.kind in 'biufc']
-            
-            aggdf = gh3.gh3_aggregate(ddf, 
-                                      target_res=args.h3_level,
-                                      agg=args.aggregate,
-                                      columns=numeric_columns,
-                                      add_geometry=True,
-                                      repartition=not args.merge
-                                      )
+
+            if use_egi:
+                # EGI (EASE Grid) aggregation
+                from gedih3 import egi
+                if not args.quiet:
+                    target_res = egi.get_resolution(args.egi_level)
+                    print(f"  Target: EGI level {args.egi_level} (~{target_res:.0f}m pixels)")
+
+                aggdf = gh3.egi_aggregate(
+                    ddf,
+                    target_level=args.egi_level,
+                    agg=args.aggregate,
+                    columns=numeric_columns,
+                    add_geometry=True,
+                    repartition=not args.merge
+                )
+                part_col = egi.egi_col_name(args.egi_level)
+                export_func = gh3.egi_export_part
+            else:
+                # H3 (hexagon) aggregation
+                if not args.quiet:
+                    print(f"  Target: H3 level {args.h3_level}")
+
+                aggdf = gh3.gh3_aggregate(
+                    ddf,
+                    target_res=args.h3_level,
+                    agg=args.aggregate,
+                    columns=numeric_columns,
+                    add_geometry=True,
+                    repartition=not args.merge
+                )
+                part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
+                part_col = f'h3_{part:02d}'
+                export_func = gh3.gh3_export_part
 
             # Export
             if not args.quiet:
                 print("Exporting data...")
 
-            part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
-            h3_col = f'h3_{part:02d}'
-            
             if args.merge:
                 write_task = aggdf
             elif args.hive:
@@ -240,11 +277,11 @@ def main():
                                             write_index=True,
                                             overwrite=True,
                                             compression='zstd',
-                                            partition_on=[h3_col],
+                                            partition_on=[part_col],
                                             compute=False
                                             )
             else:
-                write_task = aggdf.map_partitions(gh3.gh3_export_part,
+                write_task = aggdf.map_partitions(export_func,
                             odir=args.output,
                             fmt=args.format,
                             include_groups=False,
@@ -256,7 +293,7 @@ def main():
             
             if args.merge:
                 aggdf = aggdf.compute()
-                opath = gh3.gh3_export_part(aggdf, odir=args.output, fmt=args.format, is_file_path=True)
+                opath = export_func(aggdf, odir=args.output, fmt=args.format, is_file_path=True)
                 
                 if not args.quiet:
                     print(f"\n{'='*70}")

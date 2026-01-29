@@ -1,5 +1,5 @@
 #! python
-DEBUG=True
+DEBUG=False
 
 """
 GEDI H3 Data Extraction Tool
@@ -15,23 +15,24 @@ Package: gedih3
 import os
 import sys
 import argparse
+import logging
 
 def get_cmd_args():
     """Parse command line arguments for GEDI data extraction"""
     p = argparse.ArgumentParser(
         description="Extract and filter spatially indexed GEDI shots from H3 parquet database"
     )
-    
+
     # Database configuration
     p.add_argument("-d", "--database", dest="database", required=False, type=str, default=None,
                    help="path to H3 database directory [default from config or environment]")
 
     # Output configuration
-    p.add_argument("-o", "--output", dest="output", required=not DEBUG, type=str, 
+    p.add_argument("-o", "--output", dest="output", required=not DEBUG, type=str,
                    help="output directory or file path")
-    p.add_argument("-f", "--format", dest="format", required=False, type=str, default='parquet', 
+    p.add_argument("-f", "--format", dest="format", required=False, type=str, default='parquet',
                    help="output file format [default = parquet]")
-    p.add_argument("-m", "--merge", dest="merge", required=False, action='store_true', 
+    p.add_argument("-m", "--merge", dest="merge", required=False, action='store_true',
                    help="merge all partitions and export to single file")
 
     # Spatial filtering
@@ -73,13 +74,13 @@ def get_cmd_args():
 
     # Computation settings
     p.add_argument("-s", "--dask-scheduler", dest="dask_scheduler", required=False, type=str, default=None,
-                   help=f"dask scheduler address (overrides local cluster settings) [default = None]")
+                   help="dask scheduler address (overrides local cluster settings)")
 
     from gedih3.utils import get_system_resources
     cpus, ram, storage = get_system_resources()
     n = max(1, cpus // 4)
     m = int(max(1, ram / n))
-    
+
     p.add_argument("-N", "--cores", dest="cores", required=False, type=int, default=n,
                    help=f"number of CPU cores to use [default = {n}]")
     p.add_argument("-T", "--threads", dest="threads", required=False, type=int, default=1,
@@ -89,11 +90,11 @@ def get_cmd_args():
     p.add_argument("-P", "--port", dest="port", required=False, type=int, default=8787,
                    help="port for Dask dashboard [default = 8787]")
 
-    # Debug options
-    p.add_argument("-D", "--debug", dest="debug", required=False, action='store_true',
-                   help="enable debug logging")
+    # Verbosity options
+    p.add_argument("-v", "--verbose", dest="verbose", action="count", default=0,
+                   help="increase output verbosity (-v for INFO, -vv for DEBUG)")
     p.add_argument("-Q", "--quiet", dest="quiet", required=False, action='store_true',
-                   help="quiet output")
+                   help="suppress all output except errors")
 
     return p.parse_args()
 
@@ -102,7 +103,7 @@ def main():
         sys.path.insert(0, os.path.abspath('./src/'))
 
     args = get_cmd_args()
-    
+
     if DEBUG:
         args.output = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/tmp/maryland'
         args.region = '/gpfs/data1/vclgp/decontot/data/vector/other_boundaries/md.shp'
@@ -115,22 +116,36 @@ def main():
         args.database = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/database'
         args.cores = 20
         args.port = 9994
-    
-    try:    
+
+    try:
         import glob
         from dask.distributed import Client, progress
-        
+
         from gedih3 import __version__ as _gh3_version
         import gedih3.gh3driver as gh3
         from gedih3.cliutils import collect_columns, build_query_string, parse_region, parse_dask_args
         from gedih3.config import GH3_DEFAULT_H3_DIR
-        
-        if not args.quiet:
-            print("\n" + "="*70)
-            print(" GEDI H3 Data Extraction Tool".center(70))
+        from gedih3.logging_config import configure_logging, get_logger
 
-            print(f" gedih3 v{_gh3_version}".center(70))
-            print("="*70 + "\n")
+        # Configure logging based on verbosity flags
+        if args.quiet:
+            log_level = logging.ERROR
+        elif args.verbose >= 2:
+            log_level = logging.DEBUG
+        elif args.verbose == 1:
+            log_level = logging.INFO
+        else:
+            log_level = logging.INFO
+
+        configure_logging(level=log_level, verbose=args.verbose >= 1)
+        logger = get_logger(__name__)
+
+        logger.info("")
+        logger.info("=" * 70)
+        logger.info(" GEDI H3 Data Extraction Tool".center(70))
+        logger.info(f" gedih3 v{_gh3_version}".center(70))
+        logger.info("=" * 70)
+        logger.info("")
 
         # Configure database path
         if args.database:
@@ -138,52 +153,45 @@ def main():
         else:
             args.database = GH3_DEFAULT_H3_DIR
 
-        if not args.quiet:
-            print(f"Database: {args.database}")
+        logger.info(f"Database: {args.database}")
 
         # Verify database exists
         if not os.path.exists(args.database):
-            print(f"ERROR: Database directory not found: {args.database}")
-            print("Please specify a valid database path with -d/--database")
+            logger.error(f"Database directory not found: {args.database}")
+            logger.error("Please specify a valid database path with -d/--database")
             sys.exit(1)
 
         # Read metadata
-        if not os.path.exists( os.path.join(args.database, "gedih3_build_log.json") ):
+        if not os.path.exists(os.path.join(args.database, "gedih3_build_log.json")):
             raise FileNotFoundError("Could not read database metadata. Invalid database?")
 
         # Parse region
         region = None
         if args.region:
-            if not args.quiet:
-                print(f"Parsing region: {args.region}")
+            logger.info(f"Parsing region: {args.region}")
             region = parse_region(args.region)
 
         # Collect columns
-        if not args.quiet:
-            print("Collecting variables...")
+        logger.info("Collecting variables...")
         columns = collect_columns(args)
 
         if len(columns) > 0:
-            if not args.quiet:
-                print(f"  Total variables: {len(columns)}")
+            logger.info(f"  Total variables: {len(columns)}")
         else:
             raise ValueError("No variables selected for extraction. Please specify variables with -l/--list or product-specific options.")
 
         # Build query
         query_str = build_query_string(args)
         if query_str:
-            if not args.quiet:
-                print(f"Query filter: {query_str}")
+            logger.info(f"Query filter: {query_str}")
 
         dask_kwargs = parse_dask_args(args)
 
         with Client(**dask_kwargs) as client:
-            if not args.quiet:
-                print("Dask dashboard available at:", client.dashboard_link)
+            logger.info(f"Dask dashboard available at: {client.dashboard_link}")
 
             # Load data
-            if not args.quiet:
-                print("Loading data from H3 database...")
+            logger.info("Loading data from H3 database...")
             ddf = gh3.gh3_load(
                 columns=columns,
                 region=region,
@@ -191,15 +199,13 @@ def main():
                 gh3_dir=args.database
             )
 
-            if not args.quiet:
-                print(f"  Loaded {ddf.npartitions} partitions")
+            logger.info(f"  Loaded {ddf.npartitions} partitions")
 
             # Export
-            if not args.quiet:
-                print("Exporting data...")
+            logger.info("Exporting data...")
             part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
             h3_col = f'h3_{part:02d}'
-            
+
             write_task = ddf.to_parquet(args.output,
                                         write_metadata_file=True,
                                         write_index=True,
@@ -208,30 +214,32 @@ def main():
                                         partition_on=[h3_col],
                                         compute=False
                                         )
-            
+
             write_task = write_task.persist()
             progress(write_task)
-            
+
             ofiles = glob.glob(f"{args.output}/**/*.parquet", recursive=True)
-            
+
             if len(ofiles) == 0:
                 raise RuntimeError("No output files were created.")
 
-            print("Writing dataset metadata")
+            logger.info("Writing dataset metadata")
             gh3.gh3_write_meta(opath=args.output, tool='gh3_extract', filter=query_str)
 
-            if not args.quiet:
-                print(f"\n{'='*70}")
-                print(f" SUCCESS: Data exported to {args.output}")
-                print(f"{'='*70}\n")
+            logger.info("")
+            logger.info("=" * 70)
+            logger.info(f" SUCCESS: Data exported to {args.output}")
+            logger.info("=" * 70)
+            logger.info("")
 
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user.")
         sys.exit(130)
 
     except Exception as e:
+        # Use print here since logger may not be configured yet
         print(f"\n\nERROR: {type(e).__name__}: {e}")
-        if args.debug:
+        if args.verbose >= 2:
             import traceback
             traceback.print_exc()
         sys.exit(1)
