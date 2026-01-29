@@ -1,6 +1,19 @@
-import os, h5py, re, glob, yaml, dask
+"""
+GEDI data file operations and HDF5 I/O.
+
+This module provides classes and functions for working with GEDI HDF5 files,
+including parsing filenames, extracting data, and building Dask DataFrames.
+"""
+
+import os
+import re
+import glob
 import itertools
-from typing import Dict, Union
+from typing import Dict, List, Optional, Union, Any
+from pathlib import Path
+
+import h5py
+import yaml
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -12,19 +25,85 @@ from earthaccess.store import EarthAccessFile
 
 from .config import GEDI_PRODUCTS, GEDI_BEAMS, GEDI_START_DATE, GH3_DEFAULT_SOC_DIR
 from .utils import h5_copy_subset, h5_info
+from .logging_config import get_logger
 
-def soc_prod_from_file(file_path):
+logger = get_logger(__name__)
+
+
+def soc_prod_from_file(file_path: Union[str, Path]) -> str:
+    """
+    Extract GEDI product code from a file path.
+
+    Parameters
+    ----------
+    file_path : str or Path
+        Path to a GEDI HDF5 file
+
+    Returns
+    -------
+    str
+        Product code (e.g., 'L2A', 'L4A')
+    """
     f = GEDIFile(file_path)
     prod_str = f"L{f.product[-1]}{f.level}"
     return prod_str
 
-def soc_from_file(file_path):
+
+def soc_from_file(file_path: Union[str, Path]) -> str:
+    """
+    Get the SOC root directory from a GEDI file path.
+
+    Parameters
+    ----------
+    file_path : str or Path
+        Path to a GEDI HDF5 file
+
+    Returns
+    -------
+    str
+        Path to the SOC root directory
+    """
     return os.path.dirname(os.path.dirname(os.path.dirname(file_path)))
 
-def soc_file_tree(file_struct: Union[str, list], to_list=False, glob_kwargs=None):
+
+def soc_file_tree(
+    file_struct: Union[str, List[str], List[EarthAccessFile]],
+    to_list: bool = False,
+    glob_kwargs: Optional[Dict] = None
+) -> Union[Dict[str, Dict[str, str]], List[Dict[str, str]]]:
+    """
+    Build a structured tree of GEDI SOC files grouped by orbit/track.
+
+    Organizes GEDI HDF5 files into a nested structure for easy access to
+    related files across different products (L2A, L2B, L4A, etc.).
+
+    Parameters
+    ----------
+    file_struct : str, list of str, or list of EarthAccessFile
+        Either a directory path containing GEDI files, or a list of file
+        paths or EarthAccessFile objects.
+    to_list : bool, default False
+        If True, return a list of dicts instead of a nested dict.
+    glob_kwargs : dict, optional
+        Keyword arguments passed to gedi_file_glob() for filtering files
+        (e.g., version, orbit).
+
+    Returns
+    -------
+    dict or list
+        If to_list=False: dict keyed by orbit_track identifier, with values
+        being dicts mapping product codes to file paths.
+        If to_list=True: list of product dicts.
+
+    Examples
+    --------
+    >>> tree = soc_file_tree('/path/to/soc')
+    >>> tree['O12345_01_T00001']
+    {'L2A': '/path/to/GEDI02_A_...h5', 'L4A': '/path/to/GEDI04_A_...h5'}
+    """
     direct_access = False
     if isinstance(file_struct, str) and os.path.isdir(file_struct):
-        glob_pattern = gedi_file_glob(**glob_kwargs) if glob_kwargs else 'GEDI*.h5'        
+        glob_pattern = gedi_file_glob(**glob_kwargs) if glob_kwargs else 'GEDI*.h5'
         file_list = glob.glob(os.path.join(file_struct, '**', glob_pattern), recursive=True)
     elif (direct_access := isinstance(file_struct[0], EarthAccessFile)):
         file_list = [i.path for i in file_struct]
@@ -32,12 +111,12 @@ def soc_file_tree(file_struct: Union[str, list], to_list=False, glob_kwargs=None
         file_list = file_struct
     else:
         raise ValueError("file_struct must be a directory or a list of file paths (or s3 links)")
-    
+
     file_array = np.array(file_struct) if direct_access else np.array(file_list)
-    
+
     flist = pd.DataFrame({'file_paths': file_list, 'file_links': file_array})
     fidx = flist.file_paths.str.extract(r'.*GEDI(\d{2})_([A-Z])_.*_(O\d+_\d{2}_T\d+).*\.h5$')
-    
+
     valid = fidx.notna().all(axis=1)
     flist = flist.loc[valid].copy()
     fidx = fidx.loc[valid]
@@ -47,12 +126,12 @@ def soc_file_tree(file_struct: Union[str, list], to_list=False, glob_kwargs=None
     flist = flist.sort_values(['orb_track', 'file_paths', 'prod'])
     flist = flist.pivot_table(index='orb_track', columns='prod', values='file_links', aggfunc='last')
     flist = flist.dropna()
-    
+
     soc_tree = flist.T.to_dict()
 
     if to_list:
         soc_tree = list(soc_tree.values())
-    
+
     return soc_tree
 
 def gedi_subset(source_file, dest_file, variables, subset_beams=None):
@@ -165,15 +244,51 @@ def validate_soc_files(product_vars: Dict, soc_dir: str = GH3_DEFAULT_SOC_DIR):
     return validation_report
 
 class GEDIFile:
-    def __init__(self, file_path):
+    """
+    Parser for GEDI HDF5 filenames.
+
+    Extracts metadata from GEDI filename convention including orbit, granule,
+    track, version, and date information.
+
+    Attributes
+    ----------
+    file_path : str
+        Full path to the GEDI file
+    full_name : str
+        Basename of the file
+    product : str
+        Product identifier (e.g., 'GEDI02')
+    level : str
+        Processing level (e.g., 'A', 'B')
+    date : datetime
+        Acquisition date and time
+    orbit : int
+        Orbit number
+    orbit_granule : int
+        Granule number within orbit
+    track : int
+        Ground track number
+    version : int
+        Data version number
+
+    Examples
+    --------
+    >>> gf = GEDIFile('/path/to/GEDI02_A_2020123120000_O12345_01_T00001_02_003_01_V002.h5')
+    >>> gf.orbit
+    12345
+    >>> gf.version
+    2
+    """
+
+    def __init__(self, file_path: Union[str, Path, EarthAccessFile]):
         if isinstance(file_path, EarthAccessFile):
             file_path = file_path.path
         self.parse_file(file_path)
-    
-    def __str__(self):
+
+    def __str__(self) -> str:
         return yaml.dump(self)
-    
-    def parse_file(self, f):
+
+    def parse_file(self, f: str) -> None:
         # check if f is str or s3 link
         self.file_path = f
         self.file_size = (os.path.getsize(f) / 1e9) if os.path.exists(f) else None
@@ -228,13 +343,44 @@ class GEDIFile:
         return parsed_files[0].file_path
 
 class GEDIShot(GEDIFile):
-    
-    def __init__(self, shot, build_glob: bool = False):
+    """
+    Decoder for GEDI shot numbers.
+
+    Extracts orbit, beam, track, and other metadata encoded in GEDI shot numbers.
+    The shot number is a 64-bit integer encoding multiple fields.
+
+    Attributes
+    ----------
+    shot : int or array
+        The shot number(s)
+    orbit : int or array
+        Orbit number
+    orbit_granule : int or array
+        Granule number within orbit
+    track : int or array
+        Ground track number
+    beam : int or array
+        Beam number (0-7)
+    beam_str : str or list
+        Beam identifier string (e.g., 'BEAM0101')
+    power : bool or array
+        True if power beam (beam > 3)
+    shot_index : int or array
+        Shot index within the granule
+
+    Examples
+    --------
+    >>> shot = GEDIShot(12345678901234567890)
+    >>> shot.beam_str
+    'BEAM0101'
+    """
+
+    def __init__(self, shot: Union[int, np.ndarray], build_glob: bool = False):
         self.parse_shot(shot)
         if build_glob:
             self.get_file_glob()
-    
-    def parse_shot(self, shot):
+
+    def parse_shot(self, shot: Union[int, np.ndarray]) -> None:
         self.is_scalar = np.isscalar(shot)
         self.shot = shot
         self.orbit = shot // 10000000000000
@@ -303,88 +449,280 @@ def process_waveforms(starts, ends, noises, wfs, n_bins=1420):
 
 def wfm_extract(h5_file, beam, idx, tx=False):
     init = 't' if tx else 'r'
-    
+
     noises = h5_file[f'/{beam}/noise_mean_corrected'][:][idx]
     starts = h5_file[f'/{beam}/{init}x_sample_start_index'][:][idx] - 1
     counts = h5_file[f'/{beam}/{init}x_sample_count'][:][idx]
     ends = starts + counts
     wfs = h5_file[f'/{beam}/{init}xwaveform'][:]
-    
+
     return process_waveforms(starts, ends, noises, wfs)
 
-def load_h5(fpath, columns, which_beams=None, shots=None, include_source=True, dropna=True):
-    f = h5py.File(fpath, mode='r', locking=False)
+
+def _validate_h5_columns(columns: List[str]) -> List[str]:
+    """
+    Validate and normalize the column list for HDF5 extraction.
+
+    Ensures shot_number is included and adds waveform dependencies.
+
+    Parameters
+    ----------
+    columns : list of str
+        Requested column names
+
+    Returns
+    -------
+    list of str
+        Normalized column list with dependencies added
+    """
+    columns = list(columns)  # Make a copy
+
     if 'shot_number' not in columns:
         columns.append('shot_number')
-    
+
     if 'rxwaveform' in columns:
-        columns += ['noise_mean_corrected','rx_sample_start_index','rx_sample_count']
+        columns += ['noise_mean_corrected', 'rx_sample_start_index', 'rx_sample_count']
         columns = list(set(columns))
-    
+
     if 'txwaveform' in columns:
-        columns += ['noise_mean_corrected','tx_sample_start_index','tx_sample_count']
-        columns = list(set(columns))    
-    
-    beams = all_beams = [k for k in f.keys() if k.startswith('BEAM')]
-    
+        columns += ['noise_mean_corrected', 'tx_sample_start_index', 'tx_sample_count']
+        columns = list(set(columns))
+
+    return columns
+
+
+def _get_beams_to_load(
+    h5_file: h5py.File,
+    shots: Optional[np.ndarray],
+    which_beams: Optional[List[str]]
+) -> tuple:
+    """
+    Determine which beams to load based on shots and beam filters.
+
+    Parameters
+    ----------
+    h5_file : h5py.File
+        Open HDF5 file handle
+    shots : array, optional
+        Specific shot numbers to extract
+    which_beams : list of str, optional
+        Specific beams to load
+
+    Returns
+    -------
+    tuple
+        (beams_to_load, all_beams, shot_beams_array_or_none)
+    """
+    all_beams = [k for k in h5_file.keys() if k.startswith('BEAM')]
+    beams = all_beams
+    shot_beams = None
+
     if shots is not None:
         shot_beams = np.uint16(shots % 10000000000000 // 100000000000)
         beams = [f'BEAM{b:04b}' for b in np.unique(shot_beams)]
-        
+
     if which_beams is not None:
         beams = [b for b in beams if b in which_beams]
-        
-    if len(beams) == 0:
-        f.close()
-        return load_h5(fpath=fpath, columns=columns, include_source=include_source, which_beams=all_beams[:1]).head(0)
-  
-    full_df = []
-    for k in beams:
-        shot_ids = f[f"{k}/shot_number"][:]
-        
-        if shots is not None:
-            kint = int(k[-4:],base=2)
-            k_shots = shots[shot_beams == kint]
-            idx = np.where(np.isin(shot_ids, k_shots))
+
+    return beams, all_beams, shot_beams
+
+
+def _extract_beam_data(
+    h5_file: h5py.File,
+    beam: str,
+    columns: List[str],
+    shots: Optional[np.ndarray],
+    shot_beams: Optional[np.ndarray],
+    include_source: bool
+) -> Optional[pd.DataFrame]:
+    """
+    Extract data from a single beam in an HDF5 file.
+
+    Parameters
+    ----------
+    h5_file : h5py.File
+        Open HDF5 file handle
+    beam : str
+        Beam identifier (e.g., 'BEAM0101')
+    columns : list of str
+        Variables to extract
+    shots : array, optional
+        Specific shot numbers to extract
+    shot_beams : array, optional
+        Beam numbers for each shot (pre-computed)
+    include_source : bool
+        Add root_beam column
+
+    Returns
+    -------
+    pd.DataFrame or None
+        DataFrame with extracted data, or None if no matching shots
+    """
+    shot_ids = h5_file[f"{beam}/shot_number"][:]
+
+    if shots is not None:
+        kint = int(beam[-4:], base=2)
+        k_shots = shots[shot_beams == kint]
+        idx = np.where(np.isin(shot_ids, k_shots))
+    else:
+        idx = np.arange(0, len(shot_ids))
+
+    if len(idx) == 0:
+        return None
+
+    dfs = {}
+    for j in columns:
+        if is_wave := (j == 'rxwaveform' or j == 'txwaveform'):
+            is_tx = j == 'txwaveform'
+            d = wfm_extract(h5_file, beam, idx, is_tx)
         else:
-            idx = np.arange(0,len(shot_ids))
-            
-        if len(idx) == 0: 
-            continue
+            d = h5_file[f"{beam}/{j}"][:][idx]
 
-        dfs = {}
-        for j in columns:
-            if is_wave := (j == 'rxwaveform' or j == 'txwaveform'):
-                is_tx = j == 'txwaveform'
-                d = wfm_extract(f, k, idx, is_tx)
-            else:
-                d = f[f"{k}/{j}"][:][idx]
-                            
-            if d.ndim == 2:
-                for col in range(d.shape[-1]):
-                    jj = f"{j}_{col:0{4 if is_wave else 3}d}"
-                    dfs[jj] = d[:,col]
-            else:
-                dfs[j] = d
+        if d.ndim == 2:
+            for col in range(d.shape[-1]):
+                jj = f"{j}_{col:0{4 if is_wave else 3}d}"
+                dfs[jj] = d[:, col]
+        else:
+            dfs[j] = d
 
-        dfs = pd.DataFrame(dfs)
-        if include_source:
-            dfs = dfs.assign(root_beam=k)
-        full_df.append(dfs)
+    df = pd.DataFrame(dfs)
+    if include_source:
+        df = df.assign(root_beam=beam)
 
-    f.close()
-    full_df = pd.concat(full_df, copy=True)
+    return df
+
+
+def _build_dataframe(
+    beam_frames: List[pd.DataFrame],
+    fpath: Union[str, Path, EarthAccessFile],
+    include_source: bool,
+    dropna: bool
+) -> pd.DataFrame:
+    """
+    Build the final DataFrame from extracted beam data.
+
+    Parameters
+    ----------
+    beam_frames : list of pd.DataFrame
+        DataFrames from each beam
+    fpath : str, Path, or EarthAccessFile
+        Source file path (for root_file column)
+    include_source : bool
+        Add root_file column
+    dropna : bool
+        Drop rows with NaN values
+
+    Returns
+    -------
+    pd.DataFrame
+        Combined DataFrame indexed by shot_number
+    """
+    full_df = pd.concat(beam_frames, copy=True)
     full_df = full_df.set_index('shot_number')
 
     if include_source:
-        full_df = full_df.assign(root_file=os.path.basename(fpath.path if isinstance(fpath, EarthAccessFile) else fpath))        
-    
+        full_df = full_df.assign(
+            root_file=os.path.basename(fpath.path if isinstance(fpath, EarthAccessFile) else fpath)
+        )
+
     if dropna:
-        full_df.dropna()
-    
+        full_df = full_df.dropna()
+
     return full_df
 
-def load_h5_merged(prod_files, product_vars, which_beams=None, shots=None, dropna=True, suffix_all=False):
+
+def load_h5(
+    fpath: Union[str, Path, EarthAccessFile],
+    columns: List[str],
+    which_beams: Optional[List[str]] = None,
+    shots: Optional[np.ndarray] = None,
+    include_source: bool = True,
+    dropna: bool = True
+) -> pd.DataFrame:
+    """
+    Load data from a GEDI HDF5 file into a pandas DataFrame.
+
+    Parameters
+    ----------
+    fpath : str, Path, or EarthAccessFile
+        Path to the GEDI HDF5 file
+    columns : list of str
+        Variable names to extract from the file
+    which_beams : list of str, optional
+        Specific beams to load (e.g., ['BEAM0101', 'BEAM1000']).
+        If None, loads all beams.
+    shots : array, optional
+        Specific shot numbers to extract. If None, loads all shots.
+    include_source : bool, default True
+        Add root_file and root_beam columns to output
+    dropna : bool, default True
+        Drop rows with NaN values
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame indexed by shot_number containing requested variables
+    """
+    f = h5py.File(fpath, mode='r', locking=False)
+
+    # Validate and normalize columns
+    columns = _validate_h5_columns(columns)
+
+    # Determine which beams to load
+    beams, all_beams, shot_beams = _get_beams_to_load(f, shots, which_beams)
+
+    # Handle case where no beams match
+    if len(beams) == 0:
+        f.close()
+        return load_h5(fpath=fpath, columns=columns, include_source=include_source, which_beams=all_beams[:1]).head(0)
+
+    # Extract data from each beam
+    beam_frames = []
+    for beam in beams:
+        beam_df = _extract_beam_data(f, beam, columns, shots, shot_beams, include_source)
+        if beam_df is not None:
+            beam_frames.append(beam_df)
+
+    f.close()
+
+    # Build final DataFrame
+    return _build_dataframe(beam_frames, fpath, include_source, dropna)
+
+def load_h5_merged(
+    prod_files: Dict[str, str],
+    product_vars: Dict[str, List[str]],
+    which_beams: Optional[List[str]] = None,
+    shots: Optional[np.ndarray] = None,
+    dropna: bool = True,
+    suffix_all: bool = False
+) -> Optional[pd.DataFrame]:
+    """
+    Load and merge data from multiple GEDI product files.
+
+    Combines data from different GEDI products (L2A, L2B, L4A, etc.) into a
+    single DataFrame, joining on shot_number.
+
+    Parameters
+    ----------
+    prod_files : dict
+        Mapping of product codes to file paths (e.g., {'L2A': '/path/to/l2a.h5'})
+    product_vars : dict
+        Mapping of product codes to lists of variable names to extract
+    which_beams : list of str, optional
+        Specific beams to load
+    shots : array, optional
+        Specific shot numbers to extract
+    dropna : bool, default True
+        Drop rows with NaN values
+    suffix_all : bool, default False
+        If True, suffix all columns with product code (e.g., 'rh_l2a').
+        Required when variables have the same name across products.
+
+    Returns
+    -------
+    pd.DataFrame or None
+        Merged DataFrame indexed by shot_number, or None if no data
+    """
     frames = []
     for i, (p, vars) in enumerate(product_vars.items()):
         ppath = prod_files.get(p)
@@ -411,15 +749,49 @@ def load_h5_merged(prod_files, product_vars, which_beams=None, shots=None, dropn
     df = pd.concat(frames, axis=1, join='inner', copy=True)
     return df
 
-def dask_h5_merged(prod_files_list, product_vars, which_beams=None, shots=None, dropna=True, suffix_all=False, by_beam=False):    
-    
-    _meta = load_h5_merged(prod_files_list[0], product_vars=product_vars, which_beams=GEDI_BEAMS[:1], dropna=dropna, suffix_all=suffix_all).head(0)    
-    
+def dask_h5_merged(
+    prod_files_list: List[Dict[str, str]],
+    product_vars: Dict[str, List[str]],
+    which_beams: Optional[List[str]] = None,
+    shots: Optional[np.ndarray] = None,
+    dropna: bool = True,
+    suffix_all: bool = False,
+    by_beam: bool = False
+) -> dask.dataframe.DataFrame:
+    """
+    Create a Dask DataFrame from multiple GEDI product file sets.
+
+    Lazily loads and merges GEDI data for distributed processing.
+
+    Parameters
+    ----------
+    prod_files_list : list of dict
+        List of product file dictionaries from soc_file_tree()
+    product_vars : dict
+        Mapping of product codes to variable lists
+    which_beams : list of str, optional
+        Specific beams to load
+    shots : array, optional
+        Specific shot numbers to extract
+    dropna : bool, default True
+        Drop rows with NaN values
+    suffix_all : bool, default False
+        Suffix all columns with product code
+    by_beam : bool, default False
+        If True, create separate partitions for each beam (more parallelism)
+
+    Returns
+    -------
+    dask.dataframe.DataFrame
+        Lazy Dask DataFrame for distributed processing
+    """
+    _meta = load_h5_merged(prod_files_list[0], product_vars=product_vars, which_beams=GEDI_BEAMS[:1], dropna=dropna, suffix_all=suffix_all).head(0)
+
     def _load_h5_merged(prod_files, **kwargs):
         try:
             return load_h5_merged(prod_files, **kwargs)
         except Exception as e:
-            print(f"\nError loading file combination:\n{prod_files}")
+            logger.warning(f"Error loading file combination: {prod_files}")
             return _meta
     
     if by_beam:

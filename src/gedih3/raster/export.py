@@ -1,0 +1,298 @@
+"""
+Raster Export Module
+
+This module provides utilities for exporting raster data to various formats,
+with support for GeoTIFF compression, tiling, and batch operations.
+"""
+from typing import Dict, List, Optional, Union
+import os
+import numpy as np
+import pandas as pd
+import geopandas as gpd
+import xarray as xr
+import dask
+import dask.dataframe
+from dask.distributed import progress as dask_progress
+
+from .config import get_geotiff_options, is_raster_format, GEOTIFF_DEFAULTS
+
+
+def export_raster(
+    xras: xr.Dataset,
+    output_path: str,
+    compress: str = 'LZW',
+    tiled: bool = True,
+    blocksize: int = 256,
+    bigtiff: bool = True
+) -> str:
+    """
+    Export xarray Dataset to GeoTIFF file.
+
+    Parameters
+    ----------
+    xras : xr.Dataset
+        Raster dataset to export
+    output_path : str
+        Output file path
+    compress : str
+        Compression method ('LZW', 'ZSTD', 'DEFLATE', 'NONE')
+    tiled : bool
+        Use tiled output format
+    blocksize : int
+        Tile block size in pixels
+    bigtiff : bool
+        Use BigTIFF format for large files
+
+    Returns
+    -------
+    str
+        Output file path
+    """
+    options = get_geotiff_options(compress, tiled, blocksize, bigtiff)
+
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+
+    xras.rio.to_raster(output_path, **options)
+    return output_path
+
+
+def export_raster_partition(
+    data: Union[pd.Series, xr.Dataset],
+    output_dir: str,
+    fmt: str = 'tif',
+    compress: str = 'LZW',
+    partition_id_attr: Optional[str] = None
+) -> str:
+    """
+    Export a single raster partition to file.
+
+    This function is designed for use with Dask's map_partitions.
+
+    Parameters
+    ----------
+    data : pd.Series or xr.Dataset
+        Raster data (Series of DataArrays or Dataset)
+    output_dir : str
+        Output directory
+    fmt : str
+        Output format ('tif', 'nc')
+    compress : str
+        Compression method for GeoTIFF
+    partition_id_attr : str, optional
+        Attribute name containing partition ID for filename
+
+    Returns
+    -------
+    str
+        Output file path, or empty string if no data
+    """
+    if isinstance(data, pd.Series):
+        if len(data) == 0:
+            return ''
+        # Series of DataArrays - merge them
+        valid = [x for x in data if hasattr(x, 'data_vars')]
+        if not valid:
+            return ''
+        xras = xr.merge(valid)
+    elif isinstance(data, xr.Dataset):
+        xras = data
+    else:
+        return ''
+
+    # Determine output filename
+    basename = 'raster'
+
+    # Try to get partition ID from attributes
+    for var in list(xras.data_vars)[:1]:
+        attrs = xras[var].attrs
+        if 'h3_03_id' in attrs:
+            basename = str(attrs['h3_03_id'])
+            break
+        elif 'egi12_id' in attrs:
+            basename = str(attrs['egi12_id'])
+            break
+        elif partition_id_attr and partition_id_attr in attrs:
+            basename = str(attrs[partition_id_attr])
+            break
+
+    # Add extension
+    output_path = os.path.join(output_dir, f"{basename}.{fmt}")
+    os.makedirs(output_dir, exist_ok=True)
+
+    if fmt in ('tif', 'tiff', 'geotiff'):
+        options = get_geotiff_options(compress)
+        xras.rio.to_raster(output_path, **options)
+    elif fmt in ('nc', 'netcdf'):
+        xras.to_netcdf(output_path)
+    else:
+        raise ValueError(f"Unsupported raster format: {fmt}")
+
+    return output_path
+
+
+def rasterize_and_export_partitions(
+    gdf: Union[gpd.GeoDataFrame, dask.dataframe.DataFrame],
+    output_dir: str,
+    rasterize_func,
+    columns: Optional[List[str]] = None,
+    fmt: str = 'tif',
+    compress: str = 'LZW',
+    show_progress: bool = True
+) -> List[str]:
+    """
+    Rasterize and export GeoDataFrame partitions to individual files.
+
+    Parameters
+    ----------
+    gdf : GeoDataFrame or dask GeoDataFrame
+        Input spatially-indexed data
+    output_dir : str
+        Output directory for raster files
+    rasterize_func : callable
+        Function to rasterize each partition (e.g., rasterize_h3_partition)
+    columns : list of str, optional
+        Columns to include in rasterization
+    fmt : str
+        Output format ('tif', 'nc')
+    compress : str
+        Compression method for GeoTIFF
+    show_progress : bool
+        Show Dask progress bar
+
+    Returns
+    -------
+    list of str
+        Paths to output files
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    if hasattr(gdf, 'npartitions'):
+        # Dask GeoDataFrame
+        raster_parts = gdf.map_partitions(
+            rasterize_func,
+            columns=columns,
+            meta=pd.Series(dtype=object)
+        )
+
+        export_func = lambda x: export_raster_partition(
+            x, output_dir, fmt=fmt, compress=compress
+        )
+
+        paths = raster_parts.map_partitions(
+            export_func,
+            meta=pd.Series(dtype=str)
+        )
+
+        if show_progress:
+            paths = paths.persist()
+            dask_progress(paths)
+
+        return paths.compute().tolist()
+    else:
+        # Regular GeoDataFrame
+        raster = rasterize_func(gdf, columns=columns)
+        path = export_raster_partition(raster, output_dir, fmt=fmt, compress=compress)
+        return [path] if path else []
+
+
+def merge_and_export_rasters(
+    gdf: Union[gpd.GeoDataFrame, dask.dataframe.DataFrame],
+    output_path: str,
+    rasterize_func,
+    columns: Optional[List[str]] = None,
+    compress: str = 'LZW',
+    show_progress: bool = True
+) -> str:
+    """
+    Rasterize all partitions and merge into a single output file.
+
+    Parameters
+    ----------
+    gdf : GeoDataFrame or dask GeoDataFrame
+        Input spatially-indexed data
+    output_path : str
+        Output file path
+    rasterize_func : callable
+        Function to rasterize each partition
+    columns : list of str, optional
+        Columns to include in rasterization
+    compress : str
+        Compression method for GeoTIFF
+    show_progress : bool
+        Show Dask progress bar
+
+    Returns
+    -------
+    str
+        Path to output file
+    """
+    from rioxarray import merge as rio_merge
+
+    if hasattr(gdf, 'npartitions'):
+        # Dask GeoDataFrame - rasterize partitions in parallel
+        raster_parts = gdf.map_partitions(
+            rasterize_func,
+            columns=columns,
+            meta=pd.Series(dtype=object)
+        )
+
+        if show_progress:
+            raster_parts = raster_parts.persist()
+            dask_progress(raster_parts)
+
+        rasters = raster_parts.compute()
+
+        # Filter valid rasters
+        valid_rasters = [
+            r for r in rasters
+            if hasattr(r, 'data_vars') and len(r.data_vars) > 0
+        ]
+
+        if not valid_rasters:
+            raise ValueError("No valid rasters to merge")
+
+        if len(valid_rasters) == 1:
+            merged = valid_rasters[0]
+        else:
+            # Merge all rasters
+            merged = xr.merge([
+                rio_merge.merge_arrays([r[var] for r in valid_rasters if var in r])
+                for var in valid_rasters[0].data_vars
+            ])
+    else:
+        # Single GeoDataFrame
+        merged = rasterize_func(gdf, columns=columns)
+        if isinstance(merged, pd.Series) and len(merged) > 0:
+            merged = merged.iloc[0]
+
+    # Export
+    return export_raster(merged, output_path, compress=compress)
+
+
+def compute_raster_stats(xras: xr.Dataset) -> Dict[str, Dict[str, float]]:
+    """
+    Compute basic statistics for each variable in a raster dataset.
+
+    Parameters
+    ----------
+    xras : xr.Dataset
+        Input raster dataset
+
+    Returns
+    -------
+    dict
+        Statistics for each variable: {var_name: {min, max, mean, std, count}}
+    """
+    stats = {}
+    for var in xras.data_vars:
+        data = xras[var].values
+        valid = ~np.isnan(data)
+        stats[var] = {
+            'min': float(np.nanmin(data)) if valid.any() else np.nan,
+            'max': float(np.nanmax(data)) if valid.any() else np.nan,
+            'mean': float(np.nanmean(data)) if valid.any() else np.nan,
+            'std': float(np.nanstd(data)) if valid.any() else np.nan,
+            'count': int(valid.sum()),
+        }
+    return stats
