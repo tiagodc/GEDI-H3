@@ -6,8 +6,8 @@ import argparse
 def get_cmd_args():
     p = argparse.ArgumentParser(description = "Download GEDI data from NASA's SOC")    
    
-    p.add_argument("-s", "--spatial", dest="spatial", required=False, type=str, default=None, help="path to vector (.shp, .gpkg, .kml etc.) file with region of interest")
-    p.add_argument("-b", "--box", dest="box", required=False, type=int, default=None, nargs=4, help="region of interest extent (in degrees) to intersect data (xmin ymin xmax ymax)")
+    p.add_argument("-r", "--region", dest="region", required=False, type=str, default=None,
+                   help="path to vector (.shp, .gpkg, .kml, etc.) or raster (.tif, .vrt) file with ROI, or bounding box as 'W,S,E,N', or ISO3 country code")
     p.add_argument("-d0", "--date-start", dest="date_start", required=False, type=str, default=None, help="start search date in YYYY-MM-DD format")
     p.add_argument("-d1", "--date-end", dest="date_end", required=False, type=str, default=None, help="end search date in YYYY-MM-DD format")    
     
@@ -48,7 +48,7 @@ def main():
     args = get_cmd_args()
 
     if DEBUG:
-        args.box = [-51,0,-50,1]
+        args.region = '-51,0,-50,1'
         # args.date_start = '2019-01-01'
         # args.date_end = '2025-04-01'
         # args.l1b = ['minimal']
@@ -63,9 +63,9 @@ def main():
         import sys
         sys.path.insert(0, os.path.abspath('./src/'))
 
-    import warnings    
+    import warnings
     from gedih3.config import GH3_DEFAULT_SOC_DIR
-    from gedih3.cliutils import parse_gedi_args, parse_dask_args
+    from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region
     from gedih3.gh3builder import download_soc
     from gedih3.logger import SOCDownloadLogger
     from dask.distributed import Client
@@ -74,8 +74,8 @@ def main():
         args.outdir = GH3_DEFAULT_SOC_DIR
     os.makedirs(args.outdir, exist_ok=True)
     
-    product_vars = parse_gedi_args(args)        
-    spatial = args.spatial if args.spatial is not None else args.box    
+    product_vars = parse_gedi_args(args)
+    spatial = parse_region(args.region) if args.region is not None else None    
     temporal = None
     if args.date_start or args.date_end:
         temporal = (args.date_start, args.date_end)

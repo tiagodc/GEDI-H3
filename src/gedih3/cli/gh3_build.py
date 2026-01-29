@@ -8,8 +8,8 @@ import dask
 def get_cmd_args():
     p = argparse.ArgumentParser(description = "Download GEDI data from NASA's SOC")    
    
-    p.add_argument("-r", "--region", dest="region", required=False, type=str, default=None, help="path to vector (.shp, .gpkg, .kml etc.) file with region of interest")
-    p.add_argument("-b", "--box", dest="box", required=False, type=int, default=None, nargs=4, help="region of interest extent (in degrees) to intersect data (xmin ymin xmax ymax)")
+    p.add_argument("-r", "--region", dest="region", required=False, type=str, default=None,
+                   help="path to vector (.shp, .gpkg, .kml, etc.) or raster (.tif, .vrt) file with ROI, or bounding box as 'W,S,E,N', or ISO3 country code")
     p.add_argument("-d0", "--date-start", dest="date_start", required=False, type=str, default=None, help="start search date in YYYY-MM-DD format")
     p.add_argument("-d1", "--date-end", dest="date_end", required=False, type=str, default=None, help="end search date in YYYY-MM-DD format")    
     
@@ -70,7 +70,7 @@ def main():
         # args.indir = '/gpfs/data1/vclgp/data/iss_gedi/soc'
         # args.version = 2
         
-        args.box = [-51,0,-50,1]
+        args.region = '-51,0,-50,1'
         # args.date_start = '2020-01-01'
         # args.date_end = '2020-07-01'
         # args.l1b = ['minimal']
@@ -88,7 +88,7 @@ def main():
     import warnings
     from gedih3 import __version__ as _gh3_version
     from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_TMP_DIR
-    from gedih3.cliutils import parse_gedi_args, parse_dask_args
+    from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region
     from gedih3.gh3builder import build_h3db
     from gedih3.logger import H3BuildLogger
     from dask.distributed import Client
@@ -111,7 +111,7 @@ def main():
     os.makedirs(args.tmpdir, exist_ok=True)
 
     product_vars = parse_gedi_args(args)
-    spatial = args.region if args.region is not None else args.box    
+    spatial = parse_region(args.region) if args.region is not None else None    
     
     h3_logger = H3BuildLogger(
         product_vars=product_vars,

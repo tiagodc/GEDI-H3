@@ -285,15 +285,15 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
 
     shots = None
     merged_bbox = None
-    
+
     dataset = ds.dataset(flist, format="parquet")
     schema = dataset.schema
-    
+
     if 'geometry' in schema.names:
         geodf = gpd.read_parquet(flist, columns=['geometry'])
         merged_bbox = list(geodf.total_bounds)
         schema = parquet_schema_add_bbox(schema, bbox=merged_bbox)
-    
+
     writer = pq.ParquetWriter(ofile, schema, compression="zstd")
     shots = None
     acc = []
@@ -327,6 +327,102 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
         for f in flist:
             if os.path.exists(f):
                 os.unlink(f)
+
+def parquet_join_columns(flist: List[str], ofile: str, key_col: str = 'shot_number',
+                         tmp_suffix: str = '.join.tmp', join_how='left'):
+    """
+    Memory-efficient column-wise join of parquet files. Equivalent to pd.concat(axis=1)
+    but processes in batches to avoid loading entire files into memory.
+
+    Parameters
+    ----------
+    flist : List[str]
+        Parquet files to join. First file determines row order, index, and metadata.
+    ofile : str
+        Output file path.
+    key_col : str, default='shot_number'
+        Column for joining (not the index).
+    rm_src : bool, default=False
+        Remove source files after join.
+    rows_per_group : int, optional
+        Output row group size. Defaults to first file's row group size.
+    tmp_suffix : str, default='.join.tmp'
+        Temporary file suffix.
+    """
+    import pandas as pd
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    if len(flist) < 2:
+        raise ValueError("Need at least 2 files to join")
+
+    # Get base file info
+    base_file = pq.ParquetFile(flist[0])
+    base_schema = base_file.schema_arrow
+
+    # Determine which columns to read from each file (only new ones)
+    base_cols = set(base_schema.names)
+    other_files = {}
+    for f in flist[1:]:
+        f_schema = pq.read_schema(f)
+        new_cols = [c for c in f_schema.names if c not in base_cols]
+        if new_cols:
+            other_files[f] = new_cols
+            base_cols.update(new_cols)
+
+    # Load other files (only new columns + key_col) indexed by key_col
+    other_data = {}
+    for f, new_cols in other_files.items():
+        df = pd.read_parquet(f, columns=[key_col] + new_cols)
+        other_data[f] = df.set_index(key_col)
+
+    # Build output schema
+    combined_schema = base_schema
+    for f, new_cols in other_files.items():
+        f_schema = pq.read_schema(f)
+        for col in new_cols:
+            combined_schema = combined_schema.append(f_schema.field(col))
+
+    if base_schema.metadata:
+        combined_schema = combined_schema.with_metadata(base_schema.metadata)
+
+    pardir = os.path.dirname(ofile)
+    if not os.path.exists(pardir):
+        os.makedirs(pardir, exist_ok=True)
+
+    # Process in batches
+    temp_ofile = ofile + tmp_suffix
+    with pq.ParquetWriter(temp_ofile, combined_schema, compression='zstd') as writer:
+        for rg_idx in range(base_file.metadata.num_row_groups):
+            # Read batch from base file
+            batch = base_file.read_row_group(rg_idx).to_pandas()
+
+            # Save original index name if it exists
+            idx_name = batch.index.name
+
+            # Reset index first to make it a column, then use key_col for joining
+            if idx_name:
+                batch = batch.reset_index()
+
+            # Join new columns from other files
+            batch_indexed = batch.set_index(key_col)
+            for indexed_df in other_data.values():
+                batch_indexed = batch_indexed.join(indexed_df, how=join_how)
+
+            # Reset index to get key_col back as column
+            batch = batch_indexed.reset_index()
+
+            # Restore original index if it had a name
+            if idx_name:
+                batch = batch.set_index(idx_name)
+
+            # Reorder columns to match schema (excluding index)
+            cols_to_select = [c for c in combined_schema.names if c in batch.columns]
+            batch = batch[cols_to_select]
+
+            writer.write_table(pa.Table.from_pandas(batch, schema=combined_schema))
+   
+    os.replace(temp_ofile, ofile)
 
 def parse_temporal(temporal):
     if temporal is None:
