@@ -352,11 +352,6 @@ def build_h3db(product_vars, res=12, part=3, spatial=None, soc_source=GH3_DEFAUL
     del h3_tasks
     
     h3_files = [i for i in h3_file_meta if i is not None]
-    
-    if verbose:
-        print("Gathering parquet metadata.")
-
-    h3_files = glob.glob(os.path.join(h3_dir,'**','*.parquet'), recursive=True)
         
     if verbose:
         print("Compiling H3 metadata files.")        

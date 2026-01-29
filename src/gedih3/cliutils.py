@@ -30,11 +30,10 @@ def parse_gedi_args(args):
     return prod_vars
     
 def parse_dask_args(args):
-    import dask
-
     # Load dask config from file if specified
-    if hasattr(args, 'dask_config') and args.dask_config:
+    if hasattr(args, 'dask_config') and args.dask_config:        
         if os.path.isfile(args.dask_config):
+            import dask
             dask.config.set(config=dask.config.collect([args.dask_config]))
         else:
             raise ValueError(f"Dask config file not found: {args.dask_config}")
