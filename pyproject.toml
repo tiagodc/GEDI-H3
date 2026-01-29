@@ -35,6 +35,7 @@ dependencies = [
     "earthaccess >= 0.14.0",
     "pqdm",
     "pyyaml",
+    "tenacity >= 8.2.0",
 ]
 
 [project.scripts]

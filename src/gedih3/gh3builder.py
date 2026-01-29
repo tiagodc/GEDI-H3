@@ -19,6 +19,8 @@ from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
 from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, validate_soc_files
 from .daac import gedi_download
 from .logging_config import get_logger
+from .validation import validate_h3_params, validate_product_vars, validate_directory_exists
+from .exceptions import H3ValidationError, GediValidationError, GediFileError
 
 logger = get_logger(__name__)
 
@@ -530,7 +532,21 @@ def build_h3db(
     -------
     list of str or None
         List of output parquet file paths, or None if no new data processed.
+
+    Raises
+    ------
+    H3ValidationError
+        If H3 resolution or partition parameters are invalid
+    GediFileError
+        If source directory doesn't exist
     """
+    # Validate parameters
+    logger.debug("Validating build parameters")
+    res, part = validate_h3_params(res, part)
+
+    if not os.path.exists(soc_source):
+        raise GediFileError(f"SOC source directory not found: {soc_source}")
+
     # List and organize SOC files
     logger.info("Listing source SOC files")
     all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=version_kwargs)

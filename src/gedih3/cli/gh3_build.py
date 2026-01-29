@@ -139,43 +139,82 @@ def main():
 
     dask_kwargs = parse_dask_args(args)
 
-    with Client(**dask_kwargs) as client:
-        warnings.filterwarnings("ignore", message=r"Sending large graph of size.*", category=UserWarning, module="distributed.client")
-        def _suppress_pandas_perf_warnings():
-            import warnings
-            import pandas as pd
-            warnings.filterwarnings("ignore", message=r"DataFrame is highly fragmented.*", category=pd.errors.PerformanceWarning)
+    try:
+        with Client(**dask_kwargs) as client:
+            warnings.filterwarnings("ignore", message=r"Sending large graph of size.*", category=UserWarning, module="distributed.client")
+            def _suppress_pandas_perf_warnings():
+                import warnings
+                import pandas as pd
+                warnings.filterwarnings("ignore", message=r"DataFrame is highly fragmented.*", category=pd.errors.PerformanceWarning)
 
-        client.run(_suppress_pandas_perf_warnings)
+            client.run(_suppress_pandas_perf_warnings)
 
-        logger.info(f"Dask dashboard available at: {client.dashboard_link}")
-        try:
-            h3_files = build_h3db(
-                product_vars=h3_logger.get_product_vars(),
-                spatial=h3_logger.get_spatial(),
-                res=h3_logger.res,
-                part=h3_logger.part,
-                soc_source=args.indir,
-                h3_dir=h3_logger._PARENT_DIR,
-                skip_granules=h3_logger.get_finished_granules(),
-                version_kwargs={'version': h3_logger.gedi_version},
-                tmp_dir=args.tmpdir
-            )
+            logger.info(f"Dask dashboard available at: {client.dashboard_link}")
+            try:
+                h3_files = build_h3db(
+                    product_vars=h3_logger.get_product_vars(),
+                    spatial=h3_logger.get_spatial(),
+                    res=h3_logger.res,
+                    part=h3_logger.part,
+                    soc_source=args.indir,
+                    h3_dir=h3_logger._PARENT_DIR,
+                    skip_granules=h3_logger.get_finished_granules(),
+                    version_kwargs={'version': h3_logger.gedi_version},
+                    tmp_dir=args.tmpdir
+                )
 
-            h3_logger.set_post_build_info()
-            h3_logger.save_log('COMPLETED')
+                h3_logger.set_post_build_info()
+                h3_logger.save_log('COMPLETED')
 
-            n_files = len(h3_files) if h3_files else 0
-            logger.info("")
-            logger.info("=" * 70)
-            logger.info(f" SUCCESS: {n_files} files exported to {args.output}")
-            logger.info("=" * 70)
-            logger.info("")
+                n_files = len(h3_files) if h3_files else 0
+                logger.info("")
+                logger.info("=" * 70)
+                logger.info(f" SUCCESS: {n_files} files exported to {args.output}")
+                logger.info("=" * 70)
+                logger.info("")
 
-        except Exception as e:
-            h3_logger.save_log('FAILED')
-            logger.error(f"Build failed: {e}")
-            raise e
+            except Exception as e:
+                h3_logger.save_log('FAILED')
+                logger.error(f"Build failed: {e}")
+                raise e
+
+    except KeyboardInterrupt:
+        logger.warning("\nBuild interrupted by user")
+        import sys
+        sys.exit(130)
+
+    except Exception as e:
+        # Import exceptions for specific error handling
+        from gedih3.exceptions import (
+            H3ValidationError,
+            GediFileError,
+            GediDatabaseError,
+            GediError
+        )
+
+        if isinstance(e, H3ValidationError):
+            logger.error(f"H3 parameter error: {e}")
+            import sys
+            sys.exit(2)
+        elif isinstance(e, GediFileError):
+            logger.error(f"File error: {e}")
+            import sys
+            sys.exit(3)
+        elif isinstance(e, GediDatabaseError):
+            logger.error(f"Database error: {e}")
+            import sys
+            sys.exit(4)
+        elif isinstance(e, GediError):
+            logger.error(f"GEDI error: {e}")
+            import sys
+            sys.exit(1)
+        else:
+            logger.error(f"Unexpected error: {type(e).__name__}: {e}")
+            if args.verbose >= 2:
+                import traceback
+                traceback.print_exc()
+            import sys
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()

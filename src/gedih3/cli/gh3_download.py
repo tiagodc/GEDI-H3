@@ -126,31 +126,73 @@ def main():
     soc_logger.save_log('DOWNLOADING')
 
     dask_kwargs = parse_dask_args(args)
-    with Client(**dask_kwargs) as client:
-        logger.info(f"Dask dashboard available at: {client.dashboard_link}")
-        try:
-            soc_files = download_soc(
-                product_vars=soc_logger.get_product_vars(),
-                spatial=soc_logger.get_spatial(),
-                temporal=soc_logger.get_temporal(),
-                direct_access=False,
-                update=True,
-                odir=args.outdir
-            )
 
-            soc_logger.save_log('COMPLETED')
+    try:
+        with Client(**dask_kwargs) as client:
+            logger.info(f"Dask dashboard available at: {client.dashboard_link}")
+            try:
+                soc_files = download_soc(
+                    product_vars=soc_logger.get_product_vars(),
+                    spatial=soc_logger.get_spatial(),
+                    temporal=soc_logger.get_temporal(),
+                    direct_access=False,
+                    update=True,
+                    odir=args.outdir
+                )
 
-            n_files = len(soc_files) if soc_files else 0
-            logger.info("")
-            logger.info("=" * 70)
-            logger.info(f" SUCCESS: {n_files} files downloaded to {args.outdir}")
-            logger.info("=" * 70)
-            logger.info("")
+                soc_logger.save_log('COMPLETED')
 
-        except Exception as e:
-            soc_logger.save_log('FAILED')
-            logger.error(f"Download failed: {e}")
-            raise e
+                n_files = len(soc_files) if soc_files else 0
+                logger.info("")
+                logger.info("=" * 70)
+                logger.info(f" SUCCESS: {n_files} files downloaded to {args.outdir}")
+                logger.info("=" * 70)
+                logger.info("")
+
+            except Exception as e:
+                soc_logger.save_log('FAILED')
+                logger.error(f"Download failed: {e}")
+                raise e
+
+    except KeyboardInterrupt:
+        logger.warning("\nDownload interrupted by user")
+        soc_logger.save_log('INTERRUPTED')
+        import sys
+        sys.exit(130)
+
+    except Exception as e:
+        from gedih3.exceptions import (
+            GediDownloadError,
+            GediAuthenticationError,
+            GediNetworkError,
+            GediError
+        )
+
+        if isinstance(e, GediAuthenticationError):
+            logger.error(f"Authentication error: {e}")
+            logger.info("Please check your NASA Earthdata credentials at ~/.netrc")
+            import sys
+            sys.exit(2)
+        elif isinstance(e, GediDownloadError):
+            logger.error(f"Download error: {e}")
+            import sys
+            sys.exit(3)
+        elif isinstance(e, GediNetworkError):
+            logger.error(f"Network error: {e}")
+            logger.info("Check your internet connection and try again")
+            import sys
+            sys.exit(4)
+        elif isinstance(e, GediError):
+            logger.error(f"GEDI error: {e}")
+            import sys
+            sys.exit(1)
+        else:
+            logger.error(f"Unexpected error: {type(e).__name__}: {e}")
+            if args.verbose >= 2:
+                import traceback
+                traceback.print_exc()
+            import sys
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()
