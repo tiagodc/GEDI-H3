@@ -499,3 +499,229 @@ def get_dask_client():
         return client
     except (ValueError, RuntimeError):
         return None
+
+
+# =============================================================================
+# Transaction Safety for File Operations
+# =============================================================================
+
+class AtomicFileWriter:
+    """
+    Context manager for atomic file writes with automatic rollback on failure.
+
+    Writes to a temporary file first, then atomically replaces the target
+    file only on successful completion. If an error occurs, the temporary
+    file is cleaned up and the original file (if any) is preserved.
+
+    Parameters
+    ----------
+    target_path : str
+        The final destination file path
+    suffix : str
+        Suffix for the temporary file (default: '.tmp')
+    backup : bool
+        If True, keep a backup of the original file (default: False)
+    backup_suffix : str
+        Suffix for backup files (default: '.bak')
+
+    Examples
+    --------
+    >>> with AtomicFileWriter('/path/to/output.parquet') as tmp_path:
+    ...     df.to_parquet(tmp_path)
+    # File is atomically renamed to /path/to/output.parquet on success
+
+    >>> with AtomicFileWriter('/path/to/output.json', backup=True) as tmp_path:
+    ...     with open(tmp_path, 'w') as f:
+    ...         json.dump(data, f)
+    # Original file backed up to .bak, new file replaces it
+    """
+
+    def __init__(
+        self,
+        target_path: str,
+        suffix: str = '.tmp',
+        backup: bool = False,
+        backup_suffix: str = '.bak'
+    ):
+        self.target_path = target_path
+        self.temp_path = target_path + suffix
+        self.backup = backup
+        self.backup_path = target_path + backup_suffix
+        self._success = False
+
+    def __enter__(self) -> str:
+        # Ensure parent directory exists
+        parent_dir = os.path.dirname(self.target_path)
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
+        return self.temp_path
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            # Success - atomically replace target
+            try:
+                if self.backup and os.path.exists(self.target_path):
+                    # Create backup of original
+                    if os.path.exists(self.backup_path):
+                        os.unlink(self.backup_path)
+                    os.rename(self.target_path, self.backup_path)
+
+                os.replace(self.temp_path, self.target_path)
+                self._success = True
+            except Exception:
+                # Cleanup temp file on rename failure
+                if os.path.exists(self.temp_path):
+                    os.unlink(self.temp_path)
+                raise
+        else:
+            # Failure - cleanup temp file
+            if os.path.exists(self.temp_path):
+                os.unlink(self.temp_path)
+
+        return False  # Don't suppress exceptions
+
+
+def safe_file_replace(src: str, dst: str, backup: bool = False) -> str:
+    """
+    Atomically replace a file with rollback on failure.
+
+    Parameters
+    ----------
+    src : str
+        Source file path
+    dst : str
+        Destination file path
+    backup : bool
+        If True, keep backup of original destination file
+
+    Returns
+    -------
+    str
+        Destination file path on success
+
+    Raises
+    ------
+    FileNotFoundError
+        If source file doesn't exist
+    OSError
+        If file operation fails
+    """
+    if not os.path.exists(src):
+        raise FileNotFoundError(f"Source file not found: {src}")
+
+    backup_path = dst + '.bak'
+
+    try:
+        if backup and os.path.exists(dst):
+            if os.path.exists(backup_path):
+                os.unlink(backup_path)
+            os.rename(dst, backup_path)
+
+        os.replace(src, dst)
+        return dst
+
+    except Exception as e:
+        # Attempt rollback
+        if backup and os.path.exists(backup_path) and not os.path.exists(dst):
+            os.rename(backup_path, dst)
+        raise
+
+
+def safe_directory_write(
+    write_func,
+    target_dir: str,
+    suffix: str = '.tmp',
+    cleanup_on_failure: bool = True
+):
+    """
+    Safely write to a directory with cleanup on failure.
+
+    Parameters
+    ----------
+    write_func : callable
+        Function that takes a directory path and writes files to it
+    target_dir : str
+        Target directory path
+    suffix : str
+        Suffix for temporary directory
+    cleanup_on_failure : bool
+        If True, remove partial writes on failure
+
+    Returns
+    -------
+    str
+        Target directory path on success
+
+    Examples
+    --------
+    >>> def write_partitions(dir_path):
+    ...     for i, df in enumerate(partitions):
+    ...         df.to_parquet(os.path.join(dir_path, f'part_{i}.parquet'))
+    ...
+    >>> safe_directory_write(write_partitions, '/path/to/output/')
+    """
+    import shutil
+
+    temp_dir = target_dir.rstrip('/') + suffix
+    os.makedirs(temp_dir, exist_ok=True)
+
+    try:
+        write_func(temp_dir)
+
+        # Success - replace target directory
+        if os.path.exists(target_dir):
+            shutil.rmtree(target_dir)
+        os.rename(temp_dir, target_dir)
+        return target_dir
+
+    except Exception:
+        if cleanup_on_failure and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
+
+
+def verify_file_integrity(file_path: str, file_type: str = None) -> bool:
+    """
+    Verify that a file is readable and not corrupted.
+
+    Parameters
+    ----------
+    file_path : str
+        Path to file to verify
+    file_type : str, optional
+        File type hint ('h5', 'parquet', 'json'). Auto-detected if not provided.
+
+    Returns
+    -------
+    bool
+        True if file is valid, False otherwise
+    """
+    if not os.path.exists(file_path):
+        return False
+
+    if file_type is None:
+        ext = os.path.splitext(file_path)[1].lower()
+        file_type = {
+            '.h5': 'h5',
+            '.hdf5': 'h5',
+            '.parquet': 'parquet',
+            '.parq': 'parquet',
+            '.pq': 'parquet',
+            '.json': 'json',
+        }.get(ext)
+
+    try:
+        if file_type == 'h5':
+            return h5_is_valid(file_path)
+        elif file_type == 'parquet':
+            import pyarrow.parquet as pq
+            pq.read_metadata(file_path)
+            return True
+        elif file_type == 'json':
+            json_read(file_path)
+            return True
+        else:
+            # Generic check - just ensure file is non-empty
+            return os.path.getsize(file_path) > 0
+    except Exception:
+        return False
