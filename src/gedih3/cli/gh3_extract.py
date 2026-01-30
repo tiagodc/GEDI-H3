@@ -2,11 +2,10 @@
 DEBUG=False
 
 """
-GEDI H3 Data Extraction Tool
+GEDI H3/EGI Data Extraction Tool
 
 Extract and filter GEDI shots from H3-indexed parquet database with spatial,
-temporal, and quality filters. Supports multiple products (L2A, L2B, L4A, L4C)
-and flexible output formats.
+temporal, and quality filters. Supports H3 or EGI output indexing/partitioning.
 
 Author: Tiago de Conto
 Package: gedih3
@@ -20,7 +19,7 @@ import logging
 def get_cmd_args():
     """Parse command line arguments for GEDI data extraction"""
     p = argparse.ArgumentParser(
-        description="Extract and filter spatially indexed GEDI shots from H3 parquet database"
+        description="Extract and filter GEDI shots with H3 or EGI spatial indexing"
     )
 
     # Database configuration
@@ -34,6 +33,10 @@ def get_cmd_args():
                    help="output file format [default = parquet]")
     p.add_argument("-m", "--merge", dest="merge", required=False, action='store_true',
                    help="merge all partitions and export to single file")
+
+    # Output indexing options
+    p.add_argument("-egi", "--egi-level", dest="egi_level", type=int, required=False, default=None,
+                   help="add EGI index and partition output by EGI level [1-12, GEDI baseline=6]")
 
     # Spatial filtering
     p.add_argument("-r", "--region", dest="region", required=False, type=str, default=None,
@@ -140,9 +143,15 @@ def main():
         configure_logging(level=log_level, verbose=args.verbose >= 1)
         logger = get_logger(__name__)
 
+        # Determine output indexing mode
+        use_egi = args.egi_level is not None
+
         logger.info("")
         logger.info("=" * 70)
-        logger.info(" GEDI H3 Data Extraction Tool".center(70))
+        if use_egi:
+            logger.info(" GEDI EGI Data Extraction Tool".center(70))
+        else:
+            logger.info(" GEDI H3 Data Extraction Tool".center(70))
         logger.info(f" gedih3 v{_gh3_version}".center(70))
         logger.info("=" * 70)
         logger.info("")
@@ -175,6 +184,11 @@ def main():
         logger.info("Collecting variables...")
         columns = collect_columns(args)
 
+        # EGI indexing works best with Point geometry from GeoDataFrame
+        # Ensure geometry column is loaded so we have coordinate information
+        if use_egi and 'geometry' not in columns:
+            columns.append('geometry')
+
         if len(columns) > 0:
             logger.info(f"  Total variables: {len(columns)}")
         else:
@@ -201,17 +215,37 @@ def main():
 
             logger.info(f"  Loaded {ddf.npartitions} partitions")
 
+            # Determine partition column
+            if use_egi:
+                from gedih3 import egi
+                from gedih3.egi.config import egi_col_name
+
+                logger.info(f"Adding EGI index at level {args.egi_level}...")
+                target_res = egi.get_resolution(args.egi_level)
+                logger.info(f"  EGI resolution: ~{target_res:.0f}m pixels")
+
+                # Add EGI index to each partition
+                ddf = ddf.map_partitions(
+                    egi.egi_dataframe,
+                    level=args.egi_level,
+                    set_index=False,
+                    meta=ddf._meta
+                )
+                part_col = egi_col_name(args.egi_level)
+            else:
+                part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
+                part_col = f'h3_{part:02d}'
+
             # Export
             logger.info("Exporting data...")
-            part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
-            h3_col = f'h3_{part:02d}'
+            logger.info(f"  Partitioning by: {part_col}")
 
             write_task = ddf.to_parquet(args.output,
                                         write_metadata_file=True,
                                         write_index=True,
                                         overwrite=True,
                                         compression='zstd',
-                                        partition_on=[h3_col],
+                                        partition_on=[part_col],
                                         compute=False
                                         )
 

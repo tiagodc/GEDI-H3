@@ -68,8 +68,17 @@ def egi_dataframe(
     """
     validate_level(level)
 
+    # Handle empty DataFrames (e.g., during Dask metadata inference)
+    if len(df) == 0:
+        egi_col = egi_col_name(level)
+        gdf = gpd.GeoDataFrame(df, geometry=[], crs=f'EPSG:{in_epsg}')
+        gdf[egi_col] = np.array([], dtype=np.uint64)
+        if set_index:
+            gdf = gdf.set_index(egi_col)
+        return gdf
+
     # Handle GeoDataFrame with Point geometry
-    if isinstance(df, gpd.GeoDataFrame) and df.geom_type.iloc[0] == 'Point':
+    if isinstance(df, gpd.GeoDataFrame) and len(df) > 0 and df.geom_type.iloc[0] == 'Point':
         gdf = df
     else:
         # Create GeoDataFrame from coordinate columns
@@ -134,8 +143,17 @@ def egi_dataframe_vectorized(
 
     validate_level(level)
 
+    # Handle empty DataFrames (e.g., during Dask metadata inference)
+    if len(df) == 0:
+        egi_col = egi_col_name(level)
+        gdf = gpd.GeoDataFrame(df, geometry=[], crs=f'EPSG:{in_epsg}')
+        gdf[egi_col] = np.array([], dtype=np.uint64)
+        if set_index:
+            gdf = gdf.set_index(egi_col)
+        return gdf
+
     # Get coordinates
-    if isinstance(df, gpd.GeoDataFrame) and df.geom_type.iloc[0] == 'Point':
+    if isinstance(df, gpd.GeoDataFrame) and len(df) > 0 and df.geom_type.iloc[0] == 'Point':
         if df.crs.to_epsg() == EGI_CRS:
             x = df.geometry.x.values
             y = df.geometry.y.values
@@ -196,6 +214,14 @@ def egi_to_parent(
     """
     validate_level(parent_level)
 
+    # Handle empty DataFrames (e.g., during Dask metadata inference)
+    if len(gdf) == 0:
+        parent_col = egi_col_name(parent_level)
+        gdf = gdf.assign(**{parent_col: np.uint64(0)})
+        if set_index:
+            gdf = gdf.reset_index().set_index(parent_col)
+        return gdf
+
     # Get current level from index
     current_level = int(gdf.index[0] // np.uint64(1e18))
     if parent_level <= current_level:
@@ -239,6 +265,14 @@ def egi_to_parent_vectorized(
     """
     validate_level(parent_level)
 
+    # Handle empty DataFrames (e.g., during Dask metadata inference)
+    if len(gdf) == 0:
+        parent_col = egi_col_name(parent_level)
+        gdf = gdf.assign(**{parent_col: np.uint64(0)})
+        if set_index:
+            gdf = gdf.reset_index().set_index(parent_col)
+        return gdf
+
     current_level = int(gdf.index[0] // np.uint64(1e18))
     if parent_level <= current_level:
         return gdf
@@ -279,6 +313,10 @@ def egi_to_geo(
     >>> # Add polygon geometries for visualization
     >>> gdf = egi_to_geo(aggregated_df, polygons=True)
     """
+    # Handle empty DataFrames (e.g., during Dask operations on empty partitions)
+    if len(df) == 0:
+        return gpd.GeoDataFrame(df, geometry=[], crs=EGI_CRS_STRING)
+
     geom_gdf = to_geodataframe(df.index.to_numpy(), return_polygons=polygons)
     gdf = gpd.GeoDataFrame(df, geometry=geom_gdf.geometry.values, crs=EGI_CRS_STRING)
     return gdf
@@ -399,6 +437,6 @@ def egi_get_level_from_df(df: Union[pd.DataFrame, gpd.GeoDataFrame]) -> Optional
         return int(col[3:])
     except ValueError:
         # Fall back to examining the index values
-        if df.index.name and df.index.name.startswith('egi'):
+        if df.index.name and df.index.name.startswith('egi') and len(df) > 0:
             return int(get_level(np.uint64(df.index[0])))
         return None

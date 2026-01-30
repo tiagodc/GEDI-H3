@@ -2,11 +2,11 @@
 DEBUG=False
 
 """
-GEDI H3 Data Extraction Tool
+GEDI H3/EGI Data Aggregation Tool
 
-Extract and filter GEDI shots from H3-indexed parquet database with spatial,
-temporal, and quality filters. Supports multiple products (L2A, L2B, L4A, L4C)
-and flexible output formats.
+Aggregate GEDI shots from H3-indexed parquet database to coarser spatial
+resolutions. Supports H3 hexagonal aggregation or EGI (EASE Grid Index)
+square pixel aggregation for GEDI L4B compatibility.
 
 Author: Tiago de Conto
 Package: gedih3
@@ -19,9 +19,9 @@ import argparse
 TIME_UNITS = ['years', 'months', 'weeks', 'days']
 
 def get_cmd_args():
-    """Parse command line arguments for GEDI data extraction"""
+    """Parse command line arguments for GEDI data aggregation"""
     p = argparse.ArgumentParser(
-        description="Extract and filter spatially indexed GEDI shots from H3 parquet database",
+        description="Aggregate GEDI shots to H3 hexagons or EGI square pixels",
         formatter_class=argparse.RawTextHelpFormatter
     )
 
@@ -109,11 +109,11 @@ def get_cmd_args():
     p.add_argument("-P", "--port", dest="port", required=False, type=int, default=8787,
                    help="port for Dask dashboard [default = 8787]")
 
-    # Debug options
-    p.add_argument("-D", "--debug", dest="debug", required=False, action='store_true',
-                   help="enable debug logging")
+    # Verbosity options
+    p.add_argument("-v", "--verbose", dest="verbose", action="count", default=0,
+                   help="increase output verbosity (-v for INFO, -vv for DEBUG)")
     p.add_argument("-Q", "--quiet", dest="quiet", required=False, action='store_true',
-                   help="quiet output")
+                   help="suppress all output except errors")
 
     return p.parse_args()
 
@@ -192,6 +192,12 @@ def main():
         if not args.quiet:
             print("Collecting variables...")
         columns = collect_columns(args)
+
+        # EGI aggregation works best with Point geometry from GeoDataFrame
+        # Ensure geometry column is loaded so we have coordinate information
+        if use_egi:
+            if 'geometry' not in columns:
+                columns.append('geometry')
 
         if len(columns) > 0:
             if not args.quiet:
@@ -284,7 +290,6 @@ def main():
                 write_task = aggdf.map_partitions(export_func,
                             odir=args.output,
                             fmt=args.format,
-                            include_groups=False,
                             meta=pd.Series(dtype=str)
                             )
             
@@ -316,7 +321,7 @@ def main():
 
     except Exception as e:
         print(f"\n\nERROR: {type(e).__name__}: {e}")
-        if args.debug:
+        if args.verbose >= 2:
             import traceback
             traceback.print_exc()
         sys.exit(1)

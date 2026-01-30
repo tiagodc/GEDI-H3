@@ -362,6 +362,17 @@ def to_geodataframe(
     """
     uint_hash_arr = np.asarray(uint_hash_iter, dtype=np.uint64)
 
+    # Handle empty arrays (e.g., during Dask operations on empty partitions)
+    if len(uint_hash_arr) == 0:
+        # Return empty GeoDataFrame with correct structure
+        # Use a default level since we can't infer from empty array
+        idx_name = 'egi_hash'
+        return gpd.GeoDataFrame(
+            {idx_name: np.array([], dtype=np.uint64)},
+            geometry=[],
+            crs=EGI_CRS_STRING
+        ).set_index(idx_name)
+
     if return_polygons:
         geometries = [pixel_shape(h) for h in uint_hash_arr]
     else:
