@@ -76,12 +76,40 @@ def get_optimal_utm(gdf: gpd.GeoDataFrame) -> int:
     return utm_list[0].code
 
 
+def _detect_partition_level(gdf: gpd.GeoDataFrame) -> Optional[int]:
+    """
+    Detect the H3 partition level from a GeoDataFrame.
+
+    Looks for H3 partition columns (e.g., h3_03, h3_05) to determine
+    the partition level used in the database.
+
+    Parameters
+    ----------
+    gdf : GeoDataFrame
+        H3-indexed GeoDataFrame
+
+    Returns
+    -------
+    int or None
+        Detected partition level, or None if not found
+    """
+    import re
+    # Look for partition columns like h3_03, h3_05, etc.
+    h3_cols = [c for c in gdf.columns if re.match(r'h3_\d{2}$', str(c))]
+    if h3_cols:
+        # Get the lowest resolution (smallest number = coarsest = partition level)
+        levels = [int(str(c).split('_')[1]) for c in h3_cols]
+        return min(levels)
+    return None
+
+
 def h3_to_raster(
     gdf: gpd.GeoDataFrame,
     resolution: Optional[Tuple[float, float]] = None,
     columns: Optional[List[str]] = None,
     fill_value: float = np.nan,
-    output_crs: str = H3_RASTER_CRS
+    output_crs: str = H3_RASTER_CRS,
+    partition_level: Optional[int] = None
 ) -> xr.Dataset:
     """
     Convert H3-indexed GeoDataFrame to raster (xarray Dataset).
@@ -103,6 +131,8 @@ def h3_to_raster(
         Value for pixels with no data (default: NaN)
     output_crs : str
         Output coordinate reference system (default: EPSG:4326)
+    partition_level : int, optional
+        H3 partition level for metadata. If None, auto-detected from data.
 
     Returns
     -------
@@ -125,15 +155,32 @@ def h3_to_raster(
         if h3_cols:
             h3_index = gdf[h3_cols[0]].iloc[0]
 
+    # Determine partition level dynamically
+    if partition_level is None:
+        partition_level = _detect_partition_level(gdf)
+
     if h3_index:
         h3_level = h3.get_resolution(h3_index)
-        partition_id = h3.cell_to_parent(h3_index, 3)
+        # Only compute partition ID if we have a valid partition level
+        if partition_level is not None and partition_level < h3_level:
+            partition_id = h3.cell_to_parent(h3_index, partition_level)
+        else:
+            partition_id = None
     else:
-        h3_level = 12  # Default to finest level
+        # Try to get H3 level from index name (e.g., "h3_12")
+        if gdf.index.name and gdf.index.name.startswith('h3_'):
+            try:
+                h3_level = int(gdf.index.name.split('_')[1])
+            except (ValueError, IndexError):
+                h3_level = None
+        else:
+            h3_level = None
         partition_id = None
 
     # Determine resolution if not provided
     if resolution is None:
+        if h3_level is None:
+            raise ValueError("Cannot determine raster resolution: no H3 level found in data and no resolution provided")
         res_meters = get_h3_resolution_meters(h3_level)
         # Get optimal UTM for accurate resolution
         utm_epsg = get_optimal_utm(gdf)
@@ -161,14 +208,19 @@ def h3_to_raster(
         )
 
     # Add metadata
-    xras = xras.assign_attrs(
-        h3_level=h3_level,
-        source='gedih3'
-    )
-    if partition_id:
-        xras = xras.assign_attrs(h3_03_id=partition_id)
+    attrs = {'source': 'gedih3'}
+    if h3_level is not None:
+        attrs['h3_level'] = h3_level
+    if partition_level is not None:
+        attrs['h3_partition_level'] = partition_level
+    xras = xras.assign_attrs(**attrs)
+
+    if partition_id and partition_level is not None:
+        # Use dynamic attribute name based on actual partition level
+        partition_attr = f'h3_{partition_level:02d}_id'
+        xras = xras.assign_attrs(**{partition_attr: partition_id})
         for var in list(xras.data_vars):
-            xras[var] = xras[var].assign_attrs(h3_03_id=partition_id)
+            xras[var] = xras[var].assign_attrs(**{partition_attr: partition_id})
 
     return xras
 
@@ -177,7 +229,8 @@ def rasterize_h3_partition(
     gdf: gpd.GeoDataFrame,
     columns: Optional[List[str]] = None,
     output_crs: str = H3_RASTER_CRS,
-    include_partition_id: bool = True
+    include_partition_id: bool = True,
+    partition_level: Optional[int] = None
 ) -> pd.Series:
     """
     Rasterize a single H3 partition (for use with Dask map_partitions).
@@ -195,6 +248,8 @@ def rasterize_h3_partition(
         Output coordinate reference system
     include_partition_id : bool
         If True, include H3 partition ID in raster attributes
+    partition_level : int, optional
+        H3 partition level. If None, auto-detected from data.
 
     Returns
     -------
@@ -210,15 +265,22 @@ def rasterize_h3_partition(
         return pd.Series(dtype=object)
 
     try:
-        xras = h3_to_raster(gdf, columns=columns, output_crs=output_crs)
+        # Detect partition level if not provided
+        if partition_level is None:
+            partition_level = _detect_partition_level(gdf)
 
-        if include_partition_id:
-            # Get the H3 level 3 partition ID
+        xras = h3_to_raster(gdf, columns=columns, output_crs=output_crs, partition_level=partition_level)
+
+        if include_partition_id and partition_level is not None:
+            # Get the H3 partition ID dynamically based on partition level
             h3_index = gdf.index[0] if gdf.index.name and gdf.index.name.startswith('h3_') else None
             if h3_index:
-                partition_id = h3.cell_to_parent(h3_index, 3)
-                for var in list(xras.data_vars):
-                    xras[var] = xras[var].assign_attrs(h3_03_id=partition_id)
+                h3_level = h3.get_resolution(h3_index)
+                if partition_level < h3_level:
+                    partition_id = h3.cell_to_parent(h3_index, partition_level)
+                    partition_attr = f'h3_{partition_level:02d}_id'
+                    for var in list(xras.data_vars):
+                        xras[var] = xras[var].assign_attrs(**{partition_attr: partition_id})
 
         return pd.Series([xras])
     except Exception:

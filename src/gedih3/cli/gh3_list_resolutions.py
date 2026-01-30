@@ -134,9 +134,9 @@ def main():
         # Add markers for common use cases
         marker = ""
         if res == 3:
-            marker = " <- default partition"
+            marker = " <- typical partition level"
         elif res == 12:
-            marker = " <- default index (~9m)"
+            marker = " <- typical index (~9m)"
 
         print(f"{res:>4}  {edge:>18}  {area:>18}  {cells:>20}{marker}")
 

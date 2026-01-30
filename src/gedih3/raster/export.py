@@ -104,13 +104,21 @@ def export_raster_partition(
     basename = 'raster'
 
     # Try to get partition ID from attributes
+    import re
     for var in list(xras.data_vars)[:1]:
         attrs = xras[var].attrs
-        if 'h3_03_id' in attrs:
-            basename = str(attrs['h3_03_id'])
+        # Look for any H3 partition ID attribute (h3_XX_id pattern)
+        h3_part_attrs = [k for k in attrs.keys() if re.match(r'h3_\d{2}_id$', str(k))]
+        if h3_part_attrs:
+            basename = str(attrs[h3_part_attrs[0]])
             break
         elif 'egi12_id' in attrs:
             basename = str(attrs['egi12_id'])
+            break
+        # Look for any EGI partition ID attribute (egiXX_id pattern)
+        egi_part_attrs = [k for k in attrs.keys() if re.match(r'egi\d+_id$', str(k))]
+        if egi_part_attrs:
+            basename = str(attrs[egi_part_attrs[0]])
             break
         elif partition_id_attr and partition_id_attr in attrs:
             basename = str(attrs[partition_id_attr])
