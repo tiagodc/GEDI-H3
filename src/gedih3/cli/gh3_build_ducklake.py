@@ -5,10 +5,15 @@ import datetime as dt
 
 from gedih3 import sqlutils
 from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR
+from gedih3.gh3driver import gh3_read_meta
 
 def get_file_list():
     """Generate a list of all the possible parquet files in the database."""
-    folders = list(pathlib.Path(GH3_DEFAULT_H3_DIR).glob('h3_03=*'))
+    # Get partition level from metadata (default to 3 for backwards compatibility)
+    part_level = gh3_read_meta("h3_partition_level", gh3_root_dir=GH3_DEFAULT_H3_DIR)
+    if part_level is None:
+        part_level = 3
+    folders = list(pathlib.Path(GH3_DEFAULT_H3_DIR).glob(f'h3_{part_level:02d}=*'))
     years = range(2019, dt.datetime.now().year + 1)
     files = []
 
@@ -63,7 +68,8 @@ def main():
 
 if __name__ == "__main__":
     print("""This script assumes that all files follow the format:\n
-    database_world/h3_03=*/year=*/<h3_03>.<year>.0.parquet\n
+    database_world/h3_XX=*/year=*/<h3_XX>.<year>.0.parquet\n
+    where XX is the H3 partition level (read from gedih3_build_log.json).
     If this is not the case (e.g. multiple parquet files within a year, etc.),
     the script will need to be modified accordingly.
     """)

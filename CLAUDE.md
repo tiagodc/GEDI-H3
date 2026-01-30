@@ -275,7 +275,7 @@ python tests/run_tests.py
 ## Key Patterns
 
 - **Dask everywhere**: All heavy operations use Dask DataFrames/Bags for distributed processing
-- **H3 partitioning**: Data partitioned by H3 cells (default: res 3 for partitions, res 12 for indexing)
+- **H3 partitioning**: Data partitioned by H3 cells (configurable via `-h3p` for partition, `-h3r` for index; levels stored in metadata)
 - **EGI alignment**: Square pixels aligned to EASE-Grid 2.0 (EPSG:6933) for L4B compatibility
 - **Parquet + JSON metadata**: Each H3 partition has a `.parquet` file and `.metadata.json` sidecar
 - **Variable expansion**: CLI accepts `default`, `minimal`, `*`, or explicit variable lists/files
@@ -306,10 +306,10 @@ python tests/run_tests.py
 | Level | Avg. Hex Area | Description |
 |-------|---------------|-------------|
 | 0 | 4,250,547 km² | Global |
-| 3 | 12,393 km² | Default partition level |
+| 3 | 12,393 km² | Typical partition level |
 | 6 | 36.13 km² | Regional analysis |
 | 9 | 0.105 km² | Local analysis |
-| 12 | 307 m² | Default index level |
+| 12 | 307 m² | Typical index level |
 | 15 | 0.90 m² | Maximum resolution |
 
 ## Dependencies
