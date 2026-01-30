@@ -150,13 +150,13 @@ def collect_columns(args):
 
 def build_query_string(args):
     """Build pandas query string from arguments"""
-    
+
     h3_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)
     queries = []
 
-    # Quality filter
+    # Quality filter - use backticks to escape column names with special characters
     if args.quality:
-        queries += [f"{i} == 1" for i in h3_columns if 'quality_flag' in i]
+        queries += [f"`{i}` == 1" for i in h3_columns if 'quality_flag' in i]
 
     # Temporal filters
     if args.time_start:

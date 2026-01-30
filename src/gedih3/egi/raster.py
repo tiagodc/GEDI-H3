@@ -52,6 +52,11 @@ def geodf_to_raster(
     """
     from geocube.api.core import make_geocube
 
+    # Handle empty GeoDataFrames (e.g., during Dask operations on empty partitions)
+    if len(geodf) == 0:
+        # Return empty xarray Dataset with correct structure
+        return xr.Dataset()
+
     # Get level and resolution from index
     level = int(geodf.index[0] // np.uint64(1e18))
     res = RESOLUTIONS[level]

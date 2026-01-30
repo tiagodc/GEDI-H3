@@ -1,4 +1,5 @@
 import os, glob, h3
+import numpy as np
 import pandas as pd
 import geopandas as gpd
 import dask.dataframe
@@ -7,6 +8,44 @@ import dask_geopandas
 from .config import GH3_DEFAULT_H3_DIR, configure_environment
 from .utils import json_read, json_write, now, get_package_version, is_parquet
 from .h3utils import intersect_h3_geometries, fix_h3_geometry
+
+
+def _find_coordinate_column(columns, base_name):
+    """
+    Find a coordinate column by base name, handling product suffixes.
+
+    In the H3 database, coordinate columns may have product suffixes
+    (e.g., 'lon_lowestmode_l2a' instead of 'lon_lowestmode').
+
+    Parameters
+    ----------
+    columns : list-like
+        Available column names
+    base_name : str
+        Base column name to search for (e.g., 'lon_lowestmode')
+
+    Returns
+    -------
+    str or None
+        Actual column name if found, None otherwise
+    """
+    columns = list(columns)
+
+    # Exact match
+    if base_name in columns:
+        return base_name
+
+    # Find columns starting with base_name
+    matches = [c for c in columns if c.startswith(base_name)]
+
+    if len(matches) == 1:
+        return matches[0]
+    elif len(matches) > 1:
+        # Prefer _l2a suffix since coordinates typically come from L2A product
+        l2a_matches = [c for c in matches if c.endswith('_l2a')]
+        return l2a_matches[0] if l2a_matches else matches[0]
+
+    return None
 
 def gh3_set_db_path(gh3_root_dir=GH3_DEFAULT_H3_DIR):
     os.environ['GH3_DEFAULT_H3_DIR'] = gh3_root_dir
@@ -238,7 +277,7 @@ def egi_aggregate_func(df, level, agg='mean', cols=None, x_col='lon_lowestmode',
     Parameters
     ----------
     df : DataFrame or GeoDataFrame
-        H3-indexed GEDI data
+        H3-indexed GEDI data (GeoDataFrame with Point geometry preferred)
     level : int
         Target EGI resolution level (1-12)
     agg : str, list, dict, or callable
@@ -246,9 +285,11 @@ def egi_aggregate_func(df, level, agg='mean', cols=None, x_col='lon_lowestmode',
     cols : list, optional
         Columns to aggregate (numeric columns only)
     x_col : str
-        Longitude column name (default: 'lon_lowestmode')
+        Longitude column name (default: 'lon_lowestmode'). Only used if df is
+        not a GeoDataFrame with Point geometry.
     y_col : str
-        Latitude column name (default: 'lat_lowestmode')
+        Latitude column name (default: 'lat_lowestmode'). Only used if df is
+        not a GeoDataFrame with Point geometry.
     **kwargs
         Additional arguments passed to aggregation function
 
@@ -259,9 +300,26 @@ def egi_aggregate_func(df, level, agg='mean', cols=None, x_col='lon_lowestmode',
     """
     from . import egi
 
-    # Ensure we have the coordinate columns
-    if x_col not in df.columns or y_col not in df.columns:
-        raise ValueError(f"Coordinate columns '{x_col}' and '{y_col}' required for EGI conversion")
+    # Check if input is a GeoDataFrame with Point geometry
+    is_point_gdf = (
+        isinstance(df, gpd.GeoDataFrame) and
+        'geometry' in df.columns and
+        len(df) > 0 and
+        df.geom_type.iloc[0] == 'Point'
+    )
+
+    if not is_point_gdf:
+        # Need coordinate columns - try to find them with potential product suffixes
+        actual_x_col = _find_coordinate_column(df.columns, x_col)
+        actual_y_col = _find_coordinate_column(df.columns, y_col)
+
+        if actual_x_col is None or actual_y_col is None:
+            raise ValueError(
+                f"Coordinate columns for EGI conversion not found. "
+                f"Either provide a GeoDataFrame with Point geometry, or ensure "
+                f"columns matching '{x_col}*' and '{y_col}*' are included."
+            )
+        x_col, y_col = actual_x_col, actual_y_col
 
     # Add EGI index to the data
     egi_df = egi.egi_dataframe(df, x_col=x_col, y_col=y_col, level=level, set_index=True)
@@ -414,8 +472,14 @@ def egi_aggregate(gh3_df, target_level=6, agg='mean', columns=None, query=None,
     # Repartition by outer EGI tile if requested
     if repartition:
         egi_outer_col = egi.egi_col_name(egi.OUTER_LEVEL)
+
+        # Build metadata for map_partitions
+        _parent_meta = agg_df._meta.copy()
+        _parent_meta[egi_outer_col] = np.uint64(0)
+
         agg_df = agg_df.map_partitions(
-            lambda x: egi.egi_to_parent(x, parent_level=egi.OUTER_LEVEL, set_index=False)
+            lambda x: egi.egi_to_parent(x, parent_level=egi.OUTER_LEVEL, set_index=False),
+            meta=_parent_meta
         )
         gh3_parts = gh3_df.index if gh3_df.index.name == h3part else gh3_df[h3part]
         uparts = sorted(gh3_parts.unique().compute().tolist())

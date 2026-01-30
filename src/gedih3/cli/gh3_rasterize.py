@@ -179,6 +179,14 @@ def main():
         logger.info("Collecting variables...")
         columns = args.list if args.list else None
 
+        # EGI aggregation works best with Point geometry from GeoDataFrame
+        # Ensure geometry column is loaded so we have coordinate information
+        if use_egi:
+            if columns is None:
+                columns = ['geometry']
+            elif 'geometry' not in columns:
+                columns.append('geometry')
+
         # Build query
         query_parts = []
         if args.query:
@@ -245,20 +253,24 @@ def main():
                         logger.info(f"  No data for {suffix}, skipping")
                         continue
 
-                    # Aggregate
+                    # Aggregate - use numeric columns only
+                    numeric_columns = [col for col in time_ddf.columns if time_ddf[col].dtype.kind in 'biufc']
+
                     if use_egi:
                         aggdf = gh3.egi_aggregate(
                             time_ddf,
                             target_level=target_level,
                             agg=args.aggregate,
+                            columns=numeric_columns,
                             add_geometry=True
                         )
-                        rasterize_func = lambda gdf, cols=None: egi.geodf_to_raster(gdf, columns=cols)
+                        rasterize_func = lambda gdf, columns=None: egi.geodf_to_raster(gdf, columns=columns)
                     else:
                         aggdf = gh3.gh3_aggregate(
                             time_ddf,
                             target_res=target_level,
                             agg=args.aggregate,
+                            columns=numeric_columns,
                             add_geometry=True
                         )
                         rasterize_func = raster.rasterize_h3_partition
@@ -288,20 +300,25 @@ def main():
                 # Single rasterization
                 logger.info("Aggregating data...")
 
+                # Get numeric columns only for aggregation
+                numeric_columns = [col for col in ddf.columns if ddf[col].dtype.kind in 'biufc']
+
                 if use_egi:
                     from gedih3 import egi
                     aggdf = gh3.egi_aggregate(
                         ddf,
                         target_level=target_level,
                         agg=args.aggregate,
+                        columns=numeric_columns,
                         add_geometry=True
                     )
-                    rasterize_func = lambda gdf, cols=None: egi.geodf_to_raster(gdf, columns=cols)
+                    rasterize_func = lambda gdf, columns=None: egi.geodf_to_raster(gdf, columns=columns)
                 else:
                     aggdf = gh3.gh3_aggregate(
                         ddf,
                         target_res=target_level,
                         agg=args.aggregate,
+                        columns=numeric_columns,
                         add_geometry=True
                     )
                     rasterize_func = raster.rasterize_h3_partition

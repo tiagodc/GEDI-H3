@@ -55,14 +55,17 @@ class GEDIAccessor:
         if authenticate:
             self.login()
     
-    def login(self, strategy: str = 'all', persist: bool = True, max_attempts: int = 3):
+    def login(self, strategy: str = 'netrc', persist: bool = True, max_attempts: int = 3):
         """
         Authenticate with NASA Earthdata Login.
 
         Parameters
         ----------
         strategy : str
-            Authentication strategy ('all', 'netrc', 'interactive')
+            Authentication strategy ('netrc', 'environment', 'interactive').
+            Default is 'netrc' which reads credentials from ~/.netrc file.
+            Use 'environment' for EDL_USERNAME/EDL_PASSWORD env vars.
+            Use 'interactive' only in interactive terminals (may crash VSCode).
         persist : bool
             Whether to persist credentials
         max_attempts : int
@@ -72,7 +75,43 @@ class GEDIAccessor:
         ------
         GediAuthenticationError
             If authentication fails after all attempts
+
+        Notes
+        -----
+        For CLI usage, credentials should be stored in ~/.netrc file:
+
+            machine urs.earthdata.nasa.gov
+                login YOUR_USERNAME
+                password YOUR_PASSWORD
+
+        Create an account at https://urs.earthdata.nasa.gov/ if needed.
         """
+        # Check if netrc credentials exist before attempting login
+        if strategy == 'netrc':
+            import netrc
+            import os
+            netrc_path = os.path.expanduser('~/.netrc')
+            if not os.path.exists(netrc_path):
+                raise GediAuthenticationError(
+                    f"No ~/.netrc file found. Please create one with your NASA Earthdata credentials:\n\n"
+                    f"  machine urs.earthdata.nasa.gov\n"
+                    f"      login YOUR_USERNAME\n"
+                    f"      password YOUR_PASSWORD\n\n"
+                    f"Create an account at https://urs.earthdata.nasa.gov/ if needed."
+                )
+            try:
+                nrc = netrc.netrc(netrc_path)
+                if nrc.authenticators('urs.earthdata.nasa.gov') is None:
+                    raise GediAuthenticationError(
+                        f"No NASA Earthdata credentials found in ~/.netrc. Please add:\n\n"
+                        f"  machine urs.earthdata.nasa.gov\n"
+                        f"      login YOUR_USERNAME\n"
+                        f"      password YOUR_PASSWORD\n\n"
+                        f"Create an account at https://urs.earthdata.nasa.gov/ if needed."
+                    )
+            except netrc.NetrcParseError as e:
+                raise GediAuthenticationError(f"Error parsing ~/.netrc file: {e}")
+
         last_error = None
         for attempt in range(1, max_attempts + 1):
             try:
