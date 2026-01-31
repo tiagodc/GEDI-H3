@@ -14,90 +14,55 @@ Package: gedih3
 import os
 import sys
 import argparse
-import logging
 
 def get_cmd_args():
     """Parse command line arguments for GEDI data extraction"""
+    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args
+
     p = argparse.ArgumentParser(
         description="Extract and filter GEDI shots with H3 or EGI spatial indexing"
     )
 
-    # Database configuration
-    p.add_argument("-d", "--database", dest="database", required=False, type=str, default=None,
-                   help="path to H3 database directory [default from config or environment]")
-
-    # Output configuration
+    # Database/output configuration
+    p.add_argument("-d", "--database", dest="database", type=str, default=None,
+                   help="path to H3 database directory")
     p.add_argument("-o", "--output", dest="output", required=not DEBUG, type=str,
                    help="output directory or file path")
-    p.add_argument("-f", "--format", dest="format", required=False, type=str, default='parquet',
-                   help="output file format [default = parquet]")
-    p.add_argument("-m", "--merge", dest="merge", required=False, action='store_true',
-                   help="merge all partitions and export to single file")
+    p.add_argument("-f", "--format", dest="format", type=str, default='parquet',
+                   help="output format [default=parquet]")
+    p.add_argument("-m", "--merge", dest="merge", action='store_true',
+                   help="merge all partitions into single file")
 
-    # Output indexing options
-    p.add_argument("-egi", "--egi-level", dest="egi_level", type=int, required=False, default=None,
-                   help="add EGI index and partition output by EGI level [1-12, GEDI baseline=6]")
+    # Indexing options
+    p.add_argument("-egi", "--egi-level", dest="egi_level", type=int, default=None,
+                   help="add EGI index at level [1-12]")
 
-    # Spatial filtering
-    p.add_argument("-r", "--region", dest="region", required=False, type=str, default=None,
-                   help="path to vector (.shp, .gpkg, .kml, etc.) or raster (.tif, .vrt) file with ROI, or bounding box as 'W,S,E,N', or ISO3 country code")
-
-    # Variable selection by product
-    p.add_argument("-l", "--list", dest="list", nargs='+', type=str, default=None,
-                   help="flat list (space-separated) or file path of variables to export from the GEDI H3 database (need to specify product suffix, e.g. '_l2a')")
-
-    p.add_argument("-l1b", "--l1b", dest="l1b", nargs='+', type=str, default=None,
-                   help="GEDI L1B variables to export [space-separated list]")
-    p.add_argument("-l2a", "--l2a", dest="l2a", nargs='+', type=str, default=None,
-                   help="GEDI L2A variables to export [space-separated list]")
-    p.add_argument("-l2b", "--l2b", dest="l2b", nargs='+', type=str, default=None,
-                   help="GEDI L2B variables to export [space-separated list]")
-    p.add_argument("-l4a", "--l4a", dest="l4a", nargs='+', type=str, default=None,
-                   help="GEDI L4A variables to export [space-separated list]")
-    p.add_argument("-l4c", "--l4c", dest="l4c", nargs='+', type=str, default=None,
-                   help="GEDI L4C variables to export [space-separated list]")
-
-    # Geometry options
-    p.add_argument("-g", "--geo", dest="geo", required=False, action='store_true',
-                   help="export as georeferenced points (requires lat/lon columns)")
-
-    # Temporal filtering
-    p.add_argument("-t", "--time", dest="add_datetime", required=False, action='store_true',
-                   help="add human-readable 'datetime' column to output")
+    # Spatial/temporal filtering
+    p.add_argument("-r", "--region", dest="region", type=str, default=None,
+                   help="vector file, bbox 'W,S,E,N', or ISO3 code")
     p.add_argument("-t0", "--time-start", dest="time_start", type=str, default=None,
-                   help="start date to filter shots [YYYY-MM-DD]")
+                   help="start date [YYYY-MM-DD]")
     p.add_argument("-t1", "--time-end", dest="time_end", type=str, default=None,
-                   help="end date to filter shots [YYYY-MM-DD]")
+                   help="end date [YYYY-MM-DD]")
 
-    # Data filtering
-    p.add_argument("-q", "--query", dest="query", required=False, type=str, default=None,
-                   help="pandas query string for filtering - e.g. 'quality_flag_l2a == 1 & agbd_l4a > 50'")
-    p.add_argument("-y", "--quality", dest="quality", required=False, action='store_true',
-                   help="apply quality filtering (quality_flag_l2a == 1)")
+    # Variable selection
+    p.add_argument("-l", "--list", dest="list", nargs='+', type=str, default=None,
+                   help="variables to export (space-separated or file path)")
+    add_product_args(p)
 
-    # Computation settings
-    p.add_argument("-s", "--dask-scheduler", dest="dask_scheduler", required=False, type=str, default=None,
-                   help="dask scheduler address (overrides local cluster settings)")
+    # Options
+    p.add_argument("-g", "--geo", dest="geo", action='store_true',
+                   help="export as georeferenced points")
+    p.add_argument("-t", "--time", dest="add_datetime", action='store_true',
+                   help="add datetime column to output")
+    p.add_argument("-q", "--query", dest="query", type=str, default=None,
+                   help="pandas query string for filtering")
+    p.add_argument("-y", "--quality", dest="quality", action='store_true',
+                   help="apply quality filtering")
 
-    from gedih3.utils import get_system_resources
-    cpus, ram, storage = get_system_resources()
-    n = max(1, cpus // 4)
-    m = int(max(1, ram / n))
-
-    p.add_argument("-N", "--cores", dest="cores", required=False, type=int, default=n,
-                   help=f"number of CPU cores to use [default = {n}]")
-    p.add_argument("-T", "--threads", dest="threads", required=False, type=int, default=1,
-                   help="number of threads per CPU core [default = 1]")
-    p.add_argument("-M", "--memory", dest="memory", required=False, type=int, default=m,
-                   help=f"memory limit per worker in GB [default = {m}]")
-    p.add_argument("-P", "--port", dest="port", required=False, type=int, default=8787,
-                   help="port for Dask dashboard [default = 8787]")
-
-    # Verbosity options
-    p.add_argument("-v", "--verbose", dest="verbose", action="count", default=0,
-                   help="increase output verbosity (-v for INFO, -vv for DEBUG)")
-    p.add_argument("-Q", "--quiet", dest="quiet", required=False, action='store_true',
-                   help="suppress all output except errors")
+    # Dask and verbosity
+    add_dask_args(p)
+    add_verbosity_args(p)
 
     return p.parse_args()
 
@@ -125,45 +90,19 @@ def main():
         import pandas as pd
         from dask.distributed import Client, progress
 
-        from gedih3 import __version__ as _gh3_version
         import gedih3.gh3driver as gh3
-        from gedih3.cliutils import collect_columns, build_query_string, parse_region, parse_dask_args
-        from gedih3.config import GH3_DEFAULT_H3_DIR
-        from gedih3.logging_config import configure_logging, get_logger
+        from gedih3.cliutils import (collect_columns, build_query_string, parse_region,
+                                     parse_dask_args, setup_logging, print_banner,
+                                     print_success, configure_database_path, h3_col_name)
 
-        # Configure logging based on verbosity flags
-        if args.quiet:
-            log_level = logging.ERROR
-        elif args.verbose >= 2:
-            log_level = logging.DEBUG
-        elif args.verbose == 1:
-            log_level = logging.INFO
-        else:
-            log_level = logging.INFO
-
-        configure_logging(level=log_level, verbose=args.verbose >= 1)
-        logger = get_logger(__name__)
-
-        # Determine output indexing mode
+        # Setup logging and print banner
         use_egi = args.egi_level is not None
-
-        logger.info("")
-        logger.info("=" * 70)
-        if use_egi:
-            logger.info(" GEDI EGI Data Extraction Tool".center(70))
-        else:
-            logger.info(" GEDI H3 Data Extraction Tool".center(70))
-        logger.info(f" gedih3 v{_gh3_version}".center(70))
-        logger.info("=" * 70)
-        logger.info("")
+        logger = setup_logging(args, __name__)
+        title = "GEDI EGI Data Extraction Tool" if use_egi else "GEDI H3 Data Extraction Tool"
+        print_banner(title, logger=logger)
 
         # Configure database path
-        if args.database:
-            gh3.gh3_set_db_path(args.database)
-        else:
-            args.database = GH3_DEFAULT_H3_DIR
-
-        logger.info(f"Database: {args.database}")
+        configure_database_path(args, logger=logger)
 
         # Verify database exists
         if not os.path.exists(args.database):
@@ -235,7 +174,7 @@ def main():
                 part_col = egi_col_name(args.egi_level)
             else:
                 part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
-                part_col = f'h3_{part:02d}'
+                part_col = h3_col_name(part)
 
             # Export - use simplified flat file structure (not hive-partitioned)
             logger.info("Exporting data...")
@@ -287,11 +226,7 @@ def main():
                 tool='gh3_extract'
             )
 
-            logger.info("")
-            logger.info("=" * 70)
-            logger.info(f" SUCCESS: Data exported to {args.output}")
-            logger.info("=" * 70)
-            logger.info("")
+            print_success(f"Data exported to {args.output}", logger=logger)
 
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user.")

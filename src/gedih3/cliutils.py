@@ -1,5 +1,6 @@
 import os
 import re
+import logging
 from typing import Optional
 
 from .config import GEDI_PRODUCTS, ISO3_COUNTRIES_URL
@@ -8,6 +9,220 @@ from .gedidriver import gedi_vars_expand
 from .gh3driver import gh3_read_meta
 
 VALID_FORMATS = ['parquet', 'feather', 'shp', 'geojson', 'gpkg', 'txt', 'csv', 'h5', 'hdf5']
+
+
+# =============================================================================
+# Shared CLI Argument Builders
+# =============================================================================
+
+def add_dask_args(parser):
+    """Add Dask-related arguments to an argument parser."""
+    from .utils import get_system_resources
+    cpus, ram, _ = get_system_resources()
+    n = max(1, cpus // 4)
+    m = int(max(1, ram / n))
+
+    parser.add_argument("-s", "--dask-scheduler", dest="dask_scheduler", type=str, default=None,
+                        help="existing dask scheduler address, e.g. tcp://localhost:8786")
+    parser.add_argument("--dask-config", dest="dask_config", type=str, default=None,
+                        help="path to Dask YAML config file")
+    parser.add_argument("-N", "--cores", dest="cores", type=int, default=n,
+                        help=f"number of CPU cores to use [default = {n}]")
+    parser.add_argument("-T", "--threads", dest="threads", type=int, default=1,
+                        help="number of threads per CPU core [default = 1]")
+    parser.add_argument("-M", "--memory", dest="memory", type=int, default=m,
+                        help=f"memory limit per worker in GB [default = {m}]")
+    parser.add_argument("-P", "--port", dest="port", type=int, default=8787,
+                        help="port for Dask dashboard [default = 8787]")
+    return parser
+
+
+def add_verbosity_args(parser):
+    """Add verbosity-related arguments to an argument parser."""
+    parser.add_argument("-v", "--verbose", dest="verbose", action="count", default=0,
+                        help="increase output verbosity (-v for INFO, -vv for DEBUG)")
+    parser.add_argument("-Q", "--quiet", dest="quiet", action='store_true',
+                        help="suppress all output except errors")
+    return parser
+
+
+def add_product_args(parser):
+    """Add GEDI product variable arguments to an argument parser."""
+    parser.add_argument("-l1b", "--l1b", dest="l1b", nargs='+', type=str, default=None,
+                        help="GEDI L1B variables [space-separated list]")
+    parser.add_argument("-l2a", "--l2a", dest="l2a", nargs='+', type=str, default=None,
+                        help="GEDI L2A variables [space-separated list]")
+    parser.add_argument("-l2b", "--l2b", dest="l2b", nargs='+', type=str, default=None,
+                        help="GEDI L2B variables [space-separated list]")
+    parser.add_argument("-l4a", "--l4a", dest="l4a", nargs='+', type=str, default=None,
+                        help="GEDI L4A variables [space-separated list]")
+    parser.add_argument("-l4c", "--l4c", dest="l4c", nargs='+', type=str, default=None,
+                        help="GEDI L4C variables [space-separated list]")
+    return parser
+
+
+# =============================================================================
+# Shared CLI Setup Functions
+# =============================================================================
+
+def setup_logging(args, name=None):
+    """Configure logging based on verbosity flags and return a logger.
+
+    Args:
+        args: Parsed arguments with 'quiet' and 'verbose' attributes
+        name: Logger name (defaults to calling module's __name__)
+
+    Returns:
+        Configured logger instance
+    """
+    from .logging_config import configure_logging, get_logger
+
+    if args.quiet:
+        log_level = logging.ERROR
+    elif args.verbose >= 2:
+        log_level = logging.DEBUG
+    elif args.verbose >= 1:
+        log_level = logging.INFO
+    else:
+        log_level = logging.INFO
+
+    configure_logging(level=log_level, verbose=args.verbose >= 1)
+    return get_logger(name or __name__)
+
+
+def print_banner(title, version=None, logger=None):
+    """Print a tool banner with centered title.
+
+    Args:
+        title: Tool title string
+        version: Package version (if None, imports from gedih3)
+        logger: Logger to use (if None, uses print)
+    """
+    if version is None:
+        from gedih3 import __version__ as version
+
+    out = logger.info if logger else print
+    out("")
+    out("=" * 70)
+    out(f" {title}".center(70))
+    out(f" gedih3 v{version}".center(70))
+    out("=" * 70)
+    out("")
+
+
+def print_success(message, logger=None):
+    """Print a success message with banner formatting."""
+    out = logger.info if logger else print
+    out("")
+    out("=" * 70)
+    out(f" SUCCESS: {message}".center(70))
+    out("=" * 70)
+    out("")
+
+
+# =============================================================================
+# Shared Data Loading Functions
+# =============================================================================
+
+def configure_database_path(args, logger=None):
+    """Configure database path from args or default.
+
+    Args:
+        args: Parsed arguments with 'database' attribute
+        logger: Optional logger for output
+
+    Returns:
+        Database path string
+    """
+    from .config import GH3_DEFAULT_H3_DIR
+    import gedih3.gh3driver as gh3
+
+    if args.database:
+        gh3.gh3_set_db_path(args.database)
+    else:
+        args.database = GH3_DEFAULT_H3_DIR
+
+    if logger:
+        logger.info(f"Database: {args.database}")
+
+    return args.database
+
+
+def load_data_from_source(database, columns=None, region=None, query=None, logger=None):
+    """Load data from H3 database, simplified dataset, or parquet directory.
+
+    Auto-detects the data source type and loads accordingly.
+
+    Args:
+        database: Path to database directory
+        columns: Columns to load
+        region: Spatial filter (GeoDataFrame or bbox)
+        query: Query string for filtering
+        logger: Optional logger for output
+
+    Returns:
+        Dask GeoDataFrame
+    """
+    import gedih3.gh3driver as gh3
+
+    build_log_path = os.path.join(database, "gedih3_build_log.json")
+    dataset_meta_path = os.path.join(database, "gedih3_dataset.json")
+
+    if os.path.exists(build_log_path):
+        if logger:
+            logger.info("  Source: H3 database")
+        ddf = gh3.gh3_load(
+            columns=columns,
+            region=region,
+            query=query,
+            gh3_dir=database
+        )
+    elif os.path.exists(dataset_meta_path):
+        if logger:
+            logger.info("  Source: simplified dataset")
+        ddf = gh3.gh3_load_dataset_lazy(database, columns=columns)
+        if query:
+            ddf = ddf.query(query)
+        if region is not None:
+            ddf = ddf.clip(region)
+    else:
+        if logger:
+            logger.info("  Source: parquet directory")
+        ddf = gh3.gh3_load_dataset_lazy(database, columns=columns)
+        if query:
+            ddf = ddf.query(query)
+        if region is not None:
+            ddf = ddf.clip(region)
+
+    return ddf
+
+
+# =============================================================================
+# Shared Data Processing Functions
+# =============================================================================
+
+def get_numeric_columns(ddf):
+    """Get list of numeric columns from a Dask DataFrame.
+
+    Args:
+        ddf: Dask DataFrame
+
+    Returns:
+        List of column names with numeric dtypes
+    """
+    return [col for col in ddf.columns if ddf[col].dtype.kind in 'biufc']
+
+
+def h3_col_name(level):
+    """Get H3 column name for a given resolution level.
+
+    Args:
+        level: H3 resolution level (0-15)
+
+    Returns:
+        Column name string, e.g. 'h3_06' for level 6
+    """
+    return f'h3_{level:02d}'
 
 def parse_file_format(args, default='parquet'):
     file_format = args.output.split('.')[-1].lower() if args.output else None    
