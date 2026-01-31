@@ -20,100 +20,59 @@ TIME_UNITS = ['years', 'months', 'weeks', 'days']
 
 def get_cmd_args():
     """Parse command line arguments for GEDI data aggregation"""
+    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args
+
     p = argparse.ArgumentParser(
         description="Aggregate GEDI shots to H3 hexagons or EGI square pixels",
         formatter_class=argparse.RawTextHelpFormatter
     )
 
-    # Database configuration
-    p.add_argument("-d", "--database", dest="database", required=False, type=str, default=None,
-                   help="path to H3 database directory [default from config or environment]")
-
-    # Output configuration
-    p.add_argument("-o", "--output", dest="output", required=not DEBUG, type=str, 
+    # Database/output configuration
+    p.add_argument("-d", "--database", dest="database", type=str, default=None,
+                   help="path to H3 database or simplified dataset directory")
+    p.add_argument("-o", "--output", dest="output", required=not DEBUG, type=str,
                    help="output directory or file path")
-    p.add_argument("-f", "--format", dest="format", required=False, type=str, default='parquet', 
-                   help="output file format [default = parquet]")
-    p.add_argument("-m", "--merge", dest="merge", required=False, action='store_true', 
-                   help="merge all partitions and export to single file")
-    p.add_argument("-H", "--hive", dest="hive", required=False, action='store_true', 
-                   help="export output in hive-compatible directory structure (only for Parquet format)")
-
+    p.add_argument("-f", "--format", dest="format", type=str, default='parquet',
+                   help="output format [default=parquet]")
+    p.add_argument("-m", "--merge", dest="merge", action='store_true',
+                   help="merge all partitions into single file")
+    p.add_argument("-H", "--hive", dest="hive", action='store_true',
+                   help="export in hive-partitioned directory structure")
 
     # Aggregation options
-    p.add_argument("-h3", "--h3-level", dest="h3_level", type=int, required=False, default=None,
-                   help="aggregate to target H3 resolution level [0-15, lower = coarser]")
-    p.add_argument("-egi", "--egi-level", dest="egi_level", type=int, required=False, default=None,
-                   help="aggregate to EGI (EASE Grid) square pixels [1-12, GEDI baseline=6]")
-    p.add_argument("-a", "--aggregate", dest="aggregate", required=not DEBUG, type=str, default="mean",
-        help=(
-            "aggregation spec for pandas GroupBy.agg. Accepts any valid pandas aggregator, e.g.\n"
-            "  - 'mean' (single function)\n"
-            "  - ['mean', 'std'] (list of functions)\n"
-            "  - {'var1': 'mean', 'var2': ['min', 'max']} (per-column mapping)\n"
-            "  - callable(s) when used programmatically\n"
-            "[default = mean]"
-        ),
-    )
+    p.add_argument("-h3", "--h3-level", dest="h3_level", type=int, default=None,
+                   help="aggregate to H3 level [0-15]")
+    p.add_argument("-egi", "--egi-level", dest="egi_level", type=int, default=None,
+                   help="aggregate to EGI level [1-12]")
+    p.add_argument("-a", "--aggregate", dest="aggregate", type=str, default="mean",
+                   help="aggregation function: mean, sum, count, etc. [default=mean]")
 
-    # Spatial filtering
-    p.add_argument("-r", "--region", dest="region", required=False, type=str, default=None,
-                   help="path to vector (.shp, .gpkg, .kml, etc.) or raster (.tif, .vrt) file with ROI, or bounding box as 'W,S,E,N', or ISO3 country code")
-
-    # Variable selection by product
-    p.add_argument("-l", "--list", dest="list", nargs='+', type=str, default=None,
-                   help="flat list (space-separated) or file path of variables to export from the GEDI H3 database (need to specify product suffix, e.g. '_l2a')")
-
-    p.add_argument("-l1b", "--l1b", dest="l1b", nargs='+', type=str, default=None,
-                   help="GEDI L1B variables to export [space-separated list]")
-    p.add_argument("-l2a", "--l2a", dest="l2a", nargs='+', type=str, default=None,
-                   help="GEDI L2A variables to export [space-separated list]")
-    p.add_argument("-l2b", "--l2b", dest="l2b", nargs='+', type=str, default=None,
-                   help="GEDI L2B variables to export [space-separated list]")
-    p.add_argument("-l4a", "--l4a", dest="l4a", nargs='+', type=str, default=None,
-                   help="GEDI L4A variables to export [space-separated list]")
-    p.add_argument("-l4c", "--l4c", dest="l4c", nargs='+', type=str, default=None,
-                   help="GEDI L4C variables to export [space-separated list]")
-
-    # Temporal filtering
+    # Spatial/temporal filtering
+    p.add_argument("-r", "--region", dest="region", type=str, default=None,
+                   help="vector file, bbox 'W,S,E,N', or ISO3 code")
     p.add_argument("-t0", "--time-start", dest="time_start", type=str, default=None,
-                   help="start date to filter shots [YYYY-MM-DD]")
+                   help="start date [YYYY-MM-DD]")
     p.add_argument("-t1", "--time-end", dest="time_end", type=str, default=None,
-                   help="end date to filter shots [YYYY-MM-DD]")
-    p.add_argument("-ti", "--time_interval", dest="time_interval", type=int, default=0, required=False, 
-                   help="generate outputs in the given time interval")
-    p.add_argument("-tu", "--time_units", dest="time_units", type=str, default='years', required=False, 
-                   choices=TIME_UNITS, help="time interval units")
+                   help="end date [YYYY-MM-DD]")
+    p.add_argument("-ti", "--time_interval", dest="time_interval", type=int, default=0,
+                   help="generate time-series outputs at interval")
+    p.add_argument("-tu", "--time_units", dest="time_units", type=str, default='years',
+                   choices=TIME_UNITS, help="time interval units [default=years]")
 
-    # Data filtering
-    p.add_argument("-q", "--query", dest="query", required=False, type=str, default=None,
-                   help="pandas query string for filtering - e.g. 'quality_flag_l2a == 1 & agbd_l4a > 50'")
-    p.add_argument("-y", "--quality", dest="quality", required=False, action='store_true',
-                   help="apply quality filtering (quality_flag_l2a == 1)")
+    # Variable selection
+    p.add_argument("-l", "--list", dest="list", nargs='+', type=str, default=None,
+                   help="variables to aggregate (space-separated or file path)")
+    add_product_args(p)
 
-    # Computation settings
-    p.add_argument("-s", "--dask-scheduler", dest="dask_scheduler", required=False, type=str, default=None,
-                   help=f"dask scheduler address (overrides local cluster settings) [default = None]")
+    # Filtering
+    p.add_argument("-q", "--query", dest="query", type=str, default=None,
+                   help="pandas query string for filtering")
+    p.add_argument("-y", "--quality", dest="quality", action='store_true',
+                   help="apply quality filtering")
 
-    from gedih3.utils import get_system_resources
-    cpus, ram, storage = get_system_resources()
-    n = max(1, cpus // 4)
-    m = int(max(1, ram / n))
-    
-    p.add_argument("-N", "--cores", dest="cores", required=False, type=int, default=n,
-                   help=f"number of CPU cores to use [default = {n}]")
-    p.add_argument("-T", "--threads", dest="threads", required=False, type=int, default=1,
-                   help="number of threads per CPU core [default = 1]")
-    p.add_argument("-M", "--memory", dest="memory", required=False, type=int, default=m,
-                   help=f"memory limit per worker in GB [default = {m}]")
-    p.add_argument("-P", "--port", dest="port", required=False, type=int, default=8787,
-                   help="port for Dask dashboard [default = 8787]")
-
-    # Verbosity options
-    p.add_argument("-v", "--verbose", dest="verbose", action="count", default=0,
-                   help="increase output verbosity (-v for INFO, -vv for DEBUG)")
-    p.add_argument("-Q", "--quiet", dest="quiet", required=False, action='store_true',
-                   help="suppress all output except errors")
+    # Dask and verbosity
+    add_dask_args(p)
+    add_verbosity_args(p)
 
     return p.parse_args()
 
@@ -148,125 +107,71 @@ def main():
         import pandas as pd
         from dask.distributed import Client, progress
 
-        from gedih3 import __version__ as _gh3_version
         import gedih3.gh3driver as gh3
         from gedih3.utils import is_hive_directory
-        from gedih3.cliutils import collect_columns, build_query_string, parse_region, parse_dask_args, parse_file_format
-        from gedih3.config import GH3_DEFAULT_H3_DIR
+        from gedih3.cliutils import (collect_columns, build_query_string, parse_region,
+                                     parse_dask_args, parse_file_format, setup_logging,
+                                     print_banner, print_success, configure_database_path,
+                                     load_data_from_source, get_numeric_columns, h3_col_name)
 
-        if not args.quiet:
-            print("\n" + "="*70)
-            if use_egi:
-                print(" GEDI EGI (EASE Grid) Data Aggregation Tool".center(70))
-            else:
-                print(" GEDI H3 Data Aggregation Tool".center(70))
-            print(f" gedih3 v{_gh3_version}".center(70))
-            print("="*70 + "\n")
+        # Setup logging and print banner
+        logger = setup_logging(args, __name__)
+        title = "GEDI EGI Data Aggregation Tool" if use_egi else "GEDI H3 Data Aggregation Tool"
+        print_banner(title, logger=logger)
 
         # Configure database path
-        if args.database:
-            gh3.gh3_set_db_path(args.database)
-        else:
-            args.database = GH3_DEFAULT_H3_DIR
-
-        if not args.quiet:
-            print(f"Database: {args.database}")
+        configure_database_path(args, logger=logger)
 
         # Verify database exists
         if not os.path.exists(args.database):
-            print(f"ERROR: Database directory not found: {args.database}")
-            print("Please specify a valid database path with -d/--database")
-            sys.exit(1)        
-        
+            logger.error(f"Database directory not found: {args.database}")
+            sys.exit(1)
+
         # Parse format
         args.format = parse_file_format(args)
 
         # Parse region
         region = None
         if args.region:
-            if not args.quiet:
-                print(f"Parsing region: {args.region}")
+            logger.info(f"Parsing region: {args.region}")
             region = parse_region(args.region)
 
         # Collect columns
-        if not args.quiet:
-            print("Collecting variables...")
+        logger.info("Collecting variables...")
         columns = collect_columns(args)
 
-        # EGI aggregation works best with Point geometry from GeoDataFrame
-        # Ensure geometry column is loaded so we have coordinate information
-        if use_egi:
-            if 'geometry' not in columns:
-                columns.append('geometry')
+        # EGI needs geometry for coordinate access
+        if use_egi and 'geometry' not in columns:
+            columns.append('geometry')
 
-        if len(columns) > 0:
-            if not args.quiet:
-                print(f"  Total variables: {len(columns)}")
-        else:
-            raise ValueError("No variables selected for extraction. Please specify variables with -l/--list or product-specific options.")
+        if len(columns) == 0:
+            raise ValueError("No variables selected. Use -l/--list or product options.")
+        logger.info(f"  Total variables: {len(columns)}")
 
         # Build query
         query_str = build_query_string(args)
         if query_str:
-            if not args.quiet:
-                print(f"Query filter: {query_str}")
+            logger.info(f"Query filter: {query_str}")
 
         dask_kwargs = parse_dask_args(args)
 
         with Client(**dask_kwargs) as client:
-            if not args.quiet:
-                print("Dask dashboard available at:", client.dashboard_link)
+            logger.info(f"Dask dashboard: {client.dashboard_link}")
 
-            # Load data - detect if input is H3 database or simplified dataset
-            if not args.quiet:
-                print("Loading data...")
+            # Load data
+            logger.info("Loading data...")
+            ddf = load_data_from_source(args.database, columns, region, query_str, logger)
+            logger.info(f"  Loaded {ddf.npartitions} partitions")
 
-            # Check for H3 database (has gedih3_build_log.json) vs simplified dataset
-            build_log_path = os.path.join(args.database, "gedih3_build_log.json")
-            dataset_meta_path = os.path.join(args.database, "gedih3_dataset.json")
-
-            if os.path.exists(build_log_path):
-                if not args.quiet:
-                    print("  Source: H3 database")
-                ddf = gh3.gh3_load(
-                    columns=columns,
-                    region=region,
-                    query=query_str,
-                    gh3_dir=args.database
-                )
-            elif os.path.exists(dataset_meta_path):
-                if not args.quiet:
-                    print("  Source: simplified dataset")
-                ddf = gh3.gh3_load_dataset_lazy(args.database, columns=columns)
-                if query_str:
-                    ddf = ddf.query(query_str)
-                if region is not None:
-                    ddf = ddf.clip(region)
-            else:
-                # Try loading as parquet directory
-                if not args.quiet:
-                    print("  Source: parquet directory")
-                ddf = gh3.gh3_load_dataset_lazy(args.database, columns=columns)
-                if query_str:
-                    ddf = ddf.query(query_str)
-                if region is not None:
-                    ddf = ddf.clip(region)
-
-            if not args.quiet:
-                print(f"  Loaded {ddf.npartitions} partitions")
-
-            if not args.quiet:
-                print("Aggregating data...")
-
+            logger.info("Aggregating data...")
             from_hive = is_hive_directory(args.database, match_str=r'h3_.+=.+')
-            numeric_columns = [col for col in ddf.columns if ddf[col].dtype.kind in 'biufc']
+            numeric_columns = get_numeric_columns(ddf)
 
             if use_egi:
                 # EGI (EASE Grid) aggregation
                 from gedih3 import egi
-                if not args.quiet:
-                    target_res = egi.get_resolution(args.egi_level)
-                    print(f"  Target: EGI level {args.egi_level} (~{target_res:.0f}m pixels)")
+                target_res = egi.get_resolution(args.egi_level)
+                logger.info(f"  Target: EGI level {args.egi_level} (~{target_res:.0f}m pixels)")
 
                 aggdf = gh3.egi_aggregate(
                     ddf,
@@ -280,8 +185,7 @@ def main():
                 export_func = gh3.egi_export_part
             else:
                 # H3 (hexagon) aggregation
-                if not args.quiet:
-                    print(f"  Target: H3 level {args.h3_level}")
+                logger.info(f"  Target: H3 level {args.h3_level}")
 
                 aggdf = gh3.gh3_aggregate(
                     ddf,
@@ -292,60 +196,46 @@ def main():
                     repartition=not args.merge
                 )
                 part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
-                part_col = f'h3_{part:02d}'
+                part_col = h3_col_name(part)
                 export_func = gh3.gh3_export_part
 
-            # Export - use simplified flat file structure by default
-            if not args.quiet:
-                print("Exporting data...")
+            # Export
+            logger.info("Exporting data...")
 
             os.makedirs(args.output, exist_ok=True)
 
             if args.merge:
                 # Merge all partitions into single file
-                if not args.quiet:
-                    print("  Merging all partitions...")
+                logger.info("  Merging all partitions...")
                 aggdf = aggdf.compute()
                 opath = export_func(aggdf, odir=args.output, fmt=args.format, is_file_path=True)
-
-                if not args.quiet:
-                    print(f"\n{'='*70}")
-                    print(f" SUCCESS: merged file exported to {opath}")
-                    print(f"{'='*70}\n")
+                print_success(f"Merged file exported to {opath}", logger=logger)
 
             elif args.hive:
-                # Hive-style partitioning (for advanced use/backwards compatibility)
-                if not args.quiet:
-                    print("  Using hive-style partitioning...")
+                # Hive-style partitioning (for backwards compatibility)
+                logger.info("  Using hive-style partitioning...")
                 write_task = aggdf.to_parquet(args.output,
-                                            write_metadata_file=True,
-                                            write_index=True,
-                                            overwrite=True,
-                                            compression='zstd',
-                                            partition_on=[part_col],
-                                            compute=False
-                                            )
+                                              write_metadata_file=True,
+                                              write_index=True,
+                                              overwrite=True,
+                                              compression='zstd',
+                                              partition_on=[part_col],
+                                              compute=False)
                 write_task = write_task.persist()
                 progress(write_task)
 
                 ofiles = glob.glob(f"{args.output}/**/*.parquet", recursive=True)
                 if len(ofiles) == 0:
                     raise RuntimeError("No output files were created.")
+                print_success(f"{len(ofiles)} files exported to {args.output}", logger=logger)
 
-                if not args.quiet:
-                    print(f"\n{'='*70}")
-                    print(f" SUCCESS: {len(ofiles)} files exported to {args.output}")
-                    print(f"{'='*70}\n")
             else:
                 # Simplified flat file structure (default)
-                if not args.quiet:
-                    print(f"  Output format: simplified flat files")
+                logger.info("  Output format: simplified flat files")
                 write_task = aggdf.map_partitions(export_func,
-                            odir=args.output,
-                            fmt=args.format,
-                            meta=pd.Series(dtype=str)
-                            )
-
+                                                  odir=args.output,
+                                                  fmt=args.format,
+                                                  meta=pd.Series(dtype=str))
                 write_task = write_task.persist()
                 progress(write_task)
 
@@ -354,8 +244,7 @@ def main():
                     raise RuntimeError("No output files were created.")
 
                 # Write simplified dataset metadata
-                if not args.quiet:
-                    print("Writing dataset metadata...")
+                logger.info("Writing dataset metadata...")
                 index_type = 'egi' if use_egi else 'h3'
                 index_level = args.egi_level if use_egi else args.h3_level
                 gh3.gh3_write_dataset_meta(
@@ -367,11 +256,7 @@ def main():
                     aggregation=args.aggregate,
                     tool='gh3_aggregate'
                 )
-
-                if not args.quiet:
-                    print(f"\n{'='*70}")
-                    print(f" SUCCESS: {len(ofiles)} files exported to {args.output}")
-                    print(f"{'='*70}\n")
+                print_success(f"{len(ofiles)} files exported to {args.output}", logger=logger)
 
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user.")

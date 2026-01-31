@@ -137,7 +137,7 @@ src/gedih3/
 ├── gh3builder.py         # H3 database building
 ├── gh3driver.py          # H3 database queries, EGI/raster integration
 ├── h3utils.py            # H3 cell operations
-├── cliutils.py           # CLI argument parsing
+├── cliutils.py           # CLI shared utilities (args, logging, data loading)
 ├── utils.py              # File I/O, transaction safety utilities
 ├── exceptions.py         # Structured exception hierarchy
 ├── validation.py         # Parameter validation functions
@@ -330,6 +330,59 @@ python tests/run_tests.py
 - **Retry logic**: Network operations use exponential backoff (3 attempts, 1-60s wait)
 - **Atomic writes**: File operations use `AtomicFileWriter` for transaction safety
 - **Structured exceptions**: Catch specific `GediError` subclasses for targeted error handling
+- **DRY CLI utilities**: Shared argument builders and setup functions in `cliutils.py`
+
+## CLI Shared Utilities
+
+The `cliutils.py` module provides shared utilities for CLI tools to avoid code duplication:
+
+### Argument Builders
+
+```python
+from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args
+
+# Add standard Dask arguments (-N, -T, -M, -P, -s, --dask-config)
+add_dask_args(parser)
+
+# Add verbosity arguments (-v, -vv, -Q)
+add_verbosity_args(parser)
+
+# Add GEDI product arguments (-l1b, -l2a, -l2b, -l4a, -l4c)
+add_product_args(parser)
+```
+
+### Setup Functions
+
+```python
+from gedih3.cliutils import setup_logging, print_banner, print_success, configure_database_path
+
+# Configure logging based on args and get logger
+logger = setup_logging(args, __name__)
+
+# Print tool banner
+print_banner("GEDI Tool Name", logger=logger)
+
+# Print success message with banner formatting
+print_success("Operation complete", logger=logger)
+
+# Configure and validate database path
+configure_database_path(args, logger=logger)
+```
+
+### Data Loading
+
+```python
+from gedih3.cliutils import load_data_from_source, get_numeric_columns, h3_col_name
+
+# Auto-detect and load from H3 database, simplified dataset, or parquet directory
+ddf = load_data_from_source(database_path, columns, region, query, logger)
+
+# Get numeric columns for aggregation
+numeric_cols = get_numeric_columns(ddf)
+
+# Get H3 column name for a level
+col = h3_col_name(6)  # Returns 'h3_06'
+```
 
 ## Performance Optimizations
 

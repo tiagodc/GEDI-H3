@@ -15,7 +15,6 @@ Package: gedih3
 import os
 import sys
 import argparse
-import logging
 
 DEBUG = False
 TIME_UNITS = ['years', 'months', 'weeks', 'days']
@@ -23,79 +22,57 @@ TIME_UNITS = ['years', 'months', 'weeks', 'days']
 
 def get_cmd_args():
     """Parse command line arguments for GEDI rasterization"""
+    from gedih3.cliutils import add_dask_args, add_verbosity_args
+
     p = argparse.ArgumentParser(
         description="Rasterize spatially-indexed GEDI data to GeoTIFF format",
         formatter_class=argparse.RawTextHelpFormatter
     )
 
-    # Input configuration
+    # Input/output configuration
     p.add_argument("-d", "--database", dest="database", required=not DEBUG, type=str,
-                   help="path to H3/EGI database directory or parquet file")
-
-    # Output configuration
+                   help="path to H3/EGI database or simplified dataset")
     p.add_argument("-o", "--output", dest="output", required=not DEBUG, type=str,
-                   help="output directory (for tiles) or file path (for merged)")
-    p.add_argument("-m", "--merge", dest="merge", required=False, action='store_true',
-                   help="merge all partitions into single output file")
+                   help="output directory or file path")
+    p.add_argument("-m", "--merge", dest="merge", action='store_true',
+                   help="merge all partitions into single file")
     p.add_argument("--compress", dest="compress", type=str, default='LZW',
                    choices=['LZW', 'ZSTD', 'DEFLATE', 'PACKBITS', 'NONE'],
-                   help="GeoTIFF compression method [default: LZW]")
+                   help="GeoTIFF compression [default=LZW]")
 
     # Spatial options
-    p.add_argument("-r", "--region", dest="region", required=False, type=str, default=None,
-                   help="spatial filter: vector file, bbox 'W,S,E,N', or ISO3 code")
+    p.add_argument("-r", "--region", dest="region", type=str, default=None,
+                   help="vector file, bbox 'W,S,E,N', or ISO3 code")
     p.add_argument("-h3", "--h3-level", dest="h3_level", type=int, default=None,
-                   help="aggregate to H3 level before rasterization [0-15]")
+                   help="aggregate to H3 level [0-15]")
     p.add_argument("-egi", "--egi-level", dest="egi_level", type=int, default=None,
-                   help="aggregate to EGI level before rasterization [1-12]")
-
-    # Aggregation options
+                   help="aggregate to EGI level [1-12]")
     p.add_argument("-a", "--aggregate", dest="aggregate", type=str, default="mean",
-                   help="aggregation function: 'mean', 'sum', 'count', etc. [default: mean]")
+                   help="aggregation function [default=mean]")
 
     # Variable selection
     p.add_argument("-l", "--list", dest="list", nargs='+', type=str, default=None,
-                   help="variables to include in raster (space-separated)")
+                   help="variables to rasterize (space-separated)")
 
     # Temporal options
     p.add_argument("-t0", "--time-start", dest="time_start", type=str, default=None,
-                   help="start date for filtering [YYYY-MM-DD]")
+                   help="start date [YYYY-MM-DD]")
     p.add_argument("-t1", "--time-end", dest="time_end", type=str, default=None,
-                   help="end date for filtering [YYYY-MM-DD]")
+                   help="end date [YYYY-MM-DD]")
     p.add_argument("-ti", "--time-interval", dest="time_interval", type=int, default=0,
-                   help="generate time-series outputs at this interval")
+                   help="time-series interval")
     p.add_argument("-tu", "--time-units", dest="time_units", type=str, default='years',
-                   choices=TIME_UNITS, help="time interval units [default: years]")
+                   choices=TIME_UNITS, help="time interval units [default=years]")
 
-    # Data filtering
-    p.add_argument("-q", "--query", dest="query", required=False, type=str, default=None,
+    # Filtering
+    p.add_argument("-q", "--query", dest="query", type=str, default=None,
                    help="pandas query string for filtering")
-    p.add_argument("-y", "--quality", dest="quality", required=False, action='store_true',
-                   help="apply quality filtering (quality_flag_l2a == 1)")
+    p.add_argument("-y", "--quality", dest="quality", action='store_true',
+                   help="apply quality filtering")
 
-    # Computation settings
-    p.add_argument("-s", "--dask-scheduler", dest="dask_scheduler", required=False, type=str, default=None,
-                   help="dask scheduler address")
-
-    from gedih3.utils import get_system_resources
-    cpus, ram, storage = get_system_resources()
-    n = max(1, cpus // 4)
-    m = int(max(1, ram / n))
-
-    p.add_argument("-N", "--cores", dest="cores", required=False, type=int, default=n,
-                   help=f"number of CPU cores [default: {n}]")
-    p.add_argument("-T", "--threads", dest="threads", required=False, type=int, default=1,
-                   help="threads per CPU core [default: 1]")
-    p.add_argument("-M", "--memory", dest="memory", required=False, type=int, default=m,
-                   help=f"memory per worker in GB [default: {m}]")
-    p.add_argument("-P", "--port", dest="port", required=False, type=int, default=8787,
-                   help="Dask dashboard port [default: 8787]")
-
-    # Verbosity
-    p.add_argument("-v", "--verbose", dest="verbose", action="count", default=0,
-                   help="increase verbosity (-v, -vv)")
-    p.add_argument("-Q", "--quiet", dest="quiet", required=False, action='store_true',
-                   help="suppress output except errors")
+    # Dask and verbosity
+    add_dask_args(p)
+    add_verbosity_args(p)
 
     return p.parse_args()
 
@@ -116,32 +93,16 @@ def main():
         import pandas as pd
         from dask.distributed import Client, progress
 
-        from gedih3 import __version__ as _gh3_version
         import gedih3.gh3driver as gh3
         from gedih3 import raster
-        from gedih3.cliutils import collect_columns, build_query_string, parse_region, parse_dask_args
+        from gedih3.cliutils import (parse_region, parse_dask_args, setup_logging,
+                                     print_banner, print_success, load_data_from_source,
+                                     get_numeric_columns)
         from gedih3.config import GH3_DEFAULT_H3_DIR
-        from gedih3.logging_config import configure_logging, get_logger
 
-        # Configure logging
-        if args.quiet:
-            log_level = logging.ERROR
-        elif args.verbose >= 2:
-            log_level = logging.DEBUG
-        elif args.verbose == 1:
-            log_level = logging.INFO
-        else:
-            log_level = logging.INFO
-
-        configure_logging(level=log_level, verbose=args.verbose >= 1)
-        logger = get_logger(__name__)
-
-        logger.info("")
-        logger.info("=" * 70)
-        logger.info(" GEDI Rasterization Tool".center(70))
-        logger.info(f" gedih3 v{_gh3_version}".center(70))
-        logger.info("=" * 70)
-        logger.info("")
+        # Setup logging and print banner
+        logger = setup_logging(args, __name__)
+        print_banner("GEDI Rasterization Tool", logger=logger)
 
         # Determine indexing type
         use_egi = args.egi_level is not None
@@ -214,39 +175,9 @@ def main():
         with Client(**dask_kwargs) as client:
             logger.info(f"Dask dashboard: {client.dashboard_link}")
 
-            # Load data - detect if input is H3 database or simplified dataset
+            # Load data
             logger.info("Loading data...")
-
-            # Check for H3 database (has gedih3_build_log.json) vs simplified dataset (has gedih3_dataset.json)
-            build_log_path = os.path.join(args.database, "gedih3_build_log.json")
-            dataset_meta_path = os.path.join(args.database, "gedih3_dataset.json")
-
-            if os.path.exists(build_log_path):
-                # Full H3 database
-                logger.info("  Source: H3 database")
-                ddf = gh3.gh3_load(
-                    columns=columns,
-                    region=region,
-                    query=query_str,
-                    gh3_dir=args.database
-                )
-            elif os.path.exists(dataset_meta_path):
-                # Simplified dataset (from gh3_extract or gh3_aggregate)
-                logger.info("  Source: simplified dataset")
-                ddf = gh3.gh3_load_dataset_lazy(args.database, columns=columns)
-                if query_str:
-                    ddf = ddf.query(query_str)
-                if region is not None:
-                    ddf = ddf.clip(region)
-            else:
-                # Try loading as parquet directory anyway
-                logger.info("  Source: parquet directory")
-                ddf = gh3.gh3_load_dataset_lazy(args.database, columns=columns)
-                if query_str:
-                    ddf = ddf.query(query_str)
-                if region is not None:
-                    ddf = ddf.clip(region)
-
+            ddf = load_data_from_source(args.database, columns, region, query_str, logger)
             logger.info(f"  Loaded {ddf.npartitions} partitions")
 
             if use_timeseries:
@@ -278,7 +209,7 @@ def main():
                         continue
 
                     # Aggregate - use numeric columns only
-                    numeric_columns = [col for col in time_ddf.columns if time_ddf[col].dtype.kind in 'biufc']
+                    numeric_columns = get_numeric_columns(time_ddf)
 
                     if use_egi:
                         aggdf = gh3.egi_aggregate(
@@ -325,7 +256,7 @@ def main():
                 logger.info("Aggregating data...")
 
                 # Get numeric columns only for aggregation
-                numeric_columns = [col for col in ddf.columns if ddf[col].dtype.kind in 'biufc']
+                numeric_columns = get_numeric_columns(ddf)
 
                 if use_egi:
                     from gedih3 import egi
@@ -365,11 +296,7 @@ def main():
                     )
                     logger.info(f"Exported {len([p for p in paths if p])} files to {args.output}")
 
-            logger.info("")
-            logger.info("=" * 70)
-            logger.info(" SUCCESS: Rasterization complete".center(70))
-            logger.info("=" * 70)
-            logger.info("")
+            print_success("Rasterization complete", logger=logger)
 
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user.")
