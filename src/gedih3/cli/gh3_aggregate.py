@@ -217,16 +217,40 @@ def main():
             if not args.quiet:
                 print("Dask dashboard available at:", client.dashboard_link)
 
-            # Load data
+            # Load data - detect if input is H3 database or simplified dataset
             if not args.quiet:
-                print("Loading data from H3 dataset...")
+                print("Loading data...")
 
-            ddf = gh3.gh3_load(
-                columns=columns,
-                region=region,
-                query=query_str,
-                gh3_dir=args.database
-            )
+            # Check for H3 database (has gedih3_build_log.json) vs simplified dataset
+            build_log_path = os.path.join(args.database, "gedih3_build_log.json")
+            dataset_meta_path = os.path.join(args.database, "gedih3_dataset.json")
+
+            if os.path.exists(build_log_path):
+                if not args.quiet:
+                    print("  Source: H3 database")
+                ddf = gh3.gh3_load(
+                    columns=columns,
+                    region=region,
+                    query=query_str,
+                    gh3_dir=args.database
+                )
+            elif os.path.exists(dataset_meta_path):
+                if not args.quiet:
+                    print("  Source: simplified dataset")
+                ddf = gh3.gh3_load_dataset_lazy(args.database, columns=columns)
+                if query_str:
+                    ddf = ddf.query(query_str)
+                if region is not None:
+                    ddf = ddf.clip(region)
+            else:
+                # Try loading as parquet directory
+                if not args.quiet:
+                    print("  Source: parquet directory")
+                ddf = gh3.gh3_load_dataset_lazy(args.database, columns=columns)
+                if query_str:
+                    ddf = ddf.query(query_str)
+                if region is not None:
+                    ddf = ddf.clip(region)
 
             if not args.quiet:
                 print(f"  Loaded {ddf.npartitions} partitions")
@@ -271,13 +295,28 @@ def main():
                 part_col = f'h3_{part:02d}'
                 export_func = gh3.gh3_export_part
 
-            # Export
+            # Export - use simplified flat file structure by default
             if not args.quiet:
                 print("Exporting data...")
 
+            os.makedirs(args.output, exist_ok=True)
+
             if args.merge:
-                write_task = aggdf
+                # Merge all partitions into single file
+                if not args.quiet:
+                    print("  Merging all partitions...")
+                aggdf = aggdf.compute()
+                opath = export_func(aggdf, odir=args.output, fmt=args.format, is_file_path=True)
+
+                if not args.quiet:
+                    print(f"\n{'='*70}")
+                    print(f" SUCCESS: merged file exported to {opath}")
+                    print(f"{'='*70}\n")
+
             elif args.hive:
+                # Hive-style partitioning (for advanced use/backwards compatibility)
+                if not args.quiet:
+                    print("  Using hive-style partitioning...")
                 write_task = aggdf.to_parquet(args.output,
                                             write_metadata_file=True,
                                             write_index=True,
@@ -286,30 +325,49 @@ def main():
                                             partition_on=[part_col],
                                             compute=False
                                             )
+                write_task = write_task.persist()
+                progress(write_task)
+
+                ofiles = glob.glob(f"{args.output}/**/*.parquet", recursive=True)
+                if len(ofiles) == 0:
+                    raise RuntimeError("No output files were created.")
+
+                if not args.quiet:
+                    print(f"\n{'='*70}")
+                    print(f" SUCCESS: {len(ofiles)} files exported to {args.output}")
+                    print(f"{'='*70}\n")
             else:
+                # Simplified flat file structure (default)
+                if not args.quiet:
+                    print(f"  Output format: simplified flat files")
                 write_task = aggdf.map_partitions(export_func,
                             odir=args.output,
                             fmt=args.format,
                             meta=pd.Series(dtype=str)
                             )
-            
-            write_task = write_task.persist()
-            progress(write_task)
-            
-            if args.merge:
-                aggdf = aggdf.compute()
-                opath = export_func(aggdf, odir=args.output, fmt=args.format, is_file_path=True)
-                
-                if not args.quiet:
-                    print(f"\n{'='*70}")
-                    print(f" SUCCESS: merged files exported to {opath}")
-                    print(f"{'='*70}\n")
-            
-            else:
-                ofiles = glob.glob(f"{args.output}/**/*.parquet", recursive=True)                
+
+                write_task = write_task.persist()
+                progress(write_task)
+
+                ofiles = glob.glob(f"{args.output}/*.{args.format}")
                 if len(ofiles) == 0:
                     raise RuntimeError("No output files were created.")
-                
+
+                # Write simplified dataset metadata
+                if not args.quiet:
+                    print("Writing dataset metadata...")
+                index_type = 'egi' if use_egi else 'h3'
+                index_level = args.egi_level if use_egi else args.h3_level
+                gh3.gh3_write_dataset_meta(
+                    opath=args.output,
+                    index_type=index_type,
+                    index_level=index_level,
+                    columns=list(aggdf.columns),
+                    source_database=args.database,
+                    aggregation=args.aggregate,
+                    tool='gh3_aggregate'
+                )
+
                 if not args.quiet:
                     print(f"\n{'='*70}")
                     print(f" SUCCESS: {len(ofiles)} files exported to {args.output}")

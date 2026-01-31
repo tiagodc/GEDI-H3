@@ -122,6 +122,7 @@ def main():
 
     try:
         import glob
+        import pandas as pd
         from dask.distributed import Client, progress
 
         from gedih3 import __version__ as _gh3_version
@@ -236,29 +237,55 @@ def main():
                 part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
                 part_col = f'h3_{part:02d}'
 
-            # Export
+            # Export - use simplified flat file structure (not hive-partitioned)
             logger.info("Exporting data...")
-            logger.info(f"  Partitioning by: {part_col}")
+            logger.info(f"  Output format: simplified flat files by {part_col}")
 
-            write_task = ddf.to_parquet(args.output,
-                                        write_metadata_file=True,
-                                        write_index=True,
-                                        overwrite=True,
-                                        compression='zstd',
-                                        partition_on=[part_col],
-                                        compute=False
-                                        )
+            os.makedirs(args.output, exist_ok=True)
 
-            write_task = write_task.persist()
-            progress(write_task)
+            if args.merge:
+                # Merge all partitions into single file
+                logger.info("  Merging all partitions...")
+                result_df = ddf.compute()
+                opath = gh3.gh3_export_part(
+                    result_df,
+                    odir=args.output,
+                    fmt=args.format,
+                    is_file_path=True,
+                    part_col=part_col
+                )
+                ofiles = [opath] if opath else []
+            else:
+                # Export each partition as separate file named by partition ID
+                write_task = ddf.map_partitions(
+                    gh3.gh3_export_part,
+                    odir=args.output,
+                    fmt=args.format,
+                    part_col=part_col,
+                    meta=pd.Series(dtype=str)
+                )
 
-            ofiles = glob.glob(f"{args.output}/**/*.parquet", recursive=True)
+                write_task = write_task.persist()
+                progress(write_task)
+
+                ofiles = glob.glob(f"{args.output}/*.{args.format}")
 
             if len(ofiles) == 0:
                 raise RuntimeError("No output files were created.")
 
+            # Write simplified dataset metadata
             logger.info("Writing dataset metadata")
-            gh3.gh3_write_meta(opath=args.output, tool='gh3_extract', filter=query_str)
+            index_type = 'egi' if use_egi else 'h3'
+            index_level = args.egi_level if use_egi else gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
+            gh3.gh3_write_dataset_meta(
+                opath=args.output,
+                index_type=index_type,
+                index_level=index_level,
+                columns=columns,
+                source_database=args.database,
+                query_filter=query_str,
+                tool='gh3_extract'
+            )
 
             logger.info("")
             logger.info("=" * 70)

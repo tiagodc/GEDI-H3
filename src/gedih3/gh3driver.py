@@ -85,6 +85,166 @@ def gh3_write_meta(opath, **kwargs):
     json_write(extracted_meta, meta_path, rewrite=True)
     return meta_path        
 
+def gh3_write_dataset_meta(opath, index_type='h3', index_level=None, columns=None,
+                           source_database=None, query_filter=None, tool=None, **kwargs):
+    """
+    Write simplified metadata for extracted/aggregated datasets.
+
+    This creates a single metadata file for user-friendly outputs (not hive-partitioned),
+    making it easy to understand and use the data outside of gedih3 tools.
+
+    Parameters
+    ----------
+    opath : str
+        Output directory path
+    index_type : str
+        Type of spatial index ('h3' or 'egi')
+    index_level : int
+        Resolution level of the index
+    columns : list
+        List of data columns
+    source_database : str
+        Path to source H3 database (if applicable)
+    query_filter : str
+        Query string used for filtering
+    tool : str
+        Name of the tool that created this dataset
+    **kwargs
+        Additional metadata to include
+    """
+    # List parquet files in output directory
+    parquet_files = sorted(glob.glob(os.path.join(opath, '*.parquet')))
+    file_names = [os.path.basename(f) for f in parquet_files]
+
+    # Extract partition IDs from file names
+    partition_ids = [os.path.splitext(f)[0] for f in file_names]
+
+    meta = {
+        "metadata": {
+            "package_version": get_package_version(),
+            "format": "simplified",
+            "description": "User-friendly dataset for use with external tools (R, QGIS, etc.)"
+        },
+        "index_type": index_type,
+        "index_level": index_level,
+        "columns": sorted(columns) if columns else [],
+        "partition_ids": partition_ids,
+        "n_files": len(parquet_files),
+        "source_database": source_database,
+        "query_filter": query_filter,
+        "tool": tool,
+        "created": now()
+    }
+
+    meta.update(kwargs)
+
+    meta_path = os.path.join(opath, "gedih3_dataset.json")
+    json_write(meta, meta_path, rewrite=True)
+    return meta_path
+
+
+def gh3_load_dataset(dataset_path, columns=None, filters=None):
+    """
+    Load a simplified extracted/aggregated dataset.
+
+    This function loads user-friendly datasets created by gh3_extract or gh3_aggregate,
+    which consist of simple parquet files (not hive-partitioned).
+
+    Parameters
+    ----------
+    dataset_path : str
+        Path to the dataset directory
+    columns : list, optional
+        Columns to load (if None, load all)
+    filters : list, optional
+        PyArrow filters for predicate pushdown
+
+    Returns
+    -------
+    GeoDataFrame or DataFrame
+        Loaded data
+
+    Examples
+    --------
+    >>> # Load aggregated dataset
+    >>> gdf = gh3.gh3_load_dataset('/path/to/aggregated/')
+    >>>
+    >>> # Load specific columns
+    >>> gdf = gh3.gh3_load_dataset('/path/to/extracted/', columns=['agbd_l4a', 'geometry'])
+    """
+    # Check if it's a file or directory
+    if os.path.isfile(dataset_path):
+        # Single file
+        return gpd.read_parquet(dataset_path, columns=columns)
+
+    # Directory - find parquet files
+    parquet_files = sorted(glob.glob(os.path.join(dataset_path, '*.parquet')))
+
+    if not parquet_files:
+        # Check for hive-style structure (for backwards compatibility)
+        parquet_files = sorted(glob.glob(os.path.join(dataset_path, '**/*.parquet'), recursive=True))
+
+    if not parquet_files:
+        raise FileNotFoundError(f"No parquet files found in {dataset_path}")
+
+    # Load and concatenate
+    kwargs = {}
+    if columns:
+        kwargs['columns'] = columns
+    if filters:
+        kwargs['filters'] = filters
+
+    # Try to load as GeoParquet first
+    try:
+        gdf = gpd.read_parquet(parquet_files, **kwargs)
+        return gdf
+    except Exception:
+        # Fall back to pandas if no geometry
+        import pyarrow.parquet as pq
+        df = pq.read_table(parquet_files, **kwargs).to_pandas()
+        return df
+
+
+def gh3_load_dataset_lazy(dataset_path, columns=None):
+    """
+    Load a simplified dataset lazily as a Dask DataFrame.
+
+    Parameters
+    ----------
+    dataset_path : str
+        Path to the dataset directory
+    columns : list, optional
+        Columns to load
+
+    Returns
+    -------
+    dask GeoDataFrame
+        Lazy-loaded data
+    """
+    parquet_files = sorted(glob.glob(os.path.join(dataset_path, '*.parquet')))
+
+    if not parquet_files:
+        parquet_files = sorted(glob.glob(os.path.join(dataset_path, '**/*.parquet'), recursive=True))
+
+    if not parquet_files:
+        raise FileNotFoundError(f"No parquet files found in {dataset_path}")
+
+    kwargs = {}
+    if columns:
+        kwargs['columns'] = columns
+
+    # Load first file to get metadata
+    _meta = gpd.read_parquet(parquet_files[0], **kwargs)
+
+    ddf = dask.dataframe.from_map(
+        lambda f: gpd.read_parquet(f, **kwargs),
+        parquet_files,
+        meta=_meta
+    )
+
+    return dask_geopandas.from_dask_dataframe(ddf, geometry='geometry') if 'geometry' in ddf.columns else ddf
+
+
 def gh3_part_from_df(df):
     h3_cols = [col for col in df.columns if col.startswith('h3_')]
     return sorted(h3_cols)[0]
@@ -260,31 +420,80 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
     return agg_df
 
 
-def gh3_export_part(df, odir, fmt='parquet', is_file_path=False):
+def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None):
+    """
+    Export a single partition to file with a simple naming convention.
+
+    Creates user-friendly output files named by partition ID (e.g., 'abc123.parquet'),
+    not hive-style directories.
+
+    Parameters
+    ----------
+    df : DataFrame or GeoDataFrame
+        Data partition to export
+    odir : str
+        Output directory or file path
+    fmt : str
+        Output format ('parquet', 'gpkg', 'geojson', 'csv', etc.)
+    is_file_path : bool
+        If True, odir is treated as a complete file path
+    part_col : str, optional
+        Partition column name to use for naming. If None, auto-detect.
+
+    Returns
+    -------
+    str
+        Output file path
+    """
     if df.empty:
         return ''
-    
-    import h3pandas
-    os.makedirs(odir, exist_ok=True)    
-    
+
+    os.makedirs(odir, exist_ok=True)
+
     if is_file_path:
         odir = odir.rstrip('/')
         opath = f"{odir}.{fmt}" if not odir.endswith(fmt) else odir
     else:
-        if hasattr(df, 'name') and df.name.startswith('h3_'):
-            oname = df.name
-        else:
-            h3_partition_level = gh3_part_from_df(df)
-            oname = df[h3_partition_level].iloc[0]
-        
+        # Determine output filename from partition ID
+        oname = None
+
+        # Check for explicit partition column
+        if part_col and part_col in df.columns:
+            oname = str(df[part_col].iloc[0])
+        # Check for H3 partition columns
+        elif not oname:
+            h3_cols = [col for col in df.columns if col.startswith('h3_')]
+            if h3_cols:
+                part_col = sorted(h3_cols)[0]
+                oname = str(df[part_col].iloc[0])
+        # Check for EGI columns
+        if not oname:
+            egi_cols = [col for col in df.columns if str(col).startswith('egi')]
+            if egi_cols:
+                part_col = sorted(egi_cols)[0]
+                oname = str(df[part_col].iloc[0])
+        # Check index name
+        if not oname and df.index.name:
+            if df.index.name.startswith('h3_') or str(df.index.name).startswith('egi'):
+                oname = str(df.index[0])
+
+        # Fallback to generic name
+        if not oname:
+            oname = f"part_{hash(df.index[0]) % 10000:04d}"
+
         opath = os.path.join(odir, f"{oname}.{fmt}")
-    
+
+    # Export based on format
     if is_parquet(opath):
-        df.to_parquet(opath)
+        # Use compression for parquet
+        df.to_parquet(opath, compression='zstd')
     elif fmt == 'feather':
         df.to_feather(opath)
     elif fmt in ('geojson', 'gpkg', 'shp'):
-        df.to_file(opath)
+        if isinstance(df, gpd.GeoDataFrame):
+            df.to_file(opath)
+        else:
+            raise ValueError(f"Cannot export non-GeoDataFrame to {fmt}")
     elif fmt == 'txt':
         df.to_csv(opath, sep='\t')
     elif fmt == 'csv':
