@@ -284,6 +284,44 @@ python tests/run_tests.py
 - **Atomic writes**: File operations use `AtomicFileWriter` for transaction safety
 - **Structured exceptions**: Catch specific `GediError` subclasses for targeted error handling
 
+## Performance Optimizations
+
+### Efficient Data Loading (`from_map=True`)
+
+The `gh3_load()` function uses `from_map=True` by default, which provides significant performance benefits for large databases with thousands of partition files:
+
+- **Bypasses `_metadata` file**: No need to read/write large metadata files
+- **Direct partition loading**: Uses `dask.dataframe.from_map()` to load each H3 partition directory directly
+- **Explicit divisions**: Sets divisions from partition IDs, enabling efficient data access
+- **Memory efficient**: Avoids loading partition metadata into memory
+
+```python
+# Default behavior (efficient for large databases)
+ddf = gh3.gh3_load(columns=['agbd_l4a'], gh3_dir='/path/to/database')
+
+# Legacy behavior (if needed for backwards compatibility)
+ddf = gh3.gh3_load(columns=['agbd_l4a'], gh3_dir='/path/to/database', from_map=False)
+```
+
+### Aggregation with `map_partitions`
+
+Aggregation functions (`gh3_aggregate`, `egi_aggregate`) use `map_partitions` instead of `groupby().apply()` for better performance:
+
+- **No shuffling**: Each partition is processed independently without data movement
+- **Partition-aligned**: When loaded with `from_map=True`, each partition contains data from a single H3 cell
+- **Efficient memory usage**: Processes one partition at a time instead of grouping across partitions
+
+This optimization is transparent to the API - the same function calls work as before, but with better performance.
+
+### EGI Coordinate Handling
+
+EGI functions prioritize using Point geometry from GeoDataFrames over coordinate columns:
+
+1. **Primary method**: Extract coordinates from `geometry` column (Point geometries)
+2. **Fallback**: Search for coordinate columns with product suffixes (e.g., `lon_lowestmode_l2a`)
+
+This handles the case where H3 database columns have product suffixes automatically.
+
 ## EGI Resolution Levels
 
 | Level | Resolution | Description |
