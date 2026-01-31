@@ -129,7 +129,7 @@ def gh3_load_hex(d, **kwargs):
     files = glob.glob(os.path.join(d, '**/*.parquet'), recursive=True)
     return gpd.read_parquet(files, **kwargs)
 
-def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR, from_map=False): 
+def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR, from_map=True): 
     h3_part = gh3_read_meta("h3_partition_level", gh3_root_dir=gh3_dir)
     h3_part_col = f"h3_{h3_part:02d}"
     h3_ids = gh3_read_meta("h3_partition_ids", gh3_root_dir=gh3_dir)
@@ -193,18 +193,54 @@ def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR, 
     return ddf
 
 def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, add_geometry=True, repartition=False, **kwargs):
+    """
+    Aggregate H3-indexed GEDI data to a coarser H3 resolution.
+
+    Uses map_partitions for efficient processing when data is loaded with
+    from_map=True (each partition corresponds to a single H3 partition cell).
+
+    Parameters
+    ----------
+    gh3_df : dask GeoDataFrame
+        H3-indexed GEDI data loaded via gh3_load()
+    target_res : int
+        Target H3 resolution level (0-15, lower = coarser)
+    agg : str, list, dict, or callable
+        Aggregation specification (same as pandas groupby.agg)
+    columns : list, optional
+        Columns to aggregate (if None, all numeric columns)
+    query : str, optional
+        Pandas query string for filtering before aggregation
+    add_geometry : bool
+        If True, add H3 polygon geometries to output
+    repartition : bool
+        If True, repartition by H3 partition column for export
+    **kwargs
+        Additional arguments passed to aggregation function
+
+    Returns
+    -------
+    dask GeoDataFrame
+        H3-indexed aggregated data
+    """
     _meta = gh3_aggregate_func(df=gh3_df.head(npartitions=min(gh3_df.npartitions, 10)), res=target_res, agg=agg, cols=columns, **kwargs)
 
     if query is not None:
         gh3_df = gh3_df.query(query)
-    
+
     h3part = gh3_part_from_df(gh3_reindex(gh3_df))
     h3agg = f"h3_{target_res:02d}"
-    
-    _meta[h3part] = h3part
-    _meta = _meta.reset_index().set_index([h3part, h3agg])
-    
-    agg_df = gh3_df.groupby(h3part, observed=True).apply(gh3_aggregate_func, res=target_res, agg=agg, cols=columns, meta=_meta, **kwargs)
+
+    # Use map_partitions for efficient processing
+    # Each partition corresponds to a single H3 partition cell when loaded with from_map=True
+    agg_df = gh3_df.map_partitions(
+        gh3_aggregate_func,
+        res=target_res,
+        agg=agg,
+        cols=columns,
+        meta=_meta,
+        **kwargs
+    )
     agg_df = agg_df.reset_index().set_index(h3agg, sort=False)
     
     if add_geometry:
@@ -437,16 +473,13 @@ def egi_aggregate(gh3_df, target_level=6, agg='mean', columns=None, query=None,
     if query is not None:
         gh3_df = gh3_df.query(query)
 
-    # Get H3 partition column
+    # Get H3 partition column and EGI column name
     h3part = gh3_part_from_df(gh3_reindex(gh3_df))
     egi_col = egi.egi_col_name(target_level)
 
-    # Update meta with partition info
-    _meta[h3part] = h3part
-    _meta = _meta.reset_index().set_index([h3part, egi_col])
-
-    # Apply aggregation per H3 partition
-    agg_df = gh3_df.groupby(h3part, observed=True).apply(
+    # Use map_partitions for efficient processing
+    # Each partition corresponds to a single H3 partition cell when loaded with from_map=True
+    agg_df = gh3_df.map_partitions(
         egi_aggregate_func,
         level=target_level,
         agg=agg,
