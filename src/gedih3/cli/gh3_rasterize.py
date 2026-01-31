@@ -214,14 +214,38 @@ def main():
         with Client(**dask_kwargs) as client:
             logger.info(f"Dask dashboard: {client.dashboard_link}")
 
-            # Load data
+            # Load data - detect if input is H3 database or simplified dataset
             logger.info("Loading data...")
-            ddf = gh3.gh3_load(
-                columns=columns,
-                region=region,
-                query=query_str,
-                gh3_dir=args.database
-            )
+
+            # Check for H3 database (has gedih3_build_log.json) vs simplified dataset (has gedih3_dataset.json)
+            build_log_path = os.path.join(args.database, "gedih3_build_log.json")
+            dataset_meta_path = os.path.join(args.database, "gedih3_dataset.json")
+
+            if os.path.exists(build_log_path):
+                # Full H3 database
+                logger.info("  Source: H3 database")
+                ddf = gh3.gh3_load(
+                    columns=columns,
+                    region=region,
+                    query=query_str,
+                    gh3_dir=args.database
+                )
+            elif os.path.exists(dataset_meta_path):
+                # Simplified dataset (from gh3_extract or gh3_aggregate)
+                logger.info("  Source: simplified dataset")
+                ddf = gh3.gh3_load_dataset_lazy(args.database, columns=columns)
+                if query_str:
+                    ddf = ddf.query(query_str)
+                if region is not None:
+                    ddf = ddf.clip(region)
+            else:
+                # Try loading as parquet directory anyway
+                logger.info("  Source: parquet directory")
+                ddf = gh3.gh3_load_dataset_lazy(args.database, columns=columns)
+                if query_str:
+                    ddf = ddf.query(query_str)
+                if region is not None:
+                    ddf = ddf.clip(region)
 
             logger.info(f"  Loaded {ddf.npartitions} partitions")
 

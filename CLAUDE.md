@@ -91,8 +91,40 @@ gh3_read_schema /path/to/file.h5
 1. **Download**: `daac.py` → `earthaccess` → GEDI HDF5 files in SOC directory structure (`year/doy/`)
 2. **Build**: `gh3builder.py` reads HDF5 → H3 indexes → partitions by H3 cell → parquet files with metadata JSON
 3. **Query**: `gh3driver.py` loads partitioned parquet via Dask with spatial/temporal filtering
-4. **Aggregate**: H3 or EGI aggregation with configurable functions
+4. **Extract/Aggregate**: Filter and aggregate data → simplified flat parquet files for external use
 5. **Rasterize**: Convert to GeoTIFF with time-series support
+
+### Output Formats
+
+The package distinguishes between two types of output formats:
+
+#### H3 Database (Internal Format)
+Created by `gh3_build`, this is a complex hive-partitioned structure optimized for repeated queries:
+```
+h3_database/
+├── h3_03=abc123/
+│   └── data.parquet
+├── h3_03=def456/
+│   └── data.parquet
+└── gedih3_build_log.json
+```
+
+#### Simplified Dataset (User-Friendly Format)
+Created by `gh3_extract` and `gh3_aggregate`, these are flat parquet/geoparquet files designed for use with external tools (R, QGIS, custom Python, etc.):
+```
+output/
+├── abc123.parquet
+├── def456.parquet
+├── ghi789.parquet
+└── gedih3_dataset.json
+```
+
+Benefits of simplified format:
+- **Easy to use**: Simple flat files, no hive directory structure
+- **Portable**: Works with any tool that reads parquet (R, Python, QGIS, etc.)
+- **Named by partition**: Files named by H3/EGI partition ID for easy identification
+- **Single metadata file**: One `gedih3_dataset.json` describes the whole dataset
+- **Chainable**: Can be used as input for other gedih3 tools (e.g., `gh3_rasterize`)
 
 ### Module Structure
 
@@ -198,6 +230,21 @@ ddf = gh3.gh3_load(
 
 # Aggregate to coarser H3 level
 agg_df = gh3.gh3_aggregate(ddf, target_res=6, agg='mean')
+```
+
+### Loading Simplified Datasets
+
+```python
+import gedih3.gh3driver as gh3
+
+# Load simplified dataset created by gh3_extract or gh3_aggregate
+gdf = gh3.gh3_load_dataset('/path/to/extracted/')
+
+# Load specific columns only
+gdf = gh3.gh3_load_dataset('/path/to/aggregated/', columns=['agbd_l4a_mean', 'geometry'])
+
+# Load lazily as Dask DataFrame for large datasets
+ddf = gh3.gh3_load_dataset_lazy('/path/to/dataset/')
 ```
 
 ### EGI (EASE Grid Index)
