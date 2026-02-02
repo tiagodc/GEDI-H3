@@ -215,7 +215,7 @@ def main():
             # Write simplified dataset metadata
             logger.info("Writing dataset metadata")
             index_type = 'egi' if use_egi else 'h3'
-            index_level = args.egi_level if use_egi else gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
+            index_level = args.egi_level if use_egi else gh3.gh3_read_meta('h3_resolution_level', gh3_root_dir=args.database)
             gh3.gh3_write_dataset_meta(
                 opath=args.output,
                 index_type=index_type,

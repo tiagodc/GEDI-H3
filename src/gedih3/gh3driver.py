@@ -285,9 +285,19 @@ def gh3_add_geometry(df):
     gdf = gpd.GeoDataFrame(df, geometry=geo, crs=4326)
     return gdf
 
-def gh3_load_hex(d, **kwargs):
+def gh3_load_hex(d, part_col=None, **kwargs):
     files = glob.glob(os.path.join(d, '**/*.parquet'), recursive=True)
-    return gpd.read_parquet(files, **kwargs)
+    cols = kwargs.get('columns')
+    if cols is None or 'geometry' in cols:
+        df = gpd.read_parquet(files, **kwargs)
+    else:
+        df = pd.read_parquet(files, **kwargs)
+    # Add partition column from hive-style directory name (e.g., 'h3_03=abc123')
+    if part_col:
+        part_id = os.path.basename(d.rstrip('/')).split('=')[-1]
+        if part_col not in df.columns and df.index.name != part_col:
+            df[part_col] = part_id
+    return df
 
 def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR, from_map=True): 
     h3_part = gh3_read_meta("h3_partition_level", gh3_root_dir=gh3_dir)
@@ -324,13 +334,18 @@ def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR, 
         else:
             h3_ids = sorted(h3_ids)
             h3_dirs = [os.path.join(gh3_dir, f"{h3_part_col}={hid}/") for hid in h3_ids]
-        
+
         divs = h3_ids + h3_ids[-1:]
-        
-        _meta = gh3_load_hex(h3_dirs[0], **h3_filter)
-        ddf = dask.dataframe.from_map(gh3_load_hex, h3_dirs, **h3_filter, meta=_meta)
-        ddf = dask_geopandas.from_dask_dataframe(ddf, geometry='geometry')
-        ddf = ddf.reset_index().set_index(h3_part_col, sort=False, sorted=True, divisions=divs)
+
+        # Remove partition column and filter from h3_filter (not in parquet files, derived from dir name)
+        fm_filter = {k: v for k, v in h3_filter.items() if k != 'filters'}
+        if 'columns' in fm_filter:
+            fm_filter['columns'] = [c for c in fm_filter['columns'] if c != h3_part_col]
+
+        _meta = gh3_load_hex(h3_dirs[0], part_col=h3_part_col, **fm_filter)
+        ddf = dask.dataframe.from_map(gh3_load_hex, h3_dirs, part_col=h3_part_col, **fm_filter, meta=_meta)
+        if 'geometry' in ddf.columns:
+            ddf = dask_geopandas.from_dask_dataframe(ddf, geometry='geometry')
     else:
         ddf = dask_geopandas.read_parquet(gh3_dir, 
                                         calculate_divisions=False, 
@@ -345,6 +360,8 @@ def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR, 
     if query is not None:
         ddf = ddf.query(query)
         if out_cols is not None:
+            # Remove index column from selection (it's the index, not a column)
+            out_cols = [c for c in out_cols if c != ddf.index.name]
             ddf = ddf[out_cols]
     
     if region is not None:
@@ -404,15 +421,29 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
     agg_df = agg_df.reset_index().set_index(h3agg, sort=False)
     
     if add_geometry:
-        _gmeta = gpd.GeoDataFrame(columns=agg_df._meta.columns.tolist() + ['geometry'], geometry='geometry', crs=4326)
+        _gmeta = agg_df._meta.copy()
+        _gmeta['geometry'] = gpd.GeoSeries([], crs=4326)
+        _gmeta = gpd.GeoDataFrame(_gmeta, geometry='geometry', crs=4326)
         agg_df = agg_df.map_partitions(gh3_add_geometry, meta=_gmeta)
         if isinstance(agg_df, dask.dataframe.DataFrame):
             agg_df = dask_geopandas.from_dask_dataframe(agg_df)
-            
+
     if repartition:
-        gh3_parts = gh3_df.index if gh3_df.index.name == h3part else gh3_df[h3part]
-        uparts = sorted(gh3_parts.unique().compute().tolist())
-        agg_df.index = agg_df.index.rename(h3agg)
+        h3part_res = int(h3part.split('_')[1])
+
+        # Compute partition column from aggregated H3 cells
+        def add_h3_parent(df, parent_col, parent_res, idx_col):
+            df = df.reset_index()
+            df[parent_col] = df[idx_col].apply(lambda x: h3.cell_to_parent(x, parent_res))
+            return df.set_index(idx_col)
+
+        _part_meta = agg_df._meta.copy()
+        _part_meta = _part_meta.reset_index()
+        _part_meta[h3part] = ''
+        _part_meta = _part_meta.set_index(h3agg)
+
+        agg_df = agg_df.map_partitions(add_h3_parent, parent_col=h3part, parent_res=h3part_res, idx_col=h3agg, meta=_part_meta)
+        uparts = sorted(agg_df[h3part].unique().compute().tolist())
         agg_df = agg_df.reset_index().set_index(h3part, sort=False, divisions=uparts + uparts[-1:])
         agg_df = agg_df.reset_index().set_index(h3agg, sort=False)
 
@@ -702,31 +733,32 @@ def egi_aggregate(gh3_df, target_level=6, agg='mean', columns=None, query=None,
 
     # Add geometry if requested
     if add_geometry:
-        _gmeta = gpd.GeoDataFrame(
-            columns=agg_df._meta.columns.tolist() + ['geometry'],
-            geometry='geometry',
-            crs=egi.EGI_CRS_STRING
-        )
+        _gmeta = agg_df._meta.copy()
+        _gmeta['geometry'] = gpd.GeoSeries([], crs=egi.EGI_CRS_STRING)
+        _gmeta = gpd.GeoDataFrame(_gmeta, geometry='geometry', crs=egi.EGI_CRS_STRING)
         agg_df = agg_df.map_partitions(egi_add_geometry, meta=_gmeta)
         if isinstance(agg_df, dask.dataframe.DataFrame):
             agg_df = dask_geopandas.from_dask_dataframe(agg_df)
 
-    # Repartition by outer EGI tile if requested
+    # Repartition by EGI outer tile if requested
     if repartition:
         egi_outer_col = egi.egi_col_name(egi.OUTER_LEVEL)
 
-        # Build metadata for map_partitions
-        _parent_meta = agg_df._meta.copy()
-        _parent_meta[egi_outer_col] = np.uint64(0)
+        # Compute EGI outer tile from aggregated EGI index
+        def add_egi_parent(df, parent_col, parent_level, idx_col):
+            from gedih3.egi.core import to_parent as _to_parent
+            df = df.reset_index()
+            df[parent_col] = df[idx_col].apply(lambda x: _to_parent(x, parent_level))
+            return df.set_index(idx_col)
 
-        agg_df = agg_df.map_partitions(
-            lambda x: egi.egi_to_parent(x, parent_level=egi.OUTER_LEVEL, set_index=False),
-            meta=_parent_meta
-        )
-        gh3_parts = gh3_df.index if gh3_df.index.name == h3part else gh3_df[h3part]
-        uparts = sorted(gh3_parts.unique().compute().tolist())
-        agg_df.index = agg_df.index.rename(egi_col)
-        agg_df = agg_df.reset_index().set_index(h3part, sort=False, divisions=uparts + uparts[-1:])
+        _part_meta = agg_df._meta.copy()
+        _part_meta = _part_meta.reset_index()
+        _part_meta[egi_outer_col] = np.uint64(0)
+        _part_meta = _part_meta.set_index(egi_col)
+
+        agg_df = agg_df.map_partitions(add_egi_parent, parent_col=egi_outer_col, parent_level=egi.OUTER_LEVEL, idx_col=egi_col, meta=_part_meta)
+        uparts = sorted(agg_df[egi_outer_col].unique().compute().tolist())
+        agg_df = agg_df.reset_index().set_index(egi_outer_col, sort=False, divisions=uparts + uparts[-1:])
         agg_df = agg_df.reset_index().set_index(egi_col, sort=False)
 
     return agg_df
