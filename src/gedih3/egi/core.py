@@ -104,17 +104,35 @@ def to_hash(
     >>> x = np.array([-8000000.0, -7000000.0])
     >>> y = np.array([4000000.0, 3500000.0])
     >>> hashes = to_hash(x, y, level=6)
+
+    Notes
+    -----
+    This implementation matches the reference easegridindex exactly:
+    - Uses // operator for floor division (outer tile indices)
+    - Uses % operator for modulo (inner tile position)
+    - The modulo naturally constrains values to [0, OUTER_RES) range
+
+    Coordinates must be in EPSG:6933 projection. Do NOT use this function
+    with WGS84 coordinates - reproject first.
     """
     validate_level(level)
     scale = RESOLUTIONS[level]
 
-    # Calculate outer tile indices (which ~160km tile the point falls in)
-    px_outer = np.uint16((x - LIMITS['lon_w']) // OUTER_RES)
-    py_outer = np.uint16((y - LIMITS['lat_s']) // OUTER_RES)
+    # Calculate coordinate offsets from grid origin
+    x_offset = x - LIMITS['lon_w']
+    y_offset = y - LIMITS['lat_s']
 
-    # Calculate inner pixel indices (position within the tile at target resolution)
-    px_inner = np.uint32((x - LIMITS['lon_w']) % OUTER_RES // scale)
-    py_inner = np.uint32((y - LIMITS['lat_s']) % OUTER_RES // scale)
+    # Calculate outer tile indices using floor division
+    # This matches the reference implementation exactly
+    px_outer = np.uint16(x_offset // OUTER_RES)
+    py_outer = np.uint16(y_offset // OUTER_RES)
+
+    # Calculate inner pixel indices using modulo + floor division
+    # The modulo gives position within the tile [0, OUTER_RES)
+    # Floor division by scale gives the pixel index
+    # This matches the reference implementation exactly
+    px_inner = np.uint32(x_offset % OUTER_RES // scale)
+    py_inner = np.uint32(y_offset % OUTER_RES // scale)
 
     return hasher(level, px_outer, py_outer, px_inner, py_inner)
 

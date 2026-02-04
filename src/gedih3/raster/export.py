@@ -65,14 +65,16 @@ def export_raster_partition(
     partition_id_attr: Optional[str] = None
 ) -> str:
     """
-    Export a single raster partition to file.
+    Export raster partition(s) to file(s).
 
-    This function is designed for use with Dask's map_partitions.
+    This function handles the case where a Series may contain multiple
+    rasters from different spatial tiles. Each raster is exported to
+    its own file based on its tile ID attribute.
 
     Parameters
     ----------
     data : pd.Series or xr.Dataset
-        Raster data (Series of DataArrays or Dataset)
+        Raster data (Series of DataArrays/Datasets or single Dataset)
     output_dir : str
         Output directory
     fmt : str
@@ -85,26 +87,70 @@ def export_raster_partition(
     Returns
     -------
     str
-        Output file path, or empty string if no data
+        Output file path(s), comma-separated if multiple files written
     """
+    import re
+    os.makedirs(output_dir, exist_ok=True)
+
     if isinstance(data, pd.Series):
         if len(data) == 0:
             return ''
-        # Series of DataArrays - merge them
-        valid = [x for x in data if hasattr(x, 'data_vars')]
-        if not valid:
+        # Series of Datasets - export each separately
+        valid_rasters = [x for x in data if hasattr(x, 'data_vars') and len(x.data_vars) > 0]
+        if not valid_rasters:
             return ''
-        xras = xr.merge(valid)
+
+        # Export each raster to its own file based on its tile ID
+        output_paths = []
+        for xras in valid_rasters:
+            path = _export_single_raster(xras, output_dir, fmt, compress, partition_id_attr)
+            if path:
+                output_paths.append(path)
+
+        return ','.join(output_paths) if output_paths else ''
+
     elif isinstance(data, xr.Dataset):
-        xras = data
-    else:
+        return _export_single_raster(data, output_dir, fmt, compress, partition_id_attr)
+
+    return ''
+
+
+def _export_single_raster(
+    xras: xr.Dataset,
+    output_dir: str,
+    fmt: str,
+    compress: str,
+    partition_id_attr: Optional[str] = None
+) -> str:
+    """
+    Export a single xarray Dataset to file.
+
+    Parameters
+    ----------
+    xras : xr.Dataset
+        Raster data
+    output_dir : str
+        Output directory
+    fmt : str
+        Output format
+    compress : str
+        Compression method
+    partition_id_attr : str, optional
+        Attribute name for partition ID
+
+    Returns
+    -------
+    str
+        Output file path
+    """
+    import re
+
+    if len(xras.data_vars) == 0:
         return ''
 
-    # Determine output filename
+    # Determine output filename from attributes
     basename = 'raster'
 
-    # Try to get partition ID from attributes
-    import re
     for var in list(xras.data_vars)[:1]:
         attrs = xras[var].attrs
         # Look for any H3 partition ID attribute (h3_XX_id pattern)
@@ -126,7 +172,6 @@ def export_raster_partition(
 
     # Add extension
     output_path = os.path.join(output_dir, f"{basename}.{fmt}")
-    os.makedirs(output_dir, exist_ok=True)
 
     if fmt in ('tif', 'tiff', 'geotiff'):
         options = get_geotiff_options(compress)
@@ -235,7 +280,7 @@ def merge_and_export_rasters(
     str
         Path to output file
     """
-    from rioxarray import merge as rio_merge
+    from rioxarray.merge import merge_datasets
 
     if hasattr(gdf, 'npartitions'):
         # Dask GeoDataFrame - rasterize partitions in parallel
@@ -251,11 +296,16 @@ def merge_and_export_rasters(
 
         rasters = raster_parts.compute()
 
-        # Filter valid rasters
-        valid_rasters = [
-            r for r in rasters
-            if hasattr(r, 'data_vars') and len(r.data_vars) > 0
-        ]
+        # Filter valid rasters - handle both Series results and direct Dataset results
+        valid_rasters = []
+        for r in rasters:
+            if isinstance(r, pd.Series):
+                # rasterize_func returns Series containing Dataset
+                for item in r:
+                    if hasattr(item, 'data_vars') and len(item.data_vars) > 0:
+                        valid_rasters.append(item)
+            elif hasattr(r, 'data_vars') and len(r.data_vars) > 0:
+                valid_rasters.append(r)
 
         if not valid_rasters:
             raise ValueError("No valid rasters to merge")
@@ -263,11 +313,10 @@ def merge_and_export_rasters(
         if len(valid_rasters) == 1:
             merged = valid_rasters[0]
         else:
-            # Merge all rasters
-            merged = xr.merge([
-                rio_merge.merge_arrays([r[var] for r in valid_rasters if var in r])
-                for var in valid_rasters[0].data_vars
-            ])
+            # Use merge_datasets which properly handles non-overlapping tiles
+            # by creating a combined extent and filling NoData where tiles don't overlap
+            # IMPORTANT: Use nodata=np.nan to ensure gaps are filled with NaN, not 0
+            merged = merge_datasets(valid_rasters, nodata=np.nan)
     else:
         # Single GeoDataFrame
         merged = rasterize_func(gdf, columns=columns)

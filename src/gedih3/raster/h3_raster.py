@@ -103,6 +103,40 @@ def _detect_partition_level(gdf: gpd.GeoDataFrame) -> Optional[int]:
     return None
 
 
+def _filter_raster_columns(columns: Optional[List[str]], gdf: gpd.GeoDataFrame) -> Optional[List[str]]:
+    """Filter out internal/partition columns from rasterization.
+
+    Internal columns (h3 indices, egi indices, shot_number) should not be
+    rasterized as bands - they're metadata, not data values.
+    Also excludes the index column since it will become a column after reset_index().
+    """
+    import re
+
+    # Patterns for internal columns to exclude from rasterization
+    internal_patterns = [
+        r'^h3_\d{2}$',       # H3 partition columns (h3_03, h3_06, etc.)
+        r'^egi\d+$',         # EGI index columns (egi06, egi12, etc.)
+        r'^_egi_[xy]$',      # Internal EGI coordinate columns
+        r'^shot_number',     # Shot identifier
+    ]
+
+    def is_internal(col_name):
+        return any(re.match(p, str(col_name)) for p in internal_patterns)
+
+    # Get the index column name to exclude (it becomes a column after reset_index)
+    index_col = gdf.index.name
+
+    if columns is not None:
+        # Filter provided columns (also exclude index column)
+        filtered = [c for c in columns if not is_internal(c) and c != 'geometry' and c != index_col]
+        return filtered if filtered else None
+    else:
+        # Auto-detect numeric columns, excluding internal ones and index column
+        numeric = gdf.select_dtypes(include=[np.number]).columns.tolist()
+        filtered = [c for c in numeric if not is_internal(c) and c != index_col]
+        return filtered if filtered else None
+
+
 def h3_to_raster(
     gdf: gpd.GeoDataFrame,
     resolution: Optional[Tuple[float, float]] = None,
@@ -127,6 +161,7 @@ def h3_to_raster(
         If None, automatically determined from H3 level.
     columns : list of str, optional
         Columns to rasterize. If None, all numeric columns are used.
+        Internal columns (h3 indices, egi indices) are automatically excluded.
     fill_value : float
         Value for pixels with no data (default: NaN)
     output_crs : str
@@ -147,6 +182,9 @@ def h3_to_raster(
     """
     if gdf.empty:
         raise ValueError("Cannot rasterize empty GeoDataFrame")
+
+    # Filter out internal columns from rasterization
+    columns = _filter_raster_columns(columns, gdf)
 
     # Get H3 level and partition ID
     h3_index = gdf.index[0] if gdf.index.name and gdf.index.name.startswith('h3_') else None

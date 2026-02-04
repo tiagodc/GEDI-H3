@@ -79,8 +79,9 @@ def pixel_coordinate(
     level, scale, px_outer, py_outer, px_inner, py_inner = from_hash(uint_hash)
 
     # Calculate absolute coordinates from tile + pixel position
-    px = scale * px_inner + OUTER_RES * px_outer + LIMITS['lon_w']
-    py = scale * py_inner + OUTER_RES * py_outer + LIMITS['lat_s']
+    # Cast to float64 to avoid uint16 overflow when OUTER_RES is large
+    px = scale * np.float64(px_inner) + OUTER_RES * np.float64(px_outer) + LIMITS['lon_w']
+    py = scale * np.float64(py_inner) + OUTER_RES * np.float64(py_outer) + LIMITS['lat_s']
 
     if center:
         px += scale / 2
@@ -114,8 +115,9 @@ def pixel_coordinates(
     level, scale, px_outer, py_outer, px_inner, py_inner = from_hash(uint_hash)
 
     # Vectorized coordinate calculation
-    px = scale * px_inner + OUTER_RES * px_outer + LIMITS['lon_w']
-    py = scale * py_inner + OUTER_RES * py_outer + LIMITS['lat_s']
+    # Cast to float64 to avoid uint16 overflow when OUTER_RES is large
+    px = scale * np.float64(px_inner) + OUTER_RES * np.float64(px_outer) + LIMITS['lon_w']
+    py = scale * np.float64(py_inner) + OUTER_RES * np.float64(py_outer) + LIMITS['lat_s']
 
     if center:
         px = px + scale / 2

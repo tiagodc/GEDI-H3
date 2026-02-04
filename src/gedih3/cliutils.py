@@ -1,14 +1,25 @@
 import os
 import re
 import logging
-from typing import Optional
+import warnings
+from typing import Optional, List
 
 from .config import GEDI_PRODUCTS, ISO3_COUNTRIES_URL
 from .utils import read_vector_file, parse_spatial
 from .gedidriver import gedi_vars_expand
-from .gh3driver import gh3_read_meta
+# Note: gh3driver imports are done lazily to avoid circular imports
 
 VALID_FORMATS = ['parquet', 'feather', 'shp', 'geojson', 'gpkg', 'txt', 'csv', 'h5', 'hdf5']
+
+# =============================================================================
+# Module-level warning suppression for Dask/distributed
+# Applied at import time to catch early warnings during client initialization
+# =============================================================================
+warnings.filterwarnings('ignore', category=UserWarning, module=r'distributed.*')
+warnings.filterwarnings('ignore', category=UserWarning, module=r'dask.*')
+warnings.filterwarnings('ignore', message=r'.*Sending large graph.*')
+warnings.filterwarnings('ignore', message=r'.*large graph.*')
+warnings.filterwarnings('ignore', message=r'.*Consider loading the data.*')
 
 
 # =============================================================================
@@ -68,6 +79,8 @@ def add_product_args(parser):
 def setup_logging(args, name=None):
     """Configure logging based on verbosity flags and return a logger.
 
+    Also configures Dask warning suppression for non-DEBUG modes.
+
     Args:
         args: Parsed arguments with 'quiet' and 'verbose' attributes
         name: Logger name (defaults to calling module's __name__)
@@ -75,6 +88,7 @@ def setup_logging(args, name=None):
     Returns:
         Configured logger instance
     """
+    import warnings
     from .logging_config import configure_logging, get_logger
 
     if args.quiet:
@@ -87,6 +101,39 @@ def setup_logging(args, name=None):
         log_level = logging.INFO
 
     configure_logging(level=log_level, verbose=args.verbose >= 1)
+
+    # Suppress Dask/distributed warnings unless in DEBUG mode
+    if log_level > logging.DEBUG:
+        # Filter UserWarnings from distributed (large graph warnings, etc.)
+        # Use regex pattern for module matching
+        warnings.filterwarnings('ignore', category=UserWarning, module=r'distributed.*')
+        warnings.filterwarnings('ignore', category=UserWarning, module=r'dask.*')
+        warnings.filterwarnings('ignore', message=r'.*Sending large graph.*')
+        warnings.filterwarnings('ignore', message=r'.*Consider loading the data.*')
+        warnings.filterwarnings('ignore', message=r'.*large graph.*')
+        warnings.filterwarnings('ignore', message=r'.*PerformanceWarning.*')
+
+        # Suppress distributed module logging (shuffle, scheduler, worker, memory, etc.)
+        for logger_name in [
+            'distributed',
+            'distributed.shuffle',
+            'distributed.shuffle._scheduler_plugin',
+            'distributed.worker',
+            'distributed.worker.memory',
+            'distributed.client',
+            'distributed.scheduler',
+            'distributed.nanny',
+            'distributed.utils_perf',
+            'distributed.diskutils',
+            'distributed.batched',
+            'dask',
+            'dask.array',
+            'dask.dataframe',
+            'tornado',
+            'asyncio',
+        ]:
+            logging.getLogger(logger_name).setLevel(logging.ERROR)
+
     return get_logger(name or __name__)
 
 
@@ -201,16 +248,75 @@ def load_data_from_source(database, columns=None, region=None, query=None, logge
 # Shared Data Processing Functions
 # =============================================================================
 
-def get_numeric_columns(ddf):
+# Patterns for internal/partition columns that should be excluded from data operations
+INTERNAL_COLUMN_PATTERNS = [
+    r'^h3_\d{2}$',       # H3 partition columns (h3_03, h3_06, etc.)
+    r'^egi\d{2}$',       # EGI index columns (egi06, egi12, etc.)
+    r'^_egi_[xy]$',      # Internal EGI coordinate columns
+    r'^shot_number',     # Shot identifier (shot_number, shot_number_l2a, etc.)
+]
+
+
+def is_internal_column(col_name):
+    """Check if a column name matches internal/partition column patterns.
+
+    Internal columns include H3 partition columns (h3_XX), EGI index columns (egiXX),
+    internal EGI coordinates (_egi_x, _egi_y), and shot identifiers.
+
+    Args:
+        col_name: Column name to check
+
+    Returns:
+        True if column is internal, False otherwise
+    """
+    return any(re.match(pattern, str(col_name)) for pattern in INTERNAL_COLUMN_PATTERNS)
+
+
+def filter_data_columns(columns, exclude_geometry=True):
+    """Filter out internal/partition columns from a column list.
+
+    Args:
+        columns: List of column names
+        exclude_geometry: If True, also exclude 'geometry' column
+
+    Returns:
+        List of user data columns (excluding internal columns)
+    """
+    filtered = [col for col in columns if not is_internal_column(col)]
+    if exclude_geometry:
+        filtered = [col for col in filtered if col != 'geometry']
+    return filtered
+
+
+def get_numeric_columns(ddf, exclude_internal=True):
     """Get list of numeric columns from a Dask DataFrame.
+
+    Args:
+        ddf: Dask DataFrame
+        exclude_internal: If True (default), exclude internal/partition columns
+
+    Returns:
+        List of column names with numeric dtypes
+    """
+    numeric = [col for col in ddf.columns if ddf[col].dtype.kind in 'biufc']
+    if exclude_internal:
+        numeric = filter_data_columns(numeric)
+    return numeric
+
+
+def get_rasterizable_columns(ddf):
+    """Get columns suitable for rasterization from a Dask DataFrame.
+
+    This is a convenience function that returns numeric columns excluding
+    internal columns (h3_XX, egiXX, etc.) and geometry.
 
     Args:
         ddf: Dask DataFrame
 
     Returns:
-        List of column names with numeric dtypes
+        List of column names suitable for rasterization
     """
-    return [col for col in ddf.columns if ddf[col].dtype.kind in 'biufc']
+    return get_numeric_columns(ddf, exclude_internal=True)
 
 
 def h3_col_name(level):
@@ -245,13 +351,22 @@ def parse_gedi_args(args):
     return prod_vars
     
 def parse_dask_args(args):
+    import dask
+
     # Load dask config from file if specified
-    if hasattr(args, 'dask_config') and args.dask_config:        
+    if hasattr(args, 'dask_config') and args.dask_config:
         if os.path.isfile(args.dask_config):
-            import dask
             dask.config.set(config=dask.config.collect([args.dask_config]))
         else:
             raise ValueError(f"Dask config file not found: {args.dask_config}")
+
+    # Configure Dask to suppress performance warnings unless in DEBUG mode
+    verbose = getattr(args, 'verbose', 0)
+    if verbose < 2:
+        # Suppress large graph warnings by raising the threshold
+        dask.config.set({'distributed.admin.large-graph-warning-threshold': '500MB'})
+        # Suppress other performance-related warnings
+        dask.config.set({'distributed.admin.tick.limit': '1h'})
 
     dask_args = {}
     if args.dask_scheduler:
@@ -314,7 +429,7 @@ def collect_columns(args):
     Collect all requested variables from command line arguments and validate against available columns.
     Returns: (column_list, product_map)
     """
-    
+    from .gh3driver import gh3_read_meta
     h3_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)        
     read_cols = []
     
@@ -365,7 +480,7 @@ def collect_columns(args):
 
 def build_query_string(args):
     """Build pandas query string from arguments"""
-
+    from .gh3driver import gh3_read_meta
     h3_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)
     queries = []
 

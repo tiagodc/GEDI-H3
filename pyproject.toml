@@ -54,3 +54,10 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
 gedih3 = ["data/*.txt", "data/*.json", "data/*.parquet"]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as integration tests (may require external resources)",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')"
+]
+testpaths = ["tests"]
