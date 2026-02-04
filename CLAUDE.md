@@ -357,6 +357,7 @@ add_product_args(parser)
 from gedih3.cliutils import setup_logging, print_banner, print_success, configure_database_path
 
 # Configure logging based on args and get logger
+# Also suppresses Dask warnings unless in DEBUG mode (-vv)
 logger = setup_logging(args, __name__)
 
 # Print tool banner
@@ -369,6 +370,8 @@ print_success("Operation complete", logger=logger)
 configure_database_path(args, logger=logger)
 ```
 
+**Dask Warning Suppression**: `setup_logging()` automatically suppresses noisy Dask/distributed warnings when not in DEBUG mode (`-vv`). Warnings about "Sending large graph", "Consider loading the data", and shuffle warnings are hidden at INFO and ERROR levels.
+
 ### Data Loading
 
 ```python
@@ -377,12 +380,37 @@ from gedih3.cliutils import load_data_from_source, get_numeric_columns, h3_col_n
 # Auto-detect and load from H3 database, simplified dataset, or parquet directory
 ddf = load_data_from_source(database_path, columns, region, query, logger)
 
-# Get numeric columns for aggregation
+# Get numeric columns for aggregation (auto-excludes internal columns)
 numeric_cols = get_numeric_columns(ddf)
 
 # Get H3 column name for a level
 col = h3_col_name(6)  # Returns 'h3_06'
 ```
+
+### Column Filtering
+
+Internal/partition columns are automatically filtered out from data operations:
+
+```python
+from gedih3.cliutils import is_internal_column, filter_data_columns, get_rasterizable_columns
+
+# Check if a column is internal (h3_XX, egiXX, _egi_x, _egi_y, shot_number)
+is_internal_column('h3_03')  # True
+is_internal_column('agbd_l4a')  # False
+
+# Filter out internal columns from a list
+data_cols = filter_data_columns(['h3_03', 'agbd_l4a', 'rh_098_l2a'])
+# Returns: ['agbd_l4a', 'rh_098_l2a']
+
+# Get columns suitable for rasterization (numeric, non-internal)
+raster_cols = get_rasterizable_columns(ddf)
+```
+
+**Internal Column Patterns**:
+- `h3_XX` - H3 partition columns (e.g., `h3_03`, `h3_06`)
+- `egiXX` - EGI index columns (e.g., `egi06`, `egi12`)
+- `_egi_x`, `_egi_y` - Internal EGI coordinate columns
+- `shot_number*` - Shot identifier columns
 
 ## Performance Optimizations
 

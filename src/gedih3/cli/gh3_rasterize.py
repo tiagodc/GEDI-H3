@@ -97,7 +97,7 @@ def main():
         from gedih3 import raster
         from gedih3.cliutils import (parse_region, parse_dask_args, setup_logging,
                                      print_banner, print_success, load_data_from_source,
-                                     get_numeric_columns)
+                                     get_numeric_columns, filter_data_columns)
         from gedih3.config import GH3_DEFAULT_H3_DIR
 
         # Setup logging and print banner
@@ -142,11 +142,9 @@ def main():
 
         # EGI aggregation works best with Point geometry from GeoDataFrame
         # Ensure geometry column is loaded so we have coordinate information
-        if use_egi:
-            if columns is None:
-                columns = ['geometry']
-            elif 'geometry' not in columns:
-                columns.append('geometry')
+        # But keep columns=None to load all data columns for rasterization
+        if use_egi and columns is not None and 'geometry' not in columns:
+            columns.append('geometry')
 
         # Build query
         query_parts = []
@@ -169,6 +167,10 @@ def main():
             logger.info(f"Time-series mode: {args.time_interval} {args.time_units}")
             logger.info(f"  From: {args.time_start}")
             logger.info(f"  To: {args.time_end}")
+
+            # Ensure datetime column is loaded for time-series filtering
+            if columns is not None and 'datetime' not in columns:
+                columns.append('datetime')
 
         dask_kwargs = parse_dask_args(args)
 
@@ -219,7 +221,7 @@ def main():
                             columns=numeric_columns,
                             add_geometry=True
                         )
-                        rasterize_func = lambda gdf, columns=None: egi.geodf_to_raster(gdf, columns=columns)
+                        rasterize_func = egi.rasterize_partition
                     else:
                         aggdf = gh3.gh3_aggregate(
                             time_ddf,
@@ -238,61 +240,101 @@ def main():
 
                     os.makedirs(os.path.dirname(output_path) if args.merge else output_path, exist_ok=True)
 
+                    # After aggregation, let rasterize auto-detect columns from aggregated data
+                    # (original columns list may contain internal columns that don't survive aggregation)
                     if args.merge:
                         raster.merge_and_export_rasters(
                             aggdf, output_path, rasterize_func,
-                            columns=columns, compress=args.compress
+                            columns=None, compress=args.compress
                         )
                     else:
                         raster.rasterize_and_export_partitions(
                             aggdf, output_path, rasterize_func,
-                            columns=columns, compress=args.compress
+                            columns=None, compress=args.compress
                         )
 
                     logger.info(f"  Exported to {output_path}")
 
             else:
                 # Single rasterization
-                logger.info("Aggregating data...")
 
-                # Get numeric columns only for aggregation
-                numeric_columns = get_numeric_columns(ddf)
+                # Check if data is already aggregated at the target level
+                dataset_meta_path = os.path.join(args.database, "gedih3_dataset.json")
+                already_aggregated = False
 
-                if use_egi:
-                    from gedih3 import egi
-                    aggdf = gh3.egi_aggregate(
-                        ddf,
-                        target_level=target_level,
-                        agg=args.aggregate,
-                        columns=numeric_columns,
-                        add_geometry=True
-                    )
-                    rasterize_func = lambda gdf, columns=None: egi.geodf_to_raster(gdf, columns=columns)
+                if os.path.exists(dataset_meta_path):
+                    import json
+                    with open(dataset_meta_path, 'r') as f:
+                        dataset_meta = json.load(f)
+
+                    source_index_type = dataset_meta.get('index_type')
+                    source_index_level = dataset_meta.get('index_level')
+
+                    # Check if data is already at target level and type
+                    if use_egi and source_index_type == 'egi' and source_index_level == target_level:
+                        already_aggregated = True
+                    elif not use_egi and source_index_type == 'h3' and source_index_level == target_level:
+                        already_aggregated = True
+
+                if already_aggregated:
+                    logger.info(f"Data already aggregated at target level {target_level}")
+                    aggdf = ddf
+                    if use_egi:
+                        from gedih3 import egi
+                        rasterize_func = egi.rasterize_partition
+                    else:
+                        rasterize_func = raster.rasterize_h3_partition
                 else:
-                    aggdf = gh3.gh3_aggregate(
-                        ddf,
-                        target_res=target_level,
-                        agg=args.aggregate,
-                        columns=numeric_columns,
-                        add_geometry=True
-                    )
-                    rasterize_func = raster.rasterize_h3_partition
+                    logger.info("Aggregating data...")
+
+                    # Get numeric columns only for aggregation
+                    numeric_columns = get_numeric_columns(ddf)
+
+                    if use_egi:
+                        from gedih3 import egi
+                        aggdf = gh3.egi_aggregate(
+                            ddf,
+                            target_level=target_level,
+                            agg=args.aggregate,
+                            columns=numeric_columns,
+                            add_geometry=True
+                        )
+                        rasterize_func = egi.rasterize_partition
+                    else:
+                        aggdf = gh3.gh3_aggregate(
+                            ddf,
+                            target_res=target_level,
+                            agg=args.aggregate,
+                            columns=numeric_columns,
+                            add_geometry=True
+                        )
+                        rasterize_func = raster.rasterize_h3_partition
 
                 logger.info("Rasterizing...")
 
                 os.makedirs(args.output if not args.merge else os.path.dirname(args.output), exist_ok=True)
 
+                # After aggregation, let rasterize auto-detect columns from aggregated data
+                # (original columns list may contain internal columns that don't survive aggregation)
+                # If already aggregated, filter internal columns from the list
+                if already_aggregated and columns:
+                    raster_columns = filter_data_columns(columns, exclude_geometry=True)
+                elif already_aggregated:
+                    raster_columns = None
+                else:
+                    raster_columns = None
+
                 if args.merge:
                     output_path = args.output if args.output.endswith('.tif') else f"{args.output}.tif"
                     raster.merge_and_export_rasters(
                         aggdf, output_path, rasterize_func,
-                        columns=columns, compress=args.compress, show_progress=True
+                        columns=raster_columns, compress=args.compress, show_progress=True
                     )
                     logger.info(f"Exported to {output_path}")
                 else:
                     paths = raster.rasterize_and_export_partitions(
                         aggdf, args.output, rasterize_func,
-                        columns=columns, compress=args.compress, show_progress=True
+                        columns=raster_columns, compress=args.compress, show_progress=True
                     )
                     logger.info(f"Exported {len([p for p in paths if p])} files to {args.output}")
 

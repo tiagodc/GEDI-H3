@@ -8,6 +8,7 @@ import dask_geopandas
 from .config import GH3_DEFAULT_H3_DIR, configure_environment
 from .utils import json_read, json_write, now, get_package_version, is_parquet
 from .h3utils import intersect_h3_geometries, fix_h3_geometry
+from .cliutils import filter_data_columns
 
 
 def _find_coordinate_column(columns, base_name):
@@ -214,7 +215,7 @@ def gh3_load_dataset_lazy(dataset_path, columns=None):
     dataset_path : str
         Path to the dataset directory
     columns : list, optional
-        Columns to load
+        Columns to load. Geometry is automatically included if present in the source.
 
     Returns
     -------
@@ -229,8 +230,16 @@ def gh3_load_dataset_lazy(dataset_path, columns=None):
     if not parquet_files:
         raise FileNotFoundError(f"No parquet files found in {dataset_path}")
 
+    # Check if geometry column exists in source
+    import pyarrow.parquet as pq
+    schema = pq.read_schema(parquet_files[0])
+    has_geometry = 'geometry' in schema.names
+
     kwargs = {}
     if columns:
+        # Ensure geometry is always included for GeoParquet files
+        if has_geometry and 'geometry' not in columns:
+            columns = list(columns) + ['geometry']
         kwargs['columns'] = columns
 
     # Load first file to get metadata
@@ -268,9 +277,15 @@ def gh3_aggregate_func(df, res, agg='mean', cols=None, **kwargs):
         g = df.groupby(h3col, observed=True)
     else:
         g = df.h3.h3_to_parent(resolution=res).groupby(h3col, observed=True)
-    
+
     if cols is not None:
         g = g[cols]
+    else:
+        # Filter out internal columns (h3_XX, egiXX, _egi_x, _egi_y, shot_number, geometry)
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        filtered_cols = filter_data_columns(numeric_cols)
+        if filtered_cols:
+            g = g[filtered_cols]
     out = g.apply(agg, include_groups=False, **kwargs) if callable(agg) else g.agg(agg)
 
     if isinstance(out.columns, pd.MultiIndex):
@@ -643,14 +658,107 @@ def egi_add_geometry(df, polygons=True):
     return egi.egi_to_geo(df, polygons=polygons)
 
 
+def _egi_add_index(df, level, x_col, y_col):
+    """
+    Add EGI index column to a DataFrame without aggregating.
+
+    This is a per-row operation that can be used with map_partitions.
+    """
+    from . import egi
+
+    # Check if input is a GeoDataFrame with Point geometry
+    is_point_gdf = (
+        isinstance(df, gpd.GeoDataFrame) and
+        'geometry' in df.columns and
+        len(df) > 0 and
+        df.geom_type.iloc[0] == 'Point'
+    )
+
+    if not is_point_gdf:
+        actual_x_col = _find_coordinate_column(df.columns, x_col)
+        actual_y_col = _find_coordinate_column(df.columns, y_col)
+        if actual_x_col is None or actual_y_col is None:
+            raise ValueError(f"Coordinate columns not found: {x_col}, {y_col}")
+        x_col, y_col = actual_x_col, actual_y_col
+
+    # Add EGI index column (don't set as index yet - need to repartition first)
+    return egi.egi_dataframe(df, x_col=x_col, y_col=y_col, level=level, set_index=False)
+
+
+def _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi'):
+    """
+    Build metadata for aggregation result.
+
+    Parameters
+    ----------
+    gh3_df : dask DataFrame
+        Source DataFrame
+    target_level : int
+        Target resolution level
+    agg : str, list, dict, or callable
+        Aggregation specification
+    columns : list or None
+        Columns being aggregated
+    index_type : str
+        'egi' or 'h3'
+
+    Returns
+    -------
+    pandas DataFrame
+        Metadata template with correct index and column names
+    """
+    from . import egi
+
+    if index_type == 'egi':
+        idx_col = egi.egi_col_name(target_level)
+    else:
+        idx_col = f'h3_{target_level:02d}'
+
+    # Get sample columns
+    sample = gh3_df._meta
+    if columns is not None:
+        cols = [c for c in columns if c in sample.columns]
+    else:
+        # Filter out internal columns (h3_XX, egiXX, _egi_x, _egi_y, shot_number, geometry)
+        numeric_cols = sample.select_dtypes(include=[np.number]).columns.tolist()
+        cols = filter_data_columns(numeric_cols)
+
+    # Build metadata with aggregated column names
+    if isinstance(agg, dict):
+        meta_cols = [f"{col}_{func}" for col, funcs in agg.items()
+                     for func in (funcs if isinstance(funcs, list) else [funcs])]
+    elif isinstance(agg, list):
+        meta_cols = [f"{col}_{func}" for col in cols for func in agg]
+    else:
+        meta_cols = cols
+
+    _meta = pd.DataFrame(columns=meta_cols, dtype=float)
+    _meta.index = pd.Index([], dtype=np.uint64 if index_type == 'egi' else str, name=idx_col)
+    return _meta
+
+
 def egi_aggregate(gh3_df, target_level=6, agg='mean', columns=None, query=None,
                   add_geometry=True, x_col='lon_lowestmode', y_col='lat_lowestmode',
                   repartition=False, **kwargs):
     """
     Aggregate H3-indexed GEDI data to EGI (EASE Grid Index) square pixels.
 
-    This is the main function for converting H3 hexagon data to EGI square
-    pixels for GEDI L4B-compatible outputs and rasterization.
+    Uses a two-level strategy for efficiency:
+    1. Repartition by EGI outer tile (coarse, ~19,656 keys)
+    2. Local fine-grained aggregation within each partition
+
+    This approach is much more efficient than shuffling by fine EGI pixels
+    (which could have billions of unique keys) because:
+    - The coarse shuffle uses only ~19,656 unique outer tile keys
+    - Fine-grained aggregation happens locally with NO network communication
+    - The EGI hash structure guarantees all fine pixels within an outer tile
+      share the same outer coordinates, preserving spatial locality
+
+    IMPORTANT: This function repartitions data by EGI outer tile before
+    fine-grained aggregation to ensure all GEDI shots for each EGI pixel
+    are aggregated together. This is necessary because H3 partitions are
+    not self-contained - EGI pixels at H3 boundaries may span multiple
+    H3 partitions.
 
     Parameters
     ----------
@@ -674,7 +782,7 @@ def egi_aggregate(gh3_df, target_level=6, agg='mean', columns=None, query=None,
     y_col : str
         Latitude column name for coordinate lookup
     repartition : bool
-        If True, repartition by outer EGI tile for export
+        If True, keep output repartitioned by outer EGI tile for export
     **kwargs
         Additional arguments passed to aggregation function
 
@@ -682,56 +790,205 @@ def egi_aggregate(gh3_df, target_level=6, agg='mean', columns=None, query=None,
     -------
     dask GeoDataFrame
         EGI-indexed aggregated data
-
-    Examples
-    --------
-    >>> # Load H3 data and aggregate to ~1km EGI pixels
-    >>> ddf = gh3.gh3_load(columns=['agbd_l4a', 'rh_098_l2a'], region=study_area)
-    >>> egi_agg = gh3.egi_aggregate(ddf, target_level=6, agg='mean')
-    >>>
-    >>> # Rasterize the result
-    >>> from gedih3 import egi
-    >>> raster = egi.geodf_to_raster(egi_agg.compute())
     """
     from . import egi
 
     # Validate level
     egi.validate_level(target_level)
-
-    # Build metadata from a sample
-    nparts = min(gh3_df.npartitions, 10)
-    _meta = egi_aggregate_func(
-        df=gh3_df.head(npartitions=nparts),
-        level=target_level,
-        agg=agg,
-        cols=columns,
-        x_col=x_col,
-        y_col=y_col,
-        **kwargs
-    )
+    egi_col = egi.egi_col_name(target_level)
+    egi_outer_col = egi.egi_col_name(egi.OUTER_LEVEL)
 
     if query is not None:
         gh3_df = gh3_df.query(query)
 
-    # Get H3 partition column and EGI column name
-    h3part = gh3_part_from_df(gh3_reindex(gh3_df))
-    egi_col = egi.egi_col_name(target_level)
+    # =========================================================================
+    # PHASE 1: Add EGI OUTER tile index (coarse partitioning key)
+    # =========================================================================
+    # Note: We keep geometry in gh3_df for now so add_outer_index can extract
+    # coordinates from Point geometries. The function will drop geometry itself.
+    # This adds the ~160km outer tile index to each shot for coarse repartitioning.
+    # The outer tile has only ~19,656 unique values globally, making the shuffle
+    # much more efficient than shuffling by fine EGI pixels (billions of keys).
 
-    # Use map_partitions for efficient processing
-    # Each partition corresponds to a single H3 partition cell when loaded with from_map=True
-    agg_df = gh3_df.map_partitions(
-        egi_aggregate_func,
-        level=target_level,
-        agg=agg,
-        cols=columns,
+    def add_outer_index(df, x_col, y_col, outer_level, egi_outer_col):
+        """Add EGI outer tile index to DataFrame without creating geometry.
+
+        Also stores projected coordinates for use in fine-grained aggregation.
+        """
+        from gedih3.egi.core import to_hash as _to_hash
+        from pyproj import Transformer
+
+        # Check if input is a GeoDataFrame with Point geometry
+        is_point_gdf = (
+            isinstance(df, gpd.GeoDataFrame) and
+            'geometry' in df.columns and
+            len(df) > 0 and
+            df.geom_type.iloc[0] == 'Point'
+        )
+
+        if is_point_gdf:
+            # Extract coordinates from geometry
+            if df.crs.to_epsg() != 6933:
+                transformer = Transformer.from_crs(df.crs, 'EPSG:6933', always_xy=True)
+                x, y = transformer.transform(df.geometry.x.values, df.geometry.y.values)
+            else:
+                x, y = df.geometry.x.values, df.geometry.y.values
+        else:
+            # Use coordinate columns
+            actual_x_col = _find_coordinate_column(df.columns, x_col)
+            actual_y_col = _find_coordinate_column(df.columns, y_col)
+            if actual_x_col is None or actual_y_col is None:
+                raise ValueError(f"Coordinate columns not found: {x_col}, {y_col}")
+
+            # Transform from WGS84 to EPSG:6933
+            transformer = Transformer.from_crs('EPSG:4326', 'EPSG:6933', always_xy=True)
+            x, y = transformer.transform(df[actual_x_col].values, df[actual_y_col].values)
+
+        # Compute EGI outer tile hashes directly (no geometry creation)
+        df = df.copy()
+        df[egi_outer_col] = _to_hash(np.asarray(x), np.asarray(y), outer_level)
+
+        # Store projected coordinates for fine-grained indexing (after shuffle)
+        df['_egi_x'] = x
+        df['_egi_y'] = y
+
+        # Drop geometry column if present (we don't need it for shuffling)
+        if 'geometry' in df.columns:
+            df = df.drop(columns=['geometry'])
+
+        return df
+
+    # Build metadata for outer-indexed result (no geometry - dropped by add_outer_index)
+    _outer_meta = gh3_df._meta.copy()
+    if 'geometry' in _outer_meta.columns:
+        _outer_meta = pd.DataFrame(_outer_meta.drop(columns=['geometry']))
+    _outer_meta[egi_outer_col] = np.uint64(0)
+    _outer_meta['_egi_x'] = np.float64(0)
+    _outer_meta['_egi_y'] = np.float64(0)
+
+    outer_indexed = gh3_df.map_partitions(
+        add_outer_index,
         x_col=x_col,
         y_col=y_col,
-        meta=_meta,
+        outer_level=egi.OUTER_LEVEL,
+        egi_outer_col=egi_outer_col,
+        meta=_outer_meta
+    )
+
+    # =========================================================================
+    # PHASE 2: Repartition by EGI outer tile (coarse shuffle)
+    # =========================================================================
+    # This shuffle uses only ~19,656 unique keys (outer tiles) instead of
+    # potentially billions of fine EGI pixels. This is the key efficiency gain.
+    # After this shuffle, all data within each ~160km outer tile is co-located
+    # in a single partition.
+
+    outer_indexed = outer_indexed.set_index(egi_outer_col)
+
+    # =========================================================================
+    # PHASE 3: Local fine-grained aggregation within each partition
+    # =========================================================================
+    # Now each partition contains all data for its outer tile. We can compute
+    # the fine EGI index and aggregate locally with NO network communication.
+
+    def local_egi_aggregate(df, target_level, agg, columns, egi_col, **agg_kwargs):
+        """Aggregate a single partition to fine EGI pixels.
+
+        Uses pre-computed EPSG:6933 coordinates stored as _egi_x and _egi_y.
+        """
+        from gedih3.egi.core import to_hash as _to_hash
+
+        if len(df) == 0:
+            # Return empty DataFrame with correct structure
+            return pd.DataFrame(index=pd.Index([], dtype=np.uint64, name=egi_col))
+
+        # Reset index to get outer tile as column (we don't need it anymore)
+        df = df.reset_index(drop=True)
+
+        # Use pre-computed projected coordinates from add_outer_index
+        x = df['_egi_x'].values
+        y = df['_egi_y'].values
+
+        # Add fine EGI index directly (no geometry creation)
+        df[egi_col] = _to_hash(np.asarray(x), np.asarray(y), target_level)
+        df = df.set_index(egi_col)
+
+        # Drop temporary coordinate columns
+        df = df.drop(columns=['_egi_x', '_egi_y'], errors='ignore')
+
+        # Filter columns for aggregation
+        if columns is not None:
+            agg_cols = [c for c in columns if c in df.columns]
+            if agg_cols:
+                df = df[agg_cols]
+        else:
+            # Filter out internal columns (h3_XX, egiXX, _egi_x, _egi_y, shot_number, geometry)
+            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+            filtered_cols = filter_data_columns(numeric_cols)
+            if filtered_cols:
+                df = df[filtered_cols]
+
+        # Local groupby aggregation (NO shuffle - all data is local!)
+        if callable(agg):
+            result = df.groupby(level=0).apply(agg, include_groups=False, **agg_kwargs)
+            if isinstance(result.index, pd.MultiIndex):
+                result.index = result.index.get_level_values(0)
+        else:
+            result = df.groupby(level=0).agg(agg, **agg_kwargs)
+
+        # Flatten MultiIndex columns if present
+        if isinstance(result.columns, pd.MultiIndex):
+            result.columns = ['_'.join(map(str, col)).strip() for col in result.columns.values]
+
+        return result
+
+    # Build metadata for result
+    _agg_meta = _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi')
+
+    agg_df = outer_indexed.map_partitions(
+        local_egi_aggregate,
+        target_level=target_level,
+        agg=agg,
+        columns=columns,
+        egi_col=egi_col,
+        meta=_agg_meta,
         **kwargs
     )
-    agg_df = agg_df.reset_index().set_index(egi_col, sort=False)
 
-    # Add geometry if requested
+    # =========================================================================
+    # PHASE 4: Optional repartition by outer tile for export
+    # =========================================================================
+    # If requested, add back the outer tile column for organized export.
+    # This is done BEFORE adding geometry to avoid corruption during shuffle.
+
+    if repartition:
+        def add_outer_from_fine(df, outer_col, outer_level):
+            from gedih3.egi.core import to_parent as _to_parent
+            if len(df) == 0:
+                df[outer_col] = pd.Series([], dtype=np.uint64)
+                return df
+            df = df.reset_index()
+            idx_col = df.columns[0]  # The EGI index column
+            df[outer_col] = df[idx_col].apply(lambda x: _to_parent(x, outer_level))
+            return df.set_index(idx_col)
+
+        _part_meta = agg_df._meta.copy()
+        _part_meta = _part_meta.reset_index()
+        _part_meta[egi_outer_col] = np.uint64(0)
+        _part_meta = _part_meta.set_index(egi_col)
+
+        agg_df = agg_df.map_partitions(
+            add_outer_from_fine,
+            outer_col=egi_outer_col,
+            outer_level=egi.OUTER_LEVEL,
+            meta=_part_meta
+        )
+
+    # =========================================================================
+    # PHASE 5: Add geometry AFTER all shuffles
+    # =========================================================================
+    # Geometry must be added last to avoid corruption during Dask serialization.
+
     if add_geometry:
         _gmeta = agg_df._meta.copy()
         _gmeta['geometry'] = gpd.GeoSeries([], crs=egi.EGI_CRS_STRING)
@@ -740,33 +997,16 @@ def egi_aggregate(gh3_df, target_level=6, agg='mean', columns=None, query=None,
         if isinstance(agg_df, dask.dataframe.DataFrame):
             agg_df = dask_geopandas.from_dask_dataframe(agg_df)
 
-    # Repartition by EGI outer tile if requested
-    if repartition:
-        egi_outer_col = egi.egi_col_name(egi.OUTER_LEVEL)
-
-        # Compute EGI outer tile from aggregated EGI index
-        def add_egi_parent(df, parent_col, parent_level, idx_col):
-            from gedih3.egi.core import to_parent as _to_parent
-            df = df.reset_index()
-            df[parent_col] = df[idx_col].apply(lambda x: _to_parent(x, parent_level))
-            return df.set_index(idx_col)
-
-        _part_meta = agg_df._meta.copy()
-        _part_meta = _part_meta.reset_index()
-        _part_meta[egi_outer_col] = np.uint64(0)
-        _part_meta = _part_meta.set_index(egi_col)
-
-        agg_df = agg_df.map_partitions(add_egi_parent, parent_col=egi_outer_col, parent_level=egi.OUTER_LEVEL, idx_col=egi_col, meta=_part_meta)
-        uparts = sorted(agg_df[egi_outer_col].unique().compute().tolist())
-        agg_df = agg_df.reset_index().set_index(egi_outer_col, sort=False, divisions=uparts + uparts[-1:])
-        agg_df = agg_df.reset_index().set_index(egi_col, sort=False)
-
     return agg_df
 
 
 def egi_export_part(df, odir, fmt='parquet', is_file_path=False):
     """
-    Export a single EGI partition to file.
+    Export a single EGI partition to file(s).
+
+    This function handles the case where a partition may contain data from
+    multiple EGI outer tiles by splitting the data and writing separate files
+    for each outer tile.
 
     Parameters
     ----------
@@ -777,12 +1017,12 @@ def egi_export_part(df, odir, fmt='parquet', is_file_path=False):
     fmt : str
         Output format ('parquet', 'gpkg', 'geojson', 'tif', etc.)
     is_file_path : bool
-        If True, odir is treated as a complete file path
+        If True, odir is treated as a complete file path (single output)
 
     Returns
     -------
     str
-        Output file path
+        Output file path(s) - comma-separated if multiple files written
     """
     from . import egi
     import numpy as np
@@ -793,43 +1033,96 @@ def egi_export_part(df, odir, fmt='parquet', is_file_path=False):
     os.makedirs(odir, exist_ok=True)
 
     if is_file_path:
+        # Single file output mode - write all data to one file
         odir = odir.rstrip('/')
         opath = f"{odir}.{fmt}" if not odir.endswith(fmt) else odir
-    else:
-        # Determine output filename from EGI outer tile
-        if hasattr(df, 'name') and str(df.name).startswith('egi'):
-            oname = str(df.name)
-        else:
-            # Get dominant outer tile ID
-            _df = df.sample(100) if len(df) > 100 else df
-            outer_df = egi.egi_to_parent(_df, egi.OUTER_LEVEL)
-            oname = str(outer_df.index.value_counts().idxmax())
+        return _write_egi_file(df, opath, fmt)
 
+    # Multi-file mode: split by outer tile to ensure correct file organization
+    # This handles the case where Dask partitions may contain data from multiple
+    # EGI outer tiles (which can happen after shuffle operations)
+
+    # Compute outer tile for each row (preserving original level)
+    idx_array = df.index.to_numpy().astype(np.uint64)
+    # Extract outer tile part (px_outer, py_outer) and mask out inner indices
+    outer_tiles = (idx_array // np.uint64(1e12)) * np.uint64(1e12)
+
+    # Find unique outer tiles in this partition
+    unique_outer = np.unique(outer_tiles)
+
+    output_paths = []
+    for outer_tile in unique_outer:
+        # Filter data for this outer tile
+        mask = outer_tiles == outer_tile
+        tile_df = df.iloc[mask]
+
+        if len(tile_df) == 0:
+            continue
+
+        # Convert to level 12 (OUTER_LEVEL) for consistent filename
+        # This extracts px_outer and py_outer and creates a level 12 hash
+        p_outer = outer_tile % np.uint64(1e18) // np.uint64(1e12)
+        outer_tile_12 = np.uint64(egi.OUTER_LEVEL * 1e18) + np.uint64(p_outer * 1e12)
+        oname = str(outer_tile_12)
         opath = os.path.join(odir, f"{oname}.{fmt}")
 
-    # Handle raster export
-    if fmt in ('tif', 'tiff', 'geotiff'):
-        raster = egi.geodf_to_raster(df)
-        egi.export_raster(raster, opath)
+        written_path = _write_egi_file(tile_df, opath, fmt)
+        if written_path:
+            output_paths.append(written_path)
+
+    return ','.join(output_paths) if output_paths else ''
+
+
+def _write_egi_file(df, opath, fmt):
+    """
+    Write EGI data to a file.
+
+    Parameters
+    ----------
+    df : DataFrame or GeoDataFrame
+        EGI-indexed data
+    opath : str
+        Output file path
+    fmt : str
+        Output format
+
+    Returns
+    -------
+    str
+        Output file path, or empty string on failure
+    """
+    from . import egi
+
+    if df.empty:
+        return ''
+
+    try:
+        # Handle raster export
+        if fmt in ('tif', 'tiff', 'geotiff'):
+            raster = egi.geodf_to_raster(df)
+            egi.export_raster(raster, opath)
+            return opath
+
+        # Handle vector/tabular export
+        if is_parquet(opath):
+            df.to_parquet(opath)
+        elif fmt == 'feather':
+            df.to_feather(opath)
+        elif fmt in ('geojson', 'gpkg', 'shp'):
+            df.to_file(opath)
+        elif fmt == 'txt':
+            df.to_csv(opath, sep='\t')
+        elif fmt == 'csv':
+            df.to_csv(opath)
+        elif fmt in ('h5', 'hdf5'):
+            df.to_hdf(opath, key='GEDI', mode='w')
+        else:
+            raise ValueError(f"Unsupported export format: {fmt}")
+
         return opath
 
-    # Handle vector/tabular export
-    if is_parquet(opath):
-        df.to_parquet(opath)
-    elif fmt == 'feather':
-        df.to_feather(opath)
-    elif fmt in ('geojson', 'gpkg', 'shp'):
-        df.to_file(opath)
-    elif fmt == 'txt':
-        df.to_csv(opath, sep='\t')
-    elif fmt == 'csv':
-        df.to_csv(opath)
-    elif fmt in ('h5', 'hdf5'):
-        df.to_hdf(opath, key='GEDI', mode='w')
-    else:
-        raise ValueError(f"Unsupported export format: {fmt}")
-
-    return opath
+    except Exception:
+        return ''
 
 
 def is_egi_indexed(df):

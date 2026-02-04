@@ -10,12 +10,48 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 import xarray as xr
+import rioxarray  # Register .rio accessor for xarray
 from rasterio import transform
+from geocube.api.core import make_geocube
 
-from .config import LIMITS, RESOLUTIONS, OUTER_LEVEL, EGI_CRS_STRING, get_resolution
+from .config import LIMITS, RESOLUTIONS, OUTER_RES, OUTER_LEVEL, EGI_CRS_STRING, get_resolution
 from .core import get_level
 from .spatial import pixel_shape
-from .dataframe import egi_to_parent
+from .dataframe import egi_to_parent, egi_to_geo
+
+
+def _filter_raster_columns(columns: Optional[List[str]], geodf: gpd.GeoDataFrame) -> Optional[List[str]]:
+    """Filter out internal/partition columns from rasterization.
+
+    Internal columns (egi indices, h3 indices, shot_number) should not be
+    rasterized as bands - they're metadata, not data values.
+    Also excludes the index column since it will become a column after reset_index().
+    """
+    import re
+
+    # Patterns for internal columns to exclude from rasterization
+    internal_patterns = [
+        r'^h3_\d{2}$',       # H3 partition columns (h3_03, h3_06, etc.)
+        r'^egi\d+$',         # EGI index columns (egi06, egi12, etc.)
+        r'^_egi_[xy]$',      # Internal EGI coordinate columns
+        r'^shot_number',     # Shot identifier
+    ]
+
+    def is_internal(col_name):
+        return any(re.match(p, str(col_name)) for p in internal_patterns)
+
+    # Get the index column name to exclude (it becomes a column after reset_index)
+    index_col = geodf.index.name
+
+    if columns is not None:
+        # Filter provided columns (also exclude index column)
+        filtered = [c for c in columns if not is_internal(c) and c != 'geometry' and c != index_col]
+        return filtered if filtered else None
+    else:
+        # Auto-detect numeric columns, excluding internal ones and index column
+        numeric = geodf.select_dtypes(include=[np.number]).columns.tolist()
+        filtered = [c for c in numeric if not is_internal(c) and c != index_col]
+        return filtered if filtered else None
 
 
 def geodf_to_raster(
@@ -27,15 +63,16 @@ def geodf_to_raster(
     Convert EGI-indexed GeoDataFrame to raster (xarray Dataset).
 
     This function creates a raster aligned to the EASE-Grid 2.0 projection,
-    with each EGI pixel mapped to a corresponding raster cell. The native
-    alignment avoids any resampling artifacts.
+    with each EGI pixel mapped directly to a corresponding raster cell using
+    direct index assignment (no interpolation or extrapolation).
 
     Parameters
     ----------
     geodf : GeoDataFrame
-        EGI-indexed GeoDataFrame with polygon geometries
+        EGI-indexed GeoDataFrame (index must be EGI hash values)
     columns : list of str, optional
         Columns to rasterize. If None, all numeric columns are used.
+        Internal columns (egi indices, h3 indices) are automatically excluded.
     fill_value : float
         Value for pixels with no data (default: NaN)
 
@@ -49,49 +86,91 @@ def geodf_to_raster(
     >>> # Rasterize aggregated GEDI data
     >>> raster = geodf_to_raster(agg_gdf, columns=['agbd_mean', 'rh_098_mean'])
     >>> raster.rio.to_raster("output.tif")
-    """
-    from geocube.api.core import make_geocube
 
-    # Handle empty GeoDataFrames (e.g., during Dask operations on empty partitions)
+    Notes
+    -----
+    This implementation uses direct index-based pixel assignment:
+    1. Decode each EGI hash to get pixel indices within the outer tile
+    2. Create a raster array with exact tile dimensions
+    3. Assign values directly to pixel locations
+
+    This guarantees one polygon = one pixel with no extrapolation.
+    """
+    from .core import from_hash
+
+    # Handle empty GeoDataFrames
     if len(geodf) == 0:
-        # Return empty xarray Dataset with correct structure
         return xr.Dataset()
 
-    # Get level and resolution from index
-    level = int(geodf.index[0] // np.uint64(1e18))
+    # Filter out internal columns from rasterization
+    columns = _filter_raster_columns(columns, geodf)
+    if columns is None or len(columns) == 0:
+        raise ValueError("No columns to rasterize. Provide numeric columns or check input data.")
+
+    # Get EGI level and resolution from index
+    egi_hashes = np.asarray(geodf.index.values, dtype=np.uint64)
+    level = int(egi_hashes[0] // np.uint64(1e18))
     res = RESOLUTIONS[level]
 
-    # Calculate alignment offset to ensure pixels align with EGI grid
-    bound_x = round(LIMITS['lon_w'] % res, 6)
-    bound_y = round(LIMITS['lat_s'] % res, 6)
-
-    # Create raster using geocube
-    img = make_geocube(
-        geodf.reset_index(),
-        measurements=columns,
-        resolution=(-res, res),
-        align=(bound_y, bound_x),
-        fill=fill_value
-    )
-
-    # Determine the outer tile for proper extent
+    # Determine outer tile from data
     _df = geodf.sample(100) if len(geodf) > 100 else geodf
-    pid = egi_to_parent(_df, OUTER_LEVEL).index.value_counts().idxmax()
+    outer_df = egi_to_parent(_df, OUTER_LEVEL)
+    pid = outer_df.index.value_counts().idxmax()
 
-    # Get the outer tile bounds and dimensions
+    # Get outer tile bounds
     left, bottom, right, top = pixel_shape(pid).bounds
-    height = int((top - bottom) / res)
-    width = int((right - left) / res)
-    trf = transform.from_bounds(left, bottom, right, top, width, height)
+    pixels_per_tile = int(round(OUTER_RES / res))
 
-    # Reproject to exact tile extent
-    img = img.rio.reproject(
-        img.rio.crs,
-        shape=(height, width),
-        transform=trf
-    )
+    # Create coordinate arrays for xarray
+    # Y coordinates go from top to bottom (north-up convention)
+    y_coords = np.linspace(top - res/2, bottom + res/2, pixels_per_tile)
+    x_coords = np.linspace(left + res/2, right - res/2, pixels_per_tile)
 
-    return img
+    # Extract outer tile indices from the dominant tile
+    _, _, px_outer_tile, py_outer_tile, _, _ = from_hash(np.uint64(pid))
+
+    # Create data arrays for each column
+    data_vars = {}
+    for col in columns:
+        # Initialize raster with fill value
+        raster_data = np.full((pixels_per_tile, pixels_per_tile), fill_value, dtype=np.float32)
+
+        # Get column values
+        values = geodf[col].values
+
+        # Decode each hash and assign values to pixels
+        for i, (egi_hash, value) in enumerate(zip(egi_hashes, values)):
+            _, _, px_outer, py_outer, px_inner, py_inner = from_hash(np.uint64(egi_hash))
+
+            # Only process pixels that belong to this outer tile
+            if px_outer == px_outer_tile and py_outer == py_outer_tile:
+                # Row index: from top (y inverted for north-up)
+                row = pixels_per_tile - 1 - int(py_inner)
+                col_idx = int(px_inner)
+
+                if 0 <= row < pixels_per_tile and 0 <= col_idx < pixels_per_tile:
+                    raster_data[row, col_idx] = value
+
+        # Create DataArray
+        da = xr.DataArray(
+            raster_data,
+            dims=['y', 'x'],
+            coords={'y': y_coords, 'x': x_coords},
+            name=col
+        )
+        data_vars[col] = da
+
+    # Create Dataset
+    ds = xr.Dataset(data_vars)
+
+    # Set CRS
+    ds = ds.rio.write_crs(EGI_CRS_STRING)
+
+    # Set transform
+    trf = transform.from_bounds(left, bottom, right, top, pixels_per_tile, pixels_per_tile)
+    ds = ds.rio.write_transform(trf)
+
+    return ds
 
 
 def rasterize_partition(
@@ -102,8 +181,9 @@ def rasterize_partition(
     """
     Rasterize a single EGI partition (for use with Dask map_partitions).
 
-    This function is designed to be used with Dask's map_partitions for
-    parallel rasterization of large datasets.
+    This function splits the partition by outer tile and rasterizes each
+    tile separately to ensure proper alignment and avoid mixing data from
+    different tiles.
 
     Parameters
     ----------
@@ -117,7 +197,7 @@ def rasterize_partition(
     Returns
     -------
     pd.Series
-        Series containing xarray DataArray(s)
+        Series containing xarray Dataset(s), one per outer tile
 
     Examples
     --------
@@ -127,20 +207,49 @@ def rasterize_partition(
     if len(gdf) == 0:
         return pd.Series(dtype=object)
 
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
-        xras = geodf_to_raster(gdf, columns=columns)
+        # Split data by outer tile to ensure proper rasterization
+        # Each outer tile will be rasterized separately
+        egi_hashes = np.asarray(gdf.index.values, dtype=np.uint64)
+        outer_tiles = (egi_hashes // np.uint64(1e12)) * np.uint64(1e12)
+        unique_outer = np.unique(outer_tiles)
 
-        if include_egi_id:
-            # Get the dominant outer tile ID
-            _df = gdf.sample(100) if len(gdf) > 100 else gdf
-            egi_id = egi_to_parent(_df, OUTER_LEVEL).index.value_counts().idxmax()
+        results = []
+        for outer_tile in unique_outer:
+            # Filter data for this outer tile
+            mask = outer_tiles == outer_tile
+            tile_gdf = gdf.iloc[mask]
 
-            # Add tile ID as attribute
-            for var in list(xras.data_vars):
-                xras[var] = xras[var].assign_attrs(egi12_id=egi_id)
+            if len(tile_gdf) == 0:
+                continue
 
-        return pd.Series(xras)
-    except Exception:
+            try:
+                # Rasterize this tile's data
+                xras = geodf_to_raster(tile_gdf, columns=columns)
+
+                if len(xras.data_vars) > 0:
+                    # Add tile ID as attribute (use level 12 for consistency)
+                    p_outer = outer_tile % np.uint64(1e18) // np.uint64(1e12)
+                    egi12_id = int(np.uint64(OUTER_LEVEL * 1e18) + np.uint64(p_outer * 1e12))
+
+                    for var in list(xras.data_vars):
+                        xras[var] = xras[var].assign_attrs(egi12_id=egi12_id)
+
+                    results.append(xras)
+            except Exception as e:
+                logger.debug(f"Rasterization failed for tile {outer_tile}: {e}")
+                continue
+
+        if not results:
+            return pd.Series(dtype=object)
+
+        return pd.Series(results)
+
+    except Exception as e:
+        logger.debug(f"Rasterization failed: {e}")
         return pd.Series(dtype=object)
 
 
@@ -196,7 +305,7 @@ def merge_raster_partitions(
     Parameters
     ----------
     raster_series : pd.Series
-        Series of xarray DataArrays from rasterize_partition
+        Series of xarray Datasets from rasterize_partition
     output_path : str, optional
         If provided, save merged raster to this path
 
@@ -205,26 +314,27 @@ def merge_raster_partitions(
     xr.Dataset
         Merged raster dataset
     """
-    from rioxarray import merge
+    from rioxarray.merge import merge_datasets
 
-    # Filter out empty partitions
-    valid_rasters = raster_series[raster_series.apply(lambda x: hasattr(x, 'shape') and all(np.array(x.shape) > 1))]
+    # Filter out empty partitions and None values
+    def is_valid_raster(x):
+        if x is None:
+            return False
+        if isinstance(x, xr.Dataset):
+            return len(x.data_vars) > 0
+        if hasattr(x, 'shape'):
+            return all(s > 0 for s in x.shape)
+        return False
+
+    valid_rasters = [r for r in raster_series if is_valid_raster(r)]
 
     if len(valid_rasters) == 0:
         raise ValueError("No valid raster partitions to merge")
 
-    # Group by outer tile and merge within each tile
-    merged_tiles = []
-    for idx in valid_rasters.index.unique():
-        tile_rasters = valid_rasters.loc[idx]
-        if isinstance(tile_rasters, pd.Series):
-            merged = merge.merge_arrays(tile_rasters.tolist())
-        else:
-            merged = tile_rasters
-        merged_tiles.append(merged)
-
-    # Merge all tiles
-    result = xr.merge(merged_tiles)
+    # Merge all rasters
+    # Use merge_datasets which handles overlapping regions correctly
+    # IMPORTANT: Use nodata=np.nan to ensure gaps are filled with NaN, not 0
+    result = merge_datasets(valid_rasters, nodata=np.nan)
 
     if output_path:
         export_raster(result, output_path)
