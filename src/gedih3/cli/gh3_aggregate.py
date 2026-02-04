@@ -20,7 +20,7 @@ TIME_UNITS = ['years', 'months', 'weeks', 'days']
 
 def get_cmd_args():
     """Parse command line arguments for GEDI data aggregation"""
-    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args
+    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args, parse_egi_levels
 
     p = argparse.ArgumentParser(
         description="Aggregate GEDI shots to H3 hexagons or EGI square pixels",
@@ -49,8 +49,8 @@ def get_cmd_args():
     # Aggregation options
     p.add_argument("-h3", "--h3-level", dest="h3_level", type=int, default=None,
                    help="aggregate to H3 level [0-15]")
-    p.add_argument("-egi", "--egi-level", dest="egi_level", type=int, default=None,
-                   help="aggregate to EGI level [1-12]")
+    p.add_argument("-egi", "--egi", dest="egi", type=parse_egi_levels, default=None,
+                   help="EGI aggregation as 'level[:partition]' e.g., '6' or '6:12'")
     p.add_argument("-a", "--aggregate", dest="aggregate", type=str, default="mean",
                    help="aggregation function: mean, sum, count, etc. [default=mean]")
 
@@ -100,14 +100,18 @@ def main():
         args.port = 9994
 
     # Validate aggregation level arguments
-    if args.h3_level is None and args.egi_level is None:
-        print("ERROR: Must specify either -h3/--h3-level or -egi/--egi-level for aggregation target")
+    if args.h3_level is None and args.egi is None:
+        print("ERROR: Must specify either -h3/--h3-level or -egi for aggregation target")
         sys.exit(1)
-    if args.h3_level is not None and args.egi_level is not None:
-        print("ERROR: Cannot specify both -h3/--h3-level and -egi/--egi-level. Choose one.")
+    if args.h3_level is not None and args.egi is not None:
+        print("ERROR: Cannot specify both -h3/--h3-level and -egi. Choose one.")
         sys.exit(1)
 
-    use_egi = args.egi_level is not None
+    use_egi = args.egi is not None
+    if use_egi:
+        egi_agg_level, egi_partition_level = args.egi
+    else:
+        egi_agg_level, egi_partition_level = None, None
 
     try:
         import glob
@@ -177,18 +181,23 @@ def main():
             if use_egi:
                 # EGI (EASE Grid) aggregation
                 from gedih3 import egi
-                target_res = egi.get_resolution(args.egi_level)
-                logger.info(f"  Target: EGI level {args.egi_level} (~{target_res:.0f}m pixels)")
+                target_res = egi.get_resolution(egi_agg_level)
+                partition_res = egi.get_resolution(egi_partition_level)
+                logger.info(f"  Target: EGI level {egi_agg_level} (~{target_res:.0f}m pixels)")
+                if egi_partition_level != egi_agg_level:
+                    logger.info(f"  Partition: EGI level {egi_partition_level} (~{partition_res:.0f}m)")
 
                 aggdf = gh3.egi_aggregate(
                     ddf,
-                    target_level=args.egi_level,
+                    target_level=egi_agg_level,
                     agg=args.aggregate,
                     columns=numeric_columns,
                     add_geometry=True,
+                    partition_level=egi_partition_level,
                     repartition=not args.merge
                 )
-                part_col = egi.egi_col_name(args.egi_level)
+                # Use partition level for file organization
+                part_col = egi.egi_col_name(egi_partition_level if not args.merge else egi_agg_level)
                 export_func = gh3.egi_export_part
             else:
                 # H3 (hexagon) aggregation
@@ -253,7 +262,11 @@ def main():
                 # Write simplified dataset metadata
                 logger.info("Writing dataset metadata...")
                 index_type = 'egi' if use_egi else 'h3'
-                index_level = args.egi_level if use_egi else args.h3_level
+                index_level = egi_agg_level if use_egi else args.h3_level
+                meta_kwargs = {}
+                if use_egi:
+                    meta_kwargs['egi_aggregation_level'] = egi_agg_level
+                    meta_kwargs['egi_partition_level'] = egi_partition_level
                 gh3.gh3_write_dataset_meta(
                     opath=args.output,
                     index_type=index_type,
@@ -261,7 +274,8 @@ def main():
                     columns=list(aggdf.columns),
                     source_database=args.database,
                     aggregation=args.aggregate,
-                    tool='gh3_aggregate'
+                    tool='gh3_aggregate',
+                    **meta_kwargs
                 )
                 print_success(f"{len(ofiles)} files exported to {args.output}", logger=logger)
 
