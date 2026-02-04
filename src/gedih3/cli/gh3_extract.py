@@ -15,9 +15,10 @@ import os
 import sys
 import argparse
 
+
 def get_cmd_args():
     """Parse command line arguments for GEDI data extraction"""
-    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args
+    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args, parse_egi_levels
 
     p = argparse.ArgumentParser(
         description="Extract and filter GEDI shots with H3 or EGI spatial indexing"
@@ -34,8 +35,8 @@ def get_cmd_args():
                    help="merge all partitions into single file")
 
     # Indexing options
-    p.add_argument("-egi", "--egi-level", dest="egi_level", type=int, default=None,
-                   help="add EGI index at level [1-12]")
+    p.add_argument("-egi", "--egi", dest="egi", type=parse_egi_levels, default=None,
+                   help="EGI indexing as 'index[:partition]' e.g., '1' (default partition=12) or '1:12'")
 
     # Spatial/temporal filtering
     p.add_argument("-r", "--region", dest="region", type=str, default=None,
@@ -84,10 +85,13 @@ def main():
         args.database = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/database'
         args.cores = 20
         args.port = 9994
+        args.egi = (1, 12)  # (index_level, partition_level)
 
     try:
         import glob
+        import numpy as np
         import pandas as pd
+        import geopandas as gpd
         from dask.distributed import Client, progress
 
         import gedih3.gh3driver as gh3
@@ -95,8 +99,14 @@ def main():
                                      parse_dask_args, setup_logging, print_banner,
                                      print_success, configure_database_path, h3_col_name)
 
+        # Parse EGI levels if specified
+        use_egi = args.egi is not None
+        if use_egi:
+            egi_index_level, egi_partition_level = args.egi
+        else:
+            egi_index_level, egi_partition_level = None, None
+
         # Setup logging and print banner
-        use_egi = args.egi_level is not None
         logger = setup_logging(args, __name__)
         title = "GEDI EGI Data Extraction Tool" if use_egi else "GEDI H3 Data Extraction Tool"
         print_banner(title, logger=logger)
@@ -155,26 +165,36 @@ def main():
 
             logger.info(f"  Loaded {ddf.npartitions} partitions")
 
-            # Determine partition column
+            # Determine partition column and process data
             if use_egi:
                 from gedih3 import egi
-                from gedih3.egi.config import egi_col_name
+                from gedih3.egi.config import egi_col_name, get_resolution
 
-                logger.info(f"Adding EGI index at level {args.egi_level}...")
-                target_res = egi.get_resolution(args.egi_level)
-                logger.info(f"  EGI resolution: ~{target_res:.0f}m pixels")
+                index_res = get_resolution(egi_index_level)
+                partition_res = get_resolution(egi_partition_level)
+                logger.info(f"Converting to EGI indexing...")
+                logger.info(f"  Index level: {egi_index_level} (~{index_res:.0f}m)")
+                logger.info(f"  Partition level: {egi_partition_level} (~{partition_res:.0f}m)")
 
-                # Add EGI index to each partition
-                ddf = ddf.map_partitions(
-                    egi.egi_dataframe,
-                    level=args.egi_level,
-                    set_index=False,
-                    meta=ddf._meta
+                egi_index_col = egi_col_name(egi_index_level)
+                egi_part_col = egi_col_name(egi_partition_level)
+
+                # Use egi_extract which handles proper H3->EGI repartitioning
+                # Shuffle level = partition level ensures each output file contains
+                # all data for its partition
+                ddf = gh3.egi_extract(
+                    ddf,
+                    index_level=egi_index_level,
+                    partition_level=egi_partition_level,
+                    add_geometry=args.geo
                 )
-                part_col = egi_col_name(args.egi_level)
+
+                part_col = egi_part_col
+                index_col = egi_index_col
             else:
                 part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
                 part_col = h3_col_name(part)
+                index_col = part_col
 
             # Export - use simplified flat file structure (not hive-partitioned)
             logger.info("Exporting data...")
@@ -196,11 +216,16 @@ def main():
                 ofiles = [opath] if opath else []
             else:
                 # Export each partition as separate file named by partition ID
+                # For EGI: after set_index shuffle, each unique EGI partition value is in
+                # exactly one Dask partition (no collision), but a Dask partition may contain
+                # multiple EGI partition values (needs splitting at export time).
+                # For H3: each Dask partition corresponds to one H3 partition directory.
                 write_task = ddf.map_partitions(
                     gh3.gh3_export_part,
                     odir=args.output,
                     fmt=args.format,
                     part_col=part_col,
+                    group_by_partition=use_egi,  # Split by EGI partition within each Dask partition
                     meta=pd.Series(dtype=str)
                 )
 
@@ -215,7 +240,11 @@ def main():
             # Write simplified dataset metadata
             logger.info("Writing dataset metadata")
             index_type = 'egi' if use_egi else 'h3'
-            index_level = args.egi_level if use_egi else gh3.gh3_read_meta('h3_resolution_level', gh3_root_dir=args.database)
+            index_level = egi_index_level if use_egi else gh3.gh3_read_meta('h3_resolution_level', gh3_root_dir=args.database)
+            meta_kwargs = {}
+            if use_egi:
+                meta_kwargs['egi_index_level'] = egi_index_level
+                meta_kwargs['egi_partition_level'] = egi_partition_level
             gh3.gh3_write_dataset_meta(
                 opath=args.output,
                 index_type=index_type,
@@ -223,7 +252,8 @@ def main():
                 columns=columns,
                 source_database=args.database,
                 query_filter=query_str,
-                tool='gh3_extract'
+                tool='gh3_extract',
+                **meta_kwargs
             )
 
             print_success(f"Data exported to {args.output}", logger=logger)

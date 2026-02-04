@@ -72,6 +72,81 @@ def add_product_args(parser):
     return parser
 
 
+def parse_egi_levels(value):
+    """
+    Parse EGI argument in format 'level' or 'level:partition'.
+
+    This function is used by CLI tools to parse EGI level arguments that
+    specify both an index/aggregation level and an optional output partition level.
+
+    EGI levels: 1 = finest (~1m), 12 = coarsest (~160km)
+    Note: This is opposite to H3 where higher numbers mean finer resolution.
+
+    Examples:
+        '1' -> (1, 12)      # Level 1, partition at level 12 (default)
+        '1:12' -> (1, 12)   # Explicit level:partition
+        '6:10' -> (6, 10)   # Level 6, partition at level 10
+
+    Parameters
+    ----------
+    value : str or None
+        EGI level specification string
+
+    Returns
+    -------
+    tuple or None
+        (level, partition_level) tuple, or None if value is None
+
+    Raises
+    ------
+    argparse.ArgumentTypeError
+        If the value cannot be parsed or levels are invalid
+    """
+    import argparse
+
+    if value is None:
+        return None
+
+    value = str(value)
+    if ':' in value:
+        parts = value.split(':')
+        if len(parts) != 2:
+            raise argparse.ArgumentTypeError(
+                f"EGI argument must be 'level' or 'level:partition', got '{value}'"
+            )
+        try:
+            level = int(parts[0])
+            partition_level = int(parts[1])
+        except ValueError:
+            raise argparse.ArgumentTypeError(
+                f"EGI levels must be integers, got '{value}'"
+            )
+    else:
+        try:
+            level = int(value)
+            partition_level = 12  # Default partition level (coarsest, ~160km)
+        except ValueError:
+            raise argparse.ArgumentTypeError(
+                f"EGI level must be an integer, got '{value}'"
+            )
+
+    # Validate levels
+    if not 1 <= level <= 12:
+        raise argparse.ArgumentTypeError(
+            f"EGI level must be 1-12, got {level}"
+        )
+    if not 1 <= partition_level <= 12:
+        raise argparse.ArgumentTypeError(
+            f"EGI partition level must be 1-12, got {partition_level}"
+        )
+    if partition_level < level:
+        raise argparse.ArgumentTypeError(
+            f"EGI partition level ({partition_level}) must be >= level ({level})"
+        )
+
+    return (level, partition_level)
+
+
 # =============================================================================
 # Shared CLI Setup Functions
 # =============================================================================
@@ -193,6 +268,61 @@ def configure_database_path(args, logger=None):
         logger.info(f"Database: {args.database}")
 
     return args.database
+
+
+def get_dataset_index_info(database):
+    """
+    Get spatial index information from a dataset or database.
+
+    Reads metadata to determine the index type (h3 or egi) and level.
+
+    Parameters
+    ----------
+    database : str
+        Path to H3 database or simplified dataset directory
+
+    Returns
+    -------
+    dict
+        Dictionary with keys:
+        - 'source_type': 'h3_database', 'simplified_dataset', or 'parquet_directory'
+        - 'index_type': 'h3' or 'egi' (or None if unknown)
+        - 'index_level': int (or None if unknown)
+        - 'partition_level': int (or None if not applicable)
+        - Other metadata fields from the source
+    """
+    import json
+
+    build_log_path = os.path.join(database, "gedih3_build_log.json")
+    dataset_meta_path = os.path.join(database, "gedih3_dataset.json")
+
+    if os.path.exists(build_log_path):
+        with open(build_log_path, 'r') as f:
+            meta = json.load(f)
+        return {
+            'source_type': 'h3_database',
+            'index_type': 'h3',
+            'index_level': meta.get('h3_resolution_level'),
+            'partition_level': meta.get('h3_partition_level'),
+            **meta
+        }
+    elif os.path.exists(dataset_meta_path):
+        with open(dataset_meta_path, 'r') as f:
+            meta = json.load(f)
+        return {
+            'source_type': 'simplified_dataset',
+            'index_type': meta.get('index_type'),
+            'index_level': meta.get('index_level'),
+            'partition_level': meta.get('egi_partition_level') or meta.get('h3_partition_level'),
+            **meta
+        }
+    else:
+        return {
+            'source_type': 'parquet_directory',
+            'index_type': None,
+            'index_level': None,
+            'partition_level': None
+        }
 
 
 def load_data_from_source(database, columns=None, region=None, query=None, logger=None):

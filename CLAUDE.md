@@ -46,9 +46,14 @@ gh3_build -r "W,S,E,N" -l2a default -l4a default -h3r 12 -h3p 3
 # Extract data from H3 database with filters
 gh3_extract -d /path/to/database -r region.shp -l2a rh -l4a agbd -q -o output/
 
+# Extract with EGI indexing (index at level 1 ~1m, partition by level 12 ~160km)
+gh3_extract -d /path/to/database -r region.shp -l4a agbd -egi 1 -o output/
+gh3_extract -d /path/to/database -r region.shp -l4a agbd -egi 1:12 -o output/  # Explicit index:partition
+
 # Aggregate H3 database data (supports EGI with -egi flag)
 gh3_aggregate -d /path/to/database -h3 6 -o output/  # H3 aggregation
-gh3_aggregate -d /path/to/database -egi 6 -a mean -o output/  # EGI aggregation
+gh3_aggregate -d /path/to/database -egi 6 -a mean -o output/  # EGI aggregation (partition at level 12)
+gh3_aggregate -d /path/to/database -egi 6:10 -a mean -o output/  # Explicit aggregation:partition levels
 gh3_aggregate -d /path/to/database -egi 6 -a mean -R -o output/  # With rasterization
 
 # Rasterize pre-aggregated datasets to GeoTIFF
@@ -85,7 +90,7 @@ gh3_read_schema /path/to/file.h5
 | `-s, --dask-scheduler` | Connect to existing Dask scheduler |
 | `-v, -vv` | Verbosity levels (INFO, DEBUG) |
 | `-Q, --quiet` | Suppress output except errors |
-| `-egi LEVEL` | Use EGI indexing instead of H3 (levels 1-12) |
+| `-egi INDEX[:PART]` | Use EGI indexing (e.g., `-egi 1` or `-egi 1:12` for index:partition levels) |
 | `-R, --rasterize` | Also export rasters after aggregation (gh3_aggregate only) |
 
 ## Architecture
@@ -492,3 +497,203 @@ Key dependencies (see `pyproject.toml` for full list):
 - `h5py >= 3.14.0` - HDF5 reading
 - `rioxarray >= 0.19.0`, `geocube >= 0.7.1` - Rasterization
 - `tenacity >= 8.2.0` - Retry logic
+
+## Known Limitations
+
+### Memory Management with Large Datasets
+
+PyArrow's unmanaged memory can accumulate during large Parquet operations. For production workloads with many partition files, use the aggressive memory configuration:
+
+```bash
+# Use aggressive memory management config
+gh3_build --dask-config dask-config-aggressive-memory.yaml -r "W,S,E,N" ...
+```
+
+This configuration enables:
+- Automatic worker restarts every 15 minutes (prevents memory accumulation)
+- Lower memory thresholds (target: 10%, pause: 80%)
+- Smaller chunk sizes (64 MiB)
+
+### Python Version Requirement
+
+The current `pyproject.toml` specifies `>=3.13`. For HPC environments with older Python:
+- The codebase has been tested with Python 3.10+
+- Update `pyproject.toml` if needed for your environment
+- No 3.13-specific features are used
+
+### Coordinate Systems
+
+- **H3 indexing**: Uses WGS84 (EPSG:4326) internally
+- **EGI indexing**: Uses EASE-Grid 2.0 (EPSG:6933) for GEDI L4B compatibility
+- All output GeoDataFrames are in EPSG:4326 unless otherwise specified
+- EGI rasters maintain EPSG:6933 for native L4B alignment
+
+### Large Dataset Considerations
+
+For billion-row datasets:
+- Use `from_map=True` (default) for efficient partition loading
+- Enable `map_partitions` aggregation (default) to avoid shuffling
+- Consider processing by time period or spatial region to manage memory
+- Monitor Dask dashboard for worker memory usage
+
+## Development Notes
+
+### DEBUG Mode in CLI Tools
+
+CLI tools contain DEBUG blocks for development testing. These are disabled by default (`DEBUG=False`). For development:
+
+```python
+# At top of CLI tool file
+DEBUG=True  # Enable to use hardcoded test paths
+```
+
+**Warning**: DEBUG blocks contain site-specific paths (`/gpfs/...`). Do not commit with `DEBUG=True`.
+
+### Running Tests
+
+```bash
+# Unit tests (fast, no network required)
+pytest tests/ -m "not integration and not slow"
+
+# Integration tests (requires NASA Earthdata credentials)
+pytest tests/ -m integration
+
+# Full test suite
+pytest tests/ -v
+
+# Run specific test file
+pytest tests/test_egi_comprehensive.py -v
+```
+
+### Environment Setup
+
+```bash
+# Create conda environment
+conda env create -f environment.yml
+conda activate gedih3
+
+# Install in editable mode for development
+pip install -e .
+
+# Configure NASA credentials (required for downloads)
+python -c "import earthaccess; earthaccess.login()"
+```
+
+### Configuration Priority
+
+Configuration is loaded in this priority order:
+1. Command-line arguments (highest priority)
+2. Environment variables (`GH3_DEFAULT_*`)
+3. `~/.gedih3.env` file
+4. Package defaults in `config.py` (lowest priority)
+
+## Troubleshooting
+
+### Common Issues
+
+**"Sending large graph" warnings**
+```python
+# Suppressed automatically in INFO mode (-v)
+# For DEBUG mode (-vv), increase threshold:
+dask.config.set({'distributed.admin.large-graph-warning-threshold': '500MB'})
+```
+
+**KeyError with internal columns (h3_XX, egiXX)**
+```python
+# Use column filtering utilities
+from gedih3.cliutils import filter_data_columns, get_rasterizable_columns
+
+# Filter out internal columns from a list
+data_cols = filter_data_columns(['h3_03', 'agbd_l4a', 'rh_098_l2a'])
+# Returns: ['agbd_l4a', 'rh_098_l2a']
+
+# Get numeric columns suitable for aggregation/rasterization
+numeric_cols = get_rasterizable_columns(ddf)
+```
+
+**Out of memory with large databases**
+```bash
+# Use aggressive memory config
+gh3_build --dask-config dask-config-aggressive-memory.yaml ...
+
+# Or reduce workers and increase per-worker memory
+gh3_build -N 4 -M 16GB ...
+```
+
+**NASA Earthdata authentication errors**
+```bash
+# Verify credentials are valid
+python -c "import earthaccess; earthaccess.login()"
+
+# Check ~/.netrc file exists and has correct format:
+# machine urs.earthdata.nasa.gov
+#     login YOUR_USERNAME
+#     password YOUR_PASSWORD
+```
+
+**Empty results from spatial filter**
+```python
+# Verify region format
+# Bbox format: "W,S,E,N" (West,South,East,North)
+# Example: "-51,0,-50,1" for a 1x1 degree area in Brazil
+
+# Check if database has data in that region
+gh3_read_schema /path/to/database/gedih3_build_log.json
+```
+
+**Parquet schema mismatch errors**
+```bash
+# Inspect schema of existing files
+gh3_read_schema /path/to/file.parquet
+
+# Check database build log for expected schema
+gh3_read_schema /path/to/database/gedih3_build_log.json
+```
+
+## Claude Code Sub-Agents
+
+Four specialized sub-agents are configured in `.claude/agents/` for domain-specific work:
+
+| Agent | File | Use For |
+|-------|------|---------|
+| `core-pipeline` | `.claude/agents/core-pipeline.md` | Download, build, extract, aggregate workflows |
+| `raster-egi` | `.claude/agents/raster-egi.md` | Spatial indexing, rasterization, CRS transforms |
+| `cli-deployment` | `.claude/agents/cli-deployment.md` | CLI tools, configuration, deployment |
+| `testing-qa` | `.claude/agents/testing-qa.md` | Test coverage, validation, benchmarking |
+
+### How to Use Sub-Agents
+
+**Automatic delegation**: Claude auto-delegates based on task description:
+```
+> Implement H3 database building with resume
+  → Delegates to core-pipeline agent
+
+> Add time-series rasterization for EGI
+  → Delegates to raster-egi agent
+```
+
+**Explicit invocation**:
+```
+> Use the core-pipeline agent to debug this Dask memory issue
+> Have the raster-egi agent review the CRS transform logic
+> Ask the testing-qa agent to write integration tests
+```
+
+**Chaining agents**:
+```
+> First, use core-pipeline agent to implement the feature.
+> Then use testing-qa agent to write tests for it.
+> Finally, have cli-deployment agent create a CLI tool.
+```
+
+**Parallel research**:
+```
+> In parallel:
+> - Have core-pipeline agent investigate the memory issue
+> - Have testing-qa agent check which tests are failing
+```
+
+### List Available Agents
+```bash
+claude /agents
+```
