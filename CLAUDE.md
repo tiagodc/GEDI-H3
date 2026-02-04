@@ -47,13 +47,15 @@ gh3_build -r "W,S,E,N" -l2a default -l4a default -h3r 12 -h3p 3
 gh3_extract -d /path/to/database -r region.shp -l2a rh -l4a agbd -q -o output/
 
 # Aggregate H3 database data (supports EGI with -egi flag)
-gh3_aggregate -d /path/to/database -o output/
+gh3_aggregate -d /path/to/database -h3 6 -o output/  # H3 aggregation
 gh3_aggregate -d /path/to/database -egi 6 -a mean -o output/  # EGI aggregation
+gh3_aggregate -d /path/to/database -egi 6 -a mean -R -o output/  # With rasterization
 
-# Rasterize H3/EGI data to GeoTIFF
-gh3_rasterize -d /path/to/database -o output.tif -m --compress LZW
-gh3_rasterize -d /path/to/database -egi 6 -o output/ -l agbd_l4a
-gh3_rasterize -d /path/to/database -o output/ -t0 2020-01-01 -t1 2023-01-01 -ti 1 -tu years
+# Rasterize pre-aggregated datasets to GeoTIFF
+# NOTE: gh3_rasterize requires a dataset from gh3_aggregate or gh3_extract
+gh3_rasterize -d /path/to/aggregated_dataset -o output/ --compress LZW  # Tiled output
+gh3_rasterize -d /path/to/aggregated_dataset -m -o output.tif  # Merged output
+gh3_rasterize -d /path/to/aggregated_dataset -l agbd_l4a -o output/  # Select variables
 ```
 
 ### Utility Tools
@@ -84,6 +86,7 @@ gh3_read_schema /path/to/file.h5
 | `-v, -vv` | Verbosity levels (INFO, DEBUG) |
 | `-Q, --quiet` | Suppress output except errors |
 | `-egi LEVEL` | Use EGI indexing instead of H3 (levels 1-12) |
+| `-R, --rasterize` | Also export rasters after aggregation (gh3_aggregate only) |
 
 ## Architecture
 
