@@ -39,6 +39,13 @@ def get_cmd_args():
     p.add_argument("-H", "--hive", dest="hive", action='store_true',
                    help="export in hive-partitioned directory structure")
 
+    # Rasterization option
+    p.add_argument("-R", "--rasterize", dest="rasterize", action='store_true',
+                   help="also export data as GeoTIFF rasters after aggregation")
+    p.add_argument("--compress", dest="compress", type=str, default='LZW',
+                   choices=['LZW', 'ZSTD', 'DEFLATE', 'PACKBITS', 'NONE'],
+                   help="GeoTIFF compression [default=LZW]")
+
     # Aggregation options
     p.add_argument("-h3", "--h3-level", dest="h3_level", type=int, default=None,
                    help="aggregate to H3 level [0-15]")
@@ -257,6 +264,45 @@ def main():
                     tool='gh3_aggregate'
                 )
                 print_success(f"{len(ofiles)} files exported to {args.output}", logger=logger)
+
+            # Optional: Rasterize the aggregated data
+            if args.rasterize:
+                logger.info("Rasterizing aggregated data to GeoTIFF...")
+
+                raster_dir = os.path.join(args.output, 'rasters')
+                os.makedirs(raster_dir, exist_ok=True)
+
+                from gedih3 import raster
+
+                if use_egi:
+                    from gedih3 import egi
+                    rasterize_func = egi.rasterize_partition
+                else:
+                    rasterize_func = raster.rasterize_h3_partition
+
+                # Re-load the computed aggregated data for rasterization
+                # (at this point aggdf might be computed or lazy depending on path)
+                if hasattr(aggdf, 'compute'):
+                    # Lazy - rasterize partitions directly
+                    raster.rasterize_and_export_partitions(
+                        aggdf, raster_dir, rasterize_func,
+                        columns=None,  # Auto-detect from aggregated data
+                        compress=args.compress,
+                        show_progress=True
+                    )
+                else:
+                    # Already computed (merged case) - rasterize single GeoDataFrame
+                    xras = rasterize_func(aggdf, columns=None)
+                    if isinstance(xras, pd.Series) and len(xras) > 0:
+                        # Handle multiple tiles in one GeoDataFrame
+                        for i, tile_xras in enumerate(xras):
+                            if hasattr(tile_xras, 'data_vars') and len(tile_xras.data_vars) > 0:
+                                raster.export_raster(tile_xras, os.path.join(raster_dir, f'tile_{i}.tif'), compress=args.compress)
+                    elif hasattr(xras, 'data_vars') and len(xras.data_vars) > 0:
+                        raster.export_raster(xras, os.path.join(raster_dir, 'merged.tif'), compress=args.compress)
+
+                raster_files = glob.glob(f"{raster_dir}/*.tif")
+                print_success(f"{len(raster_files)} raster files exported to {raster_dir}", logger=logger)
 
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user.")
