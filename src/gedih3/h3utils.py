@@ -53,10 +53,40 @@ def intersect_h3_geometries(spatial, res=3, h3_ids=None):
     h3_intersects = h3_geo.sindex.query(spatial, predicate='intersects')
     return h3_geo.index[h3_intersects].unique().tolist()
 
-def h3_index_df(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode'):    
+def h3_index_df(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode'):
     import h3pandas
     df = df.dropna(subset=[lat_col, lon_col])
     df = df.reset_index()
     df = df.h3.geo_to_h3(res, lat_col=lat_col, lng_col=lon_col, set_index=True)
     df = df.h3.h3_to_parent(part)
     return df.copy()
+
+
+def h3_parts_to_gdf(h3_ids, crs=4326):
+    """
+    Convert H3 partition IDs to a GeoDataFrame with polygon geometries.
+
+    Parameters
+    ----------
+    h3_ids : list
+        List of H3 cell IDs (strings)
+    crs : int or str
+        Output CRS (default: 4326)
+
+    Returns
+    -------
+    GeoDataFrame
+        GeoDataFrame indexed by H3 ID with polygon geometries
+    """
+    import geopandas as gpd
+    geometries = [fix_h3_geometry(h) for h in h3_ids]
+    gdf = gpd.GeoDataFrame(
+        {'h3_id': h3_ids},
+        geometry=geometries,
+        crs=4326
+    ).set_index('h3_id')
+
+    if crs != 4326:
+        gdf = gdf.to_crs(crs)
+
+    return gdf

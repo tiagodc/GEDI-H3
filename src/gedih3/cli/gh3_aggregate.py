@@ -169,37 +169,40 @@ def main():
         with Client(**dask_kwargs) as client:
             logger.info(f"Dask dashboard: {client.dashboard_link}")
 
-            # Load data
-            logger.info("Loading data...")
-            ddf = load_data_from_source(args.database, columns, region, query_str, logger)
-            logger.info(f"  Loaded {ddf.npartitions} partitions")
-
-            logger.info("Aggregating data...")
-            from_hive = is_hive_directory(args.database, match_str=r'h3_.+=.+')
-            numeric_columns = get_numeric_columns(ddf)
-
             if use_egi:
-                # EGI (EASE Grid) aggregation
+                # EGI (EASE Grid) aggregation - use direct loading (no shuffle)
                 from gedih3 import egi
                 target_res = egi.get_resolution(egi_agg_level)
                 partition_res = egi.get_resolution(egi_partition_level)
+                logger.info(f"Loading and aggregating directly to EGI (no shuffle)...")
                 logger.info(f"  Target: EGI level {egi_agg_level} (~{target_res:.0f}m pixels)")
                 if egi_partition_level != egi_agg_level:
                     logger.info(f"  Partition: EGI level {egi_partition_level} (~{partition_res:.0f}m)")
 
-                aggdf = gh3.egi_aggregate(
-                    ddf,
+                # Use egi_load_and_aggregate for efficient single-pass processing
+                aggdf = gh3.egi_load_and_aggregate(
+                    columns=columns,
+                    region=region,
+                    query=query_str,
+                    gh3_dir=args.database,
                     target_level=egi_agg_level,
-                    agg=args.aggregate,
-                    columns=numeric_columns,
-                    add_geometry=True,
                     partition_level=egi_partition_level,
-                    repartition=not args.merge
+                    agg=args.aggregate,
+                    add_geometry=True
                 )
+                logger.info(f"  Loaded {aggdf.npartitions} EGI partitions")
+
                 # Use partition level for file organization
                 part_col = egi.egi_col_name(egi_partition_level if not args.merge else egi_agg_level)
                 export_func = gh3.egi_export_part
             else:
+                # H3 (hexagon) aggregation - load then aggregate
+                logger.info("Loading data...")
+                ddf = load_data_from_source(args.database, columns, region, query_str, logger)
+                logger.info(f"  Loaded {ddf.npartitions} partitions")
+
+                logger.info("Aggregating data...")
+                numeric_columns = get_numeric_columns(ddf)
                 # H3 (hexagon) aggregation
                 logger.info(f"  Target: H3 level {args.h3_level}")
 

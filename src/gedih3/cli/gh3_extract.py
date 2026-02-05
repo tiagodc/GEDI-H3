@@ -37,6 +37,8 @@ def get_cmd_args():
     # Indexing options
     p.add_argument("-egi", "--egi", dest="egi", type=parse_egi_levels, default=None,
                    help="EGI indexing as 'index[:partition]' e.g., '1' (default partition=12) or '1:12'")
+    p.add_argument("--egi-shuffle", dest="egi_shuffle", action='store_true',
+                   help="Use shuffle-based EGI extraction (gh3_load + egi_extract) instead of direct loading")
 
     # Spatial/temporal filtering
     p.add_argument("-r", "--region", dest="region", type=str, default=None,
@@ -154,17 +156,6 @@ def main():
         with Client(**dask_kwargs) as client:
             logger.info(f"Dask dashboard available at: {client.dashboard_link}")
 
-            # Load data
-            logger.info("Loading data from H3 database...")
-            ddf = gh3.gh3_load(
-                columns=columns,
-                region=region,
-                query=query_str,
-                gh3_dir=args.database
-            )
-
-            logger.info(f"  Loaded {ddf.npartitions} partitions")
-
             # Determine partition column and process data
             if use_egi:
                 from gedih3 import egi
@@ -172,26 +163,61 @@ def main():
 
                 index_res = get_resolution(egi_index_level)
                 partition_res = get_resolution(egi_partition_level)
-                logger.info(f"Converting to EGI indexing...")
                 logger.info(f"  Index level: {egi_index_level} (~{index_res:.0f}m)")
                 logger.info(f"  Partition level: {egi_partition_level} (~{partition_res:.0f}m)")
 
                 egi_index_col = egi_col_name(egi_index_level)
                 egi_part_col = egi_col_name(egi_partition_level)
 
-                # Use egi_extract which handles proper H3->EGI repartitioning
-                # Shuffle level = partition level ensures each output file contains
-                # all data for its partition
-                ddf = gh3.egi_extract(
-                    ddf,
-                    index_level=egi_index_level,
-                    partition_level=egi_partition_level,
-                    add_geometry=args.geo
-                )
+                if args.egi_shuffle:
+                    # Shuffle-based approach: gh3_load + egi_extract
+                    # More reliable but slower for large datasets
+                    logger.info("Loading H3 data then converting to EGI (shuffle-based)...")
+                    ddf_h3 = gh3.gh3_load(
+                        columns=columns,
+                        region=region,
+                        query=query_str,
+                        gh3_dir=args.database
+                    )
+                    logger.info(f"  Loaded {ddf_h3.npartitions} H3 partitions")
+                    logger.info("  Converting to EGI (shuffling data)...")
+                    ddf = gh3.egi_extract(
+                        ddf_h3,
+                        index_level=egi_index_level,
+                        partition_level=egi_partition_level,
+                        add_geometry=True
+                    )
+                else:
+                    # Direct loading approach: egi_load
+                    # Faster but may have issues with complex geometries
+                    logger.info("Loading data directly into EGI partitions (no shuffle)...")
+                    ddf = gh3.egi_load(
+                        columns=columns,
+                        region=region,
+                        query=query_str,
+                        gh3_dir=args.database,
+                        index_level=egi_index_level,
+                        partition_level=egi_partition_level
+                    )
+
+                logger.info(f"  Loaded {ddf.npartitions} EGI partitions")
+
+                # Add geometry if requested and not already present
+                if args.geo and 'geometry' not in ddf.columns:
+                    ddf = gh3._egi_add_point_geometry(ddf, egi_index_col)
 
                 part_col = egi_part_col
                 index_col = egi_index_col
             else:
+                # H3 mode - load normally
+                logger.info("Loading data from H3 database...")
+                ddf = gh3.gh3_load(
+                    columns=columns,
+                    region=region,
+                    query=query_str,
+                    gh3_dir=args.database
+                )
+                logger.info(f"  Loaded {ddf.npartitions} partitions")
                 part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
                 part_col = h3_col_name(part)
                 index_col = part_col
