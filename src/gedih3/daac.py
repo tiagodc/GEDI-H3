@@ -131,14 +131,16 @@ class GEDIAccessor:
         self.authenticated = False
         raise GediAuthenticationError(f"Failed to authenticate after {max_attempts} attempts: {last_error}")
     
-    def search_data(self, product: str, **kwargs) -> List[Any]:
+    def search_data(self, product: str = None, **kwargs) -> List[Any]:
         """
-        Search for GEDI granules with spatial and temporal filtering
-        
+        Search for GEDI granules with spatial and temporal filtering.
+
         Parameters:
         -----------
-        product : str
-            GEDI product level ('L1B', 'L2A', 'L2B', 'L3', 'L4A', 'L4B', 'L4C')
+        product : str, optional
+            GEDI product level ('L1B', 'L2A', 'L2B', 'L3', 'L4A', 'L4B', 'L4C').
+            If None, skips DOI-based search and uses kwargs directly for custom
+            dataset searches (e.g., private datasets without DOIs).
         spatial : various
             Spatial filter - can be:
             - List of 4 floats: [west, south, east, north] bounding box
@@ -148,19 +150,38 @@ class GEDIAccessor:
         temporal : tuple or list
             Temporal filter as (start_date, end_date) strings in 'YYYY-MM-DD' format
         **kwargs : dict
-            Additional search parameters
-            
+            Additional search parameters. When product is None, these are passed
+            directly to earthaccess.search_data() and should include at least one
+            of: doi, short_name, concept_id, or other earthaccess search parameters.
+
         Returns:
         --------
         List of granule objects
+
+        Examples:
+        ---------
+        # Standard GEDI product search
+        >>> accessor.search_data('L4A')
+
+        # Custom dataset search (private dataset without DOI)
+        >>> accessor.search_data(short_name='MY_PRIVATE_DATASET', version='001')
+
+        # Custom search with concept_id
+        >>> accessor.search_data(concept_id='C1234567-PROVIDER')
         """
-        if product.upper() not in GEDI_PRODUCTS:
-            raise ValueError(f"Product must be one of: {list(GEDI_PRODUCTS.keys())}")
-        
-        self.product = GEDI_PRODUCTS[product.upper()]
-        
         # Build search parameters
-        search_params = {"doi": self.product['doi']}
+        search_params = {}
+
+        if product is not None:
+            # Standard GEDI product search with DOI
+            if product.upper() not in GEDI_PRODUCTS:
+                raise ValueError(f"Product must be one of: {list(GEDI_PRODUCTS.keys())}")
+
+            self.product = GEDI_PRODUCTS[product.upper()]
+            search_params["doi"] = self.product['doi']
+        else:
+            # Custom dataset search - kwargs provide the dataset identifier
+            self.product = None
 
         # Handle spatial filtering
         if hasattr(self, 'spatial'):
@@ -173,15 +194,19 @@ class GEDIAccessor:
         if hasattr(self, 'temporal'):
             search_params["temporal"] = self.temporal
 
-        # Add any additional parameters
+        # Add any additional parameters (for custom searches, these define the dataset)
         search_params.update(kwargs)
-        
+
         # Search for granules
         self.search_params = search_params
         self.granules = earthaccess.search_data(**search_params)
-        self.product_files[product.upper()] = self.granules
 
-        print(f"Found {len(self.granules)} {product} granules")
+        # Store granules by product key (use 'CUSTOM' for non-GEDI datasets)
+        product_key = product.upper() if product is not None else 'CUSTOM'
+        self.product_files[product_key] = self.granules
+
+        dataset_name = product if product is not None else kwargs.get('short_name', kwargs.get('concept_id', 'custom dataset'))
+        print(f"Found {len(self.granules)} {dataset_name} granules")
         return self.granules
     
     def _process_spatial_filter(self, spatial) -> Optional[Tuple[float, float, float, float]]:
@@ -221,12 +246,17 @@ class GEDIAccessor:
     def link_s3(self, product: str = None):
         if not self.authenticated:
             raise RuntimeError("Must authenticate before accessing S3")
-        
+
         if not hasattr(self, 'granules'):
-            raise RuntimeError("No granules found. Please run search_data() first.")       
-        
-        granules = self.granules if product is None else self.product_files[product.upper()]
-        
+            raise RuntimeError("No granules found. Please run search_data() first.")
+
+        if product is None:
+            granules = self.granules
+        else:
+            # Handle both standard product keys and 'CUSTOM'
+            product_key = product.upper() if product else 'CUSTOM'
+            granules = self.product_files.get(product_key, self.granules)
+
         s3_files = earthaccess.open(granules, pqdm_kwargs={'disable': True})
         return s3_files    
     
@@ -321,6 +351,60 @@ def _download_with_retry(
     )
 
 
+def download_custom_granule(
+    granule,
+    odir: str,
+    resume: bool = False,
+    max_attempts: int = RETRY_DEFAULTS['max_attempts']
+) -> Optional[str]:
+    """
+    Download a custom (non-GEDI) granule with retry logic.
+
+    This function handles granules from any NASA dataset without requiring
+    GEDI-specific filename parsing. Files are downloaded directly to the
+    output directory without year/doy subdirectory structure.
+
+    Parameters
+    ----------
+    granule : earthaccess.Granule
+        Granule object to download
+    odir : str
+        Output directory for downloaded files
+    resume : bool
+        If True, skip already-downloaded files
+    max_attempts : int
+        Maximum download attempts on failure
+
+    Returns
+    -------
+    str or None
+        Path to downloaded file, or None on failure
+    """
+    # Extract filename from data link
+    try:
+        data_link = granule.data_links()[0]
+        filename = data_link.split('/')[-1]
+    except Exception:
+        filename = None
+
+    os.makedirs(odir, exist_ok=True)
+
+    # Check for existing file if resume mode
+    if resume and filename:
+        expected_path = os.path.join(odir, filename)
+        if os.path.exists(expected_path):
+            logger.debug(f"Skipping {filename} (already exists)")
+            return expected_path
+
+    # Download with retry
+    try:
+        opath = _download_with_retry(granule, odir, max_attempts=max_attempts)
+        return opath
+    except GediDownloadError as e:
+        logger.error(f"Download failed: {e}")
+        return None
+
+
 def download_granule(
     granule,
     odir: str = None,
@@ -404,22 +488,24 @@ def download_granule(
     return opath
 
 def gedi_download(
-    product_vars: Dict,
+    product_vars: Dict = None,
     odir: str = None,
     spatial = None,
     temporal = None,
     n_jobs: int = 5,
     to_list: bool = False,
     resume: bool = False,
-    max_attempts: int = RETRY_DEFAULTS['max_attempts']
+    max_attempts: int = RETRY_DEFAULTS['max_attempts'],
+    search_kwargs: Dict = None
 ) -> Union[Dict[str, List[str]], List[str]]:
     """
     Download GEDI granules for specified products and variables.
 
     Parameters
     ----------
-    product_vars : dict
-        Dictionary mapping product codes to variable specifications
+    product_vars : dict, optional
+        Dictionary mapping product codes to variable specifications.
+        If None and search_kwargs is provided, downloads a custom dataset.
     odir : str, optional
         Output directory. If None, returns S3 links instead of downloading.
     spatial : various, optional
@@ -434,6 +520,10 @@ def gedi_download(
         If True, skip already-downloaded files
     max_attempts : int
         Maximum download attempts per granule
+    search_kwargs : dict, optional
+        Custom search parameters for non-GEDI datasets (e.g., private datasets
+        without DOIs). Should include at least one of: doi, short_name, concept_id.
+        When provided with product_vars=None, enables downloading custom datasets.
 
     Returns
     -------
@@ -446,11 +536,27 @@ def gedi_download(
         If authentication fails
     GediDownloadError
         If critical download errors occur
+
+    Examples
+    --------
+    # Standard GEDI product download
+    >>> gedi_download({'L4A': ['agbd']}, odir='/data', spatial=[-50, 0, -49, 1])
+
+    # Custom dataset download (private dataset)
+    >>> gedi_download(odir='/data', spatial=[-50, 0, -49, 1],
+    ...               search_kwargs={'short_name': 'MY_PRIVATE_DATASET', 'version': '001'})
     """
     gass = GEDIAccessor(authenticate=True, spatial=spatial, temporal=temporal)
 
     prod_paths = {}
-    product_vars = gedi_vars_expand(product_vars)
+
+    # Handle custom dataset download (no product_vars, using search_kwargs)
+    if product_vars is None and search_kwargs is not None:
+        product_vars = {'CUSTOM': None}  # Placeholder for custom dataset
+    elif product_vars is None:
+        raise ValueError("Either product_vars or search_kwargs must be provided")
+    else:
+        product_vars = gedi_vars_expand(product_vars)
 
     dask_client = get_dask_client()
     if dask_client is not None:
@@ -462,7 +568,11 @@ def gedi_download(
 
     for prod, vars in product_vars.items():
         try:
-            granules = gass.search_data(product=prod)
+            # Use custom search kwargs for CUSTOM product or standard product search
+            if prod == 'CUSTOM' and search_kwargs is not None:
+                granules = gass.search_data(product=None, **search_kwargs)
+            else:
+                granules = gass.search_data(product=prod)
 
             if len(granules) == 0:
                 logger.warning(f"No granules found for product {prod}")
@@ -470,15 +580,29 @@ def gedi_download(
                 continue
 
             if odir is None:
-                opaths = gass.link_s3(product=prod)
+                # Return S3 links for streaming access
+                product_key = prod if prod != 'CUSTOM' else None
+                opaths = gass.link_s3(product=product_key)
             else:
-                download_func = partial(
-                    download_granule,
-                    odir=odir,
-                    subset_vars=vars,
-                    resume=resume,
-                    max_attempts=max_attempts
-                )
+                # Select appropriate download function
+                if prod == 'CUSTOM':
+                    # Use simpler download function for custom datasets
+                    download_func = partial(
+                        download_custom_granule,
+                        odir=odir,
+                        resume=resume,
+                        max_attempts=max_attempts
+                    )
+                else:
+                    # Use GEDI-specific download with variable subsetting
+                    download_func = partial(
+                        download_granule,
+                        odir=odir,
+                        subset_vars=vars,
+                        resume=resume,
+                        max_attempts=max_attempts
+                    )
+
                 if dask_client is not None:
                     futures = dask_client.map(download_func, granules)
                     progress(futures)
