@@ -69,7 +69,10 @@ def main():
         args.cores = 4
         args.port = 9995
 
-    try:
+    # Import cli_exception_handler early for wrapping the main logic
+    from gedih3.cliutils import cli_exception_handler
+
+    with cli_exception_handler(args):
         import json
         import glob
         import pandas as pd
@@ -174,17 +177,6 @@ def main():
                 logger.info(f"Exported {len(valid_paths)} raster files to {args.output}")
 
             print_success("Rasterization complete", logger=logger)
-
-    except KeyboardInterrupt:
-        print("\n\nOperation cancelled by user.")
-        sys.exit(130)
-
-    except Exception as e:
-        print(f"\n\nERROR: {type(e).__name__}: {e}")
-        if args.verbose >= 2:
-            import traceback
-            traceback.print_exc()
-        sys.exit(1)
 
 
 if __name__ == '__main__':

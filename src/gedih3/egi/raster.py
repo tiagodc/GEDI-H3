@@ -18,40 +18,8 @@ from .config import LIMITS, RESOLUTIONS, OUTER_RES, OUTER_LEVEL, EGI_CRS_STRING,
 from .core import get_level
 from .spatial import pixel_shape
 from .dataframe import egi_to_parent, egi_to_geo
-
-
-def _filter_raster_columns(columns: Optional[List[str]], geodf: gpd.GeoDataFrame) -> Optional[List[str]]:
-    """Filter out internal/partition columns from rasterization.
-
-    Internal columns (egi indices, h3 indices, shot_number) should not be
-    rasterized as bands - they're metadata, not data values.
-    Also excludes the index column since it will become a column after reset_index().
-    """
-    import re
-
-    # Patterns for internal columns to exclude from rasterization
-    internal_patterns = [
-        r'^h3_\d{2}$',       # H3 partition columns (h3_03, h3_06, etc.)
-        r'^egi\d+$',         # EGI index columns (egi06, egi12, etc.)
-        r'^_egi_[xy]$',      # Internal EGI coordinate columns
-        r'^shot_number',     # Shot identifier
-    ]
-
-    def is_internal(col_name):
-        return any(re.match(p, str(col_name)) for p in internal_patterns)
-
-    # Get the index column name to exclude (it becomes a column after reset_index)
-    index_col = geodf.index.name
-
-    if columns is not None:
-        # Filter provided columns (also exclude index column)
-        filtered = [c for c in columns if not is_internal(c) and c != 'geometry' and c != index_col]
-        return filtered if filtered else None
-    else:
-        # Auto-detect numeric columns, excluding internal ones and index column
-        numeric = geodf.select_dtypes(include=[np.number]).columns.tolist()
-        filtered = [c for c in numeric if not is_internal(c) and c != index_col]
-        return filtered if filtered else None
+from ..cliutils import filter_raster_columns as _filter_raster_columns
+from ..exceptions import GediRasterizationError
 
 
 def geodf_to_raster(
@@ -105,7 +73,7 @@ def geodf_to_raster(
     # Filter out internal columns from rasterization
     columns = _filter_raster_columns(columns, geodf)
     if columns is None or len(columns) == 0:
-        raise ValueError("No columns to rasterize. Provide numeric columns or check input data.")
+        raise GediRasterizationError("No columns to rasterize. Provide numeric columns or check input data.")
 
     # Get EGI level and resolution from index
     egi_hashes = np.asarray(geodf.index.values, dtype=np.uint64)

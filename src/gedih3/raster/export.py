@@ -15,6 +15,7 @@ import dask.dataframe
 from dask.distributed import progress as dask_progress
 
 from .config import get_geotiff_options, is_raster_format, GEOTIFF_DEFAULTS
+from ..exceptions import GediRasterizationError
 
 
 def export_raster(
@@ -179,7 +180,7 @@ def _export_single_raster(
     elif fmt in ('nc', 'netcdf'):
         xras.to_netcdf(output_path)
     else:
-        raise ValueError(f"Unsupported raster format: {fmt}")
+        raise GediRasterizationError(f"Unsupported raster format: {fmt}")
 
     return output_path
 
@@ -308,7 +309,7 @@ def merge_and_export_rasters(
                 valid_rasters.append(r)
 
         if not valid_rasters:
-            raise ValueError("No valid rasters to merge")
+            raise GediRasterizationError("No valid rasters to merge")
 
         if len(valid_rasters) == 1:
             merged = valid_rasters[0]

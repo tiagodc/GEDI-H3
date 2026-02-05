@@ -1,12 +1,15 @@
 import os
 import re
+import sys
 import logging
 import warnings
 from typing import Optional, List
+from contextlib import contextmanager
 
 from .config import GEDI_PRODUCTS, ISO3_COUNTRIES_URL
 from .utils import read_vector_file, parse_spatial
 from .gedidriver import gedi_vars_expand
+from .exceptions import GediValidationError
 # Note: gh3driver imports are done lazily to avoid circular imports
 
 VALID_FORMATS = ['parquet', 'feather', 'shp', 'geojson', 'gpkg', 'txt', 'csv', 'h5', 'hdf5']
@@ -242,6 +245,44 @@ def print_success(message, logger=None):
     out("")
 
 
+@contextmanager
+def cli_exception_handler(args, logger=None):
+    """Standard exception handling context manager for CLI tools.
+
+    Provides consistent error handling across CLI tools:
+    - KeyboardInterrupt: Clean exit with message
+    - Other exceptions: Print error message, optionally show traceback in verbose mode
+
+    Args:
+        args: Parsed arguments with 'verbose' attribute for traceback control
+        logger: Optional logger (not currently used, reserved for future use)
+
+    Usage:
+        with cli_exception_handler(args):
+            # CLI main logic here
+            pass
+
+    Example:
+        def main():
+            args = get_cmd_args()
+            with cli_exception_handler(args):
+                # Main CLI logic
+                client = Client(**dask_kwargs)
+                ...
+    """
+    try:
+        yield
+    except KeyboardInterrupt:
+        print("\n\nOperation cancelled by user.")
+        sys.exit(130)
+    except Exception as e:
+        print(f"\n\nERROR: {type(e).__name__}: {e}")
+        if hasattr(args, 'verbose') and args.verbose >= 2:
+            import traceback
+            traceback.print_exc()
+        sys.exit(1)
+
+
 # =============================================================================
 # Shared Data Loading Functions
 # =============================================================================
@@ -449,6 +490,65 @@ def get_rasterizable_columns(ddf):
     return get_numeric_columns(ddf, exclude_internal=True)
 
 
+def get_aggregatable_columns(df):
+    """Get numeric columns suitable for aggregation from a DataFrame.
+
+    This is a convenience function that returns numeric columns excluding
+    internal/partition columns (h3_XX, egiXX, _egi_x, _egi_y, shot_number, etc.).
+
+    This encapsulates the common pattern:
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        filtered_cols = filter_data_columns(numeric_cols)
+
+    Args:
+        df: DataFrame, GeoDataFrame, or Dask DataFrame
+
+    Returns:
+        List of column names suitable for aggregation
+    """
+    import numpy as np
+
+    # Handle both Dask and pandas DataFrames
+    if hasattr(df, '_meta'):
+        # Dask DataFrame - use _meta for column type inspection
+        numeric_cols = df._meta.select_dtypes(include=[np.number]).columns.tolist()
+    else:
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+
+    return filter_data_columns(numeric_cols)
+
+
+def filter_raster_columns(columns, geodf):
+    """Filter columns suitable for rasterization, excluding internal columns.
+
+    Internal columns (egi indices, h3 indices, shot_number) should not be
+    rasterized as bands - they're metadata, not data values.
+    Also excludes the index column since it will become a column after reset_index().
+
+    Args:
+        columns: List of column names to filter, or None to auto-detect numeric columns
+        geodf: GeoDataFrame to get numeric columns and index name from
+
+    Returns:
+        List of filtered column names suitable for rasterization, or None if empty
+    """
+    import numpy as np
+
+    # Get the index column name to exclude (it becomes a column after reset_index)
+    index_col = geodf.index.name
+
+    if columns is not None:
+        # Filter provided columns (also exclude index column)
+        filtered = [c for c in columns if not is_internal_column(c)
+                    and c != 'geometry' and c != index_col]
+        return filtered if filtered else None
+    else:
+        # Auto-detect numeric columns, excluding internal ones and index column
+        numeric = geodf.select_dtypes(include=[np.number]).columns.tolist()
+        filtered = [c for c in numeric if not is_internal_column(c) and c != index_col]
+        return filtered if filtered else None
+
+
 def h3_col_name(level):
     """Get H3 column name for a given resolution level.
 
@@ -460,16 +560,54 @@ def h3_col_name(level):
     """
     return f'h3_{level:02d}'
 
+
+def find_coordinate_column(columns, base_name):
+    """Find a coordinate column by base name, handling product suffixes.
+
+    In the H3 database, coordinate columns may have product suffixes
+    (e.g., 'lon_lowestmode_l2a' instead of 'lon_lowestmode').
+
+    Args:
+        columns: list-like of available column names
+        base_name: Base column name to search for (e.g., 'lon_lowestmode')
+
+    Returns:
+        Actual column name if found, None otherwise
+
+    Examples:
+        >>> find_coordinate_column(['lon_lowestmode_l2a', 'lat_lowestmode_l2a'], 'lon_lowestmode')
+        'lon_lowestmode_l2a'
+        >>> find_coordinate_column(['lon', 'lat'], 'lon')
+        'lon'
+    """
+    columns = list(columns)
+
+    # Exact match
+    if base_name in columns:
+        return base_name
+
+    # Find columns starting with base_name
+    matches = [c for c in columns if c.startswith(base_name)]
+
+    if len(matches) == 1:
+        return matches[0]
+    elif len(matches) > 1:
+        # Prefer _l2a suffix since coordinates typically come from L2A product
+        l2a_matches = [c for c in matches if c.endswith('_l2a')]
+        return l2a_matches[0] if l2a_matches else matches[0]
+
+    return None
+
 def parse_file_format(args, default='parquet'):
-    file_format = args.output.split('.')[-1].lower() if args.output else None    
-    
+    file_format = args.output.split('.')[-1].lower() if args.output else None
+
     if file_format in VALID_FORMATS:
         fmt = file_format
-    else:    
+    else:
         fmt = args.format.lower() if args.format else default
-    
+
     if fmt not in VALID_FORMATS:
-        raise ValueError(f"Invalid file format: {fmt}. Supported formats are: {', '.join(VALID_FORMATS)}")
+        raise GediValidationError(f"Invalid file format: {fmt}. Supported formats are: {', '.join(VALID_FORMATS)}")
     return fmt    
 
 def parse_gedi_args(args):
@@ -488,7 +626,7 @@ def parse_dask_args(args):
         if os.path.isfile(args.dask_config):
             dask.config.set(config=dask.config.collect([args.dask_config]))
         else:
-            raise ValueError(f"Dask config file not found: {args.dask_config}")
+            raise GediValidationError(f"Dask config file not found: {args.dask_config}")
 
     # Configure Dask to suppress performance warnings unless in DEBUG mode
     verbose = getattr(args, 'verbose', 0)
@@ -525,18 +663,24 @@ def parse_region(region_str: Optional[str]):
         try:
             return read_vector_file(region_str, crs=4326)
         except Exception as e:
-            raise ValueError(f"Error reading vector file from URL: {e}")        
+            raise GediValidationError(f"Error reading vector file from URL: {e}")
 
     # Try as bounding box: "W,S,E,N"
     if ',' in region_str:
+        from .validation import validate_bbox
         try:
             coords = [float(x.strip()) for x in region_str.split(',')]
             if len(coords) == 4:
+                # Validate bbox coordinates
+                validate_bbox(coords)
                 return parse_spatial(coords)
             else:
-                raise ValueError(f"Invalid bounding box format: {region_str}")
-        except ValueError:
-            raise ValueError(f"Invalid bounding box format: {region_str}")
+                raise GediValidationError(f"Invalid bounding box format: {region_str}")
+        except ValueError as e:
+            # Re-raise with proper context if it's from validate_bbox
+            if 'must be' in str(e):
+                raise GediValidationError(f"Invalid bounding box: {e}")
+            raise GediValidationError(f"Invalid bounding box format: {region_str}")
 
     # Try as ISO3 country code
     if len(region_str) == 3 and region_str.isalpha():
@@ -548,11 +692,11 @@ def parse_region(region_str: Optional[str]):
             if not match.empty:
                 return match.to_crs(4326)
             else:
-                raise ValueError(f"ISO3 code not found: {iso3}")
+                raise GediValidationError(f"ISO3 code not found: {iso3}")
         except Exception:
-            raise ValueError(f"Invalid ISO3 code: {iso3}")
+            raise GediValidationError(f"Invalid ISO3 code: {iso3}")
 
-    raise ValueError(f"Invalid region specification: {region_str}")
+    raise GediValidationError(f"Invalid region specification: {region_str}")
 
 def collect_columns(args):
     """
@@ -572,7 +716,7 @@ def collect_columns(args):
 
         missing = [v for v in read_cols if v not in h3_columns]
         if missing:
-            raise ValueError(f"The following variables from --list were not found: {', '.join(missing)}")
+            raise GediValidationError(f"The following variables from --list were not found: {', '.join(missing)}")
 
     product_map = {i: getattr(args, i.lower()) for i in GEDI_PRODUCTS.keys() if getattr(args, i.lower()) is not None}
     prod_vars = gedi_vars_expand(product_map)
@@ -594,7 +738,7 @@ def collect_columns(args):
             h3_vars = [col for col in h3_columns if re.match(var, col)]
 
             if len(h3_vars) == 0:
-                raise ValueError(f"Variable '{var}' from --{prod.lower()} not found in database columns")
+                raise GediValidationError(f"Variable '{var}' from --{prod.lower()} not found in database columns")
 
             read_cols += h3_vars
 

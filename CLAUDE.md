@@ -2,6 +2,269 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+---
+
+## AI Agent Operating Principles (Non-Negotiable)
+
+- **Correctness over cleverness**: Prefer boring, readable solutions that are easy to maintain.
+- **Smallest change that works**: Minimize blast radius; don't refactor adjacent code unless it meaningfully reduces risk or complexity.
+- **Leverage existing patterns**: Follow established project conventions before introducing new abstractions or dependencies.
+- **Prove it works**: "Seems right" is not done. Validate with tests/build/lint and/or a reliable manual repro.
+- **Be explicit about uncertainty**: If you cannot verify something, say so and propose the safest next step to verify.
+- **DRY and reuse**: Always check for existing utilities before writing new code. Reuse functions across modules.
+
+---
+
+## Workflow Orchestration
+
+### 1. Plan Mode Default
+- Enter plan mode for any non-trivial task (3+ steps, multi-file change, architectural decision, production-impacting behavior).
+- Include verification steps in the plan (not as an afterthought).
+- If new information invalidates the plan: **stop**, update the plan, then continue.
+- Write a crisp spec first when requirements are ambiguous (inputs/outputs, edge cases, success criteria).
+
+### 2. Subagent Strategy (Parallelize Intelligently)
+- Use subagents to keep the main context clean and to parallelize:
+  - repo exploration, pattern discovery, test failure triage, dependency research, risk review.
+- Give each subagent **one focused objective** and a concrete deliverable:
+  - "Find where X is implemented and list files + key functions" beats "look around."
+- Merge subagent outputs into a short, actionable synthesis before coding.
+
+### 3. Incremental Delivery (Reduce Risk)
+- Prefer **thin vertical slices** over big-bang changes.
+- Land work in small, verifiable increments:
+  - implement → test → verify → then expand.
+- When feasible, keep changes behind:
+  - feature flags, config switches, or safe defaults.
+
+### 4. Self-Improvement Loop
+- After any user correction or a discovered mistake:
+  - add a new entry to `tasks/lessons.md` capturing:
+    - the failure mode, the detection signal, and a prevention rule.
+- Review `tasks/lessons.md` at session start and before major refactors.
+
+### 5. Verification Before "Done"
+- Never mark complete without evidence:
+  - tests, lint/typecheck, build, logs, or a deterministic manual repro.
+- Compare behavior baseline vs changed behavior when relevant.
+- Ask: "Would a staff engineer approve this diff and the verification story?"
+
+### 6. Demand Elegance (Balanced)
+- For non-trivial changes, pause and ask:
+  - "Is there a simpler structure with fewer moving parts?"
+- If the fix is hacky, rewrite it the elegant way **if** it does not expand scope materially.
+- Do not over-engineer simple fixes; keep momentum and clarity.
+
+### 7. Autonomous Bug Fixing (With Guardrails)
+- When given a bug report:
+  - reproduce → isolate root cause → fix → add regression coverage → verify.
+- Do not offload debugging work to the user unless truly blocked.
+- If blocked, ask for **one** missing detail with a recommended default and explain what changes based on the answer.
+
+---
+
+## Task Management (File-Based, Auditable)
+
+1. **Plan First**
+   - Write a checklist to `tasks/todo.md` for any non-trivial work.
+   - Include "Verify" tasks explicitly (lint/tests/build/manual checks).
+2. **Define Success**
+   - Add acceptance criteria (what must be true when done).
+3. **Track Progress**
+   - Mark items complete as you go; keep one "in progress" item at a time.
+4. **Checkpoint Notes**
+   - Capture discoveries, decisions, and constraints as you learn them.
+5. **Document Results**
+   - Add a short "Results" section: what changed, where, how verified.
+6. **Capture Lessons**
+   - Update `tasks/lessons.md` after corrections or postmortems.
+
+---
+
+## Communication Guidelines
+
+### 1. Be Concise, High-Signal
+- Lead with outcome and impact, not process.
+- Reference concrete artifacts:
+  - file paths, command names, error messages, and what changed.
+- Avoid dumping large logs; summarize and point to where evidence lives.
+
+### 2. Ask Questions Only When Blocked
+When you must ask:
+- Ask **exactly one** targeted question.
+- Provide a recommended default.
+- State what would change depending on the answer.
+
+### 3. State Assumptions and Constraints
+- If you inferred requirements, list them briefly.
+- If you could not run verification, say why and how to verify.
+
+### 4. Show the Verification Story
+- Always include:
+  - what you ran (tests/lint/build), and the outcome.
+- If you didn't run something, give a minimal command list the user can run.
+
+### 5. Avoid "Busywork Updates"
+- Don't narrate every step.
+- Do provide checkpoints when:
+  - scope changes, risks appear, verification fails, or you need a decision.
+
+---
+
+## Context Management Strategies
+
+### 1. Read Before Write
+- Before editing:
+  - locate the authoritative source of truth (existing module/pattern/tests).
+- Prefer small, local reads (targeted files) over scanning the whole repo.
+
+### 2. Keep a Working Memory
+- Maintain a short running "Working Notes" section in `tasks/todo.md`:
+  - key constraints, invariants, decisions, and discovered pitfalls.
+- When context gets large:
+  - compress into a brief summary and discard raw noise.
+
+### 3. Minimize Cognitive Load in Code
+- Prefer explicit names and direct control flow.
+- Avoid clever meta-programming unless the project already uses it.
+- Leave code easier to read than you found it.
+
+### 4. Control Scope Creep
+- If a change reveals deeper issues:
+  - fix only what is necessary for correctness/safety.
+  - log follow-ups as TODOs/issues rather than expanding the current task.
+
+---
+
+## Error Handling and Recovery Patterns
+
+### 1. "Stop-the-Line" Rule
+If anything unexpected happens (test failures, build errors, behavior regressions):
+- stop adding features
+- preserve evidence (error output, repro steps)
+- return to diagnosis and re-plan
+
+### 2. Triage Checklist (Use in Order)
+1. **Reproduce** reliably (test, script, or minimal steps).
+2. **Localize** the failure (which layer: UI, API, DB, network, build tooling).
+3. **Reduce** to a minimal failing case (smaller input, fewer steps).
+4. **Fix** root cause (not symptoms).
+5. **Guard** with regression coverage (test or invariant checks).
+6. **Verify** end-to-end for the original report.
+
+### 3. Safe Fallbacks (When Under Time Pressure)
+- Prefer "safe default + warning" over partial behavior.
+- Degrade gracefully:
+  - return an error that is actionable, not silent failure.
+- Avoid broad refactors as "fixes."
+
+### 4. Rollback Strategy (When Risk Is High)
+- Keep changes reversible:
+  - feature flag, config gating, or isolated commits.
+- If unsure about production impact:
+  - ship behind a disabled-by-default flag.
+
+### 5. Instrumentation as a Tool (Not a Crutch)
+- Add logging/metrics only when they:
+  - materially reduce debugging time, or prevent recurrence.
+- Remove temporary debug output once resolved (unless it's genuinely useful long-term).
+
+---
+
+## Engineering Best Practices
+
+### 1. API / Interface Discipline
+- Design boundaries around stable interfaces:
+  - functions, modules, components, route handlers.
+- Prefer adding optional parameters over duplicating code paths.
+- Keep error semantics consistent (throw vs return error vs empty result).
+
+### 2. Testing Strategy
+- Add the smallest test that would have caught the bug.
+- Prefer:
+  - unit tests for pure logic,
+  - integration tests for DB/network boundaries,
+  - E2E only for critical user flows.
+- Avoid brittle tests tied to incidental implementation details.
+
+### 3. Type Safety and Invariants
+- Avoid suppressions (`any`, ignores) unless the project explicitly permits and you have no alternative.
+- Encode invariants where they belong:
+  - validation at boundaries, not scattered checks.
+
+### 4. Dependency Discipline
+- Do not add new dependencies unless:
+  - the existing stack cannot solve it cleanly, and the benefit is clear.
+- Prefer standard library / existing utilities.
+
+### 5. Security and Privacy
+- Never introduce secret material into code, logs, or chat output.
+- Treat user input as untrusted:
+  - validate, sanitize, and constrain.
+- Prefer least privilege (especially for DB access and server-side actions).
+
+### 6. Performance (Pragmatic)
+- Avoid premature optimization.
+- Do fix:
+  - obvious N+1 patterns, accidental unbounded loops, repeated heavy computation.
+- Measure when in doubt; don't guess.
+
+### 7. DRY and Code Reuse
+- **Before writing new code**: Search for existing utilities in `cliutils.py`, `utils.py`, `validation.py`, and `egi/` modules.
+- **Common utilities belong in shared modules**: If functionality is needed in 2+ places, extract to `cliutils.py` or `utils.py`.
+- **Use existing patterns**: Check how similar operations are done elsewhere in the codebase.
+- **Avoid copy-paste**: If you find yourself copying code, refactor into a shared function.
+
+---
+
+## Git and Change Hygiene
+
+- Keep commits atomic and describable; avoid "misc fixes" bundles.
+- Don't rewrite history unless explicitly requested.
+- Don't mix formatting-only changes with behavioral changes unless the repo standard requires it.
+- Treat generated files carefully:
+  - only commit them if the project expects it.
+
+---
+
+## Definition of Done (DoD)
+
+A task is done when:
+- Behavior matches acceptance criteria.
+- Tests/lint/typecheck/build (as relevant) pass or you have a documented reason they were not run.
+- Risky changes have a rollback/flag strategy (when applicable).
+- The code follows existing conventions and is readable.
+- A short verification story exists: "what changed + how we know it works."
+
+---
+
+## Templates
+
+### Plan Template (Paste into `tasks/todo.md`)
+```markdown
+- [ ] Restate goal + acceptance criteria
+- [ ] Locate existing implementation / patterns
+- [ ] Design: minimal approach + key decisions
+- [ ] Implement smallest safe slice
+- [ ] Add/adjust tests
+- [ ] Run verification (lint/tests/build/manual repro)
+- [ ] Summarize changes + verification story
+- [ ] Record lessons (if any)
+```
+
+### Bugfix Template (Use for Reports)
+```markdown
+- Repro steps:
+- Expected vs actual:
+- Root cause:
+- Fix:
+- Regression coverage:
+- Verification performed:
+- Risk/rollback notes:
+```
+
+---
+
 ## Project Overview
 
 **gedih3** is a Python library for accessing NASA's GEDI (Global Ecosystem Dynamics Investigation) satellite LiDAR data with H3 and EGI spatial indexing. It handles downloading GEDI products from NASA's DAACs, building spatially-indexed parquet databases for efficient queries, extracting/aggregating data, and producing raster outputs.
@@ -652,14 +915,29 @@ gh3_read_schema /path/to/database/gedih3_build_log.json
 
 ## Claude Code Sub-Agents
 
-Four specialized sub-agents are configured in `.claude/agents/` for domain-specific work:
+Five specialized sub-agents are configured in `.claude/agents/` for domain-specific work:
 
 | Agent | File | Use For |
 |-------|------|---------|
 | `core-pipeline` | `.claude/agents/core-pipeline.md` | Download, build, extract, aggregate workflows |
 | `raster-egi` | `.claude/agents/raster-egi.md` | Spatial indexing, rasterization, CRS transforms |
 | `cli-deployment` | `.claude/agents/cli-deployment.md` | CLI tools, configuration, deployment |
-| `testing-qa` | `.claude/agents/testing-qa.md` | Test coverage, validation, benchmarking |
+| `testing-qa` | `.claude/agents/testing-qa.md` | Test coverage, validation, benchmarking, **DRY/redundancy audits** |
+
+### DRY and Redundancy Checking
+
+The `testing-qa` agent is responsible for checking code redundancy and DRYness:
+- **Audit for duplicate code**: Before implementing new features, check if similar functionality exists
+- **Identify refactoring opportunities**: Find code that could be extracted to shared utilities
+- **Enforce reuse patterns**: Ensure new code uses existing utilities from `cliutils.py`, `utils.py`, `validation.py`
+- **Cross-module consistency**: Verify similar operations across modules use the same underlying functions
+
+**Invoke for DRY audits**:
+```
+> Use the testing-qa agent to check for code redundancy in the EGI module
+> Have testing-qa audit cliutils.py for functions that should be reused elsewhere
+> Ask testing-qa to identify duplicate logic across CLI tools
+```
 
 ### How to Use Sub-Agents
 

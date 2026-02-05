@@ -8,45 +8,8 @@ import dask_geopandas
 from .config import GH3_DEFAULT_H3_DIR, configure_environment
 from .utils import json_read, json_write, now, get_package_version, is_parquet
 from .h3utils import intersect_h3_geometries, fix_h3_geometry
-from .cliutils import filter_data_columns
-
-
-def _find_coordinate_column(columns, base_name):
-    """
-    Find a coordinate column by base name, handling product suffixes.
-
-    In the H3 database, coordinate columns may have product suffixes
-    (e.g., 'lon_lowestmode_l2a' instead of 'lon_lowestmode').
-
-    Parameters
-    ----------
-    columns : list-like
-        Available column names
-    base_name : str
-        Base column name to search for (e.g., 'lon_lowestmode')
-
-    Returns
-    -------
-    str or None
-        Actual column name if found, None otherwise
-    """
-    columns = list(columns)
-
-    # Exact match
-    if base_name in columns:
-        return base_name
-
-    # Find columns starting with base_name
-    matches = [c for c in columns if c.startswith(base_name)]
-
-    if len(matches) == 1:
-        return matches[0]
-    elif len(matches) > 1:
-        # Prefer _l2a suffix since coordinates typically come from L2A product
-        l2a_matches = [c for c in matches if c.endswith('_l2a')]
-        return l2a_matches[0] if l2a_matches else matches[0]
-
-    return None
+from .cliutils import filter_data_columns, find_coordinate_column, get_aggregatable_columns
+from .exceptions import GediValidationError
 
 def gh3_set_db_path(gh3_root_dir=GH3_DEFAULT_H3_DIR):
     os.environ['GH3_DEFAULT_H3_DIR'] = gh3_root_dir
@@ -282,8 +245,7 @@ def gh3_aggregate_func(df, res, agg='mean', cols=None, **kwargs):
         g = g[cols]
     else:
         # Filter out internal columns (h3_XX, egiXX, _egi_x, _egi_y, shot_number, geometry)
-        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        filtered_cols = filter_data_columns(numeric_cols)
+        filtered_cols = get_aggregatable_columns(df)
         if filtered_cols:
             g = g[filtered_cols]
     out = g.apply(agg, include_groups=False, **kwargs) if callable(agg) else g.agg(agg)
@@ -627,7 +589,7 @@ def _prepare_egi_loading(region, gh3_dir):
         elif isinstance(region, gpd.GeoSeries):
             region_gdf = gpd.GeoDataFrame(geometry=region)
         else:
-            raise ValueError(f"region must be GeoDataFrame, bbox list, or None. Got {type(region)}")
+            raise GediValidationError(f"region must be GeoDataFrame, bbox list, or None. Got {type(region)}")
 
     # Get EGI tiles for region
     egi_tiles = egi.aoi_tiles(region_gdf)
@@ -795,36 +757,65 @@ def _find_parquet_file(gh3_dir):
         if parquet_files:
             return parquet_files[0]
 
-    raise ValueError(f"No parquet files found in any H3 partition directory in {gh3_dir}")
+    raise GediValidationError(f"No parquet files found in any H3 partition directory in {gh3_dir}")
 
 
-def _build_egi_load_meta(load_cols, gh3_dir, index_level, partition_level, include_geometry=True, set_index=True):
+def _get_schema_columns(load_cols, gh3_dir, exclude_geometry=False):
     """
-    Build metadata for egi_load() without loading actual data.
+    Get schema and columns from H3 database parquet files.
 
-    This avoids the metadata inference error when sample data is empty.
+    This is shared logic used by EGI metadata building functions.
+
+    Parameters
+    ----------
+    load_cols : list or None
+        Columns to load, or None for all columns
+    gh3_dir : str
+        Path to H3 database directory
+    exclude_geometry : bool
+        If True, exclude geometry column from result
+
+    Returns
+    -------
+    tuple
+        (schema, meta_cols) where schema is pyarrow schema and meta_cols is list of column names
     """
-    from . import egi
     import pyarrow.parquet as pq
-
-    egi_index_col = egi.egi_col_name(index_level)
-    egi_part_col = egi.egi_col_name(partition_level)
 
     # Get schema from a parquet file in database
     parquet_file = _find_parquet_file(gh3_dir)
-
     schema = pq.read_schema(parquet_file)
     schema_cols = schema.names
 
     # Determine columns for metadata
     if load_cols is not None:
         meta_cols = [c for c in load_cols if c in schema_cols]
+        if exclude_geometry:
+            meta_cols = [c for c in meta_cols if c != 'geometry']
     else:
         meta_cols = [c for c in schema_cols if c != 'geometry']
 
-    # Build empty DataFrame with correct dtypes
+    return schema, meta_cols
+
+
+def _build_meta_dict_from_schema(schema, columns):
+    """
+    Build empty DataFrame column dict with correct dtypes from schema.
+
+    Parameters
+    ----------
+    schema : pyarrow.Schema
+        Schema from parquet file
+    columns : list
+        Column names to include
+
+    Returns
+    -------
+    dict
+        Dictionary mapping column names to empty pandas arrays with correct dtypes
+    """
     meta_dict = {}
-    for col in meta_cols:
+    for col in columns:
         if col == 'geometry':
             continue
         field_idx = schema.get_field_index(col)
@@ -835,7 +826,25 @@ def _build_egi_load_meta(load_cols, gh3_dir, index_level, partition_level, inclu
                 meta_dict[col] = pd.array([], dtype=pa_type.to_pandas_dtype())
             except (NotImplementedError, TypeError):
                 meta_dict[col] = pd.array([], dtype=object)
+    return meta_dict
 
+
+def _build_egi_load_meta(load_cols, gh3_dir, index_level, partition_level, include_geometry=True, set_index=True):
+    """
+    Build metadata for egi_load() without loading actual data.
+
+    This avoids the metadata inference error when sample data is empty.
+    """
+    from . import egi
+
+    egi_index_col = egi.egi_col_name(index_level)
+    egi_part_col = egi.egi_col_name(partition_level)
+
+    # Get schema and columns from database
+    schema, meta_cols = _get_schema_columns(load_cols, gh3_dir, exclude_geometry=False)
+
+    # Build empty DataFrame with correct dtypes
+    meta_dict = _build_meta_dict_from_schema(schema, meta_cols)
     _meta = pd.DataFrame(meta_dict)
 
     # Add EGI columns
@@ -860,22 +869,13 @@ def _build_egi_aggregate_meta(load_cols, gh3_dir, target_level, partition_level,
     This avoids the metadata inference error when sample data is empty.
     """
     from . import egi
-    import pyarrow.parquet as pq
+    import pyarrow as pa
 
     egi_col = egi.egi_col_name(target_level)
     egi_part_col = egi.egi_col_name(partition_level)
 
-    # Get schema from a parquet file in database
-    parquet_file = _find_parquet_file(gh3_dir)
-
-    schema = pq.read_schema(parquet_file)
-    schema_cols = schema.names
-
-    # Determine columns for metadata - need numeric columns only
-    if load_cols is not None:
-        meta_cols = [c for c in load_cols if c in schema_cols and c != 'geometry']
-    else:
-        meta_cols = [c for c in schema_cols if c != 'geometry']
+    # Get schema and columns from database (exclude geometry)
+    schema, meta_cols = _get_schema_columns(load_cols, gh3_dir, exclude_geometry=True)
 
     # Filter to numeric columns (aggregation only works on numeric)
     numeric_cols = []
@@ -883,7 +883,6 @@ def _build_egi_aggregate_meta(load_cols, gh3_dir, target_level, partition_level,
         field_idx = schema.get_field_index(col)
         if field_idx >= 0:
             pa_type = schema.field(field_idx).type
-            import pyarrow as pa
             if pa.types.is_floating(pa_type) or pa.types.is_integer(pa_type):
                 numeric_cols.append(col)
 
@@ -1110,8 +1109,7 @@ def egi_load_and_aggregate(columns=None, region=None, query=None, gh3_dir=GH3_DE
         df = df.set_index(egi_col)
 
         # Filter to numeric columns for aggregation
-        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        agg_cols = filter_data_columns(numeric_cols)
+        agg_cols = get_aggregatable_columns(df)
 
         if not agg_cols:
             return pd.DataFrame()
@@ -1229,8 +1227,8 @@ def _egi_repartition(gh3_df, shuffle_level, x_col='lon_lowestmode', y_col='lat_l
             x, y = transformer.transform(wgs84_x, wgs84_y)
         else:
             # Use coordinate columns (assumed WGS84)
-            actual_x_col = _find_coordinate_column(df.columns, x_col)
-            actual_y_col = _find_coordinate_column(df.columns, y_col)
+            actual_x_col = find_coordinate_column(df.columns, x_col)
+            actual_y_col = find_coordinate_column(df.columns, y_col)
             if actual_x_col is None or actual_y_col is None:
                 raise ValueError(f"Coordinate columns not found: {x_col}, {y_col}")
 
@@ -1327,8 +1325,8 @@ def egi_aggregate_func(df, level, agg='mean', cols=None, x_col='lon_lowestmode',
 
     if not is_point_gdf:
         # Need coordinate columns - try to find them with potential product suffixes
-        actual_x_col = _find_coordinate_column(df.columns, x_col)
-        actual_y_col = _find_coordinate_column(df.columns, y_col)
+        actual_x_col = find_coordinate_column(df.columns, x_col)
+        actual_y_col = find_coordinate_column(df.columns, y_col)
 
         if actual_x_col is None or actual_y_col is None:
             raise ValueError(
@@ -1419,8 +1417,7 @@ def _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi'):
         cols = [c for c in columns if c in sample.columns]
     else:
         # Filter out internal columns (h3_XX, egiXX, _egi_x, _egi_y, shot_number, geometry)
-        numeric_cols = sample.select_dtypes(include=[np.number]).columns.tolist()
-        cols = filter_data_columns(numeric_cols)
+        cols = get_aggregatable_columns(sample)
 
     # Build metadata with aggregated column names
     if isinstance(agg, dict):
@@ -1528,8 +1525,7 @@ def egi_aggregate(gh3_df, target_level=6, agg='mean', columns=None, query=None,
                 df = df[agg_cols]
         else:
             # Filter out internal columns (h3_XX, egiXX, _egi_x, _egi_y, shot_number, geometry)
-            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-            filtered_cols = filter_data_columns(numeric_cols)
+            filtered_cols = get_aggregatable_columns(df)
             if filtered_cols:
                 df = df[filtered_cols]
 
