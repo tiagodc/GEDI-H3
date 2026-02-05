@@ -82,6 +82,7 @@ from .spatial import (
     get_children,
     aoi_tiles,
     to_geodataframe,
+    egi_h3_intersection,
 )
 
 # DataFrame operations
@@ -138,6 +139,7 @@ __all__ = [
     'get_children',
     'aoi_tiles',
     'to_geodataframe',
+    'egi_h3_intersection',
     # DataFrame
     'egi_dataframe',
     'egi_dataframe_vectorized',

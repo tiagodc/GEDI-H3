@@ -391,3 +391,54 @@ def to_geodataframe(
     ).set_index(idx_name)
 
     return gdf
+
+
+def egi_h3_intersection(
+    egi_tiles: gpd.GeoDataFrame,
+    h3_gdf: gpd.GeoDataFrame
+) -> dict:
+    """
+    Map EGI tiles to intersecting H3 partition cells using spatial index.
+
+    This function efficiently computes which H3 cells intersect each EGI tile,
+    enabling direct loading of data into EGI partitions without full shuffle.
+
+    Parameters
+    ----------
+    egi_tiles : GeoDataFrame
+        EGI tiles (typically level 12), indexed by EGI hash
+    h3_gdf : GeoDataFrame
+        H3 partition cells, indexed by H3 ID (string)
+
+    Returns
+    -------
+    dict
+        Mapping of EGI tile hash -> list of intersecting H3 IDs
+
+    Examples
+    --------
+    >>> egi_tiles = aoi_tiles(region)
+    >>> h3_gdf = h3_parts_to_gdf(h3_ids)
+    >>> egi_to_h3 = egi_h3_intersection(egi_tiles, h3_gdf)
+    >>> for egi_id, h3_list in egi_to_h3.items():
+    ...     # Load data from h3_list files for egi_id tile
+    """
+    # Ensure same CRS (use WGS84 for intersection)
+    if egi_tiles.crs.to_epsg() != 4326:
+        egi_tiles = egi_tiles.to_crs(4326)
+    if h3_gdf.crs.to_epsg() != 4326:
+        h3_gdf = h3_gdf.to_crs(4326)
+
+    # Build spatial index on H3 cells
+    h3_sindex = h3_gdf.sindex
+
+    egi_to_h3 = {}
+    for egi_id in egi_tiles.index:
+        egi_geom = egi_tiles.loc[egi_id, 'geometry']
+        # Query spatial index for intersecting H3 cells
+        candidate_idx = h3_sindex.query(egi_geom, predicate='intersects')
+        intersecting_h3 = h3_gdf.index[candidate_idx].tolist()
+        if intersecting_h3:
+            egi_to_h3[egi_id] = intersecting_h3
+
+    return egi_to_h3
