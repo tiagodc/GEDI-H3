@@ -89,7 +89,10 @@ def main():
         args.port = 9994
         args.egi = (1, 12)  # (index_level, partition_level)
 
-    try:
+    # Import cli_exception_handler early for wrapping the main logic
+    from gedih3.cliutils import cli_exception_handler
+
+    with cli_exception_handler(args):
         import glob
         import numpy as np
         import pandas as pd
@@ -284,17 +287,6 @@ def main():
 
             print_success(f"Data exported to {args.output}", logger=logger)
 
-    except KeyboardInterrupt:
-        print("\n\nOperation cancelled by user.")
-        sys.exit(130)
-
-    except Exception as e:
-        # Use print here since logger may not be configured yet
-        print(f"\n\nERROR: {type(e).__name__}: {e}")
-        if args.verbose >= 2:
-            import traceback
-            traceback.print_exc()
-        sys.exit(1)
 
 if __name__ == '__main__':
     main()

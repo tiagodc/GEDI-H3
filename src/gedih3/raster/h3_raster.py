@@ -21,6 +21,8 @@ import pyproj
 from geocube.api.core import make_geocube
 
 from .config import H3_RASTER_CRS, get_geotiff_options
+from ..cliutils import filter_raster_columns as _filter_raster_columns
+from ..exceptions import GediRasterizationError
 
 
 def get_h3_resolution_meters(h3_level: int) -> float:
@@ -103,40 +105,6 @@ def _detect_partition_level(gdf: gpd.GeoDataFrame) -> Optional[int]:
     return None
 
 
-def _filter_raster_columns(columns: Optional[List[str]], gdf: gpd.GeoDataFrame) -> Optional[List[str]]:
-    """Filter out internal/partition columns from rasterization.
-
-    Internal columns (h3 indices, egi indices, shot_number) should not be
-    rasterized as bands - they're metadata, not data values.
-    Also excludes the index column since it will become a column after reset_index().
-    """
-    import re
-
-    # Patterns for internal columns to exclude from rasterization
-    internal_patterns = [
-        r'^h3_\d{2}$',       # H3 partition columns (h3_03, h3_06, etc.)
-        r'^egi\d+$',         # EGI index columns (egi06, egi12, etc.)
-        r'^_egi_[xy]$',      # Internal EGI coordinate columns
-        r'^shot_number',     # Shot identifier
-    ]
-
-    def is_internal(col_name):
-        return any(re.match(p, str(col_name)) for p in internal_patterns)
-
-    # Get the index column name to exclude (it becomes a column after reset_index)
-    index_col = gdf.index.name
-
-    if columns is not None:
-        # Filter provided columns (also exclude index column)
-        filtered = [c for c in columns if not is_internal(c) and c != 'geometry' and c != index_col]
-        return filtered if filtered else None
-    else:
-        # Auto-detect numeric columns, excluding internal ones and index column
-        numeric = gdf.select_dtypes(include=[np.number]).columns.tolist()
-        filtered = [c for c in numeric if not is_internal(c) and c != index_col]
-        return filtered if filtered else None
-
-
 def h3_to_raster(
     gdf: gpd.GeoDataFrame,
     resolution: Optional[Tuple[float, float]] = None,
@@ -181,7 +149,7 @@ def h3_to_raster(
     >>> raster.rio.to_raster("output.tif")
     """
     if gdf.empty:
-        raise ValueError("Cannot rasterize empty GeoDataFrame")
+        raise GediRasterizationError("Cannot rasterize empty GeoDataFrame")
 
     # Filter out internal columns from rasterization
     columns = _filter_raster_columns(columns, gdf)
@@ -218,7 +186,7 @@ def h3_to_raster(
     # Determine resolution if not provided
     if resolution is None:
         if h3_level is None:
-            raise ValueError("Cannot determine raster resolution: no H3 level found in data and no resolution provided")
+            raise GediRasterizationError("Cannot determine raster resolution: no H3 level found in data and no resolution provided")
         res_meters = get_h3_resolution_meters(h3_level)
         # Get optimal UTM for accurate resolution
         utm_epsg = get_optimal_utm(gdf)

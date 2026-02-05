@@ -113,7 +113,10 @@ def main():
     else:
         egi_agg_level, egi_partition_level = None, None
 
-    try:
+    # Import cli_exception_handler early for wrapping the main logic
+    from gedih3.cliutils import cli_exception_handler
+
+    with cli_exception_handler(args):
         import glob
         import pandas as pd
         from dask.distributed import Client, progress
@@ -321,16 +324,6 @@ def main():
                 raster_files = glob.glob(f"{raster_dir}/*.tif")
                 print_success(f"{len(raster_files)} raster files exported to {raster_dir}", logger=logger)
 
-    except KeyboardInterrupt:
-        print("\n\nOperation cancelled by user.")
-        sys.exit(130)
-
-    except Exception as e:
-        print(f"\n\nERROR: {type(e).__name__}: {e}")
-        if args.verbose >= 2:
-            import traceback
-            traceback.print_exc()
-        sys.exit(1)
 
 if __name__ == '__main__':
     main()
