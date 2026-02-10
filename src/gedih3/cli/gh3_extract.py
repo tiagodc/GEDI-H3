@@ -36,7 +36,8 @@ def get_cmd_args():
 
     # Indexing options
     p.add_argument("-egi", "--egi", dest="egi", type=parse_egi_levels, default=None,
-                   help="EGI indexing as 'index[:partition]' e.g., '1' (default partition=12) or '1:12'")
+                   nargs='?', const=(1, 12),
+                   help="EGI indexing: bare flag defaults to 1:12, or 'index[:partition]' e.g., '1' or '6:12'")
     p.add_argument("--egi-shuffle", dest="egi_shuffle", action='store_true',
                    help="Use shuffle-based EGI extraction (gh3_load + egi_extract) instead of direct loading")
 
@@ -274,6 +275,7 @@ def main():
                 source_database=args.database,
                 query_filter=query_str,
                 tool='gh3_extract',
+                file_format=args.format,
                 **meta_kwargs
             )
 

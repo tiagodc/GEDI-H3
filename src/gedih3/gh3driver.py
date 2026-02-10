@@ -50,7 +50,8 @@ def gh3_write_meta(opath, **kwargs):
     return meta_path        
 
 def gh3_write_dataset_meta(opath, index_type='h3', index_level=None, columns=None,
-                           source_database=None, query_filter=None, tool=None, **kwargs):
+                           source_database=None, query_filter=None, tool=None,
+                           file_format='parquet', **kwargs):
     """
     Write simplified metadata for extracted/aggregated datasets.
 
@@ -73,14 +74,24 @@ def gh3_write_dataset_meta(opath, index_type='h3', index_level=None, columns=Non
         Query string used for filtering
     tool : str
         Name of the tool that created this dataset
+    file_format : str
+        Output file format (e.g. 'parquet', 'feather', 'gpkg')
     **kwargs
         Additional metadata to include
     """
-    # List parquet files in output directory
-    parquet_files = sorted(glob.glob(os.path.join(opath, '*.parquet')))
-    file_names = [os.path.basename(f) for f in parquet_files]
+    from .cliutils import list_dataset_files, PIPELINE_FORMATS
 
-    # Extract partition IDs from file names
+    # List data files in output directory
+    if file_format in PIPELINE_FORMATS:
+        try:
+            data_files = list_dataset_files(opath, fmt=file_format)
+        except FileNotFoundError:
+            data_files = []
+    else:
+        # Non-pipeline format: glob for whatever was written
+        data_files = sorted(glob.glob(os.path.join(opath, f'*.{file_format}')))
+
+    file_names = [os.path.basename(f) for f in data_files]
     partition_ids = [os.path.splitext(f)[0] for f in file_names]
 
     meta = {
@@ -89,11 +100,12 @@ def gh3_write_dataset_meta(opath, index_type='h3', index_level=None, columns=Non
             "format": "simplified",
             "description": "User-friendly dataset for use with external tools (R, QGIS, etc.)"
         },
+        "file_format": file_format,
         "index_type": index_type,
         "index_level": index_level,
         "columns": sorted(columns) if columns else [],
         "partition_ids": partition_ids,
-        "n_files": len(parquet_files),
+        "n_files": len(data_files),
         "source_database": source_database,
         "query_filter": query_filter,
         "tool": tool,
@@ -111,17 +123,17 @@ def gh3_load_dataset(dataset_path, columns=None, filters=None):
     """
     Load a simplified extracted/aggregated dataset.
 
-    This function loads user-friendly datasets created by gh3_extract or gh3_aggregate,
-    which consist of simple parquet files (not hive-partitioned).
+    This function loads user-friendly datasets created by gh3_extract or gh3_aggregate.
+    Supports parquet, feather, and gpkg formats (auto-detected from metadata or extension).
 
     Parameters
     ----------
     dataset_path : str
-        Path to the dataset directory
+        Path to the dataset directory or single file
     columns : list, optional
         Columns to load (if None, load all)
     filters : list, optional
-        PyArrow filters for predicate pushdown
+        PyArrow filters for predicate pushdown (parquet only)
 
     Returns
     -------
@@ -136,42 +148,64 @@ def gh3_load_dataset(dataset_path, columns=None, filters=None):
     >>> # Load specific columns
     >>> gdf = gh3.gh3_load_dataset('/path/to/extracted/', columns=['agbd_l4a', 'geometry'])
     """
-    # Check if it's a file or directory
+    from .cliutils import detect_dataset_format, list_dataset_files, make_dataset_reader
+
+    # Single file: detect format from extension
     if os.path.isfile(dataset_path):
-        # Single file
-        return gpd.read_parquet(dataset_path, columns=columns)
+        ext = os.path.splitext(dataset_path)[1].lstrip('.').lower()
+        fmt = ext if ext in ('parquet', 'feather', 'gpkg') else 'parquet'
+        reader = make_dataset_reader(fmt, columns=columns)
+        return reader(dataset_path)
 
-    # Directory - find parquet files
-    parquet_files = sorted(glob.glob(os.path.join(dataset_path, '*.parquet')))
+    # Directory: detect format and list files
+    fmt = detect_dataset_format(dataset_path)
 
-    if not parquet_files:
-        # Check for hive-style structure (for backwards compatibility)
-        parquet_files = sorted(glob.glob(os.path.join(dataset_path, '**/*.parquet'), recursive=True))
-
-    if not parquet_files:
-        raise FileNotFoundError(f"No parquet files found in {dataset_path}")
-
-    # Load and concatenate
-    kwargs = {}
-    if columns:
-        kwargs['columns'] = columns
-    if filters:
-        kwargs['filters'] = filters
-
-    # Try to load as GeoParquet first
     try:
-        gdf = gpd.read_parquet(parquet_files, **kwargs)
-        return gdf
-    except Exception:
-        # Fall back to pandas if no geometry
-        import pyarrow.parquet as pq
-        df = pq.read_table(parquet_files, **kwargs).to_pandas()
-        return df
+        data_files = list_dataset_files(dataset_path, fmt=fmt)
+    except FileNotFoundError:
+        # Fallback: check for hive-style parquet structure
+        hive_files = sorted(glob.glob(os.path.join(dataset_path, '**/*.parquet'), recursive=True))
+        if hive_files:
+            data_files = hive_files
+            fmt = 'parquet'
+        else:
+            raise FileNotFoundError(f"No data files found in {dataset_path}")
+
+    if fmt == 'parquet':
+        # Parquet path: supports filters (predicate pushdown)
+        kwargs = {}
+        if columns:
+            kwargs['columns'] = columns
+        if filters:
+            kwargs['filters'] = filters
+        try:
+            return gpd.read_parquet(data_files, **kwargs)
+        except Exception:
+            import pyarrow.parquet as pq
+            return pq.read_table(data_files, **kwargs).to_pandas()
+    else:
+        # Feather / GPKG: ensure index column is loaded
+        index_col = _detect_dataset_index_col_from_meta(dataset_path)
+        load_columns = columns
+        if index_col and load_columns and index_col not in load_columns:
+            load_columns = list(load_columns) + [index_col]
+
+        reader = make_dataset_reader(fmt, columns=load_columns)
+        dfs = [reader(f) for f in data_files]
+        result = pd.concat(dfs, ignore_index=True)
+
+        # Restore index for formats that don't preserve it (e.g. GPKG)
+        if index_col and result.index.name != index_col and index_col in result.columns:
+            result = result.set_index(index_col)
+
+        return result
 
 
 def gh3_load_dataset_lazy(dataset_path, columns=None):
     """
     Load a simplified dataset lazily as a Dask DataFrame.
+
+    Supports parquet, feather, and gpkg formats (auto-detected from metadata or extension).
 
     Parameters
     ----------
@@ -185,36 +219,82 @@ def gh3_load_dataset_lazy(dataset_path, columns=None):
     dask GeoDataFrame
         Lazy-loaded data
     """
-    parquet_files = sorted(glob.glob(os.path.join(dataset_path, '*.parquet')))
+    from .cliutils import (detect_dataset_format, list_dataset_files,
+                           read_dataset_schema, make_dataset_reader)
 
-    if not parquet_files:
-        parquet_files = sorted(glob.glob(os.path.join(dataset_path, '**/*.parquet'), recursive=True))
+    fmt = detect_dataset_format(dataset_path)
 
-    if not parquet_files:
-        raise FileNotFoundError(f"No parquet files found in {dataset_path}")
+    try:
+        data_files = list_dataset_files(dataset_path, fmt=fmt)
+    except FileNotFoundError:
+        # Fallback: check for hive-style parquet structure
+        hive_files = sorted(glob.glob(os.path.join(dataset_path, '**/*.parquet'), recursive=True))
+        if hive_files:
+            data_files = hive_files
+            fmt = 'parquet'
+        else:
+            raise FileNotFoundError(f"No data files found in {dataset_path}")
 
-    # Check if geometry column exists in source
-    import pyarrow.parquet as pq
-    schema = pq.read_schema(parquet_files[0])
-    has_geometry = 'geometry' in schema.names
+    # Read schema from first file
+    col_names, has_geometry = read_dataset_schema(data_files[0], fmt)
 
-    kwargs = {}
+    # Detect expected index column from metadata (needed for formats like GPKG
+    # that don't preserve the DataFrame index)
+    index_col = _detect_dataset_index_col_from_meta(dataset_path)
+
     if columns:
-        # Ensure geometry is always included for GeoParquet files
+        columns = list(columns)
+        # Ensure geometry is always included for geo-enabled files
         if has_geometry and 'geometry' not in columns:
-            columns = list(columns) + ['geometry']
-        kwargs['columns'] = columns
+            columns.append('geometry')
+        # Ensure index column is loaded so it can be restored
+        if index_col and index_col not in columns and index_col in col_names:
+            columns.append(index_col)
 
-    # Load first file to get metadata
-    _meta = gpd.read_parquet(parquet_files[0], **kwargs)
+    # Build reader and metadata
+    reader = make_dataset_reader(fmt, columns=columns)
+    _meta = reader(data_files[0])
 
-    ddf = dask.dataframe.from_map(
-        lambda f: gpd.read_parquet(f, **kwargs),
-        parquet_files,
-        meta=_meta
-    )
+    # Restore index for formats that don't preserve it (e.g. GPKG)
+    needs_index_restore = (index_col and _meta.index.name != index_col
+                           and index_col in _meta.columns)
+    if needs_index_restore:
+        _meta = _meta.set_index(index_col)
+
+        def read_and_set_index(f):
+            df = reader(f)
+            return df.set_index(index_col)
+
+        ddf = dask.dataframe.from_map(read_and_set_index, data_files, meta=_meta)
+    else:
+        ddf = dask.dataframe.from_map(reader, data_files, meta=_meta)
 
     return dask_geopandas.from_dask_dataframe(ddf, geometry='geometry') if 'geometry' in ddf.columns else ddf
+
+
+def _detect_dataset_index_col_from_meta(dataset_path):
+    """Detect the expected index column from dataset metadata.
+
+    Reads gedih3_dataset.json to determine the index column name.
+    Returns None if metadata is missing or doesn't specify an index.
+    """
+    import json
+
+    meta_path = os.path.join(dataset_path, 'gedih3_dataset.json')
+    if not os.path.exists(meta_path):
+        return None
+
+    with open(meta_path, 'r') as f:
+        meta = json.load(f)
+
+    idx_type = meta.get('index_type')
+    idx_level = meta.get('index_level')
+    if idx_type == 'h3' and idx_level is not None:
+        return f'h3_{int(idx_level):02d}'
+    if idx_type == 'egi' and idx_level is not None:
+        return f'egi{int(idx_level):02d}'
+
+    return None
 
 
 def gh3_part_from_df(df):
@@ -864,7 +944,8 @@ def _build_egi_load_meta(load_cols, gh3_dir, index_level, partition_level, inclu
     return _meta
 
 
-def _build_egi_aggregate_meta(load_cols, gh3_dir, target_level, partition_level, agg):
+def _build_egi_aggregate_meta(load_cols, gh3_dir, target_level, partition_level, agg,
+                              agg_columns=None):
     """
     Build metadata for egi_load_and_aggregate() without loading actual data.
 
@@ -879,17 +960,21 @@ def _build_egi_aggregate_meta(load_cols, gh3_dir, target_level, partition_level,
     # Get schema and columns from database (exclude geometry)
     schema, meta_cols = _get_schema_columns(load_cols, gh3_dir, exclude_geometry=True)
 
-    # Filter to numeric columns (aggregation only works on numeric)
-    numeric_cols = []
-    for col in meta_cols:
-        field_idx = schema.get_field_index(col)
-        if field_idx >= 0:
-            pa_type = schema.field(field_idx).type
-            if pa.types.is_floating(pa_type) or pa.types.is_integer(pa_type):
-                numeric_cols.append(col)
+    if agg_columns is not None:
+        # Use explicit list (excludes query-only columns)
+        agg_cols = [c for c in agg_columns if c in meta_cols]
+    else:
+        # Filter to numeric columns (aggregation only works on numeric)
+        numeric_cols = []
+        for col in meta_cols:
+            field_idx = schema.get_field_index(col)
+            if field_idx >= 0:
+                pa_type = schema.field(field_idx).type
+                if pa.types.is_floating(pa_type) or pa.types.is_integer(pa_type):
+                    numeric_cols.append(col)
 
-    # Filter out internal columns
-    agg_cols = filter_data_columns(numeric_cols)
+        # Filter out internal columns
+        agg_cols = filter_data_columns(numeric_cols)
 
     # Build aggregated column names based on agg type
     def _agg_name(func):
@@ -1033,7 +1118,7 @@ def egi_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR,
 
 def egi_load_and_aggregate(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR,
                            target_level=6, partition_level=12, agg='mean',
-                           add_geometry=True):
+                           add_geometry=True, agg_columns=None):
     """
     Load H3 data and aggregate to EGI pixels in a single pass (no shuffle).
 
@@ -1047,7 +1132,7 @@ def egi_load_and_aggregate(columns=None, region=None, query=None, gh3_dir=GH3_DE
     Parameters
     ----------
     columns : list, optional
-        Columns to aggregate from H3 database
+        Columns to load from H3 database (includes query columns)
     region : GeoDataFrame or bbox, optional
         Spatial filter for the data
     query : str, optional
@@ -1062,6 +1147,10 @@ def egi_load_and_aggregate(columns=None, region=None, query=None, gh3_dir=GH3_DE
         Aggregation specification (same as pandas groupby.agg)
     add_geometry : bool
         If True, add pixel polygon geometries to output
+    agg_columns : list, optional
+        Explicit list of columns to aggregate. If provided, only these columns
+        are aggregated (query-only columns are excluded). If None, all numeric
+        columns are aggregated.
 
     Returns
     -------
@@ -1077,6 +1166,12 @@ def egi_load_and_aggregate(columns=None, region=None, query=None, gh3_dir=GH3_DE
 
     # Prepare EGI↔H3 intersection
     egi_tiles, egi_to_h3, h3_part_col, region_gdf = _prepare_egi_loading(region, gh3_dir)
+
+    # Pre-compute dissolved ROI geometry in WGS84 for spatial filtering
+    roi_geom = None
+    if region_gdf is not None:
+        roi_wgs84 = region_gdf.to_crs(4326) if region_gdf.crs.to_epsg() != 4326 else region_gdf
+        roi_geom = roi_wgs84.union_all()
 
     # Prepare column list - need geometry for coordinates
     load_cols = columns.copy() if columns else None
@@ -1110,11 +1205,19 @@ def egi_load_and_aggregate(columns=None, region=None, query=None, gh3_dir=GH3_DE
         if len(df) == 0:
             return pd.DataFrame()
 
-        # Aggregate by target level EGI index
-        df = df.set_index(egi_col)
+        # Clip shots to ROI boundary (data is WGS84, roi_geom is WGS84)
+        if roi_geom is not None and 'geometry' in df.columns:
+            df = df[df.geometry.within(roi_geom)]
+            if len(df) == 0:
+                return pd.DataFrame()
 
-        # Filter to numeric columns for aggregation
-        agg_cols = get_aggregatable_columns(df)
+        # df already has egi_col as index (set by _load_egi_tile_from_h3)
+        # Filter to columns for aggregation
+        if agg_columns is not None:
+            # Use explicit list (excludes query-only columns)
+            agg_cols = [c for c in agg_columns if c in df.columns]
+        else:
+            agg_cols = get_aggregatable_columns(df)
 
         if not agg_cols:
             return pd.DataFrame()
@@ -1144,7 +1247,8 @@ def egi_load_and_aggregate(columns=None, region=None, query=None, gh3_dir=GH3_DE
         return result
 
     # Build metadata from schema (avoids empty sample issue)
-    _meta = _build_egi_aggregate_meta(load_cols, gh3_dir, target_level, partition_level, agg)
+    _meta = _build_egi_aggregate_meta(load_cols, gh3_dir, target_level, partition_level, agg,
+                                      agg_columns=agg_columns)
 
     # Use from_map instead of from_delayed (from_delayed is deprecated)
     result = ddf.from_map(load_and_aggregate_tile, tile_args, meta=_meta)

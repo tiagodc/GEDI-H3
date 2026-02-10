@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 """
-Inspect schema of parquet or geopackage files.
+Inspect schema of parquet, feather, geopackage, or HDF5 files.
 
 Read and display column names and data types from output datasets,
-useful for understanding extracted data structure.
+useful for understanding extracted data structure. Supports single
+files and dataset directories (auto-detects format from metadata).
 
 Author: Tiago de Conto
 Package: gedih3
@@ -12,64 +13,6 @@ Package: gedih3
 import argparse
 import os
 import sys
-
-
-def read_parquet_schema(path: str) -> list:
-    """
-    Read schema from a parquet file or directory.
-
-    Parameters
-    ----------
-    path : str
-        Path to parquet file or directory containing parquet files
-
-    Returns
-    -------
-    list of tuples
-        List of (column_name, data_type) tuples
-    """
-    import pyarrow.parquet as pq
-
-    if os.path.isdir(path):
-        # Try to read _metadata first
-        meta_path = os.path.join(path, '_metadata')
-        if os.path.exists(meta_path):
-            schema = pq.read_schema(meta_path)
-        else:
-            # Find first parquet file
-            import glob
-            files = glob.glob(os.path.join(path, '**', '*.parquet'), recursive=True)
-            if not files:
-                raise FileNotFoundError(f"No parquet files found in {path}")
-            schema = pq.read_schema(files[0])
-    else:
-        schema = pq.read_schema(path)
-
-    return [(field.name, str(field.type)) for field in schema]
-
-
-def read_geopackage_schema(path: str) -> list:
-    """
-    Read schema from a geopackage file.
-
-    Parameters
-    ----------
-    path : str
-        Path to geopackage file
-
-    Returns
-    -------
-    list of tuples
-        List of (column_name, data_type) tuples
-    """
-    import fiona
-
-    with fiona.open(path) as src:
-        schema = src.schema
-        columns = [(name, dtype) for name, dtype in schema['properties'].items()]
-        if 'geometry' in schema:
-            columns.append(('geometry', schema['geometry']))
-        return columns
 
 
 def read_hdf5_schema(path: str, group: str = None) -> list:
@@ -113,7 +56,7 @@ def read_hdf5_schema(path: str, group: str = None) -> list:
 def get_cmd_args():
     """Parse command line arguments"""
     p = argparse.ArgumentParser(
-        description="Inspect schema of parquet, geopackage, or HDF5 files"
+        description="Inspect schema of parquet, feather, geopackage, or HDF5 files"
     )
 
     p.add_argument(
@@ -166,17 +109,26 @@ def main():
     is_hdf5 = False
 
     try:
-        if path_lower.endswith('.gpkg') or path_lower.endswith('.geopackage'):
-            columns = read_geopackage_schema(args.path)
-            file_type = "GeoPackage"
-        elif path_lower.endswith('.h5') or path_lower.endswith('.hdf5'):
+        if path_lower.endswith(('.h5', '.hdf5')):
+            # HDF5 has its own schema format (path, dtype, shape)
             columns = read_hdf5_schema(args.path, args.group)
             file_type = "HDF5"
             is_hdf5 = True
         else:
-            # Assume parquet (file or directory)
-            columns = read_parquet_schema(args.path)
-            file_type = "Parquet"
+            # Use package-level read_schema for parquet, feather, gpkg, and directories
+            from gedih3.utils import read_schema
+            schema_df = read_schema(args.path)
+
+            # Determine display name
+            if os.path.isdir(args.path):
+                from gedih3.cliutils import detect_dataset_format
+                fmt = detect_dataset_format(args.path)
+                file_type = {'parquet': 'Parquet', 'feather': 'Feather', 'gpkg': 'GeoPackage'}.get(fmt, fmt)
+            else:
+                ext = os.path.splitext(args.path)[1].lstrip('.').lower()
+                file_type = {'parquet': 'Parquet', 'feather': 'Feather', 'gpkg': 'GeoPackage'}.get(ext, ext)
+
+            columns = list(zip(schema_df['column'], schema_df['dtype'].astype(str)))
 
     except Exception as e:
         print(f"Error reading schema: {e}", file=sys.stderr)
