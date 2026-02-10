@@ -52,7 +52,11 @@ def get_cmd_args():
     p.add_argument("-egi", "--egi", dest="egi", type=parse_egi_levels, default=None,
                    help="EGI aggregation as 'level[:partition]' e.g., '6' or '6:12'")
     p.add_argument("-a", "--aggregate", dest="aggregate", type=str, default="mean",
-                   help="aggregation function: mean, sum, count, etc. [default=mean]")
+                   help="aggregation spec: function name, list, column dict, or file path.\n"
+                        "  Inline: 'mean', \"['mean','std','count']\",\n"
+                        "          \"{'agbd_l4a':['mean','count'], 'rh_098_l2a':'mean'}\"\n"
+                        "  File:   agg.json (dict/list), agg.txt (one function per line)\n"
+                        "  [default=mean]")
 
     # Spatial/temporal filtering
     p.add_argument("-r", "--region", dest="region", type=str, default=None,
@@ -126,7 +130,8 @@ def main():
         from gedih3.cliutils import (collect_columns, build_query_string, parse_region,
                                      parse_dask_args, parse_file_format, setup_logging,
                                      print_banner, print_success, configure_database_path,
-                                     load_data_from_source, get_numeric_columns, h3_col_name)
+                                     load_data_from_source, get_numeric_columns, h3_col_name,
+                                     get_dataset_index_info, parse_aggregation)
 
         # Setup logging and print banner
         logger = setup_logging(args, __name__)
@@ -150,9 +155,26 @@ def main():
             logger.info(f"Parsing region: {args.region}")
             region = parse_region(args.region)
 
+        # Detect source type (H3 database vs simplified dataset)
+        source_info = get_dataset_index_info(args.database)
+        is_database = source_info['source_type'] == 'h3_database'
+        if is_database:
+            available_columns = source_info.get('h3_columns')
+        else:
+            available_columns = source_info.get('columns')
+            logger.info(f"  Source: {source_info['source_type']} ({source_info.get('index_type', 'unknown')} index)")
+
+            # Validate: cannot do H3 aggregation on EGI-indexed data
+            if not use_egi and source_info.get('index_type') == 'egi':
+                from gedih3.exceptions import GediValidationError
+                raise GediValidationError(
+                    "Cannot aggregate EGI-indexed dataset to H3 resolution. "
+                    "Use -egi to aggregate to an EGI level instead, or provide an H3-indexed source."
+                )
+
         # Collect columns
         logger.info("Collecting variables...")
-        columns = collect_columns(args)
+        columns = collect_columns(args, available_columns=available_columns)
 
         # EGI needs geometry for coordinate access
         if use_egi and 'geometry' not in columns:
@@ -163,9 +185,18 @@ def main():
         logger.info(f"  Total variables: {len(columns)}")
 
         # Build query
-        query_str = build_query_string(args)
+        query_str = build_query_string(args, available_columns=available_columns)
         if query_str:
             logger.info(f"Query filter: {query_str}")
+
+        # Parse aggregation spec (string, list, or dict)
+        agg = parse_aggregation(args.aggregate)
+        # When agg is a dict, columns are implicit in the dict keys
+        agg_is_dict = isinstance(agg, dict)
+        if agg_is_dict:
+            logger.info(f"Aggregation: column-specific {agg}")
+        elif isinstance(agg, list):
+            logger.info(f"Aggregation: {agg}")
 
         dask_kwargs = parse_dask_args(args)
 
@@ -173,27 +204,44 @@ def main():
             logger.info(f"Dask dashboard: {client.dashboard_link}")
 
             if use_egi:
-                # EGI (EASE Grid) aggregation - use direct loading (no shuffle)
+                # EGI (EASE Grid) aggregation
                 from gedih3 import egi
                 target_res = egi.get_resolution(egi_agg_level)
                 partition_res = egi.get_resolution(egi_partition_level)
-                logger.info(f"Loading and aggregating directly to EGI (no shuffle)...")
                 logger.info(f"  Target: EGI level {egi_agg_level} (~{target_res:.0f}m pixels)")
                 if egi_partition_level != egi_agg_level:
                     logger.info(f"  Partition: EGI level {egi_partition_level} (~{partition_res:.0f}m)")
 
-                # Use egi_load_and_aggregate for efficient single-pass processing
-                aggdf = gh3.egi_load_and_aggregate(
-                    columns=columns,
-                    region=region,
-                    query=query_str,
-                    gh3_dir=args.database,
-                    target_level=egi_agg_level,
-                    partition_level=egi_partition_level,
-                    agg=args.aggregate,
-                    add_geometry=True
-                )
-                logger.info(f"  Loaded {aggdf.npartitions} EGI partitions")
+                if is_database:
+                    # Direct loading from H3 database (no shuffle)
+                    logger.info("Loading and aggregating directly to EGI (no shuffle)...")
+                    aggdf = gh3.egi_load_and_aggregate(
+                        columns=columns,
+                        region=region,
+                        query=query_str,
+                        gh3_dir=args.database,
+                        target_level=egi_agg_level,
+                        partition_level=egi_partition_level,
+                        agg=agg,
+                        add_geometry=True
+                    )
+                else:
+                    # Load dataset then aggregate via shuffle
+                    logger.info("Loading dataset then aggregating to EGI (shuffle-based)...")
+                    ddf = load_data_from_source(args.database, columns, region, query_str, logger)
+                    logger.info(f"  Loaded {ddf.npartitions} partitions")
+                    agg_columns = list(agg.keys()) if agg_is_dict else get_numeric_columns(ddf)
+                    aggdf = gh3.egi_aggregate(
+                        ddf,
+                        target_level=egi_agg_level,
+                        agg=agg,
+                        columns=agg_columns,
+                        add_geometry=True,
+                        partition_level=egi_partition_level,
+                        repartition=not args.merge
+                    )
+
+                logger.info(f"  Result: {aggdf.npartitions} EGI partitions")
 
                 # Use partition level for file organization
                 part_col = egi.egi_col_name(egi_partition_level if not args.merge else egi_agg_level)
@@ -205,92 +253,40 @@ def main():
                 logger.info(f"  Loaded {ddf.npartitions} partitions")
 
                 logger.info("Aggregating data...")
-                numeric_columns = get_numeric_columns(ddf)
-                # H3 (hexagon) aggregation
+                agg_columns = list(agg.keys()) if agg_is_dict else get_numeric_columns(ddf)
                 logger.info(f"  Target: H3 level {args.h3_level}")
 
                 aggdf = gh3.gh3_aggregate(
                     ddf,
                     target_res=args.h3_level,
-                    agg=args.aggregate,
-                    columns=numeric_columns,
+                    agg=agg,
+                    columns=agg_columns,
                     add_geometry=True,
                     repartition=not args.merge
                 )
-                part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
-                part_col = h3_col_name(part)
+                # Use source partition level if available, otherwise use target level
+                h3_part_level = source_info.get('partition_level') or args.h3_level
+                part_col = h3_col_name(h3_part_level)
                 export_func = gh3.gh3_export_part
 
-            # Export
-            logger.info("Exporting data...")
+            # Drop spatial indexing columns from output (keep only data + geometry)
+            from gedih3.cliutils import is_internal_column
+            drop_cols = [c for c in aggdf.columns if is_internal_column(c)]
+            if drop_cols:
+                logger.info(f"  Dropping internal columns: {drop_cols}")
+                aggdf = aggdf.drop(columns=drop_cols)
 
+            # Materialize the aggregation graph before export
+            # (avoids dask-expr issues with SetIndex + map_partitions chaining)
+            aggdf = aggdf.persist()
+            progress(aggdf)
+
+            # Export
             os.makedirs(args.output, exist_ok=True)
 
-            if args.merge:
-                # Merge all partitions into single file
-                logger.info("  Merging all partitions...")
-                aggdf = aggdf.compute()
-                opath = export_func(aggdf, odir=args.output, fmt=args.format, is_file_path=True)
-                print_success(f"Merged file exported to {opath}", logger=logger)
-
-            elif args.hive:
-                # Hive-style partitioning (for backwards compatibility)
-                logger.info("  Using hive-style partitioning...")
-                write_task = aggdf.to_parquet(args.output,
-                                              write_metadata_file=True,
-                                              write_index=True,
-                                              overwrite=True,
-                                              compression='zstd',
-                                              partition_on=[part_col],
-                                              compute=False)
-                write_task = write_task.persist()
-                progress(write_task)
-
-                ofiles = glob.glob(f"{args.output}/**/*.parquet", recursive=True)
-                if len(ofiles) == 0:
-                    raise RuntimeError("No output files were created.")
-                print_success(f"{len(ofiles)} files exported to {args.output}", logger=logger)
-
-            else:
-                # Simplified flat file structure (default)
-                logger.info("  Output format: simplified flat files")
-                write_task = aggdf.map_partitions(export_func,
-                                                  odir=args.output,
-                                                  fmt=args.format,
-                                                  meta=pd.Series(dtype=str))
-                write_task = write_task.persist()
-                progress(write_task)
-
-                ofiles = glob.glob(f"{args.output}/*.{args.format}")
-                if len(ofiles) == 0:
-                    raise RuntimeError("No output files were created.")
-
-                # Write simplified dataset metadata
-                logger.info("Writing dataset metadata...")
-                index_type = 'egi' if use_egi else 'h3'
-                index_level = egi_agg_level if use_egi else args.h3_level
-                meta_kwargs = {}
-                if use_egi:
-                    meta_kwargs['egi_aggregation_level'] = egi_agg_level
-                    meta_kwargs['egi_partition_level'] = egi_partition_level
-                gh3.gh3_write_dataset_meta(
-                    opath=args.output,
-                    index_type=index_type,
-                    index_level=index_level,
-                    columns=list(aggdf.columns),
-                    source_database=args.database,
-                    aggregation=args.aggregate,
-                    tool='gh3_aggregate',
-                    **meta_kwargs
-                )
-                print_success(f"{len(ofiles)} files exported to {args.output}", logger=logger)
-
-            # Optional: Rasterize the aggregated data
             if args.rasterize:
+                # Raster-only export (no vector files)
                 logger.info("Rasterizing aggregated data to GeoTIFF...")
-
-                raster_dir = os.path.join(args.output, 'rasters')
-                os.makedirs(raster_dir, exist_ok=True)
 
                 from gedih3 import raster
 
@@ -300,29 +296,88 @@ def main():
                 else:
                     rasterize_func = raster.rasterize_h3_partition
 
-                # Re-load the computed aggregated data for rasterization
-                # (at this point aggdf might be computed or lazy depending on path)
                 if hasattr(aggdf, 'compute'):
-                    # Lazy - rasterize partitions directly
                     raster.rasterize_and_export_partitions(
-                        aggdf, raster_dir, rasterize_func,
-                        columns=None,  # Auto-detect from aggregated data
+                        aggdf, args.output, rasterize_func,
+                        columns=None,
                         compress=args.compress,
                         show_progress=True
                     )
                 else:
-                    # Already computed (merged case) - rasterize single GeoDataFrame
                     xras = rasterize_func(aggdf, columns=None)
                     if isinstance(xras, pd.Series) and len(xras) > 0:
-                        # Handle multiple tiles in one GeoDataFrame
                         for i, tile_xras in enumerate(xras):
                             if hasattr(tile_xras, 'data_vars') and len(tile_xras.data_vars) > 0:
-                                raster.export_raster(tile_xras, os.path.join(raster_dir, f'tile_{i}.tif'), compress=args.compress)
+                                raster.export_raster(tile_xras, os.path.join(args.output, f'tile_{i}.tif'), compress=args.compress)
                     elif hasattr(xras, 'data_vars') and len(xras.data_vars) > 0:
-                        raster.export_raster(xras, os.path.join(raster_dir, 'merged.tif'), compress=args.compress)
+                        raster.export_raster(xras, os.path.join(args.output, 'merged.tif'), compress=args.compress)
 
-                raster_files = glob.glob(f"{raster_dir}/*.tif")
-                print_success(f"{len(raster_files)} raster files exported to {raster_dir}", logger=logger)
+                raster_files = glob.glob(f"{args.output}/*.tif")
+                if len(raster_files) > 1:
+                    vrt_path = os.path.join(args.output, 'mosaic.vrt')
+                    raster.build_vrt(raster_files, vrt_path)
+                    logger.info(f"  VRT mosaic: {vrt_path}")
+                print_success(f"{len(raster_files)} raster files exported to {args.output}", logger=logger)
+
+            else:
+                # Vector export
+                logger.info("Exporting data...")
+
+                if args.merge:
+                    logger.info("  Merging all partitions...")
+                    aggdf = aggdf.compute()
+                    opath = export_func(aggdf, odir=args.output, fmt=args.format, is_file_path=True)
+                    print_success(f"Merged file exported to {opath}", logger=logger)
+
+                elif args.hive:
+                    logger.info("  Using hive-style partitioning...")
+                    write_task = aggdf.to_parquet(args.output,
+                                                  write_metadata_file=True,
+                                                  write_index=True,
+                                                  overwrite=True,
+                                                  compression='zstd',
+                                                  partition_on=[part_col],
+                                                  compute=False)
+                    write_task = write_task.persist()
+                    progress(write_task)
+
+                    ofiles = glob.glob(f"{args.output}/**/*.parquet", recursive=True)
+                    if len(ofiles) == 0:
+                        raise RuntimeError("No output files were created.")
+                    print_success(f"{len(ofiles)} files exported to {args.output}", logger=logger)
+
+                else:
+                    logger.info("  Output format: simplified flat files")
+                    write_task = aggdf.map_partitions(export_func,
+                                                      odir=args.output,
+                                                      fmt=args.format,
+                                                      meta=pd.Series(dtype=str))
+                    write_task = write_task.persist()
+                    progress(write_task)
+
+                    ofiles = glob.glob(f"{args.output}/*.{args.format}")
+                    if len(ofiles) == 0:
+                        raise RuntimeError("No output files were created.")
+
+                    # Write simplified dataset metadata
+                    logger.info("Writing dataset metadata...")
+                    index_type = 'egi' if use_egi else 'h3'
+                    index_level = egi_agg_level if use_egi else args.h3_level
+                    meta_kwargs = {}
+                    if use_egi:
+                        meta_kwargs['egi_aggregation_level'] = egi_agg_level
+                        meta_kwargs['egi_partition_level'] = egi_partition_level
+                    gh3.gh3_write_dataset_meta(
+                        opath=args.output,
+                        index_type=index_type,
+                        index_level=index_level,
+                        columns=list(aggdf.columns),
+                        source_database=args.database,
+                        aggregation=str(agg),
+                        tool='gh3_aggregate',
+                        **meta_kwargs
+                    )
+                    print_success(f"{len(ofiles)} files exported to {args.output}", logger=logger)
 
 
 if __name__ == '__main__':

@@ -161,7 +161,6 @@ def main():
 
             # Determine partition column and process data
             if use_egi:
-                from gedih3 import egi
                 from gedih3.egi.config import egi_col_name, get_resolution
 
                 index_res = get_resolution(egi_index_level)
@@ -169,7 +168,6 @@ def main():
                 logger.info(f"  Index level: {egi_index_level} (~{index_res:.0f}m)")
                 logger.info(f"  Partition level: {egi_partition_level} (~{partition_res:.0f}m)")
 
-                egi_index_col = egi_col_name(egi_index_level)
                 egi_part_col = egi_col_name(egi_partition_level)
 
                 if args.egi_shuffle:
@@ -205,12 +203,7 @@ def main():
 
                 logger.info(f"  Loaded {ddf.npartitions} EGI partitions")
 
-                # Add geometry if requested and not already present
-                if args.geo and 'geometry' not in ddf.columns:
-                    ddf = gh3._egi_add_point_geometry(ddf, egi_index_col)
-
                 part_col = egi_part_col
-                index_col = egi_index_col
             else:
                 # H3 mode - load normally
                 logger.info("Loading data from H3 database...")
@@ -223,7 +216,6 @@ def main():
                 logger.info(f"  Loaded {ddf.npartitions} partitions")
                 part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
                 part_col = h3_col_name(part)
-                index_col = part_col
 
             # Export - use simplified flat file structure (not hive-partitioned)
             logger.info("Exporting data...")

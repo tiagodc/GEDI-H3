@@ -71,6 +71,7 @@ from .export import (
     rasterize_and_export_partitions,
     merge_and_export_rasters,
     compute_raster_stats,
+    build_vrt,
 )
 
 __all__ = [
@@ -104,4 +105,5 @@ __all__ = [
     'rasterize_and_export_partitions',
     'merge_and_export_rasters',
     'compute_raster_stats',
+    'build_vrt',
 ]

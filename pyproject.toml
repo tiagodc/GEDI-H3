@@ -36,6 +36,7 @@ dependencies = [
     "pqdm",
     "pyyaml",
     "tenacity >= 8.2.0",
+    "GDAL",
 ]
 
 [project.scripts]

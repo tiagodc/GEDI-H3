@@ -6,3 +6,4 @@ gh3_session.sh
 *.egg-info
 *.config.py.swp
 dask-*.yaml
+build/

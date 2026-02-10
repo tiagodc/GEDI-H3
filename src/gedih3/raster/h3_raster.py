@@ -213,6 +213,11 @@ def h3_to_raster(
             fill=fill_value
         )
 
+    # Ensure NoData is tagged so GeoTIFF exports mask empty pixels
+    for var in xras.data_vars:
+        if np.issubdtype(xras[var].dtype, np.floating):
+            xras[var] = xras[var].rio.write_nodata(np.nan)
+
     # Add metadata
     attrs = {'source': 'gedih3'}
     if h3_level is not None:
@@ -241,8 +246,9 @@ def rasterize_h3_partition(
     """
     Rasterize a single H3 partition (for use with Dask map_partitions).
 
-    This function is designed to be used with Dask's map_partitions for
-    parallel rasterization of large datasets.
+    Splits data by a coarser H3 parent level to create separate raster tiles,
+    each named by the parent cell ID. This ensures manageable tile sizes and
+    proper file naming for tiled output.
 
     Parameters
     ----------
@@ -255,41 +261,89 @@ def rasterize_h3_partition(
     include_partition_id : bool
         If True, include H3 partition ID in raster attributes
     partition_level : int, optional
-        H3 partition level. If None, auto-detected from data.
+        H3 partition level for grouping tiles. If None, auto-detected from
+        data columns or computed as 3 levels coarser than data level.
 
     Returns
     -------
     pd.Series
-        Series containing xarray DataArray(s)
+        Series containing xarray Dataset(s), one per spatial tile
 
     Examples
     --------
     >>> # With Dask
     >>> rasters = ddf.map_partitions(rasterize_h3_partition, meta=pd.Series(dtype=object))
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     if gdf.empty or len(gdf) == 0:
         return pd.Series(dtype=object)
 
     try:
-        # Detect partition level if not provided
+        # Detect partition level from columns if not provided
         if partition_level is None:
             partition_level = _detect_partition_level(gdf)
 
-        xras = h3_to_raster(gdf, columns=columns, output_crs=output_crs, partition_level=partition_level)
+        # Get H3 level from index
+        h3_index = gdf.index[0] if gdf.index.name and gdf.index.name.startswith('h3_') else None
+        if h3_index is None:
+            # Fallback: try to find H3 cells in columns
+            h3_cols = [c for c in gdf.columns if str(c).startswith('h3_')]
+            if h3_cols:
+                h3_index = gdf[h3_cols[0]].iloc[0]
 
-        if include_partition_id and partition_level is not None:
-            # Get the H3 partition ID dynamically based on partition level
-            h3_index = gdf.index[0] if gdf.index.name and gdf.index.name.startswith('h3_') else None
-            if h3_index:
-                h3_level = h3.get_resolution(h3_index)
-                if partition_level < h3_level:
-                    partition_id = h3.cell_to_parent(h3_index, partition_level)
+        if h3_index is None:
+            return pd.Series(dtype=object)
+
+        h3_level = h3.get_resolution(h3_index)
+
+        # Determine grouping level for spatial tiles
+        if partition_level is None or partition_level >= h3_level:
+            # No partition level or it's same/finer than data level
+            # Use 3 levels coarser than data, minimum 0
+            partition_level = max(0, h3_level - 3)
+
+        # Group H3 cells by parent at partition level
+        if partition_level < h3_level:
+            parents = gdf.index.map(lambda x: h3.cell_to_parent(x, partition_level))
+        else:
+            # Data is already at or coarser than partition level
+            parents = gdf.index
+
+        unique_parents = parents.unique()
+
+        results = []
+        for parent_id in unique_parents:
+            mask = parents == parent_id
+            tile_gdf = gdf.loc[mask]
+
+            if len(tile_gdf) == 0:
+                continue
+
+            try:
+                xras = h3_to_raster(
+                    tile_gdf, columns=columns,
+                    output_crs=output_crs,
+                    partition_level=partition_level
+                )
+
+                if len(xras.data_vars) > 0 and include_partition_id:
                     partition_attr = f'h3_{partition_level:02d}_id'
                     for var in list(xras.data_vars):
-                        xras[var] = xras[var].assign_attrs(**{partition_attr: partition_id})
+                        xras[var] = xras[var].assign_attrs(**{partition_attr: parent_id})
 
-        return pd.Series([xras])
-    except Exception:
+                    results.append(xras)
+            except Exception as e:
+                logger.debug(f"Rasterization failed for tile {parent_id}: {e}")
+                continue
+
+        if not results:
+            return pd.Series(dtype=object)
+
+        return pd.Series(results)
+    except Exception as e:
+        logger.debug(f"Rasterization failed: {e}")
         return pd.Series(dtype=object)
 
 

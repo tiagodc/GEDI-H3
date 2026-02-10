@@ -242,12 +242,35 @@ def rasterize_and_export_partitions(
             paths = paths.persist()
             dask_progress(paths)
 
-        return paths.compute().tolist()
+        result = paths.compute().tolist()
     else:
         # Regular GeoDataFrame
         raster = rasterize_func(gdf, columns=columns)
         path = export_raster_partition(raster, output_dir, fmt=fmt, compress=compress)
-        return [path] if path else []
+        result = [path] if path else []
+
+    # Build VRT mosaic from output tiles
+    tif_files = [p for p in result if p and p.endswith('.tif')]
+    if len(tif_files) > 1:
+        vrt_path = os.path.join(output_dir, 'mosaic.vrt')
+        build_vrt(tif_files, vrt_path)
+
+    return result
+
+
+def build_vrt(tif_files, vrt_path):
+    """Build a GDAL VRT file mosaicking a list of GeoTIFF tiles.
+
+    Parameters
+    ----------
+    tif_files : list of str
+        Paths to input GeoTIFF files
+    vrt_path : str
+        Output VRT file path
+    """
+    from osgeo import gdal
+    gdal.UseExceptions()
+    gdal.BuildVRT(vrt_path, tif_files)
 
 
 def merge_and_export_rasters(

@@ -598,6 +598,116 @@ def find_coordinate_column(columns, base_name):
 
     return None
 
+def _make_percentile_func(p):
+    """Create a named percentile function for use with pandas .agg().
+
+    Parameters
+    ----------
+    p : int
+        Percentile value (0-100), e.g. 25 for the 25th percentile.
+
+    Returns
+    -------
+    callable
+        A function with __name__ set to 'percentile_XX' (e.g. 'percentile_25')
+        so pandas uses it for column naming in MultiIndex flattening.
+    """
+    import numpy as np
+    frac = p / 100
+
+    def percentile_func(x):
+        return np.nanquantile(x, frac)
+
+    percentile_func.__name__ = f'p{int(p)}'
+    return percentile_func
+
+
+def _expand_percentile_specs(agg):
+    """Replace percentile shorthand (p25, p50, etc.) with callable functions.
+
+    Recognizes patterns like 'p25', 'p50', 'p95' in any position within the
+    aggregation spec (string, list, or dict values).
+    """
+    import re
+    pattern = re.compile(r'^p(\d+)$')
+
+    def expand(item):
+        if isinstance(item, str):
+            m = pattern.match(item)
+            if m:
+                return _make_percentile_func(int(m.group(1)))
+        return item
+
+    if isinstance(agg, str):
+        return expand(agg)
+    elif isinstance(agg, list):
+        return [expand(x) for x in agg]
+    elif isinstance(agg, dict):
+        result = {}
+        for k, v in agg.items():
+            if isinstance(v, list):
+                result[k] = [expand(x) for x in v]
+            else:
+                result[k] = expand(v)
+        return result
+    return agg
+
+
+def parse_aggregation(agg_str):
+    """Parse aggregation spec from CLI string, JSON file, or text file.
+
+    Supports:
+        - Single function: 'mean' → 'mean'
+        - Percentile shorthand: 'p25', 'p50', 'p95' → named percentile callable
+        - List of functions: "['mean', 'std', 'p25', 'p75']" → mixed list
+        - Column-specific dict: "{'col':['mean','p50']}" → dict with callables
+        - JSON file (.json): parsed as dict or list
+        - Text file: one function name per line → list (single line → string)
+
+    Percentile patterns (p25, p90, etc.) are expanded into named callable
+    functions that work with pandas .agg() and produce clean column names
+    like 'agbd_l4a_percentile_25'.
+    """
+    import ast
+    import json
+
+    agg_str = agg_str.strip()
+
+    # Check if it's a file path
+    if os.path.isfile(agg_str):
+        if agg_str.endswith('.json'):
+            with open(agg_str, 'r') as f:
+                result = json.load(f)
+            if not isinstance(result, (dict, list)):
+                raise GediValidationError(
+                    f"JSON aggregation file must contain a dict or list, got {type(result).__name__}"
+                )
+            return _expand_percentile_specs(result)
+        else:
+            # Plain text file: one function name per line
+            with open(agg_str, 'r') as f:
+                funcs = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
+            if len(funcs) == 0:
+                raise GediValidationError(f"Aggregation file is empty: {agg_str}")
+            result = funcs if len(funcs) > 1 else funcs[0]
+            return _expand_percentile_specs(result)
+
+    # Inline literal (list or dict)
+    if '[' in agg_str or '{' in agg_str:
+        try:
+            result = ast.literal_eval(agg_str)
+        except (ValueError, SyntaxError) as e:
+            raise GediValidationError(
+                f"Invalid aggregation spec: {agg_str}\n"
+                f"  Parse error: {e}\n"
+                f"  Examples: 'mean', \"['mean','std']\", \"{'col':['mean','count']}\""
+            )
+        return _expand_percentile_specs(result)
+
+    # Plain function name (or single percentile like 'p50')
+    return _expand_percentile_specs(agg_str)
+
+
 def parse_file_format(args, default='parquet'):
     file_format = args.output.split('.')[-1].lower() if args.output else None
 
@@ -698,15 +808,16 @@ def parse_region(region_str: Optional[str]):
 
     raise GediValidationError(f"Invalid region specification: {region_str}")
 
-def collect_columns(args):
+def collect_columns(args, available_columns=None):
     """
     Collect all requested variables from command line arguments and validate against available columns.
     Returns: (column_list, product_map)
     """
-    from .gh3driver import gh3_read_meta
-    h3_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)        
+    if available_columns is None:
+        from .gh3driver import gh3_read_meta
+        available_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)
     read_cols = []
-    
+
     if args.list is not None:
         if len(args.list) == 1 and os.path.isfile(args.list[0]):
             with open(args.list[0], 'r') as f:
@@ -714,33 +825,33 @@ def collect_columns(args):
         else:
             read_cols += list({v.strip() for v in args.list if v.strip()})
 
-        missing = [v for v in read_cols if v not in h3_columns]
+        missing = [v for v in read_cols if v not in available_columns]
         if missing:
             raise GediValidationError(f"The following variables from --list were not found: {', '.join(missing)}")
 
     product_map = {i: getattr(args, i.lower()) for i in GEDI_PRODUCTS.keys() if getattr(args, i.lower()) is not None}
     prod_vars = gedi_vars_expand(product_map)
 
-    for prod, vars in prod_vars.items(): 
+    for prod, vars in prod_vars.items():
         if vars is None:
-            vars = [i for i in h3_columns if i.endswith(f"_{prod.lower()}")]            
+            vars = [i for i in available_columns if i.endswith(f"_{prod.lower()}")]
         elif len(vars) == 1 and os.path.isfile(vars[0]):
             with open(vars[0], 'r') as f:
                 file_vars = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
             vars = file_vars
-        
+
         for var in vars:
             if '*' in var:
                 var = var.replace('*', '.*')
             if not var.endswith(f"_{prod.lower()}"):
                 var = f"{var}_{prod.lower()}"
-            
-            h3_vars = [col for col in h3_columns if re.match(var, col)]
 
-            if len(h3_vars) == 0:
+            matched_vars = [col for col in available_columns if re.match(var, col)]
+
+            if len(matched_vars) == 0:
                 raise GediValidationError(f"Variable '{var}' from --{prod.lower()} not found in database columns")
 
-            read_cols += h3_vars
+            read_cols += matched_vars
 
     geo_flag = hasattr(args, 'geo') and args.geo    
     if geo_flag or args.region:
@@ -752,15 +863,16 @@ def collect_columns(args):
 
     return list(set(read_cols))
 
-def build_query_string(args):
+def build_query_string(args, available_columns=None):
     """Build pandas query string from arguments"""
-    from .gh3driver import gh3_read_meta
-    h3_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)
+    if available_columns is None:
+        from .gh3driver import gh3_read_meta
+        available_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)
     queries = []
 
     # Quality filter - use backticks to escape column names with special characters
     if args.quality:
-        queries += [f"`{i}` == 1" for i in h3_columns if 'quality_flag' in i]
+        queries += [f"`{i}` == 1" for i in available_columns if 'quality_flag' in i]
 
     # Temporal filters
     if args.time_start:

@@ -134,6 +134,11 @@ def geodf_to_raster(
     # Set CRS
     ds = ds.rio.write_crs(EGI_CRS_STRING)
 
+    # Set NoData on each variable so GeoTIFF exports mask empty pixels correctly
+    for var in ds.data_vars:
+        if np.issubdtype(ds[var].dtype, np.floating):
+            ds[var] = ds[var].rio.write_nodata(np.nan)
+
     # Set transform
     trf = transform.from_bounds(left, bottom, right, top, pixels_per_tile, pixels_per_tile)
     ds = ds.rio.write_transform(trf)
