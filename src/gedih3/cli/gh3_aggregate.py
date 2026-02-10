@@ -50,7 +50,8 @@ def get_cmd_args():
     p.add_argument("-h3", "--h3-level", dest="h3_level", type=int, default=None,
                    help="aggregate to H3 level [0-15]")
     p.add_argument("-egi", "--egi", dest="egi", type=parse_egi_levels, default=None,
-                   help="EGI aggregation as 'level[:partition]' e.g., '6' or '6:12'")
+                   nargs='?', const=(6, 12),
+                   help="EGI aggregation: bare flag defaults to 6:12, or 'level[:partition]' e.g., '6' or '6:12'")
     p.add_argument("-a", "--aggregate", dest="aggregate", type=str, default="mean",
                    help="aggregation spec: function name, list, column dict, or file path.\n"
                         "  Inline: 'mean', \"['mean','std','count']\",\n"
@@ -100,7 +101,22 @@ def _aggregate_data(ddf, *, use_egi, is_database, args, agg, agg_is_dict,
     Returns (aggdf, part_col, export_func).
     """
     import gedih3.gh3driver as gh3
-    from gedih3.cliutils import get_numeric_columns, h3_col_name
+    from gedih3.cliutils import get_numeric_columns, h3_col_name, filter_data_columns
+
+    # Determine which columns to aggregate: only user-requested data variables,
+    # NOT query-only columns that were loaded just for filtering.
+    if agg_is_dict:
+        agg_columns = list(agg.keys())
+    else:
+        # columns from collect_columns = user vars + geometry + datetime
+        # filter_data_columns strips internal cols (h3_XX, egiXX, etc.) and geometry
+        user_data_cols = [c for c in filter_data_columns(columns) if c != 'datetime']
+        if user_data_cols:
+            agg_columns = user_data_cols
+        elif ddf is not None:
+            agg_columns = get_numeric_columns(ddf)
+        else:
+            agg_columns = None  # let the function auto-detect
 
     if use_egi:
         from gedih3 import egi
@@ -116,12 +132,12 @@ def _aggregate_data(ddf, *, use_egi, is_database, args, agg, agg_is_dict,
                 target_level=egi_agg_level,
                 partition_level=egi_partition_level,
                 agg=agg,
-                add_geometry=True
+                add_geometry=True,
+                agg_columns=agg_columns
             )
         else:
             # Aggregate via shuffle from provided ddf
             logger.info("Aggregating to EGI (shuffle-based)...")
-            agg_columns = list(agg.keys()) if agg_is_dict else get_numeric_columns(ddf)
             aggdf = gh3.egi_aggregate(
                 ddf,
                 target_level=egi_agg_level,
@@ -138,7 +154,6 @@ def _aggregate_data(ddf, *, use_egi, is_database, args, agg, agg_is_dict,
     else:
         # H3 (hexagon) aggregation
         logger.info("Aggregating data...")
-        agg_columns = list(agg.keys()) if agg_is_dict else get_numeric_columns(ddf)
         logger.info(f"  Target: H3 level {args.h3_level}")
 
         aggdf = gh3.gh3_aggregate(
@@ -180,11 +195,10 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
     # Materialize the aggregation graph before export
     # (avoids dask-expr issues with SetIndex + map_partitions chaining)
     aggdf = aggdf.persist()
-    progress(aggdf)
+    if not args.quiet:
+        progress(aggdf)
 
     # Export
-    os.makedirs(output_dir, exist_ok=True)
-
     if args.rasterize:
         # Raster-only export (no vector files)
         logger.info("Rasterizing aggregated data to GeoTIFF...")
@@ -197,37 +211,75 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
         else:
             rasterize_func = raster.rasterize_h3_partition
 
-        if hasattr(aggdf, 'compute'):
-            raster.rasterize_and_export_partitions(
-                aggdf, output_dir, rasterize_func,
+        if args.merge:
+            # Merged raster output (single .tif file)
+            merged_path = output_dir if output_dir.endswith('.tif') else f"{output_dir}.tif"
+            os.makedirs(os.path.dirname(os.path.abspath(merged_path)), exist_ok=True)
+
+            raster.merge_and_export_rasters(
+                aggdf, merged_path, rasterize_func,
                 columns=None,
                 compress=args.compress,
-                show_progress=True
+                show_progress=not args.quiet
             )
-        else:
-            xras = rasterize_func(aggdf, columns=None)
-            if isinstance(xras, pd.Series) and len(xras) > 0:
-                for i, tile_xras in enumerate(xras):
-                    if hasattr(tile_xras, 'data_vars') and len(tile_xras.data_vars) > 0:
-                        raster.export_raster(tile_xras, os.path.join(output_dir, f'tile_{i}.tif'), compress=args.compress)
-            elif hasattr(xras, 'data_vars') and len(xras.data_vars) > 0:
-                raster.export_raster(xras, os.path.join(output_dir, 'merged.tif'), compress=args.compress)
+            print_success(f"Merged raster exported to {merged_path}", logger=logger)
 
-        raster_files = globmod.glob(f"{output_dir}/*.tif")
-        if len(raster_files) > 1:
-            vrt_path = os.path.join(output_dir, 'mosaic.vrt')
-            raster.build_vrt(raster_files, vrt_path)
-            logger.info(f"  VRT mosaic: {vrt_path}")
-        print_success(f"{len(raster_files)} raster files exported to {output_dir}", logger=logger)
+        else:
+            # Tiled raster output (directory of .tif files)
+            os.makedirs(output_dir, exist_ok=True)
+
+            if hasattr(aggdf, 'compute'):
+                raster.rasterize_and_export_partitions(
+                    aggdf, output_dir, rasterize_func,
+                    columns=None,
+                    compress=args.compress,
+                    show_progress=not args.quiet
+                )
+            else:
+                xras = rasterize_func(aggdf, columns=None)
+                if isinstance(xras, pd.Series) and len(xras) > 0:
+                    for i, tile_xras in enumerate(xras):
+                        if hasattr(tile_xras, 'data_vars') and len(tile_xras.data_vars) > 0:
+                            raster.export_raster(tile_xras, os.path.join(output_dir, f'tile_{i}.tif'), compress=args.compress)
+                elif hasattr(xras, 'data_vars') and len(xras.data_vars) > 0:
+                    raster.export_raster(xras, os.path.join(output_dir, 'merged.tif'), compress=args.compress)
+
+            raster_files = globmod.glob(f"{output_dir}/*.tif")
+            if len(raster_files) > 1:
+                vrt_path = os.path.join(output_dir, 'mosaic.vrt')
+                raster.build_vrt(raster_files, vrt_path)
+                logger.info(f"  VRT mosaic: {vrt_path}")
+            print_success(f"{len(raster_files)} raster files exported to {output_dir}", logger=logger)
 
     else:
         # Vector export
+        os.makedirs(output_dir, exist_ok=True)
         logger.info("Exporting data...")
 
         if args.merge:
             logger.info("  Merging all partitions...")
             aggdf = aggdf.compute()
             opath = export_func(aggdf, odir=output_dir, fmt=args.format, is_file_path=True)
+
+            # Write metadata for merged output (so gh3_rasterize can consume it)
+            logger.info("Writing dataset metadata...")
+            index_type = 'egi' if use_egi else 'h3'
+            index_level = egi_agg_level if use_egi else args.h3_level
+            meta_kwargs = {}
+            if use_egi:
+                meta_kwargs['egi_aggregation_level'] = egi_agg_level
+                meta_kwargs['egi_partition_level'] = egi_partition_level
+            gh3.gh3_write_dataset_meta(
+                opath=output_dir,
+                index_type=index_type,
+                index_level=index_level,
+                columns=list(aggdf.columns),
+                source_database=args.database,
+                aggregation=str(agg),
+                tool='gh3_aggregate',
+                file_format=args.format,
+                **meta_kwargs
+            )
             print_success(f"Merged file exported to {opath}", logger=logger)
 
         elif args.hive:
@@ -240,7 +292,8 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
                                           partition_on=[part_col],
                                           compute=False)
             write_task = write_task.persist()
-            progress(write_task)
+            if not args.quiet:
+                progress(write_task)
 
             ofiles = globmod.glob(f"{output_dir}/**/*.parquet", recursive=True)
             if len(ofiles) == 0:
@@ -254,7 +307,8 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
                                               fmt=args.format,
                                               meta=pd.Series(dtype=str))
             write_task = write_task.persist()
-            progress(write_task)
+            if not args.quiet:
+                progress(write_task)
 
             ofiles = globmod.glob(f"{output_dir}/*.{args.format}")
             if len(ofiles) == 0:
@@ -276,6 +330,7 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
                 source_database=args.database,
                 aggregation=str(agg),
                 tool='gh3_aggregate',
+                file_format=args.format,
                 **meta_kwargs
             )
             print_success(f"{len(ofiles)} files exported to {output_dir}", logger=logger)
@@ -443,7 +498,8 @@ def main():
                     ddf = load_data_from_source(args.database, columns, region, query_str, logger)
                     logger.info(f"  Loaded {ddf.npartitions} partitions")
                     ddf = ddf.persist()
-                    progress(ddf)
+                    if not args.quiet:
+                        progress(ddf)
                 else:
                     ddf = None  # EGI+database path loads per-window via egi_load_and_aggregate
 
@@ -453,7 +509,10 @@ def main():
                     args.time_interval, args.time_units
                 ):
                     logger.info(f"── Window: {suffix} ──")
-                    window_dir = os.path.join(args.output, suffix)
+                    if args.rasterize and args.merge:
+                        window_dir = os.path.join(args.output, f"{suffix}.tif")
+                    else:
+                        window_dir = os.path.join(args.output, suffix)
 
                     if use_egi and is_database:
                         # Direct EGI loading per window: append temporal filter to query

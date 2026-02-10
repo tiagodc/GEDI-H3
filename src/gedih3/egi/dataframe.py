@@ -318,7 +318,9 @@ def egi_to_geo(
         return gpd.GeoDataFrame(df, geometry=[], crs=EGI_CRS_STRING)
 
     geom_gdf = to_geodataframe(df.index.to_numpy(), return_polygons=polygons)
-    gdf = gpd.GeoDataFrame(df, geometry=geom_gdf.geometry.values, crs=EGI_CRS_STRING)
+    # Use .copy() to avoid SettingWithCopyWarning when df is a view/slice
+    # (e.g., from set_index() in load_and_aggregate_tile)
+    gdf = gpd.GeoDataFrame(df.copy(), geometry=geom_gdf.geometry.values, crs=EGI_CRS_STRING)
     return gdf
 
 

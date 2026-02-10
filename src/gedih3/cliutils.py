@@ -14,6 +14,176 @@ from .exceptions import GediValidationError
 
 VALID_FORMATS = ['parquet', 'feather', 'shp', 'geojson', 'gpkg', 'txt', 'csv', 'h5', 'hdf5']
 
+# Formats that support downstream processing (column selection at read time, fast schema reading)
+PIPELINE_FORMATS = {'parquet', 'feather', 'gpkg'}
+
+FORMAT_EXTENSIONS = {
+    'parquet': ('*.parquet',),
+    'feather': ('*.feather',),
+    'gpkg': ('*.gpkg',),
+}
+
+def detect_dataset_format(dataset_path):
+    """Detect the file format of a simplified dataset.
+
+    Checks gedih3_dataset.json for 'file_format' field first, then scans
+    directory for known extensions. Defaults to 'parquet' for backwards compat.
+
+    Parameters
+    ----------
+    dataset_path : str
+        Path to the dataset directory
+
+    Returns
+    -------
+    str
+        Detected format ('parquet', 'feather', or 'gpkg')
+
+    Raises
+    ------
+    GediValidationError
+        If detected format is not in PIPELINE_FORMATS
+    """
+    import json
+    from glob import glob
+
+    meta_path = os.path.join(dataset_path, 'gedih3_dataset.json')
+    if os.path.exists(meta_path):
+        with open(meta_path, 'r') as f:
+            meta = json.load(f)
+        fmt = meta.get('file_format')
+        if fmt:
+            if fmt not in PIPELINE_FORMATS:
+                raise GediValidationError(
+                    f"Dataset format '{fmt}' does not support downstream processing. "
+                    f"Supported pipeline formats: {', '.join(sorted(PIPELINE_FORMATS))}"
+                )
+            return fmt
+
+    # Scan directory for known extensions (parquet first for backwards compat)
+    for fmt, patterns in FORMAT_EXTENSIONS.items():
+        for pattern in patterns:
+            if glob(os.path.join(dataset_path, pattern)):
+                return fmt
+
+    return 'parquet'
+
+
+def list_dataset_files(dataset_path, fmt=None):
+    """List data files in a simplified dataset directory.
+
+    Parameters
+    ----------
+    dataset_path : str
+        Path to the dataset directory
+    fmt : str, optional
+        File format. If None, auto-detected via detect_dataset_format().
+
+    Returns
+    -------
+    list of str
+        Sorted list of file paths
+
+    Raises
+    ------
+    FileNotFoundError
+        If no matching files found
+    """
+    from glob import glob
+
+    if fmt is None:
+        fmt = detect_dataset_format(dataset_path)
+
+    patterns = FORMAT_EXTENSIONS.get(fmt)
+    if patterns is None:
+        raise GediValidationError(
+            f"Format '{fmt}' is not a supported pipeline format. "
+            f"Supported: {', '.join(sorted(PIPELINE_FORMATS))}"
+        )
+
+    files = []
+    for pattern in patterns:
+        files.extend(glob(os.path.join(dataset_path, pattern)))
+
+    if not files:
+        raise FileNotFoundError(
+            f"No {fmt} files found in {dataset_path}"
+        )
+
+    return sorted(files)
+
+
+def read_dataset_schema(filepath, fmt):
+    """Read column names and geometry flag from a dataset file without loading data.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to a single data file
+    fmt : str
+        File format ('parquet', 'feather', or 'gpkg')
+
+    Returns
+    -------
+    tuple
+        (column_names: list[str], has_geometry: bool)
+    """
+    if fmt == 'parquet':
+        import pyarrow.parquet as pq
+        schema = pq.read_schema(filepath, memory_map=True)
+        return schema.names, 'geometry' in schema.names
+    elif fmt == 'feather':
+        import pyarrow.feather as feather
+        schema = feather.read_table(filepath, columns=[]).schema
+        return schema.names, 'geometry' in schema.names
+    elif fmt == 'gpkg':
+        import geopandas as gpd
+        gdf = gpd.read_file(filepath, rows=1)
+        col_names = gdf.columns.tolist()
+        has_geometry = 'geometry' in col_names
+        return col_names, has_geometry
+    else:
+        raise GediValidationError(f"Unsupported format for schema reading: {fmt}")
+
+
+def make_dataset_reader(fmt, columns=None):
+    """Return a callable that reads a single file into a GeoDataFrame.
+
+    The returned callable supports column selection at read time.
+
+    Parameters
+    ----------
+    fmt : str
+        File format ('parquet', 'feather', or 'gpkg')
+    columns : list, optional
+        Columns to load
+
+    Returns
+    -------
+    callable
+        f(filepath) -> GeoDataFrame
+    """
+    import geopandas as gpd
+
+    if fmt == 'parquet':
+        def reader(f):
+            return gpd.read_parquet(f, columns=columns)
+        return reader
+    elif fmt == 'feather':
+        def reader(f):
+            return gpd.read_feather(f, columns=columns)
+        return reader
+    elif fmt == 'gpkg':
+        def reader(f):
+            kwargs = {}
+            if columns:
+                kwargs['columns'] = columns
+            return gpd.read_file(f, **kwargs)
+        return reader
+    else:
+        raise GediValidationError(f"Unsupported format for dataset reading: {fmt}")
+
+
 # =============================================================================
 # Module-level warning suppression for Dask/distributed
 # Applied at import time to catch early warnings during client initialization
@@ -355,6 +525,7 @@ def get_dataset_index_info(database):
             'index_type': meta.get('index_type'),
             'index_level': meta.get('index_level'),
             'partition_level': meta.get('egi_partition_level') or meta.get('h3_partition_level'),
+            'file_format': meta.get('file_format', 'parquet'),
             **meta
         }
     else:
@@ -364,6 +535,47 @@ def get_dataset_index_info(database):
             'index_level': None,
             'partition_level': None
         }
+
+
+def _add_query_columns(columns, query, dataset_path, fmt):
+    """Add query-referenced columns to the load list for simplified datasets.
+
+    When a query references columns not in the user's column selection,
+    those columns must be loaded for filtering but excluded from output.
+
+    Parameters
+    ----------
+    columns : list or None
+        User-requested columns to load
+    query : str or None
+        Query string for filtering
+    dataset_path : str
+        Path to dataset directory
+    fmt : str
+        Dataset file format ('parquet', 'feather', 'gpkg')
+
+    Returns
+    -------
+    tuple
+        (load_columns, query_only_cols) where load_columns includes query
+        columns and query_only_cols is the set of columns added only for
+        the query (to be dropped after filtering). If no query columns
+        needed, returns (columns, set()).
+    """
+    if not query or not columns:
+        return columns, set()
+
+    # Get available columns from the dataset schema
+    files = list_dataset_files(dataset_path, fmt)
+    available_cols, _ = read_dataset_schema(files[0], fmt)
+
+    # Find columns referenced in query that are available but not requested
+    q_cols = {col for col in available_cols if col in query and col not in columns}
+    if not q_cols:
+        return columns, set()
+
+    load_columns = list(columns) + list(q_cols)
+    return load_columns, q_cols
 
 
 def load_data_from_source(database, columns=None, region=None, query=None, logger=None):
@@ -396,19 +608,29 @@ def load_data_from_source(database, columns=None, region=None, query=None, logge
             gh3_dir=database
         )
     elif os.path.exists(dataset_meta_path):
+        fmt = detect_dataset_format(database)
         if logger:
-            logger.info("  Source: simplified dataset")
-        ddf = gh3.gh3_load_dataset_lazy(database, columns=columns)
+            logger.info(f"  Source: simplified dataset (format: {fmt})")
+        load_columns, query_only_cols = _add_query_columns(columns, query, database, fmt)
+        ddf = gh3.gh3_load_dataset_lazy(database, columns=load_columns)
         if query:
             ddf = ddf.query(query)
+        if query_only_cols:
+            keep = [c for c in ddf.columns if c not in query_only_cols]
+            ddf = ddf[keep]
         if region is not None:
             ddf = ddf.clip(region)
     else:
+        fmt = detect_dataset_format(database)
         if logger:
-            logger.info("  Source: parquet directory")
-        ddf = gh3.gh3_load_dataset_lazy(database, columns=columns)
+            logger.info(f"  Source: data directory (format: {fmt})")
+        load_columns, query_only_cols = _add_query_columns(columns, query, database, fmt)
+        ddf = gh3.gh3_load_dataset_lazy(database, columns=load_columns)
         if query:
             ddf = ddf.query(query)
+        if query_only_cols:
+            keep = [c for c in ddf.columns if c not in query_only_cols]
+            ddf = ddf[keep]
         if region is not None:
             ddf = ddf.clip(region)
 

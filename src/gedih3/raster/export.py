@@ -250,7 +250,12 @@ def rasterize_and_export_partitions(
         result = [path] if path else []
 
     # Build VRT mosaic from output tiles
-    tif_files = [p for p in result if p and p.endswith('.tif')]
+    # Split comma-separated paths (from partitions producing multiple tiles)
+    all_paths = []
+    for p in result:
+        if p:
+            all_paths.extend(p.split(','))
+    tif_files = [p for p in all_paths if p.endswith('.tif')]
     if len(tif_files) > 1:
         vrt_path = os.path.join(output_dir, 'mosaic.vrt')
         build_vrt(tif_files, vrt_path)

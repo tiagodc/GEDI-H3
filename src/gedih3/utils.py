@@ -77,11 +77,85 @@ def read_geopackage_schema(path):
 
     returns a pandas.DataFrame with the gpkg column structure
     """
-    import fiona
+    import geopandas as gpd
     import pandas as pd
-    gpkg_file = fiona.open(path, driver='GPKG')
-    schema = pd.DataFrame([{'column':i, 'dtype':j} for i,j in gpkg_file.schema.get('properties').items()])
-    return schema
+    gdf = gpd.read_file(path, rows=1)
+    return pd.DataFrame({"column": gdf.columns, "dtype": [str(d) for d in gdf.dtypes]})
+
+def read_feather_schema(path):
+    """
+    Read schema from a feather (Arrow IPC) file.
+
+    Parameters
+    ----------
+    path : str
+        Path to feather file
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame with 'column' and 'dtype' columns
+    """
+    import pyarrow.feather as feather
+    import pandas as pd
+    schema = feather.read_table(path, columns=[]).schema
+    return pd.DataFrame(({"column": name, "dtype": str(pa_dtype)}
+                          for name, pa_dtype in zip(schema.names, schema.types)))
+
+
+def read_schema(path):
+    """
+    Read schema from a data file or dataset directory, auto-detecting format.
+
+    Supports parquet, feather, gpkg, and HDF5 files. For directories, detects
+    the dataset format from metadata or file extensions.
+
+    Parameters
+    ----------
+    path : str
+        Path to a file or dataset directory
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame with 'column' and 'dtype' columns (for vector/tabular formats),
+        or 'column', 'dtype', and 'shape' columns (for HDF5)
+
+    Raises
+    ------
+    FileNotFoundError
+        If no data files found
+    ValueError
+        If format cannot be determined
+    """
+    import glob as globmod
+
+    if os.path.isdir(path):
+        from .cliutils import detect_dataset_format, list_dataset_files
+        fmt = detect_dataset_format(path)
+        files = list_dataset_files(path, fmt=fmt)
+        path = files[0]
+    else:
+        ext = os.path.splitext(path)[1].lstrip('.').lower()
+        fmt = {
+            'parquet': 'parquet', 'parq': 'parquet', 'pq': 'parquet',
+            'feather': 'feather',
+            'gpkg': 'gpkg', 'geopackage': 'gpkg',
+            'h5': 'h5', 'hdf5': 'h5',
+        }.get(ext)
+        if fmt is None:
+            raise ValueError(f"Cannot determine format from extension: {ext}")
+
+    if fmt == 'parquet':
+        return read_parquet_schema(path)
+    elif fmt == 'feather':
+        return read_feather_schema(path)
+    elif fmt == 'gpkg':
+        return read_geopackage_schema(path)
+    elif fmt == 'h5':
+        return h5_info(path)
+    else:
+        raise ValueError(f"Unsupported format: {fmt}")
 
 def h5_is_valid(file):
     import h5py
