@@ -219,17 +219,19 @@ def gh3_load_dataset_lazy(dataset_path, columns=None):
 
 def gh3_part_from_df(df):
     h3_cols = [col for col in df.columns if col.startswith('h3_')]
-    return sorted(h3_cols)[0]
+    return sorted(h3_cols)[0] if h3_cols else None
 
 def gh3_reindex(df):
-    if (h3_id := df.index.name) < (h3_col := gh3_part_from_df(df)):
+    h3_col = gh3_part_from_df(df)
+    h3_id = df.index.name
+    if h3_col is not None and h3_id is not None and h3_id < h3_col:
         kwargs = {}
         if isinstance(df, (dask.dataframe.DataFrame, dask_geopandas.GeoDataFrame)):
             kwargs['sort'] = False
         rdf = df.reset_index().set_index(h3_col, **kwargs)
         rdf[h3_id] = rdf[h3_id].astype(str)
         return rdf
-    return df        
+    return df
 
 def gh3_aggregate_func(df, res, agg='mean', cols=None, **kwargs):
     import h3pandas
@@ -405,7 +407,7 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
         if isinstance(agg_df, dask.dataframe.DataFrame):
             agg_df = dask_geopandas.from_dask_dataframe(agg_df)
 
-    if repartition:
+    if repartition and h3part is not None:
         h3part_res = int(h3part.split('_')[1])
 
         # Compute partition column from aggregated H3 cells
@@ -890,12 +892,15 @@ def _build_egi_aggregate_meta(load_cols, gh3_dir, target_level, partition_level,
     agg_cols = filter_data_columns(numeric_cols)
 
     # Build aggregated column names based on agg type
+    def _agg_name(func):
+        return func.__name__ if callable(func) else str(func)
+
     if isinstance(agg, dict):
-        meta_cols = [f"{col}_{func}" for col, funcs in agg.items()
+        meta_cols = [f"{col}_{_agg_name(func)}" for col, funcs in agg.items()
                      for func in (funcs if isinstance(funcs, list) else [funcs])
                      if col in agg_cols]
     elif isinstance(agg, list):
-        meta_cols = [f"{col}_{func}" for col in agg_cols for func in agg]
+        meta_cols = [f"{col}_{_agg_name(func)}" for col in agg_cols for func in agg]
     else:
         # Single aggregation function - column names stay the same
         meta_cols = agg_cols
@@ -1420,11 +1425,15 @@ def _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi'):
         cols = get_aggregatable_columns(sample)
 
     # Build metadata with aggregated column names
+    def _agg_name(func):
+        """Get the name pandas uses for an aggregation function."""
+        return func.__name__ if callable(func) else str(func)
+
     if isinstance(agg, dict):
-        meta_cols = [f"{col}_{func}" for col, funcs in agg.items()
+        meta_cols = [f"{col}_{_agg_name(func)}" for col, funcs in agg.items()
                      for func in (funcs if isinstance(funcs, list) else [funcs])]
     elif isinstance(agg, list):
-        meta_cols = [f"{col}_{func}" for col in cols for func in agg]
+        meta_cols = [f"{col}_{_agg_name(func)}" for col in cols for func in agg]
     else:
         meta_cols = cols
 
@@ -1709,32 +1718,6 @@ def egi_extract(gh3_df, index_level=1, partition_level=12,
         extracted = dask_geopandas.from_dask_dataframe(extracted, geometry='geometry')
 
     return extracted
-
-
-def _egi_add_point_geometry(ddf, index_col):
-    """Add Point geometry to EGI-indexed DataFrame."""
-    from . import egi
-
-    def add_point_geometry(df, index_col):
-        from gedih3.egi.spatial import pixel_coordinates
-        from shapely.geometry import Point
-
-        if len(df) == 0:
-            return gpd.GeoDataFrame(df, geometry=[], crs=egi.EGI_CRS_STRING)
-
-        x, y = pixel_coordinates(df[index_col].values, center=True)
-        points = [Point(px, py) for px, py in zip(x, y)]
-        return gpd.GeoDataFrame(df, geometry=points, crs=egi.EGI_CRS_STRING)
-
-    _gmeta = ddf._meta.copy()
-    _gmeta['geometry'] = gpd.GeoSeries([], crs=egi.EGI_CRS_STRING)
-    _gmeta = gpd.GeoDataFrame(_gmeta, geometry='geometry', crs=egi.EGI_CRS_STRING)
-
-    result = ddf.map_partitions(add_point_geometry, index_col=index_col, meta=_gmeta)
-    if isinstance(result, dask.dataframe.DataFrame):
-        result = dask_geopandas.from_dask_dataframe(result)
-    return result
-
 
 def egi_export_part(df, odir, fmt='parquet', is_file_path=False):
     """
