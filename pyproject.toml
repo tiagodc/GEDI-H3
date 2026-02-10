@@ -48,6 +48,7 @@ gh3_list_variables = "gedih3.cli.gh3_list_variables:main"
 gh3_list_resolutions = "gedih3.cli.gh3_list_resolutions:main"
 gh3_read_schema = "gedih3.cli.gh3_read_schema:main"
 gh3_rasterize = "gedih3.cli.gh3_rasterize:main"
+gh3_update = "gedih3.cli.gh3_update:main"
 
 [tool.setuptools]
 packages = ["gedih3", "gedih3.cli", "gedih3.egi", "gedih3.raster"]

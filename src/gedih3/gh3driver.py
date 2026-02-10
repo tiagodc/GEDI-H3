@@ -369,13 +369,19 @@ def gh3_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR, 
         if h3_part_col not in columns:
             columns.append(h3_part_col)
 
+        # Always include shot_number for observation-level identification
+        available_cols = gh3_read_meta("h3_columns", gh3_root_dir=gh3_dir)
+        sn_cols = [c for c in available_cols if c.startswith('shot_number')]
+        for c in sn_cols:
+            if c not in columns:
+                columns.append(c)
+
         out_cols = columns.copy()
-        
+
         if query is not None:
-            available_cols = gh3_read_meta("h3_columns", gh3_root_dir=gh3_dir)
             q_cols = [col for col in available_cols if col in query]
             columns = list(set(columns + q_cols))
-        
+
         h3_filter['columns'] = columns
 
     if region is not None:
@@ -778,7 +784,7 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
 
     # Apply query if specified
     if query:
-        df = df.query(query)
+        df = df.query(query).copy()  # copy to avoid SettingWithCopyWarning on later column assignments
         if len(df) == 0:
             empty = pd.DataFrame(columns=df.columns)
             empty[egi_index_col] = pd.Series([], dtype=np.uint64)
@@ -1054,6 +1060,13 @@ def egi_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR,
     out_cols = None
     load_cols = columns.copy() if columns else None
     if load_cols is not None:
+        # Always include shot_number for observation-level identification
+        available_cols = gh3_read_meta("h3_columns", gh3_root_dir=gh3_dir)
+        sn_cols = [c for c in available_cols if c.startswith('shot_number')]
+        for c in sn_cols:
+            if c not in load_cols:
+                load_cols.append(c)
+
         # Save output columns before adding query-specific columns
         out_cols = load_cols.copy()
 
@@ -1065,7 +1078,6 @@ def egi_load(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR,
 
         # Handle query columns (load but don't include in output)
         if query is not None:
-            available_cols = gh3_read_meta("h3_columns", gh3_root_dir=gh3_dir)
             q_cols = [col for col in available_cols if col in query]
             load_cols = list(set(load_cols + q_cols))
 
