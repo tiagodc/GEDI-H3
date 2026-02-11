@@ -15,44 +15,6 @@ import os
 import sys
 
 
-def read_hdf5_schema(path: str, group: str = None) -> list:
-    """
-    Read schema from an HDF5 file.
-
-    Parameters
-    ----------
-    path : str
-        Path to HDF5 file
-    group : str, optional
-        Specific group/beam to inspect
-
-    Returns
-    -------
-    list of tuples
-        List of (dataset_path, data_type, shape) tuples
-    """
-    import h5py
-
-    columns = []
-
-    with h5py.File(path, 'r') as f:
-        def visitor(name, obj):
-            if isinstance(obj, h5py.Dataset):
-                dtype = str(obj.dtype)
-                shape = str(obj.shape)
-                columns.append((name, dtype, shape))
-
-        if group:
-            if group in f:
-                f[group].visititems(visitor)
-            else:
-                raise ValueError(f"Group '{group}' not found in {path}")
-        else:
-            f.visititems(visitor)
-
-    return columns
-
-
 def get_cmd_args():
     """Parse command line arguments"""
     p = argparse.ArgumentParser(
@@ -97,6 +59,86 @@ def get_cmd_args():
     return p.parse_args()
 
 
+def _detect_file_type(path):
+    """Detect display name for the file/directory type."""
+    path_lower = path.lower()
+    if path_lower.endswith(('.h5', '.hdf5')):
+        return "HDF5"
+    if os.path.isdir(path):
+        build_log = os.path.join(path, 'gedih3_build_log.json')
+        if os.path.exists(build_log):
+            return "H3 Database"
+        from gedih3.cliutils import detect_dataset_format
+        fmt = detect_dataset_format(path)
+        return {'parquet': 'Parquet', 'feather': 'Feather', 'gpkg': 'GeoPackage'}.get(fmt, fmt)
+    ext = os.path.splitext(path)[1].lstrip('.').lower()
+    return {'parquet': 'Parquet', 'feather': 'Feather', 'gpkg': 'GeoPackage'}.get(ext, ext)
+
+
+def _format_shape(rows, cols):
+    """Format HDF5 dataset shape as a string."""
+    return f"({rows},)" if cols == 1 else f"({rows}, {cols})"
+
+
+def _print_table(schema_df, file_type, path, group=None, no_header=False):
+    """Print schema as a formatted terminal table."""
+    is_hdf5 = 'path' in schema_df.columns
+
+    if not no_header:
+        print()
+        print(f"{file_type} Schema: {path}")
+        if group:
+            print(f"Group: {group}")
+        print("=" * 70)
+        print()
+
+    if is_hdf5:
+        if not no_header:
+            print(f"{'Dataset Path':<40} {'Type':<15} {'Shape':<15}")
+            print("-" * 70)
+        for _, row in schema_df.iterrows():
+            shape = _format_shape(row['rows'], row['cols'])
+            print(f"{row['path']:<40} {str(row['dtype']):<15} {shape:<15}")
+    else:
+        if not no_header:
+            print(f"{'Column':<40} {'Type':<30}")
+            print("-" * 70)
+        for _, row in schema_df.iterrows():
+            print(f"{row['column']:<40} {str(row['dtype']):<30}")
+
+    if not no_header:
+        print("-" * 70)
+        print(f"Total: {len(schema_df)} {'datasets' if is_hdf5 else 'columns'}")
+        print()
+
+
+def _print_json(schema_df):
+    """Print schema as JSON."""
+    import json
+    is_hdf5 = 'path' in schema_df.columns
+    if is_hdf5:
+        data = [{"name": row['path'], "dtype": str(row['dtype']),
+                 "shape": _format_shape(row['rows'], row['cols'])}
+                for _, row in schema_df.iterrows()]
+    else:
+        data = [{"name": row['column'], "dtype": str(row['dtype'])}
+                for _, row in schema_df.iterrows()]
+    print(json.dumps(data, indent=2))
+
+
+def _print_csv(schema_df):
+    """Print schema as CSV."""
+    is_hdf5 = 'path' in schema_df.columns
+    if is_hdf5:
+        print("name,dtype,shape")
+        for _, row in schema_df.iterrows():
+            print(f"{row['path']},{row['dtype']},{_format_shape(row['rows'], row['cols'])}")
+    else:
+        print("name,dtype")
+        for _, row in schema_df.iterrows():
+            print(f"{row['column']},{row['dtype']}")
+
+
 def main():
     args = get_cmd_args()
 
@@ -104,84 +146,20 @@ def main():
         print(f"Error: Path not found: {args.path}", file=sys.stderr)
         sys.exit(1)
 
-    # Determine file type and read schema
-    path_lower = args.path.lower()
-    is_hdf5 = False
-
     try:
-        if path_lower.endswith(('.h5', '.hdf5')):
-            # HDF5 has its own schema format (path, dtype, shape)
-            columns = read_hdf5_schema(args.path, args.group)
-            file_type = "HDF5"
-            is_hdf5 = True
-        else:
-            # Use package-level read_schema for parquet, feather, gpkg, and directories
-            from gedih3.utils import read_schema
-            schema_df = read_schema(args.path)
-
-            # Determine display name
-            if os.path.isdir(args.path):
-                from gedih3.cliutils import detect_dataset_format
-                fmt = detect_dataset_format(args.path)
-                file_type = {'parquet': 'Parquet', 'feather': 'Feather', 'gpkg': 'GeoPackage'}.get(fmt, fmt)
-            else:
-                ext = os.path.splitext(args.path)[1].lstrip('.').lower()
-                file_type = {'parquet': 'Parquet', 'feather': 'Feather', 'gpkg': 'GeoPackage'}.get(ext, ext)
-
-            columns = list(zip(schema_df['column'], schema_df['dtype'].astype(str)))
-
+        from gedih3.utils import read_schema
+        schema_df = read_schema(args.path, root=args.group)
+        file_type = _detect_file_type(args.path)
     except Exception as e:
         print(f"Error reading schema: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # JSON output
     if args.json_output:
-        import json
-        if is_hdf5:
-            data = [{"name": c[0], "dtype": c[1], "shape": c[2]} for c in columns]
-        else:
-            data = [{"name": c[0], "dtype": c[1]} for c in columns]
-        print(json.dumps(data, indent=2))
-        return
-
-    # CSV output
-    if args.csv_output:
-        if is_hdf5:
-            print("name,dtype,shape")
-            for col in columns:
-                print(f"{col[0]},{col[1]},{col[2]}")
-        else:
-            print("name,dtype")
-            for col in columns:
-                print(f"{col[0]},{col[1]}")
-        return
-
-    # Default table output
-    if not args.no_header:
-        print()
-        print(f"{file_type} Schema: {args.path}")
-        if args.group:
-            print(f"Group: {args.group}")
-        print("=" * 70)
-        print()
-
-    if is_hdf5:
-        if not args.no_header:
-            print(f"{'Dataset Path':<40} {'Type':<15} {'Shape':<15}")
-            print("-" * 70)
-        for col in columns:
-            print(f"{col[0]:<40} {col[1]:<15} {col[2]:<15}")
+        _print_json(schema_df)
+    elif args.csv_output:
+        _print_csv(schema_df)
     else:
-        if not args.no_header:
-            print(f"{'Column':<40} {'Type':<30}")
-            print("-" * 70)
-        for col in columns:
-            print(f"{col[0]:<40} {col[1]:<30}")
-
-    if not args.no_header:
-        print("-" * 70)
-        print(f"Total: {len(columns)} {'datasets' if is_hdf5 else 'columns'}")
-        print()
+        _print_table(schema_df, file_type, args.path, args.group, args.no_header)
 
 
 if __name__ == '__main__':

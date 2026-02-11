@@ -103,12 +103,46 @@ def read_feather_schema(path):
                           for name, pa_dtype in zip(schema.names, schema.types)))
 
 
-def read_schema(path):
+def read_h3_database_schema(db_path):
+    """Read parquet schema from an H3 hive-partitioned database.
+
+    Finds the first parquet file inside any H3 partition directory
+    and reads its schema via read_parquet_schema().
+
+    Parameters
+    ----------
+    db_path : str
+        Path to H3 database root directory (containing h3_XX=* subdirs)
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame with 'column' and 'dtype' columns
+
+    Raises
+    ------
+    FileNotFoundError
+        If no H3 partition directories or parquet files found
+    """
+    import glob as globmod
+    partition_dirs = sorted(globmod.glob(os.path.join(db_path, 'h3_*=*/')))
+    if not partition_dirs:
+        raise FileNotFoundError(f"No H3 partition directories found in {db_path}")
+    for pdir in partition_dirs:
+        # Search recursively — partitions may have nested hive dirs (e.g. year=*)
+        pq_files = sorted(globmod.glob(os.path.join(pdir, '**', '*.parquet'), recursive=True))
+        if pq_files:
+            return read_parquet_schema(pq_files[0])
+    raise FileNotFoundError(f"No parquet files found in any partition of {db_path}")
+
+
+def read_schema(path, root=None):
     """
     Read schema from a data file or dataset directory, auto-detecting format.
 
     Supports parquet, feather, gpkg, and HDF5 files. For directories, detects
-    the dataset format from metadata or file extensions.
+    the dataset format from metadata or file extensions. Also detects H3
+    databases by the presence of gedih3_build_log.json.
 
     Parameters
     ----------
@@ -131,6 +165,11 @@ def read_schema(path):
     import glob as globmod
 
     if os.path.isdir(path):
+        # Check for H3 database first (has build log)
+        build_log = os.path.join(path, 'gedih3_build_log.json')
+        if os.path.exists(build_log):
+            return read_h3_database_schema(path)
+        # Fall through to simplified dataset detection
         from .cliutils import detect_dataset_format, list_dataset_files
         fmt = detect_dataset_format(path)
         files = list_dataset_files(path, fmt=fmt)
@@ -153,7 +192,7 @@ def read_schema(path):
     elif fmt == 'gpkg':
         return read_geopackage_schema(path)
     elif fmt == 'h5':
-        return h5_info(path)
+        return h5_info(path, root=root)
     else:
         raise ValueError(f"Unsupported format: {fmt}")
 
