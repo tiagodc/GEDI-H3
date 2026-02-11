@@ -36,6 +36,7 @@ dependencies = [
     "pqdm",
     "pyyaml",
     "tenacity >= 8.2.0",
+    "scipy >= 1.11.0",
     "GDAL",
 ]
 
@@ -49,6 +50,7 @@ gh3_list_resolutions = "gedih3.cli.gh3_list_resolutions:main"
 gh3_read_schema = "gedih3.cli.gh3_read_schema:main"
 gh3_rasterize = "gedih3.cli.gh3_rasterize:main"
 gh3_update = "gedih3.cli.gh3_update:main"
+gh3_from_img = "gedih3.cli.gh3_from_img:main"
 
 [tool.setuptools]
 packages = ["gedih3", "gedih3.cli", "gedih3.egi", "gedih3.raster"]
