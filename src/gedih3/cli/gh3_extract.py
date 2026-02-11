@@ -267,6 +267,8 @@ def main():
             if use_egi:
                 meta_kwargs['egi_index_level'] = egi_index_level
                 meta_kwargs['egi_partition_level'] = egi_partition_level
+            else:
+                meta_kwargs['h3_partition_level'] = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
             gh3.gh3_write_dataset_meta(
                 opath=args.output,
                 index_type=index_type,

@@ -184,6 +184,11 @@ class GediRasterizationError(GediProcessingError):
     pass
 
 
+class GediImageSamplingError(GediProcessingError):
+    """Error during raster image sampling at GEDI shot locations."""
+    pass
+
+
 # =============================================================================
 # Retry Configuration
 # =============================================================================

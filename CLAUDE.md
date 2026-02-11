@@ -4,6 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
+## Setup
+- use the /gpfs/data1/vclgp/decontot/environments/gh3_dev conda environment when present
+- this project is a refactoring of /gpfs/data1/vclgp/decontot/repos/gedi_tools with extended and enhanced functionality and revisited software design and architecture
+
 ## AI Agent Operating Principles (Non-Negotiable)
 
 - **Correctness over cleverness**: Prefer boring, readable solutions that are easy to maintain.
