@@ -251,89 +251,43 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
                 logger.info(f"  VRT mosaic: {vrt_path}")
             print_success(f"{len(raster_files)} raster files exported to {output_dir}", logger=logger)
 
-    else:
-        # Vector export
+    elif args.hive:
+        # Hive-partitioned export (specialized, keep as-is)
         os.makedirs(output_dir, exist_ok=True)
         logger.info("Exporting data...")
+        logger.info("  Using hive-style partitioning...")
+        write_task = aggdf.to_parquet(output_dir,
+                                      write_metadata_file=True,
+                                      write_index=True,
+                                      overwrite=True,
+                                      compression='zstd',
+                                      partition_on=[part_col],
+                                      compute=False)
+        write_task = write_task.persist()
+        if not args.quiet:
+            progress(write_task)
 
-        if args.merge:
-            logger.info("  Merging all partitions...")
-            aggdf = aggdf.compute()
-            opath = export_func(aggdf, odir=output_dir, fmt=args.format, is_file_path=True)
+        ofiles = globmod.glob(f"{output_dir}/**/*.parquet", recursive=True)
+        if len(ofiles) == 0:
+            raise RuntimeError("No output files were created.")
+        print_success(f"{len(ofiles)} files exported to {output_dir}", logger=logger)
 
-            # Write metadata for merged output (so gh3_rasterize can consume it)
-            logger.info("Writing dataset metadata...")
-            index_type = 'egi' if use_egi else 'h3'
-            index_level = egi_agg_level if use_egi else args.h3_level
-            meta_kwargs = {}
-            if use_egi:
-                meta_kwargs['egi_aggregation_level'] = egi_agg_level
-                meta_kwargs['egi_partition_level'] = egi_partition_level
-            gh3.gh3_write_dataset_meta(
-                opath=output_dir,
-                index_type=index_type,
-                index_level=index_level,
-                columns=list(aggdf.columns),
-                source_database=args.database,
-                aggregation=str(agg),
-                tool='gh3_aggregate',
-                file_format=args.format,
-                **meta_kwargs
-            )
-            print_success(f"Merged file exported to {opath}", logger=logger)
+    else:
+        # Simplified flat file export (merge or tiled) via gh3_export()
+        logger.info("Exporting data...")
 
-        elif args.hive:
-            logger.info("  Using hive-style partitioning...")
-            write_task = aggdf.to_parquet(output_dir,
-                                          write_metadata_file=True,
-                                          write_index=True,
-                                          overwrite=True,
-                                          compression='zstd',
-                                          partition_on=[part_col],
-                                          compute=False)
-            write_task = write_task.persist()
-            if not args.quiet:
-                progress(write_task)
+        meta_kwargs = {'aggregation': str(agg)}
+        if use_egi:
+            meta_kwargs['egi_aggregation_level'] = egi_agg_level
+            meta_kwargs['egi_partition_level'] = egi_partition_level
 
-            ofiles = globmod.glob(f"{output_dir}/**/*.parquet", recursive=True)
-            if len(ofiles) == 0:
-                raise RuntimeError("No output files were created.")
-            print_success(f"{len(ofiles)} files exported to {output_dir}", logger=logger)
-
-        else:
-            logger.info("  Output format: simplified flat files")
-            write_task = aggdf.map_partitions(export_func,
-                                              odir=output_dir,
-                                              fmt=args.format,
-                                              meta=pd.Series(dtype=str))
-            write_task = write_task.persist()
-            if not args.quiet:
-                progress(write_task)
-
-            ofiles = globmod.glob(f"{output_dir}/*.{args.format}")
-            if len(ofiles) == 0:
-                raise RuntimeError("No output files were created.")
-
-            # Write simplified dataset metadata
-            logger.info("Writing dataset metadata...")
-            index_type = 'egi' if use_egi else 'h3'
-            index_level = egi_agg_level if use_egi else args.h3_level
-            meta_kwargs = {}
-            if use_egi:
-                meta_kwargs['egi_aggregation_level'] = egi_agg_level
-                meta_kwargs['egi_partition_level'] = egi_partition_level
-            gh3.gh3_write_dataset_meta(
-                opath=output_dir,
-                index_type=index_type,
-                index_level=index_level,
-                columns=list(aggdf.columns),
-                source_database=args.database,
-                aggregation=str(agg),
-                tool='gh3_aggregate',
-                file_format=args.format,
-                **meta_kwargs
-            )
-            print_success(f"{len(ofiles)} files exported to {output_dir}", logger=logger)
+        gh3.gh3_export(
+            aggdf, output=output_dir, fmt=args.format, merge=args.merge,
+            show_progress=not args.quiet, drop_internal=False,
+            source_database=args.database, tool='gh3_aggregate',
+            **meta_kwargs
+        )
+        print_success(f"Data exported to {output_dir}", logger=logger)
 
 
 def main():

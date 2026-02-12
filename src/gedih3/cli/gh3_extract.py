@@ -94,11 +94,7 @@ def main():
     from gedih3.cliutils import cli_exception_handler
 
     with cli_exception_handler(args):
-        import glob
-        import numpy as np
-        import pandas as pd
-        import geopandas as gpd
-        from dask.distributed import Client, progress
+        from dask.distributed import Client
 
         import gedih3.gh3driver as gh3
         from gedih3.cliutils import (collect_columns, build_query_string, parse_region,
@@ -222,62 +218,18 @@ def main():
             logger.info("Exporting data...")
             logger.info(f"  Output format: simplified flat files by {part_col}")
 
-            os.makedirs(args.output, exist_ok=True)
-
-            if args.merge:
-                # Merge all partitions into single file
-                logger.info("  Merging all partitions...")
-                result_df = ddf.compute()
-                opath = gh3.gh3_export_part(
-                    result_df,
-                    odir=args.output,
-                    fmt=args.format,
-                    is_file_path=True,
-                    part_col=part_col
-                )
-                ofiles = [opath] if opath else []
-            else:
-                # Export each partition as separate file named by partition ID
-                # For EGI: after set_index shuffle, each unique EGI partition value is in
-                # exactly one Dask partition (no collision), but a Dask partition may contain
-                # multiple EGI partition values (needs splitting at export time).
-                # For H3: each Dask partition corresponds to one H3 partition directory.
-                write_task = ddf.map_partitions(
-                    gh3.gh3_export_part,
-                    odir=args.output,
-                    fmt=args.format,
-                    part_col=part_col,
-                    group_by_partition=use_egi,  # Split by EGI partition within each Dask partition
-                    meta=pd.Series(dtype=str)
-                )
-
-                write_task = write_task.persist()
-                progress(write_task)
-
-                ofiles = glob.glob(f"{args.output}/*.{args.format}")
-
-            if len(ofiles) == 0:
-                raise RuntimeError("No output files were created.")
-
-            # Write simplified dataset metadata
-            logger.info("Writing dataset metadata")
-            index_type = 'egi' if use_egi else 'h3'
-            index_level = egi_index_level if use_egi else gh3.gh3_read_meta('h3_resolution_level', gh3_root_dir=args.database)
-            meta_kwargs = {}
+            meta_kwargs = {'query_filter': query_str}
             if use_egi:
                 meta_kwargs['egi_index_level'] = egi_index_level
                 meta_kwargs['egi_partition_level'] = egi_partition_level
             else:
                 meta_kwargs['h3_partition_level'] = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
-            gh3.gh3_write_dataset_meta(
-                opath=args.output,
-                index_type=index_type,
-                index_level=index_level,
-                columns=columns,
-                source_database=args.database,
-                query_filter=query_str,
-                tool='gh3_extract',
-                file_format=args.format,
+
+            gh3.gh3_export(
+                ddf, output=args.output, fmt=args.format, merge=args.merge,
+                show_progress=not getattr(args, 'quiet', False),
+                drop_internal=False,
+                source_database=args.database, tool='gh3_extract',
                 **meta_kwargs
             )
 
