@@ -791,20 +791,20 @@ This handles the case where H3 database columns have product suffixes automatica
 
 ## EGI Resolution Levels
 
-| Level | Resolution | Description |
+| Level | Pixel Size | Description |
 |-------|------------|-------------|
-| 1 | ~160 km | Continental scale |
-| 2 | ~80 km | Regional scale |
-| 3 | ~40 km | Sub-regional |
-| 4 | ~20 km | Large area |
-| 5 | ~10 km | Medium area |
-| 6 | ~5 km | GEDI L4B native |
-| 7 | ~2.5 km | High resolution |
-| 8 | ~1.25 km | Very high resolution |
-| 9 | ~625 m | Ultra high resolution |
-| 10 | ~312 m | Fine scale |
-| 11 | ~156 m | Very fine scale |
-| 12 | ~78 m | Maximum resolution |
+| 1 | ~1 m | Finest resolution |
+| 2 | ~5 m | |
+| 3 | ~25 m | GEDI footprint |
+| 4 | ~100 m | NISAR compatible |
+| 5 | ~200 m | BIOMASS compatible |
+| 6 | ~1 km | GEDI L4B baseline |
+| 7 | ~2 km | GEDI threshold |
+| 8 | ~10 km | GEDI wall-to-wall |
+| 9 | ~20 km | |
+| 10 | ~40 km | |
+| 11 | ~80 km | |
+| 12 | ~160 km | Partition level (coarsest) |
 
 ## H3 Resolution Levels
 

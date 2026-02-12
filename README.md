@@ -128,32 +128,42 @@ ddf = from_image('/path/to/dem.tif', data_source='/path/to/database', region='re
 
 ## Architecture
 
-```
-NASA DAAC                     gedih3 Pipeline
-─────────                     ──────────────────────────────────────────────
-HDF5 granules  ──gh3_download──►  SOC directory (year/doy/)
-                                      │
-                               gh3_build (H3 indexing)
-                                      │
-                                      ▼
-                              H3 Parquet Database
-                              (hive-partitioned)
-                                      │
-                    ┌─────────────────┼──────────────────┐
-                    │                 │                   │
-              gh3_extract      gh3_aggregate       gh3_from_img
-              gh3_from_polygon                     gh3_from_polygon
-                    │                 │                   │
-                    ▼                 ▼                   ▼
-              Simplified Datasets (flat Parquet + JSON metadata)
-                    │                 │
-                    └────────┬────────┘
-                             │
-                       gh3_rasterize
-                             │
-                             ▼
-                      GeoTIFF rasters
-                    (single or time-series)
+```mermaid
+%%{init: {'theme':'dark'}}%%
+flowchart TB
+    n1["☁️ DAAC"] --> n2["🌐"]
+    n2 --> n17["⬇️ gh3_download"]
+    n17 --> n4["🪣 SOC"]
+    n4 --> C["⚙️ gh3_build"]
+    C --> n3["💽 Local H3<br>database"]
+    n3 --> D["gh3_extract"]
+    n3 --> n6["gh3_aggregate"]
+    D --> n14["📂 GEDI shots dataset"]
+    n6 --> n14
+    n14 <--> n12["gh3_update"]
+    n14 <--> n8["🖼️ gh3_from_img"]
+    n14 <--> n9["🌐 gh3_from_polygon"]
+    n14 --> RAST["gh3_rasterize"]
+    RAST --> TIF["🗺️ GeoTIFF"]
+    n15["External Raster"] -.-> n8
+    n16["External Vector"] -.-> n9
+    n3 --> n10["gh3_list_variables"]
+    n3 --> n11["gh3_list_resolutions"]
+    n14 --> n13["gh3_read_schema"]
+    n1@{ shape: db}
+    n2@{ shape: com-link}
+    n3@{ shape: disk}
+    n4@{ shape: das}
+    n14@{ shape: das}
+    TIF@{ shape: das}
+    n15@{ shape: das}
+    n16@{ shape: das}
+    n4:::fade
+    n15:::fade
+    n16:::fade
+    classDef fade stroke:#757575,color:#757575
+    linkStyle 14 stroke:#757575,fill:none
+    linkStyle 15 stroke:#757575,fill:none
 ```
 
 **Output Formats**:
@@ -194,12 +204,15 @@ Uber's H3 system for hexagonal spatial partitioning. Used as the primary index f
 
 Square pixel indexing on EASE-Grid 2.0 (EPSG:6933) for compatibility with GEDI L4B gridded products.
 
-| Level | Resolution | Typical Use |
+| Level | Pixel Size | Typical Use |
 |-------|------------|-------------|
-| 1 | ~160 km | Continental |
-| 6 | ~5 km | GEDI L4B native |
-| 9 | ~625 m | High resolution |
-| 12 | ~78 m | Maximum resolution |
+| 1 | ~1 m | Finest resolution |
+| 3 | ~25 m | GEDI footprint |
+| 6 | ~1 km | GEDI L4B baseline |
+| 8 | ~10 km | Wall-to-wall |
+| 12 | ~160 km | Partition level (coarsest) |
+
+> **Note**: Lower EGI level = finer resolution (opposite to H3).
 
 ---
 
