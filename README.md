@@ -138,23 +138,27 @@ flowchart TB
     C --> n3["💽 Local H3<br>database"]
     n3 --> D["gh3_extract"]
     n3 --> n6["gh3_aggregate"]
-    D --> n14["📂 GEDI shots dataset"]
-    n6 --> n14
-    n14 <--> n12["gh3_update"]
-    n14 <--> n8["🖼️ gh3_from_img"]
-    n14 <--> n9["🌐 gh3_from_polygon"]
-    n14 --> RAST["gh3_rasterize"]
+    D --> SHOTS["📂 Shots dataset"]
+    SHOTS --> n6
+    n6 --> AGG["📊 Aggregated dataset"]
+    SHOTS <--> n12["gh3_update"]
+    SHOTS <--> n8["🖼️ gh3_from_img"]
+    SHOTS <--> n9["🌐 gh3_from_polygon"]
+    SHOTS --> RAST["gh3_rasterize"]
+    AGG --> RAST
     RAST --> TIF["🗺️ GeoTIFF"]
     n15["External Raster"] -.-> n8
     n16["External Vector"] -.-> n9
     n3 --> n10["gh3_list_variables"]
     n3 --> n11["gh3_list_resolutions"]
-    n14 --> n13["gh3_read_schema"]
+    SHOTS --> n13["gh3_read_schema"]
+    AGG --> n13
     n1@{ shape: db}
     n2@{ shape: com-link}
     n3@{ shape: disk}
     n4@{ shape: das}
-    n14@{ shape: das}
+    SHOTS@{ shape: das}
+    AGG@{ shape: das}
     TIF@{ shape: das}
     n15@{ shape: das}
     n16@{ shape: das}
@@ -162,8 +166,8 @@ flowchart TB
     n15:::fade
     n16:::fade
     classDef fade stroke:#757575,color:#757575
-    linkStyle 14 stroke:#757575,fill:none
-    linkStyle 15 stroke:#757575,fill:none
+    linkStyle 16 stroke:#757575,fill:none
+    linkStyle 17 stroke:#757575,fill:none
 ```
 
 **Output Formats**:
