@@ -129,34 +129,30 @@ ddf = from_image('/path/to/dem.tif', data_source='/path/to/database', region='re
 ## Architecture
 
 ```mermaid
-%%{init: {'theme':'dark'}}%%
+---
+config:
+  theme: dark
+  layout: dagre
+---
 flowchart TB
-    n1["☁️ DAAC"] --> n2["🌐"]
+    n1["☁️ DAAC"] --> n2["🌐 Network"]
     n2 --> n17["⬇️ gh3_download"]
     n17 --> n4["🪣 SOC"]
     n4 --> C["⚙️ gh3_build"]
     C --> n3["💽 Local H3<br>database"]
-    n3 --> D["gh3_extract"]
-    n3 --> n6["gh3_aggregate"]
+    n3 --> D["gh3_extract"] & n10["gh3_list_variables"] & n11["gh3_list_resolutions"]
     D --> SHOTS["📂 Shots dataset"]
-    SHOTS --> n6
+    SHOTS --> n6["gh3_aggregate"] & RAST["gh3_rasterize"] & n13["gh3_read_schema"]
     n6 --> AGG["📊 Aggregated dataset"]
-    SHOTS <--> n12["gh3_update"]
-    SHOTS <--> n8["🖼️ gh3_from_img"]
-    SHOTS <--> n9["🌐 gh3_from_polygon"]
-    SHOTS --> RAST["gh3_rasterize"]
-    AGG --> RAST
     RAST --> TIF["🗺️ GeoTIFF"]
+    AGG --> RAST & n13
+    SHOTS <--> n12["gh3_update"] & n8["🖼️ gh3_from_img"] & n9["🌐 gh3_from_polygon"]
     n15["External Raster"] -.-> n8
     n16["External Vector"] -.-> n9
-    n3 --> n10["gh3_list_variables"]
-    n3 --> n11["gh3_list_resolutions"]
-    SHOTS --> n13["gh3_read_schema"]
-    AGG --> n13
     n1@{ shape: db}
     n2@{ shape: com-link}
-    n3@{ shape: disk}
     n4@{ shape: das}
+    n3@{ shape: disk}
     SHOTS@{ shape: das}
     AGG@{ shape: das}
     TIF@{ shape: das}
@@ -166,8 +162,8 @@ flowchart TB
     n15:::fade
     n16:::fade
     classDef fade stroke:#757575,color:#757575
-    linkStyle 16 stroke:#757575,fill:none
-    linkStyle 17 stroke:#757575,fill:none
+    linkStyle 19 stroke:#757575,fill:none
+    linkStyle 20 stroke:#757575,fill:none
 ```
 
 **Output Formats**:
