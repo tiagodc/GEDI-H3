@@ -189,6 +189,11 @@ class GediImageSamplingError(GediProcessingError):
     pass
 
 
+class GediSpatialJoinError(GediProcessingError):
+    """Error during spatial join of vector data to GEDI shot locations."""
+    pass
+
+
 # =============================================================================
 # Retry Configuration
 # =============================================================================
