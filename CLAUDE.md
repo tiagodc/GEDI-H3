@@ -299,7 +299,7 @@ Configuration paths can be set via `~/.gedih3.env` or environment variables:
 
 ## CLI Tools
 
-Eight command-line tools are installed as entry points:
+Eleven command-line tools are installed as entry points:
 
 ### Core Workflow Tools
 
@@ -346,6 +346,28 @@ gh3_read_schema /path/to/file.parquet
 gh3_read_schema /path/to/file.h5
 ```
 
+### Ancillary Data Tools
+
+```bash
+# Sample raster pixel values at GEDI shot locations
+gh3_from_img -i /path/to/dem.tif -d /path/to/database -r region.shp -o output/
+
+# Sample tile directory with band selection and window operations
+gh3_from_img -i /path/to/tiles/ -if tif -B 0 2 -w 131 -d /path/to/database -o output/
+
+# Sample with custom band names and quality filtering
+gh3_from_img -i /path/to/raster.vrt -b elevation slope -d /path/to/database -y -g -o output/
+
+# Join polygon attributes to GEDI shots
+gh3_from_polygon -i ecoregions.shp -c ECO_NAME BIOME_NAME -d /path/to/database -o output/
+
+# Join with column prefix and inner join (drop unmatched shots)
+gh3_from_polygon -i landcover.gpkg -x lc_ --dropna -d /path/to/database -o output/
+
+# Join with intersects predicate
+gh3_from_polygon -i boundaries.shp -p intersects -d /path/to/database -o output/
+```
+
 ### Common CLI Flags
 
 | Flag | Description |
@@ -359,6 +381,12 @@ gh3_read_schema /path/to/file.h5
 | `-Q, --quiet` | Suppress output except errors |
 | `-egi INDEX[:PART]` | Use EGI indexing (e.g., `-egi 1` or `-egi 1:12` for index:partition levels) |
 | `-R, --rasterize` | Also export rasters after aggregation (gh3_aggregate only) |
+| `-i, --image` / `-i, --input` | Ancillary data source: raster file/dir or vector file (gh3_from_img/gh3_from_polygon) |
+| `-w, --window` | Window operations for raster sampling (3-digit BZO format) |
+| `-B, --bands` | Select specific raster bands by 0-based index |
+| `-x, --prefix` | Column name prefix for polygon attributes (avoids conflicts) |
+| `-c, --columns` | Polygon attribute columns to include |
+| `-p, --predicate` | Spatial join predicate: `within` or `intersects` |
 
 ## Architecture
 
@@ -412,9 +440,12 @@ src/gedih3/
 ├── gh3builder.py         # H3 database building
 ├── gh3driver.py          # H3 database queries, EGI/raster integration
 ├── h3utils.py            # H3 cell operations
+├── imgutils.py           # Raster image sampling at shot locations
+├── vecutils.py           # Vector polygon spatial join
+├── sqlutils.py           # DuckDB utilities (experimental)
 ├── cliutils.py           # CLI shared utilities (args, logging, data loading)
 ├── utils.py              # File I/O, transaction safety utilities
-├── exceptions.py         # Structured exception hierarchy
+├── exceptions.py         # Structured exception hierarchy (26 types)
 ├── validation.py         # Parameter validation functions
 ├── logging_config.py     # Logging configuration
 ├── logger.py             # Build/download loggers
@@ -435,6 +466,9 @@ src/gedih3/
     ├── gh3_extract.py
     ├── gh3_aggregate.py
     ├── gh3_rasterize.py
+    ├── gh3_update.py
+    ├── gh3_from_img.py
+    ├── gh3_from_polygon.py
     ├── gh3_list_variables.py
     ├── gh3_list_resolutions.py
     └── gh3_read_schema.py
@@ -473,9 +507,13 @@ GediError (base)
 │   ├── GediDatabaseNotFoundError
 │   ├── GediDatabaseCorruptedError
 │   └── GediMergeError
+├── GediSpatialError
+├── GediTemporalError
 └── GediProcessingError
     ├── GediAggregationError
-    └── GediRasterizationError
+    ├── GediRasterizationError
+    ├── GediImageSamplingError
+    └── GediSpatialJoinError
 ```
 
 ### GEDI Products Supported
@@ -587,6 +625,31 @@ res, part = validate_h3_params(res=12, part=3)
 level = validate_egi_level(6)
 ```
 
+### Ancillary Data Integration
+
+```python
+from gedih3.imgutils import from_image, parse_window_specs
+
+# Sample raster at GEDI shot locations (returns Dask DataFrame)
+ddf = from_image(
+    image_path='/path/to/dem.tif',
+    data_source='/path/to/database',  # H3 database or simplified dataset
+    region='region.shp',
+    band_names=['elevation'],
+    window_ops=parse_window_specs(['131']),  # band 1, 3x3 window, mean
+)
+
+from gedih3.vecutils import join_polygons_to_points
+
+# Spatial join polygon attributes to point DataFrame (for map_partitions)
+result = join_polygons_to_points(
+    df=gedi_partition,
+    vector_path='ecoregions.shp',
+    join_columns=['ECO_NAME', 'BIOME_NAME'],
+    prefix='eco_',
+)
+```
+
 ## Testing
 
 ```bash
@@ -606,6 +669,7 @@ python tests/run_tests.py
 - **Atomic writes**: File operations use `AtomicFileWriter` for transaction safety
 - **Structured exceptions**: Catch specific `GediError` subclasses for targeted error handling
 - **DRY CLI utilities**: Shared argument builders and setup functions in `cliutils.py`
+- **Ancillary data fusion**: External raster sampling (`imgutils.py`) and vector spatial join (`vecutils.py`) at shot level with worker-level caching
 
 ## CLI Shared Utilities
 
@@ -919,7 +983,7 @@ gh3_read_schema /path/to/database/gedih3_build_log.json
 
 ## Claude Code Sub-Agents
 
-Five specialized sub-agents are configured in `.claude/agents/` for domain-specific work:
+Four specialized sub-agents are configured in `.claude/agents/` for domain-specific work:
 
 | Agent | File | Use For |
 |-------|------|---------|
