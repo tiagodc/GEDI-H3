@@ -119,9 +119,30 @@ def _update_from_database(args, dataset_path, dataset_meta, logger):
             f"Source H3 database not found: {db_path}\n"
             "Specify the H3 database with -D/--database"
         )
+
+    # If source_database points to a simplified dataset (not an H3 database),
+    # walk back the metadata chain to find the original H3 database.
     build_log_path = os.path.join(db_path, "gedih3_build_log.json")
     if not os.path.exists(build_log_path):
-        raise FileNotFoundError(f"Not an H3 database (no build log): {db_path}")
+        chain_meta_path = os.path.join(db_path, "gedih3_dataset.json")
+        if os.path.exists(chain_meta_path):
+            with open(chain_meta_path, 'r') as f:
+                chain_meta = json.load(f)
+            upstream = chain_meta.get('source_database')
+            if upstream and os.path.exists(os.path.join(upstream, "gedih3_build_log.json")):
+                logger.info(f"  source_database is a simplified dataset, tracing back to: {upstream}")
+                db_path = upstream
+            else:
+                raise FileNotFoundError(
+                    f"source_database '{db_path}' is not an H3 database and its upstream "
+                    f"H3 database could not be found.\n"
+                    "Specify the H3 database explicitly with -D/--database"
+                )
+        else:
+            raise FileNotFoundError(
+                f"Not an H3 database (no build log): {db_path}\n"
+                "Specify the H3 database with -D/--database"
+            )
 
     logger.info(f"  Source database: {db_path}")
 

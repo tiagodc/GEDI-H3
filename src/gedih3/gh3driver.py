@@ -629,6 +629,227 @@ def _write_dataframe(df, opath, fmt):
 
 
 # ============================================================================
+# Export API
+# ============================================================================
+
+
+def _detect_export_params(ddf, index_type=None):
+    """
+    Auto-detect export parameters from a Dask DataFrame.
+
+    Inspects the DataFrame's index and columns to determine the spatial index
+    type, partition column, and index level.
+
+    Parameters
+    ----------
+    ddf : dask DataFrame or GeoDataFrame
+        The data to export
+    index_type : str, optional
+        Override auto-detection: 'h3' or 'egi'. If None, auto-detect.
+
+    Returns
+    -------
+    tuple
+        (index_type, part_col, index_level, group_by_partition)
+        - index_type: 'h3', 'egi', or None
+        - part_col: partition column name (e.g. 'h3_03', 'egi12')
+        - index_level: spatial index resolution level (int or None)
+        - group_by_partition: whether to use group_by_partition in export
+    """
+    meta = ddf._meta if hasattr(ddf, '_meta') else ddf
+
+    # Auto-detect index type if not provided
+    if index_type is None:
+        index_type = get_spatial_index_type(meta)
+
+    if index_type == 'egi':
+        import re
+        # Find EGI partition column (coarsest = highest level number)
+        egi_cols = sorted(
+            [c for c in meta.columns if re.match(r'^egi\d{2}$', str(c))],
+            key=lambda c: int(str(c).replace('egi', ''))
+        )
+        if egi_cols:
+            part_col = egi_cols[-1]  # coarsest = highest level = partition
+        else:
+            part_col = None
+
+        # Index level from index name
+        idx_name = str(meta.index.name) if meta.index.name else ''
+        if idx_name.startswith('egi'):
+            index_level = int(idx_name.replace('egi', ''))
+        elif egi_cols:
+            # Finest EGI column
+            index_level = int(str(egi_cols[0]).replace('egi', ''))
+        else:
+            index_level = None
+
+        # EGI data after shuffle needs group_by_partition
+        group_by_partition = True
+
+    elif index_type == 'h3':
+        import re
+        # Find H3 partition column (coarsest = lowest level number)
+        h3_cols = sorted(
+            [c for c in meta.columns if re.match(r'^h3_\d{2}$', c)]
+        )
+        if h3_cols:
+            part_col = h3_cols[0]  # coarsest = lowest level = partition
+        else:
+            part_col = None
+
+        # Index level from index name
+        idx_name = str(meta.index.name) if meta.index.name else ''
+        if idx_name.startswith('h3_'):
+            index_level = int(idx_name.replace('h3_', ''))
+        elif h3_cols:
+            index_level = int(h3_cols[-1].replace('h3_', ''))
+        else:
+            index_level = None
+
+        group_by_partition = False
+
+    else:
+        part_col = None
+        index_level = None
+        group_by_partition = False
+
+    return index_type, part_col, index_level, group_by_partition
+
+
+def gh3_export(ddf, output, fmt='parquet', merge=False,
+               show_progress=True, drop_internal=True,
+               write_metadata=True, source_database=None,
+               tool=None, **metadata_kwargs):
+    """
+    Export a Dask DataFrame to simplified flat files with metadata.
+
+    This is the high-level export function that encapsulates the full export
+    pipeline: drop internal columns, persist, write partition files, and
+    write dataset metadata. It replaces the boilerplate pattern of
+    map_partitions + persist + progress + gh3_write_dataset_meta.
+
+    Parameters
+    ----------
+    ddf : dask DataFrame or GeoDataFrame
+        Data to export. Should already be persisted if it represents
+        an expensive computation (e.g., aggregation result).
+    output : str
+        Output directory path
+    fmt : str
+        Output format ('parquet', 'feather', 'gpkg', etc.)
+    merge : bool
+        If True, compute and write a single merged file instead of
+        per-partition files.
+    show_progress : bool
+        If True and a Dask distributed client is available, show progress bar.
+    drop_internal : bool
+        If True, drop internal columns (h3_XX, egiXX, _egi_x/y, shot_number*)
+        before export.
+    write_metadata : bool
+        If True, write gedih3_dataset.json metadata file.
+    source_database : str, optional
+        Path to source H3 database (recorded in metadata).
+    tool : str, optional
+        Name of the tool creating this dataset (recorded in metadata).
+    **metadata_kwargs
+        Additional key-value pairs to include in the dataset metadata.
+        Common keys: query_filter, aggregation, egi_index_level,
+        egi_partition_level, h3_partition_level, image_source, etc.
+
+    Returns
+    -------
+    list of str
+        Paths to output files created.
+
+    Examples
+    --------
+    >>> import gedih3.gh3driver as gh3
+    >>> ddf = gh3.gh3_load(columns=['agbd_l4a'], region='roi.shp', gh3_dir='/db')
+    >>> gh3.gh3_export(ddf, '/tmp/test_export/')
+    >>>
+    >>> # Merged export
+    >>> gh3.gh3_export(ddf, '/tmp/merged/', merge=True)
+    >>>
+    >>> # With metadata
+    >>> gh3.gh3_export(ddf, '/tmp/out/', source_database='/db', tool='my_script',
+    ...               query_filter='quality_flag == 1')
+    """
+    from .cliutils import is_internal_column
+    from .utils import get_dask_client
+
+    os.makedirs(output, exist_ok=True)
+
+    # Auto-detect spatial index parameters
+    index_type, part_col, index_level, group_by_partition = _detect_export_params(ddf)
+
+    # Choose the right export function based on index type
+    if index_type == 'egi':
+        export_func = egi_export_part
+    else:
+        export_func = gh3_export_part
+
+    # Drop internal columns if requested
+    if drop_internal:
+        drop_cols = [c for c in ddf.columns if is_internal_column(c)]
+        if drop_cols:
+            ddf = ddf.drop(columns=drop_cols)
+
+    # Export data
+    if merge:
+        result_df = ddf.compute()
+        opath = export_func(result_df, odir=output, fmt=fmt, is_file_path=True)
+        ofiles = [opath] if opath else []
+    else:
+        import pandas as pd
+
+        # Build export kwargs based on index type
+        # egi_export_part handles splitting internally; gh3_export_part uses part_col/group_by_partition
+        if index_type == 'egi':
+            export_kwargs = dict(odir=output, fmt=fmt)
+        else:
+            export_kwargs = dict(odir=output, fmt=fmt, part_col=part_col,
+                                 group_by_partition=group_by_partition)
+
+        write_task = ddf.map_partitions(
+            export_func, **export_kwargs, meta=pd.Series(dtype=str)
+        )
+
+        # Try to use distributed progress if available
+        client = get_dask_client()
+        if client is not None:
+            from dask.distributed import progress
+            write_task = write_task.persist()
+            if show_progress:
+                progress(write_task)
+            else:
+                write_task.compute()
+        else:
+            write_task.compute()
+
+        ofiles = glob.glob(os.path.join(output, f'*.{fmt}'))
+
+    if not ofiles:
+        raise RuntimeError("No output files were created.")
+
+    # Write dataset metadata
+    if write_metadata:
+        columns = list(ddf.columns)
+        gh3_write_dataset_meta(
+            opath=output,
+            index_type=index_type or 'unknown',
+            index_level=index_level,
+            columns=columns,
+            source_database=source_database,
+            tool=tool,
+            file_format=fmt,
+            **metadata_kwargs
+        )
+
+    return ofiles
+
+
+# ============================================================================
 # EGI (EASE Grid Index) Support
 # ============================================================================
 # The following functions provide square-pixel indexing using EASE-Grid 2.0
@@ -2097,4 +2318,79 @@ def gh3_rasterize_partitions(
     return rasterize_and_export_partitions(
         ddf, output_dir, rasterize_h3_partition,
         columns=columns, compress=compress, show_progress=show_progress
+    )
+
+
+# ============================================================================
+# Raster Sampling API
+# ============================================================================
+
+
+def gh3_sample_raster(image_path, data_source=None, gh3_dir=None,
+                      region=None, query=None, band_names=None,
+                      band_indices=None, window_ops=None,
+                      fillna=None, dropna=False, geo=False,
+                      file_format='tif'):
+    """
+    Sample raster pixel values at GEDI shot locations.
+
+    Thin wrapper around ``imgutils.from_image()`` for API discoverability.
+    Returns a Dask DataFrame; use ``gh3_export()`` to save results.
+
+    Parameters
+    ----------
+    image_path : str
+        Path to raster file, VRT, or tile directory
+    data_source : str, optional
+        Path to simplified dataset directory
+    gh3_dir : str, optional
+        Path to H3 database directory
+    region : GeoDataFrame or bbox, optional
+        Additional spatial filter
+    query : str, optional
+        Pandas query string for filtering shots
+    band_names : list of str, optional
+        Custom names for output band columns
+    band_indices : list of int, optional
+        Select specific bands by 0-based index
+    window_ops : list of dict, optional
+        Window operation specifications
+    fillna : float, optional
+        Fill NaN/NoData with this value
+    dropna : bool
+        If True, drop rows where all band columns are NaN
+    geo : bool
+        If True, include geometry in output
+    file_format : str
+        Raster file extension for tile directory globbing
+
+    Returns
+    -------
+    dask DataFrame or GeoDataFrame
+        Sampled raster values at GEDI shot locations
+
+    Examples
+    --------
+    >>> import gedih3.gh3driver as gh3
+    >>> ddf = gh3.gh3_sample_raster(
+    ...     'dem.tif', gh3_dir='/path/to/database',
+    ...     band_names=['elevation'], geo=True
+    ... )
+    >>> gh3.gh3_export(ddf, '/tmp/sampled/')
+    """
+    from .imgutils import from_image
+
+    return from_image(
+        image_path=image_path,
+        data_source=data_source,
+        gh3_dir=gh3_dir,
+        region=region,
+        query=query,
+        band_names=band_names,
+        band_indices=band_indices,
+        window_ops=window_ops,
+        fillna=fillna,
+        dropna=dropna,
+        geo=geo,
+        file_format=file_format,
     )

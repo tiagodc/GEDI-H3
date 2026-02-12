@@ -97,11 +97,8 @@ def main():
 
     with cli_exception_handler(args):
         import glob
-        import json
-        import numpy as np
-        import pandas as pd
         import geopandas as gpd
-        from dask.distributed import Client, progress
+        from dask.distributed import Client
 
         import gedih3.gh3driver as gh3
         from gedih3.cliutils import (
@@ -354,44 +351,13 @@ def main():
 
             # Export
             logger.info("Exporting data...")
-            if args.merge:
-                logger.info("  Merging all partitions...")
-                sampled = sampled.persist()
-                progress(sampled)
-                result_df = sampled.compute()
-                opath = gh3.gh3_export_part(
-                    result_df,
-                    odir=args.output,
-                    fmt=args.format,
-                    is_file_path=True,
-                    part_col=partition_col
-                )
-                ofiles = [opath] if opath else []
-            else:
-                write_task = sampled.map_partitions(
-                    gh3.gh3_export_part,
-                    odir=args.output,
-                    fmt=args.format,
-                    part_col=partition_col,
-                    group_by_partition=(index_type == 'egi'),
-                    meta=pd.Series(dtype=str)
-                )
-                write_task = write_task.persist()
-                progress(write_task)
-                ofiles = glob.glob(os.path.join(args.output, f'*.{args.format}'))
 
-            if len(ofiles) == 0:
-                logger.warning("No output files were created (possibly no valid data)")
-            else:
-                logger.info(f"  Wrote {len(ofiles)} files to {args.output}")
-
-            # Write dataset metadata
-            logger.info("Writing dataset metadata")
-            # Resolve window column names using all_band_names for metadata
+            # Build image-specific metadata
             from gedih3.imgutils import _resolve_window_col_name
             window_col_names = [_resolve_window_col_name(w, all_band_names) for w in (window_ops or [])]
 
             meta_kwargs = {
+                'query_filter': query_str,
                 'image_source': os.path.abspath(args.image),
                 'raster_crs': str(raster_info['crs']),
                 'raster_resolution': list(raster_info['resolution']),
@@ -408,15 +374,11 @@ def main():
             if window_ops:
                 meta_kwargs['window_operations'] = window_col_names
 
-            gh3.gh3_write_dataset_meta(
-                opath=args.output,
-                index_type=index_type,
-                index_level=index_level,
-                columns=band_names + ['relative_pixel_distance'] + window_col_names,
-                source_database=args.database,
-                query_filter=query_str,
-                tool='gh3_from_img',
-                file_format=args.format,
+            gh3.gh3_export(
+                sampled, output=args.output, fmt=args.format, merge=args.merge,
+                show_progress=not getattr(args, 'quiet', False),
+                drop_internal=False,
+                source_database=args.database, tool='gh3_from_img',
                 **meta_kwargs
             )
 
