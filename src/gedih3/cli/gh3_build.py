@@ -2,7 +2,6 @@
 DEBUG=False
 
 import argparse
-import dask
 
 def get_cmd_args():
     from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args

@@ -1,5 +1,12 @@
 channels:
   - conda-forge
+
+variables:
+  GH3_DEFAULT_DOWNLOAD_DIR: /gpfs/data1/vclgp/data/iss_gedi/h3_mock
+  GH3_DEFAULT_TMP_DIR: /gpfs/data1/vclgp/data/iss_gedi/h3_mock/tmp
+  GH3_DEFAULT_SOC_DIR: /gpfs/data1/vclgp/data/iss_gedi/soc
+  GH3_DEFAULT_H3_DIR: /gpfs/data1/vclgp/data/iss_gedi/h3_mock/database_world_merged
+
 dependencies:
   # Package managers
   - conda
@@ -8,11 +15,12 @@ dependencies:
 
   # Core Python
   - python[version='>=3.13']
+  - setuptools[version='>=80.0']
 
   # Core scientific computing
   - numpy[version='>=2.2']
   - pandas[version='>=2.3']
-  - scipy
+  - scipy[version='>=1.11']
 
   # Geospatial libraries
   - geopandas[version='>=1.1']
@@ -48,30 +56,27 @@ dependencies:
   # Utilities
   - python-dateutil[version='>=2.9']
   - python-dotenv
+  - tenacity[version='>=8.2']
   - tqdm
   - pqdm
   - requests
-
-  # Development and interactive tools (optional)
-  - jupyterlab
-  - ipython
-  - notebook
-  - matplotlib-base
-  - bokeh
-  - folium
-  - ipywidgets
-
-  # CLI tools (optional)
-  - click
-
-  # Scientific libraries (optional)
-  - scikit-learn
 
   # GDAL/PROJ system libraries
   - gdal
   - proj
   - proj-data
 
+  # Development and interactive tools
+  - jupyterlab
+  - ipython
+  - ipykernel
+  - notebook
+  - matplotlib-base
+  - bokeh
+  - folium
+  - ipywidgets
+  - pytest
+
   # Install gedih3 in editable mode via pip
-  # - pip:
-  #   - -e .
+  - pip:
+    - -e .

@@ -30,11 +30,14 @@ def _query_filter_columns(query_filter, available_columns):
     if not query_filter:
         return []
     available = set(available_columns)
-    # Match word tokens that look like column names (not numbers, not Python keywords)
-    tokens = set(re.findall(r'\b([a-zA-Z_]\w*)\b', query_filter))
+    # Match backtick-quoted identifiers (may contain '/' or other special chars)
+    backtick_tokens = set(re.findall(r'`([^`]+)`', query_filter))
+    # Match regular word tokens
+    word_tokens = set(re.findall(r'\b([a-zA-Z_]\w*)\b', query_filter))
+    all_tokens = backtick_tokens | word_tokens
     python_keywords = {'and', 'or', 'not', 'in', 'True', 'False', 'None',
                        'is', 'nan', 'NaN', 'inf', 'Inf'}
-    return [t for t in tokens if t in available and t not in python_keywords]
+    return [t for t in all_tokens if t in available and t not in python_keywords]
 
 
 def _make_plain_reader(fmt, columns=None):
@@ -255,7 +258,8 @@ def _update_h3_partitions(dataset_path, db_path, data_files, fmt, new_cols,
         if os.path.exists(h3_dir):
             source_df = gh3.gh3_load_hex(h3_dir, columns=load_cols)
             if query_filter:
-                source_df = source_df.query(query_filter)
+                from gedih3.cliutils import safe_query
+                source_df = safe_query(source_df, query_filter)
                 if extra_filter_cols:
                     source_df = source_df.drop(columns=extra_filter_cols, errors='ignore')
             target_df = _join_new_columns(target_df, source_df, new_cols, sn_col)
@@ -311,7 +315,8 @@ def _update_egi_partitions(dataset_path, db_path, data_files, fmt, new_cols,
         if source_dfs:
             source_df = pd.concat(source_dfs, ignore_index=True)
             if query_filter:
-                source_df = source_df.query(query_filter)
+                from gedih3.cliutils import safe_query
+                source_df = safe_query(source_df, query_filter)
                 if extra_filter_cols:
                     source_df = source_df.drop(columns=extra_filter_cols, errors='ignore')
             target_df = _join_new_columns(target_df, source_df, new_cols, sn_col)

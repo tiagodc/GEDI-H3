@@ -60,6 +60,10 @@ def resolve_raster_source(image_path, file_format='tif', odir=None):
     GediImageSamplingError
         If no valid raster found
     """
+    # Remote URLs are valid GDAL sources — pass through directly
+    if image_path.startswith(('http://', 'https://', 's3://', '/vsicurl/', '/vsis3/')):
+        return image_path, False, 1
+
     if os.path.isfile(image_path):
         return image_path, False, 1
 

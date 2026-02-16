@@ -36,8 +36,6 @@ def get_cmd_args():
                    help="output format [default=parquet]")
     p.add_argument("-m", "--merge", dest="merge", action='store_true',
                    help="merge all partitions into single file")
-    p.add_argument("-H", "--hive", dest="hive", action='store_true',
-                   help="export in hive-partitioned directory structure")
 
     # Rasterization option
     p.add_argument("-R", "--rasterize", dest="rasterize", action='store_true',
@@ -177,7 +175,7 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
     """
     Drop internal columns, persist, and export aggregated data.
 
-    Handles raster, merge, hive, and simplified flat file export modes.
+    Handles raster, merge, and simplified flat file export modes.
     """
     import glob as globmod
     import pandas as pd
@@ -250,27 +248,6 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
                 raster.build_vrt(raster_files, vrt_path)
                 logger.info(f"  VRT mosaic: {vrt_path}")
             print_success(f"{len(raster_files)} raster files exported to {output_dir}", logger=logger)
-
-    elif args.hive:
-        # Hive-partitioned export (specialized, keep as-is)
-        os.makedirs(output_dir, exist_ok=True)
-        logger.info("Exporting data...")
-        logger.info("  Using hive-style partitioning...")
-        write_task = aggdf.to_parquet(output_dir,
-                                      write_metadata_file=True,
-                                      write_index=True,
-                                      overwrite=True,
-                                      compression='zstd',
-                                      partition_on=[part_col],
-                                      compute=False)
-        write_task = write_task.persist()
-        if not args.quiet:
-            progress(write_task)
-
-        ofiles = globmod.glob(f"{output_dir}/**/*.parquet", recursive=True)
-        if len(ofiles) == 0:
-            raise RuntimeError("No output files were created.")
-        print_success(f"{len(ofiles)} files exported to {output_dir}", logger=logger)
 
     else:
         # Simplified flat file export (merge or tiled) via gh3_export()
