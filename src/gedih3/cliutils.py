@@ -8,7 +8,6 @@ from contextlib import contextmanager
 
 from .config import GEDI_PRODUCTS, ISO3_COUNTRIES_URL
 from .utils import read_vector_file, parse_spatial
-from .gedidriver import gedi_vars_expand
 from .exceptions import GediValidationError
 # Note: gh3driver imports are done lazily to avoid circular imports
 
@@ -201,10 +200,13 @@ warnings.filterwarnings('ignore', message=r'.*Consider loading the data.*')
 
 def add_dask_args(parser):
     """Add Dask-related arguments to an argument parser."""
-    from .utils import get_system_resources
-    cpus, ram, _ = get_system_resources()
-    n = max(1, cpus // 4)
-    m = int(max(1, ram / n))
+    if '--help' in sys.argv or '-h' in sys.argv:
+        n, m = 4, 4  # placeholder defaults for help text
+    else:
+        from .utils import get_system_resources
+        cpus, ram, _ = get_system_resources()
+        n = max(1, cpus // 4)
+        m = int(max(1, ram / n))
 
     parser.add_argument("-s", "--dask-scheduler", dest="dask_scheduler", type=str, default=None,
                         help="existing dask scheduler address, e.g. tcp://localhost:8786")
@@ -380,7 +382,7 @@ def setup_logging(args, name=None):
             'tornado',
             'asyncio',
         ]:
-            logging.getLogger(logger_name).setLevel(logging.ERROR)
+            logging.getLogger(logger_name).setLevel(logging.CRITICAL)
 
     return get_logger(name or __name__)
 
@@ -1052,6 +1054,7 @@ def collect_columns(args, available_columns=None):
             raise GediValidationError(f"The following variables from --list were not found: {', '.join(missing)}")
 
     product_map = {i: getattr(args, i.lower()) for i in GEDI_PRODUCTS.keys() if getattr(args, i.lower()) is not None}
+    from .gedidriver import gedi_vars_expand
     prod_vars = gedi_vars_expand(product_map)
 
     for prod, vars in prod_vars.items():
@@ -1107,3 +1110,34 @@ def build_query_string(args, available_columns=None):
         queries.append(f"({args.query})")
 
     return " & ".join(queries) if queries else None
+
+
+def safe_query(df, query_str):
+    """Apply a pandas query, handling column names with '/' that pandas can't parse.
+
+    pandas.DataFrame.query() fails on backtick-quoted names containing '/'
+    because it converts the slash to an unresolvable internal token.
+    This function works around the limitation by temporarily renaming such columns.
+    """
+    if not query_str:
+        return df
+
+    slash_cols = {c: c.replace('/', '_') for c in df.columns if '/' in c}
+    if not slash_cols and '/' not in query_str:
+        return df.query(query_str)
+
+    # Sanitize backtick-quoted names with '/' in the query string
+    import re as _re
+    safe_qstr = _re.sub(
+        r'`([^`]*/[^`]*)`',
+        lambda m: '`' + m.group(1).replace('/', '_') + '`',
+        query_str
+    )
+
+    # Also rename any DataFrame columns with '/'
+    if slash_cols:
+        result = df.rename(columns=slash_cols).query(safe_qstr)
+        reverse = {v: k for k, v in slash_cols.items()}
+        return result.rename(columns=reverse)
+
+    return df.query(safe_qstr)

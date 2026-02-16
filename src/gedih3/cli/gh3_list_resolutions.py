@@ -11,9 +11,6 @@ Package: gedih3
 """
 
 import argparse
-import h3
-
-from gedih3.egi.config import RESOLUTIONS as EGI_RESOLUTIONS
 
 
 def format_number(n):
@@ -55,6 +52,7 @@ def get_h3_resolution_info(res: int) -> dict:
     dict
         Dictionary with edge_km, area_km2, and cells count
     """
+    import h3
     edge_m = h3.average_hexagon_edge_length(res, unit='m')
     area_m2 = h3.average_hexagon_area(res, unit='m^2')
     num_cells = h3.get_num_cells(res)
@@ -97,6 +95,7 @@ def get_egi_resolution_info(level: int) -> dict:
     dict
         Dictionary with resolution_m and description
     """
+    from gedih3.egi.config import RESOLUTIONS as EGI_RESOLUTIONS
     return {
         'resolution_m': EGI_RESOLUTIONS[level],
         'description': EGI_DESCRIPTIONS.get(level, "")

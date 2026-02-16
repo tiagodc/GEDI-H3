@@ -3,13 +3,12 @@ import shutil
 import pathlib
 import datetime as dt
 
-from gedih3 import sqlutils
 from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR
-from gedih3.gh3driver import gh3_read_meta
 
 def get_file_list():
     """Generate a list of all the possible parquet files in the database."""
     # Get partition level from metadata (default to 3 for backwards compatibility)
+    from gedih3.gh3driver import gh3_read_meta
     part_level = gh3_read_meta("h3_partition_level", gh3_root_dir=GH3_DEFAULT_H3_DIR)
     if part_level is None:
         part_level = 3
@@ -30,6 +29,7 @@ def get_file_list():
     return files
 
 def main():
+    from gedih3 import sqlutils
     con = sqlutils.init_duckdb()
 
     # Ideally this would be done with a triple glob, but the file system

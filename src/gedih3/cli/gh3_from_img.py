@@ -358,7 +358,7 @@ def main():
 
             meta_kwargs = {
                 'query_filter': query_str,
-                'image_source': os.path.abspath(args.image),
+                'image_source': args.image if args.image.startswith(('http://', 'https://', 's3://', '/vsicurl/', '/vsis3/')) else os.path.abspath(args.image),
                 'raster_crs': str(raster_info['crs']),
                 'raster_resolution': list(raster_info['resolution']),
                 'raster_bands': band_names,
