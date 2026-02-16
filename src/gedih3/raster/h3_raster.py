@@ -299,10 +299,29 @@ def rasterize_h3_partition(
         h3_level = h3.get_resolution(h3_index)
 
         # Determine grouping level for spatial tiles
-        if partition_level is None or partition_level >= h3_level:
-            # No partition level or it's same/finer than data level
-            # Use 3 levels coarser than data, minimum 0
+        if partition_level is None:
+            # No partition level detected - fall back to 3 levels coarser
             partition_level = max(0, h3_level - 3)
+
+        # Pre-aggregated data: partition_level >= h3_level means each
+        # partition IS a complete tile - rasterize without splitting
+        if partition_level >= h3_level:
+            try:
+                xras = h3_to_raster(
+                    gdf, columns=columns, output_crs=output_crs,
+                    partition_level=partition_level
+                )
+                if len(xras.data_vars) > 0 and include_partition_id:
+                    partition_attr = f'h3_{h3_level:02d}_id'
+                    tile_id = str(gdf.index[0])
+                    for var in list(xras.data_vars):
+                        xras[var] = xras[var].assign_attrs(
+                            **{partition_attr: tile_id}
+                        )
+                return pd.Series([xras]) if len(xras.data_vars) > 0 else pd.Series(dtype=object)
+            except Exception as e:
+                logger.debug(f"Rasterization failed for partition: {e}")
+                return pd.Series(dtype=object)
 
         # Group H3 cells by parent at partition level
         if partition_level < h3_level:
