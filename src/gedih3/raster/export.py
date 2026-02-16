@@ -192,7 +192,8 @@ def rasterize_and_export_partitions(
     columns: Optional[List[str]] = None,
     fmt: str = 'tif',
     compress: str = 'LZW',
-    show_progress: bool = True
+    show_progress: bool = True,
+    **rasterize_kwargs
 ) -> List[str]:
     """
     Rasterize and export GeoDataFrame partitions to individual files.
@@ -226,6 +227,7 @@ def rasterize_and_export_partitions(
         raster_parts = gdf.map_partitions(
             rasterize_func,
             columns=columns,
+            **rasterize_kwargs,
             meta=pd.Series(dtype=object)
         )
 
@@ -245,7 +247,7 @@ def rasterize_and_export_partitions(
         result = paths.compute().tolist()
     else:
         # Regular GeoDataFrame
-        raster = rasterize_func(gdf, columns=columns)
+        raster = rasterize_func(gdf, columns=columns, **rasterize_kwargs)
         path = export_raster_partition(raster, output_dir, fmt=fmt, compress=compress)
         result = [path] if path else []
 
@@ -284,7 +286,8 @@ def merge_and_export_rasters(
     rasterize_func,
     columns: Optional[List[str]] = None,
     compress: str = 'LZW',
-    show_progress: bool = True
+    show_progress: bool = True,
+    **rasterize_kwargs
 ) -> str:
     """
     Rasterize all partitions and merge into a single output file.
@@ -316,6 +319,7 @@ def merge_and_export_rasters(
         raster_parts = gdf.map_partitions(
             rasterize_func,
             columns=columns,
+            **rasterize_kwargs,
             meta=pd.Series(dtype=object)
         )
 
@@ -348,7 +352,7 @@ def merge_and_export_rasters(
             merged = merge_datasets(valid_rasters, nodata=np.nan)
     else:
         # Single GeoDataFrame
-        merged = rasterize_func(gdf, columns=columns)
+        merged = rasterize_func(gdf, columns=columns, **rasterize_kwargs)
         if isinstance(merged, pd.Series) and len(merged) > 0:
             merged = merged.iloc[0]
 

@@ -93,6 +93,18 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
 
     logger.info(f"Input: {dataset_path}")
 
+    # Build kwargs to forward to rasterize function
+    rasterize_kwargs = {}
+    if not use_egi:
+        # Detect partition level from filenames (each file = one H3 partition cell)
+        import h3
+        parquet_files = [f for f in os.listdir(dataset_path) if f.endswith('.parquet')]
+        if parquet_files:
+            partition_id = os.path.splitext(parquet_files[0])[0]
+            partition_level = h3.get_resolution(partition_id)
+            rasterize_kwargs['partition_level'] = partition_level
+            logger.info(f"  Partition level: H3 {partition_level} (from filenames)")
+
     # Collect columns to rasterize
     columns = args.list if args.list else None
     if columns:
@@ -125,7 +137,8 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
 
         raster.merge_and_export_rasters(
             ddf, merged_output, rasterize_func,
-            columns=raster_columns, compress=args.compress, show_progress=not args.quiet
+            columns=raster_columns, compress=args.compress,
+            show_progress=not args.quiet, **rasterize_kwargs
         )
         logger.info(f"Merged raster exported to {merged_output}")
 
@@ -134,7 +147,8 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
 
         paths = raster.rasterize_and_export_partitions(
             ddf, output_path, rasterize_func,
-            columns=raster_columns, compress=args.compress, show_progress=not args.quiet
+            columns=raster_columns, compress=args.compress,
+            show_progress=not args.quiet, **rasterize_kwargs
         )
         valid_paths = [p for p in paths if p]
         logger.info(f"Exported {len(valid_paths)} raster files to {output_path}")
