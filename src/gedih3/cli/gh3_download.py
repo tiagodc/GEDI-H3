@@ -1,5 +1,4 @@
 #! python
-DEBUG=False
 
 import argparse
 
@@ -34,18 +33,6 @@ def get_cmd_args():
 def main():
     import os
     args = get_cmd_args()
-
-    if DEBUG:
-        args.region = '-51,0,-50,1'
-        args.l2a = ['default']
-        args.l2b = ['default']
-        args.l4a = ['default']
-        args.l4c = ['default']
-        args.n_cpus = 32
-        args.threads = 1
-        args.port = 9998
-        import sys
-        sys.path.insert(0, os.path.abspath('./src/'))
 
     from gedih3.config import GH3_DEFAULT_SOC_DIR
     from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success

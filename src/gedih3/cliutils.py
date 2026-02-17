@@ -6,9 +6,9 @@ import warnings
 from typing import Optional, List
 from contextlib import contextmanager
 
-from .config import GEDI_PRODUCTS, ISO3_COUNTRIES_URL
+from .config import GEDI_PRODUCTS, ISO3_COUNTRIES_URL, BUILD_LOG_FILENAME, DATASET_META_FILENAME
 from .utils import read_vector_file, parse_spatial
-from .exceptions import GediValidationError
+from .exceptions import GediValidationError, GediDatabaseNotFoundError
 # Note: gh3driver imports are done lazily to avoid circular imports
 
 VALID_FORMATS = ['parquet', 'feather', 'shp', 'geojson', 'gpkg', 'txt', 'csv', 'h5', 'hdf5']
@@ -25,7 +25,7 @@ FORMAT_EXTENSIONS = {
 def detect_dataset_format(dataset_path):
     """Detect the file format of a simplified dataset.
 
-    Checks gedih3_dataset.json for 'file_format' field first, then scans
+    Checks DATASET_META_FILENAME for 'file_format' field first, then scans
     directory for known extensions. Defaults to 'parquet' for backwards compat.
 
     Parameters
@@ -46,7 +46,7 @@ def detect_dataset_format(dataset_path):
     import json
     from glob import glob
 
-    meta_path = os.path.join(dataset_path, 'gedih3_dataset.json')
+    meta_path = os.path.join(dataset_path, DATASET_META_FILENAME)
     if os.path.exists(meta_path):
         with open(meta_path, 'r') as f:
             meta = json.load(f)
@@ -105,7 +105,7 @@ def list_dataset_files(dataset_path, fmt=None):
         files.extend(glob(os.path.join(dataset_path, pattern)))
 
     if not files:
-        raise FileNotFoundError(
+        raise GediDatabaseNotFoundError(
             f"No {fmt} files found in {dataset_path}"
         )
 
@@ -506,8 +506,8 @@ def get_dataset_index_info(database):
     """
     import json
 
-    build_log_path = os.path.join(database, "gedih3_build_log.json")
-    dataset_meta_path = os.path.join(database, "gedih3_dataset.json")
+    build_log_path = os.path.join(database, BUILD_LOG_FILENAME)
+    dataset_meta_path = os.path.join(database, DATASET_META_FILENAME)
 
     if os.path.exists(build_log_path):
         with open(build_log_path, 'r') as f:
@@ -597,8 +597,8 @@ def load_data_from_source(database, columns=None, region=None, query=None, logge
     """
     import gedih3.gh3driver as gh3
 
-    build_log_path = os.path.join(database, "gedih3_build_log.json")
-    dataset_meta_path = os.path.join(database, "gedih3_dataset.json")
+    build_log_path = os.path.join(database, BUILD_LOG_FILENAME)
+    dataset_meta_path = os.path.join(database, DATASET_META_FILENAME)
 
     if os.path.exists(build_log_path):
         if logger:
@@ -981,7 +981,12 @@ def parse_dask_args(args):
         if hasattr(args, 'tmpdir') and args.tmpdir:
             os.makedirs(args.tmpdir, exist_ok=True)
             dask_args['local_directory'] = os.path.join(args.tmpdir, 'dask-worker-space')
-    return dask_args    
+        # Suppress worker-subprocess shutdown noise (heartbeat errors)
+        # that fires during scheduler teardown. Matches setup_logging()
+        # which sets distributed.worker to CRITICAL in the main process.
+        if verbose < 2:
+            dask_args['silence_logs'] = logging.CRITICAL
+    return dask_args
 
 def parse_region(region_str: Optional[str]):
     """Parse region argument into GeoDataFrame or bbox"""

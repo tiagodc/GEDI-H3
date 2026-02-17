@@ -13,20 +13,49 @@ from typing import Union, List, Dict, Optional, Tuple, Any, Callable
 from earthaccess.store import EarthAccessFile
 from dask.distributed import progress
 
-from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS, GEDI_START_DATE
+from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME
 from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, parquet_schema_add_bbox
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
 from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, validate_soc_files
 from .daac import gedi_download
 from .logging_config import get_logger
 from .validation import validate_h3_params, validate_product_vars, validate_directory_exists
-from .exceptions import H3ValidationError, GediValidationError, GediFileError
+from .exceptions import H3ValidationError, GediValidationError, GediFileError, GediMergeError
 
 logger = get_logger(__name__)
 
 
 def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_access = False, update=False, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5):
-    product_vars = gedi_vars_expand(product_vars)    
+    """
+    Download GEDI HDF5 files in SOC (Science Operation Center) format.
+
+    Expands variable specifications, ensures L2A essentials and shot_number
+    are included, then delegates to ``gedi_download`` for retrieval.
+
+    Parameters
+    ----------
+    product_vars : dict
+        Mapping of GEDI product codes (e.g., 'L2A', 'L4A') to variable
+        lists. Accepts 'default', 'minimal', or explicit variable names.
+    spatial : GeoDataFrame, list, or str, optional
+        Spatial filter (vector file, bbox as [W,S,E,N], or ISO3 code).
+    temporal : tuple of str, optional
+        Temporal range as (start_date, end_date) in 'YYYY-MM-DD' format.
+    direct_access : bool, default False
+        If True, use S3 streaming instead of downloading to disk.
+    update : bool, default False
+        If True, resume a previous download (skip already-downloaded files).
+    odir : str
+        Output directory for downloaded HDF5 files.
+    n_jobs : int, default 5
+        Number of parallel download workers.
+
+    Returns
+    -------
+    list
+        List of downloaded SOC file paths or EarthAccessFile objects.
+    """
+    product_vars = gedi_vars_expand(product_vars)
     
     if 'L2A' not in product_vars:
         product_vars.update({'L2A': GEDI_L2A_ESSENTIALS})
@@ -42,6 +71,36 @@ def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_acc
     return soc_files
 
 def h3_part_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode', roi_tiles=[]):
+    """
+    Write a DataFrame to H3-partitioned parquet files.
+
+    Indexes the DataFrame by H3 cell, groups rows by partition cell, and
+    writes each group as a separate parquet file. If a file already exists
+    for a partition, new rows are appended.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input DataFrame with coordinate columns and ``root_beam``,
+        ``root_file`` metadata columns.
+    dir_path : str
+        Base directory for output partition subdirectories.
+    res : int, default 12
+        H3 resolution for shot-level indexing.
+    part : int, default 3
+        H3 resolution for file partitioning.
+    lat_col : str, default 'lat_lowestmode'
+        Column name for latitude values.
+    lon_col : str, default 'lon_lowestmode'
+        Column name for longitude values.
+    roi_tiles : list of str, optional
+        If non-empty, only write partitions whose H3 cell ID is in this list.
+
+    Returns
+    -------
+    list of str or None
+        List of written parquet file paths, or None if the input is empty.
+    """
     if df.empty:
         return
     
@@ -72,7 +131,24 @@ def h3_part_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_co
     return files
 
 def h3_write_metadata(h3_file):
-    meta_file = h3_file.replace('.parquet','.metadata.json')
+    """
+    Write a sidecar metadata JSON file for an H3 partition parquet file.
+
+    Reads shot_number, root_file_l2a, and datetime from the parquet file to
+    compute summary statistics (shot count, shot range, date range, granule
+    identifiers) and writes them alongside the parquet file.
+
+    Parameters
+    ----------
+    h3_file : str
+        Path to the H3 partition parquet file.
+
+    Returns
+    -------
+    str
+        Path to the written metadata JSON file (``*PARTITION_META_FILENAME``).
+    """
+    meta_file = h3_file.replace('.parquet', PARTITION_META_FILENAME)
     h3_part, year = os.path.basename(h3_file).split('.')[:2]
     
     df = pd.read_parquet(h3_file, engine='pyarrow', columns=['shot_number','root_file_l2a','datetime'])
@@ -104,12 +180,45 @@ def h3_write_metadata(h3_file):
     return meta_file
 
 def h3_read_metadata(h3_file):
-    meta_file = h3_file.replace('.parquet','.metadata.json')
+    """
+    Read the sidecar metadata JSON for an H3 partition parquet file.
+
+    Parameters
+    ----------
+    h3_file : str
+        Path to the H3 partition parquet file. The metadata file is
+        expected at the same path with a ``PARTITION_META_FILENAME`` extension.
+
+    Returns
+    -------
+    dict or None
+        Parsed metadata dictionary, or None if the metadata file does not
+        exist.
+    """
+    meta_file = h3_file.replace('.parquet', PARTITION_META_FILENAME)
     if os.path.exists(meta_file):
         return json_read(meta_file)
     return None
 
 def h3_merge_metadata(h3_subdir):
+    """
+    Merge per-year metadata files into a single summary for an H3 partition.
+
+    Aggregates shot counts, expands shot and date ranges, and deduplicates
+    granule identifiers across all year subdirectories within one H3 cell.
+
+    Parameters
+    ----------
+    h3_subdir : str
+        Path to an H3 partition directory (e.g., ``h3_03=<cell_id>/``)
+        containing year subdirectories with parquet and metadata files.
+
+    Returns
+    -------
+    str or None
+        Path to the merged metadata JSON file, or None if no metadata
+        files were found.
+    """
     files = glob.glob(os.path.join(h3_subdir,'*','*.parquet'))
     year_metadata = [h3_read_metadata(f) for f in files]
     year_metadata = [m for m in year_metadata if m is not None]
@@ -139,13 +248,39 @@ def h3_merge_metadata(h3_subdir):
                 mmeta['granules'].append(g)
     
     mmeta['years'] = sorted(mmeta['years'])
-    ofile = os.path.join(h3_subdir, f"{mmeta['h3_partition']}.metadata.json")
+    ofile = os.path.join(h3_subdir, f"{mmeta['h3_partition']}{PARTITION_META_FILENAME}")
     json_write(mmeta, ofile, rewrite=True)
     return ofile
 
 def h3_skip_part(h3_dir, h3_part, gedi_file, cols=None):
+    """
+    Check whether an H3 partition already contains data from a GEDI granule.
+
+    Reads the partition's merged metadata to determine if the granule has
+    already been indexed and, optionally, if the requested columns are
+    already present.
+
+    Parameters
+    ----------
+    h3_dir : str
+        Root directory of the H3 database.
+    h3_part : str
+        H3 cell ID of the partition to check.
+    gedi_file : str
+        Path or filename of the GEDI HDF5 file to test against.
+    cols : list of str, optional
+        If provided, also verify that these columns already exist in the
+        partition. The partition is only skipped when both the granule
+        is present and all requested columns are available.
+
+    Returns
+    -------
+    bool
+        True if the partition should be skipped (granule already indexed
+        and columns present), False otherwise.
+    """
     res = h3.get_resolution(h3_part)
-    meta_file = os.path.join(h3_dir, f"h3_{res:02d}={h3_part}", f"{h3_part}.metadata.json")    
+    meta_file = os.path.join(h3_dir, f"h3_{res:02d}={h3_part}", f"{h3_part}{PARTITION_META_FILENAME}")    
     
     if not os.path.exists(meta_file):
         return False
@@ -164,6 +299,27 @@ def h3_skip_part(h3_dir, h3_part, gedi_file, cols=None):
     return skip_cols and granule_id in metadata['granules']
 
 def h3_add_skip_column(df, h3_dir):
+    """
+    Add a ``_skip`` boolean column indicating partitions to skip.
+
+    Designed for use with ``dask.dataframe.map_partitions``. Inspects the
+    first row of each partition to determine the H3 cell and GEDI granule,
+    then delegates to ``h3_skip_part`` to check if the data already exists.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        A single Dask partition containing H3 partition column(s)
+        (``h3_XX``) and ``root_file_l2a``.
+    h3_dir : str
+        Root directory of the H3 database.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Input DataFrame with an added ``_skip`` column (True if the
+        partition's granule data already exists in the database).
+    """
     if df.empty:
         df['_skip'] = True
         return df    
@@ -178,6 +334,33 @@ def dh3_merge_metadata(h3_subdir):
     return h3_merge_metadata(h3_subdir)
 
 def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
+    """
+    Merge multiple parquet files for an H3 partition into a single file.
+
+    Reads all parquet files in ``in_dir``, merges them (deduplicating shots
+    when appending to an existing file), writes the result to ``out_dir``,
+    and generates a sidecar metadata JSON file.
+
+    Parameters
+    ----------
+    in_dir : str
+        Input directory containing parquet fragment files for one
+        H3 cell/year combination.
+    out_dir : str
+        Output directory where the merged file will be written,
+        preserving the ``<h3_cell>/<year>/`` structure.
+    rm_src : bool, default True
+        If True, remove the source directory after a successful merge.
+    replace : bool, default False
+        If True, overwrite existing output files. If False, merge new
+        data into any existing output file.
+
+    Returns
+    -------
+    str or None
+        Path to the merged parquet file, or None if ``in_dir`` contained
+        no parquet files.
+    """
     files = glob.glob(os.path.join(in_dir,'*.parquet'))
     
     if len(files) == 0:
@@ -386,7 +569,7 @@ def _apply_spatial_filter(
         logger.info("Removing H3 partitions outside spatial filter")
         ddf = ddf[ddf[f'h3_{part:02d}'].isin(h3_tiles)]
 
-    build_log = os.path.join(h3_dir, 'gedih3_build_log.json')
+    build_log = os.path.join(h3_dir, BUILD_LOG_FILENAME)
     if os.path.exists(build_log):
         logger.info("Checking for existing indexed GEDI data to skip")
         _meta = ddf._meta.copy()
@@ -584,6 +767,26 @@ def build_h3db(
     return h3_files
 
 def build_parquet_metadata(gh3_dir):
+    """
+    Build ``_metadata`` and ``_common_metadata`` files for an H3 database.
+
+    Scans all parquet files in the database, collects their row-group
+    metadata, computes a merged bounding box from per-file geo metadata,
+    and writes the consolidated PyArrow metadata files used by Dask and
+    other tools for efficient partition discovery.
+
+    Parameters
+    ----------
+    gh3_dir : str
+        Root directory of the H3 parquet database.
+
+    Returns
+    -------
+    None
+        Writes ``_metadata`` and ``_common_metadata`` files to ``gh3_dir``.
+        Returns early with no output if the directory contains no parquet
+        files.
+    """
     h3_files = glob.glob(os.path.join(gh3_dir,'**','*.parquet'), recursive=True)
     
     if len(h3_files) == 0:
@@ -620,11 +823,11 @@ def build_parquet_metadata(gh3_dir):
 
 def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> dict:
     """
-    Merge two gedih3_build_log.json files from separate databases.
-    
+    Merge two build log files from separate databases.
+
     Combines granules, columns, partition IDs, and date ranges while validating
     configuration consistency (gedi_version, h3_resolution_level, h3_partition_level).
-    
+
     Parameters
     ----------
     log_file_1 : str
@@ -633,33 +836,33 @@ def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> 
         Path to second build log (log to merge in)
     output_log_file : str
         Path to write merged build log
-    
+
     Returns
     -------
     dict
         Merged log dictionary
-    
+
     Raises
     ------
     FileNotFoundError
         If either log file does not exist
     ValueError
         If log configurations are incompatible (different gedi_version, h3_resolution_level, or h3_partition_level)
-    
+
     Examples
     --------
     >>> merged_log = merge_build_logs(
-    ...     '/path/to/database_world/gedih3_build_log.json',
-    ...     '/path/to/database_world_a10/gedih3_build_log.json',
-    ...     '/path/to/database_world_merged/gedih3_build_log.json'
+    ...     f'/path/to/database_world/{BUILD_LOG_FILENAME}',
+    ...     f'/path/to/database_world_a10/{BUILD_LOG_FILENAME}',
+    ...     f'/path/to/database_world_merged/{BUILD_LOG_FILENAME}'
     ... )
     """
     
     # Load both log files
     if not os.path.exists(log_file_1):
-        raise FileNotFoundError(f"Log file not found: {log_file_1}")
+        raise GediFileError(f"Log file not found: {log_file_1}")
     if not os.path.exists(log_file_2):
-        raise FileNotFoundError(f"Log file not found: {log_file_2}")
+        raise GediFileError(f"Log file not found: {log_file_2}")
     
     log1 = json_read(log_file_1)
     log2 = json_read(log_file_2)
@@ -667,7 +870,7 @@ def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> 
     # Validate configuration compatibility
     for key in ['gedi_version', 'h3_resolution_level', 'h3_partition_level']:
         if log1.get(key) != log2.get(key):
-            raise ValueError(
+            raise GediMergeError(
                 f"Incompatible {key}: log1={log1.get(key)}, log2={log2.get(key)}. "
                 f"Cannot merge logs with different configurations."
             )

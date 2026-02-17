@@ -1,5 +1,4 @@
 #! python
-DEBUG=False
 
 """
 GEDI Dataset Update Tool
@@ -61,7 +60,7 @@ def get_cmd_args():
     )
 
     # Target dataset (modified in place)
-    p.add_argument("-d", "--dataset", dest="dataset", required=not DEBUG, type=str,
+    p.add_argument("-d", "--dataset", dest="dataset", required=True, type=str,
                    help="path to target simplified dataset directory (modified in place)")
 
     # Mode 1: Add columns from H3 database
@@ -125,14 +124,15 @@ def _update_from_database(args, dataset_path, dataset_meta, logger):
 
     # If source_database points to a simplified dataset (not an H3 database),
     # walk back the metadata chain to find the original H3 database.
-    build_log_path = os.path.join(db_path, "gedih3_build_log.json")
+    from gedih3.config import BUILD_LOG_FILENAME, DATASET_META_FILENAME
+    build_log_path = os.path.join(db_path, BUILD_LOG_FILENAME)
     if not os.path.exists(build_log_path):
-        chain_meta_path = os.path.join(db_path, "gedih3_dataset.json")
+        chain_meta_path = os.path.join(db_path, DATASET_META_FILENAME)
         if os.path.exists(chain_meta_path):
             with open(chain_meta_path, 'r') as f:
                 chain_meta = json.load(f)
             upstream = chain_meta.get('source_database')
-            if upstream and os.path.exists(os.path.join(upstream, "gedih3_build_log.json")):
+            if upstream and os.path.exists(os.path.join(upstream, BUILD_LOG_FILENAME)):
                 logger.info(f"  source_database is a simplified dataset, tracing back to: {upstream}")
                 db_path = upstream
             else:
@@ -342,12 +342,14 @@ def _update_from_merge(args, dataset_path, dataset_meta, logger):
                                  list_dataset_files, read_dataset_schema,
                                  make_dataset_reader, is_internal_column)
 
+    from gedih3.config import DATASET_META_FILENAME
+
     merge_path = args.merge
 
     # Validate merge dataset
-    merge_meta_path = os.path.join(merge_path, 'gedih3_dataset.json')
+    merge_meta_path = os.path.join(merge_path, DATASET_META_FILENAME)
     if not os.path.exists(merge_meta_path):
-        raise FileNotFoundError(f"Not a simplified dataset (no gedih3_dataset.json): {merge_path}")
+        raise FileNotFoundError(f"Not a simplified dataset (no {DATASET_META_FILENAME}): {merge_path}")
 
     with open(merge_meta_path, 'r') as f:
         merge_meta = json.load(f)
@@ -457,9 +459,6 @@ def _update_from_merge(args, dataset_path, dataset_meta, logger):
 
 
 def main():
-    if DEBUG:
-        sys.path.insert(0, os.path.abspath('./src/'))
-
     args = get_cmd_args()
 
     from gedih3.cliutils import cli_exception_handler
@@ -472,13 +471,15 @@ def main():
         logger = setup_logging(args, __name__)
         print_banner("GEDI Dataset Update Tool", logger=logger)
 
+        from gedih3.config import DATASET_META_FILENAME
+
         dataset_path = args.dataset
 
         # Validate target dataset
-        meta_path = os.path.join(dataset_path, 'gedih3_dataset.json')
+        meta_path = os.path.join(dataset_path, DATASET_META_FILENAME)
         if not os.path.exists(meta_path):
             raise FileNotFoundError(
-                f"Not a simplified dataset (no gedih3_dataset.json): {dataset_path}\n"
+                f"Not a simplified dataset (no {DATASET_META_FILENAME}): {dataset_path}\n"
                 "gh3_update requires a dataset created by gh3_extract."
             )
 
