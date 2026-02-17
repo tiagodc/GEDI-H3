@@ -116,7 +116,7 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
 
     # Load the dataset
     logger.info("Loading dataset...")
-    ddf = gh3.gh3_load_dataset_lazy(dataset_path, columns=columns)
+    ddf = gh3.gh3_load(dataset_path, columns=columns)
     logger.info(f"  Loaded {ddf.npartitions} partitions")
 
     # Apply query filter if provided

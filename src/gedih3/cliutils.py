@@ -584,6 +584,7 @@ def load_data_from_source(database, columns=None, region=None, query=None, logge
     """Load data from H3 database, simplified dataset, or parquet directory.
 
     Auto-detects the data source type and loads accordingly.
+    Delegates to gh3_load() or egi_load() based on index type.
 
     Args:
         database: Path to database directory
@@ -597,46 +598,17 @@ def load_data_from_source(database, columns=None, region=None, query=None, logge
     """
     import gedih3.gh3driver as gh3
 
-    build_log_path = os.path.join(database, BUILD_LOG_FILENAME)
-    dataset_meta_path = os.path.join(database, DATASET_META_FILENAME)
+    info = get_dataset_index_info(database)
 
-    if os.path.exists(build_log_path):
+    if info.get('index_type') == 'egi':
         if logger:
-            logger.info("  Source: H3 database")
-        ddf = gh3.gh3_load(
-            columns=columns,
-            region=region,
-            query=query,
-            gh3_dir=database
-        )
-    elif os.path.exists(dataset_meta_path):
-        fmt = detect_dataset_format(database)
-        if logger:
-            logger.info(f"  Source: simplified dataset (format: {fmt})")
-        load_columns, query_only_cols = _add_query_columns(columns, query, database, fmt)
-        ddf = gh3.gh3_load_dataset_lazy(database, columns=load_columns)
-        if query:
-            ddf = ddf.query(query)
-        if query_only_cols:
-            keep = [c for c in ddf.columns if c not in query_only_cols]
-            ddf = ddf[keep]
-        if region is not None:
-            ddf = ddf.clip(region)
+            logger.info(f"  Source: {info['source_type']} (EGI index)")
+        return gh3.egi_load(database, columns=columns, region=region, query=query)
     else:
-        fmt = detect_dataset_format(database)
+        label = "H3 database" if info['source_type'] == 'h3_database' else info['source_type']
         if logger:
-            logger.info(f"  Source: data directory (format: {fmt})")
-        load_columns, query_only_cols = _add_query_columns(columns, query, database, fmt)
-        ddf = gh3.gh3_load_dataset_lazy(database, columns=load_columns)
-        if query:
-            ddf = ddf.query(query)
-        if query_only_cols:
-            keep = [c for c in ddf.columns if c not in query_only_cols]
-            ddf = ddf[keep]
-        if region is not None:
-            ddf = ddf.clip(region)
-
-    return ddf
+            logger.info(f"  Source: {label}")
+        return gh3.gh3_load(database, columns=columns, region=region, query=query)
 
 
 # =============================================================================

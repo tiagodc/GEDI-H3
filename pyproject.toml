@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gedih3"
 version = "0.0.1"
-description = "Functions to download and process GEDI files"
+description = "Functions to download and process GEDI data"
 readme = "README.md"
 authors = [
     {name = "Tiago de Conto", email = "tiagodc@umd.edu"}
