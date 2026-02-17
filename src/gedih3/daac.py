@@ -28,6 +28,8 @@ from .exceptions import (
     GediDownloadError,
     GediAuthenticationError,
     GediNetworkError,
+    GediProductError,
+    GediValidationError,
     is_retryable_error,
     RETRY_DEFAULTS,
 )
@@ -175,7 +177,7 @@ class GEDIAccessor:
         if product is not None:
             # Standard GEDI product search with DOI
             if product.upper() not in GEDI_PRODUCTS:
-                raise ValueError(f"Product must be one of: {list(GEDI_PRODUCTS.keys())}")
+                raise GediProductError(f"Product must be one of: {list(GEDI_PRODUCTS.keys())}")
 
             self.product = GEDI_PRODUCTS[product.upper()]
             search_params["doi"] = self.product['doi']
@@ -229,10 +231,10 @@ class GEDIAccessor:
     
     def download_all(self, download_dir: str = None, product: str = None, **kwargs):
         if not self.authenticated:
-            raise RuntimeError("Must authenticate before downloading")
-        
+            raise GediAuthenticationError("Must authenticate before downloading")
+
         if not hasattr(self, 'granules'):
-            raise RuntimeError("No granules found. Please run search_data() first.")
+            raise GediNetworkError("No granules found. Please run search_data() first.")
        
         if download_dir is None:
             download_dir = DEFAULT_DOWNLOAD_DIR
@@ -245,10 +247,10 @@ class GEDIAccessor:
 
     def link_s3(self, product: str = None):
         if not self.authenticated:
-            raise RuntimeError("Must authenticate before accessing S3")
+            raise GediAuthenticationError("Must authenticate before accessing S3")
 
         if not hasattr(self, 'granules'):
-            raise RuntimeError("No granules found. Please run search_data() first.")
+            raise GediNetworkError("No granules found. Please run search_data() first.")
 
         if product is None:
             granules = self.granules
@@ -262,7 +264,7 @@ class GEDIAccessor:
     
     def merge_paths(self, open_s3: bool = False):
         if not hasattr(self, 'product_files'):
-            raise RuntimeError("No products found. Please run search_data() first.")
+            raise GediNetworkError("No products found. Please run search_data() first.")
         
         paths = self.product_files        
         if open_s3:
@@ -554,7 +556,7 @@ def gedi_download(
     if product_vars is None and search_kwargs is not None:
         product_vars = {'CUSTOM': None}  # Placeholder for custom dataset
     elif product_vars is None:
-        raise ValueError("Either product_vars or search_kwargs must be provided")
+        raise GediValidationError("Either product_vars or search_kwargs must be provided")
     else:
         product_vars = gedi_vars_expand(product_vars)
 
@@ -637,31 +639,3 @@ def gedi_download(
 
     return prod_paths
 
-def _testit():
-    odir = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp'
-    product_vars = {'L1B': ['minimal'], 'L2A': ['minimal'], 'L4A': ['minimal'], 'L4C': ['*']}
-    spatial = [-50.5,0.5,-50,1]
-    temporal = ('2020-01-01','2020-07-01')
-    # producer_granule_id
-    n_jobs=10
-    
-    print("testing gedi_download()")    
-    try:        
-        d = gedi_download(product_vars, odir, spatial=spatial, temporal=temporal, n_jobs=n_jobs)
-        print("Test successful")
-    except Exception as e:
-        print(f"Test failed: {e}")
-        
-    print("testing direct dask_h5_merged()")    
-    try:        
-        prod_vars = {'L2A': ['shot_number', 'rh'], 'L4C': ['wsci']}
-        d = gedi_download(product_vars, spatial=spatial, temporal=temporal, n_jobs=n_jobs, to_list=True)
-        s3_files = soc_file_tree(d, to_list=True)
-        df = dask_h5_merged(s3_files, prod_vars)
-        print(df.head())
-        print("Test successful")
-    except Exception as e:
-        print(f"Test failed: {e}")    
-       
-if __name__ == "__main__":    
-    _testit()

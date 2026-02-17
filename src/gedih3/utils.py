@@ -4,6 +4,9 @@ import os
 import json
 from typing import Union, List, Dict, Optional, Tuple, Any
 
+from .exceptions import (GediDatabaseNotFoundError, GediFileError, GediValidationError,
+                         GediSpatialError, GediTemporalError)
+
 # Heavy imports are moved to lazy loading inside functions:
 # - psutil: used in get_system_resources
 # - pyarrow/pandas: used in parquet and schema functions
@@ -127,13 +130,13 @@ def read_h3_database_schema(db_path):
     import glob as globmod
     partition_dirs = sorted(globmod.glob(os.path.join(db_path, 'h3_*=*/')))
     if not partition_dirs:
-        raise FileNotFoundError(f"No H3 partition directories found in {db_path}")
+        raise GediDatabaseNotFoundError(f"No H3 partition directories found in {db_path}")
     for pdir in partition_dirs:
         # Search recursively — partitions may have nested hive dirs (e.g. year=*)
         pq_files = sorted(globmod.glob(os.path.join(pdir, '**', '*.parquet'), recursive=True))
         if pq_files:
             return read_parquet_schema(pq_files[0])
-    raise FileNotFoundError(f"No parquet files found in any partition of {db_path}")
+    raise GediDatabaseNotFoundError(f"No parquet files found in any partition of {db_path}")
 
 
 def read_schema(path, root=None):
@@ -142,7 +145,7 @@ def read_schema(path, root=None):
 
     Supports parquet, feather, gpkg, and HDF5 files. For directories, detects
     the dataset format from metadata or file extensions. Also detects H3
-    databases by the presence of gedih3_build_log.json.
+    databases by the presence of the build log file.
 
     Parameters
     ----------
@@ -166,7 +169,8 @@ def read_schema(path, root=None):
 
     if os.path.isdir(path):
         # Check for H3 database first (has build log)
-        build_log = os.path.join(path, 'gedih3_build_log.json')
+        from .config import BUILD_LOG_FILENAME
+        build_log = os.path.join(path, BUILD_LOG_FILENAME)
         if os.path.exists(build_log):
             return read_h3_database_schema(path)
         # Fall through to simplified dataset detection
@@ -183,7 +187,7 @@ def read_schema(path, root=None):
             'h5': 'h5', 'hdf5': 'h5',
         }.get(ext)
         if fmt is None:
-            raise ValueError(f"Cannot determine format from extension: {ext}")
+            raise GediFileError(f"Cannot determine format from extension: {ext}")
 
     if fmt == 'parquet':
         return read_parquet_schema(path)
@@ -194,7 +198,7 @@ def read_schema(path, root=None):
     elif fmt == 'h5':
         return h5_info(path, root=root)
     else:
-        raise ValueError(f"Unsupported format: {fmt}")
+        raise GediFileError(f"Unsupported format: {fmt}")
 
 def h5_is_valid(file):
     import h5py
@@ -304,7 +308,7 @@ def geo_to_umm(obj):
             geo_umm = list(coords)
 
     else:
-        raise TypeError(f"Unsupported type: {type(obj)}")
+        raise GediValidationError(f"Unsupported type: {type(obj)}")
 
     return geo_umm
 
@@ -467,7 +471,7 @@ def parquet_join_columns(flist: List[str], ofile: str, key_col: str = 'shot_numb
     import pyarrow.parquet as pq
 
     if len(flist) < 2:
-        raise ValueError("Need at least 2 files to join")
+        raise GediFileError("Need at least 2 files to join")
 
     # Get base file info
     base_file = pq.ParquetFile(flist[0])
@@ -551,7 +555,7 @@ def parse_temporal(temporal):
             end = end.strftime('%Y-%m-%d')
         return (start, end)
     else:
-        raise ValueError("Invalid temporal input. Must be a list or tuple of two dates.")
+        raise GediTemporalError("Invalid temporal input. Must be a list or tuple of two dates.")
 
 def parse_spatial(spatial):
     if spatial is None:
@@ -572,14 +576,14 @@ def parse_spatial(spatial):
             try:
                 spatial = from_geojson(spatial)
             except:
-                raise ValueError("Invalid spatial input. Must be bounding box list, file path, or GeoDataFrame.")
+                raise GediSpatialError("Invalid spatial input. Must be bounding box list, file path, or GeoDataFrame.")
     elif isinstance(spatial, list) and len(spatial) == 4:
         spatial = gpd.GeoDataFrame(geometry=[box(*spatial)], crs=4326, index=[0])
     elif isinstance(spatial, gpd.GeoDataFrame):
         spatial = spatial.to_crs(epsg=4326)
         spatial = gpd.GeoDataFrame(geometry=[spatial.union_all()], crs=spatial.crs)
     else:
-        raise ValueError("Invalid spatial input. Must be bounding box list, file path, or GeoDataFrame.")
+        raise GediSpatialError("Invalid spatial input. Must be bounding box list, file path, or GeoDataFrame.")
 
     return spatial
 
@@ -720,7 +724,7 @@ def safe_file_replace(src: str, dst: str, backup: bool = False) -> str:
         If file operation fails
     """
     if not os.path.exists(src):
-        raise FileNotFoundError(f"Source file not found: {src}")
+        raise GediFileError(f"Source file not found: {src}")
 
     backup_path = dst + '.bak'
 

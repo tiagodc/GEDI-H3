@@ -68,6 +68,7 @@ from .core import (
     get_level,
     get_scale,
     to_parent,
+    get_children,
     pixels_per_tile,
     validate_hash,
 )
@@ -79,7 +80,6 @@ from .spatial import (
     pixel_coordinates,
     pixel_shape,
     pixel_ring,
-    get_children,
     aoi_tiles,
     to_geodataframe,
     egi_h3_intersection,
@@ -128,6 +128,7 @@ __all__ = [
     'get_level',
     'get_scale',
     'to_parent',
+    'get_children',
     'pixels_per_tile',
     'validate_hash',
     # Spatial
@@ -136,7 +137,6 @@ __all__ = [
     'pixel_coordinates',
     'pixel_shape',
     'pixel_ring',
-    'get_children',
     'aoi_tiles',
     'to_geodataframe',
     'egi_h3_intersection',

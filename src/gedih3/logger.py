@@ -3,7 +3,7 @@ import geopandas as gpd
 from typing import Dict
 from datetime import datetime
 
-from .config import GEDI_PRODUCTS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR
+from .config import GEDI_PRODUCTS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, BUILD_LOG_FILENAME, PARTITION_META_FILENAME
 from .utils import now, json_read, json_write, read_vector_file, to_geojson, from_geojson, parse_spatial, merge_spatial, parse_temporal, get_package_version
 from .h3utils import intersect_h3_geometries
 from .gedidriver import GEDIFile, gedi_vars_expand, soc_file_tree, check_soc_file_vars, validate_soc_files
@@ -190,7 +190,7 @@ class SOCDownloadLogger:
         json_write(self.to_dict(status), self.log_file, mode='w', rewrite=True)
 
 class H3BuildLogger:
-    _LOG_FILE_NAME = 'gedih3_build_log.json'
+    _LOG_FILE_NAME = BUILD_LOG_FILENAME
     _PARENT_DIR = GH3_DEFAULT_H3_DIR
 
     def __init__(self, product_vars, spatial=None, res:int=12, part:int=3, version:int=None, dir=None):
@@ -282,7 +282,7 @@ class H3BuildLogger:
         return None
 
     def set_post_build_info(self):
-        metadata_files = glob.glob(os.path.join(self._PARENT_DIR, '*', '*.metadata.json'))
+        metadata_files = glob.glob(os.path.join(self._PARENT_DIR, '*', f'*{PARTITION_META_FILENAME}'))
         if len(metadata_files) == 0:
             return   
         

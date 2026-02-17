@@ -21,8 +21,6 @@ import os
 import sys
 import argparse
 
-DEBUG = False
-
 
 def get_cmd_args():
     """Parse command line arguments for GEDI rasterization"""
@@ -34,9 +32,9 @@ def get_cmd_args():
     )
 
     # Input/output configuration
-    p.add_argument("-d", "--dataset", dest="dataset", required=not DEBUG, type=str,
+    p.add_argument("-d", "--dataset", dest="dataset", required=True, type=str,
                    help="path to aggregated dataset (from gh3_aggregate or gh3_extract)")
-    p.add_argument("-o", "--output", dest="output", required=not DEBUG, type=str,
+    p.add_argument("-o", "--output", dest="output", required=True, type=str,
                    help="output directory or file path")
     p.add_argument("-m", "--merge", dest="merge", action='store_true',
                    help="merge all partitions into single file")
@@ -68,9 +66,10 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
 
     import gedih3.gh3driver as gh3
     from gedih3 import raster
+    from gedih3.config import DATASET_META_FILENAME
 
     # Read metadata
-    dataset_meta_path = os.path.join(dataset_path, "gedih3_dataset.json")
+    dataset_meta_path = os.path.join(dataset_path, DATASET_META_FILENAME)
     with open(dataset_meta_path, 'r') as f:
         dataset_meta = json.load(f)
 
@@ -157,13 +156,6 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
 def main():
     args = get_cmd_args()
 
-    if DEBUG:
-        args.dataset = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/gedih3_tutorial/aggregated/egi_level6'
-        args.output = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/raster_test'
-        args.list = ['agbd_l4a']
-        args.cores = 4
-        args.port = 9995
-
     # Import cli_exception_handler early for wrapping the main logic
     from gedih3.cliutils import cli_exception_handler
 
@@ -173,6 +165,7 @@ def main():
 
         from gedih3.cliutils import (parse_dask_args, setup_logging,
                                      print_banner, print_success)
+        from gedih3.config import DATASET_META_FILENAME
 
         # Setup logging and print banner
         logger = setup_logging(args, __name__)
@@ -189,7 +182,7 @@ def main():
             logger.info(f"Dask dashboard: {client.dashboard_link}")
 
             # Detect dataset type
-            dataset_meta_path = os.path.join(args.dataset, "gedih3_dataset.json")
+            dataset_meta_path = os.path.join(args.dataset, DATASET_META_FILENAME)
 
             if os.path.exists(dataset_meta_path):
                 # Single dataset (existing behavior)
@@ -201,7 +194,7 @@ def main():
                 window_dirs = sorted([
                     d for d in glob.glob(os.path.join(args.dataset, '*'))
                     if os.path.isdir(d) and
-                       os.path.exists(os.path.join(d, 'gedih3_dataset.json'))
+                       os.path.exists(os.path.join(d, DATASET_META_FILENAME))
                 ])
 
                 if not window_dirs:

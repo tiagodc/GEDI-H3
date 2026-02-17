@@ -65,7 +65,8 @@ def _detect_file_type(path):
     if path_lower.endswith(('.h5', '.hdf5')):
         return "HDF5"
     if os.path.isdir(path):
-        build_log = os.path.join(path, 'gedih3_build_log.json')
+        from gedih3.config import BUILD_LOG_FILENAME
+        build_log = os.path.join(path, BUILD_LOG_FILENAME)
         if os.path.exists(build_log):
             return "H3 Database"
         from gedih3.cliutils import detect_dataset_format

@@ -19,7 +19,7 @@ Data Type Considerations:
     - Intermediate calculations use appropriate uint16/uint32 to prevent overflow
     - Coordinate divisions must use exact type casting to preserve precision
 """
-from typing import Tuple, Union, overload
+from typing import List, Tuple, Union, overload
 import numpy as np
 from numpy.typing import NDArray
 
@@ -300,6 +300,66 @@ def to_parent(
     )
 
     return re_uint_hash
+
+
+def get_children(
+    uint_hash: Union[np.uint64, NDArray[np.uint64]],
+    children_level: int = -1
+) -> List[np.uint64]:
+    """
+    Get all child pixels at a finer resolution.
+
+    Parameters
+    ----------
+    uint_hash : uint64
+        EGI hash value (parent pixel)
+    children_level : int
+        Target resolution level for children.
+        Negative values are relative to parent level (e.g., -1 = one level finer)
+
+    Returns
+    -------
+    list of uint64
+        EGI hashes of all child pixels
+
+    Raises
+    ------
+    ValueError
+        If children_level is not finer than parent level
+
+    Examples
+    --------
+    >>> children = get_children(parent_hash, children_level=-1)
+    >>> fine_children = get_children(level6_hash, children_level=1)
+    """
+    uint_hash = np.uint64(uint_hash)
+    level, scale, px_outer, py_outer, px_inner, py_inner = from_hash(uint_hash)
+    level = int(level)
+
+    if children_level < 0:
+        children_level = level + children_level
+
+    validate_level(children_level)
+    if children_level >= level:
+        raise ValueError(
+            f"Children level ({children_level}) must be finer than parent level ({level})"
+        )
+
+    # Compute pixel bounds directly (no Shapely dependency)
+    minx = float(scale) * float(px_inner) + OUTER_RES * float(px_outer) + LIMITS['lon_w']
+    miny = float(scale) * float(py_inner) + OUTER_RES * float(py_outer) + LIMITS['lat_s']
+    maxx = minx + float(scale)
+    maxy = miny + float(scale)
+
+    children_scale = RESOLUTIONS[children_level]
+    offset = children_scale / 2
+
+    # Generate grid of center points within parent pixel
+    px = np.arange(minx + offset, maxx, children_scale)
+    py = np.arange(miny + offset, maxy, children_scale)
+
+    center_points = np.stack(np.meshgrid(px, py)).reshape(2, -1).T
+    return [to_hash(x, y, children_level) for x, y in center_points]
 
 
 def pixels_per_tile(uint_hash_or_level: Union[np.uint64, int]) -> Union[int, float]:

@@ -5,11 +5,12 @@ import geopandas as gpd
 import dask.dataframe
 import dask_geopandas
 
-from .config import GH3_DEFAULT_H3_DIR, configure_environment
+from .config import GH3_DEFAULT_H3_DIR, configure_environment, BUILD_LOG_FILENAME, DATASET_META_FILENAME
 from .utils import json_read, json_write, now, get_package_version, is_parquet
 from .h3utils import intersect_h3_geometries, fix_h3_geometry
 from .cliutils import filter_data_columns, find_coordinate_column, get_aggregatable_columns
-from .exceptions import GediValidationError
+from .exceptions import (GediValidationError, GediDatabaseNotFoundError, GediProcessingError,
+                         GediSpatialError, GediVariableError)
 
 def gh3_set_db_path(gh3_root_dir=GH3_DEFAULT_H3_DIR):
     os.environ['GH3_DEFAULT_H3_DIR'] = gh3_root_dir
@@ -24,7 +25,7 @@ def gh3_list_parts(gh3_root_dir=GH3_DEFAULT_H3_DIR):
     return h3_ids
 
 def gh3_read_meta(var, gh3_root_dir=GH3_DEFAULT_H3_DIR):
-    meta_path = os.path.join(gh3_root_dir, "gedih3_build_log.json")
+    meta_path = os.path.join(gh3_root_dir, BUILD_LOG_FILENAME)
     meta = json_read(meta_path)
     return meta.get(var)
 
@@ -45,9 +46,9 @@ def gh3_write_meta(opath, **kwargs):
         
     extracted_meta.update(kwargs)
     
-    meta_path = os.path.join(opath, "gedih3_build_log.json")
+    meta_path = os.path.join(opath, BUILD_LOG_FILENAME)
     json_write(extracted_meta, meta_path, rewrite=True)
-    return meta_path        
+    return meta_path
 
 def gh3_write_dataset_meta(opath, index_type='h3', index_level=None, columns=None,
                            source_database=None, query_filter=None, tool=None,
@@ -114,7 +115,7 @@ def gh3_write_dataset_meta(opath, index_type='h3', index_level=None, columns=Non
 
     meta.update(kwargs)
 
-    meta_path = os.path.join(opath, "gedih3_dataset.json")
+    meta_path = os.path.join(opath, DATASET_META_FILENAME)
     json_write(meta, meta_path, rewrite=True)
     return meta_path
 
@@ -169,7 +170,7 @@ def gh3_load_dataset(dataset_path, columns=None, filters=None):
             data_files = hive_files
             fmt = 'parquet'
         else:
-            raise FileNotFoundError(f"No data files found in {dataset_path}")
+            raise GediDatabaseNotFoundError(f"No data files found in {dataset_path}")
 
     if fmt == 'parquet':
         # Parquet path: supports filters (predicate pushdown)
@@ -233,7 +234,7 @@ def gh3_load_dataset_lazy(dataset_path, columns=None):
             data_files = hive_files
             fmt = 'parquet'
         else:
-            raise FileNotFoundError(f"No data files found in {dataset_path}")
+            raise GediDatabaseNotFoundError(f"No data files found in {dataset_path}")
 
     # Read schema from first file
     col_names, has_geometry = read_dataset_schema(data_files[0], fmt)
@@ -275,12 +276,12 @@ def gh3_load_dataset_lazy(dataset_path, columns=None):
 def _detect_dataset_index_col_from_meta(dataset_path):
     """Detect the expected index column from dataset metadata.
 
-    Reads gedih3_dataset.json to determine the index column name.
+    Reads dataset metadata to determine the index column name.
     Returns None if metadata is missing or doesn't specify an index.
     """
     import json
 
-    meta_path = os.path.join(dataset_path, 'gedih3_dataset.json')
+    meta_path = os.path.join(dataset_path, DATASET_META_FILENAME)
     if not os.path.exists(meta_path):
         return None
 
@@ -617,7 +618,7 @@ def _write_dataframe(df, opath, fmt):
         if isinstance(df, gpd.GeoDataFrame):
             df.to_file(opath)
         else:
-            raise ValueError(f"Cannot export non-GeoDataFrame to {fmt}")
+            raise GediProcessingError(f"Cannot export non-GeoDataFrame to {fmt}")
     elif fmt == 'txt':
         df.to_csv(opath, sep='\t')
     elif fmt == 'csv':
@@ -625,7 +626,7 @@ def _write_dataframe(df, opath, fmt):
     elif fmt in ('h5', 'hdf5'):
         df.to_hdf(opath, key='GEDI', mode='w')
     else:
-        raise ValueError(f"Unsupported export format: {fmt}")
+        raise GediProcessingError(f"Unsupported export format: {fmt}")
 
 
 # ============================================================================
@@ -747,7 +748,7 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
         If True, drop internal columns (h3_XX, egiXX, _egi_x/y, shot_number*)
         before export.
     write_metadata : bool
-        If True, write gedih3_dataset.json metadata file.
+        If True, write dataset metadata file.
     source_database : str, optional
         Path to source H3 database (recorded in metadata).
     tool : str, optional
@@ -830,7 +831,7 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
         ofiles = glob.glob(os.path.join(output, f'*.{fmt}'))
 
     if not ofiles:
-        raise RuntimeError("No output files were created.")
+        raise GediProcessingError("No output files were created.")
 
     # Write dataset metadata
     if write_metadata:
@@ -903,7 +904,7 @@ def _prepare_egi_loading(region, gh3_dir):
     # Get EGI tiles for region
     egi_tiles = egi.aoi_tiles(region_gdf)
     if len(egi_tiles) == 0:
-        raise ValueError("No EGI tiles found for the specified region")
+        raise GediSpatialError("No EGI tiles found for the specified region")
 
     # Get H3 partitions as GeoDataFrame
     h3_gdf = h3_parts_to_gdf(h3_ids)
@@ -911,7 +912,7 @@ def _prepare_egi_loading(region, gh3_dir):
     # Compute EGI → H3 intersection
     egi_to_h3 = egi.egi_h3_intersection(egi_tiles, h3_gdf)
     if not egi_to_h3:
-        raise ValueError("No H3 partitions intersect the EGI tiles")
+        raise GediSpatialError("No H3 partitions intersect the EGI tiles")
 
     return egi_tiles, egi_to_h3, h3_part_col, region_gdf
 
@@ -1055,7 +1056,7 @@ def _find_parquet_file(gh3_dir):
     h3_dirs = sorted(glob.glob(os.path.join(gh3_dir, f"{h3_part_col}=*/")))
 
     if not h3_dirs:
-        raise ValueError(f"No H3 partition directories found in {gh3_dir}")
+        raise GediDatabaseNotFoundError(f"No H3 partition directories found in {gh3_dir}")
 
     # Find a directory that actually has parquet files (search recursively)
     for h3_dir_path in h3_dirs:
@@ -1572,7 +1573,7 @@ def _egi_repartition(gh3_df, shuffle_level, x_col='lon_lowestmode', y_col='lat_l
             actual_x_col = find_coordinate_column(df.columns, x_col)
             actual_y_col = find_coordinate_column(df.columns, y_col)
             if actual_x_col is None or actual_y_col is None:
-                raise ValueError(f"Coordinate columns not found: {x_col}, {y_col}")
+                raise GediVariableError(f"Coordinate columns not found: {x_col}, {y_col}")
 
             wgs84_x = df[actual_x_col].values
             wgs84_y = df[actual_y_col].values
@@ -1671,7 +1672,7 @@ def egi_aggregate_func(df, level, agg='mean', cols=None, x_col='lon_lowestmode',
         actual_y_col = find_coordinate_column(df.columns, y_col)
 
         if actual_x_col is None or actual_y_col is None:
-            raise ValueError(
+            raise GediVariableError(
                 f"Coordinate columns for EGI conversion not found. "
                 f"Either provide a GeoDataFrame with Point geometry, or ensure "
                 f"columns matching '{x_col}*' and '{y_col}*' are included."
@@ -2173,7 +2174,7 @@ def _write_egi_file(df, opath, fmt):
         elif fmt in ('h5', 'hdf5'):
             df.to_hdf(opath, key='GEDI', mode='w')
         else:
-            raise ValueError(f"Unsupported export format: {fmt}")
+            raise GediProcessingError(f"Unsupported export format: {fmt}")
 
         return opath
 

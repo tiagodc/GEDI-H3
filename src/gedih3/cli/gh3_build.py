@@ -1,5 +1,4 @@
 #! python
-DEBUG=False
 
 import argparse
 
@@ -45,17 +44,6 @@ def get_cmd_args():
 
 def main():
     args = get_cmd_args()
-
-    if DEBUG:
-        args.region = '-51,0,-50,1'
-        args.l2a = ['default']
-        args.l2b = ['default']
-        args.l4a = ['default']
-        args.l4c = ['default']
-        args.n_cpus = 40
-        args.port = 8887
-        import sys
-        sys.path.insert(0, os.path.abspath('./src/'))
 
     import os
     import warnings

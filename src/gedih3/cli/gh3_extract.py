@@ -1,5 +1,4 @@
 #! python
-DEBUG=False
 
 """
 GEDI H3/EGI Data Extraction Tool
@@ -27,7 +26,7 @@ def get_cmd_args():
     # Database/output configuration
     p.add_argument("-d", "--database", dest="database", type=str, default=None,
                    help="path to H3 database directory")
-    p.add_argument("-o", "--output", dest="output", required=not DEBUG, type=str,
+    p.add_argument("-o", "--output", dest="output", required=True, type=str,
                    help="output directory or file path")
     p.add_argument("-f", "--format", dest="format", type=str, default='parquet',
                    help="output format [default=parquet]")
@@ -71,24 +70,7 @@ def get_cmd_args():
     return p.parse_args()
 
 def main():
-    if DEBUG:
-        sys.path.insert(0, os.path.abspath('./src/'))
-
     args = get_cmd_args()
-
-    if DEBUG:
-        args.output = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/tmp/maryland'
-        args.region = '/gpfs/data1/vclgp/decontot/data/vector/other_boundaries/md.shp'
-        args.l2a = ['rh_098']
-        args.l2b = ['pai_z_000']
-        args.l4a = ['agbd']
-        args.l4c = ['wsci']
-        args.add_datetime = True
-        args.quality = True
-        args.database = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/database'
-        args.cores = 20
-        args.port = 9994
-        args.egi = (1, 12)  # (index_level, partition_level)
 
     # Import cli_exception_handler early for wrapping the main logic
     from gedih3.cliutils import cli_exception_handler
@@ -123,7 +105,8 @@ def main():
             sys.exit(1)
 
         # Read metadata
-        if not os.path.exists(os.path.join(args.database, "gedih3_build_log.json")):
+        from gedih3.config import BUILD_LOG_FILENAME
+        if not os.path.exists(os.path.join(args.database, BUILD_LOG_FILENAME)):
             raise FileNotFoundError("Could not read database metadata. Invalid database?")
 
         # Parse region

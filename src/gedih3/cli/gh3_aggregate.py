@@ -1,5 +1,4 @@
 #! python
-DEBUG=False
 
 """
 GEDI H3/EGI Data Aggregation Tool
@@ -30,7 +29,7 @@ def get_cmd_args():
     # Database/output configuration
     p.add_argument("-d", "--database", dest="database", type=str, default=None,
                    help="path to H3 database or simplified dataset directory")
-    p.add_argument("-o", "--output", dest="output", required=not DEBUG, type=str,
+    p.add_argument("-o", "--output", dest="output", required=True, type=str,
                    help="output directory or file path")
     p.add_argument("-f", "--format", dest="format", type=str, default='parquet',
                    help="output format [default=parquet]")
@@ -269,19 +268,6 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
 
 def main():
     args = get_cmd_args()
-
-    if DEBUG:
-        args.output = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/tmp/maryland'
-        args.region = '/gpfs/data1/vclgp/decontot/data/vector/other_boundaries/md.shp'
-        args.l2a = ['rh_098']
-        args.l2b = ['pai_z_000']
-        args.l4a = ['agbd']
-        args.l4c = ['wsci']
-        args.add_datetime = True
-        args.quality = True
-        args.database = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/database'
-        args.cores = 20
-        args.port = 9994
 
     # Validate aggregation level arguments
     if args.h3_level is None and args.egi is None:

@@ -69,7 +69,7 @@ def main():
 if __name__ == "__main__":
     print("""This script assumes that all files follow the format:\n
     database_world/h3_XX=*/year=*/<h3_XX>.<year>.0.parquet\n
-    where XX is the H3 partition level (read from gedih3_build_log.json).
+    where XX is the H3 partition level (read from the build log).
     If this is not the case (e.g. multiple parquet files within a year, etc.),
     the script will need to be modified accordingly.
     """)

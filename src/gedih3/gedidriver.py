@@ -26,6 +26,7 @@ from earthaccess.store import EarthAccessFile
 from .config import GEDI_PRODUCTS, GEDI_BEAMS, GEDI_START_DATE, GH3_DEFAULT_SOC_DIR
 from .utils import h5_copy_subset, h5_info
 from .logging_config import get_logger
+from .exceptions import GediValidationError, GediProductError, GediVariableError
 
 logger = get_logger(__name__)
 
@@ -110,7 +111,7 @@ def soc_file_tree(
     elif isinstance(file_struct[0], str):
         file_list = file_struct
     else:
-        raise ValueError("file_struct must be a directory or a list of file paths (or s3 links)")
+        raise GediValidationError("file_struct must be a directory or a list of file paths (or s3 links)")
 
     file_array = np.array(file_struct) if direct_access else np.array(file_list)
 
@@ -178,7 +179,7 @@ def gedi_vars_expand(product_vars):
         elif isinstance(vars, list):
             continue
         else:
-            raise ValueError(f"Unknown variable specification for product {prod}: {vars}")
+            raise GediProductError(f"Unknown variable specification for product {prod}: {vars}")
     return product_vars
 
 def gedi_vars_from_h5(gedi_file):
@@ -744,7 +745,7 @@ def load_h5_merged(
     if not suffix_all:
         all_cols = [col for frame in frames for col in frame.columns]
         if len(all_cols) != len(set(all_cols)):
-            raise ValueError("Duplicate columns detected. Remove duplicates or use suffix_all=True to avoid conflicts.")
+            raise GediVariableError("Duplicate columns detected. Remove duplicates or use suffix_all=True to avoid conflicts.")
 
     df = pd.concat(frames, axis=1, join='inner', copy=True)
     return df

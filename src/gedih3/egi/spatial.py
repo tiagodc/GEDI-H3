@@ -16,9 +16,9 @@ from shapely.geometry import box, Point, Polygon
 
 from .config import (
     LIMITS, RESOLUTIONS, OUTER_RES, OUTER_LEVEL, EGI_CRS_STRING,
-    egi_col_name, validate_level
+    egi_col_name,
 )
-from .core import from_hash, to_hash, hasher, pixels_per_tile
+from .core import from_hash, hasher, pixels_per_tile
 
 
 def check_crs_limits(
@@ -225,59 +225,6 @@ def pixel_ring(
         neighbors.append(uint_hash)
 
     return neighbors
-
-
-def get_children(
-    uint_hash: np.uint64,
-    children_level: int = -1
-) -> List[np.uint64]:
-    """
-    Get all child pixels at a finer resolution.
-
-    Parameters
-    ----------
-    uint_hash : uint64
-        EGI hash value (parent pixel)
-    children_level : int
-        Target resolution level for children.
-        Negative values are relative to parent level (e.g., -1 = one level finer)
-
-    Returns
-    -------
-    list of uint64
-        EGI hashes of all child pixels
-
-    Examples
-    --------
-    >>> # Get children one level finer
-    >>> children = get_children(parent_hash, children_level=-1)
-    >>>
-    >>> # Get all level-1 children of a level-6 pixel
-    >>> fine_children = get_children(level6_hash, children_level=1)
-    """
-    level = int(np.uint64(uint_hash) // np.uint64(1e18))
-    minx, miny, maxx, maxy = pixel_shape(uint_hash).bounds
-
-    if children_level < 0:
-        children_level = level + children_level
-
-    validate_level(children_level)
-    if children_level >= level:
-        raise ValueError(
-            f"Children level ({children_level}) must be finer than parent level ({level})"
-        )
-
-    children_scale = RESOLUTIONS[children_level]
-    offset = children_scale / 2
-
-    # Generate grid of center points within parent pixel
-    px = np.arange(minx + offset, maxx, children_scale)
-    py = np.arange(miny + offset, maxy, children_scale)
-
-    center_points = np.stack(np.meshgrid(px, py)).reshape(2, -1).T
-    egi_ids = [to_hash(x, y, children_level) for x, y in center_points]
-
-    return egi_ids
 
 
 def aoi_tiles(region: Optional[gpd.GeoDataFrame] = None) -> gpd.GeoDataFrame:

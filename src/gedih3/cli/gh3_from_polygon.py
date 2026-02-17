@@ -1,5 +1,4 @@
 #! python
-DEBUG = False
 
 """
 GEDI Vector Polygon Join Tool
@@ -27,7 +26,7 @@ def get_cmd_args():
     )
 
     # Vector input
-    p.add_argument("-i", "--input", dest="input", required=not DEBUG, type=str,
+    p.add_argument("-i", "--input", dest="input", required=True, type=str,
                    help="path to vector file (.shp, .gpkg, .geojson) or directory")
     p.add_argument("-if", "--input-format", dest="input_format", type=str, default='*',
                    help="file extension for directory globbing [default=* (all supported)]")
@@ -48,7 +47,7 @@ def get_cmd_args():
                    help="path to H3 database or simplified dataset directory")
 
     # Output
-    p.add_argument("-o", "--output", dest="output", required=not DEBUG, type=str,
+    p.add_argument("-o", "--output", dest="output", required=True, type=str,
                    help="output directory")
     p.add_argument("-f", "--format", dest="format", type=str, default='parquet',
                    help="output format [default=parquet]")
@@ -79,18 +78,7 @@ def get_cmd_args():
 
 
 def main():
-    if DEBUG:
-        sys.path.insert(0, os.path.abspath('./src/'))
-
     args = get_cmd_args()
-
-    if DEBUG:
-        args.input = '/gpfs/data1/vclgp/decontot/data/vector/wwf_ecoregions/wwf_terr_ecos.shp'
-        args.database = '/gpfs/data1/vclgp/data/iss_gedi/h3_mock/database_world_merged/'
-        args.output = '/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/from_polygon_test'
-        args.columns = ['ECO_NAME', 'BIOME_NAME']
-        args.cores = 10
-        args.port = 9994
 
     from gedih3.cliutils import cli_exception_handler
 
@@ -162,15 +150,16 @@ def main():
             sys.exit(1)
 
         # Detect data source type
-        build_log = os.path.join(args.database, "gedih3_build_log.json")
-        dataset_meta = os.path.join(args.database, "gedih3_dataset.json")
+        from gedih3.config import BUILD_LOG_FILENAME, DATASET_META_FILENAME
+        build_log = os.path.join(args.database, BUILD_LOG_FILENAME)
+        dataset_meta = os.path.join(args.database, DATASET_META_FILENAME)
         is_h3_database = os.path.exists(build_log)
         is_simplified_dataset = os.path.exists(dataset_meta)
 
         if not is_h3_database and not is_simplified_dataset:
             raise FileNotFoundError(
                 f"No database metadata found in {args.database}. "
-                "Expected gedih3_build_log.json (H3 DB) or gedih3_dataset.json (simplified dataset)."
+                f"Expected {BUILD_LOG_FILENAME} (H3 DB) or {DATASET_META_FILENAME} (simplified dataset)."
             )
 
         # Parse region
