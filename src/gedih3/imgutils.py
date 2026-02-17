@@ -803,7 +803,7 @@ def from_image(image_path, data_source=None, gh3_dir=None, region=None,
         partition_col = h3_col_name(part_level)
     else:
         # Mode 2: Simplified dataset — load all tiles
-        ddf = gh3.gh3_load_dataset_lazy(data_source)
+        ddf = gh3.gh3_load(data_source)
         if query:
             ddf = ddf.query(query)
 

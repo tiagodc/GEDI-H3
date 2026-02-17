@@ -219,7 +219,7 @@ def main():
                 # Mode 2: Simplified dataset — load all tiles
                 logger.info("Loading GEDI data from simplified dataset...")
                 logger.info("  ROI: entire dataset (all tiles)")
-                ddf = gh3.gh3_load_dataset_lazy(args.database)
+                ddf = gh3.gh3_load(args.database)
                 if query_str:
                     ddf = ddf.query(query_str)
 

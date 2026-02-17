@@ -119,31 +119,29 @@ def _aggregate_data(ddf, *, use_egi, is_database, args, agg, agg_is_dict,
         from gedih3 import egi
 
         if is_database:
-            # Direct loading from H3 database (no shuffle)
-            logger.info("Loading and aggregating directly to EGI (no shuffle)...")
-            aggdf = gh3.egi_load_and_aggregate(
+            # Direct loading into EGI partitions (no shuffle), then aggregate
+            logger.info("Loading data into EGI partitions (no shuffle)...")
+            ddf = gh3.egi_load(
                 columns=columns,
                 region=region,
                 query=query_str,
                 gh3_dir=args.database,
-                target_level=egi_agg_level,
-                partition_level=egi_partition_level,
-                agg=agg,
-                add_geometry=True,
-                agg_columns=agg_columns
+                index_level=egi_agg_level,
+                partition_level=egi_partition_level
             )
-        else:
-            # Aggregate via shuffle from provided ddf
-            logger.info("Aggregating to EGI (shuffle-based)...")
-            aggdf = gh3.egi_aggregate(
-                ddf,
-                target_level=egi_agg_level,
-                agg=agg,
-                columns=agg_columns,
-                add_geometry=True,
-                partition_level=egi_partition_level,
-                repartition=not args.merge
-            )
+            logger.info(f"  Loaded {ddf.npartitions} EGI tiles")
+
+        # Unified aggregation (detects EGI-indexed input automatically)
+        logger.info("Aggregating to EGI...")
+        aggdf = gh3.egi_aggregate(
+            ddf,
+            target_level=egi_agg_level,
+            agg=agg,
+            columns=agg_columns,
+            add_geometry=True,
+            partition_level=egi_partition_level,
+            repartition=not args.merge
+        )
 
         logger.info(f"  Result: {aggdf.npartitions} EGI partitions")
         part_col = egi.egi_col_name(egi_partition_level if not args.merge else egi_agg_level)
@@ -418,7 +416,7 @@ def main():
                     if not args.quiet:
                         progress(ddf)
                 else:
-                    ddf = None  # EGI+database path loads per-window via egi_load_and_aggregate
+                    ddf = None  # EGI+database path loads per-window via egi_load + egi_aggregate
 
                 window_count = 0
                 for t0, t1, suffix in generate_time_windows(
