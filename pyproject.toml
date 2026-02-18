@@ -21,6 +21,7 @@ dependencies = [
     "h3 >= 4.3.0",
     "h3pandas >= 0.3.0",
     "antimeridian",
+    "fsspec >= 2023.1.0",
     "dask >= 2024.1.0",
     "dask-geopandas >= 0.5.0",
     "distributed",

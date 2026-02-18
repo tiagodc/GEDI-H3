@@ -44,11 +44,11 @@ def detect_dataset_format(dataset_path):
         If detected format is not in PIPELINE_FORMATS
     """
     import json
-    from glob import glob
+    from .utils import smart_exists, smart_open, smart_glob
 
     meta_path = os.path.join(dataset_path, DATASET_META_FILENAME)
-    if os.path.exists(meta_path):
-        with open(meta_path, 'r') as f:
+    if smart_exists(meta_path):
+        with smart_open(meta_path, 'r') as f:
             meta = json.load(f)
         fmt = meta.get('file_format')
         if fmt:
@@ -62,7 +62,7 @@ def detect_dataset_format(dataset_path):
     # Scan directory for known extensions (parquet first for backwards compat)
     for fmt, patterns in FORMAT_EXTENSIONS.items():
         for pattern in patterns:
-            if glob(os.path.join(dataset_path, pattern)):
+            if smart_glob(os.path.join(dataset_path, pattern)):
                 return fmt
 
     return 'parquet'
@@ -88,7 +88,7 @@ def list_dataset_files(dataset_path, fmt=None):
     FileNotFoundError
         If no matching files found
     """
-    from glob import glob
+    from .utils import smart_glob
 
     if fmt is None:
         fmt = detect_dataset_format(dataset_path)
@@ -102,7 +102,7 @@ def list_dataset_files(dataset_path, fmt=None):
 
     files = []
     for pattern in patterns:
-        files.extend(glob(os.path.join(dataset_path, pattern)))
+        files.extend(smart_glob(os.path.join(dataset_path, pattern)))
 
     if not files:
         raise GediDatabaseNotFoundError(
@@ -129,7 +129,9 @@ def read_dataset_schema(filepath, fmt):
     """
     if fmt == 'parquet':
         import pyarrow.parquet as pq
-        schema = pq.read_schema(filepath, memory_map=True)
+        from .utils import is_remote_path
+        kwargs = {} if is_remote_path(filepath) else {'memory_map': True}
+        schema = pq.read_schema(filepath, **kwargs)
         return schema.names, 'geometry' in schema.names
     elif fmt == 'feather':
         import pyarrow.feather as feather
@@ -505,12 +507,13 @@ def get_dataset_index_info(database):
         - Other metadata fields from the source
     """
     import json
+    from .utils import smart_exists, smart_open
 
     build_log_path = os.path.join(database, BUILD_LOG_FILENAME)
     dataset_meta_path = os.path.join(database, DATASET_META_FILENAME)
 
-    if os.path.exists(build_log_path):
-        with open(build_log_path, 'r') as f:
+    if smart_exists(build_log_path):
+        with smart_open(build_log_path, 'r') as f:
             meta = json.load(f)
         return {
             'source_type': 'h3_database',
@@ -519,8 +522,8 @@ def get_dataset_index_info(database):
             'partition_level': meta.get('h3_partition_level'),
             **meta
         }
-    elif os.path.exists(dataset_meta_path):
-        with open(dataset_meta_path, 'r') as f:
+    elif smart_exists(dataset_meta_path):
+        with smart_open(dataset_meta_path, 'r') as f:
             meta = json.load(f)
         return {
             'source_type': 'simplified_dataset',

@@ -378,20 +378,21 @@ def validate_database_path(db_path: str) -> str:
     GediDatabaseNotFoundError
         If database directory doesn't exist or appears invalid
     """
-    if not os.path.exists(db_path):
+    from .utils import smart_exists, smart_isdir, smart_glob
+
+    if not smart_exists(db_path):
         raise GediDatabaseNotFoundError(
             f"H3 database not found: {db_path}"
         )
 
-    if not os.path.isdir(db_path):
+    if not smart_isdir(db_path):
         raise GediDatabaseNotFoundError(
             f"H3 database path is not a directory: {db_path}"
         )
 
     # Check for H3 partition directories or parquet files
-    import glob
-    h3_dirs = glob.glob(os.path.join(db_path, 'h3_*/'))
-    parquet_files = glob.glob(os.path.join(db_path, '**/*.parquet'), recursive=True)
+    h3_dirs = smart_glob(os.path.join(db_path, 'h3_*/'))
+    parquet_files = smart_glob(os.path.join(db_path, '**/*.parquet'), recursive=True)
 
     if not h3_dirs and not parquet_files:
         raise GediDatabaseNotFoundError(
