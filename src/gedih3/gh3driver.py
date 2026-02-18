@@ -10,7 +10,7 @@ import warnings
 from .config import GH3_DEFAULT_H3_DIR, configure_environment, BUILD_LOG_FILENAME, DATASET_META_FILENAME
 from .utils import (json_read, json_write, now, get_package_version, is_parquet,
                      smart_glob, smart_exists, smart_isdir, is_remote_path,
-                     generate_manifest)
+                     smart_open, generate_manifest)
 from .h3utils import intersect_h3_geometries, fix_h3_geometry
 from .cliutils import filter_data_columns, find_coordinate_column, get_aggregatable_columns
 from .exceptions import (GediValidationError, GediDatabaseNotFoundError, GediProcessingError,
@@ -243,10 +243,9 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
             if filters:
                 kwargs['filters'] = filters
             try:
-                return gpd.read_parquet(data_files, **kwargs)
+                return _read_parquet_files(data_files, geo=True, **kwargs)
             except Exception:
-                import pyarrow.parquet as pq
-                return pq.read_table(data_files, **kwargs).to_pandas()
+                return _read_parquet_files(data_files, geo=False, **kwargs)
         else:
             index_col = _detect_dataset_index_col(path)
             load_columns = columns
@@ -364,13 +363,43 @@ def gh3_add_geometry(df):
     gdf = gpd.GeoDataFrame(df, geometry=geo, crs=4326)
     return gdf
 
+def _read_parquet_files(files, geo=True, **kwargs):
+    """Read parquet file(s), handling remote paths correctly.
+
+    PyArrow does not recognize http:// URIs natively. For remote paths,
+    we use fsspec (via smart_open) to open files as file-like objects.
+    """
+    reader = gpd.read_parquet if geo else pd.read_parquet
+
+    if isinstance(files, str):
+        files = [files]
+
+    remote = len(files) > 0 and is_remote_path(files[0])
+
+    # Single file
+    if len(files) == 1:
+        if remote:
+            with smart_open(files[0], 'rb') as fobj:
+                return reader(fobj, **kwargs)
+        return reader(files[0], **kwargs)
+
+    # Multiple local files: pass list directly (PyArrow handles this)
+    if not remote:
+        return reader(files, **kwargs)
+
+    # Multiple remote files: read each via fsspec, concat
+    dfs = []
+    for f in files:
+        with smart_open(f, 'rb') as fobj:
+            dfs.append(reader(fobj, **kwargs))
+    return pd.concat(dfs, ignore_index=True)
+
+
 def gh3_load_hex(d, part_col=None, **kwargs):
     files = smart_glob(os.path.join(d, '**/*.parquet'), recursive=True)
     cols = kwargs.get('columns')
-    if cols is None or 'geometry' in cols:
-        df = gpd.read_parquet(files, **kwargs)
-    else:
-        df = pd.read_parquet(files, **kwargs)
+    use_geo = cols is None or 'geometry' in cols
+    df = _read_parquet_files(files, geo=use_geo, **kwargs)
     # Add partition column from hive-style directory name (e.g., 'h3_03=abc123')
     if part_col:
         part_id = os.path.basename(d.rstrip('/')).split('=')[-1]
@@ -1059,12 +1088,12 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
 
         try:
             # Use bbox filter at read time (key optimization!)
-            df = gpd.read_parquet(parquet_files, bbox=wgs84_bbox, columns=load_cols)
+            df = _read_parquet_files(parquet_files, geo=True, bbox=wgs84_bbox, columns=load_cols)
             if len(df) > 0:
                 dfs.append(df)
         except Exception:
             # If bbox filtering fails, fall back to full read + clip
-            df = gpd.read_parquet(parquet_files, columns=load_cols)
+            df = _read_parquet_files(parquet_files, geo=True, columns=load_cols)
             if len(df) > 0:
                 df = df[df.geometry.intersects(clip_box)]
                 if len(df) > 0:

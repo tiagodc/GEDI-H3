@@ -311,7 +311,8 @@ def main():
         configure_database_path(args, logger=logger)
 
         # Verify database exists
-        if not os.path.exists(args.database):
+        from gedih3.utils import smart_exists
+        if not smart_exists(args.database):
             logger.error(f"Database directory not found: {args.database}")
             sys.exit(1)
 

@@ -99,14 +99,15 @@ def main():
         configure_database_path(args, logger=logger)
 
         # Verify database exists
-        if not os.path.exists(args.database):
+        from gedih3.utils import smart_exists
+        if not smart_exists(args.database):
             logger.error(f"Database directory not found: {args.database}")
             logger.error("Please specify a valid database path with -d/--database")
             sys.exit(1)
 
         # Read metadata
         from gedih3.config import BUILD_LOG_FILENAME
-        if not os.path.exists(os.path.join(args.database, BUILD_LOG_FILENAME)):
+        if not smart_exists(os.path.join(args.database, BUILD_LOG_FILENAME)):
             raise FileNotFoundError("Could not read database metadata. Invalid database?")
 
         # Parse region

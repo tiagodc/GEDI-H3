@@ -168,6 +168,10 @@ def make_dataset_reader(fmt, columns=None):
 
     if fmt == 'parquet':
         def reader(f):
+            from .utils import is_remote_path, smart_open
+            if is_remote_path(f):
+                with smart_open(f, 'rb') as fobj:
+                    return gpd.read_parquet(fobj, columns=columns)
             return gpd.read_parquet(f, columns=columns)
         return reader
     elif fmt == 'feather':
