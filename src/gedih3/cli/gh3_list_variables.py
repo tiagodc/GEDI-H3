@@ -77,7 +77,8 @@ def main():
         from gedih3.config import GH3_DEFAULT_H3_DIR
         args.database = GH3_DEFAULT_H3_DIR
 
-    if not os.path.exists(args.database):
+    from gedih3.utils import smart_exists
+    if not smart_exists(args.database):
         print(f"Error: Database not found: {args.database}", file=sys.stderr)
         sys.exit(1)
 

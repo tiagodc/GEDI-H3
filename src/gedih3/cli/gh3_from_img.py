@@ -176,7 +176,8 @@ def main():
         # Configure database
         configure_database_path(args, logger=logger)
 
-        if not os.path.exists(args.database):
+        from gedih3.utils import smart_exists
+        if not smart_exists(args.database):
             logger.error(f"Database directory not found: {args.database}")
             sys.exit(1)
 
@@ -184,8 +185,8 @@ def main():
         from gedih3.config import BUILD_LOG_FILENAME, DATASET_META_FILENAME
         build_log = os.path.join(args.database, BUILD_LOG_FILENAME)
         dataset_meta = os.path.join(args.database, DATASET_META_FILENAME)
-        is_h3_database = os.path.exists(build_log)
-        is_simplified_dataset = os.path.exists(dataset_meta)
+        is_h3_database = smart_exists(build_log)
+        is_simplified_dataset = smart_exists(dataset_meta)
 
         if not is_h3_database and not is_simplified_dataset:
             raise FileNotFoundError(

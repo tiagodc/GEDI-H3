@@ -172,7 +172,8 @@ def main():
         print_banner("GEDI Rasterization Tool", logger=logger)
 
         # Validate input dataset exists
-        if not os.path.exists(args.dataset):
+        from gedih3.utils import smart_exists, smart_isdir, smart_glob
+        if not smart_exists(args.dataset):
             logger.error(f"Dataset not found: {args.dataset}")
             sys.exit(1)
 
@@ -184,7 +185,7 @@ def main():
             # Detect dataset type
             dataset_meta_path = os.path.join(args.dataset, DATASET_META_FILENAME)
 
-            if os.path.exists(dataset_meta_path):
+            if smart_exists(dataset_meta_path):
                 # Single dataset (existing behavior)
                 _rasterize_dataset(args.dataset, args.output, args, logger)
                 print_success("Rasterization complete", logger=logger)
@@ -192,9 +193,9 @@ def main():
             else:
                 # Check for time-series (subdirectories with metadata)
                 window_dirs = sorted([
-                    d for d in glob.glob(os.path.join(args.dataset, '*'))
-                    if os.path.isdir(d) and
-                       os.path.exists(os.path.join(d, DATASET_META_FILENAME))
+                    d for d in smart_glob(os.path.join(args.dataset, '*'))
+                    if smart_isdir(d) and
+                       smart_exists(os.path.join(d, DATASET_META_FILENAME))
                 ])
 
                 if not window_dirs:
