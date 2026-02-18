@@ -33,11 +33,11 @@ def get_cmd_args():
                    help="temporary directory for intermediate files")
     p.add_argument("-s3", "--s3", dest="s3", action='store_true',
                    help="build directly from NASA DAACs S3 storage")
-    p.add_argument("--gedi-version", dest="version", type=int, default=2,
-                   help="GEDI data version [default=2]")
+    p.add_argument("--gedi-version", dest="version", type=int, default=None,
+                   help="GEDI data version [default=latest available]")
 
     # Dask and verbosity
-    add_dask_args(p)
+    add_dask_args(p, profile='build')
     add_verbosity_args(p)
 
     return p.parse_args()
@@ -46,9 +46,11 @@ def main():
     args = get_cmd_args()
 
     import os
+    import sys
     import warnings
-    from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_TMP_DIR
+    from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR
     from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success
+    from gedih3.utils import get_system_resources
     from gedih3.gh3builder import build_h3db
     from gedih3.logger import H3BuildLogger
     from dask.distributed import Client
@@ -61,27 +63,48 @@ def main():
         args.output = GH3_DEFAULT_H3_DIR
     os.makedirs(args.output, exist_ok=True)
 
-    if args.indir is None:
-        args.indir = GH3_DEFAULT_SOC_DIR
-
     if args.tmpdir is None:
-        args.tmpdir = os.path.join(GH3_DEFAULT_TMP_DIR, 'gh3_build')
+        args.tmpdir = os.path.join(args.output, '.tmp')
     os.makedirs(args.tmpdir, exist_ok=True)
+
+    # Log detected resources and Dask configuration
+    cpus, ram, storage = get_system_resources(disk_path=args.output)
+    logger.info(f"System: {cpus} CPUs, {ram:.1f} GB RAM, {storage:.1f} GB free disk at {args.output}")
+    logger.info(f"Dask config: {args.cores} workers, {args.threads} threads/worker, {args.memory} GB/worker")
+    if storage < 10:
+        logger.warning(f"Low disk space ({storage:.1f} GB free) — build may fail writing parquet output")
+
+    # Determine source mode
+    # -i/--indir → local mode; otherwise → S3 streaming (default)
+    soc_source = args.indir  # None means S3 mode
+
+    if args.s3 and args.indir:
+        logger.warning("Both --indir and --s3 specified. Ignoring --s3, using local files.")
+    elif args.s3 and not args.indir:
+        logger.info("Note: --s3 is now the default when --indir is not specified.")
 
     product_vars = parse_gedi_args(args)
     spatial = parse_region(args.region) if args.region is not None else None
+    temporal = None
+    if args.date_start or args.date_end:
+        temporal = (args.date_start, args.date_end)
 
     h3_logger = H3BuildLogger(
         product_vars=product_vars,
         spatial=spatial,
+        temporal=temporal,
         res=args.h3_resolution,
         part=args.h3_partition,
         version=args.version,
         dir=args.output,
+        source_mode='local' if soc_source else 's3',
     )
 
     if not h3_logger.product_vars and not h3_logger.updating:
-        raise ValueError("No GEDI product selected - please select at least one of --l1b, --l2a, --l2b, --l4a, --l4c")
+        raise ValueError(
+            "No GEDI product selected - please select at least one of "
+            "--l1b, --l2a, --l2b, --l4a, --l4c, or use -l/--detail-level"
+        )
     if h3_logger.get_spatial() is None:
         logger.warning("No spatial filter provided - processing global data")
 
@@ -89,11 +112,19 @@ def main():
         logger.info("Build log exists, checking for updates")
         if h3_logger.new_spatial is not None:
             logger.info("Spatial filter updated")
+        if h3_logger.new_temporal is not None:
+            logger.info("Temporal filter updated")
         if h3_logger.new_product_vars is not None:
             logger.info("Product variables updated")
 
-    logger.info(f"Building GEDI H3 database at {args.output}")
+    source_label = f"local: {soc_source}" if soc_source else "NASA S3 streaming"
+    logger.info(f"Building GEDI H3 database at {args.output} (source: {source_label})")
     h3_logger.save_log('PARTITIONING')
+
+    # Build version_kwargs for local file filtering
+    version_kwargs = None
+    if soc_source and h3_logger.gedi_version is not None:
+        version_kwargs = {'version': h3_logger.gedi_version}
 
     dask_kwargs = parse_dask_args(args)
 
@@ -112,12 +143,15 @@ def main():
                 h3_files = build_h3db(
                     product_vars=h3_logger.get_product_vars(),
                     spatial=h3_logger.get_spatial(),
+                    temporal=h3_logger.get_temporal(),
                     res=h3_logger.res,
                     part=h3_logger.part,
-                    soc_source=args.indir,
+                    soc_source=soc_source,
+                    version=h3_logger.gedi_version,
+                    version_kwargs=version_kwargs,
                     h3_dir=h3_logger._PARENT_DIR,
                     skip_granules=h3_logger.get_finished_granules(),
-                    version_kwargs={'version': h3_logger.gedi_version},
+                    status_callback=h3_logger.save_log,
                     tmp_dir=args.tmpdir
                 )
 
@@ -134,11 +168,11 @@ def main():
 
     except KeyboardInterrupt:
         logger.warning("\nBuild interrupted by user")
-        import sys
+        h3_logger.set_post_build_info()
+        h3_logger.save_log('INTERRUPTED')
         sys.exit(130)
 
     except Exception as e:
-        # Import exceptions for specific error handling
         from gedih3.exceptions import (
             H3ValidationError,
             GediFileError,
@@ -148,26 +182,21 @@ def main():
 
         if isinstance(e, H3ValidationError):
             logger.error(f"H3 parameter error: {e}")
-            import sys
             sys.exit(2)
         elif isinstance(e, GediFileError):
             logger.error(f"File error: {e}")
-            import sys
             sys.exit(3)
         elif isinstance(e, GediDatabaseError):
             logger.error(f"Database error: {e}")
-            import sys
             sys.exit(4)
         elif isinstance(e, GediError):
             logger.error(f"GEDI error: {e}")
-            import sys
             sys.exit(1)
         else:
             logger.error(f"Unexpected error: {type(e).__name__}: {e}")
             if args.verbose >= 2:
                 import traceback
                 traceback.print_exc()
-            import sys
             sys.exit(1)
 
 if __name__ == "__main__":

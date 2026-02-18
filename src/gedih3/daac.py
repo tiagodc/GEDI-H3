@@ -37,6 +37,62 @@ from .logging_config import get_logger
 
 logger = get_logger(__name__)
 
+def gedi_list_versions(product: str) -> List[dict]:
+    """Query NASA CMR for all available versions of a GEDI product.
+
+    Parameters
+    ----------
+    product : str
+        Product code (e.g., 'L2A', 'L4A')
+
+    Returns
+    -------
+    list of dict
+        Available versions with metadata, sorted by version string.
+    """
+    product = product.upper()
+    if product not in GEDI_PRODUCTS:
+        raise GediProductError(f"Product must be one of: {list(GEDI_PRODUCTS.keys())}")
+
+    short_name = GEDI_PRODUCTS[product]['short_name']
+    collections = earthaccess.search_datasets(short_name=short_name)
+    versions = []
+    for c in collections:
+        umm = c.get('umm', {})
+        versions.append({
+            'version': c.get('meta', {}).get('native-id', umm.get('Version', 'unknown')).split('.')[-1]
+                if not umm.get('Version') else umm.get('Version'),
+            'doi': umm.get('DOI', {}).get('DOI') if isinstance(umm.get('DOI'), dict) else None,
+            'concept_id': c.get('meta', {}).get('concept-id'),
+            'title': umm.get('EntryTitle', ''),
+        })
+    return sorted(versions, key=lambda x: x.get('version', ''))
+
+
+def gedi_latest_version(product: str) -> str:
+    """Return the latest available version string for a GEDI product.
+
+    Parameters
+    ----------
+    product : str
+        Product code (e.g., 'L2A', 'L4A')
+
+    Returns
+    -------
+    str
+        Latest version string (e.g., '002')
+
+    Raises
+    ------
+    GediProductError
+        If no versions are found
+    """
+    versions = gedi_list_versions(product)
+    if not versions:
+        raise GediProductError(f"No versions found for {product}")
+    return versions[-1]['version']
+
+
 class GEDIAccessor:
     """Main class for accessing GEDI data through various methods"""
     
@@ -133,82 +189,76 @@ class GEDIAccessor:
         self.authenticated = False
         raise GediAuthenticationError(f"Failed to authenticate after {max_attempts} attempts: {last_error}")
     
-    def search_data(self, product: str = None, **kwargs) -> List[Any]:
+    def search_data(self, product: str = None, version: str = None, **kwargs) -> List[Any]:
         """
         Search for GEDI granules with spatial and temporal filtering.
 
-        Parameters:
-        -----------
+        Uses short_name + version for GEDI product searches (preferred over DOI).
+        Falls back to DOI if short_name is not available.
+
+        Parameters
+        ----------
         product : str, optional
-            GEDI product level ('L1B', 'L2A', 'L2B', 'L3', 'L4A', 'L4B', 'L4C').
-            If None, skips DOI-based search and uses kwargs directly for custom
-            dataset searches (e.g., private datasets without DOIs).
-        spatial : various
-            Spatial filter - can be:
-            - List of 4 floats: [west, south, east, north] bounding box
-            - Shapely Polygon
-            - Path to shapefile/geojson
-            - GeoDataFrame
-        temporal : tuple or list
-            Temporal filter as (start_date, end_date) strings in 'YYYY-MM-DD' format
+            GEDI product level ('L1B', 'L2A', 'L2B', 'L4A', 'L4C').
+            If None, uses kwargs directly for custom dataset searches.
+        version : str or int, optional
+            GEDI data version (e.g., '002' or 2). If None, earthaccess
+            returns the latest version by default.
         **kwargs : dict
-            Additional search parameters. When product is None, these are passed
-            directly to earthaccess.search_data() and should include at least one
-            of: doi, short_name, concept_id, or other earthaccess search parameters.
+            Additional search parameters passed to earthaccess.search_data().
 
-        Returns:
+        Returns
+        -------
+        list
+            List of granule objects
+
+        Examples
         --------
-        List of granule objects
-
-        Examples:
-        ---------
-        # Standard GEDI product search
         >>> accessor.search_data('L4A')
-
-        # Custom dataset search (private dataset without DOI)
+        >>> accessor.search_data('L4A', version=2)
         >>> accessor.search_data(short_name='MY_PRIVATE_DATASET', version='001')
-
-        # Custom search with concept_id
-        >>> accessor.search_data(concept_id='C1234567-PROVIDER')
         """
-        # Build search parameters
         search_params = {}
 
         if product is not None:
-            # Standard GEDI product search with DOI
             if product.upper() not in GEDI_PRODUCTS:
                 raise GediProductError(f"Product must be one of: {list(GEDI_PRODUCTS.keys())}")
 
             self.product = GEDI_PRODUCTS[product.upper()]
-            search_params["doi"] = self.product['doi']
+
+            # Prefer short_name + version over DOI
+            if 'short_name' in self.product:
+                search_params['short_name'] = self.product['short_name']
+                if version is not None:
+                    search_params['version'] = f'{int(version):03d}'
+            else:
+                # Fallback to DOI
+                search_params['doi'] = self.product['doi']
         else:
-            # Custom dataset search - kwargs provide the dataset identifier
             self.product = None
 
         # Handle spatial filtering
         if hasattr(self, 'spatial'):
             if self.is_bounding_box:
-                search_params["bounding_box"] = self.spatial
+                search_params['bounding_box'] = self.spatial
             else:
-                search_params["polygon"] = self.spatial
+                search_params['polygon'] = self.spatial
 
         # Handle temporal filtering
         if hasattr(self, 'temporal'):
-            search_params["temporal"] = self.temporal
+            search_params['temporal'] = self.temporal
 
-        # Add any additional parameters (for custom searches, these define the dataset)
+        # Add any additional parameters
         search_params.update(kwargs)
 
-        # Search for granules
         self.search_params = search_params
         self.granules = earthaccess.search_data(**search_params)
 
-        # Store granules by product key (use 'CUSTOM' for non-GEDI datasets)
         product_key = product.upper() if product is not None else 'CUSTOM'
         self.product_files[product_key] = self.granules
 
         dataset_name = product if product is not None else kwargs.get('short_name', kwargs.get('concept_id', 'custom dataset'))
-        print(f"Found {len(self.granules)} {dataset_name} granules")
+        logger.info(f"Found {len(self.granules)} {dataset_name} granules")
         return self.granules
     
     def _process_spatial_filter(self, spatial) -> Optional[Tuple[float, float, float, float]]:
@@ -494,6 +544,7 @@ def gedi_download(
     odir: str = None,
     spatial = None,
     temporal = None,
+    version = None,
     n_jobs: int = 5,
     to_list: bool = False,
     resume: bool = False,
@@ -514,6 +565,8 @@ def gedi_download(
         Spatial filter (bbox, file path, or GeoDataFrame)
     temporal : tuple, optional
         Temporal filter as (start_date, end_date)
+    version : int or str, optional
+        GEDI data version (e.g., 2 or '002'). If None, uses latest available.
     n_jobs : int
         Number of parallel download jobs (when not using Dask)
     to_list : bool
@@ -523,30 +576,12 @@ def gedi_download(
     max_attempts : int
         Maximum download attempts per granule
     search_kwargs : dict, optional
-        Custom search parameters for non-GEDI datasets (e.g., private datasets
-        without DOIs). Should include at least one of: doi, short_name, concept_id.
-        When provided with product_vars=None, enables downloading custom datasets.
+        Custom search parameters for non-GEDI datasets.
 
     Returns
     -------
     dict or list
         Downloaded file paths, organized by product or as flat list
-
-    Raises
-    ------
-    GediAuthenticationError
-        If authentication fails
-    GediDownloadError
-        If critical download errors occur
-
-    Examples
-    --------
-    # Standard GEDI product download
-    >>> gedi_download({'L4A': ['agbd']}, odir='/data', spatial=[-50, 0, -49, 1])
-
-    # Custom dataset download (private dataset)
-    >>> gedi_download(odir='/data', spatial=[-50, 0, -49, 1],
-    ...               search_kwargs={'short_name': 'MY_PRIVATE_DATASET', 'version': '001'})
     """
     gass = GEDIAccessor(authenticate=True, spatial=spatial, temporal=temporal)
 
@@ -574,7 +609,7 @@ def gedi_download(
             if prod == 'CUSTOM' and search_kwargs is not None:
                 granules = gass.search_data(product=None, **search_kwargs)
             else:
-                granules = gass.search_data(product=prod)
+                granules = gass.search_data(product=prod, version=version)
 
             if len(granules) == 0:
                 logger.warning(f"No granules found for product {prod}")

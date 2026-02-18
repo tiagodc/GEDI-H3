@@ -25,13 +25,14 @@ def get_cmd_args():
                    help="resume and redownload missing/corrupted files")
 
     # Dask and verbosity
-    add_dask_args(p)
+    add_dask_args(p, profile='build')
     add_verbosity_args(p)
 
     return p.parse_args()
 
 def main():
     import os
+    import sys
     args = get_cmd_args()
 
     from gedih3.config import GH3_DEFAULT_SOC_DIR
@@ -108,7 +109,6 @@ def main():
     except KeyboardInterrupt:
         logger.warning("\nDownload interrupted by user")
         soc_logger.save_log('INTERRUPTED')
-        import sys
         sys.exit(130)
 
     except Exception as e:
@@ -122,27 +122,22 @@ def main():
         if isinstance(e, GediAuthenticationError):
             logger.error(f"Authentication error: {e}")
             logger.info("Please check your NASA Earthdata credentials at ~/.netrc")
-            import sys
             sys.exit(2)
         elif isinstance(e, GediDownloadError):
             logger.error(f"Download error: {e}")
-            import sys
             sys.exit(3)
         elif isinstance(e, GediNetworkError):
             logger.error(f"Network error: {e}")
             logger.info("Check your internet connection and try again")
-            import sys
             sys.exit(4)
         elif isinstance(e, GediError):
             logger.error(f"GEDI error: {e}")
-            import sys
             sys.exit(1)
         else:
             logger.error(f"Unexpected error: {type(e).__name__}: {e}")
             if args.verbose >= 2:
                 import traceback
                 traceback.print_exc()
-            import sys
             sys.exit(1)
 
 if __name__ == "__main__":

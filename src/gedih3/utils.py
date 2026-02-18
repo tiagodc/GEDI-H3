@@ -142,14 +142,26 @@ def smart_exists(path):
     """os.path.exists() that works with remote paths."""
     if not is_remote_path(path):
         return os.path.exists(path)
-    return _get_filesystem(path).exists(path)
+    fs = _get_filesystem(path)
+    if fs.exists(path):
+        return True
+    # HTTP/FTP servers may require trailing slash for directories
+    if not path.endswith('/'):
+        return fs.exists(path + '/')
+    return False
 
 
 def smart_isdir(path):
     """os.path.isdir() that works with remote paths."""
     if not is_remote_path(path):
         return os.path.isdir(path)
-    return _get_filesystem(path).isdir(path)
+    fs = _get_filesystem(path)
+    if fs.isdir(path):
+        return True
+    # HTTP/FTP servers may require trailing slash for directories
+    if not path.endswith('/'):
+        return fs.isdir(path + '/')
+    return False
 
 
 # =============================================================================
@@ -596,7 +608,7 @@ def is_hive_directory(dir_path: str, match_str=r'.+=.+') -> bool:
         return False
     if is_remote_path(dir_path):
         fs = _get_filesystem(dir_path)
-        entries = fs.ls(dir_path, detail=True)
+        entries = fs.ls(dir_path if dir_path.endswith('/') else dir_path + '/', detail=True)
         subdirs = [
             e['name'].rstrip('/').rsplit('/', 1)[-1]
             for e in entries if e.get('type') == 'directory'
