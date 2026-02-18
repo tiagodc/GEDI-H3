@@ -44,10 +44,14 @@ __email__ = "tiagodc@umd.edu"
 # from . import gh3driver
 # from . import gh3builder
 
+from .utils import configure_storage, get_storage_options
+
 __all__ = [
     "__version__",
     "__author__",
     "__email__",
+    "configure_storage",
+    "get_storage_options",
     # "config",
     # "daac",
     # "gedidriver",

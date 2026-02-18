@@ -56,6 +56,9 @@ def get_cmd_args():
         help="suppress headers in output"
     )
 
+    from gedih3.cliutils import add_storage_args
+    add_storage_args(p)
+
     return p.parse_args()
 
 
@@ -143,6 +146,9 @@ def _print_csv(schema_df):
 
 def main():
     args = get_cmd_args()
+
+    from gedih3.cliutils import setup_storage
+    setup_storage(args)
 
     from gedih3.utils import smart_exists
     if not smart_exists(args.path):

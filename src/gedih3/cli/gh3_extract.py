@@ -17,7 +17,7 @@ import argparse
 
 def get_cmd_args():
     """Parse command line arguments for GEDI data extraction"""
-    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args, parse_egi_levels
+    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args, add_storage_args, parse_egi_levels
 
     p = argparse.ArgumentParser(
         description="Extract and filter GEDI shots with H3 or EGI spatial indexing"
@@ -63,8 +63,9 @@ def get_cmd_args():
     p.add_argument("-y", "--quality", dest="quality", action='store_true',
                    help="apply quality filtering")
 
-    # Dask and verbosity
+    # Dask, storage, and verbosity
     add_dask_args(p)
+    add_storage_args(p)
     add_verbosity_args(p)
 
     return p.parse_args()
@@ -81,7 +82,8 @@ def main():
         import gedih3.gh3driver as gh3
         from gedih3.cliutils import (collect_columns, build_query_string, parse_region,
                                      parse_dask_args, setup_logging, print_banner,
-                                     print_success, configure_database_path, h3_col_name)
+                                     print_success, configure_database_path, h3_col_name,
+                                     setup_storage)
 
         # Parse EGI levels if specified
         use_egi = args.egi is not None
@@ -92,6 +94,7 @@ def main():
 
         # Setup logging and print banner
         logger = setup_logging(args, __name__)
+        setup_storage(args, logger=logger)
         title = "GEDI EGI Data Extraction Tool" if use_egi else "GEDI H3 Data Extraction Tool"
         print_banner(title, logger=logger)
 

@@ -64,7 +64,13 @@ def gh3_read_meta(var, gh3_root_dir=GH3_DEFAULT_H3_DIR):
 
 def gh3_write_meta(opath, **kwargs):
     h3_partition_ids = gh3_list_parts(gh3_root_dir=opath)
-    ddf = dask_geopandas.read_parquet(opath, gather_spatial_partitions=False, ignore_metadata_file=False)
+    storage_kwargs = {}
+    if is_remote_path(opath):
+        from .utils import get_storage_options
+        protocol = opath.split('://')[0]
+        storage_kwargs['storage_options'] = get_storage_options(protocol)
+    ddf = dask_geopandas.read_parquet(opath, gather_spatial_partitions=False,
+                                       ignore_metadata_file=False, **storage_kwargs)
     
     extracted_meta = {
         "metadata": {
@@ -468,12 +474,18 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
         if 'geometry' in ddf.columns:
             ddf = dask_geopandas.from_dask_dataframe(ddf, geometry='geometry')
     else:
+        storage_kwargs = {}
+        if is_remote_path(gh3_dir):
+            from .utils import get_storage_options
+            protocol = gh3_dir.split('://')[0]
+            storage_kwargs['storage_options'] = get_storage_options(protocol)
         ddf = dask_geopandas.read_parquet(gh3_dir,
                                         calculate_divisions=False,
                                         split_row_groups=False,
                                         aggregate_files=False,
                                         gather_spatial_partitions=False,
                                         ignore_metadata_file=False,
+                                        **storage_kwargs,
                                         **h3_filter)
 
         ddf[h3_part_col] = ddf[h3_part_col].astype(str)
@@ -1200,8 +1212,11 @@ def _get_schema_columns(load_cols, gh3_dir, exclude_geometry=False):
 
     # Get schema from a parquet file in database
     parquet_file = _find_parquet_file(gh3_dir)
-    kwargs = {} if is_remote_path(parquet_file) else {'memory_map': True}
-    schema = pq.read_schema(parquet_file, **kwargs)
+    if is_remote_path(parquet_file):
+        with smart_open(parquet_file, 'rb') as fobj:
+            schema = pq.read_schema(fobj)
+    else:
+        schema = pq.read_schema(parquet_file, memory_map=True)
     schema_cols = schema.names
 
     # Determine columns for metadata

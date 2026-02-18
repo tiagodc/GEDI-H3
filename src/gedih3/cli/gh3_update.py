@@ -52,7 +52,7 @@ def _make_plain_reader(fmt, columns=None):
 
 def get_cmd_args():
     """Parse command line arguments for dataset update"""
-    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args
+    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args, add_storage_args
 
     p = argparse.ArgumentParser(
         description="Add new columns to an existing simplified dataset",
@@ -74,8 +74,9 @@ def get_cmd_args():
     p.add_argument("-m", "--merge", dest="merge", type=str, default=None,
                    help="path to another simplified dataset to merge columns from")
 
-    # Dask and verbosity
+    # Dask, storage, and verbosity
     add_dask_args(p)
+    add_storage_args(p)
     add_verbosity_args(p)
 
     return p.parse_args()
@@ -468,9 +469,10 @@ def main():
     with cli_exception_handler(args):
         import json
 
-        from gedih3.cliutils import setup_logging, print_banner, print_success
+        from gedih3.cliutils import setup_logging, print_banner, print_success, setup_storage
 
         logger = setup_logging(args, __name__)
+        setup_storage(args, logger=logger)
         print_banner("GEDI Dataset Update Tool", logger=logger)
 
         from gedih3.config import DATASET_META_FILENAME
