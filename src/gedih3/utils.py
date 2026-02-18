@@ -1,11 +1,423 @@
 # Standard library imports (fast)
 from datetime import datetime
+import glob as _glob_mod
 import os
 import json
+import re
 from typing import Union, List, Dict, Optional, Tuple, Any
 
 from .exceptions import (GediDatabaseNotFoundError, GediFileError, GediValidationError,
                          GediSpatialError, GediTemporalError)
+
+
+# =============================================================================
+# Remote Filesystem Helpers
+# =============================================================================
+# Thin abstraction over os/glob that transparently handles S3 and HTTP URLs.
+# Local paths use the standard library (zero overhead for the common case).
+
+def is_remote_path(path):
+    """Check if path is a remote URL (S3, HTTP, FTP, etc.)."""
+    return isinstance(path, str) and path.startswith(
+        ('s3://', 'http://', 'https://', 'ftp://', 'sftp://', 'ssh://')
+    )
+
+
+def _get_filesystem(path):
+    """Get fsspec filesystem instance for a path."""
+    import fsspec
+    protocol = path.split('://')[0]
+    return fsspec.filesystem(protocol)
+
+
+def smart_exists(path):
+    """os.path.exists() that works with remote paths."""
+    if not is_remote_path(path):
+        return os.path.exists(path)
+    return _get_filesystem(path).exists(path)
+
+
+def smart_isdir(path):
+    """os.path.isdir() that works with remote paths."""
+    if not is_remote_path(path):
+        return os.path.isdir(path)
+    return _get_filesystem(path).isdir(path)
+
+
+# =============================================================================
+# Manifest-Accelerated File Listing
+# =============================================================================
+# A _manifest.txt file (one relative path per line) at the database root
+# eliminates expensive directory crawling for smart_glob, especially over HTTP.
+
+_manifest_cache = {}  # keyed by root_path → list of relative paths
+
+
+def _extract_glob_root(pattern):
+    """Extract the directory path before the first glob wildcard.
+
+    Parameters
+    ----------
+    pattern : str
+        Glob pattern, e.g. "/data/db/**/*.parquet" or "http://host/db/h3_*/".
+
+    Returns
+    -------
+    str
+        Root path up to (but not including) the first wildcard component.
+        Includes trailing separator.
+    """
+    # Split on protocol to handle remote paths
+    if '://' in pattern:
+        protocol, rest = pattern.split('://', 1)
+        parts = rest.split('/')
+        root_parts = []
+        for p in parts:
+            if '*' in p or '?' in p or '[' in p:
+                break
+            root_parts.append(p)
+        root = protocol + '://' + '/'.join(root_parts)
+    else:
+        parts = pattern.replace(os.sep, '/').split('/')
+        root_parts = []
+        for p in parts:
+            if '*' in p or '?' in p or '[' in p:
+                break
+            root_parts.append(p)
+        root = '/'.join(root_parts)
+
+    if not root.endswith('/'):
+        root += '/'
+    return root
+
+
+def _glob_to_regex(pattern):
+    """Convert a glob pattern to a compiled regex with proper ``**`` support.
+
+    Unlike :func:`fnmatch.fnmatch`, this distinguishes ``*`` (single
+    path segment) from ``**`` (zero or more segments), which is essential
+    for patterns like ``**/*.parquet``.
+
+    Parameters
+    ----------
+    pattern : str
+        Glob pattern (e.g. ``**/*.parquet``, ``h3_*/data.parquet``).
+
+    Returns
+    -------
+    re.Pattern
+        Compiled regex that matches the full relative path.
+    """
+    # Trailing slash means "match a directory" — strip it for matching
+    # but callers can check pattern.endswith('/') if semantics matter.
+    pattern = pattern.rstrip('/')
+
+    parts = pattern.split('/')
+    regex_parts = []
+    for part in parts:
+        if part == '**':
+            regex_parts.append('(?:.+/)?')
+        else:
+            # Escape regex metacharacters, then convert glob wildcards
+            segment = re.escape(part)
+            segment = segment.replace(r'\*', '[^/]*')
+            segment = segment.replace(r'\?', '[^/]')
+            regex_parts.append(segment + '/')
+    # Join and strip the trailing slash from the last segment
+    regex = ''.join(regex_parts).rstrip('/')
+    return re.compile('^' + regex + '$')
+
+
+def _read_manifest(root_path):
+    """Read manifest file from a database root, with caching.
+
+    Parameters
+    ----------
+    root_path : str
+        Database root directory (local or remote).
+
+    Returns
+    -------
+    list of str or None
+        List of relative file paths, or None if no manifest exists.
+    """
+    from .config import MANIFEST_FILENAME
+
+    if root_path in _manifest_cache:
+        return _manifest_cache[root_path]
+
+    manifest_path = os.path.join(root_path.rstrip('/'), MANIFEST_FILENAME)
+
+    try:
+        with smart_open(manifest_path, 'r') as f:
+            lines = [line.strip() for line in f if line.strip()]
+        _manifest_cache[root_path] = lines
+        return lines
+    except (FileNotFoundError, OSError):
+        _manifest_cache[root_path] = None
+        return None
+
+
+def generate_manifest(root_path, pattern='**/*.parquet'):
+    """Generate a _manifest.txt file listing all data files under root_path.
+
+    Parameters
+    ----------
+    root_path : str
+        Database root directory (must be local).
+    pattern : str
+        Glob pattern relative to root_path (default: '**/*.parquet').
+
+    Returns
+    -------
+    str
+        Path to the written manifest file.
+    """
+    from .config import MANIFEST_FILENAME
+
+    if is_remote_path(root_path):
+        raise ValueError("generate_manifest() only works on local paths")
+
+    root = root_path.rstrip('/') + '/'
+    files = sorted(_glob_mod.glob(os.path.join(root, pattern), recursive=True))
+    rel_paths = [os.path.relpath(f, root) for f in files]
+
+    manifest_path = os.path.join(root, MANIFEST_FILENAME)
+    with open(manifest_path, 'w') as f:
+        f.write('\n'.join(rel_paths))
+        if rel_paths:
+            f.write('\n')
+
+    # Invalidate cache for this root
+    _manifest_cache.pop(root, None)
+    _manifest_cache.pop(root.rstrip('/'), None)
+
+    return manifest_path
+
+
+def _normalize_remote_path(path):
+    """Resolve ``.``/``..`` components and decode URL percent-encoding.
+
+    Works for both ``proto://host/a/./b`` and plain ``/a/../b`` paths.
+
+    Parameters
+    ----------
+    path : str
+        Path to normalize.
+
+    Returns
+    -------
+    str
+        Normalized path with ``%XX`` decoded and ``.``/``..`` resolved.
+    """
+    from posixpath import normpath
+    from urllib.parse import unquote
+
+    if '://' in path:
+        proto, rest = path.split('://', 1)
+        return proto + '://' + normpath(unquote(rest))
+    return normpath(unquote(path))
+
+
+def _find_under_root(fs, root):
+    """Recursively list files strictly under *root*, skipping ``../`` links.
+
+    Python's ``http.server`` directory listings include ``../`` entries.
+    fsspec's ``ls()`` faithfully returns these, so a naive ``fs.find()``
+    (which calls ``walk()``) follows ``../`` back to the parent and ends
+    up crawling every sibling directory.
+
+    This function performs its own BFS, normalizing every entry returned
+    by ``ls()`` and only descending into paths that are strict children
+    of *root*.
+
+    Parameters
+    ----------
+    fs : fsspec.AbstractFileSystem
+        Filesystem instance.
+    root : str
+        Root directory (as understood by *fs*, i.e. after
+        ``_strip_protocol`` for HTTP).
+
+    Returns
+    -------
+    list of str
+        Normalized file paths strictly under *root*.
+    """
+    root_norm = _normalize_remote_path(root.rstrip('/'))
+    result = []
+    queue = [root.rstrip('/')]
+    seen = set()
+
+    while queue:
+        path = queue.pop(0)
+        path_norm = _normalize_remote_path(path)
+        if path_norm in seen:
+            continue
+        seen.add(path_norm)
+
+        try:
+            entries = fs.ls(path, detail=True)
+        except Exception:
+            continue
+
+        for entry in entries:
+            name = entry['name'].rstrip('/')
+            name_norm = _normalize_remote_path(name)
+            # Only descend into strict children of root
+            if not name_norm.startswith(root_norm + '/'):
+                continue
+            if name_norm in seen:
+                continue
+            if entry.get('type') == 'directory':
+                queue.append(name)   # original form for fs.ls()
+            else:
+                result.append(name_norm)  # normalized for matching
+
+    return result
+
+
+def _remote_glob(fs, protocol, pattern, recursive=False):
+    """Glob for remote paths with filtered recursive walk.
+
+    For HTTP servers that include ``../`` in directory listings, uses
+    :func:`_find_under_root` to avoid crawling parent/sibling directories.
+    Paths are normalized (URL-decoded, ``./``/``..`` resolved) before
+    matching against the glob pattern.
+
+    Parameters
+    ----------
+    fs : fsspec.AbstractFileSystem
+        Filesystem instance.
+    protocol : str
+        URL protocol (e.g. 'http', 's3').
+    pattern : str
+        Full glob pattern including protocol.
+    recursive : bool
+        Whether to allow '**' patterns.
+
+    Returns
+    -------
+    list of str
+        Sorted matching paths with protocol prefix.
+    """
+    root = _extract_glob_root(pattern)
+    root_stripped = root.rstrip('/')
+
+    # Extract the wildcard portion after the root
+    if pattern.startswith(root_stripped):
+        rel_pattern = pattern[len(root_stripped):].lstrip('/')
+    else:
+        return []
+
+    if not rel_pattern:
+        return []
+
+    if '**' in rel_pattern and not recursive:
+        return []
+
+    # Normalize path for this filesystem (HTTP keeps full URL, S3 strips protocol)
+    fs_root = type(fs)._strip_protocol(root_stripped)
+
+    # List all files recursively under root, filtering out ../  links
+    try:
+        all_files = _find_under_root(fs, fs_root)
+    except Exception:
+        return []
+
+    # Trailing-slash patterns match directories — extract unique parent dirs
+    is_dir_pattern = rel_pattern.endswith('/')
+
+    # Compile glob pattern to regex and filter
+    rx = _glob_to_regex(rel_pattern)
+    # Use normalized root for prefix extraction (matches normalized file paths)
+    prefix = _normalize_remote_path(fs_root).rstrip('/') + '/'
+
+    if is_dir_pattern:
+        # Extract unique directory paths from file listing
+        dirs = set()
+        for f in all_files:
+            f_clean = f.rstrip('/')
+            if f_clean.startswith(prefix):
+                rel = f_clean[len(prefix):]
+            else:
+                rel = f_clean
+            # Extract all ancestor directories from the relative path
+            parts = rel.split('/')
+            for depth in range(1, len(parts)):
+                dirs.add('/'.join(parts[:depth]))
+
+        results = []
+        for d in dirs:
+            if rx.match(d):
+                full = f"{prefix}{d}/"
+                if full.startswith(protocol + '://'):
+                    results.append(full)
+                else:
+                    results.append(f"{protocol}://{full}")
+        return sorted(results)
+
+    results = []
+    for f in all_files:
+        f_clean = f.rstrip('/')
+        if f_clean.startswith(prefix):
+            rel = f_clean[len(prefix):]
+        else:
+            rel = f_clean
+        if rx.match(rel):
+            if f_clean.startswith(protocol + '://'):
+                results.append(f_clean)
+            else:
+                results.append(f"{protocol}://{f_clean}")
+
+    return sorted(results)
+
+
+def smart_glob(pattern, recursive=False):
+    """glob.glob() that works with remote paths.
+
+    Uses a _manifest.txt file at the glob root when available, filtering
+    entries by pattern.  Falls back to filesystem globbing when no
+    manifest exists.
+
+    For remote paths, uses fs.find() to list all files under the root,
+    then filters with a glob-to-regex matcher.  Results include the full
+    protocol prefix.
+    """
+    # Try manifest-accelerated path first
+    root = _extract_glob_root(pattern)
+    manifest = _read_manifest(root)
+    if manifest is not None:
+        # Build relative pattern from root
+        root_stripped = root.rstrip('/')
+        if pattern.startswith(root_stripped):
+            rel_pattern = pattern[len(root_stripped):].lstrip('/')
+        else:
+            rel_pattern = pattern
+
+        rx = _glob_to_regex(rel_pattern)
+        matched = [
+            os.path.join(root_stripped, entry)
+            for entry in manifest
+            if rx.match(entry)
+        ]
+        return sorted(matched)
+
+    # No manifest — fall back to filesystem globbing
+    if not is_remote_path(pattern):
+        return sorted(_glob_mod.glob(pattern, recursive=recursive))
+
+    fs = _get_filesystem(pattern)
+    protocol = pattern.split('://')[0]
+    return _remote_glob(fs, protocol, pattern, recursive=recursive)
+
+
+def smart_open(path, mode='r'):
+    """open() that works with remote paths. Use as context manager."""
+    if not is_remote_path(path):
+        return open(path, mode)
+    import fsspec
+    return fsspec.open(path, mode)
 
 # Heavy imports are moved to lazy loading inside functions:
 # - psutil: used in get_system_resources
@@ -44,7 +456,7 @@ def json_write(obj, path, mode='w', rewrite=False):
         json.dump(obj, file)
 
 def json_read(path, mode='r'):
-    with open(path, mode) as f:
+    with smart_open(path, mode) as f:
         obj = json.load(f)
         return obj
 
@@ -52,15 +464,22 @@ def is_parquet(file: str) -> bool:
     return file.lower().endswith(('.parquet','.parq','.pq'))
 
 def is_hive_directory(dir_path: str, match_str=r'.+=.+') -> bool:
-    if not os.path.isdir(dir_path):
+    if not smart_isdir(dir_path):
         return False
-    subdirs = os.listdir(dir_path)    
-    subdirs = [d for d in subdirs if os.path.isdir(os.path.join(dir_path, d))]
+    if is_remote_path(dir_path):
+        fs = _get_filesystem(dir_path)
+        entries = fs.ls(dir_path, detail=True)
+        subdirs = [
+            e['name'].rstrip('/').rsplit('/', 1)[-1]
+            for e in entries if e.get('type') == 'directory'
+        ]
+    else:
+        subdirs = os.listdir(dir_path)
+        subdirs = [d for d in subdirs if os.path.isdir(os.path.join(dir_path, d))]
     if match_str is not None:
-        import re
         pattern = re.compile(match_str)
         subdirs = [d for d in subdirs if pattern.match(d)]
-    return len(subdirs) > 0    
+    return len(subdirs) > 0
 
 def read_parquet_schema(path):
     """
@@ -70,7 +489,8 @@ def read_parquet_schema(path):
     """
     import pyarrow.parquet as pq
     import pandas as pd
-    schema = pq.read_schema(path, memory_map=True)
+    kwargs = {} if is_remote_path(path) else {'memory_map': True}
+    schema = pq.read_schema(path, **kwargs)
     schema = pd.DataFrame(({"column": name, "dtype": str(pa_dtype)} for name, pa_dtype in zip(schema.names, schema.types)))
     return schema
 
@@ -127,13 +547,12 @@ def read_h3_database_schema(db_path):
     FileNotFoundError
         If no H3 partition directories or parquet files found
     """
-    import glob as globmod
-    partition_dirs = sorted(globmod.glob(os.path.join(db_path, 'h3_*=*/')))
+    partition_dirs = smart_glob(os.path.join(db_path, 'h3_*=*/'))
     if not partition_dirs:
         raise GediDatabaseNotFoundError(f"No H3 partition directories found in {db_path}")
     for pdir in partition_dirs:
         # Search recursively — partitions may have nested hive dirs (e.g. year=*)
-        pq_files = sorted(globmod.glob(os.path.join(pdir, '**', '*.parquet'), recursive=True))
+        pq_files = smart_glob(os.path.join(pdir, '**', '*.parquet'), recursive=True)
         if pq_files:
             return read_parquet_schema(pq_files[0])
     raise GediDatabaseNotFoundError(f"No parquet files found in any partition of {db_path}")
@@ -165,13 +584,11 @@ def read_schema(path, root=None):
     ValueError
         If format cannot be determined
     """
-    import glob as globmod
-
-    if os.path.isdir(path):
+    if smart_isdir(path):
         # Check for H3 database first (has build log)
         from .config import BUILD_LOG_FILENAME
         build_log = os.path.join(path, BUILD_LOG_FILENAME)
-        if os.path.exists(build_log):
+        if smart_exists(build_log):
             return read_h3_database_schema(path)
         # Fall through to simplified dataset detection
         from .cliutils import detect_dataset_format, list_dataset_files

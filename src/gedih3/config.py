@@ -22,6 +22,7 @@ GH3_DEFAULT_H3_DIR = os.path.join(GH3_DEFAULT_DOWNLOAD_DIR, 'h3')
 BUILD_LOG_FILENAME = 'gedih3_build_log.json'
 DATASET_META_FILENAME = 'gedih3_dataset.json'
 PARTITION_META_FILENAME = '.metadata.json'
+MANIFEST_FILENAME = '_manifest.txt'
 
 def configure_environment(mkdirs=False):
     global GH3_DEFAULT_DOWNLOAD_DIR
@@ -39,10 +40,12 @@ def configure_environment(mkdirs=False):
     GH3_DEFAULT_SOC_DIR = os.getenv('GH3_DEFAULT_SOC_DIR', os.path.join(GH3_DEFAULT_DOWNLOAD_DIR, 'soc'))
     GH3_DEFAULT_H3_DIR = os.getenv('GH3_DEFAULT_H3_DIR', os.path.join(GH3_DEFAULT_DOWNLOAD_DIR, 'h3'))
 
-    # Create directories if they don't exist
+    # Create directories if they don't exist (skip remote paths)
     if mkdirs:
+        from .utils import is_remote_path
         for directory in [GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR]:
-            os.makedirs(directory, exist_ok=True)
+            if not is_remote_path(directory):
+                os.makedirs(directory, exist_ok=True)
 
 configure_environment()
 
