@@ -207,20 +207,34 @@ warnings.filterwarnings('ignore', message=r'.*Consider loading the data.*')
 # Shared CLI Argument Builders
 # =============================================================================
 
-def add_dask_args(parser):
-    """Add Dask-related arguments to an argument parser."""
+def add_dask_args(parser, profile=None):
+    """Add Dask-related arguments to an argument parser.
+
+    Parameters
+    ----------
+    parser : argparse.ArgumentParser
+        The argument parser to add arguments to.
+    profile : str, optional
+        Resource profile hint. ``'build'`` uses fewer workers with more memory
+        (suitable for HDF5→parquet pipelines). ``None`` uses generic defaults.
+    """
     if '--help' in sys.argv or '-h' in sys.argv:
         n, m = 4, 4  # placeholder defaults for help text
     else:
         from .utils import get_system_resources
         cpus, ram, _ = get_system_resources()
-        n = max(1, cpus // 4)
-        m = int(max(1, ram / n))
+
+        if profile == 'build':
+            # Build/download pipeline: fewer workers, more memory each.
+            # HDF5 reads + parquet writes benefit from fewer, fatter workers.
+            n = max(1, cpus // 8)
+            m = int(max(2, ram / n))
+        else:
+            n = max(1, cpus // 4)
+            m = int(max(1, ram / n))
 
     parser.add_argument("-s", "--dask-scheduler", dest="dask_scheduler", type=str, default=None,
                         help="existing dask scheduler address, e.g. tcp://localhost:8786")
-    parser.add_argument("--dask-config", dest="dask_config", type=str, default=None,
-                        help="path to Dask YAML config file")
     parser.add_argument("-N", "--cores", dest="cores", type=int, default=n,
                         help=f"number of CPU cores to use [default = {n}]")
     parser.add_argument("-T", "--threads", dest="threads", type=int, default=1,
@@ -317,17 +331,30 @@ def setup_storage(args, logger=None):
 
 
 def add_product_args(parser):
-    """Add GEDI product variable arguments to an argument parser."""
-    parser.add_argument("-l1b", "--l1b", dest="l1b", nargs='+', type=str, default=None,
-                        help="GEDI L1B variables [space-separated list]")
-    parser.add_argument("-l2a", "--l2a", dest="l2a", nargs='+', type=str, default=None,
-                        help="GEDI L2A variables [space-separated list]")
-    parser.add_argument("-l2b", "--l2b", dest="l2b", nargs='+', type=str, default=None,
-                        help="GEDI L2B variables [space-separated list]")
-    parser.add_argument("-l4a", "--l4a", dest="l4a", nargs='+', type=str, default=None,
-                        help="GEDI L4A variables [space-separated list]")
-    parser.add_argument("-l4c", "--l4c", dest="l4c", nargs='+', type=str, default=None,
-                        help="GEDI L4C variables [space-separated list]")
+    """Add GEDI product variable arguments to an argument parser.
+
+    Supports two mutually exclusive modes:
+    1. Global: ``-l <level>`` applies a detail level to ALL products.
+    2. Per-product: ``-l2a <...> -l4a <...>`` selects specific products.
+
+    Per-product flags use ``nargs='*'`` so a bare flag (e.g. ``-l2a``)
+    means "dump everything from L2A", while ``-l2a default`` uses the
+    standard variable set.
+    """
+    parser.add_argument("--detail-level", dest="detail_level", type=str, default=None,
+                        choices=['minimal', 'min', 'default', 'def', 'all'],
+                        help="set variable detail level for ALL products "
+                             "(minimal/default/all). Mutually exclusive with per-product flags.")
+    parser.add_argument("-l1b", "--l1b", dest="l1b", nargs='*', type=str, default=None,
+                        help="GEDI L1B variables [keyword, var list, or bare flag for all]")
+    parser.add_argument("-l2a", "--l2a", dest="l2a", nargs='*', type=str, default=None,
+                        help="GEDI L2A variables [keyword, var list, or bare flag for all]")
+    parser.add_argument("-l2b", "--l2b", dest="l2b", nargs='*', type=str, default=None,
+                        help="GEDI L2B variables [keyword, var list, or bare flag for all]")
+    parser.add_argument("-l4a", "--l4a", dest="l4a", nargs='*', type=str, default=None,
+                        help="GEDI L4A variables [keyword, var list, or bare flag for all]")
+    parser.add_argument("-l4c", "--l4c", dest="l4c", nargs='*', type=str, default=None,
+                        help="GEDI L4C variables [keyword, var list, or bare flag for all]")
     return parser
 
 
@@ -1001,7 +1028,71 @@ def parse_file_format(args, default='parquet'):
         raise GediValidationError(f"Invalid file format: {fmt}. Supported formats are: {', '.join(VALID_FORMATS)}")
     return fmt    
 
+def resolve_product_vars(args):
+    """Resolve product variables from CLI args.
+
+    Two modes (mutually exclusive):
+    1. Global: ``-l <level>`` applies level to ALL products.
+    2. Per-product: ``-l2a <...> -l4a <...>`` selects specific products.
+
+    Per-product flag semantics (with ``nargs='*'``):
+    - Flag absent → ``args.l2a = None`` (product not selected)
+    - Bare flag (``-l2a``) → ``args.l2a = []`` (dump everything)
+    - With keyword: ``-l2a default`` → ``['default']``
+    - With vars: ``-l2a rh agbd`` → ``['rh', 'agbd']``
+
+    Returns
+    -------
+    dict
+        Product code → variable list mapping.
+
+    Raises
+    ------
+    GediValidationError
+        If ``-l`` is combined with per-product flags.
+    """
+    detail_level = getattr(args, 'detail_level', None)
+
+    per_product = {}
+    for prod in GEDI_PRODUCTS.keys():
+        val = getattr(args, prod.lower(), None)
+        if val is not None:
+            per_product[prod] = val
+
+    if detail_level and per_product:
+        raise GediValidationError(
+            "Cannot combine -l/--detail-level with per-product flags (-l1b, -l2a, etc.). "
+            "Use -l for all products OR specify each product individually."
+        )
+
+    product_vars = {}
+    if detail_level:
+        # Global mode: apply to ALL products
+        for prod in GEDI_PRODUCTS.keys():
+            product_vars[prod] = [detail_level]
+    else:
+        # Per-product mode
+        for prod, flag_val in per_product.items():
+            if len(flag_val) == 0:
+                # Bare flag → dump everything
+                product_vars[prod] = ['all']
+            else:
+                product_vars[prod] = flag_val
+
+    return product_vars
+
+
 def parse_gedi_args(args):
+    """Parse GEDI product args from CLI (legacy wrapper around resolve_product_vars).
+
+    Supports both the new ``-l`` global flag and legacy per-product flags.
+    Falls back to legacy parsing when ``detail_level`` attribute is absent.
+    """
+    # Use new resolver if detail_level attribute is present
+    if hasattr(args, 'detail_level'):
+        return resolve_product_vars(args)
+
+    # Legacy fallback
     prod_vars = {}
     for k in GEDI_PRODUCTS.keys():
         if hasattr(args, k.lower()):
@@ -1011,13 +1102,6 @@ def parse_gedi_args(args):
     
 def parse_dask_args(args):
     import dask
-
-    # Load dask config from file if specified
-    if hasattr(args, 'dask_config') and args.dask_config:
-        if os.path.isfile(args.dask_config):
-            dask.config.set(config=dask.config.collect([args.dask_config]))
-        else:
-            raise GediValidationError(f"Dask config file not found: {args.dask_config}")
 
     # Configure Dask to suppress performance warnings unless in DEBUG mode
     verbose = getattr(args, 'verbose', 0)

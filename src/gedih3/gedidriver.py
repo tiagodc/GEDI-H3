@@ -23,7 +23,7 @@ import dask
 import dask.dataframe
 from earthaccess.store import EarthAccessFile
 
-from .config import GEDI_PRODUCTS, GEDI_BEAMS, GEDI_START_DATE, GH3_DEFAULT_SOC_DIR
+from .config import GEDI_PRODUCTS, GEDI_BEAMS, GEDI_START_DATE, GH3_DEFAULT_SOC_DIR, get_default_vars_file
 from .utils import h5_copy_subset, h5_info
 from .logging_config import get_logger
 from .exceptions import GediValidationError, GediProductError, GediVariableError
@@ -166,13 +166,16 @@ def gedi_vars_expand(product_vars):
     for prod, vars in product_vars.items():
         if vars is None:
             continue
-        if os.path.isfile(vars[0]) and len(vars) == 1:
+        if isinstance(vars, list) and len(vars) == 0:
+            # Bare flag (e.g. -l2a with no args) → dump everything
+            product_vars[prod] = None
+        elif os.path.isfile(vars[0]) and len(vars) == 1:
             with open(vars[0], 'r') as f:
                 product_vars[prod] = [line.strip() for line in f if line.strip() and not line.startswith('#')]
         elif "minimal" in vars or "min" in vars:
             product_vars[prod] = GEDI_PRODUCTS[prod]['min_vars']
         elif 'default' in vars or 'def' in vars:
-            with open(GEDI_PRODUCTS[prod]['default_vars_file'], 'r') as f:
+            with open(get_default_vars_file(prod), 'r') as f:
                 product_vars[prod] = [line.strip() for line in f if line.strip() and not line.startswith('#')]
         elif "*" in vars or "all" in vars:
             product_vars[prod] = None

@@ -55,65 +55,99 @@ GEDI_L2A_ESSENTIALS = ['shot_number','delta_time','quality_flag','lat_lowestmode
 
 GEDI_PRODUCTS = {
     'L1B': {
-        'doi': '10.5067/GEDI/GEDI01_B.002', 
-        'daac': 'LPDAAC', 
-        'version': 2, 
+        'short_name': 'GEDI01_B',
+        'doi': '10.5067/GEDI/GEDI01_B.002',
+        'daac': 'LPDAAC',
+        'version': 2,
         'format': '.h5',
         'description': 'Geolocated waveforms',
         'min_vars': ['shot_number','noise_mean_corrected','rx_sample_start_index','rx_sample_count','rxwaveform'],
         'default_vars_file': get_package_data_path('GEDI01_B_DATASETS_002.txt')
     },
     'L2A': {
-        'doi': '10.5067/GEDI/GEDI02_A.002', 
-        'daac': 'LPDAAC', 
-        'version': 2, 
+        'short_name': 'GEDI02_A',
+        'doi': '10.5067/GEDI/GEDI02_A.002',
+        'daac': 'LPDAAC',
+        'version': 2,
         'format': '.h5',
         'description': 'Elevation and height metrics',
         'min_vars': GEDI_L2A_ESSENTIALS + ['rh'],
         'default_vars_file': get_package_data_path('GEDI02_A_DATASETS_002.txt')
     },
     'L2B': {
-        'doi': '10.5067/GEDI/GEDI02_B.002', 
-        'daac': 'LPDAAC', 
-        'version': 2, 
+        'short_name': 'GEDI02_B',
+        'doi': '10.5067/GEDI/GEDI02_B.002',
+        'daac': 'LPDAAC',
+        'version': 2,
         'format': '.h5',
         'description': 'Canopy cover and vertical profile metrics',
         'min_vars': ['shot_number','cover_z','fhd_normal', 'pai_z', 'pgap_theta'],
         'default_vars_file': get_package_data_path('GEDI02_B_DATASETS_002.txt')
     },
     # 'L3': {
-    #     'doi': '10.3334/ORNLDAAC/1952', 
-    #     'daac': 'ORNLDAAC', 
-    #     'version': 2, 
+    #     'short_name': 'GEDI03',
+    #     'doi': '10.3334/ORNLDAAC/1952',
+    #     'daac': 'ORNLDAAC',
+    #     'version': 2,
     #     'format': '.tif',
     #     'description': 'Gridded land surface metrics'
     # },
     'L4A': {
-        'doi': '10.3334/ORNLDAAC/2056', 
-        'daac': 'ORNLDAAC', 
-        'version': 2.1, 
+        'short_name': 'GEDI04_A',
+        'doi': '10.3334/ORNLDAAC/2056',
+        'daac': 'ORNLDAAC',
+        'version': 2.1,
         'format': '.h5',
         'description': 'Footprint level aboveground biomass',
         'min_vars': ['shot_number','agbd','sensitivity','l4_quality_flag'],
         'default_vars_file': get_package_data_path('GEDI04_A_DATASETS_002.txt')
     },
     # 'L4B': {
-    #     'doi': '10.3334/ORNLDAAC/2299', 
-    #     'daac': 'ORNLDAAC', 
-    #     'version': 2.1, 
+    #     'short_name': 'GEDI04_B',
+    #     'doi': '10.3334/ORNLDAAC/2299',
+    #     'daac': 'ORNLDAAC',
+    #     'version': 2.1,
     #     'format': '.tif',
     #     'description': 'Gridded aboveground biomass'
     # },
     'L4C': {
-        'doi': '10.3334/ORNLDAAC/2338', 
-        'daac': 'ORNLDAAC', 
-        'version': 2, 
+        'short_name': 'GEDI04_C',
+        'doi': '10.3334/ORNLDAAC/2338',
+        'daac': 'ORNLDAAC',
+        'version': 2,
         'format': '.h5',
         'description': 'Footprint level structural complexity',
         'min_vars': ['shot_number','wsci', 'wsci_pi_lower', 'wsci_pi_upper', 'wsci_quality_flag', 'land_cover_data/worldcover_class'],
         'default_vars_file': get_package_data_path('GEDI04_C_DATASETS_002.txt')
     }
     # Future products:
-    # 'L4C_FUSION': {'doi': '', 'daac': 'ORNLDAAC', 'version': '002', 'format': '.tif'},     
-    # 'L4D': {'doi': '', 'daac': 'ORNLDAAC', 'version': '002', 'format': '.tif'}
+    # 'L4C_FUSION': {'short_name': '', 'daac': 'ORNLDAAC', 'version': '002', 'format': '.tif'},
+    # 'L4D': {'short_name': '', 'daac': 'ORNLDAAC', 'version': '002', 'format': '.tif'}
 }
+
+
+def get_default_vars_file(product, version=None):
+    """Get the default variable list file for a product, with version awareness.
+
+    Parameters
+    ----------
+    product : str
+        Product code (e.g., 'L2A', 'L4A')
+    version : int or None
+        GEDI data version. If None, falls back to known version 2.
+
+    Returns
+    -------
+    Path
+        Path to the variable list file
+    """
+    prod_info = GEDI_PRODUCTS[product.upper()]
+    if version is None:
+        version = 2
+    short_name = prod_info['short_name']
+    fname = f'{short_name}_DATASETS_{int(version):03d}.txt'
+    path = get_package_data_path(fname)
+    if path.is_file():
+        return path
+    # Fall back to the configured default
+    return prod_info['default_vars_file']

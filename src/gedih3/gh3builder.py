@@ -16,7 +16,7 @@ from dask.distributed import progress
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME
 from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, parquet_schema_add_bbox, generate_manifest
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
-from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, validate_soc_files
+from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, validate_soc_files, load_h5
 from .daac import gedi_download
 from .logging_config import get_logger
 from .validation import validate_h3_params, validate_product_vars, validate_directory_exists
@@ -25,7 +25,7 @@ from .exceptions import H3ValidationError, GediValidationError, GediFileError, G
 logger = get_logger(__name__)
 
 
-def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_access = False, update=False, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5):
+def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=False, update=False, version=None, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5):
     """
     Download GEDI HDF5 files in SOC (Science Operation Center) format.
 
@@ -45,6 +45,8 @@ def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_acc
         If True, use S3 streaming instead of downloading to disk.
     update : bool, default False
         If True, resume a previous download (skip already-downloaded files).
+    version : int or str, optional
+        GEDI data version (e.g., 2). If None, uses latest available.
     odir : str
         Output directory for downloaded HDF5 files.
     n_jobs : int, default 5
@@ -56,17 +58,24 @@ def download_soc(product_vars: Dict, spatial = None, temporal = None, direct_acc
         List of downloaded SOC file paths or EarthAccessFile objects.
     """
     product_vars = gedi_vars_expand(product_vars)
-    
+
     if 'L2A' not in product_vars:
         product_vars.update({'L2A': GEDI_L2A_ESSENTIALS})
 
-    for k,val in product_vars.items():
+    for k, val in product_vars.items():
         if val is None:
             continue
         if 'shot_number' not in val:
             val.append('shot_number')
 
-    soc_files = gedi_download(product_vars=product_vars, odir=None if direct_access else odir, spatial=spatial, temporal=temporal, resume=update, n_jobs=n_jobs, to_list=direct_access)
+    soc_files = gedi_download(
+        product_vars=product_vars,
+        odir=None if direct_access else odir,
+        spatial=spatial, temporal=temporal,
+        version=version,
+        resume=update, n_jobs=n_jobs,
+        to_list=direct_access
+    )
 
     return soc_files
 
@@ -465,9 +474,9 @@ def _filter_granules(
             if gran in skip_granules:
                 return None
 
+        if any(isinstance(f, EarthAccessFile) for f in prod.values()):
+            return prod
         for f in prod.values():
-            if isinstance(f, EarthAccessFile):
-                break
             if not h5_is_valid(f):
                 return None
 
@@ -638,6 +647,9 @@ def _merge_and_finalize(
     """
     Merge temporary partitioned files into the final H3 database.
 
+    Tracks progress via an append-only ``_merge_progress.txt`` file in
+    ``tmp_dir``. On resume, already-merged partitions are skipped.
+
     Parameters
     ----------
     tmp_dir : str
@@ -655,13 +667,32 @@ def _merge_and_finalize(
     tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/*/'))
     os.makedirs(h3_dir, exist_ok=True)
 
-    h3_tasks = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in tmp_h3_dirs]
-    h3_tasks = dask.persist(*h3_tasks, traverse=False)
-    progress(h3_tasks)
-    h3_file_meta = list(dask.compute(*h3_tasks))
-    del h3_tasks
+    # Resume support: skip already-merged partitions
+    merge_progress_file = os.path.join(tmp_dir, '_merge_progress.txt')
+    merged_parts = set()
+    if os.path.exists(merge_progress_file):
+        with open(merge_progress_file, 'r') as f:
+            merged_parts = {line.strip() for line in f if line.strip()}
+        if merged_parts:
+            logger.info(f"Resuming merge: {len(merged_parts)} partitions already merged")
 
-    h3_files = [i for i in h3_file_meta if i is not None]
+    remaining_dirs = [d for d in tmp_h3_dirs if d.rstrip('/') not in merged_parts]
+
+    if not remaining_dirs:
+        logger.info("All partitions already merged (resume)")
+    else:
+        h3_tasks = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in remaining_dirs]
+        h3_tasks = dask.persist(*h3_tasks, traverse=False)
+        progress(h3_tasks)
+        h3_file_meta = list(dask.compute(*h3_tasks))
+        del h3_tasks
+
+        # Track completed merges
+        with open(merge_progress_file, 'a') as f:
+            for d in remaining_dirs:
+                f.write(d.rstrip('/') + '\n')
+
+    h3_files = glob.glob(os.path.join(h3_dir, 'h3_*', '*', '*.parquet'), recursive=False)
 
     logger.info("Compiling H3 metadata files")
 
@@ -679,19 +710,192 @@ def _merge_and_finalize(
     return h3_files
 
 
+def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, version=None, version_kwargs=None):
+    """Add new variables to a single H3 partition via shot_number join.
+
+    Reads only shot_number + new variables from source HDF5 files,
+    joins them into the existing partition parquet. Memory-efficient
+    via ``parquet_join_columns()`` which processes row-groups one at a time.
+
+    Parameters
+    ----------
+    h3_partition_dir : str
+        Path to an H3 partition directory (e.g., ``h3_03=abc123/``)
+    new_product_vars : dict
+        Product code → list of new variable names to add
+    soc_source : str, list, or None
+        Source for HDF5 files (directory, file list, or None for S3)
+    version : int or None
+        GEDI data version for S3 queries
+    version_kwargs : dict or None
+        Version kwargs for local file filtering
+
+    Returns
+    -------
+    str or None
+        Path to the updated parquet file, or None if no update was needed
+    """
+    from .utils import parquet_join_columns
+    import tempfile
+
+    # Find the merged metadata file
+    meta_files = glob.glob(os.path.join(h3_partition_dir, f'*{PARTITION_META_FILENAME}'))
+    if not meta_files:
+        return None
+
+    # Use the partition-level metadata (not year-level)
+    meta = json_read(meta_files[0])
+    granules = meta.get('granules', [])
+    if not granules:
+        return None
+
+    # Get existing parquet files in this partition
+    parquet_files = glob.glob(os.path.join(h3_partition_dir, '*', '*.parquet'))
+    if not parquet_files:
+        return None
+
+    # Build the SOC file tree for locating source HDF5 files
+    if isinstance(soc_source, str):
+        all_soc = soc_file_tree(soc_source, to_list=False, glob_kwargs=version_kwargs)
+    elif isinstance(soc_source, list):
+        all_soc = soc_file_tree(soc_source, to_list=False)
+    elif soc_source is None:
+        # For S3 mode, we need to download the specific granules
+        # This is handled by the caller providing a pre-built soc tree
+        return None
+    else:
+        return None
+
+    # Collect new variable data from source HDF5 files for each granule
+    new_vars_list = []
+    for gran in granules:
+        orb_track = f"O{gran['orbit']:05d}_{gran['granule']:02d}_T{gran['track']:05d}"
+        if orb_track not in all_soc:
+            logger.debug(f"Granule {orb_track} not found in SOC source, skipping")
+            continue
+
+        soc_files = all_soc[orb_track]
+
+        for prod, var_list in new_product_vars.items():
+            if prod not in soc_files or var_list is None:
+                continue
+
+            try:
+                cols_to_read = ['shot_number'] + var_list
+                df = load_h5(soc_files[prod], columns=cols_to_read)
+                if df is not None and not df.empty:
+                    new_vars_list.append(df)
+            except Exception as e:
+                logger.warning(f"Failed to read {prod} vars from {orb_track}: {e}")
+
+    if not new_vars_list:
+        return None
+
+    import pandas as pd
+    new_vars_df = pd.concat(new_vars_list, ignore_index=True)
+    new_vars_df = new_vars_df.drop_duplicates(subset=['shot_number'])
+
+    # Write new vars to temp parquet
+    tmp_file = None
+    updated_files = []
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.parquet', delete=False) as tmp:
+            tmp_file = tmp.name
+        new_vars_df.to_parquet(tmp_file, engine='pyarrow', index=False)
+        del new_vars_df
+
+        # Join into each year-level parquet file
+        for pf in parquet_files:
+            try:
+                parquet_join_columns([pf, tmp_file], pf, key_col='shot_number')
+                updated_files.append(pf)
+            except Exception as e:
+                logger.warning(f"Failed to join columns into {pf}: {e}")
+    finally:
+        if tmp_file and os.path.exists(tmp_file):
+            os.unlink(tmp_file)
+
+    # Update partition metadata with new columns
+    if updated_files:
+        for pf in updated_files:
+            h3_write_metadata(pf)
+        h3_merge_metadata(h3_partition_dir)
+
+    return updated_files[0] if updated_files else None
+
+
+@dask.delayed
+def _d_add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, version=None, version_kwargs=None):
+    return _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, version, version_kwargs)
+
+
+def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None, version_kwargs=None):
+    """Add new variables to existing H3 database partitions via shot_number join.
+
+    Reads only shot_number + new variables from source HDF5 files,
+    then joins into existing partition parquet files. No re-indexing needed.
+
+    Parameters
+    ----------
+    h3_dir : str
+        Root directory of the H3 database
+    new_product_vars : dict
+        Product code → list of new variable names to add
+    soc_source : str, list, or None
+        Source for HDF5 files
+    version : int or None
+        GEDI data version
+    version_kwargs : dict or None
+        Version kwargs for local file filtering
+
+    Returns
+    -------
+    list of str or None
+        List of updated parquet file paths
+    """
+    logger.info("Variable-only expansion detected: adding new columns via shot_number join")
+
+    h3_subdirs = glob.glob(os.path.join(h3_dir, 'h3_*/'))
+    if not h3_subdirs:
+        logger.info("No existing partitions to update")
+        return None
+
+    logger.info(f"Updating {len(h3_subdirs)} H3 partitions with new variables")
+
+    tasks = [
+        _d_add_variables_to_partition(d, new_product_vars, soc_source, version, version_kwargs)
+        for d in h3_subdirs
+    ]
+    tasks = dask.persist(*tasks, traverse=False)
+    progress(tasks)
+    results = list(dask.compute(*tasks))
+    del tasks
+
+    updated = [r for r in results if r is not None]
+    logger.info(f"Updated {len(updated)}/{len(h3_subdirs)} partitions with new variables")
+
+    # Regenerate manifest
+    generate_manifest(h3_dir)
+
+    return updated if updated else None
+
+
 def build_h3db(
     product_vars: Dict[str, List[str]],
     res: int = 12,
     part: int = 3,
-    spatial = None,
-    soc_source: str = GH3_DEFAULT_SOC_DIR,
+    spatial=None,
+    temporal=None,
+    soc_source: Union[str, List, None] = None,
+    version: Optional[int] = None,
     version_kwargs: Optional[Dict] = None,
     tmp_dir: str = os.path.join(GH3_DEFAULT_TMP_DIR, 'gh3_build'),
     h3_dir: str = GH3_DEFAULT_H3_DIR,
-    skip_granules: Optional[List[Dict]] = None
+    skip_granules: Optional[List[Dict]] = None,
+    status_callback: Optional[Callable[[str], None]] = None,
 ) -> Optional[List[str]]:
     """
-    Build an H3-indexed GEDI database from SOC HDF5 files.
+    Build an H3-indexed GEDI database from local SOC files or S3 streaming.
 
     Parameters
     ----------
@@ -704,16 +908,24 @@ def build_h3db(
         H3 resolution level for file partitioning (0-15, must be <= res).
     spatial : GeoDataFrame, list, or str, optional
         Spatial filter for the region of interest.
-    soc_source : str
-        Path to directory containing GEDI SOC HDF5 files.
+    temporal : tuple, optional
+        Temporal filter as (start_date, end_date) in 'YYYY-MM-DD' format.
+    soc_source : str, list, or None
+        - ``None``: stream data from NASA S3 (default, no download)
+        - ``str``: path to local directory containing GEDI SOC HDF5 files
+        - ``list``: pre-acquired list of file paths or EarthAccessFile objects
+    version : int or None
+        GEDI data version. If None, uses latest available.
     version_kwargs : dict, optional
-        Keyword arguments for filtering by GEDI version.
+        Keyword arguments for filtering local files by version.
     tmp_dir : str
         Path to temporary directory for intermediate files.
     h3_dir : str
         Output path for the H3-indexed parquet database.
     skip_granules : list of dict, optional
         List of granule identifiers to skip (from previous builds).
+    status_callback : callable, optional
+        Called with status string at pipeline stage transitions.
 
     Returns
     -------
@@ -725,18 +937,46 @@ def build_h3db(
     H3ValidationError
         If H3 resolution or partition parameters are invalid
     GediFileError
-        If source directory doesn't exist
+        If local source directory doesn't exist or S3 returns no files
     """
     # Validate parameters
     logger.debug("Validating build parameters")
     res, part = validate_h3_params(res, part)
 
-    if not os.path.exists(soc_source):
-        raise GediFileError(f"SOC source directory not found: {soc_source}")
+    # Determine source mode and acquire SOC files
+    if soc_source is None:
+        # S3 streaming mode: download via earthaccess direct_access
+        logger.info("Streaming GEDI data from NASA S3 (no local download)")
+        soc_source = download_soc(
+            product_vars=product_vars.copy(),
+            spatial=spatial,
+            temporal=temporal,
+            direct_access=True,
+            version=version,
+        )
+        if not soc_source:
+            raise GediFileError(
+                "No GEDI files found on S3 for the given filters. "
+                "Check spatial/temporal filters and NASA Earthdata credentials. "
+                "Use --indir for local files."
+            )
+        logger.info(f"Found {len(soc_source)} S3 file handles")
+        all_soc_files = soc_file_tree(soc_source, to_list=True)
+    elif isinstance(soc_source, list):
+        # Pre-acquired file list (local or EarthAccessFile)
+        logger.info(f"Using {len(soc_source)} pre-acquired source files")
+        all_soc_files = soc_file_tree(soc_source, to_list=True)
+    elif isinstance(soc_source, str):
+        # Local directory mode
+        if not os.path.exists(soc_source):
+            raise GediFileError(f"SOC source directory not found: {soc_source}")
+        logger.info("Listing source SOC files")
+        all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=version_kwargs)
+    else:
+        raise GediValidationError(f"Invalid soc_source type: {type(soc_source)}")
 
-    # List and organize SOC files
-    logger.info("Listing source SOC files")
-    all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=version_kwargs)
+    if status_callback:
+        status_callback('PROCESSING')
 
     # Expand variable specifications and ensure L2A essentials
     product_vars = _expand_product_vars(product_vars, all_soc_files)
@@ -758,12 +998,18 @@ def build_h3db(
     os.makedirs(tmp_dir, exist_ok=True)
     ddf = _apply_spatial_filter(ddf, spatial, part, h3_dir)
 
+    if status_callback:
+        status_callback('PARTITIONING')
+
     # Write partitioned parquet files
     tmp_files = _write_partitioned(ddf, tmp_dir, part, lat_col, lon_col, dat_col)
 
     if len(tmp_files) == 0:
         logger.info("No new data to process")
         return None
+
+    if status_callback:
+        status_callback('MERGING')
 
     # Merge and finalize database
     h3_files = _merge_and_finalize(tmp_dir, h3_dir)
