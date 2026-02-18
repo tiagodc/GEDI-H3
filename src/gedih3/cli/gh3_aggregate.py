@@ -19,7 +19,7 @@ TIME_UNITS = ['years', 'months', 'weeks', 'days']
 
 def get_cmd_args():
     """Parse command line arguments for GEDI data aggregation"""
-    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args, parse_egi_levels
+    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args, add_storage_args, parse_egi_levels
 
     p = argparse.ArgumentParser(
         description="Aggregate GEDI shots to H3 hexagons or EGI square pixels",
@@ -79,8 +79,9 @@ def get_cmd_args():
     p.add_argument("-y", "--quality", dest="quality", action='store_true',
                    help="apply quality filtering")
 
-    # Dask and verbosity
+    # Dask, storage, and verbosity
     add_dask_args(p)
+    add_storage_args(p)
     add_verbosity_args(p)
 
     return p.parse_args()
@@ -300,10 +301,12 @@ def main():
                                      parse_dask_args, parse_file_format, setup_logging,
                                      print_banner, print_success, configure_database_path,
                                      load_data_from_source,
-                                     get_dataset_index_info, parse_aggregation)
+                                     get_dataset_index_info, parse_aggregation,
+                                     setup_storage)
 
         # Setup logging and print banner
         logger = setup_logging(args, __name__)
+        setup_storage(args, logger=logger)
         title = "GEDI EGI Data Aggregation Tool" if use_egi else "GEDI H3 Data Aggregation Tool"
         print_banner(title, logger=logger)
 

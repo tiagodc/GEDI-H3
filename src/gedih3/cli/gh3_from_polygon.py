@@ -19,7 +19,7 @@ import argparse
 
 def get_cmd_args():
     """Parse command line arguments for vector polygon join tool."""
-    from gedih3.cliutils import add_dask_args, add_verbosity_args
+    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_storage_args
 
     p = argparse.ArgumentParser(
         description="Spatially join polygon attributes to GEDI shot locations"
@@ -70,8 +70,9 @@ def get_cmd_args():
     p.add_argument("--resume", dest="resume", action='store_true',
                    help="skip already-processed partitions")
 
-    # Dask and verbosity
+    # Dask, storage, and verbosity
     add_dask_args(p)
+    add_storage_args(p)
     add_verbosity_args(p)
 
     return p.parse_args()
@@ -91,7 +92,8 @@ def main():
         from gedih3.cliutils import (
             setup_logging, print_banner, print_success,
             configure_database_path, parse_region, parse_dask_args,
-            h3_col_name, get_dataset_index_info, build_query_string
+            h3_col_name, get_dataset_index_info, build_query_string,
+            setup_storage
         )
         from gedih3.vecutils import (
             resolve_vector_source, get_vector_info, load_vector,
@@ -100,6 +102,7 @@ def main():
 
         # Setup
         logger = setup_logging(args, __name__)
+        setup_storage(args, logger=logger)
         print_banner("GEDI Vector Polygon Join Tool", logger=logger)
 
         # Resolve vector source

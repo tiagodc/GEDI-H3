@@ -23,11 +23,119 @@ def is_remote_path(path):
     )
 
 
-def _get_filesystem(path):
-    """Get fsspec filesystem instance for a path."""
+_storage_options = {}  # keyed by protocol → options dict
+
+
+def configure_storage(protocol='s3', **kwargs):
+    """Set storage credentials for a remote protocol.
+
+    Credentials are stored at module level and automatically used by every
+    ``smart_*`` function (which all flow through ``_get_filesystem`` /
+    ``smart_open``).
+
+    Parameters
+    ----------
+    protocol : str
+        Protocol name: ``'s3'``, ``'http'``, ``'https'``, ``'ftp'``,
+        ``'sftp'``, ``'ssh'``.
+    **kwargs
+        Protocol-specific options passed to ``fsspec.filesystem()``.
+
+        **S3** (s3fs): ``key``, ``secret``, ``endpoint_url``, ``anon``.
+        ``endpoint_url`` is automatically wrapped into
+        ``client_kwargs={'endpoint_url': ...}`` for s3fs compatibility.
+
+        **HTTP/HTTPS** (aiohttp): ``username``/``password`` (basic auth
+        via ``client_kwargs``) or ``headers`` dict (bearer tokens, API
+        keys).
+
+        **FTP**: ``username``, ``password``, ``host``, ``port``.
+
+        **SFTP/SSH**: ``username``, ``password`` or ``key_filename``
+        (path to SSH private key), ``port``.
+
+    Examples
+    --------
+    >>> configure_storage('s3', endpoint_url='http://localhost:7000', anon=True)
+    >>> configure_storage('http', username='user', password='pass')
+    >>> configure_storage('https', headers={'Authorization': 'Bearer tok'})
+    >>> configure_storage('sftp', username='user', key_filename='/path/to/id_rsa')
+    """
+    opts = dict(kwargs)
+
+    # S3: wrap endpoint_url into client_kwargs for s3fs
+    if protocol == 's3' and 'endpoint_url' in opts:
+        ck = opts.pop('client_kwargs', {})
+        ck['endpoint_url'] = opts.pop('endpoint_url')
+        opts['client_kwargs'] = ck
+
+    # HTTP/HTTPS: wrap username/password into client_kwargs for aiohttp
+    if protocol in ('http', 'https'):
+        user = opts.pop('username', None)
+        pwd = opts.pop('password', None)
+        if user and pwd:
+            import aiohttp
+            ck = opts.pop('client_kwargs', {})
+            ck['auth'] = aiohttp.BasicAuth(user, pwd)
+            opts['client_kwargs'] = ck
+
+    _storage_options[protocol] = opts
+
+
+def get_storage_options(protocol=None):
+    """Return the stored options for *protocol*.
+
+    Returns ``{'anon': True}`` for S3 when nothing has been configured
+    (public-bucket default). Other protocols return ``{}``.
+
+    Parameters
+    ----------
+    protocol : str or None
+        Protocol name (e.g. ``'s3'``). ``None`` returns ``{}``.
+
+    Returns
+    -------
+    dict
+        A **copy** of the stored options (safe to mutate).
+    """
+    if protocol is None:
+        return {}
+    if protocol in _storage_options:
+        return dict(_storage_options[protocol])
+    # S3 default: anonymous access for public buckets
+    if protocol == 's3':
+        return {'anon': True}
+    return {}
+
+
+def _get_filesystem(path, storage_options=None):
+    """Get fsspec filesystem instance for a path.
+
+    Parameters
+    ----------
+    path : str
+        Remote URL (e.g. 's3://bucket/key', 'http://host/path').
+    storage_options : dict, optional
+        Per-call overrides merged on top of the global config from
+        ``configure_storage()``.
+    """
     import fsspec
     protocol = path.split('://')[0]
-    return fsspec.filesystem(protocol)
+    opts = get_storage_options(protocol)
+    if storage_options:
+        opts = {**opts, **storage_options}
+    # Connection-based protocols need host/port from the URL
+    if protocol in ('ftp', 'sftp', 'ssh') and 'host' not in opts:
+        from urllib.parse import urlparse
+        parsed = urlparse(path)
+        opts['host'] = parsed.hostname
+        if parsed.port:
+            opts['port'] = parsed.port
+        if parsed.username and 'username' not in opts:
+            opts['username'] = parsed.username
+        if parsed.password and 'password' not in opts:
+            opts['password'] = parsed.password
+    return fsspec.filesystem(protocol, **opts)
 
 
 def smart_exists(path):
@@ -257,7 +365,9 @@ def _find_under_root(fs, root):
         seen.add(path_norm)
 
         try:
-            entries = fs.ls(path, detail=True)
+            # Trailing slash required by many HTTP servers for dir listings
+            ls_path = path if path.endswith('/') else path + '/'
+            entries = fs.ls(ls_path, detail=True)
         except Exception:
             continue
 
@@ -319,6 +429,17 @@ def _remote_glob(fs, protocol, pattern, recursive=False):
     # Normalize path for this filesystem (HTTP keeps full URL, S3 strips protocol)
     fs_root = type(fs)._strip_protocol(root_stripped)
 
+    # Compute URL base for path reconstruction.
+    # HTTP/S3: _strip_protocol keeps the full URL → url_base is empty.
+    # FTP/SFTP: _strip_protocol removes host:port → url_base = 'ftp://host:port'.
+    fs_root_norm = _normalize_remote_path(fs_root.rstrip('/'))
+    root_norm = _normalize_remote_path(root_stripped)
+    if fs_root_norm.startswith(protocol + '://'):
+        url_base = ''
+    else:
+        idx = root_norm.find(fs_root_norm)
+        url_base = root_norm[:idx] if idx > 0 else f'{protocol}://'
+
     # List all files recursively under root, filtering out ../  links
     try:
         all_files = _find_under_root(fs, fs_root)
@@ -331,7 +452,7 @@ def _remote_glob(fs, protocol, pattern, recursive=False):
     # Compile glob pattern to regex and filter
     rx = _glob_to_regex(rel_pattern)
     # Use normalized root for prefix extraction (matches normalized file paths)
-    prefix = _normalize_remote_path(fs_root).rstrip('/') + '/'
+    prefix = fs_root_norm + '/'
 
     if is_dir_pattern:
         # Extract unique directory paths from file listing
@@ -350,11 +471,7 @@ def _remote_glob(fs, protocol, pattern, recursive=False):
         results = []
         for d in dirs:
             if rx.match(d):
-                full = f"{prefix}{d}/"
-                if full.startswith(protocol + '://'):
-                    results.append(full)
-                else:
-                    results.append(f"{protocol}://{full}")
+                results.append(f"{url_base}{prefix}{d}/")
         return sorted(results)
 
     results = []
@@ -365,10 +482,7 @@ def _remote_glob(fs, protocol, pattern, recursive=False):
         else:
             rel = f_clean
         if rx.match(rel):
-            if f_clean.startswith(protocol + '://'):
-                results.append(f_clean)
-            else:
-                results.append(f"{protocol}://{f_clean}")
+            results.append(f"{url_base}{f_clean}")
 
     return sorted(results)
 
@@ -412,12 +526,26 @@ def smart_glob(pattern, recursive=False):
     return _remote_glob(fs, protocol, pattern, recursive=recursive)
 
 
-def smart_open(path, mode='r'):
-    """open() that works with remote paths. Use as context manager."""
+def smart_open(path, mode='r', storage_options=None):
+    """open() that works with remote paths. Use as context manager.
+
+    Parameters
+    ----------
+    path : str
+        Local or remote file path.
+    mode : str
+        File mode (default ``'r'``).
+    storage_options : dict, optional
+        Per-call overrides merged on top of the global config.
+    """
     if not is_remote_path(path):
         return open(path, mode)
     import fsspec
-    return fsspec.open(path, mode)
+    protocol = path.split('://')[0]
+    opts = get_storage_options(protocol)
+    if storage_options:
+        opts = {**opts, **storage_options}
+    return fsspec.open(path, mode, **opts)
 
 # Heavy imports are moved to lazy loading inside functions:
 # - psutil: used in get_system_resources
@@ -489,8 +617,11 @@ def read_parquet_schema(path):
     """
     import pyarrow.parquet as pq
     import pandas as pd
-    kwargs = {} if is_remote_path(path) else {'memory_map': True}
-    schema = pq.read_schema(path, **kwargs)
+    if is_remote_path(path):
+        with smart_open(path, 'rb') as fobj:
+            schema = pq.read_schema(fobj)
+    else:
+        schema = pq.read_schema(path, memory_map=True)
     schema = pd.DataFrame(({"column": name, "dtype": str(pa_dtype)} for name, pa_dtype in zip(schema.names, schema.types)))
     return schema
 

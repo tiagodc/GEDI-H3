@@ -129,9 +129,12 @@ def read_dataset_schema(filepath, fmt):
     """
     if fmt == 'parquet':
         import pyarrow.parquet as pq
-        from .utils import is_remote_path
-        kwargs = {} if is_remote_path(filepath) else {'memory_map': True}
-        schema = pq.read_schema(filepath, **kwargs)
+        from .utils import is_remote_path, smart_open
+        if is_remote_path(filepath):
+            with smart_open(filepath, 'rb') as fobj:
+                schema = pq.read_schema(fobj)
+        else:
+            schema = pq.read_schema(filepath, memory_map=True)
         return schema.names, 'geometry' in schema.names
     elif fmt == 'feather':
         import pyarrow.feather as feather
@@ -236,6 +239,81 @@ def add_verbosity_args(parser):
     parser.add_argument("-Q", "--quiet", dest="quiet", action='store_true',
                         help="suppress all output except errors")
     return parser
+
+
+def add_storage_args(parser):
+    """Add remote storage credential arguments to an argument parser.
+
+    Covers S3, HTTP/HTTPS, FTP, and SFTP/SSH protocols.
+    """
+    g = parser.add_argument_group('remote storage')
+    g.add_argument("--s3-endpoint", dest="s3_endpoint", type=str, default=None,
+                   help="S3 endpoint URL (e.g. http://localhost:7000)")
+    g.add_argument("--s3-key", dest="s3_key", type=str, default=None,
+                   help="S3 access key")
+    g.add_argument("--s3-secret", dest="s3_secret", type=str, default=None,
+                   help="S3 secret key")
+    g.add_argument("--s3-anon", dest="s3_anon", action="store_true", default=False,
+                   help="use anonymous S3 access (for public buckets)")
+    g.add_argument("--remote-user", dest="remote_user", type=str, default=None,
+                   help="username for HTTP basic auth / FTP / SFTP")
+    g.add_argument("--remote-pass", dest="remote_pass", type=str, default=None,
+                   help="password for HTTP basic auth / FTP / SFTP")
+    g.add_argument("--remote-token", dest="remote_token", type=str, default=None,
+                   help="bearer token for HTTP(S) auth")
+    g.add_argument("--ssh-key", dest="ssh_key", type=str, default=None,
+                   help="path to SSH/SFTP private key file")
+    return parser
+
+
+def setup_storage(args, logger=None):
+    """Call ``configure_storage()`` from parsed CLI arguments.
+
+    Should be called early in ``main()`` before any data access.
+    """
+    from .utils import configure_storage
+
+    # S3
+    s3_kwargs = {}
+    if getattr(args, 's3_endpoint', None):
+        s3_kwargs['endpoint_url'] = args.s3_endpoint
+    if getattr(args, 's3_key', None):
+        s3_kwargs['key'] = args.s3_key
+    if getattr(args, 's3_secret', None):
+        s3_kwargs['secret'] = args.s3_secret
+    if getattr(args, 's3_anon', False):
+        s3_kwargs['anon'] = True
+    if s3_kwargs:
+        configure_storage('s3', **s3_kwargs)
+        if logger:
+            logger.info(f"  S3 storage configured (endpoint={s3_kwargs.get('endpoint_url', 'default')})")
+
+    # HTTP / HTTPS basic auth or bearer token
+    user = getattr(args, 'remote_user', None)
+    pwd = getattr(args, 'remote_pass', None)
+    token = getattr(args, 'remote_token', None)
+    if user and pwd:
+        configure_storage('http', username=user, password=pwd)
+        configure_storage('https', username=user, password=pwd)
+    if token:
+        headers = {'Authorization': f'Bearer {token}'}
+        configure_storage('http', headers=headers)
+        configure_storage('https', headers=headers)
+
+    # FTP
+    if user and pwd:
+        configure_storage('ftp', username=user, password=pwd)
+
+    # SFTP / SSH
+    ssh_key = getattr(args, 'ssh_key', None)
+    if user and (pwd or ssh_key):
+        sftp_kwargs = {'username': user}
+        if pwd:
+            sftp_kwargs['password'] = pwd
+        if ssh_key:
+            sftp_kwargs['key_filename'] = ssh_key
+        configure_storage('sftp', **sftp_kwargs)
+        configure_storage('ssh', **sftp_kwargs)
 
 
 def add_product_args(parser):

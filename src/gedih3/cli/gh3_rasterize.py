@@ -24,7 +24,7 @@ import argparse
 
 def get_cmd_args():
     """Parse command line arguments for GEDI rasterization"""
-    from gedih3.cliutils import add_dask_args, add_verbosity_args
+    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_storage_args
 
     p = argparse.ArgumentParser(
         description="Convert aggregated GEDI datasets to GeoTIFF raster format",
@@ -50,8 +50,9 @@ def get_cmd_args():
     p.add_argument("-q", "--query", dest="query", type=str, default=None,
                    help="pandas query string for filtering before rasterization")
 
-    # Dask and verbosity
+    # Dask, storage, and verbosity
     add_dask_args(p)
+    add_storage_args(p)
     add_verbosity_args(p)
 
     return p.parse_args()
@@ -164,11 +165,12 @@ def main():
         from dask.distributed import Client
 
         from gedih3.cliutils import (parse_dask_args, setup_logging,
-                                     print_banner, print_success)
+                                     print_banner, print_success, setup_storage)
         from gedih3.config import DATASET_META_FILENAME
 
         # Setup logging and print banner
         logger = setup_logging(args, __name__)
+        setup_storage(args, logger=logger)
         print_banner("GEDI Rasterization Tool", logger=logger)
 
         # Validate input dataset exists
