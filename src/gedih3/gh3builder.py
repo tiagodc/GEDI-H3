@@ -902,7 +902,7 @@ def build_h3db(
     status_callback: Optional[Callable[[str], None]] = None,
 ) -> Optional[List[str]]:
     """
-    Build an H3-indexed GEDI database from local SOC files or S3 streaming.
+    Build an H3-indexed GEDI database from local SOC files or S3 download.
 
     Parameters
     ----------
@@ -918,7 +918,7 @@ def build_h3db(
     temporal : tuple, optional
         Temporal filter as (start_date, end_date) in 'YYYY-MM-DD' format.
     soc_source : str, list, or None
-        - ``None``: stream data from NASA S3 (default, no download)
+        - ``None``: download from NASA S3 to a temp directory (cleaned up after build)
         - ``str``: path to local directory containing GEDI SOC HDF5 files
         - ``list``: pre-acquired list of file paths or EarthAccessFile objects
     version : int or None
@@ -949,31 +949,34 @@ def build_h3db(
     logger.debug("Validating build parameters")
     res, part = validate_h3_params(res, part)
 
+    # Track temp directory for S3 download cleanup
+    _s3_tmp_dir = None
+
     # Determine source mode and acquire SOC files
     if soc_source is None:
-        # S3 streaming mode: download via earthaccess direct_access
-        logger.info("Streaming GEDI data from NASA S3 (no local download)")
-        soc_source = download_soc(
+        # S3 mode: download to temp directory first, then build from local files.
+        # This avoids fsspec memory accumulation from streaming h5py reads.
+        # Files are subsetted during download (only requested variables kept).
+        _s3_tmp_dir = os.path.join(tmp_dir, '_s3_download')
+        os.makedirs(_s3_tmp_dir, exist_ok=True)
+        logger.info(f"Downloading GEDI data from S3 to temp directory: {_s3_tmp_dir}")
+        download_soc(
             product_vars=product_vars.copy(),
             spatial=spatial,
             temporal=temporal,
-            direct_access=True,
+            direct_access=False,
             version=version,
+            odir=_s3_tmp_dir,
         )
-        if not soc_source:
-            raise GediFileError(
-                "No GEDI files found on S3 for the given filters. "
-                "Check spatial/temporal filters and NASA Earthdata credentials. "
-                "Use --indir for local files."
-            )
-        logger.info(f"Found {len(soc_source)} S3 file handles")
-        all_soc_files = soc_file_tree(soc_source, to_list=True)
-    elif isinstance(soc_source, list):
+        soc_source = _s3_tmp_dir
+        logger.info("S3 download complete, building from local files")
+
+    if isinstance(soc_source, list):
         # Pre-acquired file list (local or EarthAccessFile)
         logger.info(f"Using {len(soc_source)} pre-acquired source files")
         all_soc_files = soc_file_tree(soc_source, to_list=True)
     elif isinstance(soc_source, str):
-        # Local directory mode
+        # Local directory mode (also used after S3 download to temp dir)
         if not os.path.exists(soc_source):
             raise GediFileError(f"SOC source directory not found: {soc_source}")
         logger.info("Listing source SOC files")
@@ -982,49 +985,55 @@ def build_h3db(
     else:
         raise GediValidationError(f"Invalid soc_source type: {type(soc_source)}")
 
-    if status_callback:
-        status_callback('PROCESSING')
+    try:
+        if status_callback:
+            status_callback('PROCESSING')
 
-    # Expand variable specifications and ensure L2A essentials
-    product_vars = _expand_product_vars(product_vars, all_soc_files)
+        # Expand variable specifications and ensure L2A essentials
+        product_vars = _expand_product_vars(product_vars, all_soc_files)
 
-    # Filter to only files with required products
-    prod_soc_files = [{k: val for k, val in i.items() if k in product_vars} for i in all_soc_files]
+        # Filter to only files with required products
+        prod_soc_files = [{k: val for k, val in i.items() if k in product_vars} for i in all_soc_files]
 
-    # Filter out incomplete, corrupted, or already-processed granules
-    soc_files = _filter_granules(prod_soc_files, product_vars, skip_granules)
+        # Filter out incomplete, corrupted, or already-processed granules
+        soc_files = _filter_granules(prod_soc_files, product_vars, skip_granules)
 
-    if len(soc_files) == 0:
-        logger.info("No new granules to process")
-        return None
+        if len(soc_files) == 0:
+            logger.info("No new granules to process")
+            return None
 
-    # Create H3-indexed Dask DataFrame
-    ddf, lat_col, lon_col, dat_col = _create_h3_dataframe(soc_files, product_vars, res, part)
+        # Create H3-indexed Dask DataFrame
+        ddf, lat_col, lon_col, dat_col = _create_h3_dataframe(soc_files, product_vars, res, part)
 
-    # Apply spatial and existing-data filters
-    os.makedirs(tmp_dir, exist_ok=True)
-    ddf = _apply_spatial_filter(ddf, spatial, part, h3_dir)
+        # Apply spatial and existing-data filters
+        os.makedirs(tmp_dir, exist_ok=True)
+        ddf = _apply_spatial_filter(ddf, spatial, part, h3_dir)
 
-    if status_callback:
-        status_callback('PARTITIONING')
+        if status_callback:
+            status_callback('PARTITIONING')
 
-    # Write partitioned parquet files to a subdirectory of tmp_dir to avoid
-    # conflicting with Dask worker scratch space (dask-worker-space/dirlock)
-    # which causes PermissionError on Windows when overwrite=True deletes tmp_dir
-    parquet_dir = os.path.join(tmp_dir, 'partitions')
-    tmp_files = _write_partitioned(ddf, parquet_dir, part, lat_col, lon_col, dat_col)
+        # Write partitioned parquet files to a subdirectory of tmp_dir to avoid
+        # conflicting with Dask worker scratch space (dask-worker-space/dirlock)
+        # which causes PermissionError on Windows when overwrite=True deletes tmp_dir
+        parquet_dir = os.path.join(tmp_dir, 'partitions')
+        tmp_files = _write_partitioned(ddf, parquet_dir, part, lat_col, lon_col, dat_col)
 
-    if len(tmp_files) == 0:
-        logger.info("No new data to process")
-        return None
+        if len(tmp_files) == 0:
+            logger.info("No new data to process")
+            return None
 
-    if status_callback:
-        status_callback('MERGING')
+        if status_callback:
+            status_callback('MERGING')
 
-    # Merge and finalize database
-    h3_files = _merge_and_finalize(parquet_dir, h3_dir)
+        # Merge and finalize database
+        h3_files = _merge_and_finalize(parquet_dir, h3_dir)
 
-    return h3_files
+        return h3_files
+    finally:
+        # Clean up S3 temp download directory
+        if _s3_tmp_dir is not None and os.path.exists(_s3_tmp_dir):
+            logger.debug(f"Cleaning up S3 temp directory: {_s3_tmp_dir}")
+            shutil.rmtree(_s3_tmp_dir, ignore_errors=True)
 
 def build_parquet_metadata(gh3_dir):
     """

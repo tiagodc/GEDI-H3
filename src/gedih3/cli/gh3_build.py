@@ -32,7 +32,7 @@ def get_cmd_args():
     p.add_argument("-t", '--tmpdir', dest="tmpdir", type=str, default=None,
                    help="temporary directory for intermediate files")
     p.add_argument("-s3", "--s3", dest="s3", action='store_true',
-                   help="stream directly from NASA S3 (no local download)")
+                   help="download from NASA S3 to temp directory (no persistent local download)")
     p.add_argument("--gedi-version", dest="version", type=int, default=None,
                    help="GEDI data version [default=latest available]")
 
@@ -75,15 +75,15 @@ def main():
     if storage < 10:
         logger.warning(f"Low disk space ({storage:.1f} GB free) — build may fail writing parquet output")
 
-    # Determine source mode: -i (download+build) or --s3 (stream)
+    # Determine source mode: -i (download+build) or --s3 (temp download+build)
     if args.indir:
         soc_source = args.indir
         if args.s3:
             logger.warning("Both -i and --s3 specified. Using -i (local download mode).")
     elif args.s3:
-        soc_source = None  # S3 streaming
+        soc_source = None  # S3 download to temp dir
     else:
-        logger.error("Either -i/--indir (download directory) or --s3 (S3 streaming) is required")
+        logger.error("Either -i/--indir (download directory) or --s3 (S3 download) is required")
         sys.exit(2)
 
     product_vars = parse_gedi_args(args)
@@ -120,7 +120,7 @@ def main():
         if h3_logger.new_product_vars is not None:
             logger.info("Product variables updated")
 
-    source_label = f"download+build: {soc_source}" if soc_source else "NASA S3 streaming"
+    source_label = f"download+build: {soc_source}" if soc_source else "NASA S3 (temp download)"
     logger.info(f"Building GEDI H3 database at {args.output} (source: {source_label})")
     h3_logger.save_log('PARTITIONING')
 

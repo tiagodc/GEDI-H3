@@ -127,6 +127,7 @@ gh3_build \
     -o "$H3_DIR" \
     -N "$N_WORKERS" \
     -M "$MEMORY_GB" \
+    -l4c min \
     -vv \
     -i "$SOC_DIR" \
 
