@@ -51,7 +51,8 @@ def main():
     from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR
     from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success
     from gedih3.utils import get_system_resources
-    from gedih3.gh3builder import build_h3db, download_soc
+    from gedih3.gh3builder import build_h3db, download_soc, soc_file_tree
+    from gedih3.gedidriver import GEDIFile
     from gedih3.logger import H3BuildLogger, SOCDownloadLogger
     from dask.distributed import Client
 
@@ -155,6 +156,17 @@ def main():
                 if needs_download:
                     logger.info(f"Downloading GEDI data to {soc_source}")
                     soc_logger.save_log('DOWNLOADING')
+
+                    def _download_tracker(gran_info, status):
+                        """Called from main thread (as_completed loop). Thread safe."""
+                        if status == 'PENDING':
+                            soc_logger.register_pending_granules([gran_info])
+                        else:
+                            soc_logger.update_granule_status(gran_info, status)
+                        # Save after every granule — downloads are slow (seconds each),
+                        # so the JSON write overhead is negligible relative to network I/O
+                        soc_logger.save_log('DOWNLOADING')
+
                     download_soc(
                         product_vars=soc_logger.get_product_vars(),
                         spatial=soc_logger.get_spatial(),
@@ -163,6 +175,7 @@ def main():
                         update=True,
                         version=h3_logger.gedi_version,
                         odir=soc_source,
+                        on_granule_complete=_download_tracker,
                     )
                     soc_logger.set_post_download_info()
                     soc_logger.save_log('COMPLETED')
@@ -171,6 +184,18 @@ def main():
                     logger.info(f"Using existing downloads at {soc_source} ({len(soc_logger.granule_info)} granules)")
 
             try:
+                # Register granules being submitted for build as PENDING
+                # Only for local download mode (-i); S3 mode has no local SOC directory
+                if soc_source is not None and isinstance(soc_source, str) and os.path.isdir(soc_source):
+                    _soc_for_build = soc_file_tree(soc_source, to_list=True)
+                    _build_granules = []
+                    for _soc in _soc_for_build:
+                        _first = list(_soc.values())[0]
+                        _gf = GEDIFile(_first)
+                        _build_granules.append({'orbit': _gf.orbit, 'granule': _gf.orbit_granule, 'track': _gf.track})
+                    h3_logger.register_pending_granules(_build_granules)
+                    h3_logger.save_log('PROCESSING')
+
                 h3_files = build_h3db(
                     product_vars=h3_logger.get_product_vars(),
                     spatial=h3_logger.get_spatial(),

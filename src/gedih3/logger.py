@@ -145,6 +145,43 @@ class SOCDownloadLogger:
         if 'granules' in self.log_data:
             self.granule_info = self.log_data.get('granules')
 
+    def register_pending_granules(self, granule_list):
+        """Register granules as PENDING. Called before download starts.
+
+        Parameters
+        ----------
+        granule_list : list of dict
+            Each dict must have 'orbit', 'granule', 'track' keys.
+        """
+        if not hasattr(self, 'granule_info'):
+            self.granule_info = []
+        existing = {(g['orbit'], g['granule'], g['track']) for g in self.granule_info}
+        for g in granule_list:
+            key = (g['orbit'], g['granule'], g['track'])
+            if key not in existing:
+                self.granule_info.append({**g, 'status': 'PENDING'})
+                existing.add(key)
+
+    def update_granule_status(self, gran_key, status):
+        """Update status of a single granule (does NOT auto-save).
+
+        Caller controls save frequency via explicit save_log() calls.
+
+        Parameters
+        ----------
+        gran_key : dict
+            Dict with 'orbit', 'granule', 'track' keys.
+        status : str
+            'DOWNLOADED' or 'FAILED'.
+        """
+        if not hasattr(self, 'granule_info'):
+            return
+        key = (gran_key['orbit'], gran_key['granule'], gran_key['track'])
+        for g in self.granule_info:
+            if (g['orbit'], g['granule'], g['track']) == key:
+                g['status'] = status
+                break
+
     def set_post_download_info(self):
         """Scan SOC directory and record downloaded granules."""
         soc_files = soc_file_tree(self._PARENT_DIR, to_list=True)
@@ -155,14 +192,39 @@ class SOCDownloadLogger:
             gran = {'orbit': gfile.orbit, 'granule': gfile.orbit_granule, 'track': gfile.track}
             if gran not in granule_info:
                 granule_info.append(gran)
-        self.granule_info = granule_info
+            if self.gedi_version is None:
+                self.gedi_version = gfile.version
+        # Merge with existing tracked granules (preserve status from real-time tracking)
+        if hasattr(self, 'granule_info') and self.granule_info:
+            existing = {(g['orbit'], g['granule'], g['track']): g for g in self.granule_info}
+            for g in granule_info:
+                key = (g['orbit'], g['granule'], g['track'])
+                if key in existing:
+                    existing[key].update({k: v for k, v in g.items() if k != 'status'})
+                    if existing[key].get('status') != 'FAILED':
+                        existing[key]['status'] = 'DOWNLOADED'
+                else:
+                    existing[key] = {**g, 'status': 'DOWNLOADED'}
+            self.granule_info = list(existing.values())
+        else:
+            self.granule_info = [{**g, 'status': 'DOWNLOADED'} for g in granule_info]
 
     def get_finished_granules(self):
-        """Return skip list when resuming with same filters."""
+        """Return skip list when resuming with same filters.
+
+        Only returns successfully completed granules, with the status
+        field stripped for backward compatibility with _filter_granules()
+        dict comparison. Legacy logs without status fields are treated
+        as successful.
+        """
         if (hasattr(self, 'granule_info')
                 and self.new_product_vars is None
                 and self.new_temporal is None):
-            return self.granule_info
+            return [
+                {k: v for k, v in g.items() if k != 'status'}
+                for g in self.granule_info
+                if g.get('status') in ('DOWNLOADED', None)
+            ]
         return None
 
     def get_temporal(self):
@@ -201,8 +263,9 @@ class SOCDownloadLogger:
             product_logs[prod] = product_logs.get(prod, {})
             product_logs[prod]['status'] = status
             product_logs[prod]['last_modified'] = now()
-            product_logs[prod]['variables'] = self.product_vars.get(prod)
-        
+            vars_list = self.product_vars.get(prod)
+            product_logs[prod]['variables'] = sorted(vars_list) if vars_list else vars_list
+
         log_dict = {
             'metadata': {
                 'package_version': get_package_version()
@@ -334,45 +397,115 @@ class H3BuildLogger:
 
         return not new_h3_parts.issubset(existing_parts)
 
+    def register_pending_granules(self, granule_list):
+        """Register granules as PENDING. Called before build starts.
+
+        Parameters
+        ----------
+        granule_list : list of dict
+            Each dict must have 'orbit', 'granule', 'track' keys.
+        """
+        if not hasattr(self, 'granule_info'):
+            self.granule_info = []
+        existing = {(g['orbit'], g['granule'], g['track']) for g in self.granule_info}
+        for g in granule_list:
+            key = (g['orbit'], g['granule'], g['track'])
+            if key not in existing:
+                self.granule_info.append({**g, 'status': 'PENDING'})
+                existing.add(key)
+
+    def update_granule_status(self, gran_key, status):
+        """Update status of a single granule (does NOT auto-save).
+
+        Caller controls save frequency via explicit save_log() calls.
+
+        Parameters
+        ----------
+        gran_key : dict
+            Dict with 'orbit', 'granule', 'track' keys.
+        status : str
+            'INDEXED' or 'PENDING'.
+        """
+        if not hasattr(self, 'granule_info'):
+            return
+        key = (gran_key['orbit'], gran_key['granule'], gran_key['track'])
+        for g in self.granule_info:
+            if (g['orbit'], g['granule'], g['track']) == key:
+                g['status'] = status
+                break
+
     def get_finished_granules(self):
+        """Return skip list when resuming with same filters.
+
+        Only returns successfully completed granules, with the status
+        field stripped for backward compatibility with _filter_granules()
+        dict comparison. Legacy logs without status fields are treated
+        as successful.
+        """
         if (hasattr(self, 'granule_info')
                 and self.new_product_vars is None
                 and self.new_temporal is None
                 and not self._adding_h3_parts()):
-            return self.granule_info
+            return [
+                {k: v for k, v in g.items() if k != 'status'}
+                for g in self.granule_info
+                if g.get('status') in ('INDEXED', None)
+            ]
         return None
 
     def set_post_build_info(self):
         metadata_files = glob.glob(os.path.join(self._PARENT_DIR, '*', f'*{PARTITION_META_FILENAME}'))
         if len(metadata_files) == 0:
-            return   
-        
-        granule_info = []
-        h3_parts = []        
+            return
+
+        # Collect indexed granules from partition metadata
+        indexed_granules = []
+        h3_parts = []
         date_min = None
         date_max = None
         for f in metadata_files:
             fmeta = json_read(f)
             gran = fmeta.get('granules', [])
             drange = fmeta.get('date_range')
-            
+
             if date_min is None:
                 date_min = drange[0]
             if date_max is None:
                 date_max = drange[1]
-                
+
             date_min = min(date_min, drange[0])
             date_max = max(date_max, drange[1])
-            
+
             h3_parts.append(fmeta.get('h3_partition'))
             for g in gran:
-                if g not in granule_info:
-                    granule_info.append(g)
+                if g not in indexed_granules:
+                    indexed_granules.append(g)
+            if self.gedi_version is None:
+                self.gedi_version = fmeta.get('l2a_version')
 
         self.date_range = (date_min, date_max)
-        self.granule_info = granule_info
-        self.h3_columns = fmeta.get('columns')
-        self.h3_partition_ids = h3_parts
+        self.h3_columns = sorted(fmeta.get('columns', []))
+        self.h3_partition_ids = sorted(h3_parts)
+
+        # Merge with existing tracked granules (preserve PENDING for unindexed)
+        indexed_keys = {(g['orbit'], g['granule'], g['track']) for g in indexed_granules}
+        if hasattr(self, 'granule_info') and self.granule_info:
+            for g in self.granule_info:
+                key = (g['orbit'], g['granule'], g['track'])
+                if key in indexed_keys:
+                    g['status'] = 'INDEXED'
+                # else: keep existing status (PENDING)
+
+            # Add any newly discovered granules not previously tracked
+            existing_keys = {(g['orbit'], g['granule'], g['track']) for g in self.granule_info}
+            for g in indexed_granules:
+                key = (g['orbit'], g['granule'], g['track'])
+                if key not in existing_keys:
+                    self.granule_info.append({**g, 'status': 'INDEXED'})
+        else:
+            self.granule_info = [{**g, 'status': 'INDEXED'} for g in indexed_granules]
+
+        self.granule_info = sorted(self.granule_info, key=lambda g: (g.get('orbit', 0), g.get('granule', 0), g.get('track', 0)))
 
     def to_dict(self, status):
         if status not in _VALID_STATUSES:
@@ -383,8 +516,9 @@ class H3BuildLogger:
             product_logs[prod] = product_logs.get(prod, {})
             product_logs[prod]['status'] = status
             product_logs[prod]['last_modified'] = now()
-            product_logs[prod]['variables'] = self.product_vars.get(prod)
-        
+            vars_list = self.product_vars.get(prod)
+            product_logs[prod]['variables'] = sorted(vars_list) if vars_list else vars_list
+
         # Calculate build duration
         build_duration = None
         if self.build_start_time:

@@ -2,7 +2,7 @@ import os
 import time
 import logging
 from datetime import datetime
-from typing import Union, List, Dict, Optional, Tuple, Any
+from typing import Union, List, Dict, Optional, Tuple, Any, Callable
 from functools import partial
 from itertools import chain
 import earthaccess
@@ -374,6 +374,11 @@ def _download_with_retry(
     except Exception:
         granule_id = str(granule)
 
+    # Ensure authentication in worker processes (pqdm/Dask spawn fresh processes
+    # that don't inherit the main-process earthaccess session)
+    if earthaccess.__store__ is None:
+        earthaccess.login(strategy='netrc', persist=False)
+
     last_error = None
     for attempt in range(1, max_attempts + 1):
         try:
@@ -560,7 +565,8 @@ def gedi_download(
     to_list: bool = False,
     resume: bool = False,
     max_attempts: int = RETRY_DEFAULTS['max_attempts'],
-    search_kwargs: Dict = None
+    search_kwargs: Dict = None,
+    on_granule_complete: Optional[Callable] = None,
 ) -> Union[Dict[str, List[str]], List[str]]:
     """
     Download GEDI granules for specified products and variables.
@@ -588,6 +594,10 @@ def gedi_download(
         Maximum download attempts per granule
     search_kwargs : dict, optional
         Custom search parameters for non-GEDI datasets.
+    on_granule_complete : callable, optional
+        Callback ``(granule_info_dict, status_str) -> None`` called after
+        each granule completes. ``granule_info_dict`` has orbit/granule/track
+        keys; ``status_str`` is 'PENDING', 'DOWNLOADED', or 'FAILED'.
 
     Returns
     -------
@@ -653,12 +663,45 @@ def gedi_download(
                         max_attempts=max_attempts
                     )
 
+                # Register all granules as PENDING before download
+                if on_granule_complete and prod != 'CUSTOM':
+                    for g in granules:
+                        gfile = GEDIFile(g.data_links()[0])
+                        ginfo = {'orbit': gfile.orbit, 'granule': gfile.orbit_granule, 'track': gfile.track}
+                        on_granule_complete(ginfo, 'PENDING')
+
                 if dask_client is not None:
                     futures = dask_client.map(download_func, granules)
-                    progress(futures)
-                    opaths = dask_client.gather(futures)
+
+                    if on_granule_complete and prod != 'CUSTOM':
+                        # Real-time per-file tracking via as_completed
+                        from distributed import as_completed as dask_as_completed
+                        future_to_granule = dict(zip(futures, granules))
+                        opaths_map = {}
+                        n_total = len(futures)
+                        for i, (future, result) in enumerate(dask_as_completed(futures, with_results=True)):
+                            opaths_map[future] = result
+                            g = future_to_granule[future]
+                            gfile = GEDIFile(g.data_links()[0])
+                            ginfo = {'orbit': gfile.orbit, 'granule': gfile.orbit_granule, 'track': gfile.track}
+                            status = 'DOWNLOADED' if result else 'FAILED'
+                            on_granule_complete(ginfo, status)
+                            logger.info(f"[{prod}] {i+1}/{n_total} granules processed")
+                        # Reconstruct in original order
+                        opaths = [opaths_map[f] for f in futures]
+                    else:
+                        # Original path: progress bar + gather
+                        progress(futures)
+                        opaths = dask_client.gather(futures)
                 else:
                     opaths = pqdm(granules, download_func, n_jobs=n_jobs)
+                    # Batch update after pqdm completion
+                    if on_granule_complete and prod != 'CUSTOM':
+                        for g, result in zip(granules, opaths):
+                            gfile = GEDIFile(g.data_links()[0])
+                            ginfo = {'orbit': gfile.orbit, 'granule': gfile.orbit_granule, 'track': gfile.track}
+                            status = 'DOWNLOADED' if result else 'FAILED'
+                            on_granule_complete(ginfo, status)
 
                 # Filter out None values (failed downloads)
                 successful = [p for p in opaths if p is not None]
