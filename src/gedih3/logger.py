@@ -218,8 +218,8 @@ class SOCDownloadLogger:
         as successful.
         """
         if (hasattr(self, 'granule_info')
-                and self.new_product_vars is None
-                and self.new_temporal is None):
+                and getattr(self, 'new_product_vars', None) is None
+                and getattr(self, 'new_temporal', None) is None):
             return [
                 {k: v for k, v in g.items() if k != 'status'}
                 for g in self.granule_info
@@ -443,8 +443,8 @@ class H3BuildLogger:
         as successful.
         """
         if (hasattr(self, 'granule_info')
-                and self.new_product_vars is None
-                and self.new_temporal is None
+                and getattr(self, 'new_product_vars', None) is None
+                and getattr(self, 'new_temporal', None) is None
                 and not self._adding_h3_parts()):
             return [
                 {k: v for k, v in g.items() if k != 'status'}
