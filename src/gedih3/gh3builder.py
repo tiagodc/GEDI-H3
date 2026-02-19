@@ -25,7 +25,7 @@ from .exceptions import H3ValidationError, GediValidationError, GediFileError, G
 logger = get_logger(__name__)
 
 
-def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=False, update=False, version=None, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5):
+def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=False, update=False, version=None, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5, on_granule_complete=None):
     """
     Download GEDI HDF5 files in SOC (Science Operation Center) format.
 
@@ -51,6 +51,9 @@ def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=
         Output directory for downloaded HDF5 files.
     n_jobs : int, default 5
         Number of parallel download workers.
+    on_granule_complete : callable, optional
+        Callback ``(granule_info_dict, status_str) -> None`` for per-granule
+        progress tracking. Passed through to ``gedi_download()``.
 
     Returns
     -------
@@ -74,7 +77,8 @@ def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=
         spatial=spatial, temporal=temporal,
         version=version,
         resume=update, n_jobs=n_jobs,
-        to_list=direct_access
+        to_list=direct_access,
+        on_granule_complete=on_granule_complete,
     )
 
     return soc_files
@@ -627,14 +631,21 @@ def _write_partitioned(
 
     write_task = ddf.to_parquet(tmp_dir, write_index=True, overwrite=True, compression='zstd', partition_on=[f'h3_{part:02d}', 'year'], compute=False)
     write_task = write_task.persist(optimize_graph=False)
-    progress(write_task)
 
-    logger.debug("Clearing dask workers")
+    try:
+        progress(write_task)
 
-    client = get_dask_client()
-    client.cancel(write_task, force=True)
-
-    del write_task, ddf
+        # Check for worker errors before cancelling
+        from distributed import futures_of
+        futures = futures_of(write_task)
+        errors = [f for f in futures if f.status == 'error']
+        if errors:
+            errors[0].result()  # Re-raises the original worker exception
+    finally:
+        logger.debug("Clearing dask workers")
+        client = get_dask_client()
+        client.cancel(write_task, force=True)
+        del write_task, ddf
 
     tmp_files = glob.glob(os.path.join(tmp_dir, '**', '*.parquet'), recursive=True)
     return tmp_files
@@ -997,8 +1008,11 @@ def build_h3db(
     if status_callback:
         status_callback('PARTITIONING')
 
-    # Write partitioned parquet files
-    tmp_files = _write_partitioned(ddf, tmp_dir, part, lat_col, lon_col, dat_col)
+    # Write partitioned parquet files to a subdirectory of tmp_dir to avoid
+    # conflicting with Dask worker scratch space (dask-worker-space/dirlock)
+    # which causes PermissionError on Windows when overwrite=True deletes tmp_dir
+    parquet_dir = os.path.join(tmp_dir, 'partitions')
+    tmp_files = _write_partitioned(ddf, parquet_dir, part, lat_col, lon_col, dat_col)
 
     if len(tmp_files) == 0:
         logger.info("No new data to process")
@@ -1008,7 +1022,7 @@ def build_h3db(
         status_callback('MERGING')
 
     # Merge and finalize database
-    h3_files = _merge_and_finalize(tmp_dir, h3_dir)
+    h3_files = _merge_and_finalize(parquet_dir, h3_dir)
 
     return h3_files
 

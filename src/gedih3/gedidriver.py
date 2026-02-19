@@ -812,7 +812,7 @@ def dask_h5_merged(
 
 def add_special_columns(df, lon_col:str=None, lat_col:str=None, dat_col:str=None):
     if dat_col:
-        df = df.assign(datetime=pd.to_datetime(df[dat_col] + GEDI_START_DATE.timestamp(), unit='s'))
+        df = df.assign(datetime=pd.to_datetime(df[dat_col] + GEDI_START_DATE.timestamp(), unit='s').dt.as_unit('s'))
     if lon_col and lat_col:
         df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lon_col], df[lat_col], crs='EPSG:4326'))
     return df.copy()
