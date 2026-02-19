@@ -96,6 +96,7 @@ def main():
                     odir=args.outdir
                 )
 
+                soc_logger.set_post_download_info()
                 soc_logger.save_log('COMPLETED')
 
                 n_files = len(soc_files) if soc_files else 0
