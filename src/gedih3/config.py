@@ -93,7 +93,7 @@ GEDI_PRODUCTS = {
     #     'description': 'Gridded land surface metrics'
     # },
     'L4A': {
-        'short_name': 'GEDI04_A',
+        'short_name': 'GEDI_L4A_AGB_Density_V2_1_2056',
         'doi': '10.3334/ORNLDAAC/2056',
         'daac': 'ORNLDAAC',
         'version': 2.1,
@@ -106,12 +106,12 @@ GEDI_PRODUCTS = {
     #     'short_name': 'GEDI04_B',
     #     'doi': '10.3334/ORNLDAAC/2299',
     #     'daac': 'ORNLDAAC',
-    #     'version': 2.1,
+    #     'version': 2,
     #     'format': '.tif',
     #     'description': 'Gridded aboveground biomass'
     # },
     'L4C': {
-        'short_name': 'GEDI04_C',
+        'short_name': 'GEDI_L4C_WSCI_2338',
         'doi': '10.3334/ORNLDAAC/2338',
         'daac': 'ORNLDAAC',
         'version': 2,

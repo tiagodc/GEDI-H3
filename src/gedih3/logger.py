@@ -94,12 +94,14 @@ class SOCDownloadLogger:
     _LOG_FILE_NAME = 'gedih3_download_log.json'
     _PARENT_DIR = GH3_DEFAULT_SOC_DIR
 
-    def __init__(self, product_vars, spatial=None, temporal=None, dir=None):
+    def __init__(self, product_vars, spatial=None, temporal=None, version=None, dir=None):
         if dir is not None:
             self._PARENT_DIR = dir
 
         if product_vars:
             product_vars = gedi_vars_expand(product_vars)
+
+        self.gedi_version = version
 
         self.log_file = os.path.join(self._PARENT_DIR, self._LOG_FILE_NAME)
         self.log_data = load_log_data(self.log_file)
@@ -135,10 +137,34 @@ class SOCDownloadLogger:
     def _load_filters_from_log(self):
         self.product_vars = self.log_data.get('products', {})
         self.product_vars = {k:val.get('variables') for k,val in self.product_vars.items()}
-        
+
         self.spatial = parse_spatial(self.log_data.get('spatial_filter'))
         self.temporal = parse_temporal(self.log_data.get('temporal_filter'))
-    
+        self.gedi_version = self.log_data.get('gedi_version', self.gedi_version)
+
+        if 'granules' in self.log_data:
+            self.granule_info = self.log_data.get('granules')
+
+    def set_post_download_info(self):
+        """Scan SOC directory and record downloaded granules."""
+        soc_files = soc_file_tree(self._PARENT_DIR, to_list=True)
+        granule_info = []
+        for soc in soc_files:
+            first_file = list(soc.values())[0]
+            gfile = GEDIFile(first_file)
+            gran = {'orbit': gfile.orbit, 'granule': gfile.orbit_granule, 'track': gfile.track}
+            if gran not in granule_info:
+                granule_info.append(gran)
+        self.granule_info = granule_info
+
+    def get_finished_granules(self):
+        """Return skip list when resuming with same filters."""
+        if (hasattr(self, 'granule_info')
+                and self.new_product_vars is None
+                and self.new_temporal is None):
+            return self.granule_info
+        return None
+
     def get_temporal(self):
         if not self.updating or self.new_temporal is None:
             return self.temporal
@@ -181,6 +207,7 @@ class SOCDownloadLogger:
             'metadata': {
                 'package_version': get_package_version()
             },
+            'gedi_version': self.gedi_version,
             'status': status,
             'last_modified': now(),
             'spatial_filter': None if self.spatial is None else to_geojson(self.spatial),
@@ -188,6 +215,9 @@ class SOCDownloadLogger:
             "s3_access": False,
             'products': product_logs
         }
+
+        if hasattr(self, 'granule_info'):
+            log_dict['granules'] = self.granule_info
 
         return log_dict
 

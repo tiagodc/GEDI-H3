@@ -710,7 +710,7 @@ def _merge_and_finalize(
     return h3_files
 
 
-def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, version=None, version_kwargs=None):
+def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, version=None):
     """Add new variables to a single H3 partition via shot_number join.
 
     Reads only shot_number + new variables from source HDF5 files,
@@ -726,9 +726,7 @@ def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, 
     soc_source : str, list, or None
         Source for HDF5 files (directory, file list, or None for S3)
     version : int or None
-        GEDI data version for S3 queries
-    version_kwargs : dict or None
-        Version kwargs for local file filtering
+        GEDI data version for S3 queries and local file filtering
 
     Returns
     -------
@@ -756,7 +754,8 @@ def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, 
 
     # Build the SOC file tree for locating source HDF5 files
     if isinstance(soc_source, str):
-        all_soc = soc_file_tree(soc_source, to_list=False, glob_kwargs=version_kwargs)
+        glob_kwargs = {'version': version} if version is not None else None
+        all_soc = soc_file_tree(soc_source, to_list=False, glob_kwargs=glob_kwargs)
     elif isinstance(soc_source, list):
         all_soc = soc_file_tree(soc_source, to_list=False)
     elif soc_source is None:
@@ -825,11 +824,11 @@ def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, 
 
 
 @dask.delayed
-def _d_add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, version=None, version_kwargs=None):
-    return _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, version, version_kwargs)
+def _d_add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, version=None):
+    return _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, version)
 
 
-def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None, version_kwargs=None):
+def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None):
     """Add new variables to existing H3 database partitions via shot_number join.
 
     Reads only shot_number + new variables from source HDF5 files,
@@ -844,9 +843,7 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     soc_source : str, list, or None
         Source for HDF5 files
     version : int or None
-        GEDI data version
-    version_kwargs : dict or None
-        Version kwargs for local file filtering
+        GEDI data version for S3 queries and local file filtering
 
     Returns
     -------
@@ -863,7 +860,7 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     logger.info(f"Updating {len(h3_subdirs)} H3 partitions with new variables")
 
     tasks = [
-        _d_add_variables_to_partition(d, new_product_vars, soc_source, version, version_kwargs)
+        _d_add_variables_to_partition(d, new_product_vars, soc_source, version)
         for d in h3_subdirs
     ]
     tasks = dask.persist(*tasks, traverse=False)
@@ -888,7 +885,6 @@ def build_h3db(
     temporal=None,
     soc_source: Union[str, List, None] = None,
     version: Optional[int] = None,
-    version_kwargs: Optional[Dict] = None,
     tmp_dir: str = os.path.join(GH3_DEFAULT_TMP_DIR, 'gh3_build'),
     h3_dir: str = GH3_DEFAULT_H3_DIR,
     skip_granules: Optional[List[Dict]] = None,
@@ -916,8 +912,7 @@ def build_h3db(
         - ``list``: pre-acquired list of file paths or EarthAccessFile objects
     version : int or None
         GEDI data version. If None, uses latest available.
-    version_kwargs : dict, optional
-        Keyword arguments for filtering local files by version.
+        Also used to filter local files by version when soc_source is a directory.
     tmp_dir : str
         Path to temporary directory for intermediate files.
     h3_dir : str
@@ -971,7 +966,8 @@ def build_h3db(
         if not os.path.exists(soc_source):
             raise GediFileError(f"SOC source directory not found: {soc_source}")
         logger.info("Listing source SOC files")
-        all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=version_kwargs)
+        glob_kwargs = {'version': version} if version is not None else None
+        all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=glob_kwargs)
     else:
         raise GediValidationError(f"Invalid soc_source type: {type(soc_source)}")
 

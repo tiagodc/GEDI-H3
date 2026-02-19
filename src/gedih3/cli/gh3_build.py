@@ -28,11 +28,11 @@ def get_cmd_args():
     p.add_argument("-o", "--output", dest="output", type=str, default=None,
                    help="output directory for H3 database")
     p.add_argument("-i", '--indir', dest="indir", type=str, default=None,
-                   help="path to local GEDI SOC files")
+                   help="download and build directory for GEDI SOC files (downloads missing files, then builds)")
     p.add_argument("-t", '--tmpdir', dest="tmpdir", type=str, default=None,
                    help="temporary directory for intermediate files")
     p.add_argument("-s3", "--s3", dest="s3", action='store_true',
-                   help="build directly from NASA DAACs S3 storage")
+                   help="stream directly from NASA S3 (no local download)")
     p.add_argument("--gedi-version", dest="version", type=int, default=None,
                    help="GEDI data version [default=latest available]")
 
@@ -51,8 +51,8 @@ def main():
     from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR
     from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success
     from gedih3.utils import get_system_resources
-    from gedih3.gh3builder import build_h3db
-    from gedih3.logger import H3BuildLogger
+    from gedih3.gh3builder import build_h3db, download_soc
+    from gedih3.logger import H3BuildLogger, SOCDownloadLogger
     from dask.distributed import Client
 
     # Setup logging and print banner
@@ -74,14 +74,16 @@ def main():
     if storage < 10:
         logger.warning(f"Low disk space ({storage:.1f} GB free) — build may fail writing parquet output")
 
-    # Determine source mode
-    # -i/--indir → local mode; otherwise → S3 streaming (default)
-    soc_source = args.indir  # None means S3 mode
-
-    if args.s3 and args.indir:
-        logger.warning("Both --indir and --s3 specified. Ignoring --s3, using local files.")
-    elif args.s3 and not args.indir:
-        logger.info("Note: --s3 is now the default when --indir is not specified.")
+    # Determine source mode: -i (download+build) or --s3 (stream)
+    if args.indir:
+        soc_source = args.indir
+        if args.s3:
+            logger.warning("Both -i and --s3 specified. Using -i (local download mode).")
+    elif args.s3:
+        soc_source = None  # S3 streaming
+    else:
+        logger.error("Either -i/--indir (download directory) or --s3 (S3 streaming) is required")
+        sys.exit(2)
 
     product_vars = parse_gedi_args(args)
     spatial = parse_region(args.region) if args.region is not None else None
@@ -97,7 +99,7 @@ def main():
         part=args.h3_partition,
         version=args.version,
         dir=args.output,
-        source_mode='local' if soc_source else 's3',
+        source_mode='s3' if args.s3 else 'download',
     )
 
     if not h3_logger.product_vars and not h3_logger.updating:
@@ -117,14 +119,9 @@ def main():
         if h3_logger.new_product_vars is not None:
             logger.info("Product variables updated")
 
-    source_label = f"local: {soc_source}" if soc_source else "NASA S3 streaming"
+    source_label = f"download+build: {soc_source}" if soc_source else "NASA S3 streaming"
     logger.info(f"Building GEDI H3 database at {args.output} (source: {source_label})")
     h3_logger.save_log('PARTITIONING')
-
-    # Build version_kwargs for local file filtering
-    version_kwargs = None
-    if soc_source and h3_logger.gedi_version is not None:
-        version_kwargs = {'version': h3_logger.gedi_version}
 
     dask_kwargs = parse_dask_args(args)
 
@@ -139,6 +136,40 @@ def main():
             client.run(_suppress_pandas_perf_warnings)
 
             logger.info(f"Dask dashboard available at: {client.dashboard_link}")
+
+            # Auto-download when using -i mode
+            if soc_source is not None:
+                os.makedirs(soc_source, exist_ok=True)
+                soc_logger = SOCDownloadLogger(
+                    product_vars=h3_logger.get_product_vars(),
+                    spatial=h3_logger.get_spatial(),
+                    temporal=h3_logger.get_temporal(),
+                    version=h3_logger.gedi_version,
+                    dir=soc_source,
+                )
+                needs_download = (
+                    not soc_logger.updating
+                    or soc_logger.get_finished_granules() is None
+                    or soc_logger.log_data.get('status') != 'COMPLETED'
+                )
+                if needs_download:
+                    logger.info(f"Downloading GEDI data to {soc_source}")
+                    soc_logger.save_log('DOWNLOADING')
+                    download_soc(
+                        product_vars=soc_logger.get_product_vars(),
+                        spatial=soc_logger.get_spatial(),
+                        temporal=soc_logger.get_temporal(),
+                        direct_access=False,
+                        update=True,
+                        version=h3_logger.gedi_version,
+                        odir=soc_source,
+                    )
+                    soc_logger.set_post_download_info()
+                    soc_logger.save_log('COMPLETED')
+                    logger.info("Download complete")
+                else:
+                    logger.info(f"Using existing downloads at {soc_source} ({len(soc_logger.granule_info)} granules)")
+
             try:
                 h3_files = build_h3db(
                     product_vars=h3_logger.get_product_vars(),
@@ -148,7 +179,6 @@ def main():
                     part=h3_logger.part,
                     soc_source=soc_source,
                     version=h3_logger.gedi_version,
-                    version_kwargs=version_kwargs,
                     h3_dir=h3_logger._PARENT_DIR,
                     skip_granules=h3_logger.get_finished_granules(),
                     status_callback=h3_logger.save_log,
@@ -160,6 +190,9 @@ def main():
 
                 n_files = len(h3_files) if h3_files else 0
                 print_success(f"{n_files} files exported to {args.output}", logger=logger)
+
+                if soc_source is not None:
+                    logger.info(f"Note: Downloaded HDF5 files in {soc_source} are no longer needed and can be deleted to free disk space")
 
             except Exception as e:
                 h3_logger.save_log('FAILED')

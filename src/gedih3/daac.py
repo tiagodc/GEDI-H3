@@ -230,7 +230,11 @@ class GEDIAccessor:
             if 'short_name' in self.product:
                 search_params['short_name'] = self.product['short_name']
                 if version is not None:
-                    search_params['version'] = f'{int(version):03d}'
+                    # LPDAAC uses zero-padded versions (e.g., '002'), ORNLDAAC uses plain strings (e.g., '2', '2.1')
+                    if self.product.get('daac') == 'LPDAAC':
+                        search_params['version'] = f'{int(version):03d}'
+                    else:
+                        search_params['version'] = str(version)
             else:
                 # Fallback to DOI
                 search_params['doi'] = self.product['doi']
@@ -253,6 +257,13 @@ class GEDIAccessor:
 
         self.search_params = search_params
         self.granules = earthaccess.search_data(**search_params)
+
+        # DOI fallback: if short_name search returned 0 results, retry with DOI
+        if len(self.granules) == 0 and self.product is not None and 'short_name' in search_params and 'doi' in self.product:
+            logger.warning(f"No granules found with short_name '{search_params['short_name']}', retrying with DOI")
+            fallback_params = {k: v for k, v in search_params.items() if k not in ('short_name', 'version')}
+            fallback_params['doi'] = self.product['doi']
+            self.granules = earthaccess.search_data(**fallback_params)
 
         product_key = product.upper() if product is not None else 'CUSTOM'
         self.product_files[product_key] = self.granules
@@ -609,7 +620,9 @@ def gedi_download(
             if prod == 'CUSTOM' and search_kwargs is not None:
                 granules = gass.search_data(product=None, **search_kwargs)
             else:
-                granules = gass.search_data(product=prod, version=version)
+                # Use per-product config version when --gedi-version not specified
+                prod_version = version if version is not None else GEDI_PRODUCTS.get(prod.upper(), {}).get('version')
+                granules = gass.search_data(product=prod, version=prod_version)
 
             if len(granules) == 0:
                 logger.warning(f"No granules found for product {prod}")
