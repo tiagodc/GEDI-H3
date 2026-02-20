@@ -16,7 +16,7 @@ from dask.distributed import progress
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME
 from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, parquet_schema_add_bbox, generate_manifest
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
-from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, validate_soc_files, load_h5
+from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_subset, validate_soc_files, load_h5
 from .daac import gedi_download
 from .logging_config import get_logger
 from .validation import validate_h3_params, validate_product_vars, validate_directory_exists
@@ -82,6 +82,145 @@ def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=
     )
 
     return soc_files
+
+
+def _subset_s3_file(s3_file, prod, product_vars, odir, file_idx, n_files):
+    """Subset a single S3 file to a compact local HDF5. Used by thread pool."""
+    gf = GEDIFile(s3_file)
+    local_dir = os.path.join(odir, str(gf.date.year), gf.date.strftime('%j'))
+    os.makedirs(local_dir, exist_ok=True)
+    local_path = os.path.join(local_dir, gf.full_name)
+
+    if os.path.exists(local_path):
+        logger.debug(f"[{file_idx}/{n_files}] Skipping {gf.full_name} (already exists)")
+        return local_path
+
+    vars_for_prod = product_vars.get(prod)
+    if vars_for_prod is None:
+        vars_for_prod = gedi_vars_from_h5(s3_file)
+
+    logger.info(f"[{file_idx}/{n_files}] Subsetting {gf.full_name} ({len(vars_for_prod)} vars)")
+    try:
+        result = gedi_subset(s3_file, local_path, vars_for_prod)
+        if result is None:
+            logger.warning(f"Subsetting produced no output for {gf.full_name}")
+            return None
+        return local_path
+    except Exception as e:
+        logger.warning(f"Failed to subset {gf.full_name}: {e}")
+        if os.path.exists(local_path):
+            os.unlink(local_path)
+        return None
+
+
+def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=None, n_workers=5):
+    """
+    ETL-style S3 build: open remote HDF5 files, extract only selected
+    variables via range requests, and write compact local HDF5 files.
+
+    This transfers and stores significantly less data than full downloads
+    (10-50x smaller depending on variable selection). Files are processed
+    in parallel using a thread pool (I/O-bound S3 range requests).
+
+    Parameters
+    ----------
+    product_vars : dict
+        Mapping of GEDI product codes (e.g., 'L2A', 'L4A') to variable
+        lists. Accepts 'default', 'minimal', or explicit variable names.
+    spatial : GeoDataFrame, list, or str, optional
+        Spatial filter (vector file, bbox as [W,S,E,N], or ISO3 code).
+    temporal : tuple of str, optional
+        Temporal range as (start_date, end_date) in 'YYYY-MM-DD' format.
+    version : int or str, optional
+        GEDI data version. If None, uses latest available.
+    odir : str
+        Output directory for compact local HDF5 files in SOC structure.
+    n_workers : int, default 5
+        Number of parallel threads for S3 subsetting.
+
+    Returns
+    -------
+    str
+        Path to the output directory containing compact HDF5 files.
+
+    Raises
+    ------
+    GediFileError
+        If no GEDI files are found on S3 for the given parameters.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    # Expand variable specifications and ensure L2A essentials + shot_number
+    product_vars = gedi_vars_expand(product_vars)
+
+    if 'L2A' not in product_vars:
+        product_vars.update({'L2A': GEDI_L2A_ESSENTIALS})
+
+    for k, val in product_vars.items():
+        if val is None:
+            continue
+        if 'shot_number' not in val:
+            val.append('shot_number')
+
+    # Get S3 file handles (no download to disk)
+    logger.info("Searching NASA DAAC and opening S3 handles")
+    s3_files = gedi_download(
+        product_vars=product_vars,
+        odir=None,
+        spatial=spatial,
+        temporal=temporal,
+        version=version,
+        to_list=True,
+    )
+
+    if not s3_files:
+        raise GediFileError("No GEDI files found on S3 for the given parameters")
+
+    # Organize by orbit/track → list of {product: EarthAccessFile} dicts
+    soc_tree = soc_file_tree(s3_files, to_list=True)
+    logger.info(f"Found {len(soc_tree)} granule groups on S3")
+
+    # Resolve None variables (dump all) by discovering from first available file
+    for prod, prod_vars in product_vars.items():
+        if prod_vars is not None:
+            continue
+        for entry in soc_tree:
+            if prod in entry:
+                product_vars[prod] = gedi_vars_from_h5(entry[prod])
+                logger.info(f"Discovered {len(product_vars[prod])} variables for {prod}")
+                break
+
+    # Build flat list of (s3_file, product, index) for parallel processing
+    os.makedirs(odir, exist_ok=True)
+    tasks = []
+    for entry in soc_tree:
+        for prod, s3_file in entry.items():
+            tasks.append((s3_file, prod))
+
+    n_files = len(tasks)
+    logger.info(f"Subsetting {n_files} files from S3 with {n_workers} parallel workers")
+
+    # Parallel ETL: thread pool for I/O-bound S3 range requests
+    completed = 0
+    failed = 0
+    with ThreadPoolExecutor(max_workers=n_workers) as pool:
+        futures = {
+            pool.submit(_subset_s3_file, s3_file, prod, product_vars, odir, idx + 1, n_files): idx
+            for idx, (s3_file, prod) in enumerate(tasks)
+        }
+        for future in as_completed(futures):
+            result = future.result()
+            completed += 1
+            if result is None:
+                failed += 1
+            if completed % 10 == 0 or completed == n_files:
+                logger.info(f"S3 ETL progress: {completed}/{n_files} files ({failed} failed)")
+
+    if failed > 0:
+        logger.warning(f"S3 ETL completed with {failed}/{n_files} failures")
+
+    return odir
+
 
 def h3_part_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode', roi_tiles=[]):
     """
@@ -954,22 +1093,21 @@ def build_h3db(
 
     # Determine source mode and acquire SOC files
     if soc_source is None:
-        # S3 mode: download to temp directory first, then build from local files.
-        # This avoids fsspec memory accumulation from streaming h5py reads.
-        # Files are subsetted during download (only requested variables kept).
+        # S3 ETL mode: open remote files via earthaccess, extract only selected
+        # variables via h5py range requests, write compact local HDF5 files.
+        # Transfers 10-50x less data than full download depending on variable selection.
         _s3_tmp_dir = os.path.join(tmp_dir, '_s3_download')
         os.makedirs(_s3_tmp_dir, exist_ok=True)
-        logger.info(f"Downloading GEDI data from S3 to temp directory: {_s3_tmp_dir}")
-        download_soc(
+        logger.info(f"ETL subset from S3 to temp directory: {_s3_tmp_dir}")
+        s3_etl_subset(
             product_vars=product_vars.copy(),
             spatial=spatial,
             temporal=temporal,
-            direct_access=False,
             version=version,
             odir=_s3_tmp_dir,
         )
         soc_source = _s3_tmp_dir
-        logger.info("S3 download complete, building from local files")
+        logger.info("S3 ETL subset complete, building from local files")
 
     if isinstance(soc_source, list):
         # Pre-acquired file list (local or EarthAccessFile)

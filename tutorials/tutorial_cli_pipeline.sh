@@ -54,8 +54,8 @@ H3_RESOLUTION=12  # Index level (~9m, matches GEDI footprint)
 H3_PARTITION=3    # Partition level (~100km tiles for file organization)
 
 # Dask settings (adjust based on your system)
-N_WORKERS=10       # Number of parallel workers
-MEMORY_GB=5       # Memory per worker in GB
+N_WORKERS=20       # Number of parallel workers
+MEMORY_GB=20       # Memory per worker in GB
 
 # Create directories
 mkdir -p "$SOC_DIR" "$H3_DIR" "$EXTRACT_DIR" "$AGG_DIR" "$RASTER_DIR"
@@ -119,7 +119,7 @@ gh3_build \
     -r="$REGION" \
     -d0 "$DATE_START" \
     -d1 "$DATE_END" \
-    -l2a default \
+    -l2a min \
     -l4a min \
     -h3r "$H3_RESOLUTION" \
     -h3p "$H3_PARTITION" \
@@ -127,9 +127,9 @@ gh3_build \
     -o "$H3_DIR" \
     -N "$N_WORKERS" \
     -M "$MEMORY_GB" \
-    -l4c min \
     -vv \
-    -i "$SOC_DIR" \
+    -s3 
+    # -i "$SOC_DIR" \
 
 # echo ""
 # echo "Database built! Location: $H3_DIR"
