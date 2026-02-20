@@ -521,13 +521,28 @@ def smart_glob(pattern, recursive=False):
         else:
             rel_pattern = pattern
 
+        is_dir_pattern = rel_pattern.endswith('/')
         rx = _glob_to_regex(rel_pattern)
-        matched = [
-            os.path.join(root_stripped, entry)
-            for entry in manifest
-            if rx.match(entry)
-        ]
-        return sorted(matched)
+
+        if is_dir_pattern:
+            # Manifest contains file paths; extract directory prefixes
+            # at the correct depth and match against the pattern.
+            depth = rel_pattern.rstrip('/').count('/') + 1
+            dirs = set()
+            for entry in manifest:
+                segments = entry.split('/')
+                if len(segments) >= depth:
+                    candidate = '/'.join(segments[:depth])
+                    if rx.match(candidate):
+                        dirs.add(os.path.join(root_stripped, candidate))
+            return sorted(dirs)
+        else:
+            matched = [
+                os.path.join(root_stripped, entry)
+                for entry in manifest
+                if rx.match(entry)
+            ]
+            return sorted(matched)
 
     # No manifest — fall back to filesystem globbing
     if not is_remote_path(pattern):
@@ -812,12 +827,34 @@ def h5_meta(file, var='METADATA/DatasetIdentification'):
         return dict(f[var].attrs.items())
 
 def h5_copy_subset(source_file, dest_file, variables):
+    """Copy selected datasets from source to dest HDF5 file.
+
+    Uses direct path iteration instead of visit_links() to avoid
+    traversing the entire HDF5 tree — critical for S3 performance
+    where each node visit is a range request (~50-100ms).
+    """
     import h5py
-    with h5py.File(source_file, 'r') as src, h5py.File(dest_file, 'w') as dst:
-        def copy_item(name):
-            if name in variables:
-                src.copy(name, dst, name=f"/{name}", expand_soft=True, expand_refs=True)
-        src.visit_links(copy_item)
+    import logging
+    logger = logging.getLogger(__name__)
+    skipped = []
+    with h5py.File(source_file, 'r', rdcc_nbytes=4*1024*1024) as src, h5py.File(dest_file, 'w') as dst:
+        for var_path in variables:
+            if var_path not in src:
+                skipped.append(var_path)
+                continue
+            parts = var_path.split('/')
+            # Create parent groups in destination
+            for depth in range(1, len(parts)):
+                parent = '/'.join(parts[:depth])
+                if parent not in dst:
+                    dst.create_group(parent)
+            # Copy dataset — expand_soft resolves soft links so linked
+            # variables pull the actual data
+            parent_path = '/'.join(parts[:-1])
+            dst_parent = dst[parent_path] if parent_path else dst
+            src.copy(var_path, dst_parent, name=parts[-1], expand_soft=True)
+    if skipped:
+        logger.warning(f"Skipped {len(skipped)} missing paths in {source_file}: {skipped[:5]}...")
 
 def read_vector_file(filepath: str, crs: Union[str, int] = 4326):
     import geopandas as gpd

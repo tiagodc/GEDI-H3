@@ -37,11 +37,11 @@ REGION="-51,0,-50,1"
 
 # Temporal range
 DATE_START="2020-01-01"
-DATE_END="2020-12-31"
+DATE_END="2020-03-31"
 
 # Output directories (customize these paths)
 # BASE_DIR="/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/gedih3_tutorial"
-BASE_DIR="../tmp/gedih3_tutorial"
+BASE_DIR="../tmp/gedih3_tutorial_s3"
 TMP_DIR="${BASE_DIR}/tmp"             # Temporary files
 SOC_DIR="${BASE_DIR}/soc_data"        # Downloaded HDF5 files
 H3_DIR="${BASE_DIR}/h3_database"      # H3-indexed parquet database
@@ -54,8 +54,8 @@ H3_RESOLUTION=12  # Index level (~9m, matches GEDI footprint)
 H3_PARTITION=3    # Partition level (~100km tiles for file organization)
 
 # Dask settings (adjust based on your system)
-N_WORKERS=20       # Number of parallel workers
-MEMORY_GB=20       # Memory per worker in GB
+N_WORKERS=4       # Number of parallel workers
+MEMORY_GB=4       # Memory per worker in GB
 
 # Create directories
 mkdir -p "$SOC_DIR" "$H3_DIR" "$EXTRACT_DIR" "$AGG_DIR" "$RASTER_DIR"
@@ -128,8 +128,7 @@ gh3_build \
     -N "$N_WORKERS" \
     -M "$MEMORY_GB" \
     -vv \
-    -s3 
-    # -i "$SOC_DIR" \
+    -s3 -l4c wsci #-i "$SOC_DIR"
 
 # echo ""
 # echo "Database built! Location: $H3_DIR"
