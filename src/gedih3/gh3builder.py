@@ -84,9 +84,20 @@ def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=
     return soc_files
 
 
-def _subset_s3_file(s3_file, prod, product_vars, odir, file_idx, n_files):
-    """Subset a single S3 file to a compact local HDF5. Used by thread pool."""
-    gf = GEDIFile(s3_file)
+def _subset_s3_file(granule, prod, product_vars, odir, file_idx, n_files):
+    """Subset a single S3 file to a compact local HDF5. Process-safe via granule serialization.
+
+    Accepts a serializable DataGranule object (not an EarthAccessFile handle).
+    Each worker re-authenticates and opens its own S3 handle, enabling true
+    multiprocessing via Dask workers instead of GIL-constrained threads.
+    """
+    import earthaccess
+    from .logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    # Parse filename from granule data link
+    gf = GEDIFile(granule.data_links()[0])
     local_dir = os.path.join(odir, str(gf.date.year), gf.date.strftime('%j'))
     os.makedirs(local_dir, exist_ok=True)
     local_path = os.path.join(local_dir, gf.full_name)
@@ -94,6 +105,23 @@ def _subset_s3_file(s3_file, prod, product_vars, odir, file_idx, n_files):
     if os.path.exists(local_path):
         logger.debug(f"[{file_idx}/{n_files}] Skipping {gf.full_name} (already exists)")
         return local_path
+
+    # Re-authenticate in worker process (same pattern as daac.py:379)
+    if earthaccess.__store__ is None:
+        earthaccess.login(strategy='netrc', persist=False)
+
+    # Open S3 handle from granule in this worker process
+    try:
+        s3_files = earthaccess.open([granule], pqdm_kwargs={'disable': True})
+    except Exception as e:
+        logger.warning(f"[{file_idx}/{n_files}] Failed to open S3 handle for {gf.full_name}: {e}")
+        return None
+
+    if not s3_files:
+        logger.warning(f"[{file_idx}/{n_files}] No S3 handle returned for {gf.full_name}")
+        return None
+
+    s3_file = s3_files[0]
 
     vars_for_prod = product_vars.get(prod)
     if vars_for_prod is None:
@@ -113,14 +141,16 @@ def _subset_s3_file(s3_file, prod, product_vars, odir, file_idx, n_files):
         return None
 
 
-def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=None, n_workers=5):
+def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=None, ensure_l2a=True):
     """
-    ETL-style S3 build: open remote HDF5 files, extract only selected
-    variables via range requests, and write compact local HDF5 files.
+    ETL-style S3 build: search for GEDI granules, then dispatch Dask workers
+    to open remote HDF5 files, extract only selected variables via range
+    requests, and write compact local HDF5 files.
 
     This transfers and stores significantly less data than full downloads
-    (10-50x smaller depending on variable selection). Files are processed
-    in parallel using a thread pool (I/O-bound S3 range requests).
+    (10-50x smaller depending on variable selection). Workers run as true
+    separate processes via Dask (GIL-free), matching the parallelism of
+    download mode.
 
     Parameters
     ----------
@@ -135,8 +165,10 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
         GEDI data version. If None, uses latest available.
     odir : str
         Output directory for compact local HDF5 files in SOC structure.
-    n_workers : int, default 5
-        Number of parallel threads for S3 subsetting.
+    ensure_l2a : bool, default True
+        If True, automatically add L2A essentials when L2A is not in
+        product_vars. Set to False for variable-only updates where L2A
+        data already exists in the target database.
 
     Returns
     -------
@@ -148,12 +180,12 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
     GediFileError
         If no GEDI files are found on S3 for the given parameters.
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from .daac import GEDIAccessor
 
     # Expand variable specifications and ensure L2A essentials + shot_number
     product_vars = gedi_vars_expand(product_vars)
 
-    if 'L2A' not in product_vars:
+    if ensure_l2a and 'L2A' not in product_vars:
         product_vars.update({'L2A': GEDI_L2A_ESSENTIALS})
 
     for k, val in product_vars.items():
@@ -162,59 +194,84 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
         if 'shot_number' not in val:
             val.append('shot_number')
 
-    # Get S3 file handles (no download to disk)
-    logger.info("Searching NASA DAAC and opening S3 handles")
-    s3_files = gedi_download(
-        product_vars=product_vars,
-        odir=None,
-        spatial=spatial,
-        temporal=temporal,
-        version=version,
-        to_list=True,
-    )
+    # Search for granules per product (no S3 handles opened yet)
+    logger.info("Searching NASA DAAC for GEDI granules")
+    gass = GEDIAccessor(authenticate=True, spatial=spatial, temporal=temporal)
 
-    if not s3_files:
-        raise GediFileError("No GEDI files found on S3 for the given parameters")
+    for prod in product_vars:
+        prod_version = version if version is not None else GEDI_PRODUCTS.get(prod.upper(), {}).get('version')
+        gass.search_data(product=prod, version=prod_version)
 
-    # Organize by orbit/track → list of {product: EarthAccessFile} dicts
-    soc_tree = soc_file_tree(s3_files, to_list=True)
-    logger.info(f"Found {len(soc_tree)} granule groups on S3")
-
-    # Resolve None variables (dump all) by discovering from first available file
+    # Resolve None variables (dump all) by opening one S3 handle to discover schema
     for prod, prod_vars in product_vars.items():
         if prod_vars is not None:
             continue
-        for entry in soc_tree:
-            if prod in entry:
-                product_vars[prod] = gedi_vars_from_h5(entry[prod])
+        granules = gass.product_files.get(prod, [])
+        if granules:
+            s3_files = gass.link_s3(product=prod)
+            if s3_files:
+                product_vars[prod] = gedi_vars_from_h5(s3_files[0])
                 logger.info(f"Discovered {len(product_vars[prod])} variables for {prod}")
-                break
 
-    # Build flat list of (s3_file, product, index) for parallel processing
+    # Build flat task list of (granule, product) from search results
     os.makedirs(odir, exist_ok=True)
     tasks = []
-    for entry in soc_tree:
-        for prod, s3_file in entry.items():
-            tasks.append((s3_file, prod))
+    for prod, granules in gass.product_files.items():
+        for granule in granules:
+            tasks.append((granule, prod))
 
     n_files = len(tasks)
-    logger.info(f"Subsetting {n_files} files from S3 with {n_workers} parallel workers")
+    if n_files == 0:
+        raise GediFileError("No GEDI files found on S3 for the given parameters")
 
-    # Parallel ETL: thread pool for I/O-bound S3 range requests
-    completed = 0
+    # Dispatch to Dask workers (true multiprocessing, GIL-free)
+    # Falls back to ProcessPoolExecutor when no Dask cluster is available
+    client = get_dask_client()
+
+    completed_count = 0
     failed = 0
-    with ThreadPoolExecutor(max_workers=n_workers) as pool:
-        futures = {
-            pool.submit(_subset_s3_file, s3_file, prod, product_vars, odir, idx + 1, n_files): idx
-            for idx, (s3_file, prod) in enumerate(tasks)
-        }
-        for future in as_completed(futures):
-            result = future.result()
-            completed += 1
+
+    if client is not None:
+        n_workers = sum(client.nthreads().values())
+        logger.info(f"Subsetting {n_files} files from S3 with Dask ({n_workers} workers)")
+
+        futures = [
+            client.submit(
+                _subset_s3_file, granule, prod, product_vars,
+                odir, idx + 1, n_files, pure=False,
+            )
+            for idx, (granule, prod) in enumerate(tasks)
+        ]
+
+        from distributed import as_completed as dask_as_completed
+        for future, result in dask_as_completed(futures, with_results=True):
+            completed_count += 1
             if result is None:
                 failed += 1
-            if completed % 10 == 0 or completed == n_files:
-                logger.info(f"S3 ETL progress: {completed}/{n_files} files ({failed} failed)")
+            if completed_count % 10 == 0 or completed_count == n_files:
+                logger.info(f"S3 ETL progress: {completed_count}/{n_files} files ({failed} failed)")
+    else:
+        # Fallback: ProcessPoolExecutor (no Dask cluster available)
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+
+        n_workers = min(5, n_files)
+        logger.info(f"Subsetting {n_files} files from S3 with {n_workers} processes (no Dask cluster)")
+
+        with ProcessPoolExecutor(max_workers=n_workers) as pool:
+            future_map = {
+                pool.submit(
+                    _subset_s3_file, granule, prod, product_vars,
+                    odir, idx + 1, n_files,
+                ): idx
+                for idx, (granule, prod) in enumerate(tasks)
+            }
+            for future in as_completed(future_map):
+                result = future.result()
+                completed_count += 1
+                if result is None:
+                    failed += 1
+                if completed_count % 10 == 0 or completed_count == n_files:
+                    logger.info(f"S3 ETL progress: {completed_count}/{n_files} files ({failed} failed)")
 
     if failed > 0:
         logger.warning(f"S3 ETL completed with {failed}/{n_files} failures")
@@ -1098,6 +1155,39 @@ def build_h3db(
         # Transfers 10-50x less data than full download depending on variable selection.
         _s3_tmp_dir = os.path.join(tmp_dir, '_s3_download')
         os.makedirs(_s3_tmp_dir, exist_ok=True)
+
+        # Check if this is a variable-only update on an existing database
+        # (all requested products are NEW, none overlap with existing products)
+        build_log_path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
+        if os.path.exists(build_log_path):
+            existing_log = json_read(build_log_path)
+            existing_products = set(existing_log.get('products', {}).keys())
+            requested_products = set(product_vars.keys())
+
+            if requested_products and requested_products.isdisjoint(existing_products):
+                # All requested products are NEW → variable-only S3 update
+                logger.info(f"S3 variable-only update: adding {requested_products} to existing database")
+                try:
+                    if status_callback:
+                        status_callback('PROCESSING')
+                    s3_etl_subset(
+                        product_vars=product_vars.copy(),
+                        spatial=spatial,
+                        temporal=temporal,
+                        version=version,
+                        odir=_s3_tmp_dir,
+                        ensure_l2a=False,
+                    )
+                    result = _build_add_variables(
+                        h3_dir, product_vars,
+                        soc_source=_s3_tmp_dir, version=version,
+                    )
+                    return result
+                finally:
+                    if os.path.exists(_s3_tmp_dir):
+                        shutil.rmtree(_s3_tmp_dir, ignore_errors=True)
+
+        # Fresh build or mixed update: full pipeline with L2A
         logger.info(f"ETL subset from S3 to temp directory: {_s3_tmp_dir}")
         s3_etl_subset(
             product_vars=product_vars.copy(),

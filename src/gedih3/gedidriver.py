@@ -136,15 +136,10 @@ def soc_file_tree(
     return soc_tree
 
 def gedi_subset(source_file, dest_file, variables, subset_beams=None):
-    with h5py.File(source_file, 'r') as f:
-        beams = [k for k in f.keys() if k.startswith('BEAM')]
-    
-    if subset_beams is not None:
-        beams = [b for b in beams if b in subset_beams]
-    
+    beams = [b for b in GEDI_BEAMS if b in subset_beams] if subset_beams else list(GEDI_BEAMS)
     beam_variables = [f"{b}/{v}" for b in beams for v in variables]
     h5_copy_subset(source_file, dest_file, beam_variables)
-    
+
     if os.path.exists(dest_file):
         return dest_file
     return None
