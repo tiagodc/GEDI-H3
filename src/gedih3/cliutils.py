@@ -1008,7 +1008,7 @@ def parse_aggregation(agg_str):
             raise GediValidationError(
                 f"Invalid aggregation spec: {agg_str}\n"
                 f"  Parse error: {e}\n"
-                f"  Examples: 'mean', \"['mean','std']\", \"{'col':['mean','count']}\""
+                "  Examples: 'mean', \"['mean','std']\", \"{'col':['mean','count']}\""
             )
         return _expand_percentile_specs(result)
 
