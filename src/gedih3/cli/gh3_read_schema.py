@@ -158,6 +158,9 @@ def main():
     try:
         from gedih3.utils import read_schema
         schema_df = read_schema(args.path, root=args.group)
+        # Sort by name column for user-friendly output
+        sort_col = 'path' if 'path' in schema_df.columns else 'column'
+        schema_df = schema_df.sort_values(sort_col).reset_index(drop=True)
         file_type = _detect_file_type(args.path)
     except Exception as e:
         print(f"Error reading schema: {e}", file=sys.stderr)

@@ -108,6 +108,7 @@ def main():
         schema_df = schema_df[mask]
 
     columns = list(zip(schema_df['column'], schema_df['dtype'].astype(str)))
+    columns.sort(key=lambda c: c[0])  # Sort by column name
 
     # JSON output
     if args.json_output:
