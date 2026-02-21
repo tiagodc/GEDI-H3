@@ -20,7 +20,7 @@
 # Author: gedih3 team
 # =============================================================================
 
-# set -e  # Exit on error
+set -e  # Exit on error
 
 echo "=============================================="
 echo " gedih3 CLI Tutorial"
@@ -40,8 +40,7 @@ DATE_START="2020-01-01"
 DATE_END="2020-03-31"
 
 # Output directories (customize these paths)
-# BASE_DIR="/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/gedih3_tutorial"
-BASE_DIR="../tmp/gedih3_tutorial_s3"
+BASE_DIR="../tmp/gedih3_tutorial"
 TMP_DIR="${BASE_DIR}/tmp"             # Temporary files
 SOC_DIR="${BASE_DIR}/soc_data"        # Downloaded HDF5 files
 H3_DIR="${BASE_DIR}/h3_database"      # H3-indexed parquet database
@@ -54,8 +53,12 @@ H3_RESOLUTION=12  # Index level (~9m, matches GEDI footprint)
 H3_PARTITION=3    # Partition level (~100km tiles for file organization)
 
 # Dask settings (adjust based on your system)
-N_WORKERS=4       # Number of parallel workers
+N_WORKERS=3       # Number of parallel workers
 MEMORY_GB=4       # Memory per worker in GB
+
+# Skip flags (set via environment to skip long-running steps)
+SKIP_DOWNLOAD=${SKIP_DOWNLOAD:-false}
+SKIP_BUILD=${SKIP_BUILD:-false}
 
 # Create directories
 mkdir -p "$SOC_DIR" "$H3_DIR" "$EXTRACT_DIR" "$AGG_DIR" "$RASTER_DIR"
@@ -75,29 +78,36 @@ echo "Step 1: Downloading GEDI Data"
 echo "=============================================="
 echo ""
 
-# Download L2A (heights) and L4A (biomass) products
-# Use 'default' for the standard variable set, or list specific variables
+if [ "$SKIP_DOWNLOAD" = "false" ]; then
 
-# echo "Downloading GEDI L2A and L4A data..."
-# echo "This may take several minutes depending on data availability..."
-# echo ""
+    # Download L2A (heights) and L4A (biomass) products
+    # Use 'default' for the standard variable set, or list specific variables
 
-# gh3_download \
-#     -r="$REGION" \
-#     -d0 "$DATE_START" \
-#     -d1 "$DATE_END" \
-#     -l2a default \
-#     -l4a agbd \
-#     -o "$SOC_DIR" \
-#     -N "$N_WORKERS" \
-#     -M "$MEMORY_GB" \
-#     -v
+    echo "Downloading GEDI L2A and L4A data..."
+    echo "This may take several minutes depending on data availability..."
+    echo ""
 
-# echo ""
-# echo "Download complete! Files saved to: $SOC_DIR"
-# echo "Downloaded files:"
-# find "$SOC_DIR" -name "*.h5" | head -10
-# echo ""
+    gh3_download \
+        -r="$REGION" \
+        -d0 "$DATE_START" \
+        -d1 "$DATE_END" \
+        -l2a default \
+        -l4a agbd \
+        -o "$SOC_DIR" \
+        -N "$N_WORKERS" \
+        -M "$MEMORY_GB" \
+        -v
+
+    echo ""
+    echo "Download complete! Files saved to: $SOC_DIR"
+    echo "Downloaded files:"
+    find "$SOC_DIR" -name "*.h5" | head -10
+    echo ""
+
+else
+    echo "Skipping download (SKIP_DOWNLOAD=true)"
+    echo ""
+fi
 
 # -----------------------------------------------------------------------------
 # Step 2: Build H3-Indexed Database
@@ -108,275 +118,291 @@ echo "Step 2: Building H3-Indexed Database"
 echo "=============================================="
 echo ""
 
-echo "Building H3 database with:"
-echo "  - Index resolution: $H3_RESOLUTION (~9m hexagons)"
-echo "  - Partition level: $H3_PARTITION (~100km tiles)"
+if [ "$SKIP_BUILD" = "false" ]; then
+
+    echo "Building H3 database with:"
+    echo "  - Index resolution: $H3_RESOLUTION (~9m hexagons)"
+    echo "  - Partition level: $H3_PARTITION (~100km tiles)"
+    echo ""
+
+    # Build the database from downloaded HDF5 files
+    # -i points to the SOC directory from Step 1
+    gh3_build \
+        -r="$REGION" \
+        -d0 "$DATE_START" \
+        -d1 "$DATE_END" \
+        -l2a min \
+        -l4a min \
+        -i "$SOC_DIR" \
+        -h3r "$H3_RESOLUTION" \
+        -h3p "$H3_PARTITION" \
+        -t "$TMP_DIR" \
+        -o "$H3_DIR" \
+        -N "$N_WORKERS" \
+        -M "$MEMORY_GB" \
+        -vv
+
+    echo ""
+    echo "Database built! Location: $H3_DIR"
+    echo ""
+
+    # View database metadata
+    echo "Database metadata:"
+    cat "$H3_DIR/gedih3_build_log.json" | python -m json.tool | head -30
+
+    echo ""
+    echo "Database structure:"
+    ls -la "$H3_DIR" | head -20
+    echo ""
+
+else
+    echo "Skipping build (SKIP_BUILD=true)"
+    echo ""
+fi
+
+# -----------------------------------------------------------------------------
+# Verify H3 database exists before proceeding
+# -----------------------------------------------------------------------------
+
+if [ ! -f "$H3_DIR/gedih3_build_log.json" ]; then
+    echo "H3 database not found. Run build step first."
+    exit 1
+fi
+
+# -----------------------------------------------------------------------------
+# Step 3: Extract Data with Filters
+# -----------------------------------------------------------------------------
+
+echo "=============================================="
+echo "Step 3: Extracting Filtered Data"
+echo "=============================================="
 echo ""
 
-# Build the database from downloaded HDF5 files
-# -i points to the SOC directory from Step 1 (downloads missing files if needed)
-gh3_build \
+# Extract specific variables with quality filtering
+echo "Extracting high-quality GEDI shots..."
+
+gh3_extract \
+    -d "$H3_DIR" \
     -r="$REGION" \
-    -d0 "$DATE_START" \
-    -d1 "$DATE_END" \
-    -l2a min \
-    -l4a min \
-    -h3r "$H3_RESOLUTION" \
-    -h3p "$H3_PARTITION" \
-    -t "$TMP_DIR" \
-    -o "$H3_DIR" \
+    -l2a rh_098 rh_050 \
+    -l4a agbd \
+    -y \
+    -o "$EXTRACT_DIR" \
     -N "$N_WORKERS" \
-    -M "$MEMORY_GB" \
-    -vv \
-    -s3 -l4c wsci #-i "$SOC_DIR"
+    -vv
 
-# echo ""
-# echo "Database built! Location: $H3_DIR"
-# echo ""
+echo ""
+echo "Extraction complete! Files saved to: $EXTRACT_DIR"
+echo "Output files:"
+find "$EXTRACT_DIR" -name "*.parquet" | head -10
+echo ""
 
-# # View database metadata
-# echo "Database metadata:"
-# cat "$H3_DIR/gedih3_build_log.json" | python -m json.tool | head -30
+# -----------------------------------------------------------------------------
+# Step 4: Aggregate Data
+# -----------------------------------------------------------------------------
 
-# echo ""
-# echo "Database structure:"
-# ls -la "$H3_DIR" | head -20
-# echo ""
+echo "=============================================="
+echo "Step 4: Aggregating Data"
+echo "=============================================="
+echo ""
 
-# # -----------------------------------------------------------------------------
-# # Step 3: Extract Data with Filters
-# # -----------------------------------------------------------------------------
+# ----- Option A: H3 Hexagonal Aggregation -----
+echo "4A: Aggregating to H3 level 6 (~36 km2 hexagons)..."
 
-# echo "=============================================="
-# echo "Step 3: Extracting Filtered Data"
-# echo "=============================================="
-# echo ""
+H3_AGG_DIR="${AGG_DIR}/h3_level6"
+mkdir -p "$H3_AGG_DIR"
 
-# # Extract specific variables with quality filtering
-# echo "Extracting high-quality GEDI shots..."
+gh3_aggregate \
+    -d "$H3_DIR" \
+    -h3 6 \
+    -l4a agbd \
+    -a mean \
+    -y \
+    -o "$H3_AGG_DIR" \
+    -N "$N_WORKERS" \
+    -vv
 
-# gh3_extract \
-#     -d "$H3_DIR" \
-#     -r="$REGION" \
-#     -l2a rh_098 rh_050 \
-#     -l4a agbd \
-#     -y \
-#     -o "$EXTRACT_DIR" \
-#     -N "$N_WORKERS" \
-#     -vv
+echo "H3 aggregation complete!"
+echo ""
 
-# echo ""
-# echo "Extraction complete! Files saved to: $EXTRACT_DIR"
-# echo "Output files:"
-# find "$EXTRACT_DIR" -name "*.parquet" | head -10
-# echo ""
+# ----- Option B: EGI Square Pixel Aggregation -----
+echo "4B: Aggregating to EGI level 6 (~1km square pixels)..."
 
-# # -----------------------------------------------------------------------------
-# # Step 4: Aggregate Data
-# # -----------------------------------------------------------------------------
+EGI_AGG_DIR="${AGG_DIR}/egi_level6"
+mkdir -p "$EGI_AGG_DIR"
 
-# echo "=============================================="
-# echo "Step 4: Aggregating Data"
-# echo "=============================================="
-# echo ""
+gh3_aggregate \
+    -d "$H3_DIR" \
+    -egi 6 \
+    -l4a agbd \
+    -a mean \
+    -y \
+    -o "$EGI_AGG_DIR" \
+    -N "$N_WORKERS" \
+    -vv
 
-# # ----- Option A: H3 Hexagonal Aggregation -----
-# echo "4A: Aggregating to H3 level 6 (~36 km² hexagons)..."
+echo "EGI aggregation complete!"
+echo ""
 
-# H3_AGG_DIR="${AGG_DIR}/h3_level6"
-# mkdir -p "$H3_AGG_DIR"
+# -----------------------------------------------------------------------------
+# Step 5: Rasterize to GeoTIFF
+# -----------------------------------------------------------------------------
+#
+# Two approaches are available for rasterization:
+#
+# APPROACH A: Aggregate + Rasterize in one step (gh3_aggregate --rasterize)
+#   - Use when you need raster (GeoTIFF) output directly from aggregation
+#   - Efficient: aggregation and rasterization in a single pass
+#
+# APPROACH B: Rasterize pre-aggregated data (gh3_rasterize)
+#   - Use when you already have aggregated data from Step 4
+#   - Useful for converting existing datasets to rasters
+#   - Allows filtering/selecting specific variables from aggregated data
+#
+# -----------------------------------------------------------------------------
 
-# gh3_aggregate \
-#     -d "$H3_DIR" \
-#     -h3 6 \
-#     -l4a agbd \
-#     -a mean \
-#     -y \
-#     -o "$H3_AGG_DIR" \
-#     -N "$N_WORKERS" \
-#     -vv
+echo "=============================================="
+echo "Step 5: Rasterizing to GeoTIFF"
+echo "=============================================="
+echo ""
 
-# echo "H3 aggregation complete!"
-# echo ""
+# ----- Option A: Aggregate + Rasterize in one step -----
+echo "5A: Aggregating to EGI level 6 with rasterization..."
 
-# # ----- Option B: EGI Square Pixel Aggregation -----
-# echo "4B: Aggregating to EGI level 6 (~1km square pixels)..."
+EGI_RASTER_DIR="${AGG_DIR}/egi_level6_with_rasters"
+mkdir -p "$EGI_RASTER_DIR"
 
-# EGI_AGG_DIR="${AGG_DIR}/egi_level6"
-# mkdir -p "$EGI_AGG_DIR"
+gh3_aggregate \
+    -d "$H3_DIR" \
+    -egi 6 \
+    -l4a agbd \
+    -a mean \
+    -y \
+    -R \
+    --compress LZW \
+    -o "$EGI_RASTER_DIR" \
+    -N "$N_WORKERS" \
+    -vv
 
-# gh3_aggregate \
-#     -d "$H3_DIR" \
-#     -egi 6 \
-#     -l4a agbd \
-#     -a mean \
-#     -y \
-#     -o "$EGI_AGG_DIR" \
-#     -N "$N_WORKERS" \
-#     -vv
+echo "Raster output saved to: $EGI_RASTER_DIR"
+echo "  - Raster files: $EGI_RASTER_DIR/*.tif"
+echo ""
 
-# echo "EGI aggregation complete!"
-# echo ""
+# ----- Option B: Rasterize from aggregated dataset -----
+echo "5B: Rasterizing pre-aggregated EGI data (tiled output)..."
 
-# # -----------------------------------------------------------------------------
-# # Step 5: Rasterize to GeoTIFF
-# # -----------------------------------------------------------------------------
-# #
-# # Two approaches are available for rasterization:
-# #
-# # APPROACH A: Aggregate + Rasterize in one step (gh3_aggregate --rasterize)
-# #   - Use when you need both vector (parquet) and raster (GeoTIFF) outputs
-# #   - Efficient: aggregation only happens once
-# #
-# # APPROACH B: Rasterize pre-aggregated data (gh3_rasterize)
-# #   - Use when you already have aggregated data from Step 4
-# #   - Useful for converting existing datasets to rasters
-# #   - Allows filtering/selecting specific variables from aggregated data
-# #
-# # -----------------------------------------------------------------------------
+RASTER_TILES="${RASTER_DIR}/tiles"
+mkdir -p "$RASTER_TILES"
 
-# echo "=============================================="
-# echo "Step 5: Rasterizing to GeoTIFF"
-# echo "=============================================="
-# echo ""
+# Note: gh3_rasterize takes the OUTPUT from gh3_aggregate (Step 4B)
+# After aggregation with -a mean, column names have _mean suffix
+gh3_rasterize \
+    -d "$EGI_AGG_DIR" \
+    -l agbd_l4a_mean \
+    -o "$RASTER_TILES" \
+    --compress LZW \
+    -N "$N_WORKERS" \
+    -vv
 
-# # ----- Option A: Aggregate + Rasterize in one step -----
-# echo "5A: Aggregating to EGI level 6 with rasterization..."
+echo "Tiled rasters saved to: $RASTER_TILES"
+echo ""
 
-# EGI_RASTER_DIR="${AGG_DIR}/egi_level6_with_rasters"
-# mkdir -p "$EGI_RASTER_DIR"
+# ----- Option C: Merged raster from aggregated data -----
+echo "5C: Creating merged raster (single file)..."
 
-# gh3_aggregate \
-#     -d "$H3_DIR" \
-#     -egi 6 \
-#     -l4a agbd \
-#     -a mean \
-#     -y \
-#     -R \
-#     --compress LZW \
-#     -o "$EGI_RASTER_DIR" \
-#     -N "$N_WORKERS" \
-#     -vv
+MERGED_RASTER="${RASTER_DIR}/agbd_merged.tif"
 
-# echo "Aggregated data + rasters saved to: $EGI_RASTER_DIR"
-# echo "  - Parquet files: $EGI_RASTER_DIR/*.parquet"
-# echo "  - Raster files: $EGI_RASTER_DIR/rasters/*.tif"
-# echo ""
+gh3_rasterize \
+    -d "$EGI_AGG_DIR" \
+    -l agbd_l4a_mean \
+    -m \
+    -o "$MERGED_RASTER" \
+    --compress LZW \
+    -N "$N_WORKERS" \
+    -vv
 
-# # ----- Option B: Rasterize from aggregated dataset -----
-# echo "5B: Rasterizing pre-aggregated EGI data (tiled output)..."
+echo "Merged raster saved to: $MERGED_RASTER"
+echo ""
 
-# RASTER_TILES="${RASTER_DIR}/tiles"
-# mkdir -p "$RASTER_TILES"
+# ----- Option D: Time-series aggregate then rasterize -----
+echo "5D: Time-series aggregation then rasterization..."
 
-# # Note: gh3_rasterize takes the OUTPUT from gh3_aggregate (Step 4B)
-# gh3_rasterize \
-#     -d "$EGI_AGG_DIR" \
-#     -l agbd_l4a \
-#     -o "$RASTER_TILES" \
-#     --compress LZW \
-#     -N "$N_WORKERS" \
-#     -vv
+# Step 1: Create time-series aggregate (generates subdirectory per window)
+gh3_aggregate \
+    -d "$H3_DIR" \
+    -egi 6 \
+    -l4a agbd \
+    -a mean \
+    -ti 1 -tu years \
+    -t0 "$DATE_START" -t1 "$DATE_END" \
+    -o "$AGG_DIR/egi_timeseries" \
+    -N "$N_WORKERS" \
+    -v
 
-# echo "Tiled rasters saved to: $RASTER_TILES"
-# echo ""
+echo "Time-series aggregated data saved to: $AGG_DIR/egi_timeseries"
+echo ""
 
-# # ----- Option C: Merged raster from aggregated data -----
-# echo "5C: Creating merged raster (single file)..."
+# Step 2: gh3_rasterize auto-detects time-series subdirectories
+gh3_rasterize \
+    -d "$AGG_DIR/egi_timeseries" \
+    -m \
+    -o "$RASTER_DIR/timeseries" \
+    --compress LZW \
+    -N "$N_WORKERS" \
+    -v
 
-# MERGED_RASTER="${RASTER_DIR}/agbd_merged.tif"
+echo "Time-series rasters saved to: $RASTER_DIR/timeseries"
+echo ""
 
-# gh3_rasterize \
-#     -d "$EGI_AGG_DIR" \
-#     -l agbd_l4a \
-#     -m \
-#     -o "$MERGED_RASTER" \
-#     --compress LZW \
-#     -N "$N_WORKERS" \
-#     -vv
+# -----------------------------------------------------------------------------
+# Summary
+# -----------------------------------------------------------------------------
 
-# echo "Merged raster saved to: $MERGED_RASTER"
-# echo ""
+echo "=============================================="
+echo " Tutorial Complete!"
+echo "=============================================="
+echo ""
+echo "Output Summary:"
+echo "  - Downloaded HDF5 files: $SOC_DIR"
+echo "  - H3 database: $H3_DIR"
+echo "  - Extracted data: $EXTRACT_DIR"
+echo "  - Aggregated data: $AGG_DIR"
+echo "  - Raster outputs: $RASTER_DIR"
+echo ""
+echo "Next Steps:"
+echo "  1. Open rasters in QGIS or ArcGIS"
+echo "  2. Use extracted parquet files in Python/R"
+echo "  3. Run analysis on aggregated data"
+echo ""
+echo "For more options, use --help with any tool:"
+echo "  gh3_download --help"
+echo "  gh3_build --help"
+echo "  gh3_extract --help"
+echo "  gh3_aggregate --help"
+echo "  gh3_rasterize --help"
+echo ""
 
-# # ----- Option D: Time-series aggregate then rasterize -----
-# echo "5D: Time-series aggregation then rasterization..."
+# -----------------------------------------------------------------------------
+# Bonus: Read Schema of Output Files
+# -----------------------------------------------------------------------------
 
-# # Step 1: Create time-series aggregate (generates subdirectory per window)
-# gh3_aggregate \
-#     -d "$H3_DIR" \
-#     -egi 6 \
-#     -l4a agbd \
-#     -a mean \
-#     -ti 1 -tu years \
-#     -t0 "$DATE_START" -t1 "$DATE_END" \
-#     -o "$AGG_DIR/egi_timeseries" \
-#     -N "$N_WORKERS" \
-#     -v
+echo "=============================================="
+echo " Bonus: Inspecting Output Schemas"
+echo "=============================================="
+echo ""
 
-# echo "Time-series aggregated data saved to: $AGG_DIR/egi_timeseries"
-# echo ""
+echo "H3 Database schema:"
+FIRST_PARQUET=$(find "$H3_DIR" -name "*.parquet" | head -1)
+if [ -n "$FIRST_PARQUET" ]; then
+    gh3_read_schema "$FIRST_PARQUET" | head -20
+fi
 
-# # Step 2: gh3_rasterize auto-detects time-series subdirectories
-# gh3_rasterize \
-#     -d "$AGG_DIR/egi_timeseries" \
-#     -m \
-#     -o "$RASTER_DIR/timeseries" \
-#     --compress LZW \
-#     -N "$N_WORKERS" \
-#     -v
+echo ""
+echo "Aggregated data schema:"
+FIRST_AGG=$(find "$EGI_AGG_DIR" -name "*.parquet" | head -1)
+if [ -n "$FIRST_AGG" ]; then
+    gh3_read_schema "$FIRST_AGG" | head -20
+fi
 
-# echo "Time-series rasters saved to: $RASTER_DIR/timeseries"
-# echo ""
-
-# # -----------------------------------------------------------------------------
-# # Summary
-# # -----------------------------------------------------------------------------
-
-# echo "=============================================="
-# echo " Tutorial Complete!"
-# echo "=============================================="
-# echo ""
-# echo "Output Summary:"
-# echo "  - Downloaded HDF5 files: $SOC_DIR"
-# echo "  - H3 database: $H3_DIR"
-# echo "  - Extracted data: $EXTRACT_DIR"
-# echo "  - Aggregated data: $AGG_DIR"
-# echo "  - Raster outputs: $RASTER_DIR"
-# echo ""
-# echo "Next Steps:"
-# echo "  1. Open rasters in QGIS or ArcGIS"
-# echo "  2. Use extracted parquet files in Python/R"
-# echo "  3. Run analysis on aggregated data"
-# echo ""
-# echo "For more options, use --help with any tool:"
-# echo "  gh3_download --help"
-# echo "  gh3_build --help"
-# echo "  gh3_extract --help"
-# echo "  gh3_aggregate --help"
-# echo "  gh3_rasterize --help"
-# echo ""
-
-# # -----------------------------------------------------------------------------
-# # Bonus: Read Schema of Output Files
-# # -----------------------------------------------------------------------------
-
-# echo "=============================================="
-# echo " Bonus: Inspecting Output Schemas"
-# echo "=============================================="
-# echo ""
-
-# echo "H3 Database schema:"
-# FIRST_PARQUET=$(find "$H3_DIR" -name "*.parquet" | head -1)
-# if [ -n "$FIRST_PARQUET" ]; then
-#     gh3_read_schema "$FIRST_PARQUET" | head -20
-# fi
-
-# echo ""
-# echo "Aggregated data schema:"
-# FIRST_AGG=$(find "$EGI_AGG_DIR" -name "*.parquet" | head -1)
-# if [ -n "$FIRST_AGG" ]; then
-#     gh3_read_schema "$FIRST_AGG" | head -20
-# fi
-
-# echo ""
-# echo "Tutorial completed successfully!"
+echo ""
+echo "Tutorial completed successfully!"

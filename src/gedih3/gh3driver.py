@@ -125,7 +125,7 @@ def gh3_write_dataset_meta(opath, index_type='h3', index_level=None, columns=Non
     if file_format in PIPELINE_FORMATS:
         try:
             data_files = list_dataset_files(opath, fmt=file_format)
-        except FileNotFoundError:
+        except (FileNotFoundError, GediDatabaseNotFoundError):
             data_files = []
     else:
         # Non-pipeline format: glob for whatever was written

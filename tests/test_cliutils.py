@@ -1,9 +1,16 @@
 """
-Tests for gedih3.cliutils -- column filtering, naming, and coordinate utilities.
+Tests for gedih3.cliutils -- column filtering, naming, coordinate utilities,
+and CLI argument parsing functions.
 
 Focuses on the data processing helper functions that are used throughout
 the CLI tools and library code.
 """
+
+import argparse
+import json
+import os
+import tempfile
+import shutil
 
 import numpy as np
 import pandas as pd
@@ -20,7 +27,15 @@ from gedih3.cliutils import (
     filter_raster_columns,
     h3_col_name,
     find_coordinate_column,
+    parse_egi_levels,
+    parse_aggregation,
+    parse_region,
+    safe_query,
+    detect_dataset_format,
+    _expand_percentile_specs,
+    cli_exception_handler,
 )
+from gedih3.exceptions import GediValidationError
 
 
 # =============================================================================
@@ -332,3 +347,299 @@ class TestFindCoordinateColumn:
         # 'lon' should match 'lon_lowestmode_l2a' since it starts with 'lon'
         cols = ['lon_lowestmode_l2a']
         assert find_coordinate_column(cols, 'lon') == 'lon_lowestmode_l2a'
+
+
+# =============================================================================
+# Test: parse_egi_levels
+# =============================================================================
+
+class TestParseEgiLevels:
+
+    def test_single_level(self):
+        assert parse_egi_levels('6') == (6, 12)
+
+    def test_level_with_partition(self):
+        assert parse_egi_levels('1:12') == (1, 12)
+
+    def test_level_with_custom_partition(self):
+        assert parse_egi_levels('6:10') == (6, 10)
+
+    def test_none_returns_none(self):
+        assert parse_egi_levels(None) is None
+
+    def test_min_level(self):
+        assert parse_egi_levels('1') == (1, 12)
+
+    def test_max_level(self):
+        assert parse_egi_levels('12') == (12, 12)
+
+    def test_zero_level_raises(self):
+        with pytest.raises(argparse.ArgumentTypeError, match="must be 1-12"):
+            parse_egi_levels('0')
+
+    def test_thirteen_level_raises(self):
+        with pytest.raises(argparse.ArgumentTypeError, match="must be 1-12"):
+            parse_egi_levels('13')
+
+    def test_non_integer_raises(self):
+        with pytest.raises(argparse.ArgumentTypeError, match="must be an integer"):
+            parse_egi_levels('abc')
+
+    def test_non_integer_pair_raises(self):
+        with pytest.raises(argparse.ArgumentTypeError, match="must be integers"):
+            parse_egi_levels('a:b')
+
+    def test_partition_less_than_level_raises(self):
+        with pytest.raises(argparse.ArgumentTypeError, match="must be >= level"):
+            parse_egi_levels('6:3')
+
+    def test_too_many_colons_raises(self):
+        with pytest.raises(argparse.ArgumentTypeError, match="level:partition"):
+            parse_egi_levels('1:2:3')
+
+
+# =============================================================================
+# Test: parse_aggregation
+# =============================================================================
+
+class TestParseAggregation:
+
+    def test_single_function(self):
+        assert parse_aggregation('mean') == 'mean'
+
+    def test_single_function_std(self):
+        assert parse_aggregation('std') == 'std'
+
+    def test_list_of_functions(self):
+        result = parse_aggregation("['mean', 'std', 'count']")
+        assert result == ['mean', 'std', 'count']
+
+    def test_dict_of_functions(self):
+        result = parse_aggregation("{'col': ['mean', 'std']}")
+        assert result == {'col': ['mean', 'std']}
+
+    def test_percentile_single(self):
+        result = parse_aggregation('p25')
+        assert callable(result)
+        assert result.__name__ == 'p25'
+
+    def test_percentile_in_list(self):
+        result = parse_aggregation("['mean', 'p50', 'p95']")
+        assert result[0] == 'mean'
+        assert callable(result[1])
+        assert callable(result[2])
+        assert result[1].__name__ == 'p50'
+        assert result[2].__name__ == 'p95'
+
+    def test_json_file(self):
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(['mean', 'std'], f)
+            f.flush()
+            result = parse_aggregation(f.name)
+        os.unlink(f.name)
+        assert result == ['mean', 'std']
+
+    def test_text_file_single_line(self):
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write('mean\n')
+            f.flush()
+            result = parse_aggregation(f.name)
+        os.unlink(f.name)
+        assert result == 'mean'
+
+    def test_text_file_multi_line(self):
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write('mean\nstd\ncount\n')
+            f.flush()
+            result = parse_aggregation(f.name)
+        os.unlink(f.name)
+        assert result == ['mean', 'std', 'count']
+
+    def test_text_file_with_comments(self):
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write('# aggregation funcs\nmean\n# skip this\nstd\n')
+            f.flush()
+            result = parse_aggregation(f.name)
+        os.unlink(f.name)
+        assert result == ['mean', 'std']
+
+    def test_invalid_literal_raises(self):
+        with pytest.raises(GediValidationError, match="Invalid aggregation"):
+            parse_aggregation("[mean, std]")  # missing quotes
+
+    def test_empty_file_raises(self):
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write('# just comments\n')
+            f.flush()
+            with pytest.raises(GediValidationError, match="empty"):
+                parse_aggregation(f.name)
+        os.unlink(f.name)
+
+
+# =============================================================================
+# Test: _expand_percentile_specs
+# =============================================================================
+
+class TestExpandPercentileSpecs:
+
+    def test_string_percentile(self):
+        result = _expand_percentile_specs('p25')
+        assert callable(result)
+        assert result.__name__ == 'p25'
+
+    def test_string_non_percentile(self):
+        assert _expand_percentile_specs('mean') == 'mean'
+
+    def test_list_with_percentiles(self):
+        result = _expand_percentile_specs(['mean', 'p50', 'p95'])
+        assert result[0] == 'mean'
+        assert callable(result[1])
+        assert callable(result[2])
+
+    def test_dict_with_percentiles(self):
+        result = _expand_percentile_specs({'col': ['mean', 'p50']})
+        assert result['col'][0] == 'mean'
+        assert callable(result['col'][1])
+
+    def test_dict_with_single_value(self):
+        result = _expand_percentile_specs({'col': 'p75'})
+        assert callable(result['col'])
+
+    def test_none_passthrough(self):
+        assert _expand_percentile_specs(None) is None
+
+    def test_numeric_passthrough(self):
+        assert _expand_percentile_specs(42) == 42
+
+
+# =============================================================================
+# Test: parse_region
+# =============================================================================
+
+class TestParseRegion:
+
+    def test_none_returns_none(self):
+        assert parse_region(None) is None
+
+    def test_bbox_string(self):
+        result = parse_region("-51,0,-50,1")
+        # Should return a GeoDataFrame or similar spatial object
+        assert result is not None
+
+    def test_shapefile_path(self):
+        tmpdir = tempfile.mkdtemp()
+        try:
+            path = os.path.join(tmpdir, 'test.shp')
+            gdf = gpd.GeoDataFrame(
+                {'id': [1]},
+                geometry=[Point(-50.5, 0.5)],
+                crs='EPSG:4326'
+            )
+            gdf.to_file(path)
+            result = parse_region(path)
+            assert result is not None
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_invalid_bbox_raises(self):
+        with pytest.raises(GediValidationError):
+            parse_region("not,valid,bbox,here")
+
+    def test_invalid_format_raises(self):
+        with pytest.raises(GediValidationError):
+            parse_region("invalidregionspec")
+
+
+# =============================================================================
+# Test: safe_query
+# =============================================================================
+
+class TestSafeQuery:
+
+    def test_normal_query(self):
+        df = pd.DataFrame({'agbd_l4a': [10.0, 20.0, 30.0], 'flag': [1, 0, 1]})
+        result = safe_query(df, 'agbd_l4a > 15')
+        assert len(result) == 2
+
+    def test_empty_query_returns_original(self):
+        df = pd.DataFrame({'a': [1, 2, 3]})
+        result = safe_query(df, '')
+        assert len(result) == 3
+
+    def test_none_query_returns_original(self):
+        df = pd.DataFrame({'a': [1, 2, 3]})
+        result = safe_query(df, None)
+        assert len(result) == 3
+
+    def test_columns_with_slashes(self):
+        df = pd.DataFrame({
+            'rx/energy': [1.0, 2.0, 3.0],
+            'agbd': [10.0, 20.0, 30.0],
+        })
+        result = safe_query(df, '`rx/energy` > 1.5')
+        assert len(result) == 2
+        # Verify original column names preserved
+        assert 'rx/energy' in result.columns
+
+
+# =============================================================================
+# Test: detect_dataset_format
+# =============================================================================
+
+class TestDetectDatasetFormat:
+
+    def test_parquet_directory(self):
+        tmpdir = tempfile.mkdtemp()
+        try:
+            # Create a parquet file
+            df = pd.DataFrame({'a': [1, 2]})
+            df.to_parquet(os.path.join(tmpdir, 'data.parquet'))
+            result = detect_dataset_format(tmpdir)
+            assert result == 'parquet'
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_with_metadata_file(self):
+        tmpdir = tempfile.mkdtemp()
+        try:
+            meta = {'file_format': 'parquet'}
+            with open(os.path.join(tmpdir, 'gedih3_dataset.json'), 'w') as f:
+                json.dump(meta, f)
+            result = detect_dataset_format(tmpdir)
+            assert result == 'parquet'
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_empty_dir_defaults_parquet(self):
+        tmpdir = tempfile.mkdtemp()
+        try:
+            result = detect_dataset_format(tmpdir)
+            assert result == 'parquet'
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# =============================================================================
+# Test: cli_exception_handler
+# =============================================================================
+
+class TestCliExceptionHandler:
+
+    def test_normal_execution(self):
+        args = argparse.Namespace(verbose=0)
+        with cli_exception_handler(args):
+            pass  # no error
+
+    def test_exception_causes_exit(self):
+        args = argparse.Namespace(verbose=0)
+        with pytest.raises(SystemExit) as exc_info:
+            with cli_exception_handler(args):
+                raise ValueError("test error")
+        assert exc_info.value.code == 1
+
+    def test_keyboard_interrupt_causes_exit(self):
+        args = argparse.Namespace(verbose=0)
+        with pytest.raises(SystemExit) as exc_info:
+            with cli_exception_handler(args):
+                raise KeyboardInterrupt()
+        assert exc_info.value.code == 130

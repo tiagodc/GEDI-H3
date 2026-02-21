@@ -240,6 +240,7 @@ def _update_h3_partitions(dataset_path, db_path, data_files, fmt, new_cols,
 
     import gedih3.gh3driver as gh3
     from gedih3.cliutils import make_dataset_reader, h3_col_name
+    from gedih3.utils import smart_exists
 
     h3_part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=db_path)
     h3_part_col = h3_col_name(h3_part)
@@ -285,6 +286,7 @@ def _update_egi_partitions(dataset_path, db_path, data_files, fmt, new_cols,
     import gedih3.gh3driver as gh3
     from gedih3.cliutils import make_dataset_reader
     from gedih3.egi.config import egi_col_name
+    from gedih3.utils import smart_exists
 
     # Get EGI partition level from metadata
     egi_partition_level = dataset_meta.get('egi_partition_level', 12)

@@ -79,10 +79,10 @@ STUDY_AREA = [-51, 0, -50, 1]
 
 # Temporal range
 DATE_START = "2020-01-01"
-DATE_END = "2021-12-31"
+DATE_END = "2020-03-31"
 
 # Output directories
-BASE_DIR = Path("/gpfs/data1/vclgp/decontot/repos/gedih3/tmp/") / "gedih3_tutorial_python"
+BASE_DIR = Path(__file__).parent.parent / "tmp" / "gedih3_tutorial_python"
 SOC_DIR = BASE_DIR / "soc_data"
 H3_DIR = BASE_DIR / "h3_database"
 OUTPUT_DIR = BASE_DIR / "output"
@@ -93,7 +93,7 @@ for d in [SOC_DIR, H3_DIR, OUTPUT_DIR]:
 
 # H3 resolution settings
 H3_RESOLUTION = 12  # Index level (~9m edge, matches GEDI footprint)
-H3_PARTITION = 5    # Partition level for this tutorial (smaller files)
+H3_PARTITION = 3    # Partition level (~12,393 km² hexagons)
 
 print(f"\nStudy Area: {STUDY_AREA}")
 print(f"Date Range: {DATE_START} to {DATE_END}")
@@ -207,7 +207,7 @@ else:
     # Start Dask client for distributed processing
     print("\nStarting Dask cluster...")
 
-    with Client(n_workers=4, threads_per_worker=1, memory_limit='4GB') as client:
+    with Client(n_workers=2, threads_per_worker=1, memory_limit='4GB') as client:
         print(f"Dask dashboard: {client.dashboard_link}")
 
         # Build the H3 database
@@ -253,7 +253,7 @@ else:
     gh3.gh3_set_db_path(str(H3_DIR))
 
     # Start Dask client
-    with Client(n_workers=4, threads_per_worker=1, memory_limit='4GB') as client:
+    with Client(n_workers=2, threads_per_worker=1, memory_limit='4GB') as client:
         print(f"Dask dashboard: {client.dashboard_link}")
 
         # --- Basic Load ---
@@ -302,6 +302,30 @@ else:
             stats = ddf_quality['agbd_l4a'].describe().compute()
             print(f"AGBD Statistics:\n{stats}")
 
+        # --- Save a simplified extract for later reloading ---
+        print("\n--- Saving simplified extract ---")
+        EXTRACT_DIR = OUTPUT_DIR / "extracted"
+        EXTRACT_DIR.mkdir(parents=True, exist_ok=True)
+        sample_df = ddf_quality.head(1000)
+        extract_file = EXTRACT_DIR / "sample_extract.parquet"
+        sample_df.to_parquet(extract_file)
+        print(f"Saved sample extract to: {extract_file}")
+
+    # --- Loading simplified datasets ---
+    # After gh3_extract or gh3_aggregate produces a simplified dataset,
+    # you can reload it with gh3.gh3_load(source=...).
+
+    EXTRACT_DIR = OUTPUT_DIR / "extracted"
+    if EXTRACT_DIR.exists() and any(EXTRACT_DIR.glob("*.parquet")):
+        print("\n--- Loading simplified dataset (eager) ---")
+        gdf = gh3.gh3_load(source=str(EXTRACT_DIR), lazy=False)
+        print(f"Loaded GeoDataFrame: {len(gdf)} rows, {gdf.columns.tolist()}")
+
+        print("\n--- Loading simplified dataset (lazy / Dask) ---")
+        ddf_lazy = gh3.gh3_load(source=str(EXTRACT_DIR), lazy=True)
+        print(f"Loaded Dask DataFrame: {ddf_lazy.npartitions} partitions")
+        print(f"  Columns: {ddf_lazy.columns.tolist()}")
+
 # =============================================================================
 # Step 4: Aggregate Data
 # =============================================================================
@@ -311,7 +335,7 @@ print("Step 4: Aggregating Data")
 print("=" * 50)
 
 if log_file.exists():
-    with Client(n_workers=4, threads_per_worker=1, memory_limit='4GB') as client:
+    with Client(n_workers=2, threads_per_worker=1, memory_limit='4GB') as client:
         print(f"Dask dashboard: {client.dashboard_link}")
 
         # Load data
@@ -456,7 +480,7 @@ print("=" * 50)
 if log_file.exists():
     print("\nGenerating time-series rasters (annual)...")
 
-    with Client(n_workers=4, threads_per_worker=1) as client:
+    with Client(n_workers=2, threads_per_worker=1) as client:
         ddf = gh3.gh3_load(
             columns=['agbd_l4a', 'datetime', 'quality_flag_l2a',
                      'lat_lowestmode', 'lon_lowestmode'],
@@ -558,8 +582,8 @@ ddf = gh3.gh3_load(
 )
 
 # 2. Load simplified dataset (from gh3_extract or gh3_aggregate output)
-gdf = gh3.gh3_load_dataset('/path/to/extracted/')  # Eager load
-ddf = gh3.gh3_load_dataset_lazy('/path/to/aggregated/')  # Lazy Dask load
+gdf = gh3.gh3_load(source='/path/to/extracted/', lazy=False)  # Eager load
+ddf = gh3.gh3_load(source='/path/to/aggregated/', lazy=True)  # Lazy Dask load
 
 # 3. Aggregate to H3 hexagons
 agg_df = gh3.gh3_aggregate(
