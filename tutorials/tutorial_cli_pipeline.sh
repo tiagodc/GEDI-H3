@@ -295,10 +295,10 @@ RASTER_TILES="${RASTER_DIR}/tiles"
 mkdir -p "$RASTER_TILES"
 
 # Note: gh3_rasterize takes the OUTPUT from gh3_aggregate (Step 4B)
-# After aggregation with -a mean, column names have _mean suffix
+# Column names keep original names when using a single aggregation function
 gh3_rasterize \
     -d "$EGI_AGG_DIR" \
-    -l agbd_l4a_mean \
+    -l agbd_l4a \
     -o "$RASTER_TILES" \
     --compress LZW \
     -N "$N_WORKERS" \
@@ -314,7 +314,7 @@ MERGED_RASTER="${RASTER_DIR}/agbd_merged.tif"
 
 gh3_rasterize \
     -d "$EGI_AGG_DIR" \
-    -l agbd_l4a_mean \
+    -l agbd_l4a \
     -m \
     -o "$MERGED_RASTER" \
     --compress LZW \
