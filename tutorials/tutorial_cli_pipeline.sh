@@ -127,12 +127,13 @@ if [ "$SKIP_BUILD" = "false" ]; then
 
     # Build the database from downloaded HDF5 files
     # -i points to the SOC directory from Step 1
+    # Variables must match what was downloaded (Step 1 used: -l2a default -l4a agbd)
     gh3_build \
         -r="$REGION" \
         -d0 "$DATE_START" \
         -d1 "$DATE_END" \
-        -l2a min \
-        -l4a min \
+        -l2a default \
+        -l4a agbd \
         -i "$SOC_DIR" \
         -h3r "$H3_RESOLUTION" \
         -h3p "$H3_PARTITION" \

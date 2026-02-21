@@ -53,7 +53,7 @@ def main():
     from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success
     from gedih3.utils import get_system_resources
     from gedih3.gh3builder import build_h3db, download_soc, soc_file_tree
-    from gedih3.gedidriver import GEDIFile, validate_soc_files
+    from gedih3.gedidriver import GEDIFile, validate_soc_files, gedi_vars_expand
     from gedih3.logger import H3BuildLogger, SOCDownloadLogger
     from dask.distributed import Client
 
@@ -151,35 +151,25 @@ def main():
                 )
                 existing_h5 = glob.glob(os.path.join(soc_source, '**', 'GEDI*.h5'), recursive=True)
 
-                if soc_logger.updating and soc_logger.log_data.get('status') == 'COMPLETED':
-                    # Completed download log exists — use existing files
-                    needs_download = False
-                    logger.info(f"Using existing downloads at {soc_source} ({len(soc_logger.granule_info)} granules)")
-                elif existing_h5:
-                    # No completed log, but .h5 files exist — skip download
-                    needs_download = False
-                    logger.warning(
-                        f"Found {len(existing_h5)} existing HDF5 files in {soc_source}. "
-                        f"Skipping download and building directly from existing files. "
-                        f"Run gh3_download first if you need to update the source data."
-                    )
-
-                    # Validate that requested products/variables exist in the HDF5 files
+                def _validate_existing_h5(product_vars, soc_dir):
+                    """Validate requested products/variables exist in HDF5 files. Exits on mismatch."""
+                    import copy
+                    # Expand keywords ('min', 'default', 'all') to actual variable names
+                    # before validation so we check real variables, not keyword strings
+                    expanded = copy.deepcopy(product_vars)
+                    gedi_vars_expand(expanded)
                     try:
-                        validation = validate_soc_files(h3_logger.get_product_vars(), soc_source)
+                        validation = validate_soc_files(expanded, soc_dir)
                     except Exception as val_err:
                         logger.warning(f"Could not validate HDF5 files (corrupt file?): {val_err}")
-                        validation = None
+                        return
 
-                    if validation is not None:
-                        # Handle tuple return (no SOC files found) vs dict return
-                        if isinstance(validation, tuple):
-                            can_skip = False
-                            validation = validation[1] if len(validation) > 1 else {}
-                        else:
-                            can_skip = validation.get("can_skip", True)
+                    # Handle tuple return (no SOC files found) vs dict return
+                    if isinstance(validation, tuple):
+                        can_skip = False
+                        validation = validation[1] if len(validation) > 1 else {}
                     else:
-                        can_skip = True  # Skip validation if it failed
+                        can_skip = validation.get("can_skip", True)
 
                     if not can_skip:
                         msg_parts = ["Requested variables not found in existing HDF5 files:\n"]
@@ -198,6 +188,21 @@ def main():
                         msg_parts.append("  4. Or use --s3 to build directly from NASA S3 (no persistent download)")
                         logger.error("\n".join(msg_parts))
                         sys.exit(2)
+
+                if soc_logger.updating and soc_logger.log_data.get('status') == 'COMPLETED':
+                    # Completed download log exists — use existing files
+                    needs_download = False
+                    logger.info(f"Using existing downloads at {soc_source} ({len(soc_logger.granule_info)} granules)")
+                    _validate_existing_h5(h3_logger.get_product_vars(), soc_source)
+                elif existing_h5:
+                    # No completed log, but .h5 files exist — skip download
+                    needs_download = False
+                    logger.warning(
+                        f"Found {len(existing_h5)} existing HDF5 files in {soc_source}. "
+                        f"Skipping download and building directly from existing files. "
+                        f"Run gh3_download first if you need to update the source data."
+                    )
+                    _validate_existing_h5(h3_logger.get_product_vars(), soc_source)
                 else:
                     # No log AND no .h5 files — download
                     needs_download = True
