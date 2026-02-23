@@ -106,9 +106,23 @@ def _subset_s3_file(granule, prod, product_vars, odir, file_idx, n_files):
     os.makedirs(local_dir, exist_ok=True)
     local_path = os.path.join(local_dir, gf.full_name)
 
+    # Track whether we computed a union of vars from an existing file
+    union_vars = None
+
     if os.path.exists(local_path):
-        logger.debug(f"[{file_idx}/{n_files}] Skipping {gf.full_name} (already exists)")
-        return local_path
+        try:
+            existing_vars = set(gedi_vars_from_h5(local_path))
+            needed_vars = set(vars_for_prod) if vars_for_prod else set()
+            if needed_vars.issubset(existing_vars):
+                logger.debug(f"[{file_idx}/{n_files}] Skipping {gf.full_name} (already exists with required variables)")
+                return local_path
+            # Re-download with union of existing + requested
+            union_vars = sorted(existing_vars | needed_vars)
+            logger.debug(f"[{file_idx}/{n_files}] Re-downloading {gf.full_name} (missing {len(needed_vars - existing_vars)} variables)")
+            os.unlink(local_path)
+        except Exception:
+            logger.warning(f"[{file_idx}/{n_files}] Could not read existing {gf.full_name}, re-downloading")
+            os.unlink(local_path)
 
     # Re-authenticate in worker process (same pattern as daac.py:379)
     if earthaccess.__store__ is None:
@@ -127,9 +141,13 @@ def _subset_s3_file(granule, prod, product_vars, odir, file_idx, n_files):
 
     s3_file = s3_files[0]
 
-    vars_for_prod = product_vars.get(prod)
-    if vars_for_prod is None:
-        vars_for_prod = gedi_vars_from_h5(s3_file)
+    # Use union vars if we merged with existing file, otherwise resolve from product_vars
+    if union_vars is not None:
+        vars_for_prod = union_vars
+    else:
+        vars_for_prod = product_vars.get(prod)
+        if vars_for_prod is None:
+            vars_for_prod = gedi_vars_from_h5(s3_file)
 
     logger.info(f"[{file_idx}/{n_files}] Subsetting {gf.full_name} ({len(vars_for_prod)} vars)")
     try:
