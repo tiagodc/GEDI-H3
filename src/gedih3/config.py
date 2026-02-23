@@ -10,6 +10,30 @@ def get_package_data_path(filename):
     except ModuleNotFoundError:
         return Path(__file__).parent.joinpath('data', filename)
 
+def _get_versioned(version_dict, version=None):
+    """Resolve a version-keyed dict. Falls back to nearest lower version.
+
+    Parameters
+    ----------
+    version_dict : dict
+        Mapping of integer version numbers to values.
+    version : int or None
+        Target version. If None, defaults to 2.
+
+    Returns
+    -------
+    object
+        The value for the requested version, or the nearest lower version.
+    """
+    if version is None:
+        version = 2
+    if version in version_dict:
+        return version_dict[version]
+    available = sorted(v for v in version_dict if v <= version)
+    if available:
+        return version_dict[available[-1]]
+    return version_dict[min(version_dict)]
+
 ISO3_COUNTRIES_URL = "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/country_shapes/exports/geojson/"
 
 # Default download directories
@@ -51,7 +75,26 @@ configure_environment()
 
 GEDI_START_DATE = datetime.strptime('2018-01-01', '%Y-%m-%d')
 GEDI_BEAMS = ['BEAM0000','BEAM0001','BEAM0010','BEAM0011','BEAM0101','BEAM0110','BEAM1000','BEAM1011']
-GEDI_L2A_ESSENTIALS = ['shot_number','delta_time','quality_flag','lat_lowestmode','lon_lowestmode','elev_lowestmode']
+_GEDI_L2A_ESSENTIALS = {
+    2: ['shot_number','delta_time','quality_flag','lat_lowestmode','lon_lowestmode','elev_lowestmode'],
+    3: ['shot_number','delta_time','l2a_quality_flag_rel3','lat_lowestmode','lon_lowestmode','elev_lowestmode'],
+}
+GEDI_L2A_ESSENTIALS = _GEDI_L2A_ESSENTIALS[2]  # backward compat
+
+# Version-keyed minimum variable sets per product.
+# _get_versioned() falls back to nearest lower version, so only entries
+# that differ from the previous version need to be added (e.g., v4 falls
+# back to v3 automatically if no v4 entry exists).
+_GEDI_MIN_VARS = {
+    'L1B': {2: ['shot_number','noise_mean_corrected','rx_sample_start_index','rx_sample_count','rxwaveform']},
+    'L2A': {
+        2: _GEDI_L2A_ESSENTIALS[2] + ['rh'],
+        3: _GEDI_L2A_ESSENTIALS[3] + ['rh'],
+    },
+    'L2B': {2: ['shot_number','cover_z','fhd_normal','pai_z','pgap_theta']},
+    'L4A': {2: ['shot_number','agbd','sensitivity','l4_quality_flag']},
+    'L4C': {2: ['shot_number','wsci','wsci_pi_lower','wsci_pi_upper','wsci_quality_flag','land_cover_data/worldcover_class']},
+}
 
 GEDI_PRODUCTS = {
     'L1B': {
@@ -141,11 +184,14 @@ def get_default_vars_file(product, version=None):
     Path
         Path to the variable list file
     """
-    prod_info = GEDI_PRODUCTS[product.upper()]
+    product = product.upper()
+    prod_info = GEDI_PRODUCTS[product]
     if version is None:
         version = 2
-    short_name = prod_info['short_name']
-    fname = f'{short_name}_DATASETS_{int(version):03d}.txt'
+    # Derive canonical prefix from product key (e.g., 'L2A' → 'GEDI02_A')
+    # instead of short_name, which is DAAC-specific for L4A/L4C.
+    prefix = f"GEDI0{product[1]}_{product[2]}"
+    fname = f'{prefix}_DATASETS_{int(version):03d}.txt'
     path = get_package_data_path(fname)
     if path.is_file():
         return path

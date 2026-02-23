@@ -13,7 +13,7 @@ from typing import Union, List, Dict, Optional, Tuple, Any, Callable
 from earthaccess.store import EarthAccessFile
 from dask.distributed import progress
 
-from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_L2A_ESSENTIALS, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME
+from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME, _get_versioned, _GEDI_L2A_ESSENTIALS
 from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, parquet_schema_add_bbox, generate_manifest
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
 from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_subset, validate_soc_files, load_h5
@@ -64,10 +64,11 @@ def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=
     list
         List of downloaded SOC file paths or EarthAccessFile objects.
     """
-    product_vars = gedi_vars_expand(product_vars)
+    product_vars = gedi_vars_expand(product_vars, version=version)
 
     if ensure_l2a and 'L2A' not in product_vars:
-        product_vars.update({'L2A': GEDI_L2A_ESSENTIALS})
+        essentials = _get_versioned(_GEDI_L2A_ESSENTIALS, version)
+        product_vars.update({'L2A': essentials})
 
     for k, val in product_vars.items():
         if val is None:
@@ -205,10 +206,11 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
     from .daac import GEDIAccessor
 
     # Expand variable specifications and ensure L2A essentials + shot_number
-    product_vars = gedi_vars_expand(product_vars)
+    product_vars = gedi_vars_expand(product_vars, version=version)
 
     if ensure_l2a and 'L2A' not in product_vars:
-        product_vars.update({'L2A': GEDI_L2A_ESSENTIALS})
+        essentials = _get_versioned(_GEDI_L2A_ESSENTIALS, version)
+        product_vars.update({'L2A': essentials})
 
     for k, val in product_vars.items():
         if val is None:
@@ -638,7 +640,8 @@ def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
 
 def _expand_product_vars(
     product_vars: Dict[str, List[str]],
-    soc_files: List[Dict[str, str]]
+    soc_files: List[Dict[str, str]],
+    version: Optional[int] = None
 ) -> Dict[str, List[str]]:
     """
     Expand product variable specifications and ensure L2A essentials are included.
@@ -649,18 +652,33 @@ def _expand_product_vars(
         Raw product variable specifications (may contain 'default', 'minimal', etc.)
     soc_files : list of dict
         List of SOC file dictionaries to sample for 'all' variable expansion
+    version : int or None
+        GEDI data version. If None, auto-detected from the first SOC file.
 
     Returns
     -------
     dict
         Expanded product variables with L2A essentials included
     """
-    product_vars = gedi_vars_expand(product_vars)
+    # Auto-detect version from first SOC file if not specified
+    if version is None and soc_files:
+        for soc_dict in soc_files:
+            for prod, path in soc_dict.items():
+                try:
+                    version = GEDIFile(path).version
+                    break
+                except Exception:
+                    continue
+            if version is not None:
+                break
 
+    product_vars = gedi_vars_expand(product_vars, version=version)
+
+    essentials = _get_versioned(_GEDI_L2A_ESSENTIALS, version)
     if 'L2A' in product_vars:
-        product_vars['L2A'] = list(set(product_vars['L2A'] + GEDI_L2A_ESSENTIALS))
+        product_vars['L2A'] = list(set(product_vars['L2A'] + essentials))
     else:
-        product_vars['L2A'] = GEDI_L2A_ESSENTIALS
+        product_vars['L2A'] = essentials
 
     for k, val in product_vars.items():
         if val is None:
@@ -1309,7 +1327,7 @@ def build_h3db(
             return result
 
         # Expand variable specifications and ensure L2A essentials
-        product_vars = _expand_product_vars(product_vars, all_soc_files)
+        product_vars = _expand_product_vars(product_vars, all_soc_files, version=version)
 
         # Filter to only files with required products
         prod_soc_files = [{k: val for k, val in i.items() if k in product_vars} for i in all_soc_files]
