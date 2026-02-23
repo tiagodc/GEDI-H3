@@ -95,7 +95,7 @@ class SOCDownloadLogger:
             self._PARENT_DIR = dir
 
         if product_vars:
-            product_vars = gedi_vars_expand(product_vars)
+            product_vars = gedi_vars_expand(product_vars, version=version)
 
         self.gedi_version = version
         self.s3_access = False
@@ -289,7 +289,7 @@ class H3BuildLogger:
             self._PARENT_DIR = dir
 
         if product_vars:
-            product_vars = gedi_vars_expand(product_vars)
+            product_vars = gedi_vars_expand(product_vars, version=version)
 
         self.log_file = os.path.join(self._PARENT_DIR, self._LOG_FILE_NAME)
         self.log_data = load_log_data(self.log_file)

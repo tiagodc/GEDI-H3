@@ -204,7 +204,7 @@ def main():
                     """Validate requested products/variables exist in HDF5 files. Exits on mismatch."""
                     import copy
                     expanded = copy.deepcopy(product_vars)
-                    gedi_vars_expand(expanded)
+                    gedi_vars_expand(expanded, version=h3_logger.gedi_version)
                     try:
                         validation = validate_soc_files(expanded, soc_dir)
                     except Exception as val_err:
@@ -253,7 +253,7 @@ def main():
                         if (is_variable_only_update or is_mixed_update) and h3_logger.new_product_vars:
                             import copy
                             expanded_new = copy.deepcopy(dict(h3_logger.new_product_vars))
-                            gedi_vars_expand(expanded_new)
+                            gedi_vars_expand(expanded_new, version=h3_logger.gedi_version)
                             try:
                                 validation = validate_soc_files(expanded_new, soc_source)
                                 can_skip = validation.get('can_skip', True) if isinstance(validation, dict) else False

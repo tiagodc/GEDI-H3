@@ -23,7 +23,7 @@ import dask
 import dask.dataframe
 from earthaccess.store import EarthAccessFile
 
-from .config import GEDI_PRODUCTS, GEDI_BEAMS, GEDI_START_DATE, GH3_DEFAULT_SOC_DIR, get_default_vars_file
+from .config import GEDI_PRODUCTS, GEDI_BEAMS, GEDI_START_DATE, GH3_DEFAULT_SOC_DIR, get_default_vars_file, _get_versioned, _GEDI_MIN_VARS
 from .utils import h5_copy_subset, h5_info
 from .logging_config import get_logger
 from .exceptions import GediValidationError, GediProductError, GediVariableError
@@ -157,7 +157,7 @@ def gedi_file_glob(orbit=None, orbit_granule=None, track=None, product: int=None
     ppd_str = str_build(ppds)    
     return f"GEDI{prd_str}_{lev_str}_*_O{orb_str}_{ogr_str}_T{trk_str}_{ppd_str}_{pge_str}_{gen_str}_V{ver_str}*.h5"
 
-def gedi_vars_expand(product_vars):
+def gedi_vars_expand(product_vars, version=None):
     for prod, vars in product_vars.items():
         if vars is None:
             continue
@@ -168,9 +168,9 @@ def gedi_vars_expand(product_vars):
             with open(vars[0], 'r') as f:
                 product_vars[prod] = [line.strip() for line in f if line.strip() and not line.startswith('#')]
         elif "minimal" in vars or "min" in vars:
-            product_vars[prod] = GEDI_PRODUCTS[prod]['min_vars']
+            product_vars[prod] = _get_versioned(_GEDI_MIN_VARS[prod], version)
         elif 'default' in vars or 'def' in vars:
-            with open(get_default_vars_file(prod), 'r') as f:
+            with open(get_default_vars_file(prod, version=version), 'r') as f:
                 product_vars[prod] = [line.strip() for line in f if line.strip() and not line.startswith('#')]
         elif "*" in vars or "all" in vars:
             product_vars[prod] = None
