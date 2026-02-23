@@ -25,7 +25,7 @@ from .exceptions import H3ValidationError, GediValidationError, GediFileError, G
 logger = get_logger(__name__)
 
 
-def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=False, update=False, version=None, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5, on_granule_complete=None):
+def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=False, update=False, version=None, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5, on_granule_complete=None, ensure_l2a=True):
     """
     Download GEDI HDF5 files in SOC (Science Operation Center) format.
 
@@ -54,6 +54,10 @@ def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=
     on_granule_complete : callable, optional
         Callback ``(granule_info_dict, status_str) -> None`` for per-granule
         progress tracking. Passed through to ``gedi_download()``.
+    ensure_l2a : bool, default True
+        If True, automatically add L2A essentials when L2A is not in
+        product_vars. Set to False for variable-only updates where L2A
+        data already exists in the target database.
 
     Returns
     -------
@@ -62,7 +66,7 @@ def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=
     """
     product_vars = gedi_vars_expand(product_vars)
 
-    if 'L2A' not in product_vars:
+    if ensure_l2a and 'L2A' not in product_vars:
         product_vars.update({'L2A': GEDI_L2A_ESSENTIALS})
 
     for k, val in product_vars.items():
@@ -511,9 +515,9 @@ def h3_add_skip_column(df, h3_dir):
     """
     Add a ``_skip`` boolean column indicating partitions to skip.
 
-    Designed for use with ``dask.dataframe.map_partitions``. Inspects the
-    first row of each partition to determine the H3 cell and GEDI granule,
-    then delegates to ``h3_skip_part`` to check if the data already exists.
+    Designed for use with ``dask.dataframe.map_partitions``. Checks each
+    unique H3 partition cell individually, since a single beam can span
+    multiple H3 cells. Delegates to ``h3_skip_part`` per cell.
 
     Parameters
     ----------
@@ -527,15 +531,21 @@ def h3_add_skip_column(df, h3_dir):
     -------
     pandas.DataFrame
         Input DataFrame with an added ``_skip`` column (True if the
-        partition's granule data already exists in the database).
+        cell's granule data already exists in the database).
     """
     if df.empty:
         df['_skip'] = True
-        return df    
+        return df
     h3_col = sorted([c for c in df.columns if re.match(r'h3_\d{2}', c)])[0]
-    h3_part = df[h3_col].iloc[0]
     gedi_file = df['root_file_l2a'].iloc[0]
-    df = df.assign(_skip=h3_skip_part(h3_dir=h3_dir, h3_part=h3_part, gedi_file=gedi_file, cols=df.columns.tolist()))
+    cols = df.columns.tolist()
+
+    # Check each unique H3 partition cell individually
+    skip_map = {}
+    for h3_part in df[h3_col].unique():
+        skip_map[h3_part] = h3_skip_part(h3_dir=h3_dir, h3_part=h3_part, gedi_file=gedi_file, cols=cols)
+
+    df = df.assign(_skip=df[h3_col].map(skip_map))
     return df
 
 @dask.delayed
@@ -694,6 +704,10 @@ def _filter_granules(
     progress(bag_task)
     soc_files = list(bag_task.compute())
     del bag_task
+
+    n_skipped = len(prod_soc_files) - len(soc_files)
+    if n_skipped > 0:
+        logger.info(f"Skipped {n_skipped}/{len(prod_soc_files)} granules (already indexed, incomplete, or corrupted)")
 
     return soc_files
 
@@ -888,16 +902,35 @@ def _merge_and_finalize(
     if not remaining_dirs:
         logger.info("All partitions already merged (resume)")
     else:
-        h3_tasks = [dh3_merge_files(in_dir=i, out_dir=h3_dir, rm_src=True, replace=False) for i in remaining_dirs]
-        h3_tasks = dask.persist(*h3_tasks, traverse=False)
-        progress(h3_tasks)
-        h3_file_meta = list(dask.compute(*h3_tasks))
-        del h3_tasks
+        from dask.distributed import as_completed as dask_as_completed
 
-        # Track completed merges
-        with open(merge_progress_file, 'a') as f:
-            for d in remaining_dirs:
-                f.write(d.rstrip('/') + '\n')
+        client = get_dask_client()
+        futures = {}
+        for d in remaining_dirs:
+            future = client.submit(h3_merge_files, in_dir=d, out_dir=h3_dir, rm_src=True, replace=False)
+            futures[future] = d
+
+        merged_count = 0
+        failed_count = 0
+        for future in dask_as_completed(futures.keys()):
+            d = futures[future]
+            try:
+                future.result()
+                with open(merge_progress_file, 'a') as f:
+                    f.write(d.rstrip('/') + '\n')
+                merged_count += 1
+            except Exception as e:
+                failed_count += 1
+                logger.warning(f"Merge failed for {os.path.basename(d)}: {e}")
+
+            total = merged_count + failed_count
+            if total % 50 == 0 or total == len(remaining_dirs):
+                logger.info(f"Merge progress: {merged_count}/{len(remaining_dirs)} done, {failed_count} failed")
+
+        del futures
+
+        if failed_count > 0:
+            logger.error(f"{failed_count} partition merges failed. Re-run to retry.")
 
     h3_files = glob.glob(os.path.join(h3_dir, 'h3_*', '*', '*.parquet'), recursive=False)
 
@@ -959,6 +992,22 @@ def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, 
     if not parquet_files:
         return None
 
+    # Early exit: check if new columns already exist in partition
+    first_schema = read_parquet_schema(parquet_files[0])
+    existing_cols = set(first_schema['column'].tolist())
+    new_cols = set()
+    for prod, var_list in new_product_vars.items():
+        if var_list:
+            suffix = f"_{prod.lower()}"
+            new_cols.update(
+                v if v.endswith(suffix) else f"{v}{suffix}"
+                for v in var_list
+                if v != 'shot_number'
+            )
+    if new_cols and new_cols.issubset(existing_cols):
+        logger.debug(f"Partition already has new variables, skipping: {os.path.basename(h3_partition_dir)}")
+        return None
+
     # Build the SOC file tree for locating source HDF5 files
     if isinstance(soc_source, str):
         glob_kwargs = {'version': version} if version is not None else None
@@ -988,8 +1037,11 @@ def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, 
 
             try:
                 cols_to_read = ['shot_number'] + var_list
-                df = load_h5(soc_files[prod], columns=cols_to_read)
+                df = load_h5(soc_files[prod], columns=cols_to_read, include_source=False)
                 if df is not None and not df.empty:
+                    # Add product suffix to match normal build naming convention
+                    suffix = f"_{prod.lower()}"
+                    df = df.rename(columns=lambda x: x if x.endswith(suffix) else f"{x}{suffix}")
                     new_vars_list.append(df)
             except Exception as e:
                 logger.warning(f"Failed to read {prod} vars from {orb_track}: {e}")
@@ -998,8 +1050,10 @@ def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, 
         return None
 
     import pandas as pd
-    new_vars_df = pd.concat(new_vars_list, ignore_index=True)
-    new_vars_df = new_vars_df.drop_duplicates(subset=['shot_number'])
+    # load_h5 returns DataFrames indexed by shot_number — preserve that index
+    new_vars_df = pd.concat(new_vars_list)
+    new_vars_df = new_vars_df[~new_vars_df.index.duplicated(keep='first')]
+    new_vars_df = new_vars_df.reset_index()  # shot_number becomes a regular column
 
     # Write new vars to temp parquet
     tmp_file = None
@@ -1028,11 +1082,6 @@ def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, 
         h3_merge_metadata(h3_partition_dir)
 
     return updated_files[0] if updated_files else None
-
-
-@dask.delayed
-def _d_add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, version=None):
-    return _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, version)
 
 
 def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None):
@@ -1066,22 +1115,44 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
 
     logger.info(f"Updating {len(h3_subdirs)} H3 partitions with new variables")
 
-    tasks = [
-        _d_add_variables_to_partition(d, new_product_vars, soc_source, version)
-        for d in h3_subdirs
-    ]
-    tasks = dask.persist(*tasks, traverse=False)
-    progress(tasks)
-    results = list(dask.compute(*tasks))
-    del tasks
+    from dask.distributed import as_completed as dask_as_completed
 
-    updated = [r for r in results if r is not None]
-    logger.info(f"Updated {len(updated)}/{len(h3_subdirs)} partitions with new variables")
+    client = get_dask_client()
+    futures = {
+        client.submit(_add_variables_to_partition, d, new_product_vars, soc_source, version): d
+        for d in h3_subdirs
+    }
+
+    updated_files = []
+    skipped_count = 0
+    failed_count = 0
+    for future in dask_as_completed(futures.keys()):
+        d = futures[future]
+        try:
+            result = future.result()
+            if result is not None:
+                updated_files.append(result)
+            else:
+                skipped_count += 1
+        except Exception as e:
+            failed_count += 1
+            logger.warning(f"Variable update failed for {os.path.basename(d.rstrip('/'))}: {e}")
+
+        total = len(updated_files) + skipped_count + failed_count
+        if total % 20 == 0 or total == len(h3_subdirs):
+            logger.info(f"Variable update progress: {len(updated_files)} updated, {skipped_count} skipped / {len(h3_subdirs)} total")
+
+    del futures
+
+    if failed_count > 0:
+        logger.error(f"{failed_count} partition variable updates failed. Re-run to retry.")
+
+    logger.info(f"Updated {len(updated_files)}/{len(h3_subdirs)} partitions with new variables")
 
     # Regenerate manifest
     generate_manifest(h3_dir)
 
-    return updated if updated else None
+    return updated_files if updated_files else None
 
 
 def build_h3db(
@@ -1096,6 +1167,7 @@ def build_h3db(
     h3_dir: str = GH3_DEFAULT_H3_DIR,
     skip_granules: Optional[List[Dict]] = None,
     status_callback: Optional[Callable[[str], None]] = None,
+    variable_only_update: bool = False,
 ) -> Optional[List[str]]:
     """
     Build an H3-indexed GEDI database from local SOC files or S3 download.
@@ -1128,6 +1200,10 @@ def build_h3db(
         List of granule identifiers to skip (from previous builds).
     status_callback : callable, optional
         Called with status string at pipeline stage transitions.
+    variable_only_update : bool, default False
+        If True, only add new variable columns to existing partition files
+        via shot_number join (``_build_add_variables``). Skips full pipeline.
+        The caller (CLI) determines this from the build logger state.
 
     Returns
     -------
@@ -1156,36 +1232,28 @@ def build_h3db(
         _s3_tmp_dir = os.path.join(tmp_dir, '_s3_download')
         os.makedirs(_s3_tmp_dir, exist_ok=True)
 
-        # Check if this is a variable-only update on an existing database
-        # (all requested products are NEW, none overlap with existing products)
-        build_log_path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
-        if os.path.exists(build_log_path):
-            existing_log = json_read(build_log_path)
-            existing_products = set(existing_log.get('products', {}).keys())
-            requested_products = set(product_vars.keys())
-
-            if requested_products and requested_products.isdisjoint(existing_products):
-                # All requested products are NEW → variable-only S3 update
-                logger.info(f"S3 variable-only update: adding {requested_products} to existing database")
-                try:
-                    if status_callback:
-                        status_callback('PROCESSING')
-                    s3_etl_subset(
-                        product_vars=product_vars.copy(),
-                        spatial=spatial,
-                        temporal=temporal,
-                        version=version,
-                        odir=_s3_tmp_dir,
-                        ensure_l2a=False,
-                    )
-                    result = _build_add_variables(
-                        h3_dir, product_vars,
-                        soc_source=_s3_tmp_dir, version=version,
-                    )
-                    return result
-                finally:
-                    if os.path.exists(_s3_tmp_dir):
-                        shutil.rmtree(_s3_tmp_dir, ignore_errors=True)
+        if variable_only_update:
+            # Download only new products (no L2A essentials), then join to existing partitions
+            logger.info(f"S3 variable-only update: adding {set(product_vars.keys())} to existing database")
+            try:
+                if status_callback:
+                    status_callback('PROCESSING')
+                s3_etl_subset(
+                    product_vars=product_vars.copy(),
+                    spatial=spatial,
+                    temporal=temporal,
+                    version=version,
+                    odir=_s3_tmp_dir,
+                    ensure_l2a=False,
+                )
+                result = _build_add_variables(
+                    h3_dir, product_vars,
+                    soc_source=_s3_tmp_dir, version=version,
+                )
+                return result
+            finally:
+                if os.path.exists(_s3_tmp_dir):
+                    shutil.rmtree(_s3_tmp_dir, ignore_errors=True)
 
         # Fresh build or mixed update: full pipeline with L2A
         logger.info(f"ETL subset from S3 to temp directory: {_s3_tmp_dir}")
@@ -1216,6 +1284,11 @@ def build_h3db(
     try:
         if status_callback:
             status_callback('PROCESSING')
+
+        if variable_only_update:
+            logger.info(f"Variable-only update: adding {set(product_vars.keys())} to existing database")
+            result = _build_add_variables(h3_dir, product_vars, soc_source=soc_source, version=version)
+            return result
 
         # Expand variable specifications and ensure L2A essentials
         product_vars = _expand_product_vars(product_vars, all_soc_files)

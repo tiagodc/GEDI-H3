@@ -121,11 +121,60 @@ def main():
         if h3_logger.new_product_vars is not None:
             logger.info("Product variables updated")
 
+    # Detect variable-only update: only new products, no spatial/temporal changes
+    is_variable_only_update = (
+        h3_logger.updating
+        and h3_logger.new_product_vars is not None
+        and h3_logger.new_spatial is None
+        and h3_logger.new_temporal is None
+    )
+
+    # Detect mixed update: spatial/temporal expansion AND new variables
+    # Must be split into two phases to prevent data loss (P0-B)
+    is_mixed_update = (
+        h3_logger.updating
+        and h3_logger.new_product_vars is not None
+        and (h3_logger.new_spatial is not None or h3_logger.new_temporal is not None)
+    )
+
+    if is_mixed_update:
+        logger.info("Mixed update detected (spatial/temporal + new variables)")
+        logger.info("  Phase 1: expand spatial/temporal range with existing products")
+        logger.info("  Phase 2: add new variable columns to all partitions")
+
+    # Check for pending variable update from crash recovery
+    pending_var_update = h3_logger.log_data.get('_pending_variable_update')
+
+    # Early exit: database is already up-to-date with requested parameters
+    # Only when a valid build log exists with partition data to confirm completeness
+    if (h3_logger.is_up_to_date()
+            and not pending_var_update
+            and hasattr(h3_logger, 'h3_partition_ids')
+            and h3_logger.h3_partition_ids):
+        if h3_logger.previous_status != 'COMPLETED':
+            h3_logger.set_post_build_info()
+            h3_logger.save_log('COMPLETED')
+        logger.info("Database is already up-to-date with requested parameters")
+        print_success("Database is up-to-date, no changes needed", logger=logger)
+        return
+
     source_label = f"download+build: {soc_source}" if soc_source else "NASA S3 (temp download)"
     logger.info(f"Building GEDI H3 database at {args.output} (source: {source_label})")
     h3_logger.save_log('PARTITIONING')
 
     dask_kwargs = parse_dask_args(args)
+
+    # Common kwargs shared across all build_h3db() calls
+    _build_kwargs = dict(
+        spatial=h3_logger.get_spatial(),
+        temporal=h3_logger.get_temporal(),
+        res=h3_logger.res,
+        part=h3_logger.part,
+        version=h3_logger.gedi_version,
+        h3_dir=h3_logger._PARENT_DIR,
+        status_callback=h3_logger.save_log,
+        tmp_dir=args.tmpdir,
+    )
 
     try:
         with Client(**dask_kwargs) as client:
@@ -193,7 +242,24 @@ def main():
                     # Completed download log exists — use existing files
                     needs_download = False
                     logger.info(f"Using existing downloads at {soc_source} ({len(soc_logger.granule_info)} granules)")
-                    _validate_existing_h5(h3_logger.get_product_vars(), soc_source)
+
+                    # For variable-only or mixed updates, check if new products need downloading
+                    if (is_variable_only_update or is_mixed_update) and h3_logger.new_product_vars:
+                        import copy
+                        expanded_new = copy.deepcopy(dict(h3_logger.new_product_vars))
+                        gedi_vars_expand(expanded_new)
+                        try:
+                            validation = validate_soc_files(expanded_new, soc_source)
+                            can_skip = validation.get('can_skip', True) if isinstance(validation, dict) else False
+                        except Exception:
+                            can_skip = False
+                        if not can_skip:
+                            logger.info("New products not found in existing HDF5 files — downloading them")
+                            needs_download = True
+                        else:
+                            _validate_existing_h5(h3_logger.get_product_vars(), soc_source)
+                    else:
+                        _validate_existing_h5(h3_logger.get_product_vars(), soc_source)
                 elif existing_h5:
                     # No completed log, but .h5 files exist — skip download
                     needs_download = False
@@ -230,6 +296,7 @@ def main():
                         version=h3_logger.gedi_version,
                         odir=soc_source,
                         on_granule_complete=_download_tracker,
+                        ensure_l2a=not is_variable_only_update,
                     )
                     soc_logger.set_post_download_info()
                     soc_logger.save_log('COMPLETED')
@@ -248,21 +315,65 @@ def main():
                     h3_logger.register_pending_granules(_build_granules)
                     h3_logger.save_log('PROCESSING')
 
-                h3_files = build_h3db(
-                    product_vars=h3_logger.get_product_vars(),
-                    spatial=h3_logger.get_spatial(),
-                    temporal=h3_logger.get_temporal(),
-                    res=h3_logger.res,
-                    part=h3_logger.part,
-                    soc_source=soc_source,
-                    version=h3_logger.gedi_version,
-                    h3_dir=h3_logger._PARENT_DIR,
-                    skip_granules=h3_logger.get_finished_granules(),
-                    status_callback=h3_logger.save_log,
-                    tmp_dir=args.tmpdir
-                )
+                h3_files = None
 
+                # ── Stage 1: Spatial/temporal build ──────────────────────
+                # Runs for: fresh build, resume, spatial/temporal expansion,
+                # or mixed update Phase 1.
+                # Skipped for: variable-only update, pending variable resume.
+                if not pending_var_update and not is_variable_only_update:
+                    if is_mixed_update:
+                        stage1_products = {
+                            k: val.get('variables')
+                            for k, val in h3_logger.log_data.get('products', {}).items()
+                        }
+                        stage1_skip = None  # Re-examine all granules for new spatial area
+                        logger.info("Mixed update Phase 1: expanding with existing products")
+                    else:
+                        stage1_products = h3_logger.get_product_vars()
+                        stage1_skip = h3_logger.get_finished_granules()
+
+                    h3_files = build_h3db(
+                        product_vars=stage1_products,
+                        soc_source=soc_source,
+                        skip_granules=stage1_skip,
+                        variable_only_update=False,
+                        **_build_kwargs,
+                    )
+
+                # ── Stage 2: Variable update ─────────────────────────────
+                # Runs for: variable-only update, mixed update Phase 2,
+                # or pending variable resume from crash.
+                if pending_var_update or is_variable_only_update or is_mixed_update:
+                    if pending_var_update:
+                        stage2_products = pending_var_update['product_vars']
+                        logger.info("Resuming pending variable update")
+                    else:
+                        stage2_products = dict(h3_logger.new_product_vars)
+                        if is_mixed_update:
+                            h3_logger.set_post_build_info()
+                            logger.info("Mixed update Phase 2: adding new variables")
+                        h3_logger.log_data['_pending_variable_update'] = {
+                            'product_vars': stage2_products,
+                        }
+                        h3_logger.save_log('PROCESSING')
+
+                    h3_files_s2 = build_h3db(
+                        product_vars=stage2_products,
+                        soc_source=soc_source,
+                        skip_granules=None,
+                        variable_only_update=True,
+                        **_build_kwargs,
+                    )
+                    h3_files = (h3_files or []) + (h3_files_s2 or [])
+
+                # ── Finalize ─────────────────────────────────────────────
                 h3_logger.set_post_build_info()
+                # Clear pending variable update BEFORE saving — ensures the flag
+                # is not persisted to disk after successful completion.
+                # Crash safety: if crash between pop and save, disk still has
+                # PROCESSING status with the flag → next run resumes correctly.
+                h3_logger.log_data.pop('_pending_variable_update', None)
                 h3_logger.save_log('COMPLETED')
 
                 n_files = len(h3_files) if h3_files else 0

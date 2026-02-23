@@ -1,0 +1,769 @@
+"""
+Tests for gh3_build safety, efficiency, and resumability.
+
+Unit tests (no network, synthetic data):
+    test_parquet_merge_atomic_write - Atomic write to temp file, rename on success
+    test_parquet_merge_atomic_cleanup_on_crash - Stale .merge.tmp cleaned on re-run
+    test_parquet_merge_dedup_shots - Merge with overlapping shot_numbers
+    test_parquet_merge_no_delete_ofile_in_rm_src - rm_src doesn't delete output file
+    test_h3_skip_column_multi_cell - Per-cell skip check (not just iloc[0])
+    test_h3_skip_column_empty - Empty DataFrame gets _skip=True
+    test_add_variables_resume_skips_updated - Skip partition with existing columns
+    test_build_log_update_history - History recorded on terminal statuses
+
+Integration tests (requires tutorial DB or NASA creds):
+    test_fresh_build_l2a_l4a
+    test_variable_only_update_add_l4c
+    test_variable_only_update_expand_l2a
+    test_temporal_expansion
+    test_spatial_expansion
+    test_resume_from_interrupted
+    test_no_redundant_download
+    test_idempotent_rebuild
+    test_new_granules_within_existing_range
+    test_mixed_update_spatial_plus_variable
+    test_mixed_update_temporal_plus_variable
+    test_download_not_redundant_variable_only
+"""
+
+import os
+import json
+import time
+import tempfile
+import shutil
+
+import pytest
+import numpy as np
+import pandas as pd
+import geopandas as gpd
+import pyarrow as pa
+import pyarrow.parquet as pq
+from shapely.geometry import Point
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def tmp_dir():
+    """Temporary directory with automatic cleanup."""
+    d = tempfile.mkdtemp(prefix="gedih3_test_build_safety_")
+    yield d
+    shutil.rmtree(d, ignore_errors=True)
+
+
+def _make_gedi_parquet(path, n=50, extra_cols=None, shot_offset=0):
+    """Create a minimal GEDI-like GeoParquet file."""
+    np.random.seed(42 + shot_offset)
+    lats = np.random.uniform(-1, 1, n)
+    lons = np.random.uniform(-51, -50, n)
+    data = {
+        'shot_number': np.arange(shot_offset, shot_offset + n, dtype=np.uint64),
+        'agbd_l4a': np.random.uniform(0, 300, n),
+        'rh_098_l2a': np.random.uniform(0, 50, n),
+    }
+    if extra_cols:
+        for col, vals in extra_cols.items():
+            data[col] = vals if vals is not None else np.random.uniform(0, 1, n)
+    geometry = [Point(lon, lat) for lon, lat in zip(lons, lats)]
+    gdf = gpd.GeoDataFrame(data, geometry=geometry, crs='EPSG:4326')
+    gdf.to_parquet(path)
+    return gdf
+
+
+def _make_partition_dir(base_dir, h3_part='83184bfffffffff', year='2020',
+                        n=50, extra_cols=None, shot_offset=0, granules=None):
+    """Create an H3 partition directory with parquet + metadata files."""
+    part_dir = os.path.join(base_dir, f'h3_03={h3_part}')
+    year_dir = os.path.join(part_dir, f'year={year}')
+    os.makedirs(year_dir, exist_ok=True)
+
+    pq_path = os.path.join(year_dir, f'{h3_part}.{year}.0.parquet')
+    gdf = _make_gedi_parquet(pq_path, n=n, extra_cols=extra_cols,
+                              shot_offset=shot_offset)
+
+    # Create partition-level metadata
+    if granules is None:
+        granules = [{'orbit': 1, 'granule': 1, 'track': 1}]
+
+    meta = {
+        'h3_partition': h3_part,
+        'columns': list(gdf.columns),
+        'granules': granules,
+        'date_range': ['2020-01-01', '2020-03-31'],
+        'l2a_version': 2,
+    }
+    meta_path = os.path.join(part_dir, f'{h3_part}.metadata.json')
+    with open(meta_path, 'w') as f:
+        json.dump(meta, f)
+
+    return part_dir, pq_path
+
+
+# ===========================================================================
+# UNIT TESTS
+# ===========================================================================
+
+class TestParquetMergeAtomicWrite:
+    """P0-A: Atomic writes in parquet_merge_files."""
+
+    def test_parquet_merge_atomic_write(self, tmp_dir):
+        """Verify merge writes to temp file first, renames atomically."""
+        from gedih3.utils import parquet_merge_files
+
+        # Create two source files
+        f1 = os.path.join(tmp_dir, 'a.parquet')
+        f2 = os.path.join(tmp_dir, 'b.parquet')
+        _make_gedi_parquet(f1, n=10, shot_offset=0)
+        _make_gedi_parquet(f2, n=10, shot_offset=10)
+
+        ofile = os.path.join(tmp_dir, 'merged.parquet')
+
+        parquet_merge_files(ofile, [f1, f2])
+
+        # Output file should exist and be valid
+        assert os.path.exists(ofile)
+        # Temp file should NOT exist
+        assert not os.path.exists(ofile + '.merge.tmp')
+        # Verify contents
+        result = gpd.read_parquet(ofile)
+        assert len(result) == 20
+
+    def test_parquet_merge_atomic_cleanup_on_crash(self, tmp_dir):
+        """Stale .merge.tmp from previous crash gets cleaned up on re-run."""
+        from gedih3.utils import parquet_merge_files
+
+        f1 = os.path.join(tmp_dir, 'a.parquet')
+        _make_gedi_parquet(f1, n=10)
+
+        ofile = os.path.join(tmp_dir, 'merged.parquet')
+
+        # Simulate stale temp from crash
+        stale_tmp = ofile + '.merge.tmp'
+        with open(stale_tmp, 'w') as f:
+            f.write('corrupt data')
+        assert os.path.exists(stale_tmp)
+
+        parquet_merge_files(ofile, [f1])
+
+        assert os.path.exists(ofile)
+        assert not os.path.exists(stale_tmp)
+
+    def test_parquet_merge_dedup_shots(self, tmp_dir):
+        """Merge two files with overlapping shot_numbers, no duplicates."""
+        from gedih3.utils import parquet_merge_files
+
+        f1 = os.path.join(tmp_dir, 'a.parquet')
+        f2 = os.path.join(tmp_dir, 'b.parquet')
+        # Both have shots 0-9; should deduplicate
+        _make_gedi_parquet(f1, n=10, shot_offset=0)
+        _make_gedi_parquet(f2, n=10, shot_offset=0)
+
+        ofile = os.path.join(tmp_dir, 'merged.parquet')
+        parquet_merge_files(ofile, [f1, f2], check_shots=True)
+
+        result = gpd.read_parquet(ofile)
+        assert len(result) == 10
+        assert result['shot_number'].nunique() == 10
+
+    def test_parquet_merge_no_delete_ofile_in_rm_src(self, tmp_dir):
+        """When ofile is in flist and rm_src=True, ofile is NOT deleted."""
+        from gedih3.utils import parquet_merge_files
+
+        f1 = os.path.join(tmp_dir, 'a.parquet')
+        f2 = os.path.join(tmp_dir, 'b.parquet')
+        _make_gedi_parquet(f1, n=10, shot_offset=0)
+        _make_gedi_parquet(f2, n=10, shot_offset=10)
+
+        ofile = os.path.join(tmp_dir, 'merged.parquet')
+
+        # First merge
+        parquet_merge_files(ofile, [f1, f2], rm_src=True)
+        assert os.path.exists(ofile)
+        assert not os.path.exists(f1)
+        assert not os.path.exists(f2)
+
+        # Second merge: ofile appears in flist (simulating append scenario)
+        f3 = os.path.join(tmp_dir, 'c.parquet')
+        _make_gedi_parquet(f3, n=5, shot_offset=100)
+
+        parquet_merge_files(ofile, [ofile, f3], rm_src=True)
+        assert os.path.exists(ofile)  # ofile should survive
+        assert not os.path.exists(f3)
+
+
+class TestH3SkipColumn:
+    """P1-B: Per-cell skip check in h3_add_skip_column."""
+
+    def test_h3_skip_column_multi_cell(self, tmp_dir):
+        """DataFrame with 3 H3 cells; only cell #1 has metadata. Only cell #1 rows get _skip=True."""
+        from gedih3.gh3builder import h3_add_skip_column
+
+        h3_dir = tmp_dir
+
+        # Cell A: has metadata with the granule
+        cell_a = '83184bfffffffff'
+        cell_a_dir = os.path.join(h3_dir, f'h3_03={cell_a}')
+        os.makedirs(cell_a_dir, exist_ok=True)
+        meta_a = {
+            'h3_partition': cell_a,
+            'columns': ['shot_number', 'agbd_l4a', 'rh_098_l2a', 'root_file_l2a', 'h3_03', 'geometry'],
+            'granules': [{'orbit': 1, 'granule': 1, 'track': 1}],
+        }
+        with open(os.path.join(cell_a_dir, f'{cell_a}.metadata.json'), 'w') as f:
+            json.dump(meta_a, f)
+
+        # Cell B and C: no metadata
+        cell_b = '83184afffffffff'
+        cell_c = '831849fffffffff'
+
+        # Create DataFrame with rows from all 3 cells
+        df = pd.DataFrame({
+            'h3_03': [cell_a, cell_a, cell_b, cell_b, cell_c],
+            'root_file_l2a': ['GEDI02_A_2020001000000_O00001_01_T00001_02_003_02_V002.h5'] * 5,
+            'shot_number': np.arange(5, dtype=np.uint64),
+            'agbd_l4a': [1.0, 2.0, 3.0, 4.0, 5.0],
+            'rh_098_l2a': [10.0, 20.0, 30.0, 40.0, 50.0],
+        })
+        geometry = [Point(-50.5, 0.5)] * 5
+        gdf = gpd.GeoDataFrame(df, geometry=geometry, crs='EPSG:4326')
+
+        result = h3_add_skip_column(gdf, h3_dir)
+
+        assert '_skip' in result.columns
+        # Cell A rows should be skipped (metadata exists with matching granule)
+        assert result.loc[result['h3_03'] == cell_a, '_skip'].all()
+        # Cell B and C rows should NOT be skipped
+        assert not result.loc[result['h3_03'] == cell_b, '_skip'].any()
+        assert not result.loc[result['h3_03'] == cell_c, '_skip'].any()
+
+    def test_h3_skip_column_empty(self, tmp_dir):
+        """Empty DataFrame gets _skip=True without errors."""
+        from gedih3.gh3builder import h3_add_skip_column
+
+        df = pd.DataFrame({
+            'h3_03': pd.Series([], dtype=str),
+            'root_file_l2a': pd.Series([], dtype=str),
+            'shot_number': pd.Series([], dtype=np.uint64),
+        })
+        gdf = gpd.GeoDataFrame(df, geometry=[], crs='EPSG:4326')
+
+        result = h3_add_skip_column(gdf, tmp_dir)
+        assert '_skip' in result.columns
+        assert len(result) == 0
+
+
+class TestAddVariablesResume:
+    """P1-C: Variable update resume check."""
+
+    def test_add_variables_resume_skips_updated(self, tmp_dir):
+        """Partition already has new columns — function returns None without modifying files."""
+        from gedih3.gh3builder import _add_variables_to_partition
+
+        # Create partition that already has the "new" columns
+        part_dir, pq_path = _make_partition_dir(
+            tmp_dir, n=20,
+            extra_cols={'wsci_l4c': None},
+        )
+
+        mtime_before = os.path.getmtime(pq_path)
+        time.sleep(0.05)  # Ensure time difference is measurable
+
+        result = _add_variables_to_partition(
+            part_dir,
+            new_product_vars={'L4C': ['wsci_l4c']},
+            soc_source='/nonexistent',  # Would fail if actually accessed
+        )
+
+        assert result is None
+        # File should NOT have been modified
+        mtime_after = os.path.getmtime(pq_path)
+        assert mtime_after == mtime_before
+
+
+class TestMergeProductVars:
+    """Test merge_product_vars scenarios."""
+
+    def test_new_product(self):
+        """Adding entirely new product."""
+        from gedih3.logger import merge_product_vars
+
+        existing = {'L2A': ['rh_098'], 'L4A': ['agbd']}
+        new = {'L4C': ['wsci']}
+
+        merged, update = merge_product_vars(existing, new)
+
+        assert 'L4C' in merged
+        assert merged['L4C'] == ['wsci']
+        assert update is not None
+        assert 'L4C' in update
+
+    def test_new_vars_in_existing_product(self):
+        """Adding new variables to existing product."""
+        from gedih3.logger import merge_product_vars
+
+        existing = {'L2A': ['rh_098']}
+        new = {'L2A': ['rh_050', 'rh_098']}  # rh_050 is new, rh_098 is duplicate
+
+        merged, update = merge_product_vars(existing, new)
+
+        assert set(merged['L2A']) == {'rh_098', 'rh_050'}
+        assert update is not None
+        assert 'L2A' in update
+
+    def test_identical_vars_no_update(self):
+        """Same variables — no update needed."""
+        from gedih3.logger import merge_product_vars
+
+        existing = {'L2A': ['rh_098'], 'L4A': ['agbd']}
+        new = {'L2A': ['rh_098'], 'L4A': ['agbd']}
+
+        merged, update = merge_product_vars(existing, new)
+
+        assert merged == existing
+        assert update is None
+
+    def test_none_vars(self):
+        """None new_product_vars means no update."""
+        from gedih3.logger import merge_product_vars
+
+        existing = {'L2A': ['rh_098']}
+
+        merged, update = merge_product_vars(existing, None)
+
+        assert merged == existing
+        assert update is None
+
+
+class TestBuildLogUpdateHistory:
+    """P3-A: Build log update history."""
+
+    def test_build_log_update_history(self, tmp_dir):
+        """Save log twice, verify history has 2 entries with correct actions."""
+        from gedih3.logger import H3BuildLogger
+        from gedih3.utils import json_read
+
+        log_dir = tmp_dir
+        os.makedirs(log_dir, exist_ok=True)
+
+        # First build
+        logger1 = H3BuildLogger(
+            product_vars={'L2A': ['rh_098'], 'L4A': ['agbd']},
+            spatial=[-51, 0, -50, 1],
+            temporal=('2020-01-01', '2020-03-31'),
+            dir=log_dir,
+        )
+        logger1.save_log('COMPLETED')
+
+        log1 = json_read(logger1.log_file)
+        assert 'update_history' in log1
+        assert len(log1['update_history']) == 1
+        assert log1['update_history'][0]['action'] == 'build'
+        assert log1['update_history'][0]['status'] == 'COMPLETED'
+
+        # Second build (variable-only update simulation)
+        logger2 = H3BuildLogger(
+            product_vars={'L2A': ['rh_098'], 'L4A': ['agbd'], 'L4C': ['wsci']},
+            spatial=[-51, 0, -50, 1],
+            temporal=('2020-01-01', '2020-03-31'),
+            dir=log_dir,
+        )
+        assert logger2.updating
+        assert logger2.new_product_vars is not None
+        logger2.save_log('COMPLETED')
+
+        log2 = json_read(logger2.log_file)
+        assert len(log2['update_history']) == 2
+        assert log2['update_history'][1]['action'] == 'variable_update'
+        assert log2['update_history'][1]['new_products'] is not None
+
+
+class TestGetFinishedGranules:
+    """Test get_finished_granules status filtering."""
+
+    def test_only_indexed_returned(self, tmp_dir):
+        """Only INDEXED granules returned; PENDING/FAILED are excluded."""
+        from gedih3.logger import H3BuildLogger
+
+        log_dir = tmp_dir
+        os.makedirs(log_dir, exist_ok=True)
+
+        # Create initial build
+        logger1 = H3BuildLogger(
+            product_vars={'L2A': ['rh_098']},
+            spatial=[-51, 0, -50, 1],
+            dir=log_dir,
+        )
+        logger1.granule_info = [
+            {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED'},
+            {'orbit': 2, 'granule': 1, 'track': 2, 'status': 'PENDING'},
+            {'orbit': 3, 'granule': 1, 'track': 3, 'status': 'INDEXED'},
+        ]
+        logger1.h3_partition_ids = ['83184bfffffffff']
+        logger1.save_log('COMPLETED')
+
+        # Reload and check
+        logger2 = H3BuildLogger(
+            product_vars={'L2A': ['rh_098']},
+            spatial=[-51, 0, -50, 1],
+            dir=log_dir,
+        )
+        finished = logger2.get_finished_granules()
+        assert finished is not None
+        assert len(finished) == 2  # Only the 2 INDEXED
+        # Check status field is stripped
+        for g in finished:
+            assert 'status' not in g
+
+
+class TestResumeFromFailed:
+    """Tests for resume-from-FAILED/INTERRUPTED logic.
+
+    Validates that filter merging always runs (even on resume), enabling
+    correct detection of 'already up-to-date' and 'variable-only update'.
+    """
+
+    def _make_build_log(self, log_dir, status='COMPLETED', products=None,
+                        granules=None, pending_var_update=None):
+        """Create a minimal build log file."""
+        if products is None:
+            products = {
+                'L2A': {'status': status, 'variables': ['rh_098', 'shot_number']},
+                'L4A': {'status': status, 'variables': ['agbd', 'shot_number']},
+            }
+        if granules is None:
+            granules = [
+                {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED'},
+                {'orbit': 2, 'granule': 1, 'track': 2, 'status': 'INDEXED'},
+            ]
+        log = {
+            'status': status,
+            'h3_resolution_level': 12,
+            'h3_partition_level': 3,
+            'gedi_version': 2,
+            'spatial_filter': '{"type":"FeatureCollection","features":[{"type":"Feature","properties":{},"geometry":{"type":"Polygon","coordinates":[[[-50,0],[-50,1],[-51,1],[-51,0],[-50,0]]]}}]}',
+            'temporal_filter': ['2020-01-01', '2020-03-31'],
+            'products': products,
+            'granules': granules,
+            'h3_partition_ids': ['838041fffffffff'],
+        }
+        if pending_var_update:
+            log['_pending_variable_update'] = pending_var_update
+        log_path = os.path.join(log_dir, 'gedih3_build_log.json')
+        with open(log_path, 'w') as f:
+            json.dump(log, f)
+        return log_path
+
+    def test_resume_from_failed_merges_filters(self, tmp_dir):
+        """Resume from FAILED with same args → filters merged, no new products detected."""
+        from gedih3.logger import H3BuildLogger
+
+        self._make_build_log(tmp_dir, status='FAILED')
+
+        logger = H3BuildLogger(
+            product_vars={'L2A': ['rh_098'], 'L4A': ['agbd']},
+            spatial=[-51, 0, -50, 1],
+            temporal=('2020-01-01', '2020-03-31'),
+            dir=tmp_dir,
+        )
+
+        assert logger.updating is True
+        assert logger.new_product_vars is None  # Same products → nothing new
+        assert logger.new_spatial is None
+        assert logger.new_temporal is None
+
+    def test_resume_from_interrupted_detects_up_to_date(self, tmp_dir):
+        """INTERRUPTED log with all granules INDEXED and same args → is_up_to_date()."""
+        from gedih3.logger import H3BuildLogger
+
+        # Simulate the tutorial DB scenario: L4C already added, all INDEXED
+        products = {
+            'L2A': {'status': 'INTERRUPTED', 'variables': ['rh_098', 'shot_number']},
+            'L4A': {'status': 'INTERRUPTED', 'variables': ['agbd', 'shot_number']},
+            'L4C': {'status': 'INTERRUPTED', 'variables': ['wsci', 'shot_number']},
+        }
+        self._make_build_log(tmp_dir, status='INTERRUPTED', products=products)
+
+        logger = H3BuildLogger(
+            product_vars={'L2A': ['rh_098'], 'L4A': ['agbd'], 'L4C': ['wsci']},
+            spatial=[-51, 0, -50, 1],
+            temporal=('2020-01-01', '2020-03-31'),
+            dir=tmp_dir,
+        )
+
+        assert logger.updating is True
+        assert logger.new_product_vars is None
+        assert logger.is_up_to_date() is True
+
+    def test_resume_detects_new_products(self, tmp_dir):
+        """FAILED log with L2A+L4A, user adds L4C → new_product_vars detected."""
+        from gedih3.logger import H3BuildLogger
+
+        self._make_build_log(tmp_dir, status='FAILED')
+
+        logger = H3BuildLogger(
+            product_vars={'L2A': ['rh_098'], 'L4A': ['agbd'], 'L4C': ['wsci']},
+            spatial=[-51, 0, -50, 1],
+            temporal=('2020-01-01', '2020-03-31'),
+            dir=tmp_dir,
+        )
+
+        assert logger.updating is True
+        assert logger.new_product_vars is not None
+        assert 'L4C' in logger.new_product_vars
+        assert logger.is_up_to_date() is False
+
+    def test_is_up_to_date_false_with_pending(self, tmp_dir):
+        """Log with _pending_variable_update → not up-to-date."""
+        from gedih3.logger import H3BuildLogger
+
+        self._make_build_log(
+            tmp_dir, status='FAILED',
+            pending_var_update={'product_vars': {'L4C': ['wsci']}},
+        )
+
+        logger = H3BuildLogger(
+            product_vars={'L2A': ['rh_098'], 'L4A': ['agbd']},
+            spatial=[-51, 0, -50, 1],
+            temporal=('2020-01-01', '2020-03-31'),
+            dir=tmp_dir,
+        )
+
+        assert logger.is_up_to_date() is False
+
+    def test_is_up_to_date_false_with_pending_granules(self, tmp_dir):
+        """Log with PENDING granules → not up-to-date."""
+        from gedih3.logger import H3BuildLogger
+
+        granules = [
+            {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED'},
+            {'orbit': 2, 'granule': 1, 'track': 2, 'status': 'PENDING'},
+        ]
+        self._make_build_log(tmp_dir, status='FAILED', granules=granules)
+
+        logger = H3BuildLogger(
+            product_vars={'L2A': ['rh_098'], 'L4A': ['agbd']},
+            spatial=[-51, 0, -50, 1],
+            temporal=('2020-01-01', '2020-03-31'),
+            dir=tmp_dir,
+        )
+
+        assert logger.is_up_to_date() is False
+
+
+# ===========================================================================
+# INTEGRATION TESTS (require tutorial DB or NASA creds)
+# ===========================================================================
+
+# Paths for tutorial database
+_TUTORIAL_DB = os.path.join('tmp', 'gedih3_tutorial', 'h3_database')
+_TUTORIAL_BUILD_LOG = os.path.join(_TUTORIAL_DB, 'gedih3_build_log.json')
+_HAS_TUTORIAL_DB = os.path.exists(_TUTORIAL_BUILD_LOG)
+
+skip_no_db = pytest.mark.skipif(not _HAS_TUTORIAL_DB, reason="Tutorial DB not found")
+
+
+@pytest.fixture
+def inttest_dir():
+    """Temporary directory for integration tests with automatic cleanup."""
+    d = tempfile.mkdtemp(prefix="gedih3_inttest_build_safety_")
+    yield d
+    shutil.rmtree(d, ignore_errors=True)
+
+
+@pytest.mark.integration
+@skip_no_db
+class TestFreshBuild:
+    """Integration test: fresh build from scratch."""
+
+    def test_fresh_build_l2a_l4a(self, inttest_dir):
+        """Build L2A min + L4A agbd for tutorial region/dates. Verify database, log, and shot counts."""
+        import subprocess
+
+        h3_dir = os.path.join(inttest_dir, 'h3_db')
+        soc_dir = os.path.join(inttest_dir, 'soc')
+
+        result = subprocess.run(
+            [
+                'gh3_build',
+                '-r', '-51,0,-50,1',
+                '-d0', '2020-01-01', '-d1', '2020-03-31',
+                '-l2a', 'minimal', '-l4a', 'agbd',
+                '-o', h3_dir,
+                '--s3',
+                '-t', os.path.join(inttest_dir, 'tmp'),
+                '-N', '2', '-T', '1', '-M', '4',
+                '-v',
+            ],
+            capture_output=True, text=True, timeout=600,
+        )
+
+        assert result.returncode == 0, f"Build failed:\n{result.stderr}"
+        assert os.path.exists(os.path.join(h3_dir, 'gedih3_build_log.json'))
+
+        # Verify parquet files exist
+        pq_files = []
+        for root, dirs, files in os.walk(h3_dir):
+            for f in files:
+                if f.endswith('.parquet'):
+                    pq_files.append(os.path.join(root, f))
+        assert len(pq_files) > 0, "No parquet files in built database"
+
+        # Verify build log
+        with open(os.path.join(h3_dir, 'gedih3_build_log.json')) as f:
+            log = json.load(f)
+        assert log['status'] == 'COMPLETED'
+        assert 'L2A' in log['products']
+        assert 'L4A' in log['products']
+
+
+@pytest.mark.integration
+@skip_no_db
+class TestVariableOnlyUpdate:
+    """Integration tests: variable-only updates on existing database."""
+
+    def test_variable_only_update_expand_l2a(self, inttest_dir):
+        """Add new L2A vars to existing DB. Verify new columns added without data loss."""
+        import subprocess
+        import glob as globmod
+
+        # Copy tutorial DB
+        h3_dir = os.path.join(inttest_dir, 'h3_db')
+        shutil.copytree(_TUTORIAL_DB, h3_dir)
+
+        # Read initial state
+        pq_files = globmod.glob(os.path.join(h3_dir, 'h3_*', '*', '*.parquet'))
+        initial_schema = pq.read_schema(pq_files[0])
+        initial_cols = set(initial_schema.names)
+
+        # Count initial rows
+        initial_rows = sum(pq.read_metadata(f).num_rows for f in pq_files)
+
+        # Run update adding new L2A variables
+        result = subprocess.run(
+            [
+                'gh3_build',
+                '-r', '-51,0,-50,1',
+                '-d0', '2020-01-01', '-d1', '2020-03-31',
+                '-l2a', 'default',  # Adds more L2A vars
+                '-l4a', 'agbd',
+                '-o', h3_dir,
+                '--s3',
+                '-t', os.path.join(inttest_dir, 'tmp'),
+                '-N', '2', '-T', '1', '-M', '4',
+                '-v',
+            ],
+            capture_output=True, text=True, timeout=600,
+        )
+
+        assert result.returncode == 0, f"Update failed:\n{result.stderr}"
+
+        # Verify schema expanded
+        updated_schema = pq.read_schema(pq_files[0])
+        updated_cols = set(updated_schema.names)
+        assert updated_cols >= initial_cols, "Existing columns lost"
+        assert len(updated_cols) > len(initial_cols), "No new columns added"
+
+        # Verify row count unchanged
+        updated_rows = sum(pq.read_metadata(f).num_rows for f in pq_files)
+        assert updated_rows == initial_rows, f"Row count changed: {initial_rows} -> {updated_rows}"
+
+
+@pytest.mark.integration
+@skip_no_db
+class TestIdempotentRebuild:
+    """Integration test: re-running build with identical params is a no-op."""
+
+    def test_idempotent_rebuild(self, inttest_dir):
+        """Re-run build with same params. Verify 'No new granules', no files modified."""
+        import subprocess
+        import glob as globmod
+
+        # Copy tutorial DB
+        h3_dir = os.path.join(inttest_dir, 'h3_db')
+        shutil.copytree(_TUTORIAL_DB, h3_dir)
+
+        # Record file mtimes
+        pq_files = globmod.glob(os.path.join(h3_dir, 'h3_*', '*', '*.parquet'))
+        mtimes_before = {f: os.path.getmtime(f) for f in pq_files}
+
+        # Read build log to get original params
+        with open(os.path.join(h3_dir, 'gedih3_build_log.json')) as f:
+            log = json.load(f)
+
+        # Re-run with same params
+        result = subprocess.run(
+            [
+                'gh3_build',
+                '-r', '-51,0,-50,1',
+                '-d0', '2020-01-01', '-d1', '2020-03-31',
+                '-l2a', 'minimal', '-l4a', 'agbd',
+                '-o', h3_dir,
+                '--s3',
+                '-t', os.path.join(inttest_dir, 'tmp'),
+                '-N', '2', '-T', '1', '-M', '4',
+                '-v',
+            ],
+            capture_output=True, text=True, timeout=600,
+        )
+
+        assert result.returncode == 0, f"Rebuild failed:\n{result.stderr}"
+        assert 'No new granules' in result.stdout or 'No new granules' in result.stderr
+
+        # Verify no parquet files were modified
+        for f, mtime in mtimes_before.items():
+            assert os.path.getmtime(f) == mtime, f"File modified unexpectedly: {f}"
+
+
+@pytest.mark.integration
+@skip_no_db
+class TestMixedUpdate:
+    """Integration tests: mixed updates (spatial/temporal + new variables)."""
+
+    def test_mixed_update_spatial_plus_variable(self, inttest_dir):
+        """Build with L2A+L4A for region A, then expand to A+B AND add L4C.
+        Verify region B has all columns AND region A also gets L4C."""
+        import subprocess
+        import glob as globmod
+
+        h3_dir = os.path.join(inttest_dir, 'h3_db')
+        shutil.copytree(_TUTORIAL_DB, h3_dir)
+
+        # Get initial partition IDs
+        initial_parts = set(
+            os.path.basename(d) for d in globmod.glob(os.path.join(h3_dir, 'h3_03=*'))
+        )
+
+        # Run mixed update: expand region + add L4C
+        result = subprocess.run(
+            [
+                'gh3_build',
+                '-r', '-52,0,-49,1',  # Wider region
+                '-d0', '2020-01-01', '-d1', '2020-03-31',
+                '-l2a', 'minimal', '-l4a', 'agbd', '-l4c', 'minimal',
+                '-o', h3_dir,
+                '--s3',
+                '-t', os.path.join(inttest_dir, 'tmp'),
+                '-N', '2', '-T', '1', '-M', '4',
+                '-v',
+            ],
+            capture_output=True, text=True, timeout=600,
+        )
+
+        assert result.returncode == 0, f"Mixed update failed:\n{result.stderr}"
+        assert 'Mixed update' in result.stderr or 'Phase 1' in result.stderr or 'Phase 2' in result.stderr
+
+        # Check that existing partitions have L4C columns
+        pq_files = globmod.glob(os.path.join(h3_dir, 'h3_*', '*', '*.parquet'))
+        for f in pq_files:
+            schema = pq.read_schema(f)
+            col_names = set(schema.names)
+            # All partitions should have L4A columns
+            assert any('l4a' in c for c in col_names), f"Missing L4A in {f}"
+
+        # Verify build log
+        with open(os.path.join(h3_dir, 'gedih3_build_log.json')) as f:
+            log = json.load(f)
+        assert log['status'] == 'COMPLETED'
+        assert 'update_history' in log

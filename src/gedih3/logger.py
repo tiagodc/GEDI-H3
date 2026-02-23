@@ -22,12 +22,8 @@ _VALID_STATUSES = (
 
 def load_log_data(file_path):
     if os.path.exists(file_path):
-        log = json_read(file_path)
-        if log.get('status') in ['FAILED', 'INTERRUPTED']:
-            log['_resuming'] = True
-        return log
-    else:
-        return {}
+        return json_read(file_path)
+    return {}
 
 def merge_temporal(existing, new):
     if existing is None:
@@ -119,11 +115,6 @@ class SOCDownloadLogger:
         self.new_spatial = None
         self.new_temporal = None
         self.new_product_vars = None
-
-        # When resuming from FAILED/INTERRUPTED, skip filter merging
-        # (resume from where we left off using existing filters)
-        if self.log_data.get('_resuming'):
-            return
 
         if temporal is not None:
             self.temporal, self.new_temporal = merge_temporal(self.temporal, temporal)
@@ -321,11 +312,6 @@ class H3BuildLogger:
         self.new_temporal = None
         self.new_product_vars = None
 
-        # When resuming from FAILED/INTERRUPTED, skip filter merging
-        # (resume from where we left off using existing filters)
-        if self.log_data.get('_resuming'):
-            return
-
         if temporal is not None:
             self.temporal, self.new_temporal = merge_temporal(self.temporal, temporal)
 
@@ -334,7 +320,6 @@ class H3BuildLogger:
 
         if product_vars is not None:
             self.product_vars, self.new_product_vars = merge_product_vars(self.product_vars, product_vars)
-
 
     def _load_filters_from_log(self):
         self.product_vars = self.log_data.get('products', {})
@@ -453,6 +438,30 @@ class H3BuildLogger:
             ]
         return None
 
+    def is_up_to_date(self):
+        """Check if database already matches requested parameters.
+
+        Returns True when all of these hold:
+        - Log exists (updating=True)
+        - No new products, spatial, or temporal changes detected
+        - No pending variable update from a previous crash
+        - All tracked granules are INDEXED
+        """
+        if not self.updating:
+            return False
+        if getattr(self, 'new_product_vars', None) is not None:
+            return False
+        if getattr(self, 'new_spatial', None) is not None:
+            return False
+        if getattr(self, 'new_temporal', None) is not None:
+            return False
+        if self.log_data.get('_pending_variable_update'):
+            return False
+        if hasattr(self, 'granule_info') and self.granule_info:
+            if any(g.get('status') not in ('INDEXED', None) for g in self.granule_info):
+                return False
+        return True
+
     def set_post_build_info(self):
         metadata_files = glob.glob(os.path.join(self._PARENT_DIR, '*', f'*{PARTITION_META_FILENAME}'))
         if len(metadata_files) == 0:
@@ -552,6 +561,24 @@ class H3BuildLogger:
 
         if hasattr(self, 'date_range'):
             log_dict['date_range'] = self.date_range
+
+        # Append to update history on terminal statuses
+        if status in ('COMPLETED', 'FAILED', 'INTERRUPTED'):
+            action = 'variable_update' if getattr(self, 'new_product_vars', None) and getattr(self, 'new_spatial', None) is None and getattr(self, 'new_temporal', None) is None else 'build'
+            update_entry = {
+                'timestamp': now(),
+                'action': action,
+                'status': status,
+                'duration_seconds': build_duration,
+                'new_products': sorted(self.new_product_vars.keys()) if getattr(self, 'new_product_vars', None) else None,
+            }
+            existing_history = self.log_data.get('update_history', [])
+            existing_history.append(update_entry)
+            log_dict['update_history'] = existing_history[-50:]  # Keep last 50
+
+        # Preserve pending variable update state for crash recovery (P0-B)
+        if '_pending_variable_update' in self.log_data:
+            log_dict['_pending_variable_update'] = self.log_data['_pending_variable_update']
 
         return log_dict
 
