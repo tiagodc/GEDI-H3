@@ -1008,38 +1008,49 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
         merged_bbox = list(geodf.total_bounds)
         schema = parquet_schema_add_bbox(schema, bbox=merged_bbox)
 
-    writer = pq.ParquetWriter(ofile, schema, compression="zstd")
-    shots = None
-    acc = []
-    acc_rows = 0
+    # Atomic write: write to temp file, rename after successful close
+    tmp_ofile = ofile + '.merge.tmp'
+    if os.path.exists(tmp_ofile):
+        os.unlink(tmp_ofile)  # Clean up stale temp from previous crash
 
-    scanner = dataset.scanner(batch_size=rows_per_group, use_threads=False)
-    for batch in scanner.to_batches():
-        if check_shots and "shot_number" in batch.schema.names:
-            arr = batch["shot_number"].to_numpy().astype(np.uint64)
-            if shots is None:
-                shots = np.unique(arr)
-            else:
-                keep = ~np.isin(arr, shots, assume_unique=True)
-                if not keep.any():
-                    continue
-                batch = batch.filter(pa.array(keep))
-                shots = np.unique(np.concatenate([shots, arr[keep]]))
+    try:
+        writer = pq.ParquetWriter(tmp_ofile, schema, compression="zstd")
+        shots = None
+        acc = []
+        acc_rows = 0
 
-        acc.append(pa.Table.from_batches([batch], schema=schema))
-        acc_rows += batch.num_rows
-        if acc_rows >= rows_per_group:
+        scanner = dataset.scanner(batch_size=rows_per_group, use_threads=False)
+        for batch in scanner.to_batches():
+            if check_shots and "shot_number" in batch.schema.names:
+                arr = batch["shot_number"].to_numpy().astype(np.uint64)
+                if shots is None:
+                    shots = np.unique(arr)
+                else:
+                    keep = ~np.isin(arr, shots, assume_unique=True)
+                    if not keep.any():
+                        continue
+                    batch = batch.filter(pa.array(keep))
+                    shots = np.unique(np.concatenate([shots, arr[keep]]))
+
+            acc.append(pa.Table.from_batches([batch], schema=schema))
+            acc_rows += batch.num_rows
+            if acc_rows >= rows_per_group:
+                writer.write_table(pa.concat_tables(acc))
+                acc.clear()
+                acc_rows = 0
+
+        if acc:
             writer.write_table(pa.concat_tables(acc))
-            acc.clear()
-            acc_rows = 0
-
-    if acc:
-        writer.write_table(pa.concat_tables(acc))
-    writer.close()
+        writer.close()
+        os.replace(tmp_ofile, ofile)  # Atomic rename
+    except:
+        if os.path.exists(tmp_ofile):
+            os.unlink(tmp_ofile)
+        raise
 
     if rm_src:
         for f in flist:
-            if os.path.exists(f):
+            if os.path.exists(f) and f != ofile:
                 os.unlink(f)
 
 def parquet_join_columns(flist: List[str], ofile: str, key_col: str = 'shot_number',
