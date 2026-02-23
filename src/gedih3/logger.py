@@ -98,6 +98,7 @@ class SOCDownloadLogger:
             product_vars = gedi_vars_expand(product_vars)
 
         self.gedi_version = version
+        self.s3_access = False
 
         self.log_file = os.path.join(self._PARENT_DIR, self._LOG_FILE_NAME)
         self.log_data = load_log_data(self.log_file)
@@ -132,6 +133,7 @@ class SOCDownloadLogger:
         self.spatial = parse_spatial(self.log_data.get('spatial_filter'))
         self.temporal = parse_temporal(self.log_data.get('temporal_filter'))
         self.gedi_version = self.log_data.get('gedi_version', self.gedi_version)
+        self.s3_access = self.log_data.get('s3_access', False)
 
         if 'granules' in self.log_data:
             self.granule_info = self.log_data.get('granules')
@@ -266,7 +268,7 @@ class SOCDownloadLogger:
             'last_modified': now(),
             'spatial_filter': None if self.spatial is None else to_geojson(self.spatial),
             'temporal_filter': self.temporal,
-            "s3_access": False,
+            "s3_access": self.s3_access,
             'products': product_logs
         }
 

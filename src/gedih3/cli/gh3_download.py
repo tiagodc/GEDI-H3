@@ -23,6 +23,10 @@ def get_cmd_args():
                    help="output directory for downloaded files")
     p.add_argument("--resume", dest="resume", action='store_true',
                    help="resume and redownload missing/corrupted files")
+    p.add_argument("-s3", "--s3", dest="s3", action='store_true',
+                   help="use S3 ETL mode: stream and subset from NASA S3 (10-50x less data transfer)")
+    p.add_argument("--gedi-version", dest="version", type=int, default=None,
+                   help="GEDI data version [default=latest available]")
 
     # Dask and verbosity
     add_dask_args(p, profile='build')
@@ -37,7 +41,7 @@ def main():
 
     from gedih3.config import GH3_DEFAULT_SOC_DIR
     from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success
-    from gedih3.gh3builder import download_soc
+    from gedih3.gh3builder import download_soc, s3_etl_subset
     from gedih3.logger import SOCDownloadLogger
     from dask.distributed import Client
 
@@ -59,8 +63,12 @@ def main():
         product_vars=product_vars,
         spatial=spatial,
         temporal=temporal,
+        version=args.version,
         dir=args.outdir
     )
+
+    if args.s3:
+        soc_logger.s3_access = True
 
     if not soc_logger.product_vars and not soc_logger.updating:
         raise ValueError("No GEDI product selected for download - please select at least one of --l1b, --l2a, --l2b, --l4a, --l4c")
@@ -78,7 +86,8 @@ def main():
         if soc_logger.new_product_vars is not None:
             logger.info("Product variables updated")
 
-    logger.info(f"Downloading GEDI data to {args.outdir}")
+    source_label = "S3 ETL" if args.s3 else "DAAC download"
+    logger.info(f"Downloading GEDI data to {args.outdir} ({source_label})")
     soc_logger.save_log('DOWNLOADING')
 
     dask_kwargs = parse_dask_args(args)
@@ -87,20 +96,34 @@ def main():
         with Client(**dask_kwargs) as client:
             logger.info(f"Dask dashboard available at: {client.dashboard_link}")
             try:
-                soc_files = download_soc(
-                    product_vars=soc_logger.get_product_vars(),
-                    spatial=soc_logger.get_spatial(),
-                    temporal=soc_logger.get_temporal(),
-                    direct_access=False,
-                    update=True,
-                    odir=args.outdir
-                )
+                if args.s3:
+                    # S3 ETL mode: stream and subset from NASA S3 to permanent output dir
+                    s3_etl_subset(
+                        product_vars=soc_logger.get_product_vars(),
+                        spatial=soc_logger.get_spatial(),
+                        temporal=soc_logger.get_temporal(),
+                        version=args.version,
+                        odir=args.outdir,
+                        ensure_l2a=True,
+                    )
+                else:
+                    # Standard DAAC download mode
+                    download_soc(
+                        product_vars=soc_logger.get_product_vars(),
+                        spatial=soc_logger.get_spatial(),
+                        temporal=soc_logger.get_temporal(),
+                        direct_access=False,
+                        update=True,
+                        version=args.version,
+                        odir=args.outdir
+                    )
 
                 soc_logger.set_post_download_info()
                 soc_logger.save_log('COMPLETED')
 
-                n_files = len(soc_files) if soc_files else 0
-                print_success(f"{n_files} files downloaded to {args.outdir}", logger=logger)
+                import glob
+                n_files = len(glob.glob(os.path.join(args.outdir, '**', 'GEDI*.h5'), recursive=True))
+                print_success(f"{n_files} files downloaded to {args.outdir} ({source_label})", logger=logger)
 
             except Exception as e:
                 soc_logger.save_log('FAILED')

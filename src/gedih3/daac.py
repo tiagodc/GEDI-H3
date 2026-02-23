@@ -518,7 +518,10 @@ def download_granule(
                     logger.debug(f"Skipping {expected_filename} (already exists with required variables)")
                     return expected_path
                 else:
-                    logger.debug(f"Re-downloading {expected_filename} (missing variables)")
+                    missing = requested_vars - existing_vars
+                    logger.debug(f"Re-downloading {expected_filename} (missing {len(missing)} variables)")
+                    # Preserve union of existing + requested vars after re-download
+                    subset_vars = sorted(existing_vars | requested_vars)
                     os.unlink(expected_path)
             except Exception as e:
                 logger.warning(f"Could not read existing file {expected_filename}, re-downloading: {e}")

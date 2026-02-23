@@ -26,9 +26,11 @@ def get_cmd_args():
 
     # I/O paths
     p.add_argument("-o", "--output", dest="output", type=str, default=None,
-                   help="output directory for H3 database")
+                   help="output directory for H3 database (default: GH3_DEFAULT_H3_DIR)")
     p.add_argument("-i", '--indir', dest="indir", type=str, default=None,
-                   help="directory with GEDI SOC files (builds from existing .h5 files; downloads only if directory is empty)")
+                   help="directory with GEDI SOC files (default: GH3_DEFAULT_SOC_DIR)")
+    p.add_argument("-dl", "--download", dest="download", action='store_true',
+                   help="download missing GEDI data before building (embeds gh3_download as pre-step)")
     p.add_argument("-t", '--tmpdir', dest="tmpdir", type=str, default=None,
                    help="temporary directory for intermediate files")
     p.add_argument("-s3", "--s3", dest="s3", action='store_true',
@@ -49,7 +51,7 @@ def main():
     import sys
     import glob
     import warnings
-    from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR
+    from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR
     from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success
     from gedih3.utils import get_system_resources
     from gedih3.gh3builder import build_h3db, download_soc, soc_file_tree
@@ -76,16 +78,17 @@ def main():
     if storage < 10:
         logger.warning(f"Low disk space ({storage:.1f} GB free) — build may fail writing parquet output")
 
-    # Determine source mode: -i (download+build) or --s3 (temp download+build)
-    if args.indir:
+    # Determine source mode: --s3 (temp download+build) or local SOC directory
+    if args.s3:
+        soc_source = None  # S3 ETL to temp dir
+        if args.indir:
+            logger.warning("Both -i and --s3 specified. Using --s3 (S3 mode).")
+        if args.download:
+            logger.warning("--download is ignored when using --s3 (S3 mode downloads automatically).")
+    elif args.indir:
         soc_source = args.indir
-        if args.s3:
-            logger.warning("Both -i and --s3 specified. Using -i (local download mode).")
-    elif args.s3:
-        soc_source = None  # S3 download to temp dir
     else:
-        logger.error("Either -i/--indir (download directory) or --s3 (S3 download) is required")
-        sys.exit(2)
+        soc_source = GH3_DEFAULT_SOC_DIR
 
     product_vars = parse_gedi_args(args)
     spatial = parse_region(args.region) if args.region is not None else None
@@ -101,7 +104,7 @@ def main():
         part=args.h3_partition,
         version=args.version,
         dir=args.output,
-        source_mode='s3' if args.s3 else 'download',
+        source_mode='s3' if args.s3 else 'local',
     )
 
     if not h3_logger.product_vars and not h3_logger.updating:
@@ -158,9 +161,13 @@ def main():
         print_success("Database is up-to-date, no changes needed", logger=logger)
         return
 
-    source_label = f"download+build: {soc_source}" if soc_source else "NASA S3 (temp download)"
+    if soc_source is None:
+        source_label = "NASA S3 (temp download)"
+    elif args.download:
+        source_label = f"download+build: {soc_source}"
+    else:
+        source_label = f"local: {soc_source}"
     logger.info(f"Building GEDI H3 database at {args.output} (source: {source_label})")
-    h3_logger.save_log('PARTITIONING')
 
     dask_kwargs = parse_dask_args(args)
 
@@ -188,23 +195,14 @@ def main():
 
             logger.info(f"Dask dashboard available at: {client.dashboard_link}")
 
-            # Auto-download when using -i mode
+            # Validate/download SOC data when using local directory mode
             if soc_source is not None:
                 os.makedirs(soc_source, exist_ok=True)
-                soc_logger = SOCDownloadLogger(
-                    product_vars=h3_logger.get_product_vars(),
-                    spatial=h3_logger.get_spatial(),
-                    temporal=h3_logger.get_temporal(),
-                    version=h3_logger.gedi_version,
-                    dir=soc_source,
-                )
                 existing_h5 = glob.glob(os.path.join(soc_source, '**', 'GEDI*.h5'), recursive=True)
 
                 def _validate_existing_h5(product_vars, soc_dir):
                     """Validate requested products/variables exist in HDF5 files. Exits on mismatch."""
                     import copy
-                    # Expand keywords ('min', 'default', 'all') to actual variable names
-                    # before validation so we check real variables, not keyword strings
                     expanded = copy.deepcopy(product_vars)
                     gedi_vars_expand(expanded)
                     try:
@@ -213,7 +211,6 @@ def main():
                         logger.warning(f"Could not validate HDF5 files (corrupt file?): {val_err}")
                         return
 
-                    # Handle tuple return (no SOC files found) vs dict return
                     if isinstance(validation, tuple):
                         can_skip = False
                         validation = validation[1] if len(validation) > 1 else {}
@@ -233,74 +230,92 @@ def main():
                         msg_parts.append("To fix:")
                         msg_parts.append("  1. Check available variables:  gh3_read_schema /path/to/file.h5")
                         msg_parts.append("  2. Adjust your -l2a/-l4a/... flags to match available data")
-                        msg_parts.append("  3. Run gh3_download to fetch the required products into the SOC directory")
-                        msg_parts.append("  4. Or use --s3 to build directly from NASA S3 (no persistent download)")
+                        msg_parts.append("  3. Run gh3_download to fetch the required products")
+                        msg_parts.append("  4. Or add --download to auto-fetch before building")
+                        msg_parts.append("  5. Or use --s3 to build directly from NASA S3 (no persistent download)")
                         logger.error("\n".join(msg_parts))
                         sys.exit(2)
 
-                if soc_logger.updating and soc_logger.log_data.get('status') == 'COMPLETED':
-                    # Completed download log exists — use existing files
-                    needs_download = False
-                    logger.info(f"Using existing downloads at {soc_source} ({len(soc_logger.granule_info)} granules)")
-
-                    # For variable-only or mixed updates, check if new products need downloading
-                    if (is_variable_only_update or is_mixed_update) and h3_logger.new_product_vars:
-                        import copy
-                        expanded_new = copy.deepcopy(dict(h3_logger.new_product_vars))
-                        gedi_vars_expand(expanded_new)
-                        try:
-                            validation = validate_soc_files(expanded_new, soc_source)
-                            can_skip = validation.get('can_skip', True) if isinstance(validation, dict) else False
-                        except Exception:
-                            can_skip = False
-                        if not can_skip:
-                            logger.info("New products not found in existing HDF5 files — downloading them")
-                            needs_download = True
-                        else:
-                            _validate_existing_h5(h3_logger.get_product_vars(), soc_source)
-                    else:
-                        _validate_existing_h5(h3_logger.get_product_vars(), soc_source)
-                elif existing_h5:
-                    # No completed log, but .h5 files exist — skip download
-                    needs_download = False
-                    logger.warning(
-                        f"Found {len(existing_h5)} existing HDF5 files in {soc_source}. "
-                        f"Skipping download and building directly from existing files. "
-                        f"Run gh3_download first if you need to update the source data."
+                if args.download:
+                    # --download enabled: embed gh3_download as pre-step
+                    soc_logger = SOCDownloadLogger(
+                        product_vars=h3_logger.get_product_vars(),
+                        spatial=h3_logger.get_spatial(),
+                        temporal=h3_logger.get_temporal(),
+                        version=h3_logger.gedi_version,
+                        dir=soc_source,
                     )
-                    _validate_existing_h5(h3_logger.get_product_vars(), soc_source)
-                else:
-                    # No log AND no .h5 files — download
+
                     needs_download = True
 
-                if needs_download:
-                    logger.info(f"Downloading GEDI data to {soc_source}")
-                    soc_logger.save_log('DOWNLOADING')
-
-                    def _download_tracker(gran_info, status):
-                        """Called from main thread (as_completed loop). Thread safe."""
-                        if status == 'PENDING':
-                            soc_logger.register_pending_granules([gran_info])
+                    if soc_logger.updating and soc_logger.log_data.get('status') == 'COMPLETED':
+                        # Completed download log exists — check if more data is needed
+                        if (is_variable_only_update or is_mixed_update) and h3_logger.new_product_vars:
+                            import copy
+                            expanded_new = copy.deepcopy(dict(h3_logger.new_product_vars))
+                            gedi_vars_expand(expanded_new)
+                            try:
+                                validation = validate_soc_files(expanded_new, soc_source)
+                                can_skip = validation.get('can_skip', True) if isinstance(validation, dict) else False
+                            except Exception:
+                                can_skip = False
+                            if can_skip:
+                                needs_download = False
+                                logger.info(f"New products already available in {soc_source}")
+                            else:
+                                logger.info("New products not found in existing HDF5 files — downloading them")
+                        elif not h3_logger.new_spatial and not h3_logger.new_temporal and not h3_logger.new_product_vars:
+                            needs_download = False
+                            logger.info(f"Using existing downloads at {soc_source} ({len(soc_logger.granule_info)} granules)")
                         else:
-                            soc_logger.update_granule_status(gran_info, status)
-                        # Save after every granule — downloads are slow (seconds each),
-                        # so the JSON write overhead is negligible relative to network I/O
+                            _validate_existing_h5(h3_logger.get_product_vars(), soc_source)
+                            needs_download = True  # Spatial/temporal expansion needs new granules
+
+                    if needs_download:
+                        logger.info(f"Downloading GEDI data to {soc_source}")
                         soc_logger.save_log('DOWNLOADING')
 
-                    download_soc(
-                        product_vars=soc_logger.get_product_vars(),
-                        spatial=soc_logger.get_spatial(),
-                        temporal=soc_logger.get_temporal(),
-                        direct_access=False,
-                        update=True,
-                        version=h3_logger.gedi_version,
-                        odir=soc_source,
-                        on_granule_complete=_download_tracker,
-                        ensure_l2a=not is_variable_only_update,
-                    )
-                    soc_logger.set_post_download_info()
-                    soc_logger.save_log('COMPLETED')
-                    logger.info("Download complete")
+                        def _download_tracker(gran_info, status):
+                            """Called from main thread (as_completed loop). Thread safe."""
+                            if status == 'PENDING':
+                                soc_logger.register_pending_granules([gran_info])
+                            else:
+                                soc_logger.update_granule_status(gran_info, status)
+                            soc_logger.save_log('DOWNLOADING')
+
+                        download_soc(
+                            product_vars=soc_logger.get_product_vars(),
+                            spatial=soc_logger.get_spatial(),
+                            temporal=soc_logger.get_temporal(),
+                            direct_access=False,
+                            update=True,
+                            version=h3_logger.gedi_version,
+                            odir=soc_source,
+                            on_granule_complete=_download_tracker,
+                            ensure_l2a=not is_variable_only_update,
+                        )
+                        soc_logger.set_post_download_info()
+                        soc_logger.save_log('COMPLETED')
+                        logger.info("Download complete")
+                else:
+                    # --download NOT enabled: build from existing data only
+                    if not existing_h5:
+                        logger.error(
+                            f"No HDF5 files found in {soc_source}.\n"
+                            "Options:\n"
+                            "  1. Run gh3_download first to fetch GEDI data\n"
+                            "  2. Add --download to auto-fetch before building\n"
+                            "  3. Use --s3 to build directly from NASA S3 (no persistent download)"
+                        )
+                        sys.exit(2)
+
+                    logger.info(f"Building from {len(existing_h5)} existing HDF5 files in {soc_source}")
+                    logger.info("Note: using only existing data (add --download to fetch missing data)")
+                    _validate_existing_h5(h3_logger.get_product_vars(), soc_source)
+
+            # Save log only after validation/download passes — prevents
+            # writing unverified products (e.g. L4C) when data is missing
+            h3_logger.save_log('PARTITIONING')
 
             try:
                 # Register granules being submitted for build as PENDING
@@ -379,7 +394,7 @@ def main():
                 n_files = len(h3_files) if h3_files else 0
                 print_success(f"{n_files} files exported to {args.output}", logger=logger)
 
-                if soc_source is not None:
+                if soc_source is not None and args.download:
                     logger.info(f"Note: Downloaded HDF5 files in {soc_source} are no longer needed and can be deleted to free disk space")
 
             except Exception as e:
