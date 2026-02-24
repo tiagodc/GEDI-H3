@@ -98,19 +98,23 @@ import gedih3.gh3driver as gh3
 
 # Load H3-indexed data with spatial filter
 ddf = gh3.gh3_load(
+    source='/path/to/database',  # preferred; gh3_dir= is deprecated
     columns=['agbd_l4a', 'rh_098_l2a'],
     region='region.shp',
     query='quality_flag_l2a == 1',
-    gh3_dir='/path/to/database'
 )
 
 # Aggregate to coarser H3 level
 agg_df = gh3.gh3_aggregate(ddf, target_res=6, agg='mean')
 
+# Load H3 database directly into EGI partitions (no shuffle)
+ddf = gh3.egi_load(source='/path/to/database', columns=['agbd_l4a'], index_level=1)
+agg_df = gh3.egi_aggregate(ddf, target_level=6, agg='mean')
+
 # Load simplified dataset (output of gh3_extract or gh3_aggregate)
 gdf = gh3.gh3_load_dataset('/path/to/extracted/')
 
-# EGI indexing
+# EGI indexing (from a DataFrame already in memory)
 import gedih3.egi as egi
 egi_df = egi.egi_dataframe(shots_df, level=6)
 
