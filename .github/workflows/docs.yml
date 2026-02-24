@@ -24,6 +24,11 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      - name: Install GDAL system dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y libgdal-dev gdal-bin
+
       - name: Install docs dependencies
         run: pip install -e ".[docs]"
 

@@ -2,48 +2,64 @@
 
 import argparse
 
+
 def get_cmd_args():
-    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args
+    from gedih3.cliutils import add_dask_args, add_product_args, add_verbosity_args
 
     p = argparse.ArgumentParser(description="Download GEDI data from NASA's DAAC")
 
     # Spatial/temporal filtering
-    p.add_argument("-r", "--region", dest="region", type=str, default=None,
-                   help="vector file, bbox 'W,S,E,N', or ISO3 code")
-    p.add_argument("-d0", "--date-start", dest="date_start", type=str, default=None,
-                   help="start date [YYYY-MM-DD]")
-    p.add_argument("-d1", "--date-end", dest="date_end", type=str, default=None,
-                   help="end date [YYYY-MM-DD]")
+    p.add_argument(
+        "-r", "--region", dest="region", type=str, default=None, help="vector file, bbox 'W,S,E,N', or ISO3 code"
+    )
+    p.add_argument("-d0", "--date-start", dest="date_start", type=str, default=None, help="start date [YYYY-MM-DD]")
+    p.add_argument("-d1", "--date-end", dest="date_end", type=str, default=None, help="end date [YYYY-MM-DD]")
 
     # GEDI product variables
     add_product_args(p)
 
     # Output options
-    p.add_argument("-o", "--outdir", dest="outdir", type=str, default=None,
-                   help="output directory for downloaded files")
-    p.add_argument("--resume", dest="resume", action='store_true',
-                   help="resume and redownload missing/corrupted files")
-    p.add_argument("-s3", "--s3", dest="s3", action='store_true',
-                   help="use S3 ETL mode: stream and subset from NASA S3 (10-50x less data transfer)")
-    p.add_argument("--gedi-version", dest="version", type=int, default=None,
-                   help="GEDI data version [default=latest available]")
+    p.add_argument(
+        "-o", "--outdir", dest="outdir", type=str, default=None, help="output directory for downloaded files"
+    )
+    p.add_argument("--resume", dest="resume", action="store_true", help="resume and redownload missing/corrupted files")
+    p.add_argument(
+        "-s3",
+        "--s3",
+        dest="s3",
+        action="store_true",
+        help="use S3 ETL mode: stream and subset from NASA S3 (10-50x less data transfer)",
+    )
+    p.add_argument(
+        "--gedi-version", dest="version", type=int, default=None, help="GEDI data version [default=latest available]"
+    )
 
     # Dask and verbosity
-    add_dask_args(p, profile='build')
+    add_dask_args(p, profile="build")
     add_verbosity_args(p)
 
     return p.parse_args()
 
+
 def main():
     import os
     import sys
+
     args = get_cmd_args()
 
+    from dask.distributed import Client
+
+    from gedih3.cliutils import (
+        parse_dask_args,
+        parse_gedi_args,
+        parse_region,
+        print_banner,
+        print_success,
+        setup_logging,
+    )
     from gedih3.config import GH3_DEFAULT_SOC_DIR
-    from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success
     from gedih3.gh3builder import download_soc, s3_etl_subset
     from gedih3.logger import SOCDownloadLogger
-    from dask.distributed import Client
 
     # Setup logging and print banner
     logger = setup_logging(args, __name__)
@@ -60,18 +76,16 @@ def main():
         temporal = (args.date_start, args.date_end)
 
     soc_logger = SOCDownloadLogger(
-        product_vars=product_vars,
-        spatial=spatial,
-        temporal=temporal,
-        version=args.version,
-        dir=args.outdir
+        product_vars=product_vars, spatial=spatial, temporal=temporal, version=args.version, dir=args.outdir
     )
 
     if args.s3:
         soc_logger.s3_access = True
 
     if not soc_logger.product_vars and not soc_logger.updating:
-        raise ValueError("No GEDI product selected for download - please select at least one of --l1b, --l2a, --l2b, --l4a, --l4c")
+        raise ValueError(
+            "No GEDI product selected for download - please select at least one of --l1b, --l2a, --l2b, --l4a, --l4c"
+        )
     if soc_logger.get_spatial() is None:
         logger.warning("No spatial filter provided - downloading global data")
     if soc_logger.get_temporal() is None:
@@ -88,7 +102,7 @@ def main():
 
     source_label = "S3 ETL" if args.s3 else "DAAC download"
     logger.info(f"Downloading GEDI data to {args.outdir} ({source_label})")
-    soc_logger.save_log('DOWNLOADING')
+    soc_logger.save_log("DOWNLOADING")
 
     dask_kwargs = parse_dask_args(args)
 
@@ -115,33 +129,29 @@ def main():
                         direct_access=False,
                         update=True,
                         version=args.version,
-                        odir=args.outdir
+                        odir=args.outdir,
                     )
 
                 soc_logger.set_post_download_info()
-                soc_logger.save_log('COMPLETED')
+                soc_logger.save_log("COMPLETED")
 
                 import glob
-                n_files = len(glob.glob(os.path.join(args.outdir, '**', 'GEDI*.h5'), recursive=True))
+
+                n_files = len(glob.glob(os.path.join(args.outdir, "**", "GEDI*.h5"), recursive=True))
                 print_success(f"{n_files} files downloaded to {args.outdir} ({source_label})", logger=logger)
 
             except Exception as e:
-                soc_logger.save_log('FAILED')
+                soc_logger.save_log("FAILED")
                 logger.error(f"Download failed: {e}")
                 raise e
 
     except KeyboardInterrupt:
         logger.warning("\nDownload interrupted by user")
-        soc_logger.save_log('INTERRUPTED')
+        soc_logger.save_log("INTERRUPTED")
         sys.exit(130)
 
     except Exception as e:
-        from gedih3.exceptions import (
-            GediDownloadError,
-            GediAuthenticationError,
-            GediNetworkError,
-            GediError
-        )
+        from gedih3.exceptions import GediAuthenticationError, GediDownloadError, GediError, GediNetworkError
 
         if isinstance(e, GediAuthenticationError):
             logger.error(f"Authentication error: {e}")
@@ -161,8 +171,10 @@ def main():
             logger.error(f"Unexpected error: {type(e).__name__}: {e}")
             if args.verbose >= 2:
                 import traceback
+
                 traceback.print_exc()
             sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

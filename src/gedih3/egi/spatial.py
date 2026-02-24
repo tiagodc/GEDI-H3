@@ -8,22 +8,27 @@ This module provides spatial operations for EGI indices including:
 - Child pixel enumeration
 - Area of Interest (AOI) tile generation
 """
+
 from typing import List, Optional, Tuple, Union
+
+import geopandas as gpd
 import numpy as np
 from numpy.typing import NDArray
-import geopandas as gpd
-from shapely.geometry import box, Point, Polygon
+from shapely.geometry import Point, Polygon, box
 
 from .config import (
-    LIMITS, RESOLUTIONS, OUTER_RES, OUTER_LEVEL, EGI_CRS_STRING,
+    EGI_CRS_STRING,
+    LIMITS,
+    OUTER_LEVEL,
+    OUTER_RES,
+    RESOLUTIONS,
     egi_col_name,
 )
 from .core import from_hash, hasher, pixels_per_tile
 
 
 def check_crs_limits(
-    x: Union[float, NDArray[np.floating]],
-    y: Union[float, NDArray[np.floating]]
+    x: Union[float, NDArray[np.floating]], y: Union[float, NDArray[np.floating]]
 ) -> Tuple[Union[float, NDArray[np.floating]], Union[float, NDArray[np.floating]]]:
     """
     Clamp coordinates to EPSG:6933 valid bounds.
@@ -41,18 +46,16 @@ def check_crs_limits(
         (x, y) clamped to valid bounds
     """
     if isinstance(x, np.ndarray):
-        x = np.clip(x, LIMITS['lon_w'], LIMITS['lon_e'])
-        y = np.clip(y, LIMITS['lat_s'], LIMITS['lat_n'])
+        x = np.clip(x, LIMITS["lon_w"], LIMITS["lon_e"])
+        y = np.clip(y, LIMITS["lat_s"], LIMITS["lat_n"])
     else:
-        x = min(max(x, LIMITS['lon_w']), LIMITS['lon_e'])
-        y = min(max(y, LIMITS['lat_s']), LIMITS['lat_n'])
+        x = min(max(x, LIMITS["lon_w"]), LIMITS["lon_e"])
+        y = min(max(y, LIMITS["lat_s"]), LIMITS["lat_n"])
     return x, y
 
 
 def pixel_coordinate(
-    uint_hash: np.uint64,
-    center: bool = True,
-    return_point: bool = False
+    uint_hash: np.uint64, center: bool = True, return_point: bool = False
 ) -> Union[Tuple[float, float], Point]:
     """
     Get the coordinate of an EGI pixel.
@@ -80,8 +83,8 @@ def pixel_coordinate(
 
     # Calculate absolute coordinates from tile + pixel position
     # Cast to float64 to avoid uint16 overflow when OUTER_RES is large
-    px = scale * np.float64(px_inner) + OUTER_RES * np.float64(px_outer) + LIMITS['lon_w']
-    py = scale * np.float64(py_inner) + OUTER_RES * np.float64(py_outer) + LIMITS['lat_s']
+    px = scale * np.float64(px_inner) + OUTER_RES * np.float64(px_outer) + LIMITS["lon_w"]
+    py = scale * np.float64(py_inner) + OUTER_RES * np.float64(py_outer) + LIMITS["lat_s"]
 
     if center:
         px += scale / 2
@@ -94,8 +97,7 @@ def pixel_coordinate(
 
 
 def pixel_coordinates(
-    uint_hash: NDArray[np.uint64],
-    center: bool = True
+    uint_hash: NDArray[np.uint64], center: bool = True
 ) -> Tuple[NDArray[np.floating], NDArray[np.floating]]:
     """
     Get coordinates for multiple EGI pixels (vectorized).
@@ -116,8 +118,8 @@ def pixel_coordinates(
 
     # Vectorized coordinate calculation
     # Cast to float64 to avoid uint16 overflow when OUTER_RES is large
-    px = scale * np.float64(px_inner) + OUTER_RES * np.float64(px_outer) + LIMITS['lon_w']
-    py = scale * np.float64(py_inner) + OUTER_RES * np.float64(py_outer) + LIMITS['lat_s']
+    px = scale * np.float64(px_inner) + OUTER_RES * np.float64(px_outer) + LIMITS["lon_w"]
+    py = scale * np.float64(py_inner) + OUTER_RES * np.float64(py_outer) + LIMITS["lat_s"]
 
     if center:
         px = px + scale / 2
@@ -158,10 +160,7 @@ def pixel_shape(uint_hash: np.uint64) -> Polygon:
     return box(px0, py0, px1, py1)
 
 
-def pixel_ring(
-    uint_hash: np.uint64,
-    include_input: bool = False
-) -> List[np.uint64]:
+def pixel_ring(uint_hash: np.uint64, include_input: bool = False) -> List[np.uint64]:
     """
     Get the 8 neighboring pixels (ring) around an EGI pixel.
 
@@ -185,8 +184,8 @@ def pixel_ring(
     level, scale, px_outer, py_outer, px_inner, py_inner = from_hash(uint_hash)
     level = int(level)
     max_pix = int(pixels_per_tile(uint_hash)) - 1
-    max_tile_x = int((LIMITS['lon_e'] - LIMITS['lon_w']) // OUTER_RES)
-    max_tile_y = int((LIMITS['lat_n'] - LIMITS['lat_s']) // OUTER_RES)
+    max_tile_x = int((LIMITS["lon_e"] - LIMITS["lon_w"]) // OUTER_RES)
+    max_tile_y = int((LIMITS["lat_n"] - LIMITS["lat_s"]) // OUTER_RES)
 
     neighbors = []
     for i in range(-1, 2):
@@ -217,8 +216,7 @@ def pixel_ring(
 
             # Only include if within valid tile bounds
             if 0 <= pxo < max_tile_x and 0 <= pyo < max_tile_y:
-                neighbor_hash = hasher(level, np.uint16(pxo), np.uint16(pyo),
-                                      np.uint32(pxi), np.uint32(pyi))
+                neighbor_hash = hasher(level, np.uint16(pxo), np.uint16(pyo), np.uint32(pxi), np.uint32(pyi))
                 neighbors.append(neighbor_hash)
 
     if include_input:
@@ -256,25 +254,21 @@ def aoi_tiles(region: Optional[gpd.GeoDataFrame] = None) -> gpd.GeoDataFrame:
     >>> all_tiles = aoi_tiles()
     """
     # Calculate number of tiles in each dimension
-    xn = int((LIMITS['lon_e'] - LIMITS['lon_w']) // OUTER_RES)
-    yn = int((LIMITS['lat_n'] - LIMITS['lat_s']) // OUTER_RES)
+    xn = int((LIMITS["lon_e"] - LIMITS["lon_w"]) // OUTER_RES)
+    yn = int((LIMITS["lat_n"] - LIMITS["lat_s"]) // OUTER_RES)
 
     # Generate all tile indices
     pairs = np.stack(np.meshgrid(range(xn + 1), range(yn + 1))).reshape(2, -1)
 
     # Create outer-level hashes (level 12, no inner pixels)
-    outer_ids = np.uint64(
-        OUTER_LEVEL * np.uint64(1e18) +
-        pairs[0] * np.uint64(1e15) +
-        pairs[1] * np.uint64(1e12)
-    )
+    outer_ids = np.uint64(OUTER_LEVEL * np.uint64(1e18) + pairs[0] * np.uint64(1e15) + pairs[1] * np.uint64(1e12))
 
     # Create GeoDataFrame with tile geometries
     tiles = to_geodataframe(outer_ids, return_polygons=True)
 
     if region is not None:
         if not region.crs:
-            raise ValueError('Input region has no CRS defined')
+            raise ValueError("Input region has no CRS defined")
 
         # Reproject region to EGI CRS
         reg = region.to_crs(EGI_CRS_STRING)
@@ -287,8 +281,7 @@ def aoi_tiles(region: Optional[gpd.GeoDataFrame] = None) -> gpd.GeoDataFrame:
 
 
 def to_geodataframe(
-    uint_hash_iter: Union[List[np.uint64], NDArray[np.uint64]],
-    return_polygons: bool = True
+    uint_hash_iter: Union[List[np.uint64], NDArray[np.uint64]], return_polygons: bool = True
 ) -> gpd.GeoDataFrame:
     """
     Convert EGI hashes to a GeoDataFrame.
@@ -315,12 +308,10 @@ def to_geodataframe(
     if len(uint_hash_arr) == 0:
         # Return empty GeoDataFrame with correct structure
         # Use a default level since we can't infer from empty array
-        idx_name = 'egi_hash'
-        return gpd.GeoDataFrame(
-            {idx_name: np.array([], dtype=np.uint64)},
-            geometry=[],
-            crs=EGI_CRS_STRING
-        ).set_index(idx_name)
+        idx_name = "egi_hash"
+        return gpd.GeoDataFrame({idx_name: np.array([], dtype=np.uint64)}, geometry=[], crs=EGI_CRS_STRING).set_index(
+            idx_name
+        )
 
     if return_polygons:
         geometries = [pixel_shape(h) for h in uint_hash_arr]
@@ -331,19 +322,12 @@ def to_geodataframe(
     level = int(uint_hash_arr[0] // np.uint64(1e18))
     idx_name = egi_col_name(level)
 
-    gdf = gpd.GeoDataFrame(
-        {idx_name: uint_hash_arr},
-        geometry=geometries,
-        crs=EGI_CRS_STRING
-    ).set_index(idx_name)
+    gdf = gpd.GeoDataFrame({idx_name: uint_hash_arr}, geometry=geometries, crs=EGI_CRS_STRING).set_index(idx_name)
 
     return gdf
 
 
-def egi_h3_intersection(
-    egi_tiles: gpd.GeoDataFrame,
-    h3_gdf: gpd.GeoDataFrame
-) -> dict:
+def egi_h3_intersection(egi_tiles: gpd.GeoDataFrame, h3_gdf: gpd.GeoDataFrame) -> dict:
     """
     Map EGI tiles to intersecting H3 partition cells using spatial index.
 
@@ -381,9 +365,9 @@ def egi_h3_intersection(
 
     egi_to_h3 = {}
     for egi_id in egi_tiles.index:
-        egi_geom = egi_tiles.loc[egi_id, 'geometry']
+        egi_geom = egi_tiles.loc[egi_id, "geometry"]
         # Query spatial index for intersecting H3 cells
-        candidate_idx = h3_sindex.query(egi_geom, predicate='intersects')
+        candidate_idx = h3_sindex.query(egi_geom, predicate="intersects")
         intersecting_h3 = h3_gdf.index[candidate_idx].tolist()
         if intersecting_h3:
             egi_to_h3[egi_id] = intersecting_h3

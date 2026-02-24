@@ -12,17 +12,16 @@ Usage:
 """
 
 import os
-from typing import Union, List, Dict, Optional, Any
+from typing import Any, Dict, List, Optional, Union
 
 from .exceptions import (
-    H3ValidationError,
     EGIValidationError,
+    GediDatabaseNotFoundError,
+    GediFileError,
     GediProductError,
     GediVariableError,
-    GediFileError,
-    GediDatabaseNotFoundError,
+    H3ValidationError,
 )
-
 
 # =============================================================================
 # H3 Parameter Validation
@@ -32,7 +31,7 @@ H3_MIN_RESOLUTION = 0
 H3_MAX_RESOLUTION = 15
 
 
-def validate_h3_resolution(res: int, param_name: str = 'resolution') -> int:
+def validate_h3_resolution(res: int, param_name: str = "resolution") -> int:
     """
     Validate H3 resolution is within valid range [0, 15].
 
@@ -55,16 +54,14 @@ def validate_h3_resolution(res: int, param_name: str = 'resolution') -> int:
     """
     if not isinstance(res, int):
         raise H3ValidationError(
-            f"H3 {param_name} must be an integer, got {type(res).__name__}",
-            param_name=param_name,
-            value=res
+            f"H3 {param_name} must be an integer, got {type(res).__name__}", param_name=param_name, value=res
         )
 
     if not H3_MIN_RESOLUTION <= res <= H3_MAX_RESOLUTION:
         raise H3ValidationError(
             f"H3 {param_name} must be between {H3_MIN_RESOLUTION} and {H3_MAX_RESOLUTION}, got {res}",
             param_name=param_name,
-            value=res
+            value=res,
         )
 
     return res
@@ -97,15 +94,15 @@ def validate_h3_params(res: int, part: int) -> tuple:
     (12, 3)
     >>> validate_h3_params(3, 12)  # Raises H3ValidationError
     """
-    res = validate_h3_resolution(res, 'resolution')
-    part = validate_h3_resolution(part, 'partition')
+    res = validate_h3_resolution(res, "resolution")
+    part = validate_h3_resolution(part, "partition")
 
     if part > res:
         raise H3ValidationError(
             f"H3 partition level ({part}) must be <= resolution level ({res}). "
             f"Partition cells are used to group shots, so they must be coarser than index cells.",
-            param_name='partition',
-            value=part
+            param_name="partition",
+            value=part,
         )
 
     return res, part
@@ -135,26 +132,16 @@ def validate_h3_cell(cell: str, expected_res: Optional[int] = None) -> str:
     import h3
 
     if not isinstance(cell, str):
-        raise H3ValidationError(
-            f"H3 cell must be a string, got {type(cell).__name__}",
-            param_name='cell',
-            value=cell
-        )
+        raise H3ValidationError(f"H3 cell must be a string, got {type(cell).__name__}", param_name="cell", value=cell)
 
     if not h3.is_valid_cell(cell):
-        raise H3ValidationError(
-            f"Invalid H3 cell index: {cell}",
-            param_name='cell',
-            value=cell
-        )
+        raise H3ValidationError(f"Invalid H3 cell index: {cell}", param_name="cell", value=cell)
 
     if expected_res is not None:
         actual_res = h3.get_resolution(cell)
         if actual_res != expected_res:
             raise H3ValidationError(
-                f"H3 cell has resolution {actual_res}, expected {expected_res}",
-                param_name='cell',
-                value=cell
+                f"H3 cell has resolution {actual_res}, expected {expected_res}", param_name="cell", value=cell
             )
 
     return cell
@@ -168,7 +155,7 @@ EGI_MIN_LEVEL = 1
 EGI_MAX_LEVEL = 12
 
 
-def validate_egi_level(level: int, param_name: str = 'level') -> int:
+def validate_egi_level(level: int, param_name: str = "level") -> int:
     """
     Validate EGI level is within valid range [1, 12].
 
@@ -191,16 +178,14 @@ def validate_egi_level(level: int, param_name: str = 'level') -> int:
     """
     if not isinstance(level, int):
         raise EGIValidationError(
-            f"EGI {param_name} must be an integer, got {type(level).__name__}",
-            param_name=param_name,
-            value=level
+            f"EGI {param_name} must be an integer, got {type(level).__name__}", param_name=param_name, value=level
         )
 
     if not EGI_MIN_LEVEL <= level <= EGI_MAX_LEVEL:
         raise EGIValidationError(
             f"EGI {param_name} must be between {EGI_MIN_LEVEL} and {EGI_MAX_LEVEL}, got {level}",
             param_name=param_name,
-            value=level
+            value=level,
         )
 
     return level
@@ -210,7 +195,7 @@ def validate_egi_level(level: int, param_name: str = 'level') -> int:
 # GEDI Product Validation
 # =============================================================================
 
-VALID_PRODUCTS = {'L1B', 'L2A', 'L2B', 'L3', 'L4A', 'L4B', 'L4C'}
+VALID_PRODUCTS = {"L1B", "L2A", "L2B", "L3", "L4A", "L4B", "L4C"}
 
 
 def validate_product(product: str) -> str:
@@ -233,15 +218,12 @@ def validate_product(product: str) -> str:
         If product is invalid
     """
     if not isinstance(product, str):
-        raise GediProductError(
-            f"Product must be a string, got {type(product).__name__}"
-        )
+        raise GediProductError(f"Product must be a string, got {type(product).__name__}")
 
     product_upper = product.upper()
     if product_upper not in VALID_PRODUCTS:
         raise GediProductError(
-            f"Invalid GEDI product: {product}. "
-            f"Valid products are: {', '.join(sorted(VALID_PRODUCTS))}"
+            f"Invalid GEDI product: {product}. Valid products are: {', '.join(sorted(VALID_PRODUCTS))}"
         )
 
     return product_upper
@@ -269,9 +251,7 @@ def validate_product_vars(product_vars: Dict[str, Any]) -> Dict[str, List[str]]:
         If variable specification is invalid
     """
     if not isinstance(product_vars, dict):
-        raise GediProductError(
-            f"product_vars must be a dictionary, got {type(product_vars).__name__}"
-        )
+        raise GediProductError(f"product_vars must be a dictionary, got {type(product_vars).__name__}")
 
     validated = {}
     for product, vars_spec in product_vars.items():
@@ -283,14 +263,11 @@ def validate_product_vars(product_vars: Dict[str, Any]) -> Dict[str, List[str]]:
             validated[product] = [vars_spec]
         elif isinstance(vars_spec, list):
             if not all(isinstance(v, str) for v in vars_spec):
-                raise GediVariableError(
-                    f"Variables for {product} must be strings, got: {vars_spec}"
-                )
+                raise GediVariableError(f"Variables for {product} must be strings, got: {vars_spec}")
             validated[product] = vars_spec
         else:
             raise GediVariableError(
-                f"Variables for {product} must be a string, list, or None, "
-                f"got {type(vars_spec).__name__}"
+                f"Variables for {product} must be a string, list, or None, got {type(vars_spec).__name__}"
             )
 
     return validated
@@ -300,7 +277,8 @@ def validate_product_vars(product_vars: Dict[str, Any]) -> Dict[str, List[str]]:
 # File/Path Validation
 # =============================================================================
 
-def validate_file_exists(path: str, file_type: str = 'file') -> str:
+
+def validate_file_exists(path: str, file_type: str = "file") -> str:
     """
     Validate that a file exists.
 
@@ -378,26 +356,21 @@ def validate_database_path(db_path: str) -> str:
     GediDatabaseNotFoundError
         If database directory doesn't exist or appears invalid
     """
-    from .utils import smart_exists, smart_isdir, smart_glob
+    from .utils import smart_exists, smart_glob, smart_isdir
 
     if not smart_exists(db_path):
-        raise GediDatabaseNotFoundError(
-            f"H3 database not found: {db_path}"
-        )
+        raise GediDatabaseNotFoundError(f"H3 database not found: {db_path}")
 
     if not smart_isdir(db_path):
-        raise GediDatabaseNotFoundError(
-            f"H3 database path is not a directory: {db_path}"
-        )
+        raise GediDatabaseNotFoundError(f"H3 database path is not a directory: {db_path}")
 
     # Check for H3 partition directories or parquet files
-    h3_dirs = smart_glob(os.path.join(db_path, 'h3_*/'))
-    parquet_files = smart_glob(os.path.join(db_path, '**/*.parquet'), recursive=True)
+    h3_dirs = smart_glob(os.path.join(db_path, "h3_*/"))
+    parquet_files = smart_glob(os.path.join(db_path, "**/*.parquet"), recursive=True)
 
     if not h3_dirs and not parquet_files:
         raise GediDatabaseNotFoundError(
-            f"H3 database appears empty or invalid: {db_path}. "
-            f"No H3 partition directories or parquet files found."
+            f"H3 database appears empty or invalid: {db_path}. No H3 partition directories or parquet files found."
         )
 
     return db_path
@@ -406,6 +379,7 @@ def validate_database_path(db_path: str) -> str:
 # =============================================================================
 # Coordinate Validation
 # =============================================================================
+
 
 def validate_coordinates(lat: float, lon: float) -> tuple:
     """

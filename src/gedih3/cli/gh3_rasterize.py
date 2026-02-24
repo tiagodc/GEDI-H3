@@ -17,38 +17,54 @@ Author: Tiago de Conto
 Package: gedih3
 """
 
+import argparse
 import os
 import sys
-import argparse
 
 
 def get_cmd_args():
     """Parse command line arguments for GEDI rasterization"""
-    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_storage_args
+    from gedih3.cliutils import add_dask_args, add_storage_args, add_verbosity_args
 
     p = argparse.ArgumentParser(
         description="Convert aggregated GEDI datasets to GeoTIFF raster format",
-        formatter_class=argparse.RawTextHelpFormatter
+        formatter_class=argparse.RawTextHelpFormatter,
     )
 
     # Input/output configuration
-    p.add_argument("-d", "--dataset", dest="dataset", required=True, type=str,
-                   help="path to aggregated dataset (from gh3_aggregate or gh3_extract)")
-    p.add_argument("-o", "--output", dest="output", required=True, type=str,
-                   help="output directory or file path")
-    p.add_argument("-m", "--merge", dest="merge", action='store_true',
-                   help="merge all partitions into single file")
-    p.add_argument("--compress", dest="compress", type=str, default='LZW',
-                   choices=['LZW', 'ZSTD', 'DEFLATE', 'PACKBITS', 'NONE'],
-                   help="GeoTIFF compression [default=LZW]")
+    p.add_argument(
+        "-d",
+        "--dataset",
+        dest="dataset",
+        required=True,
+        type=str,
+        help="path to aggregated dataset (from gh3_aggregate or gh3_extract)",
+    )
+    p.add_argument("-o", "--output", dest="output", required=True, type=str, help="output directory or file path")
+    p.add_argument("-m", "--merge", dest="merge", action="store_true", help="merge all partitions into single file")
+    p.add_argument(
+        "--compress",
+        dest="compress",
+        type=str,
+        default="LZW",
+        choices=["LZW", "ZSTD", "DEFLATE", "PACKBITS", "NONE"],
+        help="GeoTIFF compression [default=LZW]",
+    )
 
     # Variable selection
-    p.add_argument("-l", "--list", dest="list", nargs='+', type=str, default=None,
-                   help="variables to rasterize (space-separated)")
+    p.add_argument(
+        "-l", "--list", dest="list", nargs="+", type=str, default=None, help="variables to rasterize (space-separated)"
+    )
 
     # Filtering
-    p.add_argument("-q", "--query", dest="query", type=str, default=None,
-                   help="pandas query string for filtering before rasterization")
+    p.add_argument(
+        "-q",
+        "--query",
+        dest="query",
+        type=str,
+        default=None,
+        help="pandas query string for filtering before rasterization",
+    )
 
     # Dask, storage, and verbosity
     add_dask_args(p)
@@ -65,26 +81,26 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
     """
     import json
 
-    import gedih3.gh3driver as gh3
     from gedih3 import raster
     from gedih3.config import DATASET_META_FILENAME
 
     # Read metadata
     dataset_meta_path = os.path.join(dataset_path, DATASET_META_FILENAME)
-    with open(dataset_meta_path, 'r') as f:
+    with open(dataset_meta_path, "r") as f:
         dataset_meta = json.load(f)
 
-    index_type = dataset_meta.get('index_type')
-    index_level = dataset_meta.get('index_level')
+    index_type = dataset_meta.get("index_type")
+    index_level = dataset_meta.get("index_level")
 
     if not index_type or not index_level:
         logger.error(f"Dataset metadata missing index_type or index_level in {dataset_path}")
         sys.exit(1)
 
-    use_egi = index_type == 'egi'
+    use_egi = index_type == "egi"
 
     if use_egi:
         from gedih3 import egi
+
         logger.info(f"Dataset type: EGI level {index_level} (~{egi.get_resolution(index_level):.0f}m)")
         rasterize_func = egi.rasterize_partition
     else:
@@ -98,11 +114,12 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
     if not use_egi:
         # Detect partition level from filenames (each file = one H3 partition cell)
         import h3
-        parquet_files = [f for f in os.listdir(dataset_path) if f.endswith('.parquet')]
+
+        parquet_files = [f for f in os.listdir(dataset_path) if f.endswith(".parquet")]
         if parquet_files:
             partition_id = os.path.splitext(parquet_files[0])[0]
             partition_level = h3.get_resolution(partition_id)
-            rasterize_kwargs['partition_level'] = partition_level
+            rasterize_kwargs["partition_level"] = partition_level
             logger.info(f"  Partition level: H3 {partition_level} (from filenames)")
 
     # Collect columns to rasterize
@@ -118,6 +135,7 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
     # Load the dataset (use _load_dataset directly to bypass EGI check in gh3_load)
     logger.info("Loading dataset...")
     from gedih3.gh3driver import _load_dataset
+
     ddf = _load_dataset(dataset_path, columns=columns)
     logger.info(f"  Loaded {ddf.npartitions} partitions")
 
@@ -133,13 +151,17 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
     raster_columns = columns
 
     if args.merge:
-        merged_output = output_path if output_path.endswith('.tif') else f"{output_path}.tif"
+        merged_output = output_path if output_path.endswith(".tif") else f"{output_path}.tif"
         os.makedirs(os.path.dirname(os.path.abspath(merged_output)), exist_ok=True)
 
         raster.merge_and_export_rasters(
-            ddf, merged_output, rasterize_func,
-            columns=raster_columns, compress=args.compress,
-            show_progress=not args.quiet, **rasterize_kwargs
+            ddf,
+            merged_output,
+            rasterize_func,
+            columns=raster_columns,
+            compress=args.compress,
+            show_progress=not args.quiet,
+            **rasterize_kwargs,
         )
         logger.info(f"Merged raster exported to {merged_output}")
 
@@ -147,9 +169,13 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
         os.makedirs(output_path, exist_ok=True)
 
         paths = raster.rasterize_and_export_partitions(
-            ddf, output_path, rasterize_func,
-            columns=raster_columns, compress=args.compress,
-            show_progress=not args.quiet, **rasterize_kwargs
+            ddf,
+            output_path,
+            rasterize_func,
+            columns=raster_columns,
+            compress=args.compress,
+            show_progress=not args.quiet,
+            **rasterize_kwargs,
         )
         valid_paths = [p for p in paths if p]
         logger.info(f"Exported {len(valid_paths)} raster files to {output_path}")
@@ -162,11 +188,9 @@ def main():
     from gedih3.cliutils import cli_exception_handler
 
     with cli_exception_handler(args):
-        import glob
         from dask.distributed import Client
 
-        from gedih3.cliutils import (parse_dask_args, setup_logging,
-                                     print_banner, print_success, setup_storage)
+        from gedih3.cliutils import parse_dask_args, print_banner, print_success, setup_logging, setup_storage
         from gedih3.config import DATASET_META_FILENAME
 
         # Setup logging and print banner
@@ -175,7 +199,8 @@ def main():
         print_banner("GEDI Rasterization Tool", logger=logger)
 
         # Validate input dataset exists
-        from gedih3.utils import smart_exists, smart_isdir, smart_glob
+        from gedih3.utils import smart_exists, smart_glob, smart_isdir
+
         if not smart_exists(args.dataset):
             logger.error(f"Dataset not found: {args.dataset}")
             sys.exit(1)
@@ -195,18 +220,18 @@ def main():
 
             else:
                 # Check for time-series (subdirectories with metadata)
-                window_dirs = sorted([
-                    d for d in smart_glob(os.path.join(args.dataset, '*'))
-                    if smart_isdir(d) and
-                       smart_exists(os.path.join(d, DATASET_META_FILENAME))
-                ])
+                window_dirs = sorted(
+                    [
+                        d
+                        for d in smart_glob(os.path.join(args.dataset, "*"))
+                        if smart_isdir(d) and smart_exists(os.path.join(d, DATASET_META_FILENAME))
+                    ]
+                )
 
                 if not window_dirs:
                     logger.error(f"Dataset metadata not found: {dataset_meta_path}")
-                    logger.error("This tool requires a dataset produced by "
-                                 "gh3_aggregate or gh3_extract.")
-                    logger.error("For raw GEDI data, use gh3_aggregate with "
-                                 "--rasterize flag instead.")
+                    logger.error("This tool requires a dataset produced by gh3_aggregate or gh3_extract.")
+                    logger.error("For raw GEDI data, use gh3_aggregate with --rasterize flag instead.")
                     sys.exit(1)
 
                 # Time-series mode
@@ -220,9 +245,8 @@ def main():
                     logger.info(f"── Window: {window_name} ──")
                     _rasterize_dataset(window_dir, window_output, args, logger)
 
-                print_success(f"Time-series rasterization complete: "
-                              f"{len(window_dirs)} windows", logger=logger)
+                print_success(f"Time-series rasterization complete: {len(window_dirs)} windows", logger=logger)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

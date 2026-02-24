@@ -1,26 +1,28 @@
+import logging
 import os
 import re
 import sys
-import logging
 import warnings
-from typing import Optional, List
 from contextlib import contextmanager
+from typing import Optional
 
-from .config import GEDI_PRODUCTS, ISO3_COUNTRIES_URL, BUILD_LOG_FILENAME, DATASET_META_FILENAME
-from .utils import read_vector_file, parse_spatial
-from .exceptions import GediValidationError, GediDatabaseNotFoundError
+from .config import BUILD_LOG_FILENAME, DATASET_META_FILENAME, GEDI_PRODUCTS, ISO3_COUNTRIES_URL
+from .exceptions import GediDatabaseNotFoundError, GediValidationError
+from .utils import parse_spatial, read_vector_file
+
 # Note: gh3driver imports are done lazily to avoid circular imports
 
-VALID_FORMATS = ['parquet', 'feather', 'shp', 'geojson', 'gpkg', 'txt', 'csv', 'h5', 'hdf5']
+VALID_FORMATS = ["parquet", "feather", "shp", "geojson", "gpkg", "txt", "csv", "h5", "hdf5"]
 
 # Formats that support downstream processing (column selection at read time, fast schema reading)
-PIPELINE_FORMATS = {'parquet', 'feather', 'gpkg'}
+PIPELINE_FORMATS = {"parquet", "feather", "gpkg"}
 
 FORMAT_EXTENSIONS = {
-    'parquet': ('*.parquet',),
-    'feather': ('*.feather',),
-    'gpkg': ('*.gpkg',),
+    "parquet": ("*.parquet",),
+    "feather": ("*.feather",),
+    "gpkg": ("*.gpkg",),
 }
+
 
 def detect_dataset_format(dataset_path):
     """Detect the file format of a simplified dataset.
@@ -44,13 +46,14 @@ def detect_dataset_format(dataset_path):
         If detected format is not in PIPELINE_FORMATS
     """
     import json
-    from .utils import smart_exists, smart_open, smart_glob
+
+    from .utils import smart_exists, smart_glob, smart_open
 
     meta_path = os.path.join(dataset_path, DATASET_META_FILENAME)
     if smart_exists(meta_path):
-        with smart_open(meta_path, 'r') as f:
+        with smart_open(meta_path, "r") as f:
             meta = json.load(f)
-        fmt = meta.get('file_format')
+        fmt = meta.get("file_format")
         if fmt:
             if fmt not in PIPELINE_FORMATS:
                 raise GediValidationError(
@@ -65,7 +68,7 @@ def detect_dataset_format(dataset_path):
             if smart_glob(os.path.join(dataset_path, pattern)):
                 return fmt
 
-    return 'parquet'
+    return "parquet"
 
 
 def list_dataset_files(dataset_path, fmt=None):
@@ -96,8 +99,7 @@ def list_dataset_files(dataset_path, fmt=None):
     patterns = FORMAT_EXTENSIONS.get(fmt)
     if patterns is None:
         raise GediValidationError(
-            f"Format '{fmt}' is not a supported pipeline format. "
-            f"Supported: {', '.join(sorted(PIPELINE_FORMATS))}"
+            f"Format '{fmt}' is not a supported pipeline format. Supported: {', '.join(sorted(PIPELINE_FORMATS))}"
         )
 
     files = []
@@ -105,9 +107,7 @@ def list_dataset_files(dataset_path, fmt=None):
         files.extend(smart_glob(os.path.join(dataset_path, pattern)))
 
     if not files:
-        raise GediDatabaseNotFoundError(
-            f"No {fmt} files found in {dataset_path}"
-        )
+        raise GediDatabaseNotFoundError(f"No {fmt} files found in {dataset_path}")
 
     return sorted(files)
 
@@ -127,24 +127,28 @@ def read_dataset_schema(filepath, fmt):
     tuple
         (column_names: list[str], has_geometry: bool)
     """
-    if fmt == 'parquet':
+    if fmt == "parquet":
         import pyarrow.parquet as pq
+
         from .utils import is_remote_path, smart_open
+
         if is_remote_path(filepath):
-            with smart_open(filepath, 'rb') as fobj:
+            with smart_open(filepath, "rb") as fobj:
                 schema = pq.read_schema(fobj)
         else:
             schema = pq.read_schema(filepath, memory_map=True)
-        return schema.names, 'geometry' in schema.names
-    elif fmt == 'feather':
+        return schema.names, "geometry" in schema.names
+    elif fmt == "feather":
         import pyarrow.feather as feather
+
         schema = feather.read_table(filepath, columns=[]).schema
-        return schema.names, 'geometry' in schema.names
-    elif fmt == 'gpkg':
+        return schema.names, "geometry" in schema.names
+    elif fmt == "gpkg":
         import geopandas as gpd
+
         gdf = gpd.read_file(filepath, rows=1)
         col_names = gdf.columns.tolist()
-        has_geometry = 'geometry' in col_names
+        has_geometry = "geometry" in col_names
         return col_names, has_geometry
     else:
         raise GediValidationError(f"Unsupported format for schema reading: {fmt}")
@@ -169,24 +173,31 @@ def make_dataset_reader(fmt, columns=None):
     """
     import geopandas as gpd
 
-    if fmt == 'parquet':
+    if fmt == "parquet":
+
         def reader(f):
             from .utils import is_remote_path, smart_open
+
             if is_remote_path(f):
-                with smart_open(f, 'rb') as fobj:
+                with smart_open(f, "rb") as fobj:
                     return gpd.read_parquet(fobj, columns=columns)
             return gpd.read_parquet(f, columns=columns)
+
         return reader
-    elif fmt == 'feather':
+    elif fmt == "feather":
+
         def reader(f):
             return gpd.read_feather(f, columns=columns)
+
         return reader
-    elif fmt == 'gpkg':
+    elif fmt == "gpkg":
+
         def reader(f):
             kwargs = {}
             if columns:
-                kwargs['columns'] = columns
+                kwargs["columns"] = columns
             return gpd.read_file(f, **kwargs)
+
         return reader
     else:
         raise GediValidationError(f"Unsupported format for dataset reading: {fmt}")
@@ -196,16 +207,17 @@ def make_dataset_reader(fmt, columns=None):
 # Module-level warning suppression for Dask/distributed
 # Applied at import time to catch early warnings during client initialization
 # =============================================================================
-warnings.filterwarnings('ignore', category=UserWarning, module=r'distributed.*')
-warnings.filterwarnings('ignore', category=UserWarning, module=r'dask.*')
-warnings.filterwarnings('ignore', message=r'.*Sending large graph.*')
-warnings.filterwarnings('ignore', message=r'.*large graph.*')
-warnings.filterwarnings('ignore', message=r'.*Consider loading the data.*')
+warnings.filterwarnings("ignore", category=UserWarning, module=r"distributed.*")
+warnings.filterwarnings("ignore", category=UserWarning, module=r"dask.*")
+warnings.filterwarnings("ignore", message=r".*Sending large graph.*")
+warnings.filterwarnings("ignore", message=r".*large graph.*")
+warnings.filterwarnings("ignore", message=r".*Consider loading the data.*")
 
 
 # =============================================================================
 # Shared CLI Argument Builders
 # =============================================================================
+
 
 def add_dask_args(parser, profile=None):
     """Add Dask-related arguments to an argument parser.
@@ -218,13 +230,14 @@ def add_dask_args(parser, profile=None):
         Resource profile hint. ``'build'`` uses fewer workers with more memory
         (suitable for HDF5→parquet pipelines). ``None`` uses generic defaults.
     """
-    if '--help' in sys.argv or '-h' in sys.argv:
+    if "--help" in sys.argv or "-h" in sys.argv:
         n, m = 4, 4  # placeholder defaults for help text
     else:
         from .utils import get_system_resources
+
         cpus, ram, _ = get_system_resources()
 
-        if profile == 'build':
+        if profile == "build":
             # Build/download pipeline: fewer workers, more memory each.
             # HDF5 reads + parquet writes benefit from fewer, fatter workers.
             n = max(1, cpus // 8)
@@ -233,25 +246,40 @@ def add_dask_args(parser, profile=None):
             n = max(1, cpus // 4)
             m = int(max(1, ram / n))
 
-    parser.add_argument("-s", "--dask-scheduler", dest="dask_scheduler", type=str, default=None,
-                        help="existing dask scheduler address, e.g. tcp://localhost:8786")
-    parser.add_argument("-N", "--cores", dest="cores", type=int, default=n,
-                        help=f"number of CPU cores to use [default = {n}]")
-    parser.add_argument("-T", "--threads", dest="threads", type=int, default=1,
-                        help="number of threads per CPU core [default = 1]")
-    parser.add_argument("-M", "--memory", dest="memory", type=int, default=m,
-                        help=f"memory limit per worker in GB [default = {m}]")
-    parser.add_argument("-P", "--port", dest="port", type=int, default=8787,
-                        help="port for Dask dashboard [default = 8787]")
+    parser.add_argument(
+        "-s",
+        "--dask-scheduler",
+        dest="dask_scheduler",
+        type=str,
+        default=None,
+        help="existing dask scheduler address, e.g. tcp://localhost:8786",
+    )
+    parser.add_argument(
+        "-N", "--cores", dest="cores", type=int, default=n, help=f"number of CPU cores to use [default = {n}]"
+    )
+    parser.add_argument(
+        "-T", "--threads", dest="threads", type=int, default=1, help="number of threads per CPU core [default = 1]"
+    )
+    parser.add_argument(
+        "-M", "--memory", dest="memory", type=int, default=m, help=f"memory limit per worker in GB [default = {m}]"
+    )
+    parser.add_argument(
+        "-P", "--port", dest="port", type=int, default=8787, help="port for Dask dashboard [default = 8787]"
+    )
     return parser
 
 
 def add_verbosity_args(parser):
     """Add verbosity-related arguments to an argument parser."""
-    parser.add_argument("-v", "--verbose", dest="verbose", action="count", default=0,
-                        help="increase output verbosity (-v for INFO, -vv for DEBUG)")
-    parser.add_argument("-Q", "--quiet", dest="quiet", action='store_true',
-                        help="suppress all output except errors")
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbose",
+        action="count",
+        default=0,
+        help="increase output verbosity (-v for INFO, -vv for DEBUG)",
+    )
+    parser.add_argument("-Q", "--quiet", dest="quiet", action="store_true", help="suppress all output except errors")
     return parser
 
 
@@ -260,23 +288,27 @@ def add_storage_args(parser):
 
     Covers S3, HTTP/HTTPS, FTP, and SFTP/SSH protocols.
     """
-    g = parser.add_argument_group('remote storage')
-    g.add_argument("--s3-endpoint", dest="s3_endpoint", type=str, default=None,
-                   help="S3 endpoint URL (e.g. http://localhost:7000)")
-    g.add_argument("--s3-key", dest="s3_key", type=str, default=None,
-                   help="S3 access key")
-    g.add_argument("--s3-secret", dest="s3_secret", type=str, default=None,
-                   help="S3 secret key")
-    g.add_argument("--s3-anon", dest="s3_anon", action="store_true", default=False,
-                   help="use anonymous S3 access (for public buckets)")
-    g.add_argument("--remote-user", dest="remote_user", type=str, default=None,
-                   help="username for HTTP basic auth / FTP / SFTP")
-    g.add_argument("--remote-pass", dest="remote_pass", type=str, default=None,
-                   help="password for HTTP basic auth / FTP / SFTP")
-    g.add_argument("--remote-token", dest="remote_token", type=str, default=None,
-                   help="bearer token for HTTP(S) auth")
-    g.add_argument("--ssh-key", dest="ssh_key", type=str, default=None,
-                   help="path to SSH/SFTP private key file")
+    g = parser.add_argument_group("remote storage")
+    g.add_argument(
+        "--s3-endpoint", dest="s3_endpoint", type=str, default=None, help="S3 endpoint URL (e.g. http://localhost:7000)"
+    )
+    g.add_argument("--s3-key", dest="s3_key", type=str, default=None, help="S3 access key")
+    g.add_argument("--s3-secret", dest="s3_secret", type=str, default=None, help="S3 secret key")
+    g.add_argument(
+        "--s3-anon",
+        dest="s3_anon",
+        action="store_true",
+        default=False,
+        help="use anonymous S3 access (for public buckets)",
+    )
+    g.add_argument(
+        "--remote-user", dest="remote_user", type=str, default=None, help="username for HTTP basic auth / FTP / SFTP"
+    )
+    g.add_argument(
+        "--remote-pass", dest="remote_pass", type=str, default=None, help="password for HTTP basic auth / FTP / SFTP"
+    )
+    g.add_argument("--remote-token", dest="remote_token", type=str, default=None, help="bearer token for HTTP(S) auth")
+    g.add_argument("--ssh-key", dest="ssh_key", type=str, default=None, help="path to SSH/SFTP private key file")
     return parser
 
 
@@ -289,45 +321,45 @@ def setup_storage(args, logger=None):
 
     # S3
     s3_kwargs = {}
-    if getattr(args, 's3_endpoint', None):
-        s3_kwargs['endpoint_url'] = args.s3_endpoint
-    if getattr(args, 's3_key', None):
-        s3_kwargs['key'] = args.s3_key
-    if getattr(args, 's3_secret', None):
-        s3_kwargs['secret'] = args.s3_secret
-    if getattr(args, 's3_anon', False):
-        s3_kwargs['anon'] = True
+    if getattr(args, "s3_endpoint", None):
+        s3_kwargs["endpoint_url"] = args.s3_endpoint
+    if getattr(args, "s3_key", None):
+        s3_kwargs["key"] = args.s3_key
+    if getattr(args, "s3_secret", None):
+        s3_kwargs["secret"] = args.s3_secret
+    if getattr(args, "s3_anon", False):
+        s3_kwargs["anon"] = True
     if s3_kwargs:
-        configure_storage('s3', **s3_kwargs)
+        configure_storage("s3", **s3_kwargs)
         if logger:
             logger.info(f"  S3 storage configured (endpoint={s3_kwargs.get('endpoint_url', 'default')})")
 
     # HTTP / HTTPS basic auth or bearer token
-    user = getattr(args, 'remote_user', None)
-    pwd = getattr(args, 'remote_pass', None)
-    token = getattr(args, 'remote_token', None)
+    user = getattr(args, "remote_user", None)
+    pwd = getattr(args, "remote_pass", None)
+    token = getattr(args, "remote_token", None)
     if user and pwd:
-        configure_storage('http', username=user, password=pwd)
-        configure_storage('https', username=user, password=pwd)
+        configure_storage("http", username=user, password=pwd)
+        configure_storage("https", username=user, password=pwd)
     if token:
-        headers = {'Authorization': f'Bearer {token}'}
-        configure_storage('http', headers=headers)
-        configure_storage('https', headers=headers)
+        headers = {"Authorization": f"Bearer {token}"}
+        configure_storage("http", headers=headers)
+        configure_storage("https", headers=headers)
 
     # FTP
     if user and pwd:
-        configure_storage('ftp', username=user, password=pwd)
+        configure_storage("ftp", username=user, password=pwd)
 
     # SFTP / SSH
-    ssh_key = getattr(args, 'ssh_key', None)
+    ssh_key = getattr(args, "ssh_key", None)
     if user and (pwd or ssh_key):
-        sftp_kwargs = {'username': user}
+        sftp_kwargs = {"username": user}
         if pwd:
-            sftp_kwargs['password'] = pwd
+            sftp_kwargs["password"] = pwd
         if ssh_key:
-            sftp_kwargs['key_filename'] = ssh_key
-        configure_storage('sftp', **sftp_kwargs)
-        configure_storage('ssh', **sftp_kwargs)
+            sftp_kwargs["key_filename"] = ssh_key
+        configure_storage("sftp", **sftp_kwargs)
+        configure_storage("ssh", **sftp_kwargs)
 
 
 def add_product_args(parser):
@@ -341,20 +373,60 @@ def add_product_args(parser):
     means "dump everything from L2A", while ``-l2a default`` uses the
     standard variable set.
     """
-    parser.add_argument("--detail-level", dest="detail_level", type=str, default=None,
-                        choices=['minimal', 'min', 'default', 'def', 'all'],
-                        help="set variable detail level for ALL products "
-                             "(minimal/default/all). Mutually exclusive with per-product flags.")
-    parser.add_argument("-l1b", "--l1b", dest="l1b", nargs='*', type=str, default=None,
-                        help="GEDI L1B variables [keyword, var list, or bare flag for all]")
-    parser.add_argument("-l2a", "--l2a", dest="l2a", nargs='*', type=str, default=None,
-                        help="GEDI L2A variables [keyword, var list, or bare flag for all]")
-    parser.add_argument("-l2b", "--l2b", dest="l2b", nargs='*', type=str, default=None,
-                        help="GEDI L2B variables [keyword, var list, or bare flag for all]")
-    parser.add_argument("-l4a", "--l4a", dest="l4a", nargs='*', type=str, default=None,
-                        help="GEDI L4A variables [keyword, var list, or bare flag for all]")
-    parser.add_argument("-l4c", "--l4c", dest="l4c", nargs='*', type=str, default=None,
-                        help="GEDI L4C variables [keyword, var list, or bare flag for all]")
+    parser.add_argument(
+        "--detail-level",
+        dest="detail_level",
+        type=str,
+        default=None,
+        choices=["minimal", "min", "default", "def", "all"],
+        help="set variable detail level for ALL products "
+        "(minimal/default/all). Mutually exclusive with per-product flags.",
+    )
+    parser.add_argument(
+        "-l1b",
+        "--l1b",
+        dest="l1b",
+        nargs="*",
+        type=str,
+        default=None,
+        help="GEDI L1B variables [keyword, var list, or bare flag for all]",
+    )
+    parser.add_argument(
+        "-l2a",
+        "--l2a",
+        dest="l2a",
+        nargs="*",
+        type=str,
+        default=None,
+        help="GEDI L2A variables [keyword, var list, or bare flag for all]",
+    )
+    parser.add_argument(
+        "-l2b",
+        "--l2b",
+        dest="l2b",
+        nargs="*",
+        type=str,
+        default=None,
+        help="GEDI L2B variables [keyword, var list, or bare flag for all]",
+    )
+    parser.add_argument(
+        "-l4a",
+        "--l4a",
+        dest="l4a",
+        nargs="*",
+        type=str,
+        default=None,
+        help="GEDI L4A variables [keyword, var list, or bare flag for all]",
+    )
+    parser.add_argument(
+        "-l4c",
+        "--l4c",
+        dest="l4c",
+        nargs="*",
+        type=str,
+        default=None,
+        help="GEDI L4C variables [keyword, var list, or bare flag for all]",
+    )
     return parser
 
 
@@ -394,41 +466,29 @@ def parse_egi_levels(value):
         return None
 
     value = str(value)
-    if ':' in value:
-        parts = value.split(':')
+    if ":" in value:
+        parts = value.split(":")
         if len(parts) != 2:
-            raise argparse.ArgumentTypeError(
-                f"EGI argument must be 'level' or 'level:partition', got '{value}'"
-            )
+            raise argparse.ArgumentTypeError(f"EGI argument must be 'level' or 'level:partition', got '{value}'")
         try:
             level = int(parts[0])
             partition_level = int(parts[1])
         except ValueError:
-            raise argparse.ArgumentTypeError(
-                f"EGI levels must be integers, got '{value}'"
-            )
+            raise argparse.ArgumentTypeError(f"EGI levels must be integers, got '{value}'")
     else:
         try:
             level = int(value)
             partition_level = 12  # Default partition level (coarsest, ~160km)
         except ValueError:
-            raise argparse.ArgumentTypeError(
-                f"EGI level must be an integer, got '{value}'"
-            )
+            raise argparse.ArgumentTypeError(f"EGI level must be an integer, got '{value}'")
 
     # Validate levels
     if not 1 <= level <= 12:
-        raise argparse.ArgumentTypeError(
-            f"EGI level must be 1-12, got {level}"
-        )
+        raise argparse.ArgumentTypeError(f"EGI level must be 1-12, got {level}")
     if not 1 <= partition_level <= 12:
-        raise argparse.ArgumentTypeError(
-            f"EGI partition level must be 1-12, got {partition_level}"
-        )
+        raise argparse.ArgumentTypeError(f"EGI partition level must be 1-12, got {partition_level}")
     if partition_level < level:
-        raise argparse.ArgumentTypeError(
-            f"EGI partition level ({partition_level}) must be >= level ({level})"
-        )
+        raise argparse.ArgumentTypeError(f"EGI partition level ({partition_level}) must be >= level ({level})")
 
     return (level, partition_level)
 
@@ -436,6 +496,7 @@ def parse_egi_levels(value):
 # =============================================================================
 # Shared CLI Setup Functions
 # =============================================================================
+
 
 def setup_logging(args, name=None):
     """Configure logging based on verbosity flags and return a logger.
@@ -450,6 +511,7 @@ def setup_logging(args, name=None):
         Configured logger instance
     """
     import warnings
+
     from .logging_config import configure_logging, get_logger
 
     if args.quiet:
@@ -467,31 +529,31 @@ def setup_logging(args, name=None):
     if log_level > logging.DEBUG:
         # Filter UserWarnings from distributed (large graph warnings, etc.)
         # Use regex pattern for module matching
-        warnings.filterwarnings('ignore', category=UserWarning, module=r'distributed.*')
-        warnings.filterwarnings('ignore', category=UserWarning, module=r'dask.*')
-        warnings.filterwarnings('ignore', message=r'.*Sending large graph.*')
-        warnings.filterwarnings('ignore', message=r'.*Consider loading the data.*')
-        warnings.filterwarnings('ignore', message=r'.*large graph.*')
-        warnings.filterwarnings('ignore', message=r'.*PerformanceWarning.*')
+        warnings.filterwarnings("ignore", category=UserWarning, module=r"distributed.*")
+        warnings.filterwarnings("ignore", category=UserWarning, module=r"dask.*")
+        warnings.filterwarnings("ignore", message=r".*Sending large graph.*")
+        warnings.filterwarnings("ignore", message=r".*Consider loading the data.*")
+        warnings.filterwarnings("ignore", message=r".*large graph.*")
+        warnings.filterwarnings("ignore", message=r".*PerformanceWarning.*")
 
         # Suppress distributed module logging (shuffle, scheduler, worker, memory, etc.)
         for logger_name in [
-            'distributed',
-            'distributed.shuffle',
-            'distributed.shuffle._scheduler_plugin',
-            'distributed.worker',
-            'distributed.worker.memory',
-            'distributed.client',
-            'distributed.scheduler',
-            'distributed.nanny',
-            'distributed.utils_perf',
-            'distributed.diskutils',
-            'distributed.batched',
-            'dask',
-            'dask.array',
-            'dask.dataframe',
-            'tornado',
-            'asyncio',
+            "distributed",
+            "distributed.shuffle",
+            "distributed.shuffle._scheduler_plugin",
+            "distributed.worker",
+            "distributed.worker.memory",
+            "distributed.client",
+            "distributed.scheduler",
+            "distributed.nanny",
+            "distributed.utils_perf",
+            "distributed.diskutils",
+            "distributed.batched",
+            "dask",
+            "dask.array",
+            "dask.dataframe",
+            "tornado",
+            "asyncio",
         ]:
             logging.getLogger(logger_name).setLevel(logging.CRITICAL)
 
@@ -562,8 +624,9 @@ def cli_exception_handler(args, logger=None):
         sys.exit(130)
     except Exception as e:
         print(f"\n\nERROR: {type(e).__name__}: {e}")
-        if hasattr(args, 'verbose') and args.verbose >= 2:
+        if hasattr(args, "verbose") and args.verbose >= 2:
             import traceback
+
             traceback.print_exc()
         sys.exit(1)
 
@@ -571,6 +634,7 @@ def cli_exception_handler(args, logger=None):
 # =============================================================================
 # Shared Data Loading Functions
 # =============================================================================
+
 
 def configure_database_path(args, logger=None):
     """Configure database path from args or default.
@@ -582,8 +646,9 @@ def configure_database_path(args, logger=None):
     Returns:
         Database path string
     """
-    from .config import GH3_DEFAULT_H3_DIR
     import gedih3.gh3driver as gh3
+
+    from .config import GH3_DEFAULT_H3_DIR
 
     if args.database:
         gh3.gh3_set_db_path(args.database)
@@ -618,39 +683,35 @@ def get_dataset_index_info(database):
         - Other metadata fields from the source
     """
     import json
+
     from .utils import smart_exists, smart_open
 
     build_log_path = os.path.join(database, BUILD_LOG_FILENAME)
     dataset_meta_path = os.path.join(database, DATASET_META_FILENAME)
 
     if smart_exists(build_log_path):
-        with smart_open(build_log_path, 'r') as f:
+        with smart_open(build_log_path, "r") as f:
             meta = json.load(f)
         return {
-            'source_type': 'h3_database',
-            'index_type': 'h3',
-            'index_level': meta.get('h3_resolution_level'),
-            'partition_level': meta.get('h3_partition_level'),
-            **meta
+            "source_type": "h3_database",
+            "index_type": "h3",
+            "index_level": meta.get("h3_resolution_level"),
+            "partition_level": meta.get("h3_partition_level"),
+            **meta,
         }
     elif smart_exists(dataset_meta_path):
-        with smart_open(dataset_meta_path, 'r') as f:
+        with smart_open(dataset_meta_path, "r") as f:
             meta = json.load(f)
         return {
-            'source_type': 'simplified_dataset',
-            'index_type': meta.get('index_type'),
-            'index_level': meta.get('index_level'),
-            'partition_level': meta.get('egi_partition_level') or meta.get('h3_partition_level'),
-            'file_format': meta.get('file_format', 'parquet'),
-            **meta
+            "source_type": "simplified_dataset",
+            "index_type": meta.get("index_type"),
+            "index_level": meta.get("index_level"),
+            "partition_level": meta.get("egi_partition_level") or meta.get("h3_partition_level"),
+            "file_format": meta.get("file_format", "parquet"),
+            **meta,
         }
     else:
-        return {
-            'source_type': 'parquet_directory',
-            'index_type': None,
-            'index_level': None,
-            'partition_level': None
-        }
+        return {"source_type": "parquet_directory", "index_type": None, "index_level": None, "partition_level": None}
 
 
 def _add_query_columns(columns, query, dataset_path, fmt):
@@ -714,12 +775,12 @@ def load_data_from_source(database, columns=None, region=None, query=None, logge
 
     info = get_dataset_index_info(database)
 
-    if info.get('index_type') == 'egi':
+    if info.get("index_type") == "egi":
         if logger:
             logger.info(f"  Source: {info['source_type']} (EGI index)")
         return gh3.egi_load(database, columns=columns, region=region, query=query)
     else:
-        label = "H3 database" if info['source_type'] == 'h3_database' else info['source_type']
+        label = "H3 database" if info["source_type"] == "h3_database" else info["source_type"]
         if logger:
             logger.info(f"  Source: {label}")
         return gh3.gh3_load(database, columns=columns, region=region, query=query)
@@ -731,10 +792,10 @@ def load_data_from_source(database, columns=None, region=None, query=None, logge
 
 # Patterns for internal/partition columns that should be excluded from data operations
 INTERNAL_COLUMN_PATTERNS = [
-    r'^h3_\d{2}$',       # H3 partition columns (h3_03, h3_06, etc.)
-    r'^egi\d{2}$',       # EGI index columns (egi06, egi12, etc.)
-    r'^_egi_[xy]$',      # Internal EGI coordinate columns
-    r'^shot_number',     # Shot identifier (shot_number, shot_number_l2a, etc.)
+    r"^h3_\d{2}$",  # H3 partition columns (h3_03, h3_06, etc.)
+    r"^egi\d{2}$",  # EGI index columns (egi06, egi12, etc.)
+    r"^_egi_[xy]$",  # Internal EGI coordinate columns
+    r"^shot_number",  # Shot identifier (shot_number, shot_number_l2a, etc.)
 ]
 
 
@@ -765,7 +826,7 @@ def filter_data_columns(columns, exclude_geometry=True):
     """
     filtered = [col for col in columns if not is_internal_column(col)]
     if exclude_geometry:
-        filtered = [col for col in filtered if col != 'geometry']
+        filtered = [col for col in filtered if col != "geometry"]
     return filtered
 
 
@@ -779,7 +840,7 @@ def get_numeric_columns(ddf, exclude_internal=True):
     Returns:
         List of column names with numeric dtypes
     """
-    numeric = [col for col in ddf.columns if ddf[col].dtype.kind in 'biufc']
+    numeric = [col for col in ddf.columns if ddf[col].dtype.kind in "biufc"]
     if exclude_internal:
         numeric = filter_data_columns(numeric)
     return numeric
@@ -819,7 +880,7 @@ def get_aggregatable_columns(df):
     import numpy as np
 
     # Handle both Dask and pandas DataFrames
-    if hasattr(df, '_meta'):
+    if hasattr(df, "_meta"):
         # Dask DataFrame - use _meta for column type inspection
         numeric_cols = df._meta.select_dtypes(include=[np.number]).columns.tolist()
     else:
@@ -849,8 +910,7 @@ def filter_raster_columns(columns, geodf):
 
     if columns is not None:
         # Filter provided columns (also exclude index column)
-        filtered = [c for c in columns if not is_internal_column(c)
-                    and c != 'geometry' and c != index_col]
+        filtered = [c for c in columns if not is_internal_column(c) and c != "geometry" and c != index_col]
         return filtered if filtered else None
     else:
         # Auto-detect numeric columns, excluding internal ones and index column
@@ -868,7 +928,7 @@ def h3_col_name(level):
     Returns:
         Column name string, e.g. 'h3_06' for level 6
     """
-    return f'h3_{level:02d}'
+    return f"h3_{level:02d}"
 
 
 def find_coordinate_column(columns, base_name):
@@ -903,10 +963,11 @@ def find_coordinate_column(columns, base_name):
         return matches[0]
     elif len(matches) > 1:
         # Prefer _l2a suffix since coordinates typically come from L2A product
-        l2a_matches = [c for c in matches if c.endswith('_l2a')]
+        l2a_matches = [c for c in matches if c.endswith("_l2a")]
         return l2a_matches[0] if l2a_matches else matches[0]
 
     return None
+
 
 def _make_percentile_func(p):
     """Create a named percentile function for use with pandas .agg().
@@ -923,12 +984,13 @@ def _make_percentile_func(p):
         so pandas uses it for column naming in MultiIndex flattening.
     """
     import numpy as np
+
     frac = p / 100
 
     def percentile_func(x):
         return np.nanquantile(x, frac)
 
-    percentile_func.__name__ = f'p{int(p)}'
+    percentile_func.__name__ = f"p{int(p)}"
     return percentile_func
 
 
@@ -939,7 +1001,8 @@ def _expand_percentile_specs(agg):
     aggregation spec (string, list, or dict values).
     """
     import re
-    pattern = re.compile(r'^p(\d+)$')
+
+    pattern = re.compile(r"^p(\d+)$")
 
     def expand(item):
         if isinstance(item, str):
@@ -986,8 +1049,8 @@ def parse_aggregation(agg_str):
 
     # Check if it's a file path
     if os.path.isfile(agg_str):
-        if agg_str.endswith('.json'):
-            with open(agg_str, 'r') as f:
+        if agg_str.endswith(".json"):
+            with open(agg_str, "r") as f:
                 result = json.load(f)
             if not isinstance(result, (dict, list)):
                 raise GediValidationError(
@@ -996,15 +1059,15 @@ def parse_aggregation(agg_str):
             return _expand_percentile_specs(result)
         else:
             # Plain text file: one function name per line
-            with open(agg_str, 'r') as f:
-                funcs = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
+            with open(agg_str, "r") as f:
+                funcs = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
             if len(funcs) == 0:
                 raise GediValidationError(f"Aggregation file is empty: {agg_str}")
             result = funcs if len(funcs) > 1 else funcs[0]
             return _expand_percentile_specs(result)
 
     # Inline literal (list or dict)
-    if '[' in agg_str or '{' in agg_str:
+    if "[" in agg_str or "{" in agg_str:
         try:
             result = ast.literal_eval(agg_str)
         except (ValueError, SyntaxError) as e:
@@ -1019,8 +1082,8 @@ def parse_aggregation(agg_str):
     return _expand_percentile_specs(agg_str)
 
 
-def parse_file_format(args, default='parquet'):
-    file_format = args.output.split('.')[-1].lower() if args.output else None
+def parse_file_format(args, default="parquet"):
+    file_format = args.output.split(".")[-1].lower() if args.output else None
 
     if file_format in VALID_FORMATS:
         fmt = file_format
@@ -1029,7 +1092,8 @@ def parse_file_format(args, default='parquet'):
 
     if fmt not in VALID_FORMATS:
         raise GediValidationError(f"Invalid file format: {fmt}. Supported formats are: {', '.join(VALID_FORMATS)}")
-    return fmt    
+    return fmt
+
 
 def resolve_product_vars(args):
     """Resolve product variables from CLI args.
@@ -1054,7 +1118,7 @@ def resolve_product_vars(args):
     GediValidationError
         If ``-l`` is combined with per-product flags.
     """
-    detail_level = getattr(args, 'detail_level', None)
+    detail_level = getattr(args, "detail_level", None)
 
     per_product = {}
     for prod in GEDI_PRODUCTS.keys():
@@ -1078,7 +1142,7 @@ def resolve_product_vars(args):
         for prod, flag_val in per_product.items():
             if len(flag_val) == 0:
                 # Bare flag → dump everything
-                product_vars[prod] = ['all']
+                product_vars[prod] = ["all"]
             else:
                 product_vars[prod] = flag_val
 
@@ -1092,7 +1156,7 @@ def parse_gedi_args(args):
     Falls back to legacy parsing when ``detail_level`` attribute is absent.
     """
     # Use new resolver if detail_level attribute is present
-    if hasattr(args, 'detail_level'):
+    if hasattr(args, "detail_level"):
         return resolve_product_vars(args)
 
     # Legacy fallback
@@ -1102,35 +1166,37 @@ def parse_gedi_args(args):
             if (vars := getattr(args, k.lower())) is not None:
                 prod_vars[k] = vars
     return prod_vars
-    
+
+
 def parse_dask_args(args):
     import dask
 
     # Configure Dask to suppress performance warnings unless in DEBUG mode
-    verbose = getattr(args, 'verbose', 0)
+    verbose = getattr(args, "verbose", 0)
     if verbose < 2:
         # Suppress large graph warnings by raising the threshold
-        dask.config.set({'distributed.admin.large-graph-warning-threshold': '500MB'})
+        dask.config.set({"distributed.admin.large-graph-warning-threshold": "500MB"})
         # Suppress other performance-related warnings
-        dask.config.set({'distributed.admin.tick.limit': '1h'})
+        dask.config.set({"distributed.admin.tick.limit": "1h"})
 
     dask_args = {}
     if args.dask_scheduler:
-        dask_args['address'] = args.dask_scheduler
+        dask_args["address"] = args.dask_scheduler
     else:
-        dask_args['n_workers'] = args.cores
-        dask_args['threads_per_worker'] = args.threads
-        dask_args['memory_limit'] = f"{args.memory}GB" if args.memory else None
-        dask_args['dashboard_address'] = f":{args.port}" if args.port else None
-        if hasattr(args, 'tmpdir') and args.tmpdir:
+        dask_args["n_workers"] = args.cores
+        dask_args["threads_per_worker"] = args.threads
+        dask_args["memory_limit"] = f"{args.memory}GB" if args.memory else None
+        dask_args["dashboard_address"] = f":{args.port}" if args.port else None
+        if hasattr(args, "tmpdir") and args.tmpdir:
             os.makedirs(args.tmpdir, exist_ok=True)
-            dask_args['local_directory'] = os.path.join(args.tmpdir, 'dask-worker-space')
+            dask_args["local_directory"] = os.path.join(args.tmpdir, "dask-worker-space")
         # Suppress worker-subprocess shutdown noise (heartbeat errors)
         # that fires during scheduler teardown. Matches setup_logging()
         # which sets distributed.worker to CRITICAL in the main process.
         if verbose < 2:
-            dask_args['silence_logs'] = logging.CRITICAL
+            dask_args["silence_logs"] = logging.CRITICAL
     return dask_args
+
 
 def parse_region(region_str: Optional[str]):
     """Parse region argument into GeoDataFrame or bbox"""
@@ -1140,19 +1206,20 @@ def parse_region(region_str: Optional[str]):
     # Try as file path
     if os.path.isfile(region_str):
         return parse_spatial(region_str)
-    
+
     # Try as URL
-    if region_str.startswith(('http://', 'https://', 's3://')):
+    if region_str.startswith(("http://", "https://", "s3://")):
         try:
             return read_vector_file(region_str, crs=4326)
         except Exception as e:
             raise GediValidationError(f"Error reading vector file from URL: {e}")
 
     # Try as bounding box: "W,S,E,N"
-    if ',' in region_str:
+    if "," in region_str:
         from .validation import validate_bbox
+
         try:
-            coords = [float(x.strip()) for x in region_str.split(',')]
+            coords = [float(x.strip()) for x in region_str.split(",")]
             if len(coords) == 4:
                 # Validate bbox coordinates
                 validate_bbox(coords)
@@ -1161,7 +1228,7 @@ def parse_region(region_str: Optional[str]):
                 raise GediValidationError(f"Invalid bounding box format: {region_str}")
         except ValueError as e:
             # Re-raise with proper context if it's from validate_bbox
-            if 'must be' in str(e):
+            if "must be" in str(e):
                 raise GediValidationError(f"Invalid bounding box: {e}")
             raise GediValidationError(f"Invalid bounding box format: {region_str}")
 
@@ -1170,8 +1237,9 @@ def parse_region(region_str: Optional[str]):
         iso3 = region_str.upper()
         try:
             import geopandas as gpd
+
             world = gpd.read_file(ISO3_COUNTRIES_URL)
-            match = world[world['iso3'] == iso3]
+            match = world[world["iso3"] == iso3]
             if not match.empty:
                 return match.to_crs(4326)
             else:
@@ -1181,6 +1249,7 @@ def parse_region(region_str: Optional[str]):
 
     raise GediValidationError(f"Invalid region specification: {region_str}")
 
+
 def collect_columns(args, available_columns=None):
     """
     Collect all requested variables from command line arguments and validate against available columns.
@@ -1188,13 +1257,14 @@ def collect_columns(args, available_columns=None):
     """
     if available_columns is None:
         from .gh3driver import gh3_read_meta
-        available_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)
+
+        available_columns = gh3_read_meta("h3_columns", gh3_root_dir=args.database)
     read_cols = []
 
     if args.list is not None:
         if len(args.list) == 1 and os.path.isfile(args.list[0]):
-            with open(args.list[0], 'r') as f:
-                read_cols += list({line.strip() for line in f if line.strip() and not line.strip().startswith('#')})
+            with open(args.list[0], "r") as f:
+                read_cols += list({line.strip() for line in f if line.strip() and not line.strip().startswith("#")})
         else:
             read_cols += list({v.strip() for v in args.list if v.strip()})
 
@@ -1204,19 +1274,20 @@ def collect_columns(args, available_columns=None):
 
     product_map = {i: getattr(args, i.lower()) for i in GEDI_PRODUCTS.keys() if getattr(args, i.lower()) is not None}
     from .gedidriver import gedi_vars_expand
+
     prod_vars = gedi_vars_expand(product_map)
 
     for prod, vars in prod_vars.items():
         if vars is None:
             vars = [i for i in available_columns if i.endswith(f"_{prod.lower()}")]
         elif len(vars) == 1 and os.path.isfile(vars[0]):
-            with open(vars[0], 'r') as f:
-                file_vars = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
+            with open(vars[0], "r") as f:
+                file_vars = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
             vars = file_vars
 
         for var in vars:
-            if '*' in var:
-                var = var.replace('*', '.*')
+            if "*" in var:
+                var = var.replace("*", ".*")
             if not var.endswith(f"_{prod.lower()}"):
                 var = f"{var}_{prod.lower()}"
 
@@ -1227,33 +1298,35 @@ def collect_columns(args, available_columns=None):
 
             read_cols += matched_vars
 
-    geo_flag = hasattr(args, 'geo') and args.geo    
+    geo_flag = hasattr(args, "geo") and args.geo
     if geo_flag or args.region:
-        read_cols.append('geometry')
-    
-    date_flag = hasattr(args, 'add_datetime') and args.add_datetime
+        read_cols.append("geometry")
+
+    date_flag = hasattr(args, "add_datetime") and args.add_datetime
     if date_flag or args.time_start or args.time_end:
-        read_cols.append('datetime')    
+        read_cols.append("datetime")
 
     return list(set(read_cols))
+
 
 def build_query_string(args, available_columns=None):
     """Build pandas query string from arguments"""
     if available_columns is None:
         from .gh3driver import gh3_read_meta
-        available_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)
+
+        available_columns = gh3_read_meta("h3_columns", gh3_root_dir=args.database)
     queries = []
 
     # Quality filter - use backticks to escape column names with special characters
     if args.quality:
-        queries += [f"`{i}` == 1" for i in available_columns if 'quality_flag' in i]
+        queries += [f"`{i}` == 1" for i in available_columns if "quality_flag" in i]
 
     # Temporal filters
     if args.time_start:
         queries.append(f"datetime >= '{args.time_start}'")
     if args.time_end:
         queries.append(f"datetime <= '{args.time_end}'")
-        
+
     # Custom query
     if args.query:
         queries.append(f"({args.query})")
@@ -1271,17 +1344,14 @@ def safe_query(df, query_str):
     if not query_str:
         return df
 
-    slash_cols = {c: c.replace('/', '_') for c in df.columns if '/' in c}
-    if not slash_cols and '/' not in query_str:
+    slash_cols = {c: c.replace("/", "_") for c in df.columns if "/" in c}
+    if not slash_cols and "/" not in query_str:
         return df.query(query_str)
 
     # Sanitize backtick-quoted names with '/' in the query string
     import re as _re
-    safe_qstr = _re.sub(
-        r'`([^`]*/[^`]*)`',
-        lambda m: '`' + m.group(1).replace('/', '_') + '`',
-        query_str
-    )
+
+    safe_qstr = _re.sub(r"`([^`]*/[^`]*)`", lambda m: "`" + m.group(1).replace("/", "_") + "`", query_str)
 
     # Also rename any DataFrame columns with '/'
     if slash_cols:
