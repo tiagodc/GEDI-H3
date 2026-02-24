@@ -535,6 +535,23 @@ def gh3_load(source=None, *, columns=None, region=None, query=None,
     -------
     dask GeoDataFrame or GeoDataFrame
         Loaded data (lazy by default, eager if lazy=False).
+
+    Raises
+    ------
+    GediValidationError
+        If the source is an EGI-indexed dataset (use ``egi_load()`` instead).
+    GediDatabaseNotFoundError
+        If no valid data source is found.
+
+    Examples
+    --------
+    >>> import gedih3.gh3driver as gh3
+    >>> ddf = gh3.gh3_load(
+    ...     source='/path/to/h3_database',
+    ...     columns=['agbd_l4a', 'rh_098_l2a'],
+    ...     region='region.shp',
+    ... )
+    >>> ddf.compute().head()
     """
     path, info = _detect_source(source, gh3_dir)
 
@@ -586,7 +603,14 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
     Returns
     -------
     dask GeoDataFrame
-        H3-indexed aggregated data
+        H3-indexed aggregated data.
+
+    Raises
+    ------
+    H3ValidationError
+        If ``target_res`` is not a valid H3 resolution (0–15).
+    GediAggregationError
+        If spatial aggregation fails.
     """
     _meta = gh3_aggregate_func(df=gh3_df.head(npartitions=min(gh3_df.npartitions, 10)), res=target_res, agg=agg, cols=columns, **kwargs)
 
@@ -1419,6 +1443,27 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
     -------
     dask GeoDataFrame or GeoDataFrame
         EGI-indexed data (lazy by default, eager if lazy=False).
+
+    Raises
+    ------
+    GediValidationError
+        If source is an H3 dataset (use ``gh3_load()`` instead).
+    GediDatabaseNotFoundError
+        If no valid data source is found.
+    EGIValidationError
+        If ``index_level`` or ``partition_level`` is outside [1, 12].
+
+    Examples
+    --------
+    >>> import gedih3.gh3driver as gh3
+    >>> ddf = gh3.egi_load(
+    ...     source='/path/to/h3_database',
+    ...     columns=['agbd_l4a'],
+    ...     region='region.shp',
+    ...     index_level=1,
+    ...     partition_level=12,
+    ... )
+    >>> agg = gh3.egi_aggregate(ddf, target_level=6, agg='mean')
     """
     path, info = _detect_source(source, gh3_dir)
 
@@ -1451,6 +1496,7 @@ def _egi_repartition(gh3_df, shuffle_level, x_col='lon_lowestmode', y_col='lat_l
 
     This is an internal helper that handles the coordinate projection and shuffle
     step common to both egi_extract and egi_aggregate. It:
+
     1. Projects coordinates to EPSG:6933 and stores them as _egi_x, _egi_y
     2. Computes EGI hash at the specified shuffle level
     3. Shuffles data by that hash so all shots in each tile are co-located
@@ -1873,6 +1919,7 @@ def egi_aggregate(gh3_df, target_level=6, agg='mean', columns=None, query=None,
     Aggregate GEDI data to EGI (EASE Grid Index) square pixels.
 
     Supports two input types:
+
     - **EGI-indexed** (from egi_load()): Fast path — no shuffle needed, aggregation
       is purely local within each partition.
     - **H3-indexed** (from gh3_load()): Shuffle path — data is repartitioned by EGI

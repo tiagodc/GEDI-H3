@@ -5,60 +5,178 @@ A comprehensive Python library for accessing GEDI (Global Ecosystem Dynamics Inv
 data from NASA's ORNL DAAC with H3 spatial indexing support, multiple access methods,
 spatial/temporal filtering, and on-the-fly subsetting.
 
-Main modules:
-- gedih3.config: Package configuration and GEDI product metadata
-- gedih3.daac: NASA Earthdata access with GEDIAccessor class and download functions
-- gedih3.gedidriver: Low-level GEDI HDF5 file operations and data loading
-- gedih3.gh3builder: H3-indexed database building from GEDI data
-- gedih3.gh3driver: H3 database query and access functions
-- gedih3.h3utils: H3 geospatial indexing utilities
-- gedih3.egi: EGI (EASE Grid Index) square pixel indexing for L4B compatibility
-- gedih3.utils: General utility functions for file I/O and geospatial operations
-
-Usage examples:
-    >>> import gedih3 as gh3
-    >>> gh3.config.GEDI_PRODUCTS
-    >>> accessor = gh3.daac.GEDIAccessor()
-    >>> gh3.gh3builder.build_h3db(...)
-
-    >>> from gedih3.daac import GEDIAccessor
-    >>> from gedih3.config import GEDI_PRODUCTS
-
-    # EGI (EASE Grid Index) for square pixel outputs
-    >>> import gedih3.egi as egi
-    >>> egi_df = egi.egi_dataframe(shots_df, level=6)
-    >>> raster = egi.geodf_to_raster(agg_df)
+Examples
+--------
+>>> import gedih3
+>>> print(gedih3.__version__)
+>>> ddf = gedih3.gh3_load(source='/path/to/database', columns=['agbd_l4a'])
+>>> agg = gedih3.gh3_aggregate(ddf, target_res=6, agg='mean')
+>>> gedih3.egi.egi_dataframe(shots_df, level=6)
+>>> gedih3.raster.h3_to_raster(agg_gdf)
 """
 
 __version__ = "0.0.1"
 __author__ = "Tiago de Conto"
 __email__ = "tiagodc@umd.edu"
 
-# from . import config
-# from . import utils
-# from . import daac
-# from . import h3utils
-# from . import sqlutils
-# from . import cliutils
-# from . import gedidriver
-# from . import gh3driver
-# from . import gh3builder
+# --- Config & environment ---------------------------------------------------
+from .config import (
+    GEDI_PRODUCTS,
+    GEDI_BEAMS,
+    GEDI_START_DATE,
+    GH3_DEFAULT_DOWNLOAD_DIR,
+    GH3_DEFAULT_TMP_DIR,
+    GH3_DEFAULT_SOC_DIR,
+    GH3_DEFAULT_H3_DIR,
+    configure_environment,
+    get_package_data_path,
+)
 
+# --- Remote storage ---------------------------------------------------------
 from .utils import configure_storage, get_storage_options
 
+# --- Exceptions -------------------------------------------------------------
+from .exceptions import (
+    GediError,
+    GediNetworkError,
+    GediDownloadError,
+    GediAuthenticationError,
+    GediS3AccessError,
+    GediValidationError,
+    H3ValidationError,
+    EGIValidationError,
+    GediProductError,
+    GediVariableError,
+    GediFileError,
+    GediHDF5Error,
+    GediParquetError,
+    GediCorruptedFileError,
+    GediTransactionError,
+    GediDatabaseError,
+    GediDatabaseNotFoundError,
+    GediDatabaseCorruptedError,
+    GediMergeError,
+    GediSpatialError,
+    GediTemporalError,
+    GediProcessingError,
+    GediAggregationError,
+    GediRasterizationError,
+    GediImageSamplingError,
+    GediSpatialJoinError,
+)
+
+# --- Data access ------------------------------------------------------------
+from .daac import (
+    GEDIAccessor,
+    gedi_download,
+    gedi_list_versions,
+    gedi_latest_version,
+)
+
+# --- HDF5 parsing -----------------------------------------------------------
+from .gedidriver import (
+    GEDIFile,
+    GEDIShot,
+    soc_file_tree,
+    load_h5,
+    load_h5_merged,
+    dask_h5_merged,
+)
+
+# --- Database building ------------------------------------------------------
+from .gh3builder import (
+    build_h3db,
+    download_soc,
+)
+
+# --- Database querying ------------------------------------------------------
+from .gh3driver import (
+    gh3_load,
+    gh3_aggregate,
+    gh3_export,
+    egi_load,
+    egi_aggregate,
+    egi_extract,
+    gh3_to_raster,
+    gh3_rasterize_partitions,
+)
+
+# --- Sub-modules ------------------------------------------------------------
+from . import egi
+from . import raster
+from . import validation
+
 __all__ = [
+    # metadata
     "__version__",
     "__author__",
     "__email__",
+    # config
+    "GEDI_PRODUCTS",
+    "GEDI_BEAMS",
+    "GEDI_START_DATE",
+    "GH3_DEFAULT_DOWNLOAD_DIR",
+    "GH3_DEFAULT_TMP_DIR",
+    "GH3_DEFAULT_SOC_DIR",
+    "GH3_DEFAULT_H3_DIR",
+    "configure_environment",
+    "get_package_data_path",
+    # storage
     "configure_storage",
     "get_storage_options",
-    # "config",
-    # "daac",
-    # "gedidriver",
-    # "gh3builder",
-    # "gh3driver",
-    # "utils",
-    # "h3utils",
-    # "sqlutils",
-    # "cliutils"
+    # exceptions
+    "GediError",
+    "GediNetworkError",
+    "GediDownloadError",
+    "GediAuthenticationError",
+    "GediS3AccessError",
+    "GediValidationError",
+    "H3ValidationError",
+    "EGIValidationError",
+    "GediProductError",
+    "GediVariableError",
+    "GediFileError",
+    "GediHDF5Error",
+    "GediParquetError",
+    "GediCorruptedFileError",
+    "GediTransactionError",
+    "GediDatabaseError",
+    "GediDatabaseNotFoundError",
+    "GediDatabaseCorruptedError",
+    "GediMergeError",
+    "GediSpatialError",
+    "GediTemporalError",
+    "GediProcessingError",
+    "GediAggregationError",
+    "GediRasterizationError",
+    "GediImageSamplingError",
+    "GediSpatialJoinError",
+    # data access
+    "GEDIAccessor",
+    "gedi_download",
+    "gedi_list_versions",
+    "gedi_latest_version",
+    # HDF5 parsing
+    "GEDIFile",
+    "GEDIShot",
+    "soc_file_tree",
+    "load_h5",
+    "load_h5_merged",
+    "dask_h5_merged",
+    # database building
+    "build_h3db",
+    "download_soc",
+    # database querying
+    "gh3_load",
+    "gh3_aggregate",
+    "gh3_export",
+    "egi_load",
+    "egi_aggregate",
+    "egi_extract",
+    "gh3_to_raster",
+    "gh3_rasterize_partitions",
+    # sub-modules
+    "egi",
+    "raster",
+    "validation",
 ]

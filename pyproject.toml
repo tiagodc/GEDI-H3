@@ -55,12 +55,33 @@ gh3_update = "gedih3.cli.gh3_update:main"
 gh3_from_img = "gedih3.cli.gh3_from_img:main"
 gh3_from_polygon = "gedih3.cli.gh3_from_polygon:main"
 
+[project.optional-dependencies]
+docs = [
+    "sphinx >= 8.0",
+    "pydata-sphinx-theme >= 0.16",
+    "numpydoc >= 1.8",
+    "myst-parser >= 4.0",
+    "sphinx-autoapi >= 3.4",
+]
+test = [
+    "pytest",
+    "pytest-cov",
+]
+
 [tool.setuptools]
 packages = ["gedih3", "gedih3.cli", "gedih3.egi", "gedih3.raster"]
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
 gedih3 = ["data/*.txt", "data/*.json", "data/*.parquet"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
 
 [tool.pytest.ini_options]
 markers = [
