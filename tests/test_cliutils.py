@@ -9,191 +9,192 @@ the CLI tools and library code.
 import argparse
 import json
 import os
-import tempfile
 import shutil
+import tempfile
 
+import geopandas as gpd
 import numpy as np
 import pandas as pd
-import geopandas as gpd
 import pytest
 from shapely.geometry import Point
 
 from gedih3.cliutils import (
-    is_internal_column,
-    filter_data_columns,
-    get_numeric_columns,
-    get_rasterizable_columns,
-    get_aggregatable_columns,
-    filter_raster_columns,
-    h3_col_name,
-    find_coordinate_column,
-    parse_egi_levels,
-    parse_aggregation,
-    parse_region,
-    safe_query,
-    detect_dataset_format,
     _expand_percentile_specs,
     cli_exception_handler,
+    detect_dataset_format,
+    filter_data_columns,
+    filter_raster_columns,
+    find_coordinate_column,
+    get_aggregatable_columns,
+    get_numeric_columns,
+    get_rasterizable_columns,
+    h3_col_name,
+    is_internal_column,
+    parse_aggregation,
+    parse_egi_levels,
+    parse_region,
+    safe_query,
 )
 from gedih3.exceptions import GediValidationError
-
 
 # =============================================================================
 # Test: is_internal_column
 # =============================================================================
 
-class TestIsInternalColumn:
 
+class TestIsInternalColumn:
     def test_h3_partition_columns(self):
-        assert is_internal_column('h3_03') is True
-        assert is_internal_column('h3_06') is True
-        assert is_internal_column('h3_12') is True
-        assert is_internal_column('h3_15') is True
-        assert is_internal_column('h3_00') is True
+        assert is_internal_column("h3_03") is True
+        assert is_internal_column("h3_06") is True
+        assert is_internal_column("h3_12") is True
+        assert is_internal_column("h3_15") is True
+        assert is_internal_column("h3_00") is True
 
     def test_egi_index_columns(self):
-        assert is_internal_column('egi06') is True
-        assert is_internal_column('egi01') is True
-        assert is_internal_column('egi12') is True
+        assert is_internal_column("egi06") is True
+        assert is_internal_column("egi01") is True
+        assert is_internal_column("egi12") is True
 
     def test_egi_coordinate_columns(self):
-        assert is_internal_column('_egi_x') is True
-        assert is_internal_column('_egi_y') is True
+        assert is_internal_column("_egi_x") is True
+        assert is_internal_column("_egi_y") is True
 
     def test_shot_number_columns(self):
-        assert is_internal_column('shot_number') is True
-        assert is_internal_column('shot_number_l2a') is True
-        assert is_internal_column('shot_number_l4a') is True
+        assert is_internal_column("shot_number") is True
+        assert is_internal_column("shot_number_l2a") is True
+        assert is_internal_column("shot_number_l4a") is True
 
     def test_data_columns_not_internal(self):
-        assert is_internal_column('agbd_l4a') is False
-        assert is_internal_column('rh_098_l2a') is False
-        assert is_internal_column('quality_flag_l2a') is False
-        assert is_internal_column('lat_lowestmode_l2a') is False
-        assert is_internal_column('lon_lowestmode_l2a') is False
+        assert is_internal_column("agbd_l4a") is False
+        assert is_internal_column("rh_098_l2a") is False
+        assert is_internal_column("quality_flag_l2a") is False
+        assert is_internal_column("lat_lowestmode_l2a") is False
+        assert is_internal_column("lon_lowestmode_l2a") is False
 
     def test_geometry_not_internal(self):
-        assert is_internal_column('geometry') is False
+        assert is_internal_column("geometry") is False
 
     def test_datetime_not_internal(self):
-        assert is_internal_column('datetime') is False
+        assert is_internal_column("datetime") is False
 
     def test_similar_but_not_internal(self):
         # Patterns that look similar but should not match
-        assert is_internal_column('h3_resolution') is False  # not h3_XX pattern
-        assert is_internal_column('egi_level') is False  # not egiXX pattern
-        assert is_internal_column('my_egi_x') is False  # no leading underscore
-        assert is_internal_column('h3') is False  # missing _XX suffix
+        assert is_internal_column("h3_resolution") is False  # not h3_XX pattern
+        assert is_internal_column("egi_level") is False  # not egiXX pattern
+        assert is_internal_column("my_egi_x") is False  # no leading underscore
+        assert is_internal_column("h3") is False  # missing _XX suffix
 
 
 # =============================================================================
 # Test: filter_data_columns
 # =============================================================================
 
-class TestFilterDataColumns:
 
+class TestFilterDataColumns:
     def test_mixed_list(self):
-        cols = ['h3_03', 'agbd_l4a', 'rh_098_l2a', 'shot_number_l2a', 'egi06']
+        cols = ["h3_03", "agbd_l4a", "rh_098_l2a", "shot_number_l2a", "egi06"]
         result = filter_data_columns(cols)
-        assert result == ['agbd_l4a', 'rh_098_l2a']
+        assert result == ["agbd_l4a", "rh_098_l2a"]
 
     def test_no_internal_columns(self):
-        cols = ['agbd_l4a', 'rh_098_l2a', 'quality_flag_l2a']
+        cols = ["agbd_l4a", "rh_098_l2a", "quality_flag_l2a"]
         result = filter_data_columns(cols)
         assert result == cols
 
     def test_all_internal_columns(self):
-        cols = ['h3_03', 'h3_12', 'shot_number', 'egi06']
+        cols = ["h3_03", "h3_12", "shot_number", "egi06"]
         result = filter_data_columns(cols)
         assert result == []
 
     def test_geometry_excluded_by_default(self):
-        cols = ['agbd_l4a', 'geometry']
+        cols = ["agbd_l4a", "geometry"]
         result = filter_data_columns(cols)
-        assert result == ['agbd_l4a']
+        assert result == ["agbd_l4a"]
 
     def test_geometry_included_when_requested(self):
-        cols = ['agbd_l4a', 'geometry']
+        cols = ["agbd_l4a", "geometry"]
         result = filter_data_columns(cols, exclude_geometry=False)
-        assert 'geometry' in result
+        assert "geometry" in result
 
     def test_empty_list(self):
         assert filter_data_columns([]) == []
 
     def test_preserves_order(self):
-        cols = ['z_col', 'agbd_l4a', 'a_col']
+        cols = ["z_col", "agbd_l4a", "a_col"]
         result = filter_data_columns(cols)
-        assert result == ['z_col', 'agbd_l4a', 'a_col']
+        assert result == ["z_col", "agbd_l4a", "a_col"]
 
 
 # =============================================================================
 # Test: get_numeric_columns
 # =============================================================================
 
-class TestGetNumericColumns:
 
+class TestGetNumericColumns:
     def test_with_sample_gdf(self, sample_gdf):
         result = get_numeric_columns(sample_gdf)
         # Should include numeric data columns but not internal ones
-        assert 'agbd_l4a' in result
-        assert 'rh_098_l2a' in result
-        assert 'quality_flag_l2a' in result
-        assert 'lat_lowestmode_l2a' in result
-        assert 'lon_lowestmode_l2a' in result
+        assert "agbd_l4a" in result
+        assert "rh_098_l2a" in result
+        assert "quality_flag_l2a" in result
+        assert "lat_lowestmode_l2a" in result
+        assert "lon_lowestmode_l2a" in result
         # Should NOT include internal columns
-        assert 'shot_number_l2a' not in result
-        assert 'h3_03' not in result
+        assert "shot_number_l2a" not in result
+        assert "h3_03" not in result
 
     def test_with_dask_gdf(self, sample_ddf):
         result = get_numeric_columns(sample_ddf)
-        assert 'agbd_l4a' in result
-        assert 'rh_098_l2a' in result
-        assert 'shot_number_l2a' not in result
+        assert "agbd_l4a" in result
+        assert "rh_098_l2a" in result
+        assert "shot_number_l2a" not in result
 
     def test_include_internal(self, sample_gdf):
         result = get_numeric_columns(sample_gdf, exclude_internal=False)
-        assert 'shot_number_l2a' in result
-        assert 'agbd_l4a' in result
+        assert "shot_number_l2a" in result
+        assert "agbd_l4a" in result
 
     def test_no_numeric_columns(self):
-        df = pd.DataFrame({'name': ['a', 'b'], 'category': ['x', 'y']})
+        df = pd.DataFrame({"name": ["a", "b"], "category": ["x", "y"]})
         result = get_numeric_columns(df)
         assert result == []
 
     def test_mixed_types(self):
-        df = pd.DataFrame({
-            'int_col': [1, 2, 3],
-            'float_col': [1.0, 2.0, 3.0],
-            'str_col': ['a', 'b', 'c'],
-            'h3_03': ['abc', 'def', 'ghi'],  # internal but string
-        })
+        df = pd.DataFrame(
+            {
+                "int_col": [1, 2, 3],
+                "float_col": [1.0, 2.0, 3.0],
+                "str_col": ["a", "b", "c"],
+                "h3_03": ["abc", "def", "ghi"],  # internal but string
+            }
+        )
         result = get_numeric_columns(df)
-        assert 'int_col' in result
-        assert 'float_col' in result
-        assert 'str_col' not in result
-        assert 'h3_03' not in result
+        assert "int_col" in result
+        assert "float_col" in result
+        assert "str_col" not in result
+        assert "h3_03" not in result
 
 
 # =============================================================================
 # Test: get_rasterizable_columns
 # =============================================================================
 
-class TestGetRasterizableColumns:
 
+class TestGetRasterizableColumns:
     def test_basic(self, sample_gdf):
         result = get_rasterizable_columns(sample_gdf)
-        assert 'agbd_l4a' in result
-        assert 'rh_098_l2a' in result
-        assert 'shot_number_l2a' not in result
-        assert 'h3_03' not in result
+        assert "agbd_l4a" in result
+        assert "rh_098_l2a" in result
+        assert "shot_number_l2a" not in result
+        assert "h3_03" not in result
 
     def test_with_dask(self, sample_ddf):
         result = get_rasterizable_columns(sample_ddf)
-        assert 'agbd_l4a' in result
-        assert 'shot_number_l2a' not in result
+        assert "agbd_l4a" in result
+        assert "shot_number_l2a" not in result
 
     def test_no_numeric(self):
-        df = pd.DataFrame({'label': ['a', 'b']})
+        df = pd.DataFrame({"label": ["a", "b"]})
         result = get_rasterizable_columns(df)
         assert result == []
 
@@ -202,29 +203,31 @@ class TestGetRasterizableColumns:
 # Test: get_aggregatable_columns
 # =============================================================================
 
-class TestGetAggregatableColumns:
 
+class TestGetAggregatableColumns:
     def test_with_pandas_df(self, sample_gdf):
         result = get_aggregatable_columns(sample_gdf)
-        assert 'agbd_l4a' in result
-        assert 'rh_098_l2a' in result
-        assert 'shot_number_l2a' not in result
-        assert 'h3_03' not in result
+        assert "agbd_l4a" in result
+        assert "rh_098_l2a" in result
+        assert "shot_number_l2a" not in result
+        assert "h3_03" not in result
 
     def test_with_dask_df(self, sample_ddf):
         result = get_aggregatable_columns(sample_ddf)
-        assert 'agbd_l4a' in result
-        assert 'shot_number_l2a' not in result
+        assert "agbd_l4a" in result
+        assert "shot_number_l2a" not in result
 
     def test_excludes_egi_columns(self):
-        df = pd.DataFrame({
-            'agbd_l4a': [1.0, 2.0],
-            'egi06': np.array([100, 200], dtype=np.uint64),
-            '_egi_x': [1.0, 2.0],
-            '_egi_y': [3.0, 4.0],
-        })
+        df = pd.DataFrame(
+            {
+                "agbd_l4a": [1.0, 2.0],
+                "egi06": np.array([100, 200], dtype=np.uint64),
+                "_egi_x": [1.0, 2.0],
+                "_egi_y": [3.0, 4.0],
+            }
+        )
         result = get_aggregatable_columns(df)
-        assert result == ['agbd_l4a']
+        assert result == ["agbd_l4a"]
 
     def test_empty_df(self):
         df = pd.DataFrame()
@@ -236,240 +239,260 @@ class TestGetAggregatableColumns:
 # Test: filter_raster_columns
 # =============================================================================
 
-class TestFilterRasterColumns:
 
+class TestFilterRasterColumns:
     def test_with_explicit_columns(self):
-        gdf = gpd.GeoDataFrame({
-            'agbd_l4a': [1.0],
-            'egi06': np.array([100], dtype=np.uint64),
-            'h3_03': ['abc'],
-        }, geometry=[Point(0, 0)], crs='EPSG:4326')
-        result = filter_raster_columns(['agbd_l4a', 'egi06', 'h3_03'], gdf)
-        assert result == ['agbd_l4a']
+        gdf = gpd.GeoDataFrame(
+            {
+                "agbd_l4a": [1.0],
+                "egi06": np.array([100], dtype=np.uint64),
+                "h3_03": ["abc"],
+            },
+            geometry=[Point(0, 0)],
+            crs="EPSG:4326",
+        )
+        result = filter_raster_columns(["agbd_l4a", "egi06", "h3_03"], gdf)
+        assert result == ["agbd_l4a"]
 
     def test_with_none_auto_detects(self):
-        gdf = gpd.GeoDataFrame({
-            'agbd_l4a': [1.0, 2.0],
-            'rh_098_l2a': [10.0, 20.0],
-            'label': ['a', 'b'],
-            'shot_number': np.array([1, 2], dtype=np.int64),
-        }, geometry=[Point(0, 0), Point(1, 1)], crs='EPSG:4326')
+        gdf = gpd.GeoDataFrame(
+            {
+                "agbd_l4a": [1.0, 2.0],
+                "rh_098_l2a": [10.0, 20.0],
+                "label": ["a", "b"],
+                "shot_number": np.array([1, 2], dtype=np.int64),
+            },
+            geometry=[Point(0, 0), Point(1, 1)],
+            crs="EPSG:4326",
+        )
         result = filter_raster_columns(None, gdf)
-        assert 'agbd_l4a' in result
-        assert 'rh_098_l2a' in result
-        assert 'label' not in result
-        assert 'shot_number' not in result
+        assert "agbd_l4a" in result
+        assert "rh_098_l2a" in result
+        assert "label" not in result
+        assert "shot_number" not in result
 
     def test_excludes_geometry(self):
-        gdf = gpd.GeoDataFrame({
-            'agbd_l4a': [1.0],
-        }, geometry=[Point(0, 0)], crs='EPSG:4326')
-        result = filter_raster_columns(['agbd_l4a', 'geometry'], gdf)
-        assert result == ['agbd_l4a']
+        gdf = gpd.GeoDataFrame(
+            {
+                "agbd_l4a": [1.0],
+            },
+            geometry=[Point(0, 0)],
+            crs="EPSG:4326",
+        )
+        result = filter_raster_columns(["agbd_l4a", "geometry"], gdf)
+        assert result == ["agbd_l4a"]
 
     def test_all_internal_returns_none(self):
-        gdf = gpd.GeoDataFrame({
-            'h3_03': ['abc'],
-            'shot_number': np.array([1], dtype=np.int64),
-        }, geometry=[Point(0, 0)], crs='EPSG:4326')
-        result = filter_raster_columns(['h3_03', 'shot_number'], gdf)
+        gdf = gpd.GeoDataFrame(
+            {
+                "h3_03": ["abc"],
+                "shot_number": np.array([1], dtype=np.int64),
+            },
+            geometry=[Point(0, 0)],
+            crs="EPSG:4326",
+        )
+        result = filter_raster_columns(["h3_03", "shot_number"], gdf)
         assert result is None
 
     def test_excludes_index_column(self):
-        gdf = gpd.GeoDataFrame({
-            'agbd_l4a': [1.0, 2.0],
-            'tile_id': ['a', 'b'],
-        }, geometry=[Point(0, 0), Point(1, 1)], crs='EPSG:4326')
-        gdf = gdf.set_index('tile_id')
-        result = filter_raster_columns(['agbd_l4a', 'tile_id'], gdf)
-        assert result == ['agbd_l4a']
+        gdf = gpd.GeoDataFrame(
+            {
+                "agbd_l4a": [1.0, 2.0],
+                "tile_id": ["a", "b"],
+            },
+            geometry=[Point(0, 0), Point(1, 1)],
+            crs="EPSG:4326",
+        )
+        gdf = gdf.set_index("tile_id")
+        result = filter_raster_columns(["agbd_l4a", "tile_id"], gdf)
+        assert result == ["agbd_l4a"]
 
 
 # =============================================================================
 # Test: h3_col_name
 # =============================================================================
 
-class TestH3ColName:
 
+class TestH3ColName:
     def test_single_digit_level(self):
-        assert h3_col_name(3) == 'h3_03'
-        assert h3_col_name(0) == 'h3_00'
-        assert h3_col_name(6) == 'h3_06'
-        assert h3_col_name(9) == 'h3_09'
+        assert h3_col_name(3) == "h3_03"
+        assert h3_col_name(0) == "h3_00"
+        assert h3_col_name(6) == "h3_06"
+        assert h3_col_name(9) == "h3_09"
 
     def test_double_digit_level(self):
-        assert h3_col_name(10) == 'h3_10'
-        assert h3_col_name(12) == 'h3_12'
-        assert h3_col_name(15) == 'h3_15'
+        assert h3_col_name(10) == "h3_10"
+        assert h3_col_name(12) == "h3_12"
+        assert h3_col_name(15) == "h3_15"
 
     def test_consistent_format(self):
         # All names should be 5 characters: h3_XX
         for level in range(0, 16):
             name = h3_col_name(level)
             assert len(name) == 5
-            assert name.startswith('h3_')
+            assert name.startswith("h3_")
 
 
 # =============================================================================
 # Test: find_coordinate_column
 # =============================================================================
 
-class TestFindCoordinateColumn:
 
+class TestFindCoordinateColumn:
     def test_exact_match(self):
-        cols = ['lon_lowestmode', 'lat_lowestmode', 'agbd']
-        assert find_coordinate_column(cols, 'lon_lowestmode') == 'lon_lowestmode'
+        cols = ["lon_lowestmode", "lat_lowestmode", "agbd"]
+        assert find_coordinate_column(cols, "lon_lowestmode") == "lon_lowestmode"
 
     def test_suffix_match(self):
-        cols = ['lon_lowestmode_l2a', 'lat_lowestmode_l2a', 'agbd_l4a']
-        assert find_coordinate_column(cols, 'lon_lowestmode') == 'lon_lowestmode_l2a'
+        cols = ["lon_lowestmode_l2a", "lat_lowestmode_l2a", "agbd_l4a"]
+        assert find_coordinate_column(cols, "lon_lowestmode") == "lon_lowestmode_l2a"
 
     def test_no_match_returns_none(self):
-        cols = ['agbd_l4a', 'rh_098_l2a']
-        assert find_coordinate_column(cols, 'lon_lowestmode') is None
+        cols = ["agbd_l4a", "rh_098_l2a"]
+        assert find_coordinate_column(cols, "lon_lowestmode") is None
 
     def test_prefers_l2a_suffix(self):
-        cols = ['lon_lowestmode_l2a', 'lon_lowestmode_l4a']
-        assert find_coordinate_column(cols, 'lon_lowestmode') == 'lon_lowestmode_l2a'
+        cols = ["lon_lowestmode_l2a", "lon_lowestmode_l4a"]
+        assert find_coordinate_column(cols, "lon_lowestmode") == "lon_lowestmode_l2a"
 
     def test_single_match_non_l2a(self):
-        cols = ['lon_lowestmode_l4a', 'agbd_l4a']
-        assert find_coordinate_column(cols, 'lon_lowestmode') == 'lon_lowestmode_l4a'
+        cols = ["lon_lowestmode_l4a", "agbd_l4a"]
+        assert find_coordinate_column(cols, "lon_lowestmode") == "lon_lowestmode_l4a"
 
     def test_simple_column_names(self):
-        cols = ['lon', 'lat', 'value']
-        assert find_coordinate_column(cols, 'lon') == 'lon'
+        cols = ["lon", "lat", "value"]
+        assert find_coordinate_column(cols, "lon") == "lon"
 
     def test_empty_columns_list(self):
-        assert find_coordinate_column([], 'lon') is None
+        assert find_coordinate_column([], "lon") is None
 
     def test_partial_prefix_match(self):
         # 'lon' should match 'lon_lowestmode_l2a' since it starts with 'lon'
-        cols = ['lon_lowestmode_l2a']
-        assert find_coordinate_column(cols, 'lon') == 'lon_lowestmode_l2a'
+        cols = ["lon_lowestmode_l2a"]
+        assert find_coordinate_column(cols, "lon") == "lon_lowestmode_l2a"
 
 
 # =============================================================================
 # Test: parse_egi_levels
 # =============================================================================
 
-class TestParseEgiLevels:
 
+class TestParseEgiLevels:
     def test_single_level(self):
-        assert parse_egi_levels('6') == (6, 12)
+        assert parse_egi_levels("6") == (6, 12)
 
     def test_level_with_partition(self):
-        assert parse_egi_levels('1:12') == (1, 12)
+        assert parse_egi_levels("1:12") == (1, 12)
 
     def test_level_with_custom_partition(self):
-        assert parse_egi_levels('6:10') == (6, 10)
+        assert parse_egi_levels("6:10") == (6, 10)
 
     def test_none_returns_none(self):
         assert parse_egi_levels(None) is None
 
     def test_min_level(self):
-        assert parse_egi_levels('1') == (1, 12)
+        assert parse_egi_levels("1") == (1, 12)
 
     def test_max_level(self):
-        assert parse_egi_levels('12') == (12, 12)
+        assert parse_egi_levels("12") == (12, 12)
 
     def test_zero_level_raises(self):
         with pytest.raises(argparse.ArgumentTypeError, match="must be 1-12"):
-            parse_egi_levels('0')
+            parse_egi_levels("0")
 
     def test_thirteen_level_raises(self):
         with pytest.raises(argparse.ArgumentTypeError, match="must be 1-12"):
-            parse_egi_levels('13')
+            parse_egi_levels("13")
 
     def test_non_integer_raises(self):
         with pytest.raises(argparse.ArgumentTypeError, match="must be an integer"):
-            parse_egi_levels('abc')
+            parse_egi_levels("abc")
 
     def test_non_integer_pair_raises(self):
         with pytest.raises(argparse.ArgumentTypeError, match="must be integers"):
-            parse_egi_levels('a:b')
+            parse_egi_levels("a:b")
 
     def test_partition_less_than_level_raises(self):
         with pytest.raises(argparse.ArgumentTypeError, match="must be >= level"):
-            parse_egi_levels('6:3')
+            parse_egi_levels("6:3")
 
     def test_too_many_colons_raises(self):
         with pytest.raises(argparse.ArgumentTypeError, match="level:partition"):
-            parse_egi_levels('1:2:3')
+            parse_egi_levels("1:2:3")
 
 
 # =============================================================================
 # Test: parse_aggregation
 # =============================================================================
 
-class TestParseAggregation:
 
+class TestParseAggregation:
     def test_single_function(self):
-        assert parse_aggregation('mean') == 'mean'
+        assert parse_aggregation("mean") == "mean"
 
     def test_single_function_std(self):
-        assert parse_aggregation('std') == 'std'
+        assert parse_aggregation("std") == "std"
 
     def test_list_of_functions(self):
         result = parse_aggregation("['mean', 'std', 'count']")
-        assert result == ['mean', 'std', 'count']
+        assert result == ["mean", "std", "count"]
 
     def test_dict_of_functions(self):
         result = parse_aggregation("{'col': ['mean', 'std']}")
-        assert result == {'col': ['mean', 'std']}
+        assert result == {"col": ["mean", "std"]}
 
     def test_percentile_single(self):
-        result = parse_aggregation('p25')
+        result = parse_aggregation("p25")
         assert callable(result)
-        assert result.__name__ == 'p25'
+        assert result.__name__ == "p25"
 
     def test_percentile_in_list(self):
         result = parse_aggregation("['mean', 'p50', 'p95']")
-        assert result[0] == 'mean'
+        assert result[0] == "mean"
         assert callable(result[1])
         assert callable(result[2])
-        assert result[1].__name__ == 'p50'
-        assert result[2].__name__ == 'p95'
+        assert result[1].__name__ == "p50"
+        assert result[2].__name__ == "p95"
 
     def test_json_file(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            json.dump(['mean', 'std'], f)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(["mean", "std"], f)
             f.flush()
             result = parse_aggregation(f.name)
         os.unlink(f.name)
-        assert result == ['mean', 'std']
+        assert result == ["mean", "std"]
 
     def test_text_file_single_line(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-            f.write('mean\n')
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            f.write("mean\n")
             f.flush()
             result = parse_aggregation(f.name)
         os.unlink(f.name)
-        assert result == 'mean'
+        assert result == "mean"
 
     def test_text_file_multi_line(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-            f.write('mean\nstd\ncount\n')
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            f.write("mean\nstd\ncount\n")
             f.flush()
             result = parse_aggregation(f.name)
         os.unlink(f.name)
-        assert result == ['mean', 'std', 'count']
+        assert result == ["mean", "std", "count"]
 
     def test_text_file_with_comments(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-            f.write('# aggregation funcs\nmean\n# skip this\nstd\n')
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            f.write("# aggregation funcs\nmean\n# skip this\nstd\n")
             f.flush()
             result = parse_aggregation(f.name)
         os.unlink(f.name)
-        assert result == ['mean', 'std']
+        assert result == ["mean", "std"]
 
     def test_invalid_literal_raises(self):
         with pytest.raises(GediValidationError, match="Invalid aggregation"):
             parse_aggregation("[mean, std]")  # missing quotes
 
     def test_empty_file_raises(self):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-            f.write('# just comments\n')
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            f.write("# just comments\n")
             f.flush()
             with pytest.raises(GediValidationError, match="empty"):
                 parse_aggregation(f.name)
@@ -480,30 +503,30 @@ class TestParseAggregation:
 # Test: _expand_percentile_specs
 # =============================================================================
 
-class TestExpandPercentileSpecs:
 
+class TestExpandPercentileSpecs:
     def test_string_percentile(self):
-        result = _expand_percentile_specs('p25')
+        result = _expand_percentile_specs("p25")
         assert callable(result)
-        assert result.__name__ == 'p25'
+        assert result.__name__ == "p25"
 
     def test_string_non_percentile(self):
-        assert _expand_percentile_specs('mean') == 'mean'
+        assert _expand_percentile_specs("mean") == "mean"
 
     def test_list_with_percentiles(self):
-        result = _expand_percentile_specs(['mean', 'p50', 'p95'])
-        assert result[0] == 'mean'
+        result = _expand_percentile_specs(["mean", "p50", "p95"])
+        assert result[0] == "mean"
         assert callable(result[1])
         assert callable(result[2])
 
     def test_dict_with_percentiles(self):
-        result = _expand_percentile_specs({'col': ['mean', 'p50']})
-        assert result['col'][0] == 'mean'
-        assert callable(result['col'][1])
+        result = _expand_percentile_specs({"col": ["mean", "p50"]})
+        assert result["col"][0] == "mean"
+        assert callable(result["col"][1])
 
     def test_dict_with_single_value(self):
-        result = _expand_percentile_specs({'col': 'p75'})
-        assert callable(result['col'])
+        result = _expand_percentile_specs({"col": "p75"})
+        assert callable(result["col"])
 
     def test_none_passthrough(self):
         assert _expand_percentile_specs(None) is None
@@ -516,8 +539,8 @@ class TestExpandPercentileSpecs:
 # Test: parse_region
 # =============================================================================
 
-class TestParseRegion:
 
+class TestParseRegion:
     def test_none_returns_none(self):
         assert parse_region(None) is None
 
@@ -529,12 +552,8 @@ class TestParseRegion:
     def test_shapefile_path(self):
         tmpdir = tempfile.mkdtemp()
         try:
-            path = os.path.join(tmpdir, 'test.shp')
-            gdf = gpd.GeoDataFrame(
-                {'id': [1]},
-                geometry=[Point(-50.5, 0.5)],
-                crs='EPSG:4326'
-            )
+            path = os.path.join(tmpdir, "test.shp")
+            gdf = gpd.GeoDataFrame({"id": [1]}, geometry=[Point(-50.5, 0.5)], crs="EPSG:4326")
             gdf.to_file(path)
             result = parse_region(path)
             assert result is not None
@@ -554,59 +573,61 @@ class TestParseRegion:
 # Test: safe_query
 # =============================================================================
 
-class TestSafeQuery:
 
+class TestSafeQuery:
     def test_normal_query(self):
-        df = pd.DataFrame({'agbd_l4a': [10.0, 20.0, 30.0], 'flag': [1, 0, 1]})
-        result = safe_query(df, 'agbd_l4a > 15')
+        df = pd.DataFrame({"agbd_l4a": [10.0, 20.0, 30.0], "flag": [1, 0, 1]})
+        result = safe_query(df, "agbd_l4a > 15")
         assert len(result) == 2
 
     def test_empty_query_returns_original(self):
-        df = pd.DataFrame({'a': [1, 2, 3]})
-        result = safe_query(df, '')
+        df = pd.DataFrame({"a": [1, 2, 3]})
+        result = safe_query(df, "")
         assert len(result) == 3
 
     def test_none_query_returns_original(self):
-        df = pd.DataFrame({'a': [1, 2, 3]})
+        df = pd.DataFrame({"a": [1, 2, 3]})
         result = safe_query(df, None)
         assert len(result) == 3
 
     def test_columns_with_slashes(self):
-        df = pd.DataFrame({
-            'rx/energy': [1.0, 2.0, 3.0],
-            'agbd': [10.0, 20.0, 30.0],
-        })
-        result = safe_query(df, '`rx/energy` > 1.5')
+        df = pd.DataFrame(
+            {
+                "rx/energy": [1.0, 2.0, 3.0],
+                "agbd": [10.0, 20.0, 30.0],
+            }
+        )
+        result = safe_query(df, "`rx/energy` > 1.5")
         assert len(result) == 2
         # Verify original column names preserved
-        assert 'rx/energy' in result.columns
+        assert "rx/energy" in result.columns
 
 
 # =============================================================================
 # Test: detect_dataset_format
 # =============================================================================
 
-class TestDetectDatasetFormat:
 
+class TestDetectDatasetFormat:
     def test_parquet_directory(self):
         tmpdir = tempfile.mkdtemp()
         try:
             # Create a parquet file
-            df = pd.DataFrame({'a': [1, 2]})
-            df.to_parquet(os.path.join(tmpdir, 'data.parquet'))
+            df = pd.DataFrame({"a": [1, 2]})
+            df.to_parquet(os.path.join(tmpdir, "data.parquet"))
             result = detect_dataset_format(tmpdir)
-            assert result == 'parquet'
+            assert result == "parquet"
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_with_metadata_file(self):
         tmpdir = tempfile.mkdtemp()
         try:
-            meta = {'file_format': 'parquet'}
-            with open(os.path.join(tmpdir, 'gedih3_dataset.json'), 'w') as f:
+            meta = {"file_format": "parquet"}
+            with open(os.path.join(tmpdir, "gedih3_dataset.json"), "w") as f:
                 json.dump(meta, f)
             result = detect_dataset_format(tmpdir)
-            assert result == 'parquet'
+            assert result == "parquet"
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -614,7 +635,7 @@ class TestDetectDatasetFormat:
         tmpdir = tempfile.mkdtemp()
         try:
             result = detect_dataset_format(tmpdir)
-            assert result == 'parquet'
+            assert result == "parquet"
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -623,8 +644,8 @@ class TestDetectDatasetFormat:
 # Test: cli_exception_handler
 # =============================================================================
 
-class TestCliExceptionHandler:
 
+class TestCliExceptionHandler:
     def test_normal_execution(self):
         args = argparse.Namespace(verbose=0)
         with cli_exception_handler(args):

@@ -20,6 +20,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
+      - name: Install GDAL system dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y libgdal-dev gdal-bin
+
       - name: Install test dependencies
         run: pip install -e ".[test]"
 

@@ -11,73 +11,116 @@ Author: Tiago de Conto
 Package: gedih3
 """
 
+import argparse
 import os
 import sys
-import argparse
 
-TIME_UNITS = ['years', 'months', 'weeks', 'days']
+TIME_UNITS = ["years", "months", "weeks", "days"]
+
 
 def get_cmd_args():
     """Parse command line arguments for GEDI data aggregation"""
-    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args, add_storage_args, parse_egi_levels
+    from gedih3.cliutils import add_dask_args, add_product_args, add_storage_args, add_verbosity_args, parse_egi_levels
 
     p = argparse.ArgumentParser(
         description="Aggregate GEDI shots to H3 hexagons or EGI square pixels",
-        formatter_class=argparse.RawTextHelpFormatter
+        formatter_class=argparse.RawTextHelpFormatter,
     )
 
     # Database/output configuration
-    p.add_argument("-d", "--database", dest="database", type=str, default=None,
-                   help="path to H3 database or simplified dataset directory")
-    p.add_argument("-o", "--output", dest="output", required=True, type=str,
-                   help="output directory or file path")
-    p.add_argument("-f", "--format", dest="format", type=str, default='parquet',
-                   help="output format [default=parquet]")
-    p.add_argument("-m", "--merge", dest="merge", action='store_true',
-                   help="merge all partitions into single file")
+    p.add_argument(
+        "-d",
+        "--database",
+        dest="database",
+        type=str,
+        default=None,
+        help="path to H3 database or simplified dataset directory",
+    )
+    p.add_argument("-o", "--output", dest="output", required=True, type=str, help="output directory or file path")
+    p.add_argument("-f", "--format", dest="format", type=str, default="parquet", help="output format [default=parquet]")
+    p.add_argument("-m", "--merge", dest="merge", action="store_true", help="merge all partitions into single file")
 
     # Rasterization option
-    p.add_argument("-R", "--rasterize", dest="rasterize", action='store_true',
-                   help="also export data as GeoTIFF rasters after aggregation")
-    p.add_argument("--compress", dest="compress", type=str, default='LZW',
-                   choices=['LZW', 'ZSTD', 'DEFLATE', 'PACKBITS', 'NONE'],
-                   help="GeoTIFF compression [default=LZW]")
+    p.add_argument(
+        "-R",
+        "--rasterize",
+        dest="rasterize",
+        action="store_true",
+        help="also export data as GeoTIFF rasters after aggregation",
+    )
+    p.add_argument(
+        "--compress",
+        dest="compress",
+        type=str,
+        default="LZW",
+        choices=["LZW", "ZSTD", "DEFLATE", "PACKBITS", "NONE"],
+        help="GeoTIFF compression [default=LZW]",
+    )
 
     # Aggregation options
-    p.add_argument("-h3", "--h3-level", dest="h3_level", type=int, default=None,
-                   help="aggregate to H3 level [0-15]")
-    p.add_argument("-egi", "--egi", dest="egi", type=parse_egi_levels, default=None,
-                   nargs='?', const=(6, 12),
-                   help="EGI aggregation: bare flag defaults to 6:12, or 'level[:partition]' e.g., '6' or '6:12'")
-    p.add_argument("-a", "--aggregate", dest="aggregate", type=str, default="mean",
-                   help="aggregation spec: function name, list, column dict, or file path.\n"
-                        "  Inline: 'mean', \"['mean','std','count']\",\n"
-                        "          \"{'agbd_l4a':['mean','count'], 'rh_098_l2a':'mean'}\"\n"
-                        "  File:   agg.json (dict/list), agg.txt (one function per line)\n"
-                        "  [default=mean]")
+    p.add_argument("-h3", "--h3-level", dest="h3_level", type=int, default=None, help="aggregate to H3 level [0-15]")
+    p.add_argument(
+        "-egi",
+        "--egi",
+        dest="egi",
+        type=parse_egi_levels,
+        default=None,
+        nargs="?",
+        const=(6, 12),
+        help="EGI aggregation: bare flag defaults to 6:12, or 'level[:partition]' e.g., '6' or '6:12'",
+    )
+    p.add_argument(
+        "-a",
+        "--aggregate",
+        dest="aggregate",
+        type=str,
+        default="mean",
+        help="aggregation spec: function name, list, column dict, or file path.\n"
+        "  Inline: 'mean', \"['mean','std','count']\",\n"
+        "          \"{'agbd_l4a':['mean','count'], 'rh_098_l2a':'mean'}\"\n"
+        "  File:   agg.json (dict/list), agg.txt (one function per line)\n"
+        "  [default=mean]",
+    )
 
     # Spatial/temporal filtering
-    p.add_argument("-r", "--region", dest="region", type=str, default=None,
-                   help="vector file, bbox 'W,S,E,N', or ISO3 code")
-    p.add_argument("-t0", "--time-start", dest="time_start", type=str, default=None,
-                   help="start date [YYYY-MM-DD]")
-    p.add_argument("-t1", "--time-end", dest="time_end", type=str, default=None,
-                   help="end date [YYYY-MM-DD]")
-    p.add_argument("-ti", "--time_interval", dest="time_interval", type=int, default=0,
-                   help="generate time-series outputs at interval")
-    p.add_argument("-tu", "--time_units", dest="time_units", type=str, default='years',
-                   choices=TIME_UNITS, help="time interval units [default=years]")
+    p.add_argument(
+        "-r", "--region", dest="region", type=str, default=None, help="vector file, bbox 'W,S,E,N', or ISO3 code"
+    )
+    p.add_argument("-t0", "--time-start", dest="time_start", type=str, default=None, help="start date [YYYY-MM-DD]")
+    p.add_argument("-t1", "--time-end", dest="time_end", type=str, default=None, help="end date [YYYY-MM-DD]")
+    p.add_argument(
+        "-ti",
+        "--time_interval",
+        dest="time_interval",
+        type=int,
+        default=0,
+        help="generate time-series outputs at interval",
+    )
+    p.add_argument(
+        "-tu",
+        "--time_units",
+        dest="time_units",
+        type=str,
+        default="years",
+        choices=TIME_UNITS,
+        help="time interval units [default=years]",
+    )
 
     # Variable selection
-    p.add_argument("-l", "--list", dest="list", nargs='+', type=str, default=None,
-                   help="variables to aggregate (space-separated or file path)")
+    p.add_argument(
+        "-l",
+        "--list",
+        dest="list",
+        nargs="+",
+        type=str,
+        default=None,
+        help="variables to aggregate (space-separated or file path)",
+    )
     add_product_args(p)
 
     # Filtering
-    p.add_argument("-q", "--query", dest="query", type=str, default=None,
-                   help="pandas query string for filtering")
-    p.add_argument("-y", "--quality", dest="quality", action='store_true',
-                   help="apply quality filtering")
+    p.add_argument("-q", "--query", dest="query", type=str, default=None, help="pandas query string for filtering")
+    p.add_argument("-y", "--quality", dest="quality", action="store_true", help="apply quality filtering")
 
     # Dask, storage, and verbosity
     add_dask_args(p)
@@ -87,9 +130,22 @@ def get_cmd_args():
     return p.parse_args()
 
 
-def _aggregate_data(ddf, *, use_egi, is_database, args, agg, agg_is_dict,
-                    egi_agg_level, egi_partition_level, source_info,
-                    columns, region, query_str, logger):
+def _aggregate_data(
+    ddf,
+    *,
+    use_egi,
+    is_database,
+    args,
+    agg,
+    agg_is_dict,
+    egi_agg_level,
+    egi_partition_level,
+    source_info,
+    columns,
+    region,
+    query_str,
+    logger,
+):
     """
     Run the EGI or H3 aggregation pipeline on loaded data.
 
@@ -99,7 +155,7 @@ def _aggregate_data(ddf, *, use_egi, is_database, args, agg, agg_is_dict,
     Returns (aggdf, part_col, export_func).
     """
     import gedih3.gh3driver as gh3
-    from gedih3.cliutils import get_numeric_columns, h3_col_name, filter_data_columns
+    from gedih3.cliutils import filter_data_columns, get_numeric_columns, h3_col_name
 
     # Determine which columns to aggregate: only user-requested data variables,
     # NOT query-only columns that were loaded just for filtering.
@@ -108,7 +164,7 @@ def _aggregate_data(ddf, *, use_egi, is_database, args, agg, agg_is_dict,
     else:
         # columns from collect_columns = user vars + geometry + datetime
         # filter_data_columns strips internal cols (h3_XX, egiXX, etc.) and geometry
-        user_data_cols = [c for c in filter_data_columns(columns) if c != 'datetime']
+        user_data_cols = [c for c in filter_data_columns(columns) if c != "datetime"]
         if user_data_cols:
             agg_columns = user_data_cols
         elif ddf is not None:
@@ -128,7 +184,7 @@ def _aggregate_data(ddf, *, use_egi, is_database, args, agg, agg_is_dict,
                 query=query_str,
                 gh3_dir=args.database,
                 index_level=egi_agg_level,
-                partition_level=egi_partition_level
+                partition_level=egi_partition_level,
             )
             logger.info(f"  Loaded {ddf.npartitions} EGI tiles")
 
@@ -141,7 +197,7 @@ def _aggregate_data(ddf, *, use_egi, is_database, args, agg, agg_is_dict,
             columns=agg_columns,
             add_geometry=True,
             partition_level=egi_partition_level,
-            repartition=not args.merge
+            repartition=not args.merge,
         )
 
         logger.info(f"  Result: {aggdf.npartitions} EGI partitions")
@@ -149,7 +205,7 @@ def _aggregate_data(ddf, *, use_egi, is_database, args, agg, agg_is_dict,
         export_func = gh3.egi_export_part
     else:
         # H3 (hexagon) aggregation
-        h3_part_level = source_info.get('partition_level') or args.h3_level
+        h3_part_level = source_info.get("partition_level") or args.h3_level
         part_col = h3_col_name(h3_part_level)
 
         logger.info("Aggregating data...")
@@ -162,22 +218,23 @@ def _aggregate_data(ddf, *, use_egi, is_database, args, agg, agg_is_dict,
             columns=agg_columns,
             add_geometry=True,
             repartition=not args.merge,
-            partition_level=h3_part_level
+            partition_level=h3_part_level,
         )
         export_func = gh3.gh3_export_part
 
     return aggdf, part_col, export_func
 
 
-def _export_data(aggdf, *, export_func, part_col, output_dir, args,
-                 use_egi, egi_agg_level, egi_partition_level, agg,
-                 logger):
+def _export_data(
+    aggdf, *, export_func, part_col, output_dir, args, use_egi, egi_agg_level, egi_partition_level, agg, logger
+):
     """
     Drop internal columns, persist, and export aggregated data.
 
     Handles raster, merge, and simplified flat file export modes.
     """
     import glob as globmod
+
     import pandas as pd
     from dask.distributed import progress
 
@@ -206,20 +263,18 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
 
         if use_egi:
             from gedih3 import egi
+
             rasterize_func = egi.rasterize_partition
         else:
             rasterize_func = raster.rasterize_h3_partition
 
         if args.merge:
             # Merged raster output (single .tif file)
-            merged_path = output_dir if output_dir.endswith('.tif') else f"{output_dir}.tif"
+            merged_path = output_dir if output_dir.endswith(".tif") else f"{output_dir}.tif"
             os.makedirs(os.path.dirname(os.path.abspath(merged_path)), exist_ok=True)
 
             raster.merge_and_export_rasters(
-                aggdf, merged_path, rasterize_func,
-                columns=None,
-                compress=args.compress,
-                show_progress=not args.quiet
+                aggdf, merged_path, rasterize_func, columns=None, compress=args.compress, show_progress=not args.quiet
             )
             print_success(f"Merged raster exported to {merged_path}", logger=logger)
 
@@ -227,25 +282,29 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
             # Tiled raster output (directory of .tif files)
             os.makedirs(output_dir, exist_ok=True)
 
-            if hasattr(aggdf, 'compute'):
+            if hasattr(aggdf, "compute"):
                 raster.rasterize_and_export_partitions(
-                    aggdf, output_dir, rasterize_func,
+                    aggdf,
+                    output_dir,
+                    rasterize_func,
                     columns=None,
                     compress=args.compress,
-                    show_progress=not args.quiet
+                    show_progress=not args.quiet,
                 )
             else:
                 xras = rasterize_func(aggdf, columns=None)
                 if isinstance(xras, pd.Series) and len(xras) > 0:
                     for i, tile_xras in enumerate(xras):
-                        if hasattr(tile_xras, 'data_vars') and len(tile_xras.data_vars) > 0:
-                            raster.export_raster(tile_xras, os.path.join(output_dir, f'tile_{i}.tif'), compress=args.compress)
-                elif hasattr(xras, 'data_vars') and len(xras.data_vars) > 0:
-                    raster.export_raster(xras, os.path.join(output_dir, 'merged.tif'), compress=args.compress)
+                        if hasattr(tile_xras, "data_vars") and len(tile_xras.data_vars) > 0:
+                            raster.export_raster(
+                                tile_xras, os.path.join(output_dir, f"tile_{i}.tif"), compress=args.compress
+                            )
+                elif hasattr(xras, "data_vars") and len(xras.data_vars) > 0:
+                    raster.export_raster(xras, os.path.join(output_dir, "merged.tif"), compress=args.compress)
 
             raster_files = globmod.glob(f"{output_dir}/*.tif")
             if len(raster_files) > 1:
-                vrt_path = os.path.join(output_dir, 'mosaic.vrt')
+                vrt_path = os.path.join(output_dir, "mosaic.vrt")
                 raster.build_vrt(raster_files, vrt_path)
                 logger.info(f"  VRT mosaic: {vrt_path}")
             print_success(f"{len(raster_files)} raster files exported to {output_dir}", logger=logger)
@@ -254,16 +313,21 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
         # Simplified flat file export (merge or tiled) via gh3_export()
         logger.info("Exporting data...")
 
-        meta_kwargs = {'aggregation': str(agg)}
+        meta_kwargs = {"aggregation": str(agg)}
         if use_egi:
-            meta_kwargs['egi_aggregation_level'] = egi_agg_level
-            meta_kwargs['egi_partition_level'] = egi_partition_level
+            meta_kwargs["egi_aggregation_level"] = egi_agg_level
+            meta_kwargs["egi_partition_level"] = egi_partition_level
 
         gh3.gh3_export(
-            aggdf, output=output_dir, fmt=args.format, merge=args.merge,
-            show_progress=not args.quiet, drop_internal=False,
-            source_database=args.database, tool='gh3_aggregate',
-            **meta_kwargs
+            aggdf,
+            output=output_dir,
+            fmt=args.format,
+            merge=args.merge,
+            show_progress=not args.quiet,
+            drop_internal=False,
+            source_database=args.database,
+            tool="gh3_aggregate",
+            **meta_kwargs,
         )
         print_success(f"Data exported to {output_dir}", logger=logger)
 
@@ -290,9 +354,8 @@ def main():
     if time_series:
         if not args.time_start or not args.time_end:
             from gedih3.exceptions import GediValidationError
-            raise GediValidationError(
-                "Time-series mode (-ti) requires both -t0 (start date) and -t1 (end date)."
-            )
+
+            raise GediValidationError("Time-series mode (-ti) requires both -t0 (start date) and -t1 (end date).")
 
     # Import cli_exception_handler early for wrapping the main logic
     from gedih3.cliutils import cli_exception_handler
@@ -300,12 +363,21 @@ def main():
     with cli_exception_handler(args):
         from dask.distributed import Client, progress
 
-        from gedih3.cliutils import (collect_columns, build_query_string, parse_region,
-                                     parse_dask_args, parse_file_format, setup_logging,
-                                     print_banner, print_success, configure_database_path,
-                                     load_data_from_source,
-                                     get_dataset_index_info, parse_aggregation,
-                                     setup_storage)
+        from gedih3.cliutils import (
+            build_query_string,
+            collect_columns,
+            configure_database_path,
+            get_dataset_index_info,
+            load_data_from_source,
+            parse_aggregation,
+            parse_dask_args,
+            parse_file_format,
+            parse_region,
+            print_banner,
+            print_success,
+            setup_logging,
+            setup_storage,
+        )
 
         # Setup logging and print banner
         logger = setup_logging(args, __name__)
@@ -318,6 +390,7 @@ def main():
 
         # Verify database exists
         from gedih3.utils import smart_exists
+
         if not smart_exists(args.database):
             logger.error(f"Database directory not found: {args.database}")
             sys.exit(1)
@@ -333,16 +406,17 @@ def main():
 
         # Detect source type (H3 database vs simplified dataset)
         source_info = get_dataset_index_info(args.database)
-        is_database = source_info['source_type'] == 'h3_database'
+        is_database = source_info["source_type"] == "h3_database"
         if is_database:
-            available_columns = source_info.get('h3_columns')
+            available_columns = source_info.get("h3_columns")
         else:
-            available_columns = source_info.get('columns')
+            available_columns = source_info.get("columns")
             logger.info(f"  Source: {source_info['source_type']} ({source_info.get('index_type', 'unknown')} index)")
 
             # Validate: cannot do H3 aggregation on EGI-indexed data
-            if not use_egi and source_info.get('index_type') == 'egi':
+            if not use_egi and source_info.get("index_type") == "egi":
                 from gedih3.exceptions import GediValidationError
+
                 raise GediValidationError(
                     "Cannot aggregate EGI-indexed dataset to H3 resolution. "
                     "Use -egi to aggregate to an EGI level instead, or provide an H3-indexed source."
@@ -353,12 +427,12 @@ def main():
         columns = collect_columns(args, available_columns=available_columns)
 
         # Time-series mode needs datetime column for per-window filtering
-        if time_series and 'datetime' not in columns:
-            columns.append('datetime')
+        if time_series and "datetime" not in columns:
+            columns.append("datetime")
 
         # EGI needs geometry for coordinate access
-        if use_egi and 'geometry' not in columns:
-            columns.append('geometry')
+        if use_egi and "geometry" not in columns:
+            columns.append("geometry")
 
         if len(columns) == 0:
             raise ValueError("No variables selected. Use -l/--list or product options.")
@@ -382,18 +456,27 @@ def main():
 
         # Shared kwargs for _aggregate_data calls
         agg_kwargs = dict(
-            use_egi=use_egi, is_database=is_database, args=args,
-            agg=agg, agg_is_dict=agg_is_dict,
-            egi_agg_level=egi_agg_level, egi_partition_level=egi_partition_level,
-            source_info=source_info, columns=columns, region=region,
+            use_egi=use_egi,
+            is_database=is_database,
+            args=args,
+            agg=agg,
+            agg_is_dict=agg_is_dict,
+            egi_agg_level=egi_agg_level,
+            egi_partition_level=egi_partition_level,
+            source_info=source_info,
+            columns=columns,
+            region=region,
             logger=logger,
         )
 
         # Shared kwargs for _export_data calls
         export_kwargs = dict(
-            args=args, use_egi=use_egi,
-            egi_agg_level=egi_agg_level, egi_partition_level=egi_partition_level,
-            agg=agg, logger=logger,
+            args=args,
+            use_egi=use_egi,
+            egi_agg_level=egi_agg_level,
+            egi_partition_level=egi_partition_level,
+            agg=agg,
+            logger=logger,
         )
 
         with Client(**dask_kwargs) as client:
@@ -401,6 +484,7 @@ def main():
 
             if use_egi:
                 from gedih3 import egi
+
                 target_res = egi.get_resolution(egi_agg_level)
                 partition_res = egi.get_resolution(egi_partition_level)
                 logger.info(f"  Target: EGI level {egi_agg_level} (~{target_res:.0f}m pixels)")
@@ -409,10 +493,12 @@ def main():
 
             if time_series:
                 # ── Time-series mode ──
-                from gedih3.raster.timeseries import generate_time_windows, build_temporal_query
+                from gedih3.raster.timeseries import build_temporal_query, generate_time_windows
 
-                logger.info(f"Time-series mode: {args.time_interval} {args.time_units} "
-                            f"from {args.time_start} to {args.time_end}")
+                logger.info(
+                    f"Time-series mode: {args.time_interval} {args.time_units} "
+                    f"from {args.time_start} to {args.time_end}"
+                )
 
                 # Load data once (for non-database EGI or any H3 path)
                 if not (use_egi and is_database):
@@ -427,8 +513,7 @@ def main():
 
                 window_count = 0
                 for t0, t1, suffix in generate_time_windows(
-                    args.time_start, args.time_end,
-                    args.time_interval, args.time_units
+                    args.time_start, args.time_end, args.time_interval, args.time_units
                 ):
                     logger.info(f"── Window: {suffix} ──")
                     if args.rasterize and args.merge:
@@ -439,31 +524,24 @@ def main():
                     if use_egi and is_database:
                         # Direct EGI loading per window: append temporal filter to query
                         time_query = build_temporal_query(
-                            start_date=t0.strftime('%Y-%m-%d'),
-                            end_date=t1.strftime('%Y-%m-%d')
+                            start_date=t0.strftime("%Y-%m-%d"), end_date=t1.strftime("%Y-%m-%d")
                         )
                         window_query = f"({query_str}) & ({time_query})" if query_str else time_query
 
-                        aggdf, part_col, export_func = _aggregate_data(
-                            None, query_str=window_query, **agg_kwargs
-                        )
+                        aggdf, part_col, export_func = _aggregate_data(None, query_str=window_query, **agg_kwargs)
                     else:
                         # Filter persisted data for this time window
                         time_query = build_temporal_query(
-                            start_date=t0.strftime('%Y-%m-%d'),
-                            end_date=t1.strftime('%Y-%m-%d')
+                            start_date=t0.strftime("%Y-%m-%d"), end_date=t1.strftime("%Y-%m-%d")
                         )
                         window_ddf = ddf.query(time_query)
 
                         # Check if window has data (cheap: just check partition count stays > 0)
                         # The actual emptiness check happens during aggregation/export
-                        aggdf, part_col, export_func = _aggregate_data(
-                            window_ddf, query_str=None, **agg_kwargs
-                        )
+                        aggdf, part_col, export_func = _aggregate_data(window_ddf, query_str=None, **agg_kwargs)
 
                     _export_data(
-                        aggdf, export_func=export_func, part_col=part_col,
-                        output_dir=window_dir, **export_kwargs
+                        aggdf, export_func=export_func, part_col=part_col, output_dir=window_dir, **export_kwargs
                     )
                     window_count += 1
 
@@ -478,15 +556,10 @@ def main():
                 else:
                     ddf = None
 
-                aggdf, part_col, export_func = _aggregate_data(
-                    ddf, query_str=query_str, **agg_kwargs
-                )
+                aggdf, part_col, export_func = _aggregate_data(ddf, query_str=query_str, **agg_kwargs)
 
-                _export_data(
-                    aggdf, export_func=export_func, part_col=part_col,
-                    output_dir=args.output, **export_kwargs
-                )
+                _export_data(aggdf, export_func=export_func, part_col=part_col, output_dir=args.output, **export_kwargs)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -14,20 +14,20 @@ Requirements:
 Author: gedih3 team
 """
 
-import os
-import sys
 import json
+import os
 import shutil
+import sys
 import tempfile
-import pytest
+from pathlib import Path
+
+import geopandas as gpd
 import numpy as np
 import pandas as pd
-import geopandas as gpd
-from pathlib import Path
-from datetime import datetime
+import pytest
 
 # Add src to path for local development
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 # =============================================================================
@@ -67,31 +67,29 @@ class APITestConfig:
 # Unit Tests for Core Modules
 # =============================================================================
 
+
 class TestConfigModule:
     """Test gedih3.config module."""
 
     def test_import_config(self):
         """Test config module imports."""
-        from gedih3.config import (
-            GH3_DEFAULT_H3_DIR,
-            GH3_DEFAULT_SOC_DIR,
-            GEDI_PRODUCTS
-        )
+        from gedih3.config import GEDI_PRODUCTS, GH3_DEFAULT_H3_DIR
+
         assert GH3_DEFAULT_H3_DIR is not None
         assert isinstance(GEDI_PRODUCTS, dict)
-        assert 'L2A' in GEDI_PRODUCTS
+        assert "L2A" in GEDI_PRODUCTS
 
     def test_gedi_products(self):
         """Test GEDI product definitions."""
         from gedih3.config import GEDI_PRODUCTS
 
         # Check L2A
-        assert 'L2A' in GEDI_PRODUCTS
-        assert 'doi' in GEDI_PRODUCTS['L2A']
+        assert "L2A" in GEDI_PRODUCTS
+        assert "doi" in GEDI_PRODUCTS["L2A"]
 
         # Check L4A
-        assert 'L4A' in GEDI_PRODUCTS
-        assert 'doi' in GEDI_PRODUCTS['L4A']
+        assert "L4A" in GEDI_PRODUCTS
+        assert "doi" in GEDI_PRODUCTS["L4A"]
 
 
 class TestGediDriver:
@@ -127,17 +125,17 @@ class TestGediDriver:
         from gedih3.gedidriver import gedi_vars_expand
 
         # Test 'default' expansion
-        product_vars = {'L2A': ['default']}
+        product_vars = {"L2A": ["default"]}
         expanded = gedi_vars_expand(product_vars)
 
-        assert isinstance(expanded['L2A'], list)
-        assert len(expanded['L2A']) > 0
+        assert isinstance(expanded["L2A"], list)
+        assert len(expanded["L2A"]) > 0
 
         # Test 'minimal' expansion
-        product_vars = {'L2A': ['minimal']}
+        product_vars = {"L2A": ["minimal"]}
         expanded = gedi_vars_expand(product_vars)
 
-        assert isinstance(expanded['L2A'], list)
+        assert isinstance(expanded["L2A"], list)
 
 
 class TestH3Utils:
@@ -146,6 +144,7 @@ class TestH3Utils:
     def test_fix_h3_geometry(self):
         """Test H3 geometry fixing (antimeridian)."""
         import h3
+
         from gedih3.h3utils import fix_h3_geometry
 
         # Get an H3 cell
@@ -157,8 +156,9 @@ class TestH3Utils:
 
     def test_intersect_h3_geometries(self):
         """Test spatial intersection with H3 cells."""
-        from gedih3.h3utils import intersect_h3_geometries
         from shapely.geometry import box
+
+        from gedih3.h3utils import intersect_h3_geometries
 
         # Create test bbox
         bbox = box(*TEST_BBOX)
@@ -174,17 +174,15 @@ class TestH3Utils:
         from gedih3.h3utils import h3_index_df
 
         # Create test DataFrame
-        df = pd.DataFrame({
-            'lat_lowestmode': [0.5, 0.6, 0.7],
-            'lon_lowestmode': [-50.5, -50.4, -50.3],
-            'value': [1, 2, 3]
-        })
+        df = pd.DataFrame(
+            {"lat_lowestmode": [0.5, 0.6, 0.7], "lon_lowestmode": [-50.5, -50.4, -50.3], "value": [1, 2, 3]}
+        )
 
         # Add H3 index
         indexed_df = h3_index_df(df, res=12, part=5)
 
-        assert indexed_df.index.name.startswith('h3_')
-        assert 'h3_05' in indexed_df.columns
+        assert indexed_df.index.name.startswith("h3_")
+        assert "h3_05" in indexed_df.columns
 
 
 class TestValidation:
@@ -192,8 +190,8 @@ class TestValidation:
 
     def test_validate_h3_params(self):
         """Test H3 parameter validation."""
-        from gedih3.validation import validate_h3_params
         from gedih3.exceptions import H3ValidationError
+        from gedih3.validation import validate_h3_params
 
         # Valid parameters
         res, part = validate_h3_params(12, 3)
@@ -210,8 +208,8 @@ class TestValidation:
 
     def test_validate_egi_level(self):
         """Test EGI level validation."""
-        from gedih3.validation import validate_egi_level
         from gedih3.exceptions import EGIValidationError
+        from gedih3.validation import validate_egi_level
 
         # Valid level
         level = validate_egi_level(6)
@@ -228,12 +226,12 @@ class TestExceptions:
     def test_exception_hierarchy(self):
         """Test exception class hierarchy."""
         from gedih3.exceptions import (
-            GediError,
-            GediNetworkError,
             GediDownloadError,
+            GediError,
+            GediFileError,
+            GediNetworkError,
             GediValidationError,
             H3ValidationError,
-            GediFileError
         )
 
         # Test inheritance
@@ -255,16 +253,18 @@ class TestExceptions:
 # Unit Tests for EGI Module
 # =============================================================================
 
+
 class TestEGIModule:
     """Test gedih3.egi module."""
 
     def test_egi_encode_decode(self):
         """Test EGI hash encoding/decoding."""
-        from gedih3 import egi
-
         # Encode a point using to_hash (expects EASE-Grid coordinates)
         # First convert lat/lon to EASE-Grid 2.0 (EPSG:6933) coordinates
         import pyproj
+
+        from gedih3 import egi
+
         transformer = pyproj.Transformer.from_crs("EPSG:4326", "EPSG:6933", always_xy=True)
         x, y = transformer.transform(-50.5, 0.5)  # lon, lat for transformer
 
@@ -293,21 +293,20 @@ class TestEGIModule:
         from gedih3 import egi
 
         # Create test DataFrame
-        df = pd.DataFrame({
-            'lat_lowestmode': [0.5, 0.6, 0.7],
-            'lon_lowestmode': [-50.5, -50.4, -50.3],
-            'value': [1, 2, 3]
-        })
+        df = pd.DataFrame(
+            {"lat_lowestmode": [0.5, 0.6, 0.7], "lon_lowestmode": [-50.5, -50.4, -50.3], "value": [1, 2, 3]}
+        )
 
         # Add EGI index
         egi_df = egi.egi_dataframe(df, level=6)
 
-        assert 'egi06' in egi_df.columns or egi_df.index.name == 'egi06'
+        assert "egi06" in egi_df.columns or egi_df.index.name == "egi06"
 
 
 # =============================================================================
 # Unit Tests for Raster Module
 # =============================================================================
+
 
 class TestRasterModule:
     """Test gedih3.raster module."""
@@ -327,16 +326,14 @@ class TestRasterModule:
 
     def test_detect_partition_level(self):
         """Test dynamic partition level detection."""
-        from gedih3.raster.h3_raster import _detect_partition_level
-        import geopandas as gpd
         from shapely.geometry import Point
 
+        from gedih3.raster.h3_raster import _detect_partition_level
+
         # Create test GeoDataFrame with H3 partition column
-        gdf = gpd.GeoDataFrame({
-            'h3_05': ['abc', 'def', 'ghi'],
-            'value': [1, 2, 3],
-            'geometry': [Point(0, 0), Point(1, 1), Point(2, 2)]
-        })
+        gdf = gpd.GeoDataFrame(
+            {"h3_05": ["abc", "def", "ghi"], "value": [1, 2, 3], "geometry": [Point(0, 0), Point(1, 1), Point(2, 2)]}
+        )
 
         level = _detect_partition_level(gdf)
         assert level == 5
@@ -345,17 +342,16 @@ class TestRasterModule:
         """Test time window generation."""
         from gedih3.raster.timeseries import generate_time_windows
 
-        windows = list(generate_time_windows(
-            '2020-01-01', '2020-12-31', 3, 'months'
-        ))
+        windows = list(generate_time_windows("2020-01-01", "2020-12-31", 3, "months"))
 
         assert len(windows) == 4  # 4 quarters
-        assert windows[0][2] == '2020-01_to_2020-04' or '2020' in windows[0][2]
+        assert windows[0][2] == "2020-01_to_2020-04" or "2020" in windows[0][2]
 
 
 # =============================================================================
 # Integration Tests for Python API
 # =============================================================================
+
 
 @pytest.fixture(scope="module")
 def test_config():
@@ -375,11 +371,7 @@ class TestDAAC:
 
         # Create accessor without authentication (just test init)
         try:
-            accessor = GEDIAccessor(
-                authenticate=False,
-                spatial=TEST_BBOX,
-                temporal=(TEST_DATE_START, TEST_DATE_END)
-            )
+            accessor = GEDIAccessor(authenticate=False, spatial=TEST_BBOX, temporal=(TEST_DATE_START, TEST_DATE_END))
             assert accessor.spatial is not None
         except Exception as e:
             # Auth may fail, but init should work
@@ -390,13 +382,9 @@ class TestDAAC:
         from gedih3.daac import GEDIAccessor
 
         try:
-            accessor = GEDIAccessor(
-                authenticate=True,
-                spatial=TEST_BBOX,
-                temporal=(TEST_DATE_START, TEST_DATE_END)
-            )
+            accessor = GEDIAccessor(authenticate=True, spatial=TEST_BBOX, temporal=(TEST_DATE_START, TEST_DATE_END))
 
-            granules = accessor.search_data('L2A')
+            granules = accessor.search_data("L2A")
             assert isinstance(granules, list)
 
         except Exception as e:
@@ -413,10 +401,7 @@ class TestDownloadAPI:
         from gedih3.daac import gedi_download
 
         try:
-            product_vars = {
-                'L2A': ['default'],
-                'L4A': ['agbd']
-            }
+            product_vars = {"L2A": ["default"], "L4A": ["agbd"]}
 
             paths = gedi_download(
                 product_vars=product_vars,
@@ -424,7 +409,7 @@ class TestDownloadAPI:
                 spatial=TEST_BBOX,
                 temporal=(TEST_DATE_START, TEST_DATE_END),
                 resume=True,
-                n_jobs=2
+                n_jobs=2,
             )
 
             assert isinstance(paths, (list, type(None)))
@@ -440,27 +425,25 @@ class TestBuildAPI:
 
     def test_build_h3db(self, test_config):
         """Test building H3 database programmatically."""
-        from gedih3.gh3builder import build_h3db
         from dask.distributed import Client
+
+        from gedih3.gh3builder import build_h3db
 
         # Check for SOC files
         h5_files = list(Path(test_config.soc_dir).rglob("*.h5"))
         if not h5_files:
             pytest.skip("No SOC files available for building")
 
-        product_vars = {
-            'L2A': ['default'],
-            'L4A': ['agbd']
-        }
+        product_vars = {"L2A": ["default"], "L4A": ["agbd"]}
 
-        with Client(n_workers=2, threads_per_worker=1, memory_limit='2GB') as client:
+        with Client(n_workers=2, threads_per_worker=1, memory_limit="2GB") as _client:
             h3_files = build_h3db(
                 product_vars=product_vars,
                 res=TEST_H3_RESOLUTION,
                 part=TEST_H3_PARTITION,
                 spatial=TEST_BBOX,
                 soc_source=test_config.soc_dir,
-                h3_dir=test_config.h3_dir
+                h3_dir=test_config.h3_dir,
             )
 
         assert h3_files is None or isinstance(h3_files, list)
@@ -470,8 +453,8 @@ class TestBuildAPI:
         if os.path.exists(log_file):
             with open(log_file) as f:
                 meta = json.load(f)
-            assert meta['h3_resolution_level'] == TEST_H3_RESOLUTION
-            assert meta['h3_partition_level'] == TEST_H3_PARTITION
+            assert meta["h3_resolution_level"] == TEST_H3_RESOLUTION
+            assert meta["h3_partition_level"] == TEST_H3_PARTITION
 
 
 @pytest.mark.integration
@@ -487,80 +470,60 @@ class TestGH3Driver:
             pytest.skip("H3 database not built")
 
         # Read partition level
-        part_level = gh3.gh3_read_meta(
-            'h3_partition_level',
-            gh3_root_dir=test_config.h3_dir
-        )
+        part_level = gh3.gh3_read_meta("h3_partition_level", gh3_root_dir=test_config.h3_dir)
 
         assert part_level is not None
         assert isinstance(part_level, int)
 
     def test_gh3_load(self, test_config):
         """Test loading H3 data."""
-        import gedih3.gh3driver as gh3
         from dask.distributed import Client
+
+        import gedih3.gh3driver as gh3
 
         log_file = os.path.join(test_config.h3_dir, "gedih3_build_log.json")
         if not os.path.exists(log_file):
             pytest.skip("H3 database not built")
 
-        with Client(n_workers=2, threads_per_worker=1) as client:
-            ddf = gh3.gh3_load(
-                columns=['agbd_l4a'],
-                region=TEST_BBOX,
-                gh3_dir=test_config.h3_dir
-            )
+        with Client(n_workers=2, threads_per_worker=1) as _client:
+            ddf = gh3.gh3_load(columns=["agbd_l4a"], region=TEST_BBOX, gh3_dir=test_config.h3_dir)
 
             assert ddf is not None
             assert ddf.npartitions > 0
 
     def test_gh3_aggregate(self, test_config):
         """Test H3 aggregation."""
-        import gedih3.gh3driver as gh3
         from dask.distributed import Client
+
+        import gedih3.gh3driver as gh3
 
         log_file = os.path.join(test_config.h3_dir, "gedih3_build_log.json")
         if not os.path.exists(log_file):
             pytest.skip("H3 database not built")
 
-        with Client(n_workers=2, threads_per_worker=1) as client:
-            ddf = gh3.gh3_load(
-                columns=['agbd_l4a'],
-                gh3_dir=test_config.h3_dir
-            )
+        with Client(n_workers=2, threads_per_worker=1) as _client:
+            ddf = gh3.gh3_load(columns=["agbd_l4a"], gh3_dir=test_config.h3_dir)
 
-            agg_df = gh3.gh3_aggregate(
-                ddf,
-                target_res=6,
-                agg='mean',
-                add_geometry=True
-            )
+            agg_df = gh3.gh3_aggregate(ddf, target_res=6, agg="mean", add_geometry=True)
 
             result = agg_df.head(10)
             assert len(result) >= 0
-            assert 'geometry' in result.columns or hasattr(result, 'geometry')
+            assert "geometry" in result.columns or hasattr(result, "geometry")
 
     def test_egi_aggregate(self, test_config):
         """Test EGI aggregation."""
-        import gedih3.gh3driver as gh3
         from dask.distributed import Client
+
+        import gedih3.gh3driver as gh3
 
         log_file = os.path.join(test_config.h3_dir, "gedih3_build_log.json")
         if not os.path.exists(log_file):
             pytest.skip("H3 database not built")
 
-        with Client(n_workers=2, threads_per_worker=1) as client:
-            ddf = gh3.gh3_load(
-                columns=['agbd_l4a', 'lat_lowestmode', 'lon_lowestmode'],
-                gh3_dir=test_config.h3_dir
-            )
+        with Client(n_workers=2, threads_per_worker=1) as _client:
+            ddf = gh3.gh3_load(columns=["agbd_l4a", "lat_lowestmode", "lon_lowestmode"], gh3_dir=test_config.h3_dir)
 
-            agg_df = gh3.egi_aggregate(
-                ddf,
-                target_level=6,
-                agg='mean',
-                add_geometry=True
-            )
+            agg_df = gh3.egi_aggregate(ddf, target_level=6, agg="mean", add_geometry=True)
 
             result = agg_df.head(10)
             assert len(result) >= 0
@@ -572,66 +535,53 @@ class TestRasterization:
 
     def test_h3_to_raster(self, test_config):
         """Test H3 to raster conversion."""
+        from dask.distributed import Client
+
         import gedih3.gh3driver as gh3
         from gedih3.raster import h3_to_raster
-        from dask.distributed import Client
 
         log_file = os.path.join(test_config.h3_dir, "gedih3_build_log.json")
         if not os.path.exists(log_file):
             pytest.skip("H3 database not built")
 
-        with Client(n_workers=2, threads_per_worker=1) as client:
-            ddf = gh3.gh3_load(
-                columns=['agbd_l4a'],
-                gh3_dir=test_config.h3_dir
-            )
+        with Client(n_workers=2, threads_per_worker=1) as _client:
+            ddf = gh3.gh3_load(columns=["agbd_l4a"], gh3_dir=test_config.h3_dir)
 
-            agg_gdf = gh3.gh3_aggregate(
-                ddf,
-                target_res=6,
-                agg='mean',
-                add_geometry=True
-            ).compute()
+            agg_gdf = gh3.gh3_aggregate(ddf, target_res=6, agg="mean", add_geometry=True).compute()
 
             if len(agg_gdf) > 0:
-                xras = h3_to_raster(agg_gdf, columns=['agbd_l4a_mean'])
+                xras = h3_to_raster(agg_gdf, columns=["agbd_l4a_mean"])
 
                 assert xras is not None
-                assert hasattr(xras, 'rio')
+                assert hasattr(xras, "rio")
 
     def test_egi_to_raster(self, test_config):
         """Test EGI to raster conversion."""
+        from dask.distributed import Client
+
         import gedih3.gh3driver as gh3
         from gedih3 import egi
-        from dask.distributed import Client
 
         log_file = os.path.join(test_config.h3_dir, "gedih3_build_log.json")
         if not os.path.exists(log_file):
             pytest.skip("H3 database not built")
 
-        with Client(n_workers=2, threads_per_worker=1) as client:
-            ddf = gh3.gh3_load(
-                columns=['agbd_l4a', 'lat_lowestmode', 'lon_lowestmode'],
-                gh3_dir=test_config.h3_dir
-            )
+        with Client(n_workers=2, threads_per_worker=1) as _client:
+            ddf = gh3.gh3_load(columns=["agbd_l4a", "lat_lowestmode", "lon_lowestmode"], gh3_dir=test_config.h3_dir)
 
-            agg_gdf = gh3.egi_aggregate(
-                ddf,
-                target_level=6,
-                agg='mean',
-                add_geometry=True
-            ).compute()
+            agg_gdf = gh3.egi_aggregate(ddf, target_level=6, agg="mean", add_geometry=True).compute()
 
             if len(agg_gdf) > 0:
                 xras = egi.geodf_to_raster(agg_gdf)
 
                 assert xras is not None
-                assert hasattr(xras, 'rio')
+                assert hasattr(xras, "rio")
 
 
 # =============================================================================
 # Full Pipeline Test
 # =============================================================================
+
 
 @pytest.mark.integration
 @pytest.mark.slow
@@ -652,29 +602,26 @@ class TestFullPythonPipeline:
         config = APITestConfig()
 
         try:
-            with Client(n_workers=2, threads_per_worker=1, memory_limit='4GB') as client:
+            with Client(n_workers=2, threads_per_worker=1, memory_limit="4GB") as client:
                 print(f"\nDask dashboard: {client.dashboard_link}")
 
                 # Step 1: Download
-                print("\n" + "="*70)
+                print("\n" + "=" * 70)
                 print("STEP 1: Downloading GEDI data")
-                print("="*70)
+                print("=" * 70)
 
                 from gedih3.daac import gedi_download
 
-                product_vars = {
-                    'L2A': ['default'],
-                    'L4A': ['agbd']
-                }
+                product_vars = {"L2A": ["default"], "L4A": ["agbd"]}
 
                 try:
-                    paths = gedi_download(
+                    paths = gedi_download(  # noqa: F841
                         product_vars=product_vars,
                         odir=config.soc_dir,
                         spatial=TEST_BBOX,
                         temporal=(TEST_DATE_START, TEST_DATE_END),
                         resume=True,
-                        n_jobs=2
+                        n_jobs=2,
                     )
                 except Exception as e:
                     print(f"Download error (may be auth): {e}")
@@ -685,53 +632,45 @@ class TestFullPythonPipeline:
                     pytest.skip("No data available for test region/dates")
 
                 # Step 2: Build H3 database
-                print("\n" + "="*70)
+                print("\n" + "=" * 70)
                 print("STEP 2: Building H3 database")
-                print("="*70)
+                print("=" * 70)
 
                 from gedih3.gh3builder import build_h3db
 
-                h3_files = build_h3db(
+                h3_files = build_h3db(  # noqa: F841
                     product_vars=product_vars,
                     res=TEST_H3_RESOLUTION,
                     part=TEST_H3_PARTITION,
                     spatial=TEST_BBOX,
                     soc_source=config.soc_dir,
-                    h3_dir=config.h3_dir
+                    h3_dir=config.h3_dir,
                 )
 
-                assert os.path.exists(
-                    os.path.join(config.h3_dir, "gedih3_build_log.json")
-                )
+                assert os.path.exists(os.path.join(config.h3_dir, "gedih3_build_log.json"))
 
                 # Step 3: Load and query data
-                print("\n" + "="*70)
+                print("\n" + "=" * 70)
                 print("STEP 3: Loading and querying data")
-                print("="*70)
+                print("=" * 70)
 
                 import gedih3.gh3driver as gh3
 
                 ddf = gh3.gh3_load(
-                    columns=['agbd_l4a', 'quality_flag_l2a',
-                             'lat_lowestmode', 'lon_lowestmode'],
+                    columns=["agbd_l4a", "quality_flag_l2a", "lat_lowestmode", "lon_lowestmode"],
                     region=TEST_BBOX,
-                    query='quality_flag_l2a == 1',
-                    gh3_dir=config.h3_dir
+                    query="quality_flag_l2a == 1",
+                    gh3_dir=config.h3_dir,
                 )
 
                 print(f"Loaded {ddf.npartitions} partitions")
 
                 # Step 4: Aggregate to EGI
-                print("\n" + "="*70)
+                print("\n" + "=" * 70)
                 print("STEP 4: Aggregating to EGI level 6")
-                print("="*70)
+                print("=" * 70)
 
-                agg_gdf = gh3.egi_aggregate(
-                    ddf,
-                    target_level=6,
-                    agg='mean',
-                    add_geometry=True
-                )
+                agg_gdf = gh3.egi_aggregate(ddf, target_level=6, agg="mean", add_geometry=True)
 
                 result = agg_gdf.compute()
                 print(f"Aggregated to {len(result)} pixels")
@@ -740,9 +679,9 @@ class TestFullPythonPipeline:
                     pytest.skip("No data after aggregation")
 
                 # Step 5: Rasterize
-                print("\n" + "="*70)
+                print("\n" + "=" * 70)
                 print("STEP 5: Rasterizing to GeoTIFF")
-                print("="*70)
+                print("=" * 70)
 
                 from gedih3 import egi
 
@@ -754,9 +693,9 @@ class TestFullPythonPipeline:
                 assert os.path.exists(output_path)
                 print(f"Raster saved to: {output_path}")
 
-                print("\n" + "="*70)
+                print("\n" + "=" * 70)
                 print("FULL PYTHON API PIPELINE COMPLETED SUCCESSFULLY!")
-                print("="*70)
+                print("=" * 70)
 
         finally:
             # config.cleanup()
@@ -767,12 +706,14 @@ class TestFullPythonPipeline:
 # Data Quality Tests
 # =============================================================================
 
+
 class TestDataQuality:
     """Test data quality and consistency."""
 
     def test_h3_index_consistency(self, test_config):
         """Test H3 index consistency across operations."""
         import h3
+
         import gedih3.gh3driver as gh3
 
         log_file = os.path.join(test_config.h3_dir, "gedih3_build_log.json")
@@ -780,17 +721,14 @@ class TestDataQuality:
             pytest.skip("H3 database not built")
 
         # Read metadata
-        res_level = gh3.gh3_read_meta('h3_resolution_level',
-                                       gh3_root_dir=test_config.h3_dir)
-        part_level = gh3.gh3_read_meta('h3_partition_level',
-                                        gh3_root_dir=test_config.h3_dir)
+        res_level = gh3.gh3_read_meta("h3_resolution_level", gh3_root_dir=test_config.h3_dir)
+        part_level = gh3.gh3_read_meta("h3_partition_level", gh3_root_dir=test_config.h3_dir)
 
         # Partition level should be <= resolution level
         assert part_level <= res_level
 
         # Check H3 cell IDs in data
-        h3_ids = gh3.gh3_read_meta('h3_partition_ids',
-                                    gh3_root_dir=test_config.h3_dir)
+        h3_ids = gh3.gh3_read_meta("h3_partition_ids", gh3_root_dir=test_config.h3_dir)
         if h3_ids:
             # All partition IDs should be at partition level
             for h3_id in h3_ids[:10]:  # Check first 10
@@ -798,28 +736,22 @@ class TestDataQuality:
 
     def test_aggregation_data_integrity(self, test_config):
         """Test that aggregation preserves data integrity."""
-        import gedih3.gh3driver as gh3
         from dask.distributed import Client
+
+        import gedih3.gh3driver as gh3
 
         log_file = os.path.join(test_config.h3_dir, "gedih3_build_log.json")
         if not os.path.exists(log_file):
             pytest.skip("H3 database not built")
 
-        with Client(n_workers=2, threads_per_worker=1) as client:
+        with Client(n_workers=2, threads_per_worker=1) as _client:
             # Load original data
-            ddf = gh3.gh3_load(
-                columns=['agbd_l4a'],
-                gh3_dir=test_config.h3_dir
-            )
+            ddf = gh3.gh3_load(columns=["agbd_l4a"], gh3_dir=test_config.h3_dir)
 
             original_count = ddf.map_partitions(len).compute().sum()
 
             # Aggregate
-            agg_df = gh3.gh3_aggregate(
-                ddf,
-                target_res=6,
-                agg='mean'
-            )
+            agg_df = gh3.gh3_aggregate(ddf, target_res=6, agg="mean")
 
             agg_result = agg_df.compute()
 
@@ -832,7 +764,7 @@ class TestDataQuality:
 # Main Entry Point
 # =============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Run with: python -m pytest tests/test_python_api_pipeline.py -v
     # Or: python tests/test_python_api_pipeline.py
-    pytest.main([__file__, '-v', '-s', '--tb=short'])
+    pytest.main([__file__, "-v", "-s", "--tb=short"])

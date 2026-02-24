@@ -4,27 +4,29 @@ Raster Export Module
 This module provides utilities for exporting raster data to various formats,
 with support for GeoTIFF compression, tiling, and batch operations.
 """
-from typing import Dict, List, Optional, Union
+
 import os
-import numpy as np
-import pandas as pd
-import geopandas as gpd
-import xarray as xr
+from typing import Dict, List, Optional, Union
+
 import dask
 import dask.dataframe
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import xarray as xr
 from dask.distributed import progress as dask_progress
 
-from .config import get_geotiff_options, is_raster_format, GEOTIFF_DEFAULTS
 from ..exceptions import GediRasterizationError
+from .config import get_geotiff_options
 
 
 def export_raster(
     xras: xr.Dataset,
     output_path: str,
-    compress: str = 'LZW',
+    compress: str = "LZW",
     tiled: bool = True,
     blocksize: int = 256,
-    bigtiff: bool = True
+    bigtiff: bool = True,
 ) -> str:
     """
     Export xarray Dataset to GeoTIFF file.
@@ -61,9 +63,9 @@ def export_raster(
 def export_raster_partition(
     data: Union[pd.Series, xr.Dataset],
     output_dir: str,
-    fmt: str = 'tif',
-    compress: str = 'LZW',
-    partition_id_attr: Optional[str] = None
+    fmt: str = "tif",
+    compress: str = "LZW",
+    partition_id_attr: Optional[str] = None,
 ) -> str:
     """
     Export raster partition(s) to file(s).
@@ -90,16 +92,15 @@ def export_raster_partition(
     str
         Output file path(s), comma-separated if multiple files written
     """
-    import re
     os.makedirs(output_dir, exist_ok=True)
 
     if isinstance(data, pd.Series):
         if len(data) == 0:
-            return ''
+            return ""
         # Series of Datasets - export each separately
-        valid_rasters = [x for x in data if hasattr(x, 'data_vars') and len(x.data_vars) > 0]
+        valid_rasters = [x for x in data if hasattr(x, "data_vars") and len(x.data_vars) > 0]
         if not valid_rasters:
-            return ''
+            return ""
 
         # Export each raster to its own file based on its tile ID
         output_paths = []
@@ -108,20 +109,16 @@ def export_raster_partition(
             if path:
                 output_paths.append(path)
 
-        return ','.join(output_paths) if output_paths else ''
+        return ",".join(output_paths) if output_paths else ""
 
     elif isinstance(data, xr.Dataset):
         return _export_single_raster(data, output_dir, fmt, compress, partition_id_attr)
 
-    return ''
+    return ""
 
 
 def _export_single_raster(
-    xras: xr.Dataset,
-    output_dir: str,
-    fmt: str,
-    compress: str,
-    partition_id_attr: Optional[str] = None
+    xras: xr.Dataset, output_dir: str, fmt: str, compress: str, partition_id_attr: Optional[str] = None
 ) -> str:
     """
     Export a single xarray Dataset to file.
@@ -147,23 +144,23 @@ def _export_single_raster(
     import re
 
     if len(xras.data_vars) == 0:
-        return ''
+        return ""
 
     # Determine output filename from attributes
-    basename = 'raster'
+    basename = "raster"
 
     for var in list(xras.data_vars)[:1]:
         attrs = xras[var].attrs
         # Look for any H3 partition ID attribute (h3_XX_id pattern)
-        h3_part_attrs = [k for k in attrs.keys() if re.match(r'h3_\d{2}_id$', str(k))]
+        h3_part_attrs = [k for k in attrs.keys() if re.match(r"h3_\d{2}_id$", str(k))]
         if h3_part_attrs:
             basename = str(attrs[h3_part_attrs[0]])
             break
-        elif 'egi12_id' in attrs:
-            basename = str(attrs['egi12_id'])
+        elif "egi12_id" in attrs:
+            basename = str(attrs["egi12_id"])
             break
         # Look for any EGI partition ID attribute (egiXX_id pattern)
-        egi_part_attrs = [k for k in attrs.keys() if re.match(r'egi\d+_id$', str(k))]
+        egi_part_attrs = [k for k in attrs.keys() if re.match(r"egi\d+_id$", str(k))]
         if egi_part_attrs:
             basename = str(attrs[egi_part_attrs[0]])
             break
@@ -174,10 +171,10 @@ def _export_single_raster(
     # Add extension
     output_path = os.path.join(output_dir, f"{basename}.{fmt}")
 
-    if fmt in ('tif', 'tiff', 'geotiff'):
+    if fmt in ("tif", "tiff", "geotiff"):
         options = get_geotiff_options(compress)
         xras.rio.to_raster(output_path, **options)
-    elif fmt in ('nc', 'netcdf'):
+    elif fmt in ("nc", "netcdf"):
         xras.to_netcdf(output_path)
     else:
         raise GediRasterizationError(f"Unsupported raster format: {fmt}")
@@ -190,10 +187,10 @@ def rasterize_and_export_partitions(
     output_dir: str,
     rasterize_func,
     columns: Optional[List[str]] = None,
-    fmt: str = 'tif',
-    compress: str = 'LZW',
+    fmt: str = "tif",
+    compress: str = "LZW",
     show_progress: bool = True,
-    **rasterize_kwargs
+    **rasterize_kwargs,
 ) -> List[str]:
     """
     Rasterize and export GeoDataFrame partitions to individual files.
@@ -222,23 +219,16 @@ def rasterize_and_export_partitions(
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    if hasattr(gdf, 'npartitions'):
+    if hasattr(gdf, "npartitions"):
         # Dask GeoDataFrame
         raster_parts = gdf.map_partitions(
-            rasterize_func,
-            columns=columns,
-            **rasterize_kwargs,
-            meta=pd.Series(dtype=object)
+            rasterize_func, columns=columns, **rasterize_kwargs, meta=pd.Series(dtype=object)
         )
 
-        export_func = lambda x: export_raster_partition(
-            x, output_dir, fmt=fmt, compress=compress
-        )
+        def export_func(x):
+            return export_raster_partition(x, output_dir, fmt=fmt, compress=compress)
 
-        paths = raster_parts.map_partitions(
-            export_func,
-            meta=pd.Series(dtype=str)
-        )
+        paths = raster_parts.map_partitions(export_func, meta=pd.Series(dtype=str))
 
         if show_progress:
             paths = paths.persist()
@@ -256,10 +246,10 @@ def rasterize_and_export_partitions(
     all_paths = []
     for p in result:
         if p:
-            all_paths.extend(p.split(','))
-    tif_files = [p for p in all_paths if p.endswith('.tif')]
+            all_paths.extend(p.split(","))
+    tif_files = [p for p in all_paths if p.endswith(".tif")]
     if len(tif_files) > 1:
-        vrt_path = os.path.join(output_dir, 'mosaic.vrt')
+        vrt_path = os.path.join(output_dir, "mosaic.vrt")
         build_vrt(tif_files, vrt_path)
 
     return result
@@ -276,6 +266,7 @@ def build_vrt(tif_files, vrt_path):
         Output VRT file path
     """
     from osgeo import gdal
+
     gdal.UseExceptions()
     gdal.BuildVRT(vrt_path, tif_files)
 
@@ -285,9 +276,9 @@ def merge_and_export_rasters(
     output_path: str,
     rasterize_func,
     columns: Optional[List[str]] = None,
-    compress: str = 'LZW',
+    compress: str = "LZW",
     show_progress: bool = True,
-    **rasterize_kwargs
+    **rasterize_kwargs,
 ) -> str:
     """
     Rasterize all partitions and merge into a single output file.
@@ -314,13 +305,10 @@ def merge_and_export_rasters(
     """
     from rioxarray.merge import merge_datasets
 
-    if hasattr(gdf, 'npartitions'):
+    if hasattr(gdf, "npartitions"):
         # Dask GeoDataFrame - rasterize partitions in parallel
         raster_parts = gdf.map_partitions(
-            rasterize_func,
-            columns=columns,
-            **rasterize_kwargs,
-            meta=pd.Series(dtype=object)
+            rasterize_func, columns=columns, **rasterize_kwargs, meta=pd.Series(dtype=object)
         )
 
         if show_progress:
@@ -335,9 +323,9 @@ def merge_and_export_rasters(
             if isinstance(r, pd.Series):
                 # rasterize_func returns Series containing Dataset
                 for item in r:
-                    if hasattr(item, 'data_vars') and len(item.data_vars) > 0:
+                    if hasattr(item, "data_vars") and len(item.data_vars) > 0:
                         valid_rasters.append(item)
-            elif hasattr(r, 'data_vars') and len(r.data_vars) > 0:
+            elif hasattr(r, "data_vars") and len(r.data_vars) > 0:
                 valid_rasters.append(r)
 
         if not valid_rasters:
@@ -379,10 +367,10 @@ def compute_raster_stats(xras: xr.Dataset) -> Dict[str, Dict[str, float]]:
         data = xras[var].values
         valid = ~np.isnan(data)
         stats[var] = {
-            'min': float(np.nanmin(data)) if valid.any() else np.nan,
-            'max': float(np.nanmax(data)) if valid.any() else np.nan,
-            'mean': float(np.nanmean(data)) if valid.any() else np.nan,
-            'std': float(np.nanstd(data)) if valid.any() else np.nan,
-            'count': int(valid.sum()),
+            "min": float(np.nanmin(data)) if valid.any() else np.nan,
+            "max": float(np.nanmax(data)) if valid.any() else np.nan,
+            "mean": float(np.nanmean(data)) if valid.any() else np.nan,
+            "std": float(np.nanstd(data)) if valid.any() else np.nan,
+            "count": int(valid.sum()),
         }
     return stats

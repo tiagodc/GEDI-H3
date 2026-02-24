@@ -17,6 +17,7 @@ Usage:
 
 class GediError(Exception):
     """Base exception for all gedih3 errors."""
+
     pass
 
 
@@ -24,8 +25,10 @@ class GediError(Exception):
 # Network/Download Errors
 # =============================================================================
 
+
 class GediNetworkError(GediError):
     """Base exception for network-related errors."""
+
     pass
 
 
@@ -40,11 +43,13 @@ class GediDownloadError(GediNetworkError):
 
 class GediAuthenticationError(GediNetworkError):
     """Error during NASA Earthdata authentication."""
+
     pass
 
 
 class GediS3AccessError(GediNetworkError):
     """Error accessing GEDI data via S3."""
+
     pass
 
 
@@ -52,15 +57,17 @@ class GediS3AccessError(GediNetworkError):
 # Validation Errors
 # =============================================================================
 
+
 class GediValidationError(GediError):
     """Base exception for validation errors."""
+
     pass
 
 
 class H3ValidationError(GediValidationError):
     """Error in H3 parameter validation."""
 
-    def __init__(self, message: str, param_name: str = None, value = None):
+    def __init__(self, message: str, param_name: str = None, value=None):
         self.param_name = param_name
         self.value = value
         super().__init__(message)
@@ -69,7 +76,7 @@ class H3ValidationError(GediValidationError):
 class EGIValidationError(GediValidationError):
     """Error in EGI parameter validation."""
 
-    def __init__(self, message: str, param_name: str = None, value = None):
+    def __init__(self, message: str, param_name: str = None, value=None):
         self.param_name = param_name
         self.value = value
         super().__init__(message)
@@ -77,11 +84,13 @@ class EGIValidationError(GediValidationError):
 
 class GediProductError(GediValidationError):
     """Error with GEDI product specification."""
+
     pass
 
 
 class GediVariableError(GediValidationError):
     """Error with GEDI variable specification."""
+
     pass
 
 
@@ -89,8 +98,10 @@ class GediVariableError(GediValidationError):
 # File/IO Errors
 # =============================================================================
 
+
 class GediFileError(GediError):
     """Base exception for file-related errors."""
+
     pass
 
 
@@ -131,23 +142,28 @@ class GediTransactionError(GediFileError):
 # Database Errors
 # =============================================================================
 
+
 class GediDatabaseError(GediError):
     """Base exception for H3 database errors."""
+
     pass
 
 
 class GediDatabaseNotFoundError(GediDatabaseError):
     """H3 database directory not found."""
+
     pass
 
 
 class GediDatabaseCorruptedError(GediDatabaseError):
     """H3 database is corrupted or inconsistent."""
+
     pass
 
 
 class GediMergeError(GediDatabaseError):
     """Error merging H3 partitions or databases."""
+
     pass
 
 
@@ -155,13 +171,16 @@ class GediMergeError(GediDatabaseError):
 # Spatial/Temporal Errors
 # =============================================================================
 
+
 class GediSpatialError(GediError):
     """Error with spatial operations or filters."""
+
     pass
 
 
 class GediTemporalError(GediError):
     """Error with temporal operations or filters."""
+
     pass
 
 
@@ -169,28 +188,34 @@ class GediTemporalError(GediError):
 # Processing Errors
 # =============================================================================
 
+
 class GediProcessingError(GediError):
     """Base exception for data processing errors."""
+
     pass
 
 
 class GediAggregationError(GediProcessingError):
     """Error during data aggregation."""
+
     pass
 
 
 class GediRasterizationError(GediProcessingError):
     """Error during rasterization."""
+
     pass
 
 
 class GediImageSamplingError(GediProcessingError):
     """Error during raster image sampling at GEDI shot locations."""
+
     pass
 
 
 class GediSpatialJoinError(GediProcessingError):
     """Error during spatial join of vector data to GEDI shot locations."""
+
     pass
 
 
@@ -200,11 +225,11 @@ class GediSpatialJoinError(GediProcessingError):
 
 # Default retry settings for network operations
 RETRY_DEFAULTS = {
-    'max_attempts': 3,
-    'initial_wait': 1.0,  # seconds
-    'max_wait': 60.0,  # seconds
-    'exponential_base': 2.0,
-    'jitter': True,
+    "max_attempts": 3,
+    "initial_wait": 1.0,  # seconds
+    "max_wait": 60.0,  # seconds
+    "exponential_base": 2.0,
+    "jitter": True,
 }
 
 
@@ -232,12 +257,16 @@ def is_retryable_error(exception: Exception) -> bool:
     # Check for HTTP status codes in exception message
     error_msg = str(exception).lower()
     retryable_patterns = [
-        '500', '502', '503', '504',  # Server errors
-        'timeout', 'timed out',
-        'connection reset',
-        'connection refused',
-        'temporary failure',
-        'service unavailable',
+        "500",
+        "502",
+        "503",
+        "504",  # Server errors
+        "timeout",
+        "timed out",
+        "connection reset",
+        "connection refused",
+        "temporary failure",
+        "service unavailable",
     ]
 
     return any(pattern in error_msg for pattern in retryable_patterns)

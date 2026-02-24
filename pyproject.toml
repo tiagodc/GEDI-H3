@@ -78,6 +78,7 @@ gedih3 = ["data/*.txt", "data/*.json", "data/*.parquet"]
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+exclude = ["docs/", "tutorials/", "tstex_modules/", "tests/tests.ipynb"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]

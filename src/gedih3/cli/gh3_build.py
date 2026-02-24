@@ -2,62 +2,103 @@
 
 import argparse
 
+
 def get_cmd_args():
-    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args
+    from gedih3.cliutils import add_dask_args, add_product_args, add_verbosity_args
 
     p = argparse.ArgumentParser(description="Build H3-indexed GEDI database from SOC files")
 
     # Spatial/temporal filtering
-    p.add_argument("-r", "--region", dest="region", type=str, default=None,
-                   help="vector file, bbox 'W,S,E,N', or ISO3 country code")
-    p.add_argument("-d0", "--date-start", dest="date_start", type=str, default=None,
-                   help="start date [YYYY-MM-DD]")
-    p.add_argument("-d1", "--date-end", dest="date_end", type=str, default=None,
-                   help="end date [YYYY-MM-DD]")
+    p.add_argument(
+        "-r",
+        "--region",
+        dest="region",
+        type=str,
+        default=None,
+        help="vector file, bbox 'W,S,E,N', or ISO3 country code",
+    )
+    p.add_argument("-d0", "--date-start", dest="date_start", type=str, default=None, help="start date [YYYY-MM-DD]")
+    p.add_argument("-d1", "--date-end", dest="date_end", type=str, default=None, help="end date [YYYY-MM-DD]")
 
     # H3 configuration
-    p.add_argument("-h3r", "--h3-resolution", dest="h3_resolution", type=int, default=12,
-                   help="H3 index level [0-15, default=12]")
-    p.add_argument("-h3p", "--h3-partition", dest="h3_partition", type=int, default=3,
-                   help="H3 partition level [0-15, default=3]")
+    p.add_argument(
+        "-h3r", "--h3-resolution", dest="h3_resolution", type=int, default=12, help="H3 index level [0-15, default=12]"
+    )
+    p.add_argument(
+        "-h3p", "--h3-partition", dest="h3_partition", type=int, default=3, help="H3 partition level [0-15, default=3]"
+    )
 
     # GEDI product variables
     add_product_args(p)
 
     # I/O paths
-    p.add_argument("-o", "--output", dest="output", type=str, default=None,
-                   help="output directory for H3 database (default: GH3_DEFAULT_H3_DIR)")
-    p.add_argument("-i", '--indir', dest="indir", type=str, default=None,
-                   help="directory with GEDI SOC files (default: GH3_DEFAULT_SOC_DIR)")
-    p.add_argument("-dl", "--download", dest="download", action='store_true',
-                   help="download missing GEDI data before building (embeds gh3_download as pre-step)")
-    p.add_argument("-t", '--tmpdir', dest="tmpdir", type=str, default=None,
-                   help="temporary directory for intermediate files")
-    p.add_argument("-s3", "--s3", dest="s3", action='store_true',
-                   help="download from NASA S3 to temp directory (no persistent local download)")
-    p.add_argument("--gedi-version", dest="version", type=int, default=None,
-                   help="GEDI data version [default=latest available]")
+    p.add_argument(
+        "-o",
+        "--output",
+        dest="output",
+        type=str,
+        default=None,
+        help="output directory for H3 database (default: GH3_DEFAULT_H3_DIR)",
+    )
+    p.add_argument(
+        "-i",
+        "--indir",
+        dest="indir",
+        type=str,
+        default=None,
+        help="directory with GEDI SOC files (default: GH3_DEFAULT_SOC_DIR)",
+    )
+    p.add_argument(
+        "-dl",
+        "--download",
+        dest="download",
+        action="store_true",
+        help="download missing GEDI data before building (embeds gh3_download as pre-step)",
+    )
+    p.add_argument(
+        "-t", "--tmpdir", dest="tmpdir", type=str, default=None, help="temporary directory for intermediate files"
+    )
+    p.add_argument(
+        "-s3",
+        "--s3",
+        dest="s3",
+        action="store_true",
+        help="download from NASA S3 to temp directory (no persistent local download)",
+    )
+    p.add_argument(
+        "--gedi-version", dest="version", type=int, default=None, help="GEDI data version [default=latest available]"
+    )
 
     # Dask and verbosity
-    add_dask_args(p, profile='build')
+    add_dask_args(p, profile="build")
     add_verbosity_args(p)
 
     return p.parse_args()
 
+
 def main():
     args = get_cmd_args()
 
+    import glob
     import os
     import sys
-    import glob
     import warnings
-    from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR
-    from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success
-    from gedih3.utils import get_system_resources
-    from gedih3.gh3builder import build_h3db, download_soc, soc_file_tree
-    from gedih3.gedidriver import GEDIFile, validate_soc_files, gedi_vars_expand
-    from gedih3.logger import H3BuildLogger, SOCDownloadLogger
+
     from dask.distributed import Client
+
+    from gedih3.cliutils import (
+        parse_dask_args,
+        parse_gedi_args,
+        parse_region,
+        print_banner,
+        print_success,
+        setup_logging,
+    )
+    from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR
+    from gedih3.gedidriver import GEDIFile, gedi_vars_expand, validate_soc_files
+    from gedih3.gh3builder import build_h3db, download_soc, soc_file_tree
+    from gedih3.logger import H3BuildLogger, SOCDownloadLogger
+    from gedih3.utils import get_system_resources
 
     # Setup logging and print banner
     logger = setup_logging(args, __name__)
@@ -68,7 +109,7 @@ def main():
     os.makedirs(args.output, exist_ok=True)
 
     if args.tmpdir is None:
-        args.tmpdir = os.path.join(args.output, '.tmp')
+        args.tmpdir = os.path.join(args.output, ".tmp")
     os.makedirs(args.tmpdir, exist_ok=True)
 
     # Log detected resources and Dask configuration
@@ -104,7 +145,7 @@ def main():
         part=args.h3_partition,
         version=args.version,
         dir=args.output,
-        source_mode='s3' if args.s3 else 'local',
+        source_mode="s3" if args.s3 else "local",
     )
 
     if not h3_logger.product_vars and not h3_logger.updating:
@@ -146,17 +187,19 @@ def main():
         logger.info("  Phase 2: add new variable columns to all partitions")
 
     # Check for pending variable update from crash recovery
-    pending_var_update = h3_logger.log_data.get('_pending_variable_update')
+    pending_var_update = h3_logger.log_data.get("_pending_variable_update")
 
     # Early exit: database is already up-to-date with requested parameters
     # Only when a valid build log exists with partition data to confirm completeness
-    if (h3_logger.is_up_to_date()
-            and not pending_var_update
-            and hasattr(h3_logger, 'h3_partition_ids')
-            and h3_logger.h3_partition_ids):
-        if h3_logger.previous_status != 'COMPLETED':
+    if (
+        h3_logger.is_up_to_date()
+        and not pending_var_update
+        and hasattr(h3_logger, "h3_partition_ids")
+        and h3_logger.h3_partition_ids
+    ):
+        if h3_logger.previous_status != "COMPLETED":
             h3_logger.set_post_build_info()
-            h3_logger.save_log('COMPLETED')
+            h3_logger.save_log("COMPLETED")
         logger.info("Database is already up-to-date with requested parameters")
         print_success("Database is up-to-date, no changes needed", logger=logger)
         return
@@ -185,11 +228,18 @@ def main():
 
     try:
         with Client(**dask_kwargs) as client:
-            warnings.filterwarnings("ignore", message=r"Sending large graph of size.*", category=UserWarning, module="distributed.client")
+            warnings.filterwarnings(
+                "ignore", message=r"Sending large graph of size.*", category=UserWarning, module="distributed.client"
+            )
+
             def _suppress_pandas_perf_warnings():
                 import warnings
+
                 import pandas as pd
-                warnings.filterwarnings("ignore", message=r"DataFrame is highly fragmented.*", category=pd.errors.PerformanceWarning)
+
+                warnings.filterwarnings(
+                    "ignore", message=r"DataFrame is highly fragmented.*", category=pd.errors.PerformanceWarning
+                )
 
             client.run(_suppress_pandas_perf_warnings)
 
@@ -198,11 +248,12 @@ def main():
             # Validate/download SOC data when using local directory mode
             if soc_source is not None:
                 os.makedirs(soc_source, exist_ok=True)
-                existing_h5 = glob.glob(os.path.join(soc_source, '**', 'GEDI*.h5'), recursive=True)
+                existing_h5 = glob.glob(os.path.join(soc_source, "**", "GEDI*.h5"), recursive=True)
 
                 def _validate_existing_h5(product_vars, soc_dir):
                     """Validate requested products/variables exist in HDF5 files. Exits on mismatch."""
                     import copy
+
                     expanded = copy.deepcopy(product_vars)
                     gedi_vars_expand(expanded, version=h3_logger.gedi_version)
                     try:
@@ -248,15 +299,16 @@ def main():
 
                     needs_download = True
 
-                    if soc_logger.updating and soc_logger.log_data.get('status') == 'COMPLETED':
+                    if soc_logger.updating and soc_logger.log_data.get("status") == "COMPLETED":
                         # Completed download log exists — check if more data is needed
                         if (is_variable_only_update or is_mixed_update) and h3_logger.new_product_vars:
                             import copy
+
                             expanded_new = copy.deepcopy(dict(h3_logger.new_product_vars))
                             gedi_vars_expand(expanded_new, version=h3_logger.gedi_version)
                             try:
                                 validation = validate_soc_files(expanded_new, soc_source)
-                                can_skip = validation.get('can_skip', True) if isinstance(validation, dict) else False
+                                can_skip = validation.get("can_skip", True) if isinstance(validation, dict) else False
                             except Exception:
                                 can_skip = False
                             if can_skip:
@@ -264,24 +316,28 @@ def main():
                                 logger.info(f"New products already available in {soc_source}")
                             else:
                                 logger.info("New products not found in existing HDF5 files — downloading them")
-                        elif not h3_logger.new_spatial and not h3_logger.new_temporal and not h3_logger.new_product_vars:
+                        elif (
+                            not h3_logger.new_spatial and not h3_logger.new_temporal and not h3_logger.new_product_vars
+                        ):
                             needs_download = False
-                            logger.info(f"Using existing downloads at {soc_source} ({len(soc_logger.granule_info)} granules)")
+                            logger.info(
+                                f"Using existing downloads at {soc_source} ({len(soc_logger.granule_info)} granules)"
+                            )
                         else:
                             _validate_existing_h5(h3_logger.get_product_vars(), soc_source)
                             needs_download = True  # Spatial/temporal expansion needs new granules
 
                     if needs_download:
                         logger.info(f"Downloading GEDI data to {soc_source}")
-                        soc_logger.save_log('DOWNLOADING')
+                        soc_logger.save_log("DOWNLOADING")
 
                         def _download_tracker(gran_info, status):
                             """Called from main thread (as_completed loop). Thread safe."""
-                            if status == 'PENDING':
+                            if status == "PENDING":
                                 soc_logger.register_pending_granules([gran_info])
                             else:
                                 soc_logger.update_granule_status(gran_info, status)
-                            soc_logger.save_log('DOWNLOADING')
+                            soc_logger.save_log("DOWNLOADING")
 
                         download_soc(
                             product_vars=soc_logger.get_product_vars(),
@@ -295,7 +351,7 @@ def main():
                             ensure_l2a=not is_variable_only_update,
                         )
                         soc_logger.set_post_download_info()
-                        soc_logger.save_log('COMPLETED')
+                        soc_logger.save_log("COMPLETED")
                         logger.info("Download complete")
                 else:
                     # --download NOT enabled: build from existing data only
@@ -315,7 +371,7 @@ def main():
 
             # Save log only after validation/download passes — prevents
             # writing unverified products (e.g. L4C) when data is missing
-            h3_logger.save_log('PARTITIONING')
+            h3_logger.save_log("PARTITIONING")
 
             try:
                 # Register granules being submitted for build as PENDING
@@ -326,9 +382,9 @@ def main():
                     for _soc in _soc_for_build:
                         _first = list(_soc.values())[0]
                         _gf = GEDIFile(_first)
-                        _build_granules.append({'orbit': _gf.orbit, 'granule': _gf.orbit_granule, 'track': _gf.track})
+                        _build_granules.append({"orbit": _gf.orbit, "granule": _gf.orbit_granule, "track": _gf.track})
                     h3_logger.register_pending_granules(_build_granules)
-                    h3_logger.save_log('PROCESSING')
+                    h3_logger.save_log("PROCESSING")
 
                 h3_files = None
 
@@ -339,8 +395,7 @@ def main():
                 if not pending_var_update and not is_variable_only_update:
                     if is_mixed_update:
                         stage1_products = {
-                            k: val.get('variables')
-                            for k, val in h3_logger.log_data.get('products', {}).items()
+                            k: val.get("variables") for k, val in h3_logger.log_data.get("products", {}).items()
                         }
                         stage1_skip = None  # Re-examine all granules for new spatial area
                         logger.info("Mixed update Phase 1: expanding with existing products")
@@ -361,17 +416,17 @@ def main():
                 # or pending variable resume from crash.
                 if pending_var_update or is_variable_only_update or is_mixed_update:
                     if pending_var_update:
-                        stage2_products = pending_var_update['product_vars']
+                        stage2_products = pending_var_update["product_vars"]
                         logger.info("Resuming pending variable update")
                     else:
                         stage2_products = dict(h3_logger.new_product_vars)
                         if is_mixed_update:
                             h3_logger.set_post_build_info()
                             logger.info("Mixed update Phase 2: adding new variables")
-                        h3_logger.log_data['_pending_variable_update'] = {
-                            'product_vars': stage2_products,
+                        h3_logger.log_data["_pending_variable_update"] = {
+                            "product_vars": stage2_products,
                         }
-                        h3_logger.save_log('PROCESSING')
+                        h3_logger.save_log("PROCESSING")
 
                     h3_files_s2 = build_h3db(
                         product_vars=stage2_products,
@@ -388,33 +443,30 @@ def main():
                 # is not persisted to disk after successful completion.
                 # Crash safety: if crash between pop and save, disk still has
                 # PROCESSING status with the flag → next run resumes correctly.
-                h3_logger.log_data.pop('_pending_variable_update', None)
-                h3_logger.save_log('COMPLETED')
+                h3_logger.log_data.pop("_pending_variable_update", None)
+                h3_logger.save_log("COMPLETED")
 
                 n_files = len(h3_files) if h3_files else 0
                 print_success(f"{n_files} files exported to {args.output}", logger=logger)
 
                 if soc_source is not None and args.download:
-                    logger.info(f"Note: Downloaded HDF5 files in {soc_source} are no longer needed and can be deleted to free disk space")
+                    logger.info(
+                        f"Note: Downloaded HDF5 files in {soc_source} are no longer needed and can be deleted to free disk space"
+                    )
 
             except Exception as e:
-                h3_logger.save_log('FAILED')
+                h3_logger.save_log("FAILED")
                 logger.error(f"Build failed: {e}")
                 raise e
 
     except KeyboardInterrupt:
         logger.warning("\nBuild interrupted by user")
         h3_logger.set_post_build_info()
-        h3_logger.save_log('INTERRUPTED')
+        h3_logger.save_log("INTERRUPTED")
         sys.exit(130)
 
     except Exception as e:
-        from gedih3.exceptions import (
-            H3ValidationError,
-            GediFileError,
-            GediDatabaseError,
-            GediError
-        )
+        from gedih3.exceptions import GediDatabaseError, GediError, GediFileError, H3ValidationError
 
         if isinstance(e, H3ValidationError):
             logger.error(f"H3 parameter error: {e}")
@@ -432,8 +484,10 @@ def main():
             logger.error(f"Unexpected error: {type(e).__name__}: {e}")
             if args.verbose >= 2:
                 import traceback
+
                 traceback.print_exc()
             sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

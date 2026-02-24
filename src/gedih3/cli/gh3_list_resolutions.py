@@ -53,15 +53,12 @@ def get_h3_resolution_info(res: int) -> dict:
         Dictionary with edge_km, area_km2, and cells count
     """
     import h3
-    edge_m = h3.average_hexagon_edge_length(res, unit='m')
-    area_m2 = h3.average_hexagon_area(res, unit='m^2')
+
+    edge_m = h3.average_hexagon_edge_length(res, unit="m")
+    area_m2 = h3.average_hexagon_area(res, unit="m^2")
     num_cells = h3.get_num_cells(res)
 
-    return {
-        'edge_km': edge_m / 1000,
-        'area_km2': area_m2 / 1_000_000,
-        'cells': num_cells
-    }
+    return {"edge_km": edge_m / 1000, "area_km2": area_m2 / 1_000_000, "cells": num_cells}
 
 
 # EGI level descriptions for display
@@ -96,10 +93,8 @@ def get_egi_resolution_info(level: int) -> dict:
         Dictionary with resolution_m and description
     """
     from gedih3.egi.config import RESOLUTIONS as EGI_RESOLUTIONS
-    return {
-        'resolution_m': EGI_RESOLUTIONS[level],
-        'description': EGI_DESCRIPTIONS.get(level, "")
-    }
+
+    return {"resolution_m": EGI_RESOLUTIONS[level], "description": EGI_DESCRIPTIONS.get(level, "")}
 
 
 def get_cmd_args():
@@ -109,34 +104,22 @@ def get_cmd_args():
     )
 
     p.add_argument(
-        "-egi", "--egi",
-        dest="egi",
-        action="store_true",
-        help="show EGI (EASE Grid Index) levels instead of H3"
+        "-egi", "--egi", dest="egi", action="store_true", help="show EGI (EASE Grid Index) levels instead of H3"
     )
 
     p.add_argument(
-        "-r", "--resolution",
+        "-r",
+        "--resolution",
         dest="resolution",
         type=int,
         metavar="LEVEL",
         default=None,
-        help="show details for specific resolution only (H3: 0-15, EGI: 1-12)"
+        help="show details for specific resolution only (H3: 0-15, EGI: 1-12)",
     )
 
-    p.add_argument(
-        "--json",
-        dest="json_output",
-        action="store_true",
-        help="output in JSON format"
-    )
+    p.add_argument("--json", dest="json_output", action="store_true", help="output in JSON format")
 
-    p.add_argument(
-        "--csv",
-        dest="csv_output",
-        action="store_true",
-        help="output in CSV format"
-    )
+    p.add_argument("--csv", dest="csv_output", action="store_true", help="output in CSV format")
 
     return p.parse_args()
 
@@ -155,6 +138,7 @@ def display_h3_resolutions(args):
     # JSON output
     if args.json_output:
         import json
+
         print(json.dumps(resolutions, indent=2))
         return
 
@@ -174,9 +158,9 @@ def display_h3_resolutions(args):
     print("-" * 75)
 
     for res, data in resolutions.items():
-        edge = format_edge(data['edge_km'])
-        area = format_area(data['area_km2'])
-        cells = format_number(data['cells'])
+        edge = format_edge(data["edge_km"])
+        area = format_area(data["area_km2"])
+        cells = format_number(data["cells"])
 
         # Add markers for common use cases
         marker = ""
@@ -210,6 +194,7 @@ def display_egi_resolutions(args):
     # JSON output
     if args.json_output:
         import json
+
         print(json.dumps(resolutions, indent=2))
         return
 
@@ -229,13 +214,13 @@ def display_egi_resolutions(args):
     print("-" * 75)
 
     for level, data in resolutions.items():
-        res_m = data['resolution_m']
+        res_m = data["resolution_m"]
         if res_m >= 1000:
-            pixel_str = f"{res_m/1000:,.2f} km"
+            pixel_str = f"{res_m / 1000:,.2f} km"
         else:
             pixel_str = f"{res_m:,.2f} m"
 
-        desc = data['description']
+        desc = data["description"]
 
         # Add markers for common use cases
         marker = ""
@@ -263,5 +248,5 @@ def main():
         display_h3_resolutions(args)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

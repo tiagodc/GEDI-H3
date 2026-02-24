@@ -1,31 +1,76 @@
-import os, re, glob, json, h5py, h3
+import glob
+import json
+import os
+import re
 import shutil
-import numpy as np
-import pandas as pd
-import geopandas as gpd
-import h3pandas
+from typing import Callable, Dict, List, Optional, Tuple, Union
+
 import dask
+import dask.bag as dbg
 import dask.dataframe
 import dask_geopandas
-import dask.bag as dbg
+import geopandas as gpd
+import h3
+import numpy as np
+import pandas as pd
 import pyarrow.parquet as pq
-from typing import Union, List, Dict, Optional, Tuple, Any, Callable
-from earthaccess.store import EarthAccessFile
 from dask.distributed import progress
+from earthaccess.store import EarthAccessFile
 
-from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME, _get_versioned, _GEDI_L2A_ESSENTIALS
-from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, parquet_schema_add_bbox, generate_manifest
-from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
-from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_subset, validate_soc_files, load_h5
+from .config import (
+    _GEDI_L2A_ESSENTIALS,
+    BUILD_LOG_FILENAME,
+    GEDI_PRODUCTS,
+    GH3_DEFAULT_H3_DIR,
+    GH3_DEFAULT_SOC_DIR,
+    GH3_DEFAULT_TMP_DIR,
+    PARTITION_META_FILENAME,
+    _get_versioned,
+)
 from .daac import gedi_download
+from .exceptions import GediFileError, GediMergeError, GediValidationError
+from .gedidriver import (
+    GEDIFile,
+    add_special_columns,
+    dask_h5_merged,
+    gedi_subset,
+    gedi_vars_expand,
+    gedi_vars_from_h5,
+    load_h5,
+    soc_file_tree,
+)
+from .h3utils import fix_h3_geometry, h3_index_df, intersect_h3_geometries
 from .logging_config import get_logger
-from .validation import validate_h3_params, validate_product_vars, validate_directory_exists
-from .exceptions import H3ValidationError, GediValidationError, GediFileError, GediMergeError
+from .utils import (
+    generate_manifest,
+    get_dask_client,
+    h5_is_valid,
+    json_read,
+    json_write,
+    now,
+    parquet_append_columns,
+    parquet_merge_files,
+    parquet_schema_add_bbox,
+    read_parquet_schema,
+    to_geojson,
+)
+from .validation import validate_h3_params
 
 logger = get_logger(__name__)
 
 
-def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=False, update=False, version=None, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5, on_granule_complete=None, ensure_l2a=True):
+def download_soc(
+    product_vars: Dict,
+    spatial=None,
+    temporal=None,
+    direct_access=False,
+    update=False,
+    version=None,
+    odir=GH3_DEFAULT_SOC_DIR,
+    n_jobs=5,
+    on_granule_complete=None,
+    ensure_l2a=True,
+):
     """
     Download GEDI HDF5 files in SOC (Science Operation Center) format.
 
@@ -66,22 +111,24 @@ def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=
     """
     product_vars = gedi_vars_expand(product_vars, version=version)
 
-    if ensure_l2a and 'L2A' not in product_vars:
+    if ensure_l2a and "L2A" not in product_vars:
         essentials = _get_versioned(_GEDI_L2A_ESSENTIALS, version)
-        product_vars.update({'L2A': essentials})
+        product_vars.update({"L2A": essentials})
 
     for k, val in product_vars.items():
         if val is None:
             continue
-        if 'shot_number' not in val:
-            val.append('shot_number')
+        if "shot_number" not in val:
+            val.append("shot_number")
 
     soc_files = gedi_download(
         product_vars=product_vars,
         odir=None if direct_access else odir,
-        spatial=spatial, temporal=temporal,
+        spatial=spatial,
+        temporal=temporal,
         version=version,
-        resume=update, n_jobs=n_jobs,
+        resume=update,
+        n_jobs=n_jobs,
         to_list=direct_access,
         on_granule_complete=on_granule_complete,
     )
@@ -97,18 +144,20 @@ def _subset_s3_file(granule, prod, product_vars, odir, file_idx, n_files):
     multiprocessing via Dask workers instead of GIL-constrained threads.
     """
     import earthaccess
+
     from .logging_config import get_logger
 
     logger = get_logger(__name__)
 
     # Parse filename from granule data link
     gf = GEDIFile(granule.data_links()[0])
-    local_dir = os.path.join(odir, str(gf.date.year), gf.date.strftime('%j'))
+    local_dir = os.path.join(odir, str(gf.date.year), gf.date.strftime("%j"))
     os.makedirs(local_dir, exist_ok=True)
     local_path = os.path.join(local_dir, gf.full_name)
 
     # Track whether we computed a union of vars from an existing file
     union_vars = None
+    vars_for_prod = product_vars.get(prod)
 
     if os.path.exists(local_path):
         try:
@@ -119,7 +168,9 @@ def _subset_s3_file(granule, prod, product_vars, odir, file_idx, n_files):
                 return local_path
             # Re-download with union of existing + requested
             union_vars = sorted(existing_vars | needed_vars)
-            logger.debug(f"[{file_idx}/{n_files}] Re-downloading {gf.full_name} (missing {len(needed_vars - existing_vars)} variables)")
+            logger.debug(
+                f"[{file_idx}/{n_files}] Re-downloading {gf.full_name} (missing {len(needed_vars - existing_vars)} variables)"
+            )
             os.unlink(local_path)
         except Exception:
             logger.warning(f"[{file_idx}/{n_files}] Could not read existing {gf.full_name}, re-downloading")
@@ -127,11 +178,11 @@ def _subset_s3_file(granule, prod, product_vars, odir, file_idx, n_files):
 
     # Re-authenticate in worker process (same pattern as daac.py:379)
     if earthaccess.__store__ is None:
-        earthaccess.login(strategy='netrc', persist=False)
+        earthaccess.login(strategy="netrc", persist=False)
 
     # Open S3 handle from granule in this worker process
     try:
-        s3_files = earthaccess.open([granule], pqdm_kwargs={'disable': True})
+        s3_files = earthaccess.open([granule], pqdm_kwargs={"disable": True})
     except Exception as e:
         logger.warning(f"[{file_idx}/{n_files}] Failed to open S3 handle for {gf.full_name}: {e}")
         return None
@@ -208,22 +259,22 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
     # Expand variable specifications and ensure L2A essentials + shot_number
     product_vars = gedi_vars_expand(product_vars, version=version)
 
-    if ensure_l2a and 'L2A' not in product_vars:
+    if ensure_l2a and "L2A" not in product_vars:
         essentials = _get_versioned(_GEDI_L2A_ESSENTIALS, version)
-        product_vars.update({'L2A': essentials})
+        product_vars.update({"L2A": essentials})
 
     for k, val in product_vars.items():
         if val is None:
             continue
-        if 'shot_number' not in val:
-            val.append('shot_number')
+        if "shot_number" not in val:
+            val.append("shot_number")
 
     # Search for granules per product (no S3 handles opened yet)
     logger.info("Searching NASA DAAC for GEDI granules")
     gass = GEDIAccessor(authenticate=True, spatial=spatial, temporal=temporal)
 
     for prod in product_vars:
-        prod_version = version if version is not None else GEDI_PRODUCTS.get(prod.upper(), {}).get('version')
+        prod_version = version if version is not None else GEDI_PRODUCTS.get(prod.upper(), {}).get("version")
         gass.search_data(product=prod, version=prod_version)
 
     # Resolve None variables (dump all) by opening one S3 handle to discover schema
@@ -261,13 +312,20 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
 
         futures = [
             client.submit(
-                _subset_s3_file, granule, prod, product_vars,
-                odir, idx + 1, n_files, pure=False,
+                _subset_s3_file,
+                granule,
+                prod,
+                product_vars,
+                odir,
+                idx + 1,
+                n_files,
+                pure=False,
             )
             for idx, (granule, prod) in enumerate(tasks)
         ]
 
         from distributed import as_completed as dask_as_completed
+
         for future, result in dask_as_completed(futures, with_results=True):
             completed_count += 1
             if result is None:
@@ -284,8 +342,13 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
         with ProcessPoolExecutor(max_workers=n_workers) as pool:
             future_map = {
                 pool.submit(
-                    _subset_s3_file, granule, prod, product_vars,
-                    odir, idx + 1, n_files,
+                    _subset_s3_file,
+                    granule,
+                    prod,
+                    product_vars,
+                    odir,
+                    idx + 1,
+                    n_files,
                 ): idx
                 for idx, (granule, prod) in enumerate(tasks)
             }
@@ -303,7 +366,7 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
     return odir
 
 
-def h3_part_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode', roi_tiles=[]):
+def h3_part_files(df, dir_path, res=12, part=3, lat_col="lat_lowestmode", lon_col="lon_lowestmode", roi_tiles=[]):
     """
     Write a DataFrame to H3-partitioned parquet files.
 
@@ -336,32 +399,33 @@ def h3_part_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_co
     """
     if df.empty:
         return
-    
+
     df = h3_index_df(df, res=res, part=part, lat_col=lat_col, lon_col=lon_col)
-    df = df.reset_index().set_index(f'h3_{part:02d}')
-    
+    df = df.reset_index().set_index(f"h3_{part:02d}")
+
     files = []
     for i in df.index.unique():
         if len(roi_tiles) > 0 and i not in roi_tiles:
             continue
-        
-        hex_path = os.path.join(dir_path,i)        
+
+        hex_path = os.path.join(dir_path, i)
         hex_df = df.loc[[i]]
-        gedi_name = re.sub('\\.h5$',f'.{hex_df.root_beam.iloc[0]}.parquet', hex_df.root_file.iloc[0])
+        gedi_name = re.sub("\\.h5$", f".{hex_df.root_beam.iloc[0]}.parquet", hex_df.root_file.iloc[0])
         f = os.path.join(hex_path, gedi_name)
-        
-        if f.endswith('.parquet'):
+
+        if f.endswith(".parquet"):
             os.makedirs(hex_path, exist_ok=True)
             if os.path.exists(f):
                 parquet_append_columns(hex_df, f)
             else:
-                hex_df.to_parquet(f, engine='pyarrow', index=True, compression='zstd')
-            
+                hex_df.to_parquet(f, engine="pyarrow", index=True, compression="zstd")
+
         files.append(f)
         del hex_df
-    
-    del df    
+
+    del df
     return files
+
 
 def h3_write_metadata(h3_file):
     """
@@ -381,36 +445,37 @@ def h3_write_metadata(h3_file):
     str
         Path to the written metadata JSON file (``*PARTITION_META_FILENAME``).
     """
-    meta_file = h3_file.replace('.parquet', PARTITION_META_FILENAME)
-    h3_part, year = os.path.basename(h3_file).split('.')[:2]
-    
-    df = pd.read_parquet(h3_file, engine='pyarrow', columns=['shot_number','root_file_l2a','datetime'])
+    meta_file = h3_file.replace(".parquet", PARTITION_META_FILENAME)
+    h3_part, year = os.path.basename(h3_file).split(".")[:2]
+
+    df = pd.read_parquet(h3_file, engine="pyarrow", columns=["shot_number", "root_file_l2a", "datetime"])
 
     cols = read_parquet_schema(h3_file)
-    gedi_files = [GEDIFile(f) for f in df['root_file_l2a'].unique()]
-    shot_range = (int(df['shot_number'].min()), int(df['shot_number'].max()))
-    date_range = (df['datetime'].min().strftime('%Y-%m-%d'), df['datetime'].max().strftime('%Y-%m-%d'))
+    gedi_files = [GEDIFile(f) for f in df["root_file_l2a"].unique()]
+    shot_range = (int(df["shot_number"].min()), int(df["shot_number"].max()))
+    date_range = (df["datetime"].min().strftime("%Y-%m-%d"), df["datetime"].max().strftime("%Y-%m-%d"))
 
-    granule_identifiers = [{'orbit':gf.orbit, 'granule':gf.orbit_granule, 'track':gf.track} for gf in gedi_files]
+    granule_identifiers = [{"orbit": gf.orbit, "granule": gf.orbit_granule, "track": gf.track} for gf in gedi_files]
     l2a_version = gedi_files[0].version
 
     h3_polygon = gpd.GeoDataFrame(geometry=[fix_h3_geometry(h3_part)], crs=4326, index=[h3_part])
 
     meta = {
-        'last_modified': now(),
-        'l2a_version': l2a_version,
-        'h3_partition': h3_part,
-        'h3_geometry': to_geojson(h3_polygon),
-        'year': int(year),
-        'shot_count': len(df),
-        'shot_range': shot_range,
-        'date_range': date_range,
-        'granules': granule_identifiers,
-        'columns': cols['column'].tolist()
+        "last_modified": now(),
+        "l2a_version": l2a_version,
+        "h3_partition": h3_part,
+        "h3_geometry": to_geojson(h3_polygon),
+        "year": int(year),
+        "shot_count": len(df),
+        "shot_range": shot_range,
+        "date_range": date_range,
+        "granules": granule_identifiers,
+        "columns": cols["column"].tolist(),
     }
-    
+
     json_write(meta, meta_file, rewrite=True)
     return meta_file
+
 
 def h3_read_metadata(h3_file):
     """
@@ -428,10 +493,11 @@ def h3_read_metadata(h3_file):
         Parsed metadata dictionary, or None if the metadata file does not
         exist.
     """
-    meta_file = h3_file.replace('.parquet', PARTITION_META_FILENAME)
+    meta_file = h3_file.replace(".parquet", PARTITION_META_FILENAME)
     if os.path.exists(meta_file):
         return json_read(meta_file)
     return None
+
 
 def h3_merge_metadata(h3_subdir):
     """
@@ -452,38 +518,39 @@ def h3_merge_metadata(h3_subdir):
         Path to the merged metadata JSON file, or None if no metadata
         files were found.
     """
-    files = glob.glob(os.path.join(h3_subdir,'*','*.parquet'))
+    files = glob.glob(os.path.join(h3_subdir, "*", "*.parquet"))
     year_metadata = [h3_read_metadata(f) for f in files]
     year_metadata = [m for m in year_metadata if m is not None]
-    
+
     if len(year_metadata) == 0:
         return None
-    
+
     mmeta = year_metadata[0].copy()
-    
-    del mmeta['year']
-    mmeta['years'] = set()
-    
-    mmeta['last_modified'] = now()
-    mmeta['shot_range'] = list(mmeta['shot_range'])
-    mmeta['date_range'] = list(mmeta['date_range'])
-    
+
+    del mmeta["year"]
+    mmeta["years"] = set()
+
+    mmeta["last_modified"] = now()
+    mmeta["shot_range"] = list(mmeta["shot_range"])
+    mmeta["date_range"] = list(mmeta["date_range"])
+
     for ym in year_metadata[1:]:
-        mmeta['shot_count'] += ym['shot_count']
-        mmeta['shot_range'][0] = min(mmeta['shot_range'][0], ym['shot_range'][0])
-        mmeta['shot_range'][1] = max(mmeta['shot_range'][1], ym['shot_range'][1])
-        mmeta['date_range'][0] = min(mmeta['date_range'][0], ym['date_range'][0])
-        mmeta['date_range'][1] = max(mmeta['date_range'][1], ym['date_range'][1])
-        mmeta['years'].add(ym['year'])
-        
-        for g in ym['granules']:
-            if g not in mmeta['granules']:
-                mmeta['granules'].append(g)
-    
-    mmeta['years'] = sorted(mmeta['years'])
+        mmeta["shot_count"] += ym["shot_count"]
+        mmeta["shot_range"][0] = min(mmeta["shot_range"][0], ym["shot_range"][0])
+        mmeta["shot_range"][1] = max(mmeta["shot_range"][1], ym["shot_range"][1])
+        mmeta["date_range"][0] = min(mmeta["date_range"][0], ym["date_range"][0])
+        mmeta["date_range"][1] = max(mmeta["date_range"][1], ym["date_range"][1])
+        mmeta["years"].add(ym["year"])
+
+        for g in ym["granules"]:
+            if g not in mmeta["granules"]:
+                mmeta["granules"].append(g)
+
+    mmeta["years"] = sorted(mmeta["years"])
     ofile = os.path.join(h3_subdir, f"{mmeta['h3_partition']}{PARTITION_META_FILENAME}")
     json_write(mmeta, ofile, rewrite=True)
     return ofile
+
 
 def h3_skip_part(h3_dir, h3_part, gedi_file, cols=None):
     """
@@ -513,23 +580,24 @@ def h3_skip_part(h3_dir, h3_part, gedi_file, cols=None):
         and columns present), False otherwise.
     """
     res = h3.get_resolution(h3_part)
-    meta_file = os.path.join(h3_dir, f"h3_{res:02d}={h3_part}", f"{h3_part}{PARTITION_META_FILENAME}")    
-    
+    meta_file = os.path.join(h3_dir, f"h3_{res:02d}={h3_part}", f"{h3_part}{PARTITION_META_FILENAME}")
+
     if not os.path.exists(meta_file):
         return False
-    
+
     metadata = json_read(meta_file)
 
     skip_cols = True
     if cols:
-        existing_cols = set(metadata['columns'])
-        cols = set(cols) - {'year', f'h3_{res:02d}'}
+        existing_cols = set(metadata["columns"])
+        cols = set(cols) - {"year", f"h3_{res:02d}"}
         skip_cols = cols.issubset(existing_cols)
-    
+
     gf = GEDIFile(gedi_file)
-    granule_id = {'orbit':gf.orbit, 'granule':gf.orbit_granule, 'track':gf.track}
-    
-    return skip_cols and granule_id in metadata['granules']
+    granule_id = {"orbit": gf.orbit, "granule": gf.orbit_granule, "track": gf.track}
+
+    return skip_cols and granule_id in metadata["granules"]
+
 
 def h3_add_skip_column(df, h3_dir):
     """
@@ -554,10 +622,10 @@ def h3_add_skip_column(df, h3_dir):
         cell's granule data already exists in the database).
     """
     if df.empty:
-        df['_skip'] = True
+        df["_skip"] = True
         return df
-    h3_col = sorted([c for c in df.columns if re.match(r'h3_\d{2}', c)])[0]
-    gedi_file = df['root_file_l2a'].iloc[0]
+    h3_col = sorted([c for c in df.columns if re.match(r"h3_\d{2}", c)])[0]
+    gedi_file = df["root_file_l2a"].iloc[0]
     cols = df.columns.tolist()
 
     # Check each unique H3 partition cell individually
@@ -568,9 +636,11 @@ def h3_add_skip_column(df, h3_dir):
     df = df.assign(_skip=df[h3_col].map(skip_map))
     return df
 
+
 @dask.delayed
 def dh3_merge_metadata(h3_subdir):
     return h3_merge_metadata(h3_subdir)
+
 
 def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     """
@@ -600,38 +670,39 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
         Path to the merged parquet file, or None if ``in_dir`` contained
         no parquet files.
     """
-    files = glob.glob(os.path.join(in_dir,'*.parquet'))
-    
+    files = glob.glob(os.path.join(in_dir, "*.parquet"))
+
     if len(files) == 0:
-        return    
-    
-    year_dir =  os.path.dirname(in_dir)
-    year = os.path.basename(year_dir.rstrip('/'))
-    
+        return
+
+    year_dir = os.path.dirname(in_dir)
+    year = os.path.basename(year_dir.rstrip("/"))
+
     h3_dir = os.path.dirname(year_dir)
-    h3part = os.path.basename(h3_dir.rstrip('/'))
-    
+    h3part = os.path.basename(h3_dir.rstrip("/"))
+
     odir = os.path.join(out_dir, h3part, year)
     os.makedirs(odir, exist_ok=True)
-    
-    oname = f'{h3part.split('=')[-1]}.{year.split('=')[-1]}.0.parquet'
+
+    oname = f"{h3part.split('=')[-1]}.{year.split('=')[-1]}.0.parquet"
     out_file = os.path.join(odir, oname)
     h3_file = out_file
 
     if is_temp := (os.path.exists(out_file) and not replace):
-        files.insert(0,out_file)
+        files.insert(0, out_file)
         files = list(set(files))
-        out_file += '.tmp'
-    
+        out_file += ".tmp"
+
     parquet_merge_files(out_file, files, check_shots=is_temp, rm_src=rm_src)
-    
+
     if is_temp:
         os.replace(out_file, h3_file)
     if rm_src:
         shutil.rmtree(in_dir, ignore_errors=True)
 
-    meta_file = h3_write_metadata(h3_file)
+    h3_write_metadata(h3_file)
     return h3_file
+
 
 @dask.delayed
 def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
@@ -639,9 +710,7 @@ def dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
 
 
 def _expand_product_vars(
-    product_vars: Dict[str, List[str]],
-    soc_files: List[Dict[str, str]],
-    version: Optional[int] = None
+    product_vars: Dict[str, List[str]], soc_files: List[Dict[str, str]], version: Optional[int] = None
 ) -> Dict[str, List[str]]:
     """
     Expand product variable specifications and ensure L2A essentials are included.
@@ -675,10 +744,10 @@ def _expand_product_vars(
     product_vars = gedi_vars_expand(product_vars, version=version)
 
     essentials = _get_versioned(_GEDI_L2A_ESSENTIALS, version)
-    if 'L2A' in product_vars:
-        product_vars['L2A'] = list(set(product_vars['L2A'] + essentials))
+    if "L2A" in product_vars:
+        product_vars["L2A"] = list(set(product_vars["L2A"] + essentials))
     else:
-        product_vars['L2A'] = essentials
+        product_vars["L2A"] = essentials
 
     for k, val in product_vars.items():
         if val is None:
@@ -689,9 +758,7 @@ def _expand_product_vars(
 
 
 def _filter_granules(
-    prod_soc_files: List[Dict[str, str]],
-    product_vars: Dict[str, List[str]],
-    skip_granules: Optional[List[Dict]] = None
+    prod_soc_files: List[Dict[str, str]], product_vars: Dict[str, List[str]], skip_granules: Optional[List[Dict]] = None
 ) -> List[Dict[str, str]]:
     """
     Filter SOC files to exclude incomplete, corrupted, or already-processed granules.
@@ -710,13 +777,14 @@ def _filter_granules(
     list of dict
         Filtered list of valid SOC file dictionaries
     """
+
     def _filter_soc_file(prod):
         if not set(product_vars.keys()).issubset(set(prod.keys())):
             return None
 
         if skip_granules is not None:
             gedifile = GEDIFile(list(prod.values())[0])
-            gran = {'orbit': gedifile.orbit, 'granule': gedifile.orbit_granule, 'track': gedifile.track}
+            gran = {"orbit": gedifile.orbit, "granule": gedifile.orbit_granule, "track": gedifile.track}
             if gran in skip_granules:
                 return None
 
@@ -732,9 +800,9 @@ def _filter_granules(
 
     bag_task = (
         dbg.from_sequence(prod_soc_files, partition_size=100)
-          .map(_filter_soc_file)
-          .filter(lambda x: x is not None)
-          .persist()
+        .map(_filter_soc_file)
+        .filter(lambda x: x is not None)
+        .persist()
     )
 
     progress(bag_task)
@@ -749,10 +817,7 @@ def _filter_granules(
 
 
 def _create_h3_dataframe(
-    soc_files: List[Dict[str, str]],
-    product_vars: Dict[str, List[str]],
-    res: int,
-    part: int
+    soc_files: List[Dict[str, str]], product_vars: Dict[str, List[str]], res: int, part: int
 ) -> Tuple[dask_geopandas.GeoDataFrame, str, str, str]:
     """
     Create a Dask GeoDataFrame with H3 indexing from SOC files.
@@ -777,16 +842,16 @@ def _create_h3_dataframe(
 
     ddf = dask_h5_merged(soc_files, product_vars, shots=None, dropna=True, by_beam=True, suffix_all=True)
 
-    lat_col = 'lat_lowestmode'
-    lon_col = 'lon_lowestmode'
-    dat_col = 'delta_time'
+    lat_col = "lat_lowestmode"
+    lon_col = "lon_lowestmode"
+    dat_col = "delta_time"
 
-    if 'lat_lowestmode_l2a' in ddf.columns:
-        lat_col += '_l2a'
-    if 'lon_lowestmode_l2a' in ddf.columns:
-        lon_col += '_l2a'
-    if 'delta_time_l2a' in ddf.columns:
-        dat_col += '_l2a'
+    if "lat_lowestmode_l2a" in ddf.columns:
+        lat_col += "_l2a"
+    if "lon_lowestmode_l2a" in ddf.columns:
+        lon_col += "_l2a"
+    if "delta_time_l2a" in ddf.columns:
+        dat_col += "_l2a"
 
     logger.info(f"Indexing H3 at resolution {res}, partitioning at {part}")
 
@@ -795,12 +860,7 @@ def _create_h3_dataframe(
     return ddf, lat_col, lon_col, dat_col
 
 
-def _apply_spatial_filter(
-    ddf: dask.dataframe.DataFrame,
-    spatial,
-    part: int,
-    h3_dir: str
-) -> dask.dataframe.DataFrame:
+def _apply_spatial_filter(ddf: dask.dataframe.DataFrame, spatial, part: int, h3_dir: str) -> dask.dataframe.DataFrame:
     """
     Apply spatial and existing-data filters to the Dask DataFrame.
 
@@ -826,27 +886,22 @@ def _apply_spatial_filter(
 
     if len(h3_tiles) > 0:
         logger.info("Removing H3 partitions outside spatial filter")
-        ddf = ddf[ddf[f'h3_{part:02d}'].isin(h3_tiles)]
+        ddf = ddf[ddf[f"h3_{part:02d}"].isin(h3_tiles)]
 
     build_log = os.path.join(h3_dir, BUILD_LOG_FILENAME)
     if os.path.exists(build_log):
         logger.info("Checking for existing indexed GEDI data to skip")
         _meta = ddf._meta.copy()
-        _meta['_skip'] = False
+        _meta["_skip"] = False
         ddf = ddf.map_partitions(h3_add_skip_column, h3_dir=h3_dir, meta=_meta)
-        ddf = ddf[~ddf['_skip']]
-        ddf = ddf.drop(columns=['_skip'])
+        ddf = ddf[~ddf["_skip"]]
+        ddf = ddf.drop(columns=["_skip"])
 
     return ddf
 
 
 def _write_partitioned(
-    ddf: dask.dataframe.DataFrame,
-    tmp_dir: str,
-    part: int,
-    lat_col: str,
-    lon_col: str,
-    dat_col: str
+    ddf: dask.dataframe.DataFrame, tmp_dir: str, part: int, lat_col: str, lon_col: str, dat_col: str
 ) -> List[str]:
     """
     Write H3-indexed data to partitioned parquet files.
@@ -875,7 +930,14 @@ def _write_partitioned(
 
     logger.info(f"Writing partitioned H3 data to temporary directory: {tmp_dir}")
 
-    write_task = ddf.to_parquet(tmp_dir, write_index=True, overwrite=True, compression='zstd', partition_on=[f'h3_{part:02d}', 'year'], compute=False)
+    write_task = ddf.to_parquet(
+        tmp_dir,
+        write_index=True,
+        overwrite=True,
+        compression="zstd",
+        partition_on=[f"h3_{part:02d}", "year"],
+        compute=False,
+    )
     write_task = write_task.persist(optimize_graph=False)
 
     try:
@@ -883,8 +945,9 @@ def _write_partitioned(
 
         # Check for worker errors before cancelling
         from distributed import futures_of
+
         futures = futures_of(write_task)
-        errors = [f for f in futures if f.status == 'error']
+        errors = [f for f in futures if f.status == "error"]
         if errors:
             errors[0].result()  # Re-raises the original worker exception
     finally:
@@ -893,14 +956,11 @@ def _write_partitioned(
         client.cancel(write_task, force=True)
         del write_task, ddf
 
-    tmp_files = glob.glob(os.path.join(tmp_dir, '**', '*.parquet'), recursive=True)
+    tmp_files = glob.glob(os.path.join(tmp_dir, "**", "*.parquet"), recursive=True)
     return tmp_files
 
 
-def _merge_and_finalize(
-    tmp_dir: str,
-    h3_dir: str
-) -> List[str]:
+def _merge_and_finalize(tmp_dir: str, h3_dir: str) -> List[str]:
     """
     Merge temporary partitioned files into the final H3 database.
 
@@ -921,19 +981,19 @@ def _merge_and_finalize(
     """
     logger.info(f"Merging H3 partitions into final database path: {h3_dir}")
 
-    tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/*/'))
+    tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, "*/*/"))
     os.makedirs(h3_dir, exist_ok=True)
 
     # Resume support: skip already-merged partitions
-    merge_progress_file = os.path.join(tmp_dir, '_merge_progress.txt')
+    merge_progress_file = os.path.join(tmp_dir, "_merge_progress.txt")
     merged_parts = set()
     if os.path.exists(merge_progress_file):
-        with open(merge_progress_file, 'r') as f:
+        with open(merge_progress_file, "r") as f:
             merged_parts = {line.strip() for line in f if line.strip()}
         if merged_parts:
             logger.info(f"Resuming merge: {len(merged_parts)} partitions already merged")
 
-    remaining_dirs = [d for d in tmp_h3_dirs if d.rstrip('/') not in merged_parts]
+    remaining_dirs = [d for d in tmp_h3_dirs if d.rstrip("/") not in merged_parts]
 
     if not remaining_dirs:
         logger.info("All partitions already merged (resume)")
@@ -952,8 +1012,8 @@ def _merge_and_finalize(
             d = futures[future]
             try:
                 future.result()
-                with open(merge_progress_file, 'a') as f:
-                    f.write(d.rstrip('/') + '\n')
+                with open(merge_progress_file, "a") as f:
+                    f.write(d.rstrip("/") + "\n")
                 merged_count += 1
             except Exception as e:
                 failed_count += 1
@@ -968,15 +1028,15 @@ def _merge_and_finalize(
         if failed_count > 0:
             logger.error(f"{failed_count} partition merges failed. Re-run to retry.")
 
-    h3_files = glob.glob(os.path.join(h3_dir, 'h3_*', '*', '*.parquet'), recursive=False)
+    h3_files = glob.glob(os.path.join(h3_dir, "h3_*", "*", "*.parquet"), recursive=False)
 
     logger.info("Compiling H3 metadata files")
 
-    h3_subdirs = glob.glob(os.path.join(h3_dir, 'h3_*/'))
+    h3_subdirs = glob.glob(os.path.join(h3_dir, "h3_*/"))
     meta_tasks = [dh3_merge_metadata(i) for i in h3_subdirs]
     meta_tasks = dask.persist(*meta_tasks, optimize_graph=False)
     progress(meta_tasks)
-    meta_files = list(dask.compute(*meta_tasks))
+    dask.compute(*meta_tasks)
     del meta_tasks
 
     # Generate manifest for accelerated file listing
@@ -1009,44 +1069,41 @@ def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, 
     str or None
         Path to the updated parquet file, or None if no update was needed
     """
-    from .utils import parquet_join_columns
     import tempfile
 
+    from .utils import parquet_join_columns
+
     # Find the merged metadata file
-    meta_files = glob.glob(os.path.join(h3_partition_dir, f'*{PARTITION_META_FILENAME}'))
+    meta_files = glob.glob(os.path.join(h3_partition_dir, f"*{PARTITION_META_FILENAME}"))
     if not meta_files:
         return None
 
     # Use the partition-level metadata (not year-level)
     meta = json_read(meta_files[0])
-    granules = meta.get('granules', [])
+    granules = meta.get("granules", [])
     if not granules:
         return None
 
     # Get existing parquet files in this partition
-    parquet_files = glob.glob(os.path.join(h3_partition_dir, '*', '*.parquet'))
+    parquet_files = glob.glob(os.path.join(h3_partition_dir, "*", "*.parquet"))
     if not parquet_files:
         return None
 
     # Early exit: check if new columns already exist in partition
     first_schema = read_parquet_schema(parquet_files[0])
-    existing_cols = set(first_schema['column'].tolist())
+    existing_cols = set(first_schema["column"].tolist())
     new_cols = set()
     for prod, var_list in new_product_vars.items():
         if var_list:
             suffix = f"_{prod.lower()}"
-            new_cols.update(
-                v if v.endswith(suffix) else f"{v}{suffix}"
-                for v in var_list
-                if v != 'shot_number'
-            )
+            new_cols.update(v if v.endswith(suffix) else f"{v}{suffix}" for v in var_list if v != "shot_number")
     if new_cols and new_cols.issubset(existing_cols):
         logger.debug(f"Partition already has new variables, skipping: {os.path.basename(h3_partition_dir)}")
         return None
 
     # Build the SOC file tree for locating source HDF5 files
     if isinstance(soc_source, str):
-        glob_kwargs = {'version': version} if version is not None else None
+        glob_kwargs = {"version": version} if version is not None else None
         all_soc = soc_file_tree(soc_source, to_list=False, glob_kwargs=glob_kwargs)
     elif isinstance(soc_source, list):
         all_soc = soc_file_tree(soc_source, to_list=False)
@@ -1072,7 +1129,7 @@ def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, 
                 continue
 
             try:
-                cols_to_read = ['shot_number'] + var_list
+                cols_to_read = ["shot_number"] + var_list
                 df = load_h5(soc_files[prod], columns=cols_to_read, include_source=False)
                 if df is not None and not df.empty:
                     # Add product suffix to match normal build naming convention
@@ -1086,24 +1143,25 @@ def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, 
         return None
 
     import pandas as pd
+
     # load_h5 returns DataFrames indexed by shot_number — preserve that index
     new_vars_df = pd.concat(new_vars_list)
-    new_vars_df = new_vars_df[~new_vars_df.index.duplicated(keep='first')]
+    new_vars_df = new_vars_df[~new_vars_df.index.duplicated(keep="first")]
     new_vars_df = new_vars_df.reset_index()  # shot_number becomes a regular column
 
     # Write new vars to temp parquet
     tmp_file = None
     updated_files = []
     try:
-        with tempfile.NamedTemporaryFile(suffix='.parquet', delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
             tmp_file = tmp.name
-        new_vars_df.to_parquet(tmp_file, engine='pyarrow', index=False)
+        new_vars_df.to_parquet(tmp_file, engine="pyarrow", index=False)
         del new_vars_df
 
         # Join into each year-level parquet file
         for pf in parquet_files:
             try:
-                parquet_join_columns([pf, tmp_file], pf, key_col='shot_number')
+                parquet_join_columns([pf, tmp_file], pf, key_col="shot_number")
                 updated_files.append(pf)
             except Exception as e:
                 logger.warning(f"Failed to join columns into {pf}: {e}")
@@ -1144,7 +1202,7 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     """
     logger.info("Variable-only expansion detected: adding new columns via shot_number join")
 
-    h3_subdirs = glob.glob(os.path.join(h3_dir, 'h3_*/'))
+    h3_subdirs = glob.glob(os.path.join(h3_dir, "h3_*/"))
     if not h3_subdirs:
         logger.info("No existing partitions to update")
         return None
@@ -1155,8 +1213,7 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
 
     client = get_dask_client()
     futures = {
-        client.submit(_add_variables_to_partition, d, new_product_vars, soc_source, version): d
-        for d in h3_subdirs
+        client.submit(_add_variables_to_partition, d, new_product_vars, soc_source, version): d for d in h3_subdirs
     }
 
     updated_files = []
@@ -1176,7 +1233,9 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
 
         total = len(updated_files) + skipped_count + failed_count
         if total % 20 == 0 or total == len(h3_subdirs):
-            logger.info(f"Variable update progress: {len(updated_files)} updated, {skipped_count} skipped / {len(h3_subdirs)} total")
+            logger.info(
+                f"Variable update progress: {len(updated_files)} updated, {skipped_count} skipped / {len(h3_subdirs)} total"
+            )
 
     del futures
 
@@ -1199,7 +1258,7 @@ def build_h3db(
     temporal=None,
     soc_source: Union[str, List, None] = None,
     version: Optional[int] = None,
-    tmp_dir: str = os.path.join(GH3_DEFAULT_TMP_DIR, 'gh3_build'),
+    tmp_dir: str = os.path.join(GH3_DEFAULT_TMP_DIR, "gh3_build"),
     h3_dir: str = GH3_DEFAULT_H3_DIR,
     skip_granules: Optional[List[Dict]] = None,
     status_callback: Optional[Callable[[str], None]] = None,
@@ -1265,7 +1324,7 @@ def build_h3db(
         # S3 ETL mode: open remote files via earthaccess, extract only selected
         # variables via h5py range requests, write compact local HDF5 files.
         # Transfers 10-50x less data than full download depending on variable selection.
-        _s3_tmp_dir = os.path.join(tmp_dir, '_s3_download')
+        _s3_tmp_dir = os.path.join(tmp_dir, "_s3_download")
         os.makedirs(_s3_tmp_dir, exist_ok=True)
 
         if variable_only_update:
@@ -1273,7 +1332,7 @@ def build_h3db(
             logger.info(f"S3 variable-only update: adding {set(product_vars.keys())} to existing database")
             try:
                 if status_callback:
-                    status_callback('PROCESSING')
+                    status_callback("PROCESSING")
                 s3_etl_subset(
                     product_vars=product_vars.copy(),
                     spatial=spatial,
@@ -1283,8 +1342,10 @@ def build_h3db(
                     ensure_l2a=False,
                 )
                 result = _build_add_variables(
-                    h3_dir, product_vars,
-                    soc_source=_s3_tmp_dir, version=version,
+                    h3_dir,
+                    product_vars,
+                    soc_source=_s3_tmp_dir,
+                    version=version,
                 )
                 return result
             finally:
@@ -1312,14 +1373,14 @@ def build_h3db(
         if not os.path.exists(soc_source):
             raise GediFileError(f"SOC source directory not found: {soc_source}")
         logger.info("Listing source SOC files")
-        glob_kwargs = {'version': version} if version is not None else None
+        glob_kwargs = {"version": version} if version is not None else None
         all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=glob_kwargs)
     else:
         raise GediValidationError(f"Invalid soc_source type: {type(soc_source)}")
 
     try:
         if status_callback:
-            status_callback('PROCESSING')
+            status_callback("PROCESSING")
 
         if variable_only_update:
             logger.info(f"Variable-only update: adding {set(product_vars.keys())} to existing database")
@@ -1347,12 +1408,12 @@ def build_h3db(
         ddf = _apply_spatial_filter(ddf, spatial, part, h3_dir)
 
         if status_callback:
-            status_callback('PARTITIONING')
+            status_callback("PARTITIONING")
 
         # Write partitioned parquet files to a subdirectory of tmp_dir to avoid
         # conflicting with Dask worker scratch space (dask-worker-space/dirlock)
         # which causes PermissionError on Windows when overwrite=True deletes tmp_dir
-        parquet_dir = os.path.join(tmp_dir, 'partitions')
+        parquet_dir = os.path.join(tmp_dir, "partitions")
         tmp_files = _write_partitioned(ddf, parquet_dir, part, lat_col, lon_col, dat_col)
 
         if len(tmp_files) == 0:
@@ -1360,7 +1421,7 @@ def build_h3db(
             return None
 
         if status_callback:
-            status_callback('MERGING')
+            status_callback("MERGING")
 
         # Merge and finalize database
         h3_files = _merge_and_finalize(parquet_dir, h3_dir)
@@ -1371,6 +1432,7 @@ def build_h3db(
         if _s3_tmp_dir is not None and os.path.exists(_s3_tmp_dir):
             logger.debug(f"Cleaning up S3 temp directory: {_s3_tmp_dir}")
             shutil.rmtree(_s3_tmp_dir, ignore_errors=True)
+
 
 def build_parquet_metadata(gh3_dir):
     """
@@ -1393,38 +1455,41 @@ def build_parquet_metadata(gh3_dir):
         Returns early with no output if the directory contains no parquet
         files.
     """
-    h3_files = glob.glob(os.path.join(gh3_dir,'**','*.parquet'), recursive=True)
-    
+    h3_files = glob.glob(os.path.join(gh3_dir, "**", "*.parquet"), recursive=True)
+
     if len(h3_files) == 0:
-        return    
-    
+        return
+
     def _pq_meta(h3_file):
         pq_metadata = pq.read_metadata(h3_file)
         rel_path = os.path.relpath(h3_file, gh3_dir)
         pq_metadata.set_file_path(rel_path)
         return pq_metadata
-    
+
     h3_metas = dbg.from_sequence(h3_files, partition_size=10).map(_pq_meta).compute()
     base_schema = pq.read_schema(h3_files[0])
-    
+
     merged_bbox = None
-    if b'geo' in base_schema.metadata:
+    if b"geo" in base_schema.metadata:
+
         def _get_box(pq_metadata):
-            if b'geo' in pq_metadata.metadata:
-                return json.loads(pq_metadata.metadata[b'geo'])['columns']['geometry']['bbox']
+            if b"geo" in pq_metadata.metadata:
+                return json.loads(pq_metadata.metadata[b"geo"])["columns"]["geometry"]["bbox"]
             return None
-        
-        meta_boxes = dbg.from_sequence(h3_metas, partition_size=100).map(_get_box).filter(lambda x: x is not None).compute()
+
+        meta_boxes = (
+            dbg.from_sequence(h3_metas, partition_size=100).map(_get_box).filter(lambda x: x is not None).compute()
+        )
         meta_boxes = np.array(meta_boxes)
-        merged_bbox = meta_boxes[:,:2].min(axis=0).tolist() + meta_boxes[:,2:].max(axis=0).tolist()
+        merged_bbox = meta_boxes[:, :2].min(axis=0).tolist() + meta_boxes[:, 2:].max(axis=0).tolist()
         del meta_boxes
-    
+
     base_schema = parquet_schema_add_bbox(base_schema, bbox=merged_bbox)
-    pq.write_metadata(schema=base_schema, where=os.path.join(gh3_dir, '_metadata'))
-    
+    pq.write_metadata(schema=base_schema, where=os.path.join(gh3_dir, "_metadata"))
+
     cmeta = pq.ParquetDataset(h3_files)
     cmeta_schema = parquet_schema_add_bbox(cmeta.schema, bbox=merged_bbox)
-    pq.write_metadata(schema=cmeta_schema, where=os.path.join(gh3_dir, '_common_metadata'))
+    pq.write_metadata(schema=cmeta_schema, where=os.path.join(gh3_dir, "_common_metadata"))
 
 
 def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> dict:
@@ -1463,114 +1528,111 @@ def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> 
     ...     f'/path/to/database_world_merged/{BUILD_LOG_FILENAME}'
     ... )
     """
-    
+
     # Load both log files
     if not os.path.exists(log_file_1):
         raise GediFileError(f"Log file not found: {log_file_1}")
     if not os.path.exists(log_file_2):
         raise GediFileError(f"Log file not found: {log_file_2}")
-    
+
     log1 = json_read(log_file_1)
     log2 = json_read(log_file_2)
-    
+
     # Validate configuration compatibility
-    for key in ['gedi_version', 'h3_resolution_level', 'h3_partition_level']:
+    for key in ["gedi_version", "h3_resolution_level", "h3_partition_level"]:
         if log1.get(key) != log2.get(key):
             raise GediMergeError(
                 f"Incompatible {key}: log1={log1.get(key)}, log2={log2.get(key)}. "
                 f"Cannot merge logs with different configurations."
             )
-    
+
     # Start with log1 as base
     merged_log = log1.copy()
-    merged_log['last_modified'] = now()
-    
+    merged_log["last_modified"] = now()
+
     # Merge products and variables
-    products_1 = log1.get('products', {})
-    products_2 = log2.get('products', {})
-    
+    products_1 = log1.get("products", {})
+    products_2 = log2.get("products", {})
+
     merged_products = products_1.copy()
     for prod_key, prod_data in products_2.items():
         if prod_key in merged_products:
             # Product exists in both logs - merge variables
-            existing_vars = set(merged_products[prod_key].get('variables', []))
-            new_vars = set(prod_data.get('variables', []))
+            existing_vars = set(merged_products[prod_key].get("variables", []))
+            new_vars = set(prod_data.get("variables", []))
             merged_vars = sorted(list(existing_vars | new_vars))
-            merged_products[prod_key]['variables'] = merged_vars
+            merged_products[prod_key]["variables"] = merged_vars
             # Use COMPLETED status if both are complete
-            if merged_products[prod_key].get('status') == 'COMPLETED' and prod_data.get('status') == 'COMPLETED':
-                merged_products[prod_key]['status'] = 'COMPLETED'
+            if merged_products[prod_key].get("status") == "COMPLETED" and prod_data.get("status") == "COMPLETED":
+                merged_products[prod_key]["status"] = "COMPLETED"
             # Update timestamp to most recent
-            ts1 = merged_products[prod_key].get('last_modified', '')
-            ts2 = prod_data.get('last_modified', '')
-            merged_products[prod_key]['last_modified'] = max(ts1, ts2) if ts1 and ts2 else (ts1 or ts2)
+            ts1 = merged_products[prod_key].get("last_modified", "")
+            ts2 = prod_data.get("last_modified", "")
+            merged_products[prod_key]["last_modified"] = max(ts1, ts2) if ts1 and ts2 else (ts1 or ts2)
         else:
             # Product only in log2 - add it
             merged_products[prod_key] = prod_data.copy()
-    
-    merged_log['products'] = merged_products
-    
+
+    merged_log["products"] = merged_products
+
     # Merge granules (deduplicate)
-    granules_1 = log1.get('granules', [])
-    granules_2 = log2.get('granules', [])
+    granules_1 = log1.get("granules", [])
+    granules_2 = log2.get("granules", [])
     merged_granules = granules_1.copy()
     for g in granules_2:
         if g not in merged_granules:
             merged_granules.append(g)
     if merged_granules:
-        merged_log['granules'] = merged_granules
-    
+        merged_log["granules"] = merged_granules
+
     # Merge h3_columns (deduplicate and sort)
-    cols_1 = set(log1.get('h3_columns', []))
-    cols_2 = set(log2.get('h3_columns', []))
+    cols_1 = set(log1.get("h3_columns", []))
+    cols_2 = set(log2.get("h3_columns", []))
     merged_cols = sorted(list(cols_1 | cols_2))
     if merged_cols:
-        merged_log['h3_columns'] = merged_cols
-    
+        merged_log["h3_columns"] = merged_cols
+
     # Merge h3_partition_ids (deduplicate and sort)
-    parts_1 = set(log1.get('h3_partition_ids', []))
-    parts_2 = set(log2.get('h3_partition_ids', []))
+    parts_1 = set(log1.get("h3_partition_ids", []))
+    parts_2 = set(log2.get("h3_partition_ids", []))
     merged_parts = sorted(list(parts_1 | parts_2))
     if merged_parts:
-        merged_log['h3_partition_ids'] = merged_parts
-    
+        merged_log["h3_partition_ids"] = merged_parts
+
     # Merge date_range (min start date, max end date)
-    dr1 = log1.get('date_range')
-    dr2 = log2.get('date_range')
+    dr1 = log1.get("date_range")
+    dr2 = log2.get("date_range")
     if dr1 and dr2:
-        merged_log['date_range'] = [min(dr1[0], dr2[0]), max(dr1[1], dr2[1])]
+        merged_log["date_range"] = [min(dr1[0], dr2[0]), max(dr1[1], dr2[1])]
     elif dr2:
-        merged_log['date_range'] = dr2
-    
+        merged_log["date_range"] = dr2
+
     # Merge spatial_filter (use union of geometries if both exist)
-    spatial_1 = log1.get('spatial_filter')
-    spatial_2 = log2.get('spatial_filter')
+    spatial_1 = log1.get("spatial_filter")
+    spatial_2 = log2.get("spatial_filter")
     if spatial_1 and spatial_2:
         # Combine feature collections
-        features_1 = spatial_1.get('features', [])
-        features_2 = spatial_2.get('features', [])
+        features_1 = spatial_1.get("features", [])
+        features_2 = spatial_2.get("features", [])
         merged_features = features_1 + features_2
-        merged_log['spatial_filter'] = {
-            'type': 'FeatureCollection',
-            'features': merged_features
-        }
+        merged_log["spatial_filter"] = {"type": "FeatureCollection", "features": merged_features}
         # Update bbox if available
-        if 'bbox' in spatial_1 and 'bbox' in spatial_2:
-            bbox1 = spatial_1['bbox']
-            bbox2 = spatial_2['bbox']
-            merged_log['spatial_filter']['bbox'] = [
+        if "bbox" in spatial_1 and "bbox" in spatial_2:
+            bbox1 = spatial_1["bbox"]
+            bbox2 = spatial_2["bbox"]
+            merged_log["spatial_filter"]["bbox"] = [
                 min(bbox1[0], bbox2[0]),  # min lon
                 min(bbox1[1], bbox2[1]),  # min lat
                 max(bbox1[2], bbox2[2]),  # max lon
-                max(bbox1[3], bbox2[3])   # max lat
+                max(bbox1[3], bbox2[3]),  # max lat
             ]
     elif spatial_2:
-        merged_log['spatial_filter'] = spatial_2
-    
+        merged_log["spatial_filter"] = spatial_2
+
     # Write merged log
     os.makedirs(os.path.dirname(output_log_file), exist_ok=True)
     json_write(merged_log, output_log_file, rewrite=True)
-    
+
     logger.info(f"Merged build logs: {log_file_1} + {log_file_2} -> {output_log_file}")
-    
+
     return merged_log

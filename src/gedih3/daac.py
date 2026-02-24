@@ -1,41 +1,33 @@
 import os
 import time
-import logging
-from datetime import datetime
-from typing import Union, List, Dict, Optional, Tuple, Any, Callable
+import warnings
 from functools import partial
 from itertools import chain
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
 import earthaccess
 import geopandas as gpd
-from shapely.geometry import Polygon, MultiPolygon
-import warnings
-from pqdm.processes import pqdm
 from dask.distributed import progress
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception,
-    before_sleep_log,
-    RetryError,
-)
+from pqdm.processes import pqdm
+from shapely.geometry import Polygon
 
 # Import configuration variables
-from .config import GH3_DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS
-from .utils import get_dask_client, read_vector_file, geo_to_umm, parse_temporal
-from .gedidriver import GEDIFile, soc_file_tree, gedi_subset, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5
+from .config import GEDI_PRODUCTS, GH3_DEFAULT_DOWNLOAD_DIR
 from .exceptions import (
-    GediDownloadError,
+    RETRY_DEFAULTS,
     GediAuthenticationError,
+    GediDownloadError,
     GediNetworkError,
     GediProductError,
     GediValidationError,
     is_retryable_error,
-    RETRY_DEFAULTS,
 )
+from .gedidriver import GEDIFile, gedi_subset, gedi_vars_expand, gedi_vars_from_h5
 from .logging_config import get_logger
+from .utils import geo_to_umm, get_dask_client, parse_temporal, read_vector_file
 
 logger = get_logger(__name__)
+
 
 def gedi_list_versions(product: str) -> List[dict]:
     """Query NASA CMR for all available versions of a GEDI product.
@@ -54,19 +46,22 @@ def gedi_list_versions(product: str) -> List[dict]:
     if product not in GEDI_PRODUCTS:
         raise GediProductError(f"Product must be one of: {list(GEDI_PRODUCTS.keys())}")
 
-    short_name = GEDI_PRODUCTS[product]['short_name']
+    short_name = GEDI_PRODUCTS[product]["short_name"]
     collections = earthaccess.search_datasets(short_name=short_name)
     versions = []
     for c in collections:
-        umm = c.get('umm', {})
-        versions.append({
-            'version': c.get('meta', {}).get('native-id', umm.get('Version', 'unknown')).split('.')[-1]
-                if not umm.get('Version') else umm.get('Version'),
-            'doi': umm.get('DOI', {}).get('DOI') if isinstance(umm.get('DOI'), dict) else None,
-            'concept_id': c.get('meta', {}).get('concept-id'),
-            'title': umm.get('EntryTitle', ''),
-        })
-    return sorted(versions, key=lambda x: x.get('version', ''))
+        umm = c.get("umm", {})
+        versions.append(
+            {
+                "version": c.get("meta", {}).get("native-id", umm.get("Version", "unknown")).split(".")[-1]
+                if not umm.get("Version")
+                else umm.get("Version"),
+                "doi": umm.get("DOI", {}).get("DOI") if isinstance(umm.get("DOI"), dict) else None,
+                "concept_id": c.get("meta", {}).get("concept-id"),
+                "title": umm.get("EntryTitle", ""),
+            }
+        )
+    return sorted(versions, key=lambda x: x.get("version", ""))
 
 
 def gedi_latest_version(product: str) -> str:
@@ -90,7 +85,7 @@ def gedi_latest_version(product: str) -> str:
     versions = gedi_list_versions(product)
     if not versions:
         raise GediProductError(f"No versions found for {product}")
-    return versions[-1]['version']
+    return versions[-1]["version"]
 
 
 class GEDIAccessor:
@@ -124,25 +119,28 @@ class GEDIAccessor:
     >>> granules = accessor.search_data('L4A')
     >>> paths = accessor.download_all('/path/to/output', product='L4A')
     """
-    
-    def __init__(self, authenticate: bool = True, 
-                 spatial: Union[List[float], Polygon, str, gpd.GeoDataFrame] = None,
-                 temporal: Union[Tuple[str, str], List[str]] = None):
-        
+
+    def __init__(
+        self,
+        authenticate: bool = True,
+        spatial: Union[List[float], Polygon, str, gpd.GeoDataFrame] = None,
+        temporal: Union[Tuple[str, str], List[str]] = None,
+    ):
+
         self.product_files = {}
-        
+
         if spatial is not None:
             self.is_bounding_box = False
             self.spatial = self._process_spatial_filter(spatial)
-        
+
         if temporal is not None:
             self.temporal = self._process_temporal_filter(temporal)
-        
+
         self.authenticated = False
         if authenticate:
             self.login()
-    
-    def login(self, strategy: str = 'netrc', persist: bool = True, max_attempts: int = 3):
+
+    def login(self, strategy: str = "netrc", persist: bool = True, max_attempts: int = 3):
         """
         Authenticate with NASA Earthdata Login.
 
@@ -174,27 +172,28 @@ class GEDIAccessor:
         Create an account at https://urs.earthdata.nasa.gov/ if needed.
         """
         # Check if netrc credentials exist before attempting login
-        if strategy == 'netrc':
+        if strategy == "netrc":
             import netrc
             import os
-            netrc_path = os.path.expanduser('~/.netrc')
+
+            netrc_path = os.path.expanduser("~/.netrc")
             if not os.path.exists(netrc_path):
                 raise GediAuthenticationError(
-                    f"No ~/.netrc file found. Please create one with your NASA Earthdata credentials:\n\n"
-                    f"  machine urs.earthdata.nasa.gov\n"
-                    f"      login YOUR_USERNAME\n"
-                    f"      password YOUR_PASSWORD\n\n"
-                    f"Create an account at https://urs.earthdata.nasa.gov/ if needed."
+                    "No ~/.netrc file found. Please create one with your NASA Earthdata credentials:\n\n"
+                    "  machine urs.earthdata.nasa.gov\n"
+                    "      login YOUR_USERNAME\n"
+                    "      password YOUR_PASSWORD\n\n"
+                    "Create an account at https://urs.earthdata.nasa.gov/ if needed."
                 )
             try:
                 nrc = netrc.netrc(netrc_path)
-                if nrc.authenticators('urs.earthdata.nasa.gov') is None:
+                if nrc.authenticators("urs.earthdata.nasa.gov") is None:
                     raise GediAuthenticationError(
-                        f"No NASA Earthdata credentials found in ~/.netrc. Please add:\n\n"
-                        f"  machine urs.earthdata.nasa.gov\n"
-                        f"      login YOUR_USERNAME\n"
-                        f"      password YOUR_PASSWORD\n\n"
-                        f"Create an account at https://urs.earthdata.nasa.gov/ if needed."
+                        "No NASA Earthdata credentials found in ~/.netrc. Please add:\n\n"
+                        "  machine urs.earthdata.nasa.gov\n"
+                        "      login YOUR_USERNAME\n"
+                        "      password YOUR_PASSWORD\n\n"
+                        "Create an account at https://urs.earthdata.nasa.gov/ if needed."
                     )
             except netrc.NetrcParseError as e:
                 raise GediAuthenticationError(f"Error parsing ~/.netrc file: {e}")
@@ -209,7 +208,7 @@ class GEDIAccessor:
             except Exception as e:
                 last_error = e
                 if attempt < max_attempts:
-                    wait_time = 2 ** attempt
+                    wait_time = 2**attempt
                     logger.warning(f"Authentication attempt {attempt} failed: {e}. Retrying in {wait_time}s...")
                     time.sleep(wait_time)
 
@@ -217,7 +216,7 @@ class GEDIAccessor:
         self.auth = None
         self.authenticated = False
         raise GediAuthenticationError(f"Failed to authenticate after {max_attempts} attempts: {last_error}")
-    
+
     def search_data(self, product: str = None, version: str = None, **kwargs) -> List[Any]:
         """
         Search for GEDI granules with spatial and temporal filtering.
@@ -256,30 +255,30 @@ class GEDIAccessor:
             self.product = GEDI_PRODUCTS[product.upper()]
 
             # Prefer short_name + version over DOI
-            if 'short_name' in self.product:
-                search_params['short_name'] = self.product['short_name']
+            if "short_name" in self.product:
+                search_params["short_name"] = self.product["short_name"]
                 if version is not None:
                     # LPDAAC uses zero-padded versions (e.g., '002'), ORNLDAAC uses plain strings (e.g., '2', '2.1')
-                    if self.product.get('daac') == 'LPDAAC':
-                        search_params['version'] = f'{int(version):03d}'
+                    if self.product.get("daac") == "LPDAAC":
+                        search_params["version"] = f"{int(version):03d}"
                     else:
-                        search_params['version'] = str(version)
+                        search_params["version"] = str(version)
             else:
                 # Fallback to DOI
-                search_params['doi'] = self.product['doi']
+                search_params["doi"] = self.product["doi"]
         else:
             self.product = None
 
         # Handle spatial filtering
-        if hasattr(self, 'spatial'):
+        if hasattr(self, "spatial"):
             if self.is_bounding_box:
-                search_params['bounding_box'] = self.spatial
+                search_params["bounding_box"] = self.spatial
             else:
-                search_params['polygon'] = self.spatial
+                search_params["polygon"] = self.spatial
 
         # Handle temporal filtering
-        if hasattr(self, 'temporal'):
-            search_params['temporal'] = self.temporal
+        if hasattr(self, "temporal"):
+            search_params["temporal"] = self.temporal
 
         # Add any additional parameters
         search_params.update(kwargs)
@@ -288,50 +287,57 @@ class GEDIAccessor:
         self.granules = earthaccess.search_data(**search_params)
 
         # DOI fallback: if short_name search returned 0 results, retry with DOI
-        if len(self.granules) == 0 and self.product is not None and 'short_name' in search_params and 'doi' in self.product:
+        if (
+            len(self.granules) == 0
+            and self.product is not None
+            and "short_name" in search_params
+            and "doi" in self.product
+        ):
             logger.warning(f"No granules found with short_name '{search_params['short_name']}', retrying with DOI")
-            fallback_params = {k: v for k, v in search_params.items() if k not in ('short_name', 'version')}
-            fallback_params['doi'] = self.product['doi']
+            fallback_params = {k: v for k, v in search_params.items() if k not in ("short_name", "version")}
+            fallback_params["doi"] = self.product["doi"]
             self.granules = earthaccess.search_data(**fallback_params)
 
-        product_key = product.upper() if product is not None else 'CUSTOM'
+        product_key = product.upper() if product is not None else "CUSTOM"
         self.product_files[product_key] = self.granules
 
-        dataset_name = product if product is not None else kwargs.get('short_name', kwargs.get('concept_id', 'custom dataset'))
+        dataset_name = (
+            product if product is not None else kwargs.get("short_name", kwargs.get("concept_id", "custom dataset"))
+        )
         logger.info(f"Found {len(self.granules)} {dataset_name} granules")
         return self.granules
-    
+
     def _process_spatial_filter(self, spatial) -> Optional[Tuple[float, float, float, float]]:
         try:
             if (isinstance(spatial, list) or isinstance(spatial, tuple)) and len(spatial) == 4:
                 self.is_bounding_box = True
                 return tuple(spatial)
-            
+
             elif isinstance(spatial, str) and os.path.exists(spatial):
                 spatial = read_vector_file(spatial)
-            
+
             return geo_to_umm(spatial)
-            
+
         except Exception as e:
             warnings.warn(f"Could not process spatial filter: {e}")
             return None
-    
+
     def _process_temporal_filter(self, temporal) -> Tuple[str, str]:
         return parse_temporal(temporal)
-    
+
     def download_all(self, download_dir: str = None, product: str = None, **kwargs):
         if not self.authenticated:
             raise GediAuthenticationError("Must authenticate before downloading")
 
-        if not hasattr(self, 'granules'):
+        if not hasattr(self, "granules"):
             raise GediNetworkError("No granules found. Please run search_data() first.")
-       
+
         if download_dir is None:
-            download_dir = DEFAULT_DOWNLOAD_DIR
-        
+            download_dir = GH3_DEFAULT_DOWNLOAD_DIR
+
         granules = self.granules if product is None else self.product_files[product.upper()]
-        
-        os.makedirs(download_dir, exist_ok=True)        
+
+        os.makedirs(download_dir, exist_ok=True)
         downloaded_files = earthaccess.download(granules, download_dir, **kwargs)
         return downloaded_files
 
@@ -339,27 +345,27 @@ class GEDIAccessor:
         if not self.authenticated:
             raise GediAuthenticationError("Must authenticate before accessing S3")
 
-        if not hasattr(self, 'granules'):
+        if not hasattr(self, "granules"):
             raise GediNetworkError("No granules found. Please run search_data() first.")
 
         if product is None:
             granules = self.granules
         else:
             # Handle both standard product keys and 'CUSTOM'
-            product_key = product.upper() if product else 'CUSTOM'
+            product_key = product.upper() if product else "CUSTOM"
             granules = self.product_files.get(product_key, self.granules)
 
-        s3_files = earthaccess.open(granules, pqdm_kwargs={'disable': True})
-        return s3_files    
-    
+        s3_files = earthaccess.open(granules, pqdm_kwargs={"disable": True})
+        return s3_files
+
     def merge_paths(self, open_s3: bool = False):
-        if not hasattr(self, 'product_files'):
+        if not hasattr(self, "product_files"):
             raise GediNetworkError("No products found. Please run search_data() first.")
-        
-        paths = self.product_files        
+
+        paths = self.product_files
         if open_s3:
             paths = {prod: self.link_s3(prod) for prod in self.product_files.keys()}
-        
+
         all_files = list(chain(*paths.values()))
         return all_files
 
@@ -367,9 +373,9 @@ class GEDIAccessor:
 def _download_with_retry(
     granule,
     odir_soc: str,
-    max_attempts: int = RETRY_DEFAULTS['max_attempts'],
-    initial_wait: float = RETRY_DEFAULTS['initial_wait'],
-    max_wait: float = RETRY_DEFAULTS['max_wait']
+    max_attempts: int = RETRY_DEFAULTS["max_attempts"],
+    initial_wait: float = RETRY_DEFAULTS["initial_wait"],
+    max_wait: float = RETRY_DEFAULTS["max_wait"],
 ) -> Optional[str]:
     """
     Download a granule with automatic retry on transient failures.
@@ -399,25 +405,23 @@ def _download_with_retry(
     """
     granule_id = None
     try:
-        granule_id = granule.data_links()[0].split('/')[-1]
+        granule_id = granule.data_links()[0].split("/")[-1]
     except Exception:
         granule_id = str(granule)
 
     # Ensure authentication in worker processes (pqdm/Dask spawn fresh processes
     # that don't inherit the main-process earthaccess session)
     if earthaccess.__store__ is None:
-        earthaccess.login(strategy='netrc', persist=False)
+        earthaccess.login(strategy="netrc", persist=False)
 
     last_error = None
     for attempt in range(1, max_attempts + 1):
         try:
-            opath = earthaccess.download(granule, odir_soc, threads=1, pqdm_kwargs={'disable': True})
+            opath = earthaccess.download(granule, odir_soc, threads=1, pqdm_kwargs={"disable": True})
 
             if len(opath) == 0:
                 raise GediDownloadError(
-                    f"Download returned empty result for {granule_id}",
-                    granule_id=granule_id,
-                    attempts=attempt
+                    f"Download returned empty result for {granule_id}", granule_id=granule_id, attempts=attempt
                 )
 
             return str(opath[0])
@@ -428,9 +432,7 @@ def _download_with_retry(
             if not is_retryable_error(e):
                 logger.error(f"Non-retryable error downloading {granule_id}: {e}")
                 raise GediDownloadError(
-                    f"Download failed for {granule_id}: {e}",
-                    granule_id=granule_id,
-                    attempts=attempt
+                    f"Download failed for {granule_id}: {e}", granule_id=granule_id, attempts=attempt
                 ) from e
 
             if attempt < max_attempts:
@@ -444,15 +446,12 @@ def _download_with_retry(
     raise GediDownloadError(
         f"Download failed after {max_attempts} attempts for {granule_id}: {last_error}",
         granule_id=granule_id,
-        attempts=max_attempts
+        attempts=max_attempts,
     )
 
 
 def download_custom_granule(
-    granule,
-    odir: str,
-    resume: bool = False,
-    max_attempts: int = RETRY_DEFAULTS['max_attempts']
+    granule, odir: str, resume: bool = False, max_attempts: int = RETRY_DEFAULTS["max_attempts"]
 ) -> Optional[str]:
     """
     Download a custom (non-GEDI) granule with retry logic.
@@ -480,7 +479,7 @@ def download_custom_granule(
     # Extract filename from data link
     try:
         data_link = granule.data_links()[0]
-        filename = data_link.split('/')[-1]
+        filename = data_link.split("/")[-1]
     except Exception:
         filename = None
 
@@ -507,7 +506,7 @@ def download_granule(
     odir: str = None,
     subset_vars: List[str] = None,
     resume: bool = False,
-    max_attempts: int = RETRY_DEFAULTS['max_attempts']
+    max_attempts: int = RETRY_DEFAULTS["max_attempts"],
 ) -> Optional[str]:
     """
     Download a GEDI granule with retry logic and optional variable subsetting.
@@ -531,7 +530,7 @@ def download_granule(
         Path to downloaded/existing file, or None on failure
     """
     gfile = GEDIFile(granule.data_links()[0])
-    odir_soc = os.path.join(odir, str(gfile.date.year), gfile.date.strftime('%j'))
+    odir_soc = os.path.join(odir, str(gfile.date.year), gfile.date.strftime("%j"))
     os.makedirs(odir_soc, exist_ok=True)
 
     expected_filename = gfile.full_name
@@ -576,7 +575,7 @@ def download_granule(
 
     # Apply variable subsetting if requested
     if subset_vars is not None:
-        osub = opath.replace('.h5', '_subset.h5')
+        osub = opath.replace(".h5", "_subset.h5")
         try:
             osub = gedi_subset(opath, osub, subset_vars)
             if osub is not None:
@@ -587,16 +586,17 @@ def download_granule(
 
     return opath
 
+
 def gedi_download(
     product_vars: Dict = None,
     odir: str = None,
-    spatial = None,
-    temporal = None,
-    version = None,
+    spatial=None,
+    temporal=None,
+    version=None,
     n_jobs: int = 5,
     to_list: bool = False,
     resume: bool = False,
-    max_attempts: int = RETRY_DEFAULTS['max_attempts'],
+    max_attempts: int = RETRY_DEFAULTS["max_attempts"],
     search_kwargs: Dict = None,
     on_granule_complete: Optional[Callable] = None,
 ) -> Union[Dict[str, List[str]], List[str]]:
@@ -662,7 +662,7 @@ def gedi_download(
 
     # Handle custom dataset download (no product_vars, using search_kwargs)
     if product_vars is None and search_kwargs is not None:
-        product_vars = {'CUSTOM': None}  # Placeholder for custom dataset
+        product_vars = {"CUSTOM": None}  # Placeholder for custom dataset
     elif product_vars is None:
         raise GediValidationError("Either product_vars or search_kwargs must be provided")
     else:
@@ -679,11 +679,11 @@ def gedi_download(
     for prod, vars in product_vars.items():
         try:
             # Use custom search kwargs for CUSTOM product or standard product search
-            if prod == 'CUSTOM' and search_kwargs is not None:
+            if prod == "CUSTOM" and search_kwargs is not None:
                 granules = gass.search_data(product=None, **search_kwargs)
             else:
                 # Use per-product config version when --gedi-version not specified
-                prod_version = version if version is not None else GEDI_PRODUCTS.get(prod.upper(), {}).get('version')
+                prod_version = version if version is not None else GEDI_PRODUCTS.get(prod.upper(), {}).get("version")
                 granules = gass.search_data(product=prod, version=prod_version)
 
             if len(granules) == 0:
@@ -693,41 +693,35 @@ def gedi_download(
 
             if odir is None:
                 # Return S3 links for streaming access
-                product_key = prod if prod != 'CUSTOM' else None
+                product_key = prod if prod != "CUSTOM" else None
                 opaths = gass.link_s3(product=product_key)
             else:
                 # Select appropriate download function
-                if prod == 'CUSTOM':
+                if prod == "CUSTOM":
                     # Use simpler download function for custom datasets
                     download_func = partial(
-                        download_custom_granule,
-                        odir=odir,
-                        resume=resume,
-                        max_attempts=max_attempts
+                        download_custom_granule, odir=odir, resume=resume, max_attempts=max_attempts
                     )
                 else:
                     # Use GEDI-specific download with variable subsetting
                     download_func = partial(
-                        download_granule,
-                        odir=odir,
-                        subset_vars=vars,
-                        resume=resume,
-                        max_attempts=max_attempts
+                        download_granule, odir=odir, subset_vars=vars, resume=resume, max_attempts=max_attempts
                     )
 
                 # Register all granules as PENDING before download
-                if on_granule_complete and prod != 'CUSTOM':
+                if on_granule_complete and prod != "CUSTOM":
                     for g in granules:
                         gfile = GEDIFile(g.data_links()[0])
-                        ginfo = {'orbit': gfile.orbit, 'granule': gfile.orbit_granule, 'track': gfile.track}
-                        on_granule_complete(ginfo, 'PENDING')
+                        ginfo = {"orbit": gfile.orbit, "granule": gfile.orbit_granule, "track": gfile.track}
+                        on_granule_complete(ginfo, "PENDING")
 
                 if dask_client is not None:
                     futures = dask_client.map(download_func, granules)
 
-                    if on_granule_complete and prod != 'CUSTOM':
+                    if on_granule_complete and prod != "CUSTOM":
                         # Real-time per-file tracking via as_completed
                         from distributed import as_completed as dask_as_completed
+
                         future_to_granule = dict(zip(futures, granules))
                         opaths_map = {}
                         n_total = len(futures)
@@ -735,10 +729,10 @@ def gedi_download(
                             opaths_map[future] = result
                             g = future_to_granule[future]
                             gfile = GEDIFile(g.data_links()[0])
-                            ginfo = {'orbit': gfile.orbit, 'granule': gfile.orbit_granule, 'track': gfile.track}
-                            status = 'DOWNLOADED' if result else 'FAILED'
+                            ginfo = {"orbit": gfile.orbit, "granule": gfile.orbit_granule, "track": gfile.track}
+                            status = "DOWNLOADED" if result else "FAILED"
                             on_granule_complete(ginfo, status)
-                            logger.info(f"[{prod}] {i+1}/{n_total} granules processed")
+                            logger.info(f"[{prod}] {i + 1}/{n_total} granules processed")
                         # Reconstruct in original order
                         opaths = [opaths_map[f] for f in futures]
                     else:
@@ -748,11 +742,11 @@ def gedi_download(
                 else:
                     opaths = pqdm(granules, download_func, n_jobs=n_jobs)
                     # Batch update after pqdm completion
-                    if on_granule_complete and prod != 'CUSTOM':
+                    if on_granule_complete and prod != "CUSTOM":
                         for g, result in zip(granules, opaths):
                             gfile = GEDIFile(g.data_links()[0])
-                            ginfo = {'orbit': gfile.orbit, 'granule': gfile.orbit_granule, 'track': gfile.track}
-                            status = 'DOWNLOADED' if result else 'FAILED'
+                            ginfo = {"orbit": gfile.orbit, "granule": gfile.orbit_granule, "track": gfile.track}
+                            status = "DOWNLOADED" if result else "FAILED"
                             on_granule_complete(ginfo, status)
 
                 # Filter out None values (failed downloads)
@@ -781,4 +775,3 @@ def gedi_download(
         prod_paths = list(chain(*prod_paths.values()))
 
     return prod_paths
-

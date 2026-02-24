@@ -7,25 +7,22 @@ from GEDI data. It supports:
 - Time-windowed aggregation (years, months, weeks, days)
 - Batch raster generation for time intervals
 """
-from typing import Callable, Generator, List, Optional, Tuple, Union
+
 import datetime
-import numpy as np
-import pandas as pd
+from typing import Callable, Generator, List, Optional, Tuple, Union
+
 import geopandas as gpd
+import pandas as pd
 import xarray as xr
 from dateutil.relativedelta import relativedelta
 
-from .config import TIME_UNITS, GEDI_START_DATE_STR
-
+from .config import GEDI_START_DATE_STR, TIME_UNITS
 
 # GEDI mission start date
 GEDI_START_DATE = pd.Timestamp(GEDI_START_DATE_STR)
 
 
-def parse_datetime_column(
-    df: Union[pd.DataFrame, gpd.GeoDataFrame],
-    time_col: Optional[str] = None
-) -> Optional[str]:
+def parse_datetime_column(df: Union[pd.DataFrame, gpd.GeoDataFrame], time_col: Optional[str] = None) -> Optional[str]:
     """
     Find and identify the datetime column in a DataFrame.
 
@@ -47,18 +44,16 @@ def parse_datetime_column(
     # Look for common datetime column names
     for col in df.columns:
         col_lower = str(col).lower()
-        if 'datetime' in col_lower or col_lower == 'time':
+        if "datetime" in col_lower or col_lower == "time":
             return col
-        if 'delta_time' in col_lower:
+        if "delta_time" in col_lower:
             return col
 
     return None
 
 
 def convert_delta_time_to_datetime(
-    df: Union[pd.DataFrame, gpd.GeoDataFrame],
-    delta_time_col: str = 'delta_time',
-    output_col: str = 'datetime'
+    df: Union[pd.DataFrame, gpd.GeoDataFrame], delta_time_col: str = "delta_time", output_col: str = "datetime"
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
     Convert GEDI delta_time (seconds since epoch) to datetime.
@@ -84,10 +79,7 @@ def convert_delta_time_to_datetime(
 
     # Convert delta_time (seconds since GEDI epoch) to datetime
     df = df.copy()
-    df[output_col] = pd.to_datetime(
-        df[delta_time_col] + GEDI_START_DATE.timestamp(),
-        unit='s'
-    )
+    df[output_col] = pd.to_datetime(df[delta_time_col] + GEDI_START_DATE.timestamp(), unit="s")
 
     return df
 
@@ -96,7 +88,7 @@ def generate_time_windows(
     start_date: Union[str, datetime.datetime],
     end_date: Union[str, datetime.datetime],
     interval: int,
-    units: str = 'years'
+    units: str = "years",
 ) -> Generator[Tuple[datetime.datetime, datetime.datetime, str], None, None]:
     """
     Generate time windows for temporal aggregation.
@@ -131,14 +123,15 @@ def generate_time_windows(
 
     # Parse dates
     if isinstance(start_date, str):
-        start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+        start_date = datetime.datetime.strptime(start_date, "%Y-%m-%d")
     if isinstance(end_date, str):
-        end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+        end_date = datetime.datetime.strptime(end_date, "%Y-%m-%d")
 
     # Warn about pre-GEDI dates
     gedi_start = datetime.datetime(2019, 4, 17)
     if start_date < gedi_start:
         import warnings
+
         warnings.warn(f"No GEDI data available before 2019-04-17. Start date is {start_date}")
 
     # Generate windows
@@ -161,7 +154,7 @@ def filter_by_time_range(
     df: Union[pd.DataFrame, gpd.GeoDataFrame],
     start_date: Optional[Union[str, datetime.datetime]] = None,
     end_date: Optional[Union[str, datetime.datetime]] = None,
-    time_col: str = 'datetime'
+    time_col: str = "datetime",
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
     Filter DataFrame by time range.
@@ -201,9 +194,7 @@ def filter_by_time_range(
 
 
 def build_temporal_query(
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    time_col: str = 'datetime'
+    start_date: Optional[str] = None, end_date: Optional[str] = None, time_col: str = "datetime"
 ) -> Optional[str]:
     """
     Build a pandas query string for temporal filtering.
@@ -230,7 +221,7 @@ def build_temporal_query(
         queries.append(f"{time_col} < '{end_date}'")
 
     if queries:
-        return ' and '.join(queries)
+        return " and ".join(queries)
     return None
 
 
@@ -279,11 +270,11 @@ class TimeSeriesRasterizer:
     def __init__(
         self,
         gdf: Union[pd.DataFrame, gpd.GeoDataFrame],
-        time_col: str = 'datetime',
-        aggregation: Union[str, List, dict, Callable] = 'mean',
+        time_col: str = "datetime",
+        aggregation: Union[str, List, dict, Callable] = "mean",
         target_level: int = 6,
         use_egi: bool = False,
-        columns: Optional[List[str]] = None
+        columns: Optional[List[str]] = None,
     ):
         self.gdf = gdf
         self.time_col = time_col
@@ -302,12 +293,7 @@ class TimeSeriesRasterizer:
                 raise ValueError(f"Datetime column '{time_col}' not found in data")
 
     def generate(
-        self,
-        start_date: str,
-        end_date: str,
-        interval: int,
-        units: str = 'years',
-        to_raster: bool = True
+        self, start_date: str, end_date: str, interval: int, units: str = "years", to_raster: bool = True
     ) -> Generator[Tuple[Union[gpd.GeoDataFrame, xr.Dataset], str], None, None]:
         """
         Generate time-series outputs.
@@ -332,12 +318,7 @@ class TimeSeriesRasterizer:
         """
         for t0, t1, suffix in generate_time_windows(start_date, end_date, interval, units):
             # Filter data for this time window
-            window_data = filter_by_time_range(
-                self.gdf,
-                start_date=t0,
-                end_date=t1,
-                time_col=self.time_col
-            )
+            window_data = filter_by_time_range(self.gdf, start_date=t0, end_date=t1, time_col=self.time_col)
 
             if len(window_data) == 0:
                 continue
@@ -348,10 +329,7 @@ class TimeSeriesRasterizer:
             if to_raster:
                 # Convert to raster
                 raster = self._rasterize(aggregated)
-                raster = raster.assign_attrs(
-                    time_start=t0.isoformat(),
-                    time_end=t1.isoformat()
-                )
+                raster = raster.assign_attrs(time_start=t0.isoformat(), time_end=t1.isoformat())
                 yield raster, suffix
             else:
                 yield aggregated, suffix
@@ -360,25 +338,24 @@ class TimeSeriesRasterizer:
         """Perform spatial aggregation."""
         if self.use_egi:
             from .. import egi
+
             # Convert to EGI and aggregate
             egi_df = egi.egi_dataframe(gdf, level=self.target_level)
             return egi.egi_aggregate(egi_df, mapper=self.aggregation)
         else:
             # H3 aggregation
-            from ..gh3driver import gh3_aggregate_func, gh3_add_geometry
-            agg_df = gh3_aggregate_func(
-                gdf,
-                res=self.target_level,
-                agg=self.aggregation,
-                cols=self.columns
-            )
+            from ..gh3driver import gh3_add_geometry, gh3_aggregate_func
+
+            agg_df = gh3_aggregate_func(gdf, res=self.target_level, agg=self.aggregation, cols=self.columns)
             return gh3_add_geometry(agg_df)
 
     def _rasterize(self, gdf: gpd.GeoDataFrame) -> xr.Dataset:
         """Convert aggregated data to raster."""
         if self.use_egi:
             from .. import egi
+
             return egi.geodf_to_raster(gdf, columns=self.columns)
         else:
             from .h3_raster import h3_to_raster
+
             return h3_to_raster(gdf, columns=self.columns)

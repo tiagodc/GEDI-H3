@@ -8,26 +8,26 @@ pandas and GeoPandas DataFrames:
 - Aggregation functions with spatial grouping
 - Conversion to/from GeoDataFrames
 """
-from typing import Callable, Dict, List, Optional, Union
-import numpy as np
-from numpy.typing import NDArray
-import pandas as pd
-import geopandas as gpd
 
-from .config import (
-    OUTER_LEVEL, EGI_CRS, EGI_CRS_STRING, egi_col_name, validate_level
-)
-from .core import to_hash, to_parent as _to_parent, get_level
+from typing import Callable, Dict, List, Optional, Union
+
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+
+from .config import EGI_CRS, EGI_CRS_STRING, OUTER_LEVEL, egi_col_name, validate_level
+from .core import get_level, to_hash
+from .core import to_parent as _to_parent
 from .spatial import to_geodataframe
 
 
 def egi_dataframe(
     df: Union[pd.DataFrame, gpd.GeoDataFrame],
-    x_col: str = 'lon_lowestmode',
-    y_col: str = 'lat_lowestmode',
+    x_col: str = "lon_lowestmode",
+    y_col: str = "lat_lowestmode",
     level: int = 1,
     in_epsg: int = 4326,
-    set_index: bool = True
+    set_index: bool = True,
 ) -> gpd.GeoDataFrame:
     """
     Add EGI spatial index to a DataFrame based on coordinate columns.
@@ -71,22 +71,18 @@ def egi_dataframe(
     # Handle empty DataFrames (e.g., during Dask metadata inference)
     if len(df) == 0:
         egi_col = egi_col_name(level)
-        gdf = gpd.GeoDataFrame(df, geometry=[], crs=f'EPSG:{in_epsg}')
+        gdf = gpd.GeoDataFrame(df, geometry=[], crs=f"EPSG:{in_epsg}")
         gdf[egi_col] = np.array([], dtype=np.uint64)
         if set_index:
             gdf = gdf.set_index(egi_col)
         return gdf
 
     # Handle GeoDataFrame with Point geometry
-    if isinstance(df, gpd.GeoDataFrame) and len(df) > 0 and df.geom_type.iloc[0] == 'Point':
+    if isinstance(df, gpd.GeoDataFrame) and len(df) > 0 and df.geom_type.iloc[0] == "Point":
         gdf = df
     else:
         # Create GeoDataFrame from coordinate columns
-        gdf = gpd.GeoDataFrame(
-            df,
-            geometry=gpd.points_from_xy(df[x_col], df[y_col]),
-            crs=f'EPSG:{in_epsg}'
-        )
+        gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[x_col], df[y_col]), crs=f"EPSG:{in_epsg}")
 
     # Reproject to EASE-Grid 2.0 if needed
     if gdf.crs.to_epsg() != EGI_CRS:
@@ -94,10 +90,7 @@ def egi_dataframe(
 
     # Compute EGI hashes
     egi_col = egi_col_name(level)
-    gdf[egi_col] = np.uint64([
-        to_hash(x, y, level)
-        for x, y in zip(gdf.geometry.x, gdf.geometry.y)
-    ])
+    gdf[egi_col] = np.uint64([to_hash(x, y, level) for x, y in zip(gdf.geometry.x, gdf.geometry.y)])
 
     if set_index:
         gdf = gdf.set_index(egi_col)
@@ -107,11 +100,11 @@ def egi_dataframe(
 
 def egi_dataframe_vectorized(
     df: Union[pd.DataFrame, gpd.GeoDataFrame],
-    x_col: str = 'lon_lowestmode',
-    y_col: str = 'lat_lowestmode',
+    x_col: str = "lon_lowestmode",
+    y_col: str = "lat_lowestmode",
     level: int = 1,
     in_epsg: int = 4326,
-    set_index: bool = True
+    set_index: bool = True,
 ) -> gpd.GeoDataFrame:
     """
     Add EGI spatial index using vectorized operations (faster for large datasets).
@@ -146,19 +139,19 @@ def egi_dataframe_vectorized(
     # Handle empty DataFrames (e.g., during Dask metadata inference)
     if len(df) == 0:
         egi_col = egi_col_name(level)
-        gdf = gpd.GeoDataFrame(df, geometry=[], crs=f'EPSG:{in_epsg}')
+        gdf = gpd.GeoDataFrame(df, geometry=[], crs=f"EPSG:{in_epsg}")
         gdf[egi_col] = np.array([], dtype=np.uint64)
         if set_index:
             gdf = gdf.set_index(egi_col)
         return gdf
 
     # Get coordinates
-    if isinstance(df, gpd.GeoDataFrame) and len(df) > 0 and df.geom_type.iloc[0] == 'Point':
+    if isinstance(df, gpd.GeoDataFrame) and len(df) > 0 and df.geom_type.iloc[0] == "Point":
         if df.crs.to_epsg() == EGI_CRS:
             x = df.geometry.x.values
             y = df.geometry.y.values
         else:
-            transformer = Transformer.from_crs(df.crs, f'EPSG:{EGI_CRS}', always_xy=True)
+            transformer = Transformer.from_crs(df.crs, f"EPSG:{EGI_CRS}", always_xy=True)
             x, y = transformer.transform(df.geometry.x.values, df.geometry.y.values)
         gdf = df
     else:
@@ -166,14 +159,10 @@ def egi_dataframe_vectorized(
         y = df[y_col].values
 
         if in_epsg != EGI_CRS:
-            transformer = Transformer.from_crs(f'EPSG:{in_epsg}', f'EPSG:{EGI_CRS}', always_xy=True)
+            transformer = Transformer.from_crs(f"EPSG:{in_epsg}", f"EPSG:{EGI_CRS}", always_xy=True)
             x, y = transformer.transform(x, y)
 
-        gdf = gpd.GeoDataFrame(
-            df,
-            geometry=gpd.points_from_xy(df[x_col], df[y_col]),
-            crs=f'EPSG:{in_epsg}'
-        )
+        gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[x_col], df[y_col]), crs=f"EPSG:{in_epsg}")
 
     # Vectorized hash computation
     egi_col = egi_col_name(level)
@@ -186,9 +175,7 @@ def egi_dataframe_vectorized(
 
 
 def egi_to_parent(
-    gdf: Union[pd.DataFrame, gpd.GeoDataFrame],
-    parent_level: int = OUTER_LEVEL,
-    set_index: bool = True
+    gdf: Union[pd.DataFrame, gpd.GeoDataFrame], parent_level: int = OUTER_LEVEL, set_index: bool = True
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
     Convert EGI-indexed DataFrame to a coarser resolution level.
@@ -240,9 +227,7 @@ def egi_to_parent(
 
 
 def egi_to_parent_vectorized(
-    gdf: Union[pd.DataFrame, gpd.GeoDataFrame],
-    parent_level: int = OUTER_LEVEL,
-    set_index: bool = True
+    gdf: Union[pd.DataFrame, gpd.GeoDataFrame], parent_level: int = OUTER_LEVEL, set_index: bool = True
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
     Convert EGI-indexed DataFrame to coarser resolution (vectorized version).
@@ -289,10 +274,7 @@ def egi_to_parent_vectorized(
     return gdf
 
 
-def egi_to_geo(
-    df: Union[pd.DataFrame, gpd.GeoDataFrame],
-    polygons: bool = True
-) -> gpd.GeoDataFrame:
+def egi_to_geo(df: Union[pd.DataFrame, gpd.GeoDataFrame], polygons: bool = True) -> gpd.GeoDataFrame:
     """
     Add geometry to an EGI-indexed DataFrame.
 
@@ -326,9 +308,9 @@ def egi_to_geo(
 
 def egi_aggregate(
     gdf: Union[pd.DataFrame, gpd.GeoDataFrame],
-    mapper: Union[str, List[str], Dict, Callable] = 'mean',
+    mapper: Union[str, List[str], Dict, Callable] = "mean",
     return_geometry: bool = True,
-    geom_points: bool = False
+    geom_points: bool = False,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
     Aggregate EGI-indexed DataFrame by spatial index.
@@ -365,8 +347,8 @@ def egi_aggregate(
     >>> agg_df = egi_aggregate(shots_df, mapper={'agbd': 'mean', 'rh_098': ['mean', 'std']})
     """
     # Remove geometry column if present (will be regenerated)
-    if 'geometry' in gdf.columns:
-        gdf = gdf.drop(columns='geometry')
+    if "geometry" in gdf.columns:
+        gdf = gdf.drop(columns="geometry")
 
     # Perform aggregation
     if callable(mapper):
@@ -383,7 +365,7 @@ def egi_aggregate(
 
         # Flatten MultiIndex columns if present
         if isinstance(df_agg.columns, pd.MultiIndex):
-            df_agg.columns = ['_'.join(str(c) for c in col) for col in df_agg.columns]
+            df_agg.columns = ["_".join(str(c) for c in col) for col in df_agg.columns]
 
         df_agg = geom.join(df_agg)
 
@@ -405,11 +387,11 @@ def egi_col_from_df(df: Union[pd.DataFrame, gpd.GeoDataFrame]) -> Optional[str]:
         Name of the EGI column, or None if not found
     """
     # Check index name
-    if df.index.name and df.index.name.startswith('egi'):
+    if df.index.name and df.index.name.startswith("egi"):
         return df.index.name
 
     # Check columns
-    egi_cols = [col for col in df.columns if str(col).startswith('egi')]
+    egi_cols = [col for col in df.columns if str(col).startswith("egi")]
     if egi_cols:
         return sorted(egi_cols)[0]
 
@@ -439,6 +421,6 @@ def egi_get_level_from_df(df: Union[pd.DataFrame, gpd.GeoDataFrame]) -> Optional
         return int(col[3:])
     except ValueError:
         # Fall back to examining the index values
-        if df.index.name and df.index.name.startswith('egi') and len(df) > 0:
+        if df.index.name and df.index.name.startswith("egi") and len(df) > 0:
             return int(get_level(np.uint64(df.index[0])))
         return None

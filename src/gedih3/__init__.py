@@ -20,67 +20,66 @@ __author__ = "Tiago de Conto"
 __email__ = "tiagodc@umd.edu"
 
 # --- Config & environment ---------------------------------------------------
+# --- Sub-modules ------------------------------------------------------------
+from . import egi, raster, validation
 from .config import (
-    GEDI_PRODUCTS,
     GEDI_BEAMS,
+    GEDI_PRODUCTS,
     GEDI_START_DATE,
     GH3_DEFAULT_DOWNLOAD_DIR,
-    GH3_DEFAULT_TMP_DIR,
-    GH3_DEFAULT_SOC_DIR,
     GH3_DEFAULT_H3_DIR,
+    GH3_DEFAULT_SOC_DIR,
+    GH3_DEFAULT_TMP_DIR,
     configure_environment,
     get_package_data_path,
-)
-
-# --- Remote storage ---------------------------------------------------------
-from .utils import configure_storage, get_storage_options
-
-# --- Exceptions -------------------------------------------------------------
-from .exceptions import (
-    GediError,
-    GediNetworkError,
-    GediDownloadError,
-    GediAuthenticationError,
-    GediS3AccessError,
-    GediValidationError,
-    H3ValidationError,
-    EGIValidationError,
-    GediProductError,
-    GediVariableError,
-    GediFileError,
-    GediHDF5Error,
-    GediParquetError,
-    GediCorruptedFileError,
-    GediTransactionError,
-    GediDatabaseError,
-    GediDatabaseNotFoundError,
-    GediDatabaseCorruptedError,
-    GediMergeError,
-    GediSpatialError,
-    GediTemporalError,
-    GediProcessingError,
-    GediAggregationError,
-    GediRasterizationError,
-    GediImageSamplingError,
-    GediSpatialJoinError,
 )
 
 # --- Data access ------------------------------------------------------------
 from .daac import (
     GEDIAccessor,
     gedi_download,
-    gedi_list_versions,
     gedi_latest_version,
+    gedi_list_versions,
+)
+
+# --- Exceptions -------------------------------------------------------------
+from .exceptions import (
+    EGIValidationError,
+    GediAggregationError,
+    GediAuthenticationError,
+    GediCorruptedFileError,
+    GediDatabaseCorruptedError,
+    GediDatabaseError,
+    GediDatabaseNotFoundError,
+    GediDownloadError,
+    GediError,
+    GediFileError,
+    GediHDF5Error,
+    GediImageSamplingError,
+    GediMergeError,
+    GediNetworkError,
+    GediParquetError,
+    GediProcessingError,
+    GediProductError,
+    GediRasterizationError,
+    GediS3AccessError,
+    GediSpatialError,
+    GediSpatialJoinError,
+    GediTemporalError,
+    GediTransactionError,
+    GediValidationError,
+    GediVariableError,
+    H3ValidationError,
 )
 
 # --- HDF5 parsing -----------------------------------------------------------
 from .gedidriver import (
     GEDIFile,
     GEDIShot,
-    soc_file_tree,
+    dask_h5_merged,
     load_h5,
     load_h5_merged,
-    dask_h5_merged,
+    soc_file_tree,
 )
 
 # --- Database building ------------------------------------------------------
@@ -91,20 +90,18 @@ from .gh3builder import (
 
 # --- Database querying ------------------------------------------------------
 from .gh3driver import (
-    gh3_load,
-    gh3_aggregate,
-    gh3_export,
-    egi_load,
     egi_aggregate,
     egi_extract,
-    gh3_to_raster,
+    egi_load,
+    gh3_aggregate,
+    gh3_export,
+    gh3_load,
     gh3_rasterize_partitions,
+    gh3_to_raster,
 )
 
-# --- Sub-modules ------------------------------------------------------------
-from . import egi
-from . import raster
-from . import validation
+# --- Remote storage ---------------------------------------------------------
+from .utils import configure_storage, get_storage_options
 
 __all__ = [
     # metadata

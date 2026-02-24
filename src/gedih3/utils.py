@@ -1,14 +1,18 @@
 # Standard library imports (fast)
-from datetime import datetime
 import glob as _glob_mod
-import os
 import json
+import os
 import re
-from typing import Union, List, Dict, Optional, Tuple, Any
+from datetime import datetime
+from typing import Dict, List, Union
 
-from .exceptions import (GediDatabaseNotFoundError, GediFileError, GediValidationError,
-                         GediSpatialError, GediTemporalError)
-
+from .exceptions import (
+    GediDatabaseNotFoundError,
+    GediFileError,
+    GediSpatialError,
+    GediTemporalError,
+    GediValidationError,
+)
 
 # =============================================================================
 # Remote Filesystem Helpers
@@ -16,17 +20,16 @@ from .exceptions import (GediDatabaseNotFoundError, GediFileError, GediValidatio
 # Thin abstraction over os/glob that transparently handles S3 and HTTP URLs.
 # Local paths use the standard library (zero overhead for the common case).
 
+
 def is_remote_path(path):
     """Check if path is a remote URL (S3, HTTP, FTP, etc.)."""
-    return isinstance(path, str) and path.startswith(
-        ('s3://', 'http://', 'https://', 'ftp://', 'sftp://', 'ssh://')
-    )
+    return isinstance(path, str) and path.startswith(("s3://", "http://", "https://", "ftp://", "sftp://", "ssh://"))
 
 
 _storage_options = {}  # keyed by protocol → options dict
 
 
-def configure_storage(protocol='s3', **kwargs):
+def configure_storage(protocol="s3", **kwargs):
     """Set storage credentials for a remote protocol.
 
     Credentials are stored at module level and automatically used by every
@@ -64,20 +67,21 @@ def configure_storage(protocol='s3', **kwargs):
     opts = dict(kwargs)
 
     # S3: wrap endpoint_url into client_kwargs for s3fs
-    if protocol == 's3' and 'endpoint_url' in opts:
-        ck = opts.pop('client_kwargs', {})
-        ck['endpoint_url'] = opts.pop('endpoint_url')
-        opts['client_kwargs'] = ck
+    if protocol == "s3" and "endpoint_url" in opts:
+        ck = opts.pop("client_kwargs", {})
+        ck["endpoint_url"] = opts.pop("endpoint_url")
+        opts["client_kwargs"] = ck
 
     # HTTP/HTTPS: wrap username/password into client_kwargs for aiohttp
-    if protocol in ('http', 'https'):
-        user = opts.pop('username', None)
-        pwd = opts.pop('password', None)
+    if protocol in ("http", "https"):
+        user = opts.pop("username", None)
+        pwd = opts.pop("password", None)
         if user and pwd:
             import aiohttp
-            ck = opts.pop('client_kwargs', {})
-            ck['auth'] = aiohttp.BasicAuth(user, pwd)
-            opts['client_kwargs'] = ck
+
+            ck = opts.pop("client_kwargs", {})
+            ck["auth"] = aiohttp.BasicAuth(user, pwd)
+            opts["client_kwargs"] = ck
 
     _storage_options[protocol] = opts
 
@@ -103,8 +107,8 @@ def get_storage_options(protocol=None):
     if protocol in _storage_options:
         return dict(_storage_options[protocol])
     # S3 default: anonymous access for public buckets
-    if protocol == 's3':
-        return {'anon': True}
+    if protocol == "s3":
+        return {"anon": True}
     return {}
 
 
@@ -120,21 +124,23 @@ def _get_filesystem(path, storage_options=None):
         ``configure_storage()``.
     """
     import fsspec
-    protocol = path.split('://')[0]
+
+    protocol = path.split("://")[0]
     opts = get_storage_options(protocol)
     if storage_options:
         opts = {**opts, **storage_options}
     # Connection-based protocols need host/port from the URL
-    if protocol in ('ftp', 'sftp', 'ssh') and 'host' not in opts:
+    if protocol in ("ftp", "sftp", "ssh") and "host" not in opts:
         from urllib.parse import urlparse
+
         parsed = urlparse(path)
-        opts['host'] = parsed.hostname
+        opts["host"] = parsed.hostname
         if parsed.port:
-            opts['port'] = parsed.port
-        if parsed.username and 'username' not in opts:
-            opts['username'] = parsed.username
-        if parsed.password and 'password' not in opts:
-            opts['password'] = parsed.password
+            opts["port"] = parsed.port
+        if parsed.username and "username" not in opts:
+            opts["username"] = parsed.username
+        if parsed.password and "password" not in opts:
+            opts["password"] = parsed.password
     return fsspec.filesystem(protocol, **opts)
 
 
@@ -146,8 +152,8 @@ def smart_exists(path):
     if fs.exists(path):
         return True
     # HTTP/FTP servers may require trailing slash for directories
-    if not path.endswith('/'):
-        return fs.exists(path + '/')
+    if not path.endswith("/"):
+        return fs.exists(path + "/")
     return False
 
 
@@ -159,8 +165,8 @@ def smart_isdir(path):
     if fs.isdir(path):
         return True
     # HTTP/FTP servers may require trailing slash for directories
-    if not path.endswith('/'):
-        return fs.isdir(path + '/')
+    if not path.endswith("/"):
+        return fs.isdir(path + "/")
     return False
 
 
@@ -188,26 +194,26 @@ def _extract_glob_root(pattern):
         Includes trailing separator.
     """
     # Split on protocol to handle remote paths
-    if '://' in pattern:
-        protocol, rest = pattern.split('://', 1)
-        parts = rest.split('/')
+    if "://" in pattern:
+        protocol, rest = pattern.split("://", 1)
+        parts = rest.split("/")
         root_parts = []
         for p in parts:
-            if '*' in p or '?' in p or '[' in p:
+            if "*" in p or "?" in p or "[" in p:
                 break
             root_parts.append(p)
-        root = protocol + '://' + '/'.join(root_parts)
+        root = protocol + "://" + "/".join(root_parts)
     else:
-        parts = pattern.replace(os.sep, '/').split('/')
+        parts = pattern.replace(os.sep, "/").split("/")
         root_parts = []
         for p in parts:
-            if '*' in p or '?' in p or '[' in p:
+            if "*" in p or "?" in p or "[" in p:
                 break
             root_parts.append(p)
-        root = '/'.join(root_parts)
+        root = "/".join(root_parts)
 
-    if not root.endswith('/'):
-        root += '/'
+    if not root.endswith("/"):
+        root += "/"
     return root
 
 
@@ -230,22 +236,22 @@ def _glob_to_regex(pattern):
     """
     # Trailing slash means "match a directory" — strip it for matching
     # but callers can check pattern.endswith('/') if semantics matter.
-    pattern = pattern.rstrip('/')
+    pattern = pattern.rstrip("/")
 
-    parts = pattern.split('/')
+    parts = pattern.split("/")
     regex_parts = []
     for part in parts:
-        if part == '**':
-            regex_parts.append('(?:.+/)?')
+        if part == "**":
+            regex_parts.append("(?:.+/)?")
         else:
             # Escape regex metacharacters, then convert glob wildcards
             segment = re.escape(part)
-            segment = segment.replace(r'\*', '[^/]*')
-            segment = segment.replace(r'\?', '[^/]')
-            regex_parts.append(segment + '/')
+            segment = segment.replace(r"\*", "[^/]*")
+            segment = segment.replace(r"\?", "[^/]")
+            regex_parts.append(segment + "/")
     # Join and strip the trailing slash from the last segment
-    regex = ''.join(regex_parts).rstrip('/')
-    return re.compile('^' + regex + '$')
+    regex = "".join(regex_parts).rstrip("/")
+    return re.compile("^" + regex + "$")
 
 
 def _read_manifest(root_path):
@@ -266,10 +272,10 @@ def _read_manifest(root_path):
     if root_path in _manifest_cache:
         return _manifest_cache[root_path]
 
-    manifest_path = os.path.join(root_path.rstrip('/'), MANIFEST_FILENAME)
+    manifest_path = os.path.join(root_path.rstrip("/"), MANIFEST_FILENAME)
 
     try:
-        with smart_open(manifest_path, 'r') as f:
+        with smart_open(manifest_path, "r") as f:
             lines = [line.strip() for line in f if line.strip()]
         _manifest_cache[root_path] = lines
         return lines
@@ -278,7 +284,7 @@ def _read_manifest(root_path):
         return None
 
 
-def generate_manifest(root_path, pattern='**/*.parquet'):
+def generate_manifest(root_path, pattern="**/*.parquet"):
     """Generate a _manifest.txt file listing all data files under root_path.
 
     Parameters
@@ -298,19 +304,19 @@ def generate_manifest(root_path, pattern='**/*.parquet'):
     if is_remote_path(root_path):
         raise ValueError("generate_manifest() only works on local paths")
 
-    root = root_path.rstrip('/') + '/'
+    root = root_path.rstrip("/") + "/"
     files = sorted(_glob_mod.glob(os.path.join(root, pattern), recursive=True))
     rel_paths = [os.path.relpath(f, root) for f in files]
 
     manifest_path = os.path.join(root, MANIFEST_FILENAME)
-    with open(manifest_path, 'w') as f:
-        f.write('\n'.join(rel_paths))
+    with open(manifest_path, "w") as f:
+        f.write("\n".join(rel_paths))
         if rel_paths:
-            f.write('\n')
+            f.write("\n")
 
     # Invalidate cache for this root
     _manifest_cache.pop(root, None)
-    _manifest_cache.pop(root.rstrip('/'), None)
+    _manifest_cache.pop(root.rstrip("/"), None)
 
     return manifest_path
 
@@ -333,9 +339,9 @@ def _normalize_remote_path(path):
     from posixpath import normpath
     from urllib.parse import unquote
 
-    if '://' in path:
-        proto, rest = path.split('://', 1)
-        return proto + '://' + normpath(unquote(rest))
+    if "://" in path:
+        proto, rest = path.split("://", 1)
+        return proto + "://" + normpath(unquote(rest))
     return normpath(unquote(path))
 
 
@@ -364,9 +370,9 @@ def _find_under_root(fs, root):
     list of str
         Normalized file paths strictly under *root*.
     """
-    root_norm = _normalize_remote_path(root.rstrip('/'))
+    root_norm = _normalize_remote_path(root.rstrip("/"))
     result = []
-    queue = [root.rstrip('/')]
+    queue = [root.rstrip("/")]
     seen = set()
 
     while queue:
@@ -378,21 +384,21 @@ def _find_under_root(fs, root):
 
         try:
             # Trailing slash required by many HTTP servers for dir listings
-            ls_path = path if path.endswith('/') else path + '/'
+            ls_path = path if path.endswith("/") else path + "/"
             entries = fs.ls(ls_path, detail=True)
         except Exception:
             continue
 
         for entry in entries:
-            name = entry['name'].rstrip('/')
+            name = entry["name"].rstrip("/")
             name_norm = _normalize_remote_path(name)
             # Only descend into strict children of root
-            if not name_norm.startswith(root_norm + '/'):
+            if not name_norm.startswith(root_norm + "/"):
                 continue
             if name_norm in seen:
                 continue
-            if entry.get('type') == 'directory':
-                queue.append(name)   # original form for fs.ls()
+            if entry.get("type") == "directory":
+                queue.append(name)  # original form for fs.ls()
             else:
                 result.append(name_norm)  # normalized for matching
 
@@ -424,18 +430,18 @@ def _remote_glob(fs, protocol, pattern, recursive=False):
         Sorted matching paths with protocol prefix.
     """
     root = _extract_glob_root(pattern)
-    root_stripped = root.rstrip('/')
+    root_stripped = root.rstrip("/")
 
     # Extract the wildcard portion after the root
     if pattern.startswith(root_stripped):
-        rel_pattern = pattern[len(root_stripped):].lstrip('/')
+        rel_pattern = pattern[len(root_stripped) :].lstrip("/")
     else:
         return []
 
     if not rel_pattern:
         return []
 
-    if '**' in rel_pattern and not recursive:
+    if "**" in rel_pattern and not recursive:
         return []
 
     # Normalize path for this filesystem (HTTP keeps full URL, S3 strips protocol)
@@ -444,13 +450,13 @@ def _remote_glob(fs, protocol, pattern, recursive=False):
     # Compute URL base for path reconstruction.
     # HTTP/S3: _strip_protocol keeps the full URL → url_base is empty.
     # FTP/SFTP: _strip_protocol removes host:port → url_base = 'ftp://host:port'.
-    fs_root_norm = _normalize_remote_path(fs_root.rstrip('/'))
+    fs_root_norm = _normalize_remote_path(fs_root.rstrip("/"))
     root_norm = _normalize_remote_path(root_stripped)
-    if fs_root_norm.startswith(protocol + '://'):
-        url_base = ''
+    if fs_root_norm.startswith(protocol + "://"):
+        url_base = ""
     else:
         idx = root_norm.find(fs_root_norm)
-        url_base = root_norm[:idx] if idx > 0 else f'{protocol}://'
+        url_base = root_norm[:idx] if idx > 0 else f"{protocol}://"
 
     # List all files recursively under root, filtering out ../  links
     try:
@@ -459,26 +465,26 @@ def _remote_glob(fs, protocol, pattern, recursive=False):
         return []
 
     # Trailing-slash patterns match directories — extract unique parent dirs
-    is_dir_pattern = rel_pattern.endswith('/')
+    is_dir_pattern = rel_pattern.endswith("/")
 
     # Compile glob pattern to regex and filter
     rx = _glob_to_regex(rel_pattern)
     # Use normalized root for prefix extraction (matches normalized file paths)
-    prefix = fs_root_norm + '/'
+    prefix = fs_root_norm + "/"
 
     if is_dir_pattern:
         # Extract unique directory paths from file listing
         dirs = set()
         for f in all_files:
-            f_clean = f.rstrip('/')
+            f_clean = f.rstrip("/")
             if f_clean.startswith(prefix):
-                rel = f_clean[len(prefix):]
+                rel = f_clean[len(prefix) :]
             else:
                 rel = f_clean
             # Extract all ancestor directories from the relative path
-            parts = rel.split('/')
+            parts = rel.split("/")
             for depth in range(1, len(parts)):
-                dirs.add('/'.join(parts[:depth]))
+                dirs.add("/".join(parts[:depth]))
 
         results = []
         for d in dirs:
@@ -488,9 +494,9 @@ def _remote_glob(fs, protocol, pattern, recursive=False):
 
     results = []
     for f in all_files:
-        f_clean = f.rstrip('/')
+        f_clean = f.rstrip("/")
         if f_clean.startswith(prefix):
-            rel = f_clean[len(prefix):]
+            rel = f_clean[len(prefix) :]
         else:
             rel = f_clean
         if rx.match(rel):
@@ -515,33 +521,29 @@ def smart_glob(pattern, recursive=False):
     manifest = _read_manifest(root)
     if manifest is not None:
         # Build relative pattern from root
-        root_stripped = root.rstrip('/')
+        root_stripped = root.rstrip("/")
         if pattern.startswith(root_stripped):
-            rel_pattern = pattern[len(root_stripped):].lstrip('/')
+            rel_pattern = pattern[len(root_stripped) :].lstrip("/")
         else:
             rel_pattern = pattern
 
-        is_dir_pattern = rel_pattern.endswith('/')
+        is_dir_pattern = rel_pattern.endswith("/")
         rx = _glob_to_regex(rel_pattern)
 
         if is_dir_pattern:
             # Manifest contains file paths; extract directory prefixes
             # at the correct depth and match against the pattern.
-            depth = rel_pattern.rstrip('/').count('/') + 1
+            depth = rel_pattern.rstrip("/").count("/") + 1
             dirs = set()
             for entry in manifest:
-                segments = entry.split('/')
+                segments = entry.split("/")
                 if len(segments) >= depth:
-                    candidate = '/'.join(segments[:depth])
+                    candidate = "/".join(segments[:depth])
                     if rx.match(candidate):
                         dirs.add(os.path.join(root_stripped, candidate))
             return sorted(dirs)
         else:
-            matched = [
-                os.path.join(root_stripped, entry)
-                for entry in manifest
-                if rx.match(entry)
-            ]
+            matched = [os.path.join(root_stripped, entry) for entry in manifest if rx.match(entry)]
             return sorted(matched)
 
     # No manifest — fall back to filesystem globbing
@@ -549,11 +551,11 @@ def smart_glob(pattern, recursive=False):
         return sorted(_glob_mod.glob(pattern, recursive=recursive))
 
     fs = _get_filesystem(pattern)
-    protocol = pattern.split('://')[0]
+    protocol = pattern.split("://")[0]
     return _remote_glob(fs, protocol, pattern, recursive=recursive)
 
 
-def smart_open(path, mode='r', storage_options=None):
+def smart_open(path, mode="r", storage_options=None):
     """open() that works with remote paths. Use as context manager.
 
     Parameters
@@ -568,11 +570,13 @@ def smart_open(path, mode='r', storage_options=None):
     if not is_remote_path(path):
         return open(path, mode)
     import fsspec
-    protocol = path.split('://')[0]
+
+    protocol = path.split("://")[0]
     opts = get_storage_options(protocol)
     if storage_options:
         opts = {**opts, **storage_options}
     return fsspec.open(path, mode, **opts)
+
 
 # Heavy imports are moved to lazy loading inside functions:
 # - psutil: used in get_system_resources
@@ -582,52 +586,59 @@ def smart_open(path, mode='r', storage_options=None):
 # - numpy: used in parquet_merge_files
 # - dask.distributed: used in get_dask_client
 
+
 def get_package_version():
     """Get the current package version"""
     try:
         from importlib.metadata import version
-        return version('gedih3')
+
+        return version("gedih3")
     except ImportError:
         try:
             from . import __version__
+
             return __version__
-        except:
+        except Exception:
             return "unknown"
+
 
 def now():
     return datetime.now().isoformat()
 
-def get_system_resources(disk_path:str=None):
+
+def get_system_resources(disk_path: str = None):
     import psutil
+
     ram = psutil.virtual_memory().total / (1024**3)
     storage = psutil.disk_usage(os.getcwd() if disk_path is None else disk_path).free / (1024**3)
     cpus = os.cpu_count()
     return cpus, ram, storage
 
-def json_write(obj, path, mode='w', rewrite=False):
+
+def json_write(obj, path, mode="w", rewrite=False):
     if os.path.isfile(path) and not rewrite:
         obj = json_read(path) | obj
     with open(path, mode) as file:
         json.dump(obj, file)
 
-def json_read(path, mode='r'):
+
+def json_read(path, mode="r"):
     with smart_open(path, mode) as f:
         obj = json.load(f)
         return obj
 
-def is_parquet(file: str) -> bool:
-    return file.lower().endswith(('.parquet','.parq','.pq'))
 
-def is_hive_directory(dir_path: str, match_str=r'.+=.+') -> bool:
+def is_parquet(file: str) -> bool:
+    return file.lower().endswith((".parquet", ".parq", ".pq"))
+
+
+def is_hive_directory(dir_path: str, match_str=r".+=.+") -> bool:
     if not smart_isdir(dir_path):
         return False
     if is_remote_path(dir_path):
         fs = _get_filesystem(dir_path)
-        entries = fs.ls(dir_path if dir_path.endswith('/') else dir_path + '/', detail=True)
-        subdirs = [
-            e['name'].rstrip('/').rsplit('/', 1)[-1]
-            for e in entries if e.get('type') == 'directory'
-        ]
+        entries = fs.ls(dir_path if dir_path.endswith("/") else dir_path + "/", detail=True)
+        subdirs = [e["name"].rstrip("/").rsplit("/", 1)[-1] for e in entries if e.get("type") == "directory"]
     else:
         subdirs = os.listdir(dir_path)
         subdirs = [d for d in subdirs if os.path.isdir(os.path.join(dir_path, d))]
@@ -636,21 +647,26 @@ def is_hive_directory(dir_path: str, match_str=r'.+=.+') -> bool:
         subdirs = [d for d in subdirs if pattern.match(d)]
     return len(subdirs) > 0
 
+
 def read_parquet_schema(path):
     """
     path: parquet file path
 
     returns a pandas.DataFrame with the parquet column structure
     """
-    import pyarrow.parquet as pq
     import pandas as pd
+    import pyarrow.parquet as pq
+
     if is_remote_path(path):
-        with smart_open(path, 'rb') as fobj:
+        with smart_open(path, "rb") as fobj:
             schema = pq.read_schema(fobj)
     else:
         schema = pq.read_schema(path, memory_map=True)
-    schema = pd.DataFrame(({"column": name, "dtype": str(pa_dtype)} for name, pa_dtype in zip(schema.names, schema.types)))
+    schema = pd.DataFrame(
+        ({"column": name, "dtype": str(pa_dtype)} for name, pa_dtype in zip(schema.names, schema.types))
+    )
     return schema
+
 
 def read_geopackage_schema(path):
     """
@@ -660,8 +676,10 @@ def read_geopackage_schema(path):
     """
     import geopandas as gpd
     import pandas as pd
+
     gdf = gpd.read_file(path, rows=1)
     return pd.DataFrame({"column": gdf.columns, "dtype": [str(d) for d in gdf.dtypes]})
+
 
 def read_feather_schema(path):
     """
@@ -677,11 +695,13 @@ def read_feather_schema(path):
     pandas.DataFrame
         DataFrame with 'column' and 'dtype' columns
     """
-    import pyarrow.feather as feather
     import pandas as pd
+    import pyarrow.feather as feather
+
     schema = feather.read_table(path, columns=[]).schema
-    return pd.DataFrame(({"column": name, "dtype": str(pa_dtype)}
-                          for name, pa_dtype in zip(schema.names, schema.types)))
+    return pd.DataFrame(
+        ({"column": name, "dtype": str(pa_dtype)} for name, pa_dtype in zip(schema.names, schema.types))
+    )
 
 
 def read_h3_database_schema(db_path):
@@ -705,12 +725,12 @@ def read_h3_database_schema(db_path):
     FileNotFoundError
         If no H3 partition directories or parquet files found
     """
-    partition_dirs = smart_glob(os.path.join(db_path, 'h3_*=*/'))
+    partition_dirs = smart_glob(os.path.join(db_path, "h3_*=*/"))
     if not partition_dirs:
         raise GediDatabaseNotFoundError(f"No H3 partition directories found in {db_path}")
     for pdir in partition_dirs:
         # Search recursively — partitions may have nested hive dirs (e.g. year=*)
-        pq_files = smart_glob(os.path.join(pdir, '**', '*.parquet'), recursive=True)
+        pq_files = smart_glob(os.path.join(pdir, "**", "*.parquet"), recursive=True)
         if pq_files:
             return read_parquet_schema(pq_files[0])
     raise GediDatabaseNotFoundError(f"No parquet files found in any partition of {db_path}")
@@ -745,51 +765,61 @@ def read_schema(path, root=None):
     if smart_isdir(path):
         # Check for H3 database first (has build log)
         from .config import BUILD_LOG_FILENAME
+
         build_log = os.path.join(path, BUILD_LOG_FILENAME)
         if smart_exists(build_log):
             return read_h3_database_schema(path)
         # Fall through to simplified dataset detection
         from .cliutils import detect_dataset_format, list_dataset_files
+
         fmt = detect_dataset_format(path)
         files = list_dataset_files(path, fmt=fmt)
         path = files[0]
     else:
-        ext = os.path.splitext(path)[1].lstrip('.').lower()
+        ext = os.path.splitext(path)[1].lstrip(".").lower()
         fmt = {
-            'parquet': 'parquet', 'parq': 'parquet', 'pq': 'parquet',
-            'feather': 'feather',
-            'gpkg': 'gpkg', 'geopackage': 'gpkg',
-            'h5': 'h5', 'hdf5': 'h5',
+            "parquet": "parquet",
+            "parq": "parquet",
+            "pq": "parquet",
+            "feather": "feather",
+            "gpkg": "gpkg",
+            "geopackage": "gpkg",
+            "h5": "h5",
+            "hdf5": "h5",
         }.get(ext)
         if fmt is None:
             raise GediFileError(f"Cannot determine format from extension: {ext}")
 
-    if fmt == 'parquet':
+    if fmt == "parquet":
         return read_parquet_schema(path)
-    elif fmt == 'feather':
+    elif fmt == "feather":
         return read_feather_schema(path)
-    elif fmt == 'gpkg':
+    elif fmt == "gpkg":
         return read_geopackage_schema(path)
-    elif fmt == 'h5':
+    elif fmt == "h5":
         return h5_info(path, root=root)
     else:
         raise GediFileError(f"Unsupported format: {fmt}")
 
+
 def h5_is_valid(file):
     import h5py
+
     try:
-        with h5py.File(file, mode='r') as f:
+        with h5py.File(file, mode="r") as f:
             _ = list(f.keys())
-    except Exception as e:
+    except Exception:
         return False
     return True
 
+
 def h5_traverse(h5_file, root=None):
     import h5py
-    def h5py_dataset_iterator(g, prefix=''):
+
+    def h5py_dataset_iterator(g, prefix=""):
         for key in g.keys():
             item = g[key]
-            path = f'{prefix}/{key}'
+            path = f"{prefix}/{key}"
             if root is not None and not path.startswith(f"/{root}"):
                 continue
             if isinstance(item, h5py.Dataset):
@@ -798,33 +828,40 @@ def h5_traverse(h5_file, root=None):
                 yield from h5py_dataset_iterator(item, path)
 
     for path, _ in h5py_dataset_iterator(h5_file):
-        yield path    
+        yield path
+
 
 def h5_info(hdf_file, root=None):
     import h5py
     import pandas as pd
-    info_map = {'path':[], 'rows':[], 'cols':[], 'dtype': []}
-    with h5py.File(hdf_file, 'r') as f:
+
+    info_map = {"path": [], "rows": [], "cols": [], "dtype": []}
+    with h5py.File(hdf_file, "r") as f:
         for dset in h5_traverse(f, root):
-            info_map['path'].append(dset)
-            info_map['dtype'].append(f[dset].dtype)
+            info_map["path"].append(dset)
+            info_map["dtype"].append(f[dset].dtype)
 
             xy = f[dset].shape
             x = xy[0]
             y = 1 if len(xy) == 1 else xy[1]
-            info_map['rows'].append(x)
-            info_map['cols'].append(y)
+            info_map["rows"].append(x)
+            info_map["cols"].append(y)
     return pd.DataFrame(info_map)
 
-def h5_var(file, var, col:int=None):
-    import h5py
-    with h5py.File(file, 'r') as f:
-        return f.get(var)[:] if col is None  else f.get(var)[:,col]
 
-def h5_meta(file, var='METADATA/DatasetIdentification'):
+def h5_var(file, var, col: int = None):
     import h5py
-    with h5py.File(file, 'r') as f:
+
+    with h5py.File(file, "r") as f:
+        return f.get(var)[:] if col is None else f.get(var)[:, col]
+
+
+def h5_meta(file, var="METADATA/DatasetIdentification"):
+    import h5py
+
+    with h5py.File(file, "r") as f:
         return dict(f[var].attrs.items())
+
 
 def h5_copy_subset(source_file, dest_file, variables):
     """Copy selected datasets from source to dest HDF5 file.
@@ -833,31 +870,35 @@ def h5_copy_subset(source_file, dest_file, variables):
     traversing the entire HDF5 tree — critical for S3 performance
     where each node visit is a range request (~50-100ms).
     """
-    import h5py
     import logging
+
+    import h5py
+
     logger = logging.getLogger(__name__)
     skipped = []
-    with h5py.File(source_file, 'r', rdcc_nbytes=4*1024*1024) as src, h5py.File(dest_file, 'w') as dst:
+    with h5py.File(source_file, "r", rdcc_nbytes=4 * 1024 * 1024) as src, h5py.File(dest_file, "w") as dst:
         for var_path in variables:
             if var_path not in src:
                 skipped.append(var_path)
                 continue
-            parts = var_path.split('/')
+            parts = var_path.split("/")
             # Create parent groups in destination
             for depth in range(1, len(parts)):
-                parent = '/'.join(parts[:depth])
+                parent = "/".join(parts[:depth])
                 if parent not in dst:
                     dst.create_group(parent)
             # Copy dataset — expand_soft resolves soft links so linked
             # variables pull the actual data
-            parent_path = '/'.join(parts[:-1])
+            parent_path = "/".join(parts[:-1])
             dst_parent = dst[parent_path] if parent_path else dst
             src.copy(var_path, dst_parent, name=parts[-1], expand_soft=True)
     if skipped:
         logger.warning(f"Skipped {len(skipped)} missing paths in {source_file}: {skipped[:5]}...")
 
+
 def read_vector_file(filepath: str, crs: Union[str, int] = 4326):
     import geopandas as gpd
+
     geodf = gpd.read_parquet(filepath) if is_parquet(filepath) else gpd.read_file(filepath)
     geodf = gpd.GeoDataFrame(geometry=[geodf.union_all()], crs=geodf.crs)
 
@@ -866,22 +907,26 @@ def read_vector_file(filepath: str, crs: Union[str, int] = 4326):
 
     return geodf
 
+
 def read_img_bounds(filepath: str, crs=4326):
-    import rioxarray
     import geopandas as gpd
+    import rioxarray
     from shapely.geometry import box
+
     img = rioxarray.open_rasterio(filepath)
     bounds = list(img.rio.bounds())
     geobox = gpd.GeoDataFrame(geometry=[box(*bounds)], crs=img.rio.crs, index=[0])
     return geobox.to_crs(crs)
+
 
 def geo_to_umm(obj):
     """
     Converts a GeoDataFrame, shapely Polygon, or GeoJSON dictionary to a UMM-style list of coordinates.
     """
     import geopandas as gpd
-    from shapely.ops import orient
     from shapely.geometry.base import BaseGeometry
+    from shapely.ops import orient
+
     geodf = None
     if isinstance(obj, dict):
         geodf = from_geojson(obj)
@@ -898,7 +943,7 @@ def geo_to_umm(obj):
 
     elif isinstance(obj, BaseGeometry):
         oriented_geom = orient(obj, 1)
-        if oriented_geom.geom_type == 'MultiPolygon':
+        if oriented_geom.geom_type == "MultiPolygon":
             geo_umm = [list(zip(*polygon.exterior.coords.xy)) for polygon in oriented_geom.geoms]
         else:
             coords = oriented_geom.exterior.coords
@@ -909,31 +954,37 @@ def geo_to_umm(obj):
 
     return geo_umm
 
+
 def to_geojson(geodf) -> Dict:
-    import geopandas as gpd
     from shapely.ops import orient
-    geodf['geometry'] = geodf.geometry.apply(orient, args=(1,))
+
+    geodf["geometry"] = geodf.geometry.apply(orient, args=(1,))
     return geodf.geometry.to_json()
+
 
 def from_geojson(geojson):
     import geopandas as gpd
+
     if isinstance(geojson, str):
         geojson = json.loads(geojson)
     return gpd.GeoDataFrame.from_features(geojson, crs=4326)
 
+
 def read_as_geojson(geofile: str, box_only: bool = False) -> Dict:
     import geopandas as gpd
     from shapely.geometry import box
+
     roi = read_vector_file(geofile, crs=4326)
     if box_only:
-        roi = gpd.GeoDataFrame(geometry=[box(*roi.total_bounds)], columns=['geometry'], crs=roi.crs)
+        roi = gpd.GeoDataFrame(geometry=[box(*roi.total_bounds)], columns=["geometry"], crs=roi.crs)
     geojson = to_geojson(roi)
     return geojson
 
-def parquet_append_rows(df, f: str, id_col: str = 'shot_number', tmp_suffix: str = '.row.tmp'):
-    import pandas as pd
+
+def parquet_append_rows(df, f: str, id_col: str = "shot_number", tmp_suffix: str = ".row.tmp"):
     import pyarrow as pa
     import pyarrow.parquet as pq
+
     parquet_file = pq.ParquetFile(f)
 
     if id_col:
@@ -946,17 +997,18 @@ def parquet_append_rows(df, f: str, id_col: str = 'shot_number', tmp_suffix: str
     new_table = pa.Table.from_pandas(df)
 
     temp_f = f + tmp_suffix
-    with pq.ParquetWriter(temp_f, parquet_file.schema.to_arrow_schema(), compression='zstd') as writer:
+    with pq.ParquetWriter(temp_f, parquet_file.schema.to_arrow_schema(), compression="zstd") as writer:
         for batch in parquet_file.iter_batches():
             writer.write_batch(batch)
         writer.write_table(new_table)
 
     os.replace(temp_f, f)
 
-def parquet_append_columns(df, f: str, tmp_suffix:str = '.col.tmp'):
-    import pandas as pd
+
+def parquet_append_columns(df, f: str, tmp_suffix: str = ".col.tmp"):
     import pyarrow as pa
     import pyarrow.parquet as pq
+
     parquet_file = pq.ParquetFile(f)
     new_table = pa.Table.from_pandas(df)
 
@@ -966,7 +1018,7 @@ def parquet_append_columns(df, f: str, tmp_suffix:str = '.col.tmp'):
     combined_schema = pa.schema(existing_fields + new_fields)
 
     temp_f = f + tmp_suffix
-    with pq.ParquetWriter(temp_f, combined_schema, compression='zstd') as writer:
+    with pq.ParquetWriter(temp_f, combined_schema, compression="zstd") as writer:
         for batch in parquet_file.iter_batches():
             batch_dict = batch.to_pydict()
             for field in new_table.schema:
@@ -982,20 +1034,22 @@ def parquet_append_columns(df, f: str, tmp_suffix:str = '.col.tmp'):
 
     os.replace(temp_f, f)
 
+
 def parquet_schema_add_bbox(schema, bbox):
     if bbox is None:
-        return schema    
-    geo_meta = json.loads(schema.metadata[b'geo'])
-    geo_meta['columns']['geometry']['bbox'] = bbox
-    new_metadata = {**schema.metadata, b'geo': json.dumps(geo_meta).encode('utf-8')}
+        return schema
+    geo_meta = json.loads(schema.metadata[b"geo"])
+    geo_meta["columns"]["geometry"]["bbox"] = bbox
+    new_metadata = {**schema.metadata, b"geo": json.dumps(geo_meta).encode("utf-8")}
     return schema.with_metadata(new_metadata)
-    
+
+
 def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_group=100_000):
-    import numpy as np
     import geopandas as gpd
+    import numpy as np
     import pyarrow as pa
-    import pyarrow.parquet as pq
     import pyarrow.dataset as ds
+    import pyarrow.parquet as pq
 
     shots = None
     merged_bbox = None
@@ -1003,13 +1057,13 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
     dataset = ds.dataset(flist, format="parquet")
     schema = dataset.schema
 
-    if 'geometry' in schema.names:
-        geodf = gpd.read_parquet(flist, columns=['geometry'])
+    if "geometry" in schema.names:
+        geodf = gpd.read_parquet(flist, columns=["geometry"])
         merged_bbox = list(geodf.total_bounds)
         schema = parquet_schema_add_bbox(schema, bbox=merged_bbox)
 
     # Atomic write: write to temp file, rename after successful close
-    tmp_ofile = ofile + '.merge.tmp'
+    tmp_ofile = ofile + ".merge.tmp"
     if os.path.exists(tmp_ofile):
         os.unlink(tmp_ofile)  # Clean up stale temp from previous crash
 
@@ -1053,8 +1107,10 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
             if os.path.exists(f) and f != ofile:
                 os.unlink(f)
 
-def parquet_join_columns(flist: List[str], ofile: str, key_col: str = 'shot_number',
-                         tmp_suffix: str = '.join.tmp', join_how='left'):
+
+def parquet_join_columns(
+    flist: List[str], ofile: str, key_col: str = "shot_number", tmp_suffix: str = ".join.tmp", join_how="left"
+):
     """
     Memory-efficient column-wise join of parquet files. Equivalent to pd.concat(axis=1)
     but processes in batches to avoid loading entire files into memory.
@@ -1117,7 +1173,7 @@ def parquet_join_columns(flist: List[str], ofile: str, key_col: str = 'shot_numb
 
     # Process in batches
     temp_ofile = ofile + tmp_suffix
-    with pq.ParquetWriter(temp_ofile, combined_schema, compression='zstd') as writer:
+    with pq.ParquetWriter(temp_ofile, combined_schema, compression="zstd") as writer:
         for rg_idx in range(base_file.metadata.num_row_groups):
             # Read batch from base file
             batch = base_file.read_row_group(rg_idx).to_pandas()
@@ -1146,24 +1202,26 @@ def parquet_join_columns(flist: List[str], ofile: str, key_col: str = 'shot_numb
             batch = batch[cols_to_select]
 
             writer.write_table(pa.Table.from_pandas(batch, schema=combined_schema))
-   
+
     os.replace(temp_ofile, ofile)
+
 
 def parse_temporal(temporal):
     if temporal is None:
         return None
-    
+
     if isinstance(temporal, (list, tuple)) and len(temporal) == 2:
         start, end = temporal
         if isinstance(start, str):
-            start = datetime.fromisoformat(start.replace('Z', '+00:00'))
-            start = start.strftime('%Y-%m-%d')
+            start = datetime.fromisoformat(start.replace("Z", "+00:00"))
+            start = start.strftime("%Y-%m-%d")
         if isinstance(end, str):
-            end = datetime.fromisoformat(end.replace('Z', '+00:00'))
-            end = end.strftime('%Y-%m-%d')
+            end = datetime.fromisoformat(end.replace("Z", "+00:00"))
+            end = end.strftime("%Y-%m-%d")
         return (start, end)
     else:
         raise GediTemporalError("Invalid temporal input. Must be a list or tuple of two dates.")
+
 
 def parse_spatial(spatial):
     if spatial is None:
@@ -1175,15 +1233,15 @@ def parse_spatial(spatial):
     if isinstance(spatial, dict):
         spatial = from_geojson(spatial)
     elif isinstance(spatial, str):
-        if os.path.exists(spatial) or spatial.lower().startswith(('http://', 'https://', 's3://')):
-            if spatial.lower().endswith(('.tif', '.tiff', '.vrt', '.geotif', '.geotiff', '.img')):
+        if os.path.exists(spatial) or spatial.lower().startswith(("http://", "https://", "s3://")):
+            if spatial.lower().endswith((".tif", ".tiff", ".vrt", ".geotif", ".geotiff", ".img")):
                 spatial = read_img_bounds(spatial, crs=4326)
             else:
-                spatial = read_vector_file(spatial, crs=4326)        
-        else:            
+                spatial = read_vector_file(spatial, crs=4326)
+        else:
             try:
                 spatial = from_geojson(spatial)
-            except:
+            except Exception:
                 raise GediSpatialError("Invalid spatial input. Must be bounding box list, file path, or GeoDataFrame.")
     elif isinstance(spatial, list) and len(spatial) == 4:
         spatial = gpd.GeoDataFrame(geometry=[box(*spatial)], crs=4326, index=[0])
@@ -1194,6 +1252,7 @@ def parse_spatial(spatial):
         raise GediSpatialError("Invalid spatial input. Must be bounding box list, file path, or GeoDataFrame.")
 
     return spatial
+
 
 def merge_spatial(existing, new):
     if new is None:
@@ -1206,10 +1265,10 @@ def merge_spatial(existing, new):
     if existing is None:
         return new, None
 
-    gdf_union = gpd.overlay(existing, new, how='union').union_all()
+    gdf_union = gpd.overlay(existing, new, how="union").union_all()
     gdf_union = gpd.GeoDataFrame(geometry=[gdf_union], crs=existing.crs)
 
-    gdf_sdiff = gpd.overlay(existing, new, how='symmetric_difference').union_all()
+    gdf_sdiff = gpd.overlay(existing, new, how="symmetric_difference").union_all()
     gdf_sdiff = gpd.GeoDataFrame(geometry=[gdf_sdiff], crs=existing.crs)
 
     if gdf_sdiff.geometry.iloc[0].is_empty:
@@ -1217,8 +1276,10 @@ def merge_spatial(existing, new):
 
     return gdf_union, gdf_sdiff
 
+
 def get_dask_client():
     from dask.distributed import get_client
+
     try:
         client = get_client()
         return client
@@ -1229,6 +1290,7 @@ def get_dask_client():
 # =============================================================================
 # Transaction Safety for File Operations
 # =============================================================================
+
 
 class AtomicFileWriter:
     """
@@ -1261,13 +1323,7 @@ class AtomicFileWriter:
     # Original file backed up to .bak, new file replaces it
     """
 
-    def __init__(
-        self,
-        target_path: str,
-        suffix: str = '.tmp',
-        backup: bool = False,
-        backup_suffix: str = '.bak'
-    ):
+    def __init__(self, target_path: str, suffix: str = ".tmp", backup: bool = False, backup_suffix: str = ".bak"):
         self.target_path = target_path
         self.temp_path = target_path + suffix
         self.backup = backup
@@ -1334,7 +1390,7 @@ def safe_file_replace(src: str, dst: str, backup: bool = False) -> str:
     if not os.path.exists(src):
         raise GediFileError(f"Source file not found: {src}")
 
-    backup_path = dst + '.bak'
+    backup_path = dst + ".bak"
 
     try:
         if backup and os.path.exists(dst):
@@ -1345,19 +1401,14 @@ def safe_file_replace(src: str, dst: str, backup: bool = False) -> str:
         os.replace(src, dst)
         return dst
 
-    except Exception as e:
+    except Exception:
         # Attempt rollback
         if backup and os.path.exists(backup_path) and not os.path.exists(dst):
             os.rename(backup_path, dst)
         raise
 
 
-def safe_directory_write(
-    write_func,
-    target_dir: str,
-    suffix: str = '.tmp',
-    cleanup_on_failure: bool = True
-):
+def safe_directory_write(write_func, target_dir: str, suffix: str = ".tmp", cleanup_on_failure: bool = True):
     """
     Safely write to a directory with cleanup on failure.
 
@@ -1387,7 +1438,7 @@ def safe_directory_write(
     """
     import shutil
 
-    temp_dir = target_dir.rstrip('/') + suffix
+    temp_dir = target_dir.rstrip("/") + suffix
     os.makedirs(temp_dir, exist_ok=True)
 
     try:
@@ -1427,22 +1478,23 @@ def verify_file_integrity(file_path: str, file_type: str = None) -> bool:
     if file_type is None:
         ext = os.path.splitext(file_path)[1].lower()
         file_type = {
-            '.h5': 'h5',
-            '.hdf5': 'h5',
-            '.parquet': 'parquet',
-            '.parq': 'parquet',
-            '.pq': 'parquet',
-            '.json': 'json',
+            ".h5": "h5",
+            ".hdf5": "h5",
+            ".parquet": "parquet",
+            ".parq": "parquet",
+            ".pq": "parquet",
+            ".json": "json",
         }.get(ext)
 
     try:
-        if file_type == 'h5':
+        if file_type == "h5":
             return h5_is_valid(file_path)
-        elif file_type == 'parquet':
+        elif file_type == "parquet":
             import pyarrow.parquet as pq
+
             pq.read_metadata(file_path)
             return True
-        elif file_type == 'json':
+        elif file_type == "json":
             json_read(file_path)
             return True
         else:
