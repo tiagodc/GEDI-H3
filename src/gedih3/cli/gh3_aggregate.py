@@ -149,6 +149,9 @@ def _aggregate_data(ddf, *, use_egi, is_database, args, agg, agg_is_dict,
         export_func = gh3.egi_export_part
     else:
         # H3 (hexagon) aggregation
+        h3_part_level = source_info.get('partition_level') or args.h3_level
+        part_col = h3_col_name(h3_part_level)
+
         logger.info("Aggregating data...")
         logger.info(f"  Target: H3 level {args.h3_level}")
 
@@ -158,10 +161,9 @@ def _aggregate_data(ddf, *, use_egi, is_database, args, agg, agg_is_dict,
             agg=agg,
             columns=agg_columns,
             add_geometry=True,
-            repartition=not args.merge
+            repartition=not args.merge,
+            partition_level=h3_part_level
         )
-        h3_part_level = source_info.get('partition_level') or args.h3_level
-        part_col = h3_col_name(h3_part_level)
         export_func = gh3.gh3_export_part
 
     return aggdf, part_col, export_func
@@ -183,7 +185,8 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
     from gedih3.cliutils import is_internal_column, print_success
 
     # Drop spatial indexing columns from output (keep only data + geometry)
-    drop_cols = [c for c in aggdf.columns if is_internal_column(c)]
+    # Preserve the partition column (part_col) — needed for output file naming
+    drop_cols = [c for c in aggdf.columns if is_internal_column(c) and c != part_col]
     if drop_cols:
         logger.info(f"  Dropping internal columns: {drop_cols}")
         aggdf = aggdf.drop(columns=drop_cols)

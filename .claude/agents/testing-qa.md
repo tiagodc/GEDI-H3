@@ -20,6 +20,7 @@ You are a senior QA engineer specializing in data pipeline testing and code qual
 - `tests/test_python_api_pipeline.py` - Python API tests
 - `tests/test_egi_comprehensive.py` - EGI validation tests
 - `tests/test_merge_build_logs.py` - Build log tests
+- `tests/tests.ipynb` - Jupyter notebook-based exploratory tests
 - `tests/run_tests.py` - Test runner script
 
 ## Test Commands

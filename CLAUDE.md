@@ -535,10 +535,10 @@ import gedih3.gh3driver as gh3
 
 # Load H3-indexed data with spatial filter
 ddf = gh3.gh3_load(
+    source='/path/to/database',  # preferred; gh3_dir= is deprecated
     columns=['agbd_l4a', 'rh_098_l2a'],
     region='region.shp',  # or bbox or ISO3
     query='quality_flag_l2a == 1',
-    gh3_dir='/path/to/database'
 )
 
 # Aggregate to coarser H3 level
@@ -565,7 +565,7 @@ ddf = gh3.gh3_load_dataset_lazy('/path/to/dataset/')
 ```python
 import gedih3.egi as egi
 
-# Add EGI index to GEDI shots
+# Add EGI index to GEDI shots (from a DataFrame already in memory)
 egi_df = egi.egi_dataframe(shots_df, level=6)  # ~1km resolution
 
 # Aggregate to coarser level
@@ -574,6 +574,25 @@ agg_df = egi.egi_aggregate(egi_df, mapper='mean')
 # Rasterize for GIS output
 raster = egi.geodf_to_raster(agg_df, columns=['agbd_mean'])
 raster.rio.to_raster("output.tif")
+```
+
+### Direct H3→EGI Loading (No Shuffle)
+
+```python
+import gedih3.gh3driver as gh3
+
+# Load H3 database directly into EGI partitions — no shuffle
+# Each Dask partition corresponds to one EGI tile
+ddf = gh3.egi_load(
+    source='/path/to/h3_database',
+    columns=['agbd_l4a'],
+    region='region.shp',
+    index_level=1,       # EGI index resolution (1=~1m ... 12=~160km)
+    partition_level=12,  # EGI partition tile size (default=12, ~160km)
+)
+
+# Aggregate EGI-partitioned data to a coarser level
+agg_df = gh3.egi_aggregate(ddf, target_level=6, agg='mean')
 ```
 
 ### Rasterization
@@ -662,9 +681,12 @@ python tests/run_tests.py
 - **Dask everywhere**: All heavy operations use Dask DataFrames/Bags for distributed processing
 - **H3 partitioning**: Data partitioned by H3 cells (configurable via `-h3p` for partition, `-h3r` for index; levels stored in metadata)
 - **EGI alignment**: Square pixels aligned to EASE-Grid 2.0 (EPSG:6933) for L4B compatibility
-- **Parquet + JSON metadata**: Each H3 partition has a `.parquet` file and `.metadata.json` sidecar
+- **Direct EGI loading (no shuffle)**: `egi_load()` pre-computes EGI↔H3 intersection and reads tiles directly — no `set_index()` shuffle needed
+- **Parquet + JSON metadata**: Each H3 partition has a `.parquet` file; database root has `gedih3_build_log.json`
+- **Unified `source=` API**: `gh3_load()` and `egi_load()` accept `source=` as the primary path parameter; `gh3_dir=` emits a `DeprecationWarning`
 - **Variable expansion**: CLI accepts `default`, `minimal`, `*`, or explicit variable lists/files
 - **Spatial filtering**: Supports vector files, bounding boxes, or ISO3 country codes
+- **S3 ETL mode**: `gh3_build --s3` / `gh3_download --s3` stream from NASA S3 without persistent local download
 - **Retry logic**: Network operations use exponential backoff (3 attempts, 1-60s wait)
 - **Atomic writes**: File operations use `AtomicFileWriter` for transaction safety
 - **Structured exceptions**: Catch specific `GediError` subclasses for targeted error handling
@@ -678,7 +700,7 @@ The `cliutils.py` module provides shared utilities for CLI tools to avoid code d
 ### Argument Builders
 
 ```python
-from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args
+from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args, add_storage_args
 
 # Add standard Dask arguments (-N, -T, -M, -P, -s, --dask-config)
 add_dask_args(parser)
@@ -688,12 +710,15 @@ add_verbosity_args(parser)
 
 # Add GEDI product arguments (-l1b, -l2a, -l2b, -l4a, -l4c)
 add_product_args(parser)
+
+# Add S3/remote storage arguments (--s3, storage credentials)
+add_storage_args(parser)
 ```
 
 ### Setup Functions
 
 ```python
-from gedih3.cliutils import setup_logging, print_banner, print_success, configure_database_path
+from gedih3.cliutils import setup_logging, print_banner, print_success, configure_database_path, cli_exception_handler
 
 # Configure logging based on args and get logger
 # Also suppresses Dask warnings unless in DEBUG mode (-vv)
@@ -707,6 +732,21 @@ print_success("Operation complete", logger=logger)
 
 # Configure and validate database path
 configure_database_path(args, logger=logger)
+
+# Context manager for consistent exception handling in CLI tools
+with cli_exception_handler(args, logger=logger):
+    main_logic()
+```
+
+### EGI Level Parsing
+
+```python
+from gedih3.cliutils import parse_egi_levels
+
+# Parse "-egi 6" → (6, 12)  [index_level, partition_level]
+# Parse "-egi 6:10" → (6, 10)
+index_level, partition_level = parse_egi_levels("6")
+index_level, partition_level = parse_egi_levels("6:10")
 ```
 
 **Dask Warning Suppression**: `setup_logging()` automatically suppresses noisy Dask/distributed warnings when not in DEBUG mode (`-vv`). Warnings about "Sending large graph", "Consider loading the data", and shuffle warnings are hidden at INFO and ERROR levels.
@@ -764,10 +804,10 @@ The `gh3_load()` function uses `from_map=True` by default, which provides signif
 
 ```python
 # Default behavior (efficient for large databases)
-ddf = gh3.gh3_load(columns=['agbd_l4a'], gh3_dir='/path/to/database')
+ddf = gh3.gh3_load(source='/path/to/database', columns=['agbd_l4a'])
 
 # Legacy behavior (if needed for backwards compatibility)
-ddf = gh3.gh3_load(columns=['agbd_l4a'], gh3_dir='/path/to/database', from_map=False)
+ddf = gh3.gh3_load(source='/path/to/database', columns=['agbd_l4a'], from_map=False)
 ```
 
 ### Aggregation with `map_partitions`

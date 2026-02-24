@@ -554,7 +554,7 @@ def gh3_load(source=None, *, columns=None, region=None, query=None,
         return ddf.compute()
     return ddf
 
-def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, add_geometry=True, repartition=False, **kwargs):
+def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, add_geometry=True, repartition=False, partition_level=None, **kwargs):
     """
     Aggregate H3-indexed GEDI data to a coarser H3 resolution.
 
@@ -577,6 +577,9 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
         If True, add H3 polygon geometries to output
     repartition : bool
         If True, repartition by H3 partition column for export
+    partition_level : int, optional
+        Explicit H3 partition level. Used as fallback when the DataFrame
+        lacks h3_XX columns (e.g., loaded from a simplified dataset).
     **kwargs
         Additional arguments passed to aggregation function
 
@@ -591,6 +594,9 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
         gh3_df = gh3_df.query(query)
 
     h3part = gh3_part_from_df(gh3_reindex(gh3_df))
+    # Fallback: use explicit partition_level when no h3_XX columns detected
+    if h3part is None and partition_level is not None and partition_level < target_res:
+        h3part = f"h3_{partition_level:02d}"
     h3agg = f"h3_{target_res:02d}"
 
     # Use map_partitions for efficient processing
