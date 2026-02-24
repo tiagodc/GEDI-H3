@@ -229,13 +229,19 @@ def main():
                 # Mode 2: Simplified dataset — load all tiles
                 logger.info("Loading GEDI data from simplified dataset...")
                 logger.info("  ROI: entire dataset (all tiles)")
-                ddf = gh3.gh3_load(args.database)
-                if query_str:
-                    ddf = ddf.query(query_str)
 
+                # Detect index type before loading to route to correct loader
                 ds_info = get_dataset_index_info(args.database)
                 index_type = ds_info.get('index_type', 'h3')
                 index_level = ds_info.get('index_level')
+
+                if index_type == 'egi':
+                    ddf = gh3.egi_load(args.database)
+                else:
+                    ddf = gh3.gh3_load(args.database)
+
+                if query_str:
+                    ddf = ddf.query(query_str)
 
                 if index_type == 'egi':
                     from gedih3.egi.config import egi_col_name
