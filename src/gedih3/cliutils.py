@@ -540,12 +540,14 @@ def cli_exception_handler(args, logger=None):
         args: Parsed arguments with 'verbose' attribute for traceback control
         logger: Optional logger (not currently used, reserved for future use)
 
-    Usage:
+    Usage::
+
         with cli_exception_handler(args):
             # CLI main logic here
             pass
 
-    Example:
+    Example::
+
         def main():
             args = get_cmd_args()
             with cli_exception_handler(args):
@@ -965,6 +967,7 @@ def parse_aggregation(agg_str):
     """Parse aggregation spec from CLI string, JSON file, or text file.
 
     Supports:
+
         - Single function: 'mean' → 'mean'
         - Percentile shorthand: 'p25', 'p50', 'p95' → named percentile callable
         - List of functions: "['mean', 'std', 'p25', 'p75']" → mixed list

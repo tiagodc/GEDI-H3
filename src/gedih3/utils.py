@@ -41,17 +41,17 @@ def configure_storage(protocol='s3', **kwargs):
     **kwargs
         Protocol-specific options passed to ``fsspec.filesystem()``.
 
-        **S3** (s3fs): ``key``, ``secret``, ``endpoint_url``, ``anon``.
+        ``S3`` (s3fs): ``key``, ``secret``, ``endpoint_url``, ``anon``.
         ``endpoint_url`` is automatically wrapped into
         ``client_kwargs={'endpoint_url': ...}`` for s3fs compatibility.
 
-        **HTTP/HTTPS** (aiohttp): ``username``/``password`` (basic auth
+        ``HTTP/HTTPS`` (aiohttp): ``username``/``password`` (basic auth
         via ``client_kwargs``) or ``headers`` dict (bearer tokens, API
         keys).
 
-        **FTP**: ``username``, ``password``, ``host``, ``port``.
+        ``FTP``: ``username``, ``password``, ``host``, ``port``.
 
-        **SFTP/SSH**: ``username``, ``password`` or ``key_filename``
+        ``SFTP/SSH``: ``username``, ``password`` or ``key_filename``
         (path to SSH private key), ``port``.
 
     Examples
@@ -286,7 +286,7 @@ def generate_manifest(root_path, pattern='**/*.parquet'):
     root_path : str
         Database root directory (must be local).
     pattern : str
-        Glob pattern relative to root_path (default: '**/*.parquet').
+        Glob pattern relative to root_path (default: ``**/*.parquet``).
 
     Returns
     -------

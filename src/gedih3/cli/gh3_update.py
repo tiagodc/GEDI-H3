@@ -5,8 +5,9 @@ GEDI Dataset Update Tool
 
 Add new columns to an existing simplified dataset (created by gh3_extract).
 Two modes:
-  Mode 1: Add columns from the source H3 database via shot_number join.
-  Mode 2: Merge columns from another simplified dataset via shot_number join.
+
+Mode 1: Add columns from the source H3 database via shot_number join.
+Mode 2: Merge columns from another simplified dataset via shot_number join.
 
 Both modes modify the target dataset in place.
 

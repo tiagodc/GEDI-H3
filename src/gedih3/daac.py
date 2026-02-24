@@ -94,7 +94,36 @@ def gedi_latest_version(product: str) -> str:
 
 
 class GEDIAccessor:
-    """Main class for accessing GEDI data through various methods"""
+    """NASA Earthdata accessor for searching and downloading GEDI granules.
+
+    Provides authentication, spatial/temporal filtering, granule search,
+    and batch download functionality using the earthaccess library.
+
+    Parameters
+    ----------
+    authenticate : bool
+        If True (default), automatically call login() on initialization.
+    spatial : list, Polygon, str, or GeoDataFrame, optional
+        Spatial filter: bounding box ``[W, S, E, N]``, Shapely geometry,
+        vector file path, or GeoDataFrame.
+    temporal : tuple or list of str, optional
+        Temporal filter as ``(start_date, end_date)``, e.g.
+        ``('2020-01-01', '2021-01-01')``.
+
+    Raises
+    ------
+    GediAuthenticationError
+        If authentication fails on initialization (when ``authenticate=True``).
+
+    Examples
+    --------
+    >>> accessor = GEDIAccessor(
+    ...     spatial=[-51, 0, -50, 1],
+    ...     temporal=('2020-01-01', '2021-01-01')
+    ... )
+    >>> granules = accessor.search_data('L4A')
+    >>> paths = accessor.download_all('/path/to/output', product='L4A')
+    """
     
     def __init__(self, authenticate: bool = True, 
                  spatial: Union[List[float], Polygon, str, gpd.GeoDataFrame] = None,
@@ -605,7 +634,27 @@ def gedi_download(
     Returns
     -------
     dict or list
-        Downloaded file paths, organized by product or as flat list
+        Downloaded file paths, organized by product or as flat list.
+
+    Raises
+    ------
+    GediAuthenticationError
+        If NASA Earthdata authentication fails.
+    GediValidationError
+        If neither ``product_vars`` nor ``search_kwargs`` is provided.
+    GediDownloadError
+        If downloads fail after all retry attempts.
+
+    Examples
+    --------
+    >>> from gedih3.daac import gedi_download
+    >>> paths = gedi_download(
+    ...     product_vars={'L2A': ['default'], 'L4A': ['agbd']},
+    ...     odir='/path/to/output',
+    ...     spatial=[-51, 0, -50, 1],
+    ...     temporal=('2020-01-01', '2021-01-01'),
+    ...     resume=True,
+    ... )
     """
     gass = GEDIAccessor(authenticate=True, spatial=spatial, temporal=temporal)
 
