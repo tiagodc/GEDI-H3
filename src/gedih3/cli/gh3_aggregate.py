@@ -63,9 +63,9 @@ def get_cmd_args():
                    help="start date [YYYY-MM-DD]")
     p.add_argument("-t1", "--time-end", dest="time_end", type=str, default=None,
                    help="end date [YYYY-MM-DD]")
-    p.add_argument("-ti", "--time_interval", dest="time_interval", type=int, default=0,
+    p.add_argument("-ti", "--time-interval", dest="time_interval", type=int, default=0,
                    help="generate time-series outputs at interval")
-    p.add_argument("-tu", "--time_units", dest="time_units", type=str, default='years',
+    p.add_argument("-tu", "--time-units", dest="time_units", type=str, default='years',
                    choices=TIME_UNITS, help="time interval units [default=years]")
 
     # Variable selection

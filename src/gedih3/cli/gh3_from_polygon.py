@@ -63,9 +63,9 @@ def get_cmd_args():
                    help="pandas query string for filtering")
 
     # Temporal filtering
-    p.add_argument("-d0", "-t0", "--time-start", dest="time_start", type=str, default=None,
+    p.add_argument("-t0", "--time-start", dest="time_start", type=str, default=None,
                    help="start date [YYYY-MM-DD]")
-    p.add_argument("-d1", "-t1", "--time-end", dest="time_end", type=str, default=None,
+    p.add_argument("-t1", "--time-end", dest="time_end", type=str, default=None,
                    help="end date [YYYY-MM-DD]")
 
     # Output options

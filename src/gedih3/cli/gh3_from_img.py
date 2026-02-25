@@ -62,15 +62,15 @@ def get_cmd_args():
                    help="pandas query string for filtering")
 
     # Temporal filtering
-    p.add_argument("-d0", "-t0", "--time-start", dest="time_start", type=str, default=None,
+    p.add_argument("-t0", "--time-start", dest="time_start", type=str, default=None,
                    help="start date [YYYY-MM-DD]")
-    p.add_argument("-d1", "-t1", "--time-end", dest="time_end", type=str, default=None,
+    p.add_argument("-t1", "--time-end", dest="time_end", type=str, default=None,
                    help="end date [YYYY-MM-DD]")
 
     # Raster handling
     p.add_argument("-g", "--geo", dest="geo", action='store_true',
                    help="include geometry in output")
-    p.add_argument("-l", "--fillna", dest="fillna", type=float, default=None,
+    p.add_argument("-F", "--fillna", dest="fillna", type=float, default=None,
                    help="fill raster NaN/NoData with this value")
     p.add_argument("--dropna", dest="dropna", action='store_true',
                    help="drop rows where all band columns are NaN")

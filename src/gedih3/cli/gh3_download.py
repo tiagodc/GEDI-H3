@@ -10,16 +10,16 @@ def get_cmd_args():
     # Spatial/temporal filtering
     p.add_argument("-r", "--region", dest="region", type=str, default=None,
                    help="vector file, bbox 'W,S,E,N', or ISO3 code")
-    p.add_argument("-d0", "--date-start", dest="date_start", type=str, default=None,
+    p.add_argument("-t0", "--time-start", dest="time_start", type=str, default=None,
                    help="start date [YYYY-MM-DD]")
-    p.add_argument("-d1", "--date-end", dest="date_end", type=str, default=None,
+    p.add_argument("-t1", "--time-end", dest="time_end", type=str, default=None,
                    help="end date [YYYY-MM-DD]")
 
     # GEDI product variables
     add_product_args(p)
 
     # Output options
-    p.add_argument("-o", "--outdir", dest="outdir", type=str, default=None,
+    p.add_argument("-o", "--output", dest="output", type=str, default=None,
                    help="output directory for downloaded files")
     p.add_argument("-s3", "--s3", dest="s3", action='store_true',
                    help="use S3 ETL mode: stream and subset from NASA S3 (10-50x less data transfer)")
@@ -47,22 +47,22 @@ def main():
     logger = setup_logging(args, __name__)
     print_banner("GEDI Data Download Tool", logger=logger)
 
-    if args.outdir is None:
-        args.outdir = GH3_DEFAULT_SOC_DIR
-    os.makedirs(args.outdir, exist_ok=True)
+    if args.output is None:
+        args.output = GH3_DEFAULT_SOC_DIR
+    os.makedirs(args.output, exist_ok=True)
 
     product_vars = parse_gedi_args(args)
     spatial = parse_region(args.region) if args.region is not None else None
     temporal = None
-    if args.date_start or args.date_end:
-        temporal = (args.date_start, args.date_end)
+    if args.time_start or args.time_end:
+        temporal = (args.time_start, args.time_end)
 
     soc_logger = SOCDownloadLogger(
         product_vars=product_vars,
         spatial=spatial,
         temporal=temporal,
         version=args.version,
-        dir=args.outdir
+        dir=args.output
     )
 
     if args.s3:
@@ -85,7 +85,7 @@ def main():
             logger.info("Product variables updated")
 
     source_label = "S3 ETL" if args.s3 else "DAAC download"
-    logger.info(f"Downloading GEDI data to {args.outdir} ({source_label})")
+    logger.info(f"Downloading GEDI data to {args.output} ({source_label})")
     soc_logger.save_log('DOWNLOADING')
 
     dask_kwargs = parse_dask_args(args)
@@ -101,7 +101,7 @@ def main():
                         spatial=soc_logger.get_spatial(),
                         temporal=soc_logger.get_temporal(),
                         version=args.version,
-                        odir=args.outdir,
+                        odir=args.output,
                         ensure_l2a=True,
                     )
                 else:
@@ -113,15 +113,15 @@ def main():
                         direct_access=False,
                         update=True,
                         version=args.version,
-                        odir=args.outdir
+                        odir=args.output
                     )
 
                 soc_logger.set_post_download_info()
                 soc_logger.save_log('COMPLETED')
 
                 import glob
-                n_files = len(glob.glob(os.path.join(args.outdir, '**', 'GEDI*.h5'), recursive=True))
-                print_success(f"{n_files} files downloaded to {args.outdir} ({source_label})", logger=logger)
+                n_files = len(glob.glob(os.path.join(args.output, '**', 'GEDI*.h5'), recursive=True))
+                print_success(f"{n_files} files downloaded to {args.output} ({source_label})", logger=logger)
 
             except Exception as e:
                 soc_logger.save_log('FAILED')
