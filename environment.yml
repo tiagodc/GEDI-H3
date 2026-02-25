@@ -75,7 +75,17 @@ dependencies:
   - bokeh
   - folium
   - ipywidgets
+
+  # Testing
   - pytest
+  - pytest-cov
+
+  # Documentation
+  - sphinx[version='>=8.0']
+  - pydata-sphinx-theme[version='>=0.16']
+  - numpydoc[version='>=1.8']
+  - myst-parser[version='>=4.0']
+  - sphinx-autoapi[version='>=3.4']
 
   # Install gedih3 in editable mode via pip
   - pip:

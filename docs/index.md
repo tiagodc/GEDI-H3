@@ -43,7 +43,7 @@ Rasterize (gh3_rasterize)
 
 ## Navigation
 
-- [**Getting Started**](getting-started/installation.md) — Installation, configuration, and a 5-minute walkthrough
+- [**Getting Started**](getting-started/index.md) — Installation, configuration, and a 5-minute walkthrough
 - [**CLI Reference**](cli-reference.md) — All 11 command-line tools with examples
 - [**Data Formats**](data-formats.md) — H3 database structure vs. simplified datasets
 - [**API Reference**](autoapi/index) — Auto-generated from source docstrings
@@ -52,17 +52,14 @@ Rasterize (gh3_rasterize)
 :maxdepth: 2
 :caption: Getting Started
 
-getting-started/installation
-getting-started/quickstart
-getting-started/configuration
+getting-started/index
 ```
 
 ```{toctree}
 :maxdepth: 2
 :caption: Reference
 
-cli-reference
-data-formats
+reference/index
 ```
 
 ```{toctree}

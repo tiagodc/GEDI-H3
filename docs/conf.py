@@ -55,11 +55,19 @@ intersphinx_mapping = {
 # -- HTML output -------------------------------------------------------------
 html_theme = "pydata_sphinx_theme"
 html_theme_options = {
-    "github_url": "https://github.com/tiagodc/gedih3",
+    "github_url": "https://github.com/tiagodc/GEDI-H3",
     "use_edit_page_button": False,
     "show_toc_level": 2,
     "navigation_with_keys": True,
+    "show_nav_level": 1,
 }
+
+html_sidebars = {
+    "**": ["sidebar-nav-bs"],
+}
+
+# Show full navigation tree in the left sidebar
+navigation_depth = 4
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
