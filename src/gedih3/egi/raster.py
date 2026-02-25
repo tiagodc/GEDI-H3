@@ -5,19 +5,16 @@ This module provides rasterization functions for converting EGI-indexed
 GeoDataFrames to raster (xarray/GeoTIFF) format. The native alignment of
 EGI with EASE-Grid 2.0 allows for direct rasterization without resampling.
 """
-from typing import List, Optional, Union
+from typing import List, Optional
 import numpy as np
 import pandas as pd
 import geopandas as gpd
 import xarray as xr
 import rioxarray  # Register .rio accessor for xarray
 from rasterio import transform
-from geocube.api.core import make_geocube
-
-from .config import LIMITS, RESOLUTIONS, OUTER_RES, OUTER_LEVEL, EGI_CRS_STRING, get_resolution
-from .core import get_level
+from .config import RESOLUTIONS, OUTER_RES, OUTER_LEVEL, EGI_CRS_STRING, get_resolution
 from .spatial import pixel_shape
-from .dataframe import egi_to_parent, egi_to_geo
+from .dataframe import egi_to_parent
 from ..cliutils import filter_raster_columns as _filter_raster_columns
 from ..exceptions import GediRasterizationError
 

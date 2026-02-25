@@ -65,7 +65,6 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
     """
     import json
 
-    import gedih3.gh3driver as gh3
     from gedih3 import raster
     from gedih3.config import DATASET_META_FILENAME
 
@@ -162,7 +161,6 @@ def main():
     from gedih3.cliutils import cli_exception_handler
 
     with cli_exception_handler(args):
-        import glob
         from dask.distributed import Client
 
         from gedih3.cliutils import (parse_dask_args, setup_logging,

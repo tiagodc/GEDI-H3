@@ -1,29 +1,19 @@
 import os
 import time
-import logging
-from datetime import datetime
 from typing import Union, List, Dict, Optional, Tuple, Any, Callable
 from functools import partial
 from itertools import chain
 import earthaccess
 import geopandas as gpd
-from shapely.geometry import Polygon, MultiPolygon
+from shapely.geometry import Polygon
 import warnings
 from pqdm.processes import pqdm
 from dask.distributed import progress
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception,
-    before_sleep_log,
-    RetryError,
-)
 
 # Import configuration variables
 from .config import GH3_DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS
 from .utils import get_dask_client, read_vector_file, geo_to_umm, parse_temporal
-from .gedidriver import GEDIFile, soc_file_tree, gedi_subset, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5
+from .gedidriver import GEDIFile, gedi_subset, gedi_vars_expand, gedi_vars_from_h5
 from .exceptions import (
     GediDownloadError,
     GediAuthenticationError,

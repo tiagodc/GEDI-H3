@@ -11,7 +11,7 @@ The workflow:
 3. Rasterize using geocube with bilinear interpolation
 4. Reproject to target CRS (default: EPSG:4326)
 """
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -20,7 +20,7 @@ import h3
 import pyproj
 from geocube.api.core import make_geocube
 
-from .config import H3_RASTER_CRS, get_geotiff_options
+from .config import H3_RASTER_CRS
 from ..cliutils import filter_raster_columns as _filter_raster_columns
 from ..exceptions import GediRasterizationError
 

@@ -16,7 +16,6 @@ Package: gedih3
 """
 
 import os
-import sys
 import re
 import argparse
 

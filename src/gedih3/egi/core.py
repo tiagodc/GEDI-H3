@@ -19,7 +19,7 @@ Data Type Considerations:
     - Intermediate calculations use appropriate uint16/uint32 to prevent overflow
     - Coordinate divisions must use exact type casting to preserve precision
 """
-from typing import List, Tuple, Union, overload
+from typing import List, Tuple, Union
 import numpy as np
 from numpy.typing import NDArray
 

@@ -51,7 +51,7 @@ def main():
     import sys
     import glob
     import warnings
-    from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR
+    from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR
     from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success
     from gedih3.utils import get_system_resources
     from gedih3.gh3builder import build_h3db, download_soc, soc_file_tree

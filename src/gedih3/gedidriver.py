@@ -9,7 +9,7 @@ import os
 import re
 import glob
 import itertools
-from typing import Dict, List, Optional, Union, Any
+from typing import Dict, List, Optional, Union
 from pathlib import Path
 
 import h5py
@@ -23,7 +23,7 @@ import dask
 import dask.dataframe
 from earthaccess.store import EarthAccessFile
 
-from .config import GEDI_PRODUCTS, GEDI_BEAMS, GEDI_START_DATE, GH3_DEFAULT_SOC_DIR, get_default_vars_file, _get_versioned, _GEDI_MIN_VARS
+from .config import GEDI_BEAMS, GEDI_START_DATE, GH3_DEFAULT_SOC_DIR, get_default_vars_file, _get_versioned, _GEDI_MIN_VARS
 from .utils import h5_copy_subset, h5_info
 from .logging_config import get_logger
 from .exceptions import GediValidationError, GediProductError, GediVariableError

@@ -17,7 +17,6 @@ import re
 import logging
 import glob as _glob
 
-import numpy as np
 import pandas as pd
 import geopandas as gpd
 

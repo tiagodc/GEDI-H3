@@ -36,7 +36,6 @@ dependencies = [
     "earthaccess >= 0.14.0",
     "pqdm",
     "pyyaml",
-    "tenacity >= 8.2.0",
     "scipy >= 1.10.0",
     "GDAL >= 3.4.0",
     "duckdb >= 0.9.0",

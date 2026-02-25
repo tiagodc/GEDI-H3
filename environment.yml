@@ -1,11 +1,11 @@
 channels:
   - conda-forge
 
-variables:
-  GH3_DEFAULT_DOWNLOAD_DIR: /gpfs/data1/vclgp/data/iss_gedi/h3_mock
-  GH3_DEFAULT_TMP_DIR: /gpfs/data1/vclgp/data/iss_gedi/h3_mock/tmp
-  GH3_DEFAULT_SOC_DIR: /gpfs/data1/vclgp/data/iss_gedi/soc
-  GH3_DEFAULT_H3_DIR: /gpfs/data1/vclgp/data/iss_gedi/h3_mock/database_world_merged
+# variables:
+#   GH3_DEFAULT_DOWNLOAD_DIR: 
+#   GH3_DEFAULT_TMP_DIR: 
+#   GH3_DEFAULT_SOC_DIR: 
+#   GH3_DEFAULT_H3_DIR: 
 
 dependencies:
   # Package managers
@@ -56,10 +56,8 @@ dependencies:
   # Utilities
   - python-dateutil[version='>=2.9']
   - python-dotenv
-  - tenacity[version='>=8.2']
   - tqdm
   - pqdm
-  - requests
 
   # GDAL/PROJ system libraries
   - gdal
@@ -89,4 +87,4 @@ dependencies:
 
   # Install gedih3 in editable mode via pip
   - pip:
-    - -e .
+    - .
