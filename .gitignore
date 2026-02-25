@@ -9,3 +9,4 @@ dask-*.yaml
 build/
 docs/_build/
 docs/_site/
+_site/
