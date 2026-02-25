@@ -17,6 +17,7 @@ import logging
 import sys
 from typing import Optional
 
+
 # Default format strings
 CONSOLE_FORMAT = "%(message)s"
 CONSOLE_FORMAT_VERBOSE = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -31,7 +32,10 @@ _logging_configured = False
 
 
 def configure_logging(
-    level: int = logging.INFO, verbose: bool = False, log_file: Optional[str] = None, quiet: bool = False
+    level: int = logging.INFO,
+    verbose: bool = False,
+    log_file: Optional[str] = None,
+    quiet: bool = False
 ) -> logging.Logger:
     """
     Configure the gedih3 logging system.
@@ -79,7 +83,7 @@ def configure_logging(
 
     # File handler (if specified)
     if log_file:
-        file_handler = logging.FileHandler(log_file, mode="a")
+        file_handler = logging.FileHandler(log_file, mode='a')
         file_handler.setLevel(level)
         file_formatter = logging.Formatter(FILE_FORMAT, datefmt=DATE_FORMAT)
         file_handler.setFormatter(file_formatter)

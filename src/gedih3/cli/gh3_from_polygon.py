@@ -11,103 +11,70 @@ Author: Tiago de Conto
 Package: gedih3
 """
 
-import argparse
 import os
 import re
 import sys
+import argparse
 
 
 def get_cmd_args():
     """Parse command line arguments for vector polygon join tool."""
-    from gedih3.cliutils import add_dask_args, add_storage_args, add_verbosity_args
+    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_storage_args
 
-    p = argparse.ArgumentParser(description="Spatially join polygon attributes to GEDI shot locations")
+    p = argparse.ArgumentParser(
+        description="Spatially join polygon attributes to GEDI shot locations"
+    )
 
     # Vector input
-    p.add_argument(
-        "-i",
-        "--input",
-        dest="input",
-        required=True,
-        type=str,
-        help="path to vector file (.shp, .gpkg, .geojson) or directory",
-    )
-    p.add_argument(
-        "-if",
-        "--input-format",
-        dest="input_format",
-        type=str,
-        default="*",
-        help="file extension for directory globbing [default=* (all supported)]",
-    )
+    p.add_argument("-i", "--input", dest="input", required=True, type=str,
+                   help="path to vector file (.shp, .gpkg, .geojson) or directory")
+    p.add_argument("-if", "--input-format", dest="input_format", type=str, default='*',
+                   help="file extension for directory globbing [default=* (all supported)]")
 
     # Column configuration
-    p.add_argument(
-        "-c",
-        "--columns",
-        dest="columns",
-        nargs="+",
-        type=str,
-        default=None,
-        help="polygon attribute columns to include (default: all)",
-    )
-    p.add_argument(
-        "-x",
-        "--prefix",
-        dest="prefix",
-        type=str,
-        default=None,
-        help="prefix for polygon column names (avoids conflicts)",
-    )
+    p.add_argument("-c", "--columns", dest="columns", nargs='+', type=str, default=None,
+                   help="polygon attribute columns to include (default: all)")
+    p.add_argument("-x", "--prefix", dest="prefix", type=str, default=None,
+                   help="prefix for polygon column names (avoids conflicts)")
 
     # Join configuration
-    p.add_argument(
-        "-p",
-        "--predicate",
-        dest="predicate",
-        type=str,
-        default="within",
-        choices=["within", "intersects"],
-        help="spatial join predicate [default=within]",
-    )
+    p.add_argument("-p", "--predicate", dest="predicate", type=str, default='within',
+                   choices=['within', 'intersects'],
+                   help="spatial join predicate [default=within]")
 
     # Data source
-    p.add_argument(
-        "-d",
-        "--database",
-        dest="database",
-        type=str,
-        default=None,
-        help="path to H3 database or simplified dataset directory",
-    )
+    p.add_argument("-d", "--database", dest="database", type=str, default=None,
+                   help="path to H3 database or simplified dataset directory")
 
     # Output
-    p.add_argument("-o", "--output", dest="output", required=True, type=str, help="output directory")
-    p.add_argument("-f", "--format", dest="format", type=str, default="parquet", help="output format [default=parquet]")
-    p.add_argument("-m", "--merge", dest="merge", action="store_true", help="merge all partitions into single file")
+    p.add_argument("-o", "--output", dest="output", required=True, type=str,
+                   help="output directory")
+    p.add_argument("-f", "--format", dest="format", type=str, default='parquet',
+                   help="output format [default=parquet]")
+    p.add_argument("-m", "--merge", dest="merge", action='store_true',
+                   help="merge all partitions into single file")
 
     # Spatial/quality filtering
-    p.add_argument(
-        "-r",
-        "--region",
-        dest="region",
-        type=str,
-        default=None,
-        help="additional spatial filter: vector file, bbox 'W,S,E,N', or ISO3 code",
-    )
-    p.add_argument("-y", "--quality", dest="quality", action="store_true", help="apply quality filtering")
-    p.add_argument("-q", "--query", dest="query", type=str, default=None, help="pandas query string for filtering")
+    p.add_argument("-r", "--region", dest="region", type=str, default=None,
+                   help="additional spatial filter: vector file, bbox 'W,S,E,N', or ISO3 code")
+    p.add_argument("-y", "--quality", dest="quality", action='store_true',
+                   help="apply quality filtering")
+    p.add_argument("-q", "--query", dest="query", type=str, default=None,
+                   help="pandas query string for filtering")
 
     # Temporal filtering
-    p.add_argument(
-        "-d0", "-t0", "--time-start", dest="time_start", type=str, default=None, help="start date [YYYY-MM-DD]"
-    )
-    p.add_argument("-d1", "-t1", "--time-end", dest="time_end", type=str, default=None, help="end date [YYYY-MM-DD]")
+    p.add_argument("-d0", "-t0", "--time-start", dest="time_start", type=str, default=None,
+                   help="start date [YYYY-MM-DD]")
+    p.add_argument("-d1", "-t1", "--time-end", dest="time_end", type=str, default=None,
+                   help="end date [YYYY-MM-DD]")
 
     # Output options
-    p.add_argument("-g", "--geo", dest="geo", action="store_true", help="include geometry in output")
-    p.add_argument("--dropna", dest="dropna", action="store_true", help="drop shots with no polygon match (inner join)")
-    p.add_argument("--resume", dest="resume", action="store_true", help="skip already-processed partitions")
+    p.add_argument("-g", "--geo", dest="geo", action='store_true',
+                   help="include geometry in output")
+    p.add_argument("--dropna", dest="dropna", action='store_true',
+                   help="drop shots with no polygon match (inner join)")
+    p.add_argument("--resume", dest="resume", action='store_true',
+                   help="skip already-processed partitions")
 
     # Dask, storage, and verbosity
     add_dask_args(p)
@@ -124,29 +91,19 @@ def main():
 
     with cli_exception_handler(args):
         import glob
-
         import geopandas as gpd
         from dask.distributed import Client
 
         import gedih3.gh3driver as gh3
         from gedih3.cliutils import (
-            build_query_string,
-            configure_database_path,
-            get_dataset_index_info,
-            h3_col_name,
-            parse_dask_args,
-            parse_region,
-            print_banner,
-            print_success,
-            setup_logging,
-            setup_storage,
+            setup_logging, print_banner, print_success,
+            configure_database_path, parse_region, parse_dask_args,
+            h3_col_name, get_dataset_index_info, build_query_string,
+            setup_storage
         )
         from gedih3.vecutils import (
-            _compute_join_meta,
-            _detect_spatial_cols,
-            get_vector_info,
-            join_polygons_to_points,
-            resolve_vector_source,
+            resolve_vector_source, get_vector_info, load_vector,
+            join_polygons_to_points, _compute_join_meta, _detect_spatial_cols
         )
 
         # Setup
@@ -170,17 +127,17 @@ def main():
 
         # Validate user-specified columns exist
         if args.columns:
-            missing = [c for c in args.columns if c not in vec_info["columns"]]
+            missing = [c for c in args.columns if c not in vec_info['columns']]
             if missing:
                 from gedih3.exceptions import GediSpatialJoinError
-
                 raise GediSpatialJoinError(
-                    f"Columns not found in vector file: {missing}. Available: {vec_info['columns']}"
+                    f"Columns not found in vector file: {missing}. "
+                    f"Available: {vec_info['columns']}"
                 )
             join_columns = args.columns
             logger.info(f"  Selected columns: {join_columns}")
         else:
-            join_columns = vec_info["columns"]
+            join_columns = vec_info['columns']
 
         # Get polygon dtypes for meta computation
         # Load a sample to detect dtypes (rows=0 still gives schema)
@@ -188,7 +145,7 @@ def main():
         polygon_dtypes = {c: str(sample_gdf[c].dtype) for c in join_columns if c in sample_gdf.columns}
 
         # Join configuration
-        how = "inner" if args.dropna else "left"
+        how = 'inner' if args.dropna else 'left'
         logger.info(f"  Join predicate: {args.predicate}")
         logger.info(f"  Join type: {how}")
         if args.prefix:
@@ -198,14 +155,12 @@ def main():
         configure_database_path(args, logger=logger)
 
         from gedih3.utils import smart_exists
-
         if not smart_exists(args.database):
             logger.error(f"Database directory not found: {args.database}")
             sys.exit(1)
 
         # Detect data source type
         from gedih3.config import BUILD_LOG_FILENAME, DATASET_META_FILENAME
-
         build_log = os.path.join(args.database, BUILD_LOG_FILENAME)
         dataset_meta = os.path.join(args.database, DATASET_META_FILENAME)
         is_h3_database = smart_exists(build_log)
@@ -243,26 +198,31 @@ def main():
                 # Mode 1: H3 database — ROI = polygon bounds ∩ user region
                 from shapely.geometry import box as shapely_box
 
-                vec_bounds = vec_info["bounds_wgs84"]
+                vec_bounds = vec_info['bounds_wgs84']
                 vec_geom = shapely_box(*vec_bounds)
-                vec_gdf = gpd.GeoDataFrame(geometry=[vec_geom], crs="EPSG:4326")
+                vec_gdf = gpd.GeoDataFrame(geometry=[vec_geom], crs='EPSG:4326')
 
                 if region is not None:
-                    roi = gpd.overlay(vec_gdf, region.to_crs("EPSG:4326"), how="intersection")
+                    roi = gpd.overlay(vec_gdf, region.to_crs('EPSG:4326'), how='intersection')
                     if roi.empty:
                         raise ValueError("Vector bounds do not overlap with specified region")
                 else:
                     roi = vec_gdf
 
                 logger.info("Loading GEDI data from H3 database...")
-                logger.info("  ROI: vector bounds ∩ region")
+                logger.info(f"  ROI: vector bounds ∩ region")
 
-                columns = ["geometry"]
-                ddf = gh3.gh3_load(columns=columns, region=roi, query=query_str, gh3_dir=args.database)
+                columns = ['geometry']
+                ddf = gh3.gh3_load(
+                    columns=columns,
+                    region=roi,
+                    query=query_str,
+                    gh3_dir=args.database
+                )
 
-                part_level = gh3.gh3_read_meta("h3_partition_level", gh3_root_dir=args.database)
+                part_level = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
                 partition_col = h3_col_name(part_level)
-                index_type = "h3"
+                index_type = 'h3'
                 index_level = part_level
 
             else:
@@ -272,10 +232,10 @@ def main():
 
                 # Detect index type before loading to route to correct loader
                 ds_info = get_dataset_index_info(args.database)
-                index_type = ds_info.get("index_type", "h3")
-                index_level = ds_info.get("index_level")
+                index_type = ds_info.get('index_type', 'h3')
+                index_level = ds_info.get('index_level')
 
-                if index_type == "egi":
+                if index_type == 'egi':
                     ddf = gh3.egi_load(args.database)
                 else:
                     ddf = gh3.gh3_load(args.database)
@@ -283,32 +243,31 @@ def main():
                 if query_str:
                     ddf = ddf.query(query_str)
 
-                if index_type == "egi":
+                if index_type == 'egi':
                     from gedih3.egi.config import egi_col_name
-
-                    part_level = ds_info.get("partition_level") or ds_info.get("egi_partition_level")
+                    part_level = ds_info.get('partition_level') or ds_info.get('egi_partition_level')
                     partition_col = egi_col_name(part_level) if part_level else None
                 else:
-                    part_level = ds_info.get("partition_level") or ds_info.get("h3_partition_level")
+                    part_level = ds_info.get('partition_level') or ds_info.get('h3_partition_level')
                     partition_col = h3_col_name(part_level) if part_level else None
 
             # Fallback partition detection: scan columns if metadata didn't provide it
             if partition_col is None:
-                h3_cols = sorted([c for c in ddf.columns if re.match(r"^h3_\d{2}$", c)])
-                egi_cols = sorted([c for c in ddf.columns if re.match(r"^egi\d{2}$", str(c))])
+                h3_cols = sorted([c for c in ddf.columns if re.match(r'^h3_\d{2}$', c)])
+                egi_cols = sorted([c for c in ddf.columns if re.match(r'^egi\d{2}$', str(c))])
                 if h3_cols:
                     partition_col = h3_cols[0]
-                    part_level = int(partition_col.replace("h3_", ""))
-                    index_type = index_type or "h3"
+                    part_level = int(partition_col.replace('h3_', ''))
+                    index_type = index_type or 'h3'
                     logger.info(f"  Detected partition column from data: {partition_col}")
                 elif egi_cols:
                     partition_col = egi_cols[0]
-                    part_level = int(partition_col.replace("egi", ""))
-                    index_type = index_type or "egi"
+                    part_level = int(partition_col.replace('egi', ''))
+                    index_type = index_type or 'egi'
                     logger.info(f"  Detected partition column from data: {partition_col}")
 
             # Validate geometry
-            if "geometry" not in ddf.columns:
+            if 'geometry' not in ddf.columns:
                 raise ValueError(
                     "Input data must contain geometry column for spatial join. "
                     "For simplified datasets, re-extract with the -g flag."
@@ -321,7 +280,7 @@ def main():
             # Resume: filter out existing partitions
             os.makedirs(args.output, exist_ok=True)
             if args.resume:
-                existing = glob.glob(os.path.join(args.output, f"*.{args.format}"))
+                existing = glob.glob(os.path.join(args.output, f'*.{args.format}'))
                 if existing:
                     existing_ids = {os.path.splitext(os.path.basename(f))[0] for f in existing}
                     logger.info(f"  Resume: skipping {len(existing_ids)} existing partitions")
@@ -333,11 +292,12 @@ def main():
             # Detect spatial columns from loaded data for schema
             spatial_cols = _detect_spatial_cols(ddf)
             if not spatial_cols and partition_col:
-                spatial_cols = {partition_col: "object"}
+                spatial_cols = {partition_col: 'object'}
 
             # Compute join meta for Dask
             meta = _compute_join_meta(
-                join_columns, polygon_dtypes, args.prefix, args.geo, partition_col, spatial_cols=spatial_cols
+                join_columns, polygon_dtypes, args.prefix, args.geo,
+                partition_col, spatial_cols=spatial_cols
             )
 
             # Apply spatial join via map_partitions
@@ -351,43 +311,39 @@ def main():
                 prefix=args.prefix,
                 partition_col=partition_col,
                 geo=args.geo,
-                meta=meta,
+                meta=meta
             )
 
             # Export
             logger.info("Exporting data...")
 
             meta_kwargs = {
-                "query_filter": query_str,
-                "vector_source": os.path.abspath(vector_path),
-                "vector_crs": vec_info["crs"],
-                "vector_columns": join_columns,
-                "join_predicate": args.predicate,
-                "join_type": how,
+                'query_filter': query_str,
+                'vector_source': os.path.abspath(vector_path),
+                'vector_crs': vec_info['crs'],
+                'vector_columns': join_columns,
+                'join_predicate': args.predicate,
+                'join_type': how,
             }
             if args.prefix:
-                meta_kwargs["column_prefix"] = args.prefix
-            if index_type == "h3" and part_level is not None:
-                meta_kwargs["h3_partition_level"] = part_level
-            elif index_type == "egi" and part_level is not None:
-                meta_kwargs["egi_partition_level"] = part_level
+                meta_kwargs['column_prefix'] = args.prefix
+            if index_type == 'h3' and part_level is not None:
+                meta_kwargs['h3_partition_level'] = part_level
+            elif index_type == 'egi' and part_level is not None:
+                meta_kwargs['egi_partition_level'] = part_level
                 if index_level is not None:
-                    meta_kwargs["egi_index_level"] = index_level
+                    meta_kwargs['egi_index_level'] = index_level
 
             gh3.gh3_export(
-                joined,
-                output=args.output,
-                fmt=args.format,
-                merge=args.merge,
-                show_progress=not getattr(args, "quiet", False),
+                joined, output=args.output, fmt=args.format, merge=args.merge,
+                show_progress=not getattr(args, 'quiet', False),
                 drop_internal=False,
-                source_database=args.database,
-                tool="gh3_from_polygon",
-                **meta_kwargs,
+                source_database=args.database, tool='gh3_from_polygon',
+                **meta_kwargs
             )
 
             print_success(f"Vector polygon join complete → {args.output}", logger=logger)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

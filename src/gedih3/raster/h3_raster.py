@@ -11,20 +11,18 @@ The workflow:
 3. Rasterize using geocube with bilinear interpolation
 4. Reproject to target CRS (default: EPSG:4326)
 """
-
-from typing import List, Optional, Tuple
-
-import geopandas as gpd
-import h3
+from typing import List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
-import pyproj
+import geopandas as gpd
 import xarray as xr
+import h3
+import pyproj
 from geocube.api.core import make_geocube
 
+from .config import H3_RASTER_CRS, get_geotiff_options
 from ..cliutils import filter_raster_columns as _filter_raster_columns
 from ..exceptions import GediRasterizationError
-from .config import H3_RASTER_CRS
 
 
 def get_h3_resolution_meters(h3_level: int) -> float:
@@ -43,7 +41,7 @@ def get_h3_resolution_meters(h3_level: int) -> float:
     float
         Approximate pixel size in meters
     """
-    return h3.average_hexagon_edge_length(h3_level, "m") * 2
+    return h3.average_hexagon_edge_length(h3_level, 'm') * 2
 
 
 def get_optimal_utm(gdf: gpd.GeoDataFrame) -> int:
@@ -68,7 +66,10 @@ def get_optimal_utm(gdf: gpd.GeoDataFrame) -> int:
 
     # Query UTM CRS for the area of interest
     aoi = pyproj.aoi.AreaOfInterest(*bounds)
-    utm_list = pyproj.database.query_utm_crs_info(datum_name="WGS 84", area_of_interest=aoi)
+    utm_list = pyproj.database.query_utm_crs_info(
+        datum_name='WGS 84',
+        area_of_interest=aoi
+    )
 
     if not utm_list:
         # Fallback to WGS84 Pseudo-Mercator
@@ -95,12 +96,11 @@ def _detect_partition_level(gdf: gpd.GeoDataFrame) -> Optional[int]:
         Detected partition level, or None if not found
     """
     import re
-
     # Look for partition columns like h3_03, h3_05, etc.
-    h3_cols = [c for c in gdf.columns if re.match(r"h3_\d{2}$", str(c))]
+    h3_cols = [c for c in gdf.columns if re.match(r'h3_\d{2}$', str(c))]
     if h3_cols:
         # Get the lowest resolution (smallest number = coarsest = partition level)
-        levels = [int(str(c).split("_")[1]) for c in h3_cols]
+        levels = [int(str(c).split('_')[1]) for c in h3_cols]
         return min(levels)
     return None
 
@@ -111,7 +111,7 @@ def h3_to_raster(
     columns: Optional[List[str]] = None,
     fill_value: float = np.nan,
     output_crs: str = H3_RASTER_CRS,
-    partition_level: Optional[int] = None,
+    partition_level: Optional[int] = None
 ) -> xr.Dataset:
     """
     Convert H3-indexed GeoDataFrame to raster (xarray Dataset).
@@ -155,9 +155,9 @@ def h3_to_raster(
     columns = _filter_raster_columns(columns, gdf)
 
     # Get H3 level and partition ID
-    h3_index = gdf.index[0] if gdf.index.name and gdf.index.name.startswith("h3_") else None
+    h3_index = gdf.index[0] if gdf.index.name and gdf.index.name.startswith('h3_') else None
     if h3_index is None and len(gdf.columns) > 0:
-        h3_cols = [c for c in gdf.columns if str(c).startswith("h3_")]
+        h3_cols = [c for c in gdf.columns if str(c).startswith('h3_')]
         if h3_cols:
             h3_index = gdf[h3_cols[0]].iloc[0]
 
@@ -174,9 +174,9 @@ def h3_to_raster(
             partition_id = None
     else:
         # Try to get H3 level from index name (e.g., "h3_12")
-        if gdf.index.name and gdf.index.name.startswith("h3_"):
+        if gdf.index.name and gdf.index.name.startswith('h3_'):
             try:
-                h3_level = int(gdf.index.name.split("_")[1])
+                h3_level = int(gdf.index.name.split('_')[1])
             except (ValueError, IndexError):
                 h3_level = None
         else:
@@ -186,9 +186,7 @@ def h3_to_raster(
     # Determine resolution if not provided
     if resolution is None:
         if h3_level is None:
-            raise GediRasterizationError(
-                "Cannot determine raster resolution: no H3 level found in data and no resolution provided"
-            )
+            raise GediRasterizationError("Cannot determine raster resolution: no H3 level found in data and no resolution provided")
         res_meters = get_h3_resolution_meters(h3_level)
         # Get optimal UTM for accurate resolution
         utm_epsg = get_optimal_utm(gdf)
@@ -196,7 +194,10 @@ def h3_to_raster(
         # Create raster in UTM
         gdf_utm = gdf.to_crs(epsg=utm_epsg)
         xras = make_geocube(
-            gdf_utm.reset_index(), measurements=columns, resolution=(-res_meters, res_meters), fill=fill_value
+            gdf_utm.reset_index(),
+            measurements=columns,
+            resolution=(-res_meters, res_meters),
+            fill=fill_value
         )
 
         # Reproject to output CRS
@@ -205,7 +206,12 @@ def h3_to_raster(
         resolution = (yres, xres)
     else:
         # Use provided resolution directly
-        xras = make_geocube(gdf.reset_index(), measurements=columns, resolution=resolution, fill=fill_value)
+        xras = make_geocube(
+            gdf.reset_index(),
+            measurements=columns,
+            resolution=resolution,
+            fill=fill_value
+        )
 
     # Ensure NoData is tagged so GeoTIFF exports mask empty pixels
     for var in xras.data_vars:
@@ -213,16 +219,16 @@ def h3_to_raster(
             xras[var] = xras[var].rio.write_nodata(np.nan)
 
     # Add metadata
-    attrs = {"source": "gedih3"}
+    attrs = {'source': 'gedih3'}
     if h3_level is not None:
-        attrs["h3_level"] = h3_level
+        attrs['h3_level'] = h3_level
     if partition_level is not None:
-        attrs["h3_partition_level"] = partition_level
+        attrs['h3_partition_level'] = partition_level
     xras = xras.assign_attrs(**attrs)
 
     if partition_id and partition_level is not None:
         # Use dynamic attribute name based on actual partition level
-        partition_attr = f"h3_{partition_level:02d}_id"
+        partition_attr = f'h3_{partition_level:02d}_id'
         xras = xras.assign_attrs(**{partition_attr: partition_id})
         for var in list(xras.data_vars):
             xras[var] = xras[var].assign_attrs(**{partition_attr: partition_id})
@@ -235,7 +241,7 @@ def rasterize_h3_partition(
     columns: Optional[List[str]] = None,
     output_crs: str = H3_RASTER_CRS,
     include_partition_id: bool = True,
-    partition_level: Optional[int] = None,
+    partition_level: Optional[int] = None
 ) -> pd.Series:
     """
     Rasterize a single H3 partition (for use with Dask map_partitions).
@@ -269,7 +275,6 @@ def rasterize_h3_partition(
     >>> rasters = ddf.map_partitions(rasterize_h3_partition, meta=pd.Series(dtype=object))
     """
     import logging
-
     logger = logging.getLogger(__name__)
 
     if gdf.empty or len(gdf) == 0:
@@ -281,10 +286,10 @@ def rasterize_h3_partition(
             partition_level = _detect_partition_level(gdf)
 
         # Get H3 level from index
-        h3_index = gdf.index[0] if gdf.index.name and gdf.index.name.startswith("h3_") else None
+        h3_index = gdf.index[0] if gdf.index.name and gdf.index.name.startswith('h3_') else None
         if h3_index is None:
             # Fallback: try to find H3 cells in columns
-            h3_cols = [c for c in gdf.columns if str(c).startswith("h3_")]
+            h3_cols = [c for c in gdf.columns if str(c).startswith('h3_')]
             if h3_cols:
                 h3_index = gdf[h3_cols[0]].iloc[0]
 
@@ -302,12 +307,17 @@ def rasterize_h3_partition(
         # partition IS a complete tile - rasterize without splitting
         if partition_level >= h3_level:
             try:
-                xras = h3_to_raster(gdf, columns=columns, output_crs=output_crs, partition_level=partition_level)
+                xras = h3_to_raster(
+                    gdf, columns=columns, output_crs=output_crs,
+                    partition_level=partition_level
+                )
                 if len(xras.data_vars) > 0 and include_partition_id:
-                    partition_attr = f"h3_{h3_level:02d}_id"
+                    partition_attr = f'h3_{h3_level:02d}_id'
                     tile_id = str(gdf.index[0])
                     for var in list(xras.data_vars):
-                        xras[var] = xras[var].assign_attrs(**{partition_attr: tile_id})
+                        xras[var] = xras[var].assign_attrs(
+                            **{partition_attr: tile_id}
+                        )
                 return pd.Series([xras]) if len(xras.data_vars) > 0 else pd.Series(dtype=object)
             except Exception as e:
                 logger.debug(f"Rasterization failed for partition: {e}")
@@ -331,10 +341,14 @@ def rasterize_h3_partition(
                 continue
 
             try:
-                xras = h3_to_raster(tile_gdf, columns=columns, output_crs=output_crs, partition_level=partition_level)
+                xras = h3_to_raster(
+                    tile_gdf, columns=columns,
+                    output_crs=output_crs,
+                    partition_level=partition_level
+                )
 
                 if len(xras.data_vars) > 0 and include_partition_id:
-                    partition_attr = f"h3_{partition_level:02d}_id"
+                    partition_attr = f'h3_{partition_level:02d}_id'
                     for var in list(xras.data_vars):
                         xras[var] = xras[var].assign_attrs(**{partition_attr: parent_id})
 
@@ -352,7 +366,10 @@ def rasterize_h3_partition(
         return pd.Series(dtype=object)
 
 
-def compute_raster_mosaic(raster_series: pd.Series, show_progress: bool = False) -> xr.Dataset:
+def compute_raster_mosaic(
+    raster_series: pd.Series,
+    show_progress: bool = False
+) -> xr.Dataset:
     """
     Merge multiple raster partitions into a single mosaic.
 
@@ -371,7 +388,9 @@ def compute_raster_mosaic(raster_series: pd.Series, show_progress: bool = False)
     from rioxarray import merge as rio_merge
 
     # Filter out empty/invalid partitions
-    valid = raster_series.apply(lambda x: hasattr(x, "data_vars") and len(x.data_vars) > 0)
+    valid = raster_series.apply(
+        lambda x: hasattr(x, 'data_vars') and len(x.data_vars) > 0
+    )
     valid_rasters = raster_series[valid]
 
     if len(valid_rasters) == 0:
@@ -382,14 +401,18 @@ def compute_raster_mosaic(raster_series: pd.Series, show_progress: bool = False)
 
     # Merge all partitions
     raster_list = valid_rasters.tolist()
-    merged = xr.merge(
-        [rio_merge.merge_arrays([r[var] for r in raster_list if var in r]) for var in raster_list[0].data_vars]
-    )
+    merged = xr.merge([
+        rio_merge.merge_arrays([r[var] for r in raster_list if var in r])
+        for var in raster_list[0].data_vars
+    ])
 
     return merged
 
 
-def get_h3_raster_resolution(gdf: gpd.GeoDataFrame, npartitions: int = 1) -> Tuple[float, float]:
+def get_h3_raster_resolution(
+    gdf: gpd.GeoDataFrame,
+    npartitions: int = 1
+) -> Tuple[float, float]:
     """
     Determine the appropriate raster resolution for H3 data.
 
@@ -406,7 +429,7 @@ def get_h3_raster_resolution(gdf: gpd.GeoDataFrame, npartitions: int = 1) -> Tup
         (y_resolution, x_resolution) in degrees (EPSG:4326)
     """
     # Get sample data
-    if hasattr(gdf, "npartitions"):
+    if hasattr(gdf, 'npartitions'):
         sample = gdf.head(npartitions=min(gdf.npartitions, npartitions))
     else:
         sample = gdf
@@ -415,9 +438,9 @@ def get_h3_raster_resolution(gdf: gpd.GeoDataFrame, npartitions: int = 1) -> Tup
         raise ValueError("Cannot determine resolution from empty GeoDataFrame")
 
     # Get H3 level
-    h3_index = sample.index[0] if sample.index.name and sample.index.name.startswith("h3_") else None
+    h3_index = sample.index[0] if sample.index.name and sample.index.name.startswith('h3_') else None
     if h3_index is None:
-        h3_cols = [c for c in sample.columns if str(c).startswith("h3_")]
+        h3_cols = [c for c in sample.columns if str(c).startswith('h3_')]
         if h3_cols:
             h3_index = sample[h3_cols[0]].iloc[0]
 
@@ -432,7 +455,10 @@ def get_h3_raster_resolution(gdf: gpd.GeoDataFrame, npartitions: int = 1) -> Tup
 
     # Create a small test raster to get the resolution in degrees
     sample_utm = sample.head(10).to_crs(epsg=utm_epsg)
-    test_raster = make_geocube(sample_utm.reset_index(), resolution=(-res_meters, res_meters))
+    test_raster = make_geocube(
+        sample_utm.reset_index(),
+        resolution=(-res_meters, res_meters)
+    )
     test_raster = test_raster.rio.reproject(H3_RASTER_CRS)
 
     return test_raster.rio.resolution()

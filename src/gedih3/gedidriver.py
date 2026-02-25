@@ -5,35 +5,28 @@ This module provides classes and functions for working with GEDI HDF5 files,
 including parsing filenames, extracting data, and building Dask DataFrames.
 """
 
-import glob
-import itertools
 import os
 import re
-from datetime import datetime
+import glob
+import itertools
+from typing import Dict, List, Optional, Union, Any
 from pathlib import Path
-from typing import Dict, List, Optional, Union
 
-import dask
-import dask.dataframe
-import geopandas as gpd
 import h5py
+import yaml
 import numpy as np
 import pandas as pd
-import yaml
-from earthaccess.store import EarthAccessFile
+import geopandas as gpd
 from numba import njit
+from datetime import datetime
+import dask
+import dask.dataframe
+from earthaccess.store import EarthAccessFile
 
-from .config import (
-    _GEDI_MIN_VARS,
-    GEDI_BEAMS,
-    GEDI_START_DATE,
-    GH3_DEFAULT_SOC_DIR,
-    _get_versioned,
-    get_default_vars_file,
-)
-from .exceptions import GediProductError, GediValidationError, GediVariableError
-from .logging_config import get_logger
+from .config import GEDI_PRODUCTS, GEDI_BEAMS, GEDI_START_DATE, GH3_DEFAULT_SOC_DIR, get_default_vars_file, _get_versioned, _GEDI_MIN_VARS
 from .utils import h5_copy_subset, h5_info
+from .logging_config import get_logger
+from .exceptions import GediValidationError, GediProductError, GediVariableError
 
 logger = get_logger(__name__)
 
@@ -75,7 +68,9 @@ def soc_from_file(file_path: Union[str, Path]) -> str:
 
 
 def soc_file_tree(
-    file_struct: Union[str, List[str], List[EarthAccessFile]], to_list: bool = False, glob_kwargs: Optional[Dict] = None
+    file_struct: Union[str, List[str], List[EarthAccessFile]],
+    to_list: bool = False,
+    glob_kwargs: Optional[Dict] = None
 ) -> Union[Dict[str, Dict[str, str]], List[Dict[str, str]]]:
     """
     Build a structured tree of GEDI SOC files grouped by orbit/track.
@@ -109,9 +104,9 @@ def soc_file_tree(
     """
     direct_access = False
     if isinstance(file_struct, str) and os.path.isdir(file_struct):
-        glob_pattern = gedi_file_glob(**glob_kwargs) if glob_kwargs else "GEDI*.h5"
-        file_list = glob.glob(os.path.join(file_struct, "**", glob_pattern), recursive=True)
-    elif direct_access := isinstance(file_struct[0], EarthAccessFile):
+        glob_pattern = gedi_file_glob(**glob_kwargs) if glob_kwargs else 'GEDI*.h5'
+        file_list = glob.glob(os.path.join(file_struct, '**', glob_pattern), recursive=True)
+    elif (direct_access := isinstance(file_struct[0], EarthAccessFile)):
         file_list = [i.path for i in file_struct]
     elif isinstance(file_struct[0], str):
         file_list = file_struct
@@ -120,17 +115,17 @@ def soc_file_tree(
 
     file_array = np.array(file_struct) if direct_access else np.array(file_list)
 
-    flist = pd.DataFrame({"file_paths": file_list, "file_links": file_array})
-    fidx = flist.file_paths.str.extract(r".*GEDI(\d{2})_([A-Z])_.*_(O\d+_\d{2}_T\d+).*\.h5$")
+    flist = pd.DataFrame({'file_paths': file_list, 'file_links': file_array})
+    fidx = flist.file_paths.str.extract(r'.*GEDI(\d{2})_([A-Z])_.*_(O\d+_\d{2}_T\d+).*\.h5$')
 
     valid = fidx.notna().all(axis=1)
     flist = flist.loc[valid].copy()
     fidx = fidx.loc[valid]
 
-    flist["prod"] = "L" + fidx[0].astype(int).astype(str) + fidx[1]
-    flist["orb_track"] = fidx[2]
-    flist = flist.sort_values(["orb_track", "file_paths", "prod"])
-    flist = flist.pivot_table(index="orb_track", columns="prod", values="file_links", aggfunc="last")
+    flist['prod'] = 'L' + fidx[0].astype(int).astype(str) + fidx[1]
+    flist['orb_track'] = fidx[2]
+    flist = flist.sort_values(['orb_track', 'file_paths', 'prod'])
+    flist = flist.pivot_table(index='orb_track', columns='prod', values='file_links', aggfunc='last')
     flist = flist.dropna()
 
     soc_tree = flist.T.to_dict()
@@ -139,7 +134,6 @@ def soc_file_tree(
         soc_tree = list(soc_tree.values())
 
     return soc_tree
-
 
 def gedi_subset(source_file, dest_file, variables, subset_beams=None):
     beams = [b for b in GEDI_BEAMS if b in subset_beams] if subset_beams else list(GEDI_BEAMS)
@@ -150,32 +144,18 @@ def gedi_subset(source_file, dest_file, variables, subset_beams=None):
         return dest_file
     return None
 
-
-def gedi_file_glob(
-    orbit=None,
-    orbit_granule=None,
-    track=None,
-    product: int = None,
-    level: str = None,
-    ppds: int = None,
-    pge: int = None,
-    generation: int = None,
-    version: int = None,
-):
-    def str_build(x, digits=2):
-        return "*" if x is None else f"{x:0{digits}d}"
-
-    lev_str = "*" if level is None else level.upper()
+def gedi_file_glob(orbit=None, orbit_granule=None, track=None, product: int=None, level: str=None, ppds: int=None, pge:int=None, generation:int=None, version:int=None):
+    str_build = lambda x, digits=2: '*' if x is None else f"{x:0{digits}d}"
+    lev_str = '*' if level is None else level.upper()    
     prd_str = str_build(product)
     orb_str = str_build(orbit, 5)
     ogr_str = str_build(orbit_granule)
     trk_str = str_build(track, 5)
-    pge_str = str_build(pge, 3)
+    pge_str = str_build(pge, 3)    
     gen_str = str_build(generation)
     ver_str = str_build(version, 3)
-    ppd_str = str_build(ppds)
+    ppd_str = str_build(ppds)    
     return f"GEDI{prd_str}_{lev_str}_*_O{orb_str}_{ogr_str}_T{trk_str}_{ppd_str}_{pge_str}_{gen_str}_V{ver_str}*.h5"
-
 
 def gedi_vars_expand(product_vars, version=None):
     for prod, vars in product_vars.items():
@@ -185,13 +165,13 @@ def gedi_vars_expand(product_vars, version=None):
             # Bare flag (e.g. -l2a with no args) → dump everything
             product_vars[prod] = None
         elif os.path.isfile(vars[0]) and len(vars) == 1:
-            with open(vars[0], "r") as f:
-                product_vars[prod] = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+            with open(vars[0], 'r') as f:
+                product_vars[prod] = [line.strip() for line in f if line.strip() and not line.startswith('#')]
         elif "minimal" in vars or "min" in vars:
             product_vars[prod] = _get_versioned(_GEDI_MIN_VARS[prod], version)
-        elif "default" in vars or "def" in vars:
-            with open(get_default_vars_file(prod, version=version), "r") as f:
-                product_vars[prod] = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+        elif 'default' in vars or 'def' in vars:
+            with open(get_default_vars_file(prod, version=version), 'r') as f:
+                product_vars[prod] = [line.strip() for line in f if line.strip() and not line.startswith('#')]
         elif "*" in vars or "all" in vars:
             product_vars[prod] = None
         elif isinstance(vars, list):
@@ -200,13 +180,11 @@ def gedi_vars_expand(product_vars, version=None):
             raise GediProductError(f"Unknown variable specification for product {prod}: {vars}")
     return product_vars
 
-
 def gedi_vars_from_h5(gedi_file):
-    with h5py.File(gedi_file, "r") as f:
-        b = [i for i in f.keys() if i.upper().startswith("BEAM")][0]
+    with h5py.File(gedi_file, 'r') as f:
+        b = [i for i in f.keys() if i.upper().startswith('BEAM')][0]
     pl_info = h5_info(gedi_file, root=b)
-    return pl_info.path.str.replace(b, "").str.lstrip("/").tolist()
-
+    return pl_info.path.str.replace(b,'').str.lstrip('/').tolist()
 
 def check_soc_file_vars(soc_file, available_products):
     file_products = {}
@@ -216,11 +194,9 @@ def check_soc_file_vars(soc_file, available_products):
             file_products[prod] = available_vars
     return file_products
 
-
 @dask.delayed
 def _check_soc_file_vars(soc_file, available_products):
     return check_soc_file_vars(soc_file, available_products)
-
 
 def validate_soc_files(product_vars: Dict, soc_dir: str = GH3_DEFAULT_SOC_DIR):
     soc_files = soc_file_tree(soc_dir, to_list=True)
@@ -242,7 +218,7 @@ def validate_soc_files(product_vars: Dict, soc_dir: str = GH3_DEFAULT_SOC_DIR):
         "available_products": available_products,
         "missing_products": [],
         "missing_variables": {},
-        "can_skip": True,
+        "can_skip": True
     }
 
     for prod, required_vars in product_vars.items():
@@ -261,11 +237,10 @@ def validate_soc_files(product_vars: Dict, soc_dir: str = GH3_DEFAULT_SOC_DIR):
             error_msg += f"Missing products: {validation_report['missing_products']}\n"
         if validation_report.get("missing_variables"):
             for prod, missing_vars in validation_report["missing_variables"].items():
-                error_msg += f"Missing variables in {prod}: {missing_vars}\n"
-        validation_report["error_msg"] = error_msg.strip()
-
+                error_msg += f"Missing variables in {prod}: {missing_vars}\n"    
+        validation_report['error_msg'] = error_msg.strip()    
+    
     return validation_report
-
 
 class GEDIFile:
     """
@@ -317,15 +292,15 @@ class GEDIFile:
         self.file_path = f
         self.file_size = (os.path.getsize(f) / 1e9) if os.path.exists(f) else None
         self.full_name = os.path.basename(f)
-        f_base = re.sub(r"\.h5$", "", self.full_name)
-        fl = f_base.split("_")
+        f_base = re.sub(r'\.h5$', '', self.full_name)
+        fl = f_base.split('_')
         self.product = fl[0]
         self.level = fl[1]
-        self.date = datetime.strptime(fl[2], "%Y%j%H%M%S")
+        self.date = datetime.strptime(fl[2], '%Y%j%H%M%S')
         self.date_str = fl[2]
-        self.doy_date_str = self.date.strftime("%Y%m%d")
-        self.julian_date_str = self.date.strftime("%Y%j")
-        self.time_str = self.date.strftime("%H%M%S")
+        self.doy_date_str = self.date.strftime('%Y%m%d')
+        self.julian_date_str = self.date.strftime('%Y%j')
+        self.time_str = self.date.strftime('%H%M%S')
         self.orbit = int(fl[3][1:])
         self.orbit_granule = int(fl[4])
         self.track = int(fl[5][1:])
@@ -333,29 +308,27 @@ class GEDIFile:
         self.pge = int(fl[7])
         self.generation = int(fl[8])
         self.version = int(fl[9][1:])
-
-    def get_glob_pattern(self, product: int = 1, level: str = "B", ppds: int = 2):
+    
+    def get_glob_pattern(self, product:int=1, level:str='B', ppds:int=2):
         return gedi_file_glob(self.orbit, self.orbit_granule, self.track, product, level, ppds)
-
+    
     @classmethod
     def from_filename(cls, file_path):
         return cls(file_path)
 
-    def search_file(
-        self, soc_dir: str = None, product: int = 1, level: str = "B", other_files=None
-    ):  # other_files = e.g. http paths from direct s3
+    def search_file(self, soc_dir: str = None, product:int=1, level:str='B', other_files=None): # other_files = e.g. http paths from direct s3
         pattern = self.get_glob_pattern(product, level)
-
+        
         if other_files is None:
             if soc_dir is None:
                 soc_dir = soc_from_file(self.file_path)
-            files = glob.glob(os.path.join(soc_dir, "**", pattern), recursive=True)
+            files = glob.glob(os.path.join(soc_dir, '**', pattern), recursive=True)
         else:
-            files = [f for f in other_files if re.match(pattern.replace("*", ".*"), os.path.basename(f))]
-
+            files = [f for f in other_files if re.match(pattern.replace('*','.*'), os.path.basename(f))]
+        
         if not files:
             return None
-
+        
         if len(files) == 1:
             return files[0]
 
@@ -367,7 +340,6 @@ class GEDIFile:
 
         parsed_files.sort(key=lambda x: (x.version, x.generation, x.pge), reverse=True)
         return parsed_files[0].file_path
-
 
 class GEDIShot(GEDIFile):
     """
@@ -415,36 +387,21 @@ class GEDIShot(GEDIFile):
         self.track = shot // 100000000000
         self.beam = shot % 10000000000000 // 100000000000
         self.power = self.beam > 3
-        self.reserved = shot % 1000000000000 // 1000000000 % 100
+        self.reserved  = shot % 1000000000000 // 1000000000 % 100
         self.shot_index = shot % 100000000
-
+        
         if self.is_scalar:
-            self.beam_str = f"BEAM{self.beam:04b}"
+            self.beam_str = f'BEAM{self.beam:04b}'
         else:
-            self.beam_str = [f"BEAM{b:04b}" for b in self.beam]
-
-    def get_glob_pattern(
-        self,
-        product: int = 1,
-        level: str = "B",
-        ppds: int = 2,
-        pge: int = None,
-        generation: int = None,
-        version: int = None,
-    ):
+            self.beam_str = [f'BEAM{b:04b}' for b in self.beam]    
+    
+    def get_glob_pattern(self, product: int=1, level: str='B', ppds: int=2, pge:int=None, generation:int=None, version:int=None):
         if self.is_scalar:
-            self.file_glob_pattern = gedi_file_glob(
-                self.orbit, self.orbit_granule, self.track, product, level, ppds, pge, generation, version
-            )
+            self.file_glob_pattern = gedi_file_glob(self.orbit, self.orbit_granule, self.track, product, level, ppds, pge, generation, version)
         else:
-            self.file_glob_pattern = [
-                gedi_file_glob(
-                    self.orbit[i], self.orbit_granule[i], self.track[i], product, level, ppds, pge, generation, version
-                )
-                for i in range(len(self.shot))
-            ]
+            self.file_glob_pattern = [gedi_file_glob(self.orbit[i], self.orbit_granule[i], self.track[i], product, level, ppds, pge, generation, version) for i in range(len(self.shot))]
             self.file_glob_pattern - list(set(self.file_pattern))
-
+        
     def search_file(self, soc_dir: str):
         if self.is_scalar:
             files = glob.glob(os.path.join(soc_dir, self.file_glob_pattern))
@@ -455,51 +412,48 @@ class GEDIShot(GEDIFile):
             files = list(set(files))
 
         return files
-
-
+            
 @njit
 def wfm_pad(wave, n_bins=1420, cval=0):
     bin_diff = len(wave) - n_bins
     if bin_diff == 0:
-        return wave
+        return wave    
 
     if bin_diff < 0:
         padded = np.full(n_bins, cval, dtype=wave.dtype)
-        padded[: len(wave)] = wave
+        padded[:len(wave)] = wave
         return padded
-
+    
     if bin_diff > 0:
         return wave[:n_bins]
-
 
 @njit
 def process_waveforms(starts, ends, noises, wfs, n_bins=1420):
     n_waves = len(starts)
     waves = np.zeros((n_waves, n_bins), dtype=np.float32)
-
+    
     for i in range(n_waves):
         start = starts[i]
         end = ends[i]
         noise = noises[i]
-
+        
         if start < 0 or end > len(wfs):
             waves[i] = np.full(n_bins, noise)
             continue
-
+            
         wf = wfs[start:end]
         waves[i] = wfm_pad(wf, n_bins, cval=noise)
-
+    
     return waves
 
-
 def wfm_extract(h5_file, beam, idx, tx=False):
-    init = "t" if tx else "r"
+    init = 't' if tx else 'r'
 
-    noises = h5_file[f"/{beam}/noise_mean_corrected"][:][idx]
-    starts = h5_file[f"/{beam}/{init}x_sample_start_index"][:][idx] - 1
-    counts = h5_file[f"/{beam}/{init}x_sample_count"][:][idx]
+    noises = h5_file[f'/{beam}/noise_mean_corrected'][:][idx]
+    starts = h5_file[f'/{beam}/{init}x_sample_start_index'][:][idx] - 1
+    counts = h5_file[f'/{beam}/{init}x_sample_count'][:][idx]
     ends = starts + counts
-    wfs = h5_file[f"/{beam}/{init}xwaveform"][:]
+    wfs = h5_file[f'/{beam}/{init}xwaveform'][:]
 
     return process_waveforms(starts, ends, noises, wfs)
 
@@ -522,21 +476,25 @@ def _validate_h5_columns(columns: List[str]) -> List[str]:
     """
     columns = list(columns)  # Make a copy
 
-    if "shot_number" not in columns:
-        columns.append("shot_number")
+    if 'shot_number' not in columns:
+        columns.append('shot_number')
 
-    if "rxwaveform" in columns:
-        columns += ["noise_mean_corrected", "rx_sample_start_index", "rx_sample_count"]
+    if 'rxwaveform' in columns:
+        columns += ['noise_mean_corrected', 'rx_sample_start_index', 'rx_sample_count']
         columns = list(set(columns))
 
-    if "txwaveform" in columns:
-        columns += ["noise_mean_corrected", "tx_sample_start_index", "tx_sample_count"]
+    if 'txwaveform' in columns:
+        columns += ['noise_mean_corrected', 'tx_sample_start_index', 'tx_sample_count']
         columns = list(set(columns))
 
     return columns
 
 
-def _get_beams_to_load(h5_file: h5py.File, shots: Optional[np.ndarray], which_beams: Optional[List[str]]) -> tuple:
+def _get_beams_to_load(
+    h5_file: h5py.File,
+    shots: Optional[np.ndarray],
+    which_beams: Optional[List[str]]
+) -> tuple:
     """
     Determine which beams to load based on shots and beam filters.
 
@@ -554,13 +512,13 @@ def _get_beams_to_load(h5_file: h5py.File, shots: Optional[np.ndarray], which_be
     tuple
         (beams_to_load, all_beams, shot_beams_array_or_none)
     """
-    all_beams = [k for k in h5_file.keys() if k.startswith("BEAM")]
+    all_beams = [k for k in h5_file.keys() if k.startswith('BEAM')]
     beams = all_beams
     shot_beams = None
 
     if shots is not None:
         shot_beams = np.uint16(shots % 10000000000000 // 100000000000)
-        beams = [f"BEAM{b:04b}" for b in np.unique(shot_beams)]
+        beams = [f'BEAM{b:04b}' for b in np.unique(shot_beams)]
 
     if which_beams is not None:
         beams = [b for b in beams if b in which_beams]
@@ -574,7 +532,7 @@ def _extract_beam_data(
     columns: List[str],
     shots: Optional[np.ndarray],
     shot_beams: Optional[np.ndarray],
-    include_source: bool,
+    include_source: bool
 ) -> Optional[pd.DataFrame]:
     """
     Extract data from a single beam in an HDF5 file.
@@ -613,8 +571,8 @@ def _extract_beam_data(
 
     dfs = {}
     for j in columns:
-        if is_wave := (j == "rxwaveform" or j == "txwaveform"):
-            is_tx = j == "txwaveform"
+        if is_wave := (j == 'rxwaveform' or j == 'txwaveform'):
+            is_tx = j == 'txwaveform'
             d = wfm_extract(h5_file, beam, idx, is_tx)
         else:
             d = h5_file[f"{beam}/{j}"][:][idx]
@@ -634,7 +592,10 @@ def _extract_beam_data(
 
 
 def _build_dataframe(
-    beam_frames: List[pd.DataFrame], fpath: Union[str, Path, EarthAccessFile], include_source: bool, dropna: bool
+    beam_frames: List[pd.DataFrame],
+    fpath: Union[str, Path, EarthAccessFile],
+    include_source: bool,
+    dropna: bool
 ) -> pd.DataFrame:
     """
     Build the final DataFrame from extracted beam data.
@@ -656,7 +617,7 @@ def _build_dataframe(
         Combined DataFrame indexed by shot_number
     """
     full_df = pd.concat(beam_frames, copy=True)
-    full_df = full_df.set_index("shot_number")
+    full_df = full_df.set_index('shot_number')
 
     if include_source:
         full_df = full_df.assign(
@@ -675,7 +636,7 @@ def load_h5(
     which_beams: Optional[List[str]] = None,
     shots: Optional[np.ndarray] = None,
     include_source: bool = True,
-    dropna: bool = True,
+    dropna: bool = True
 ) -> pd.DataFrame:
     """
     Load data from a GEDI HDF5 file into a pandas DataFrame.
@@ -701,7 +662,7 @@ def load_h5(
     pd.DataFrame
         DataFrame indexed by shot_number containing requested variables
     """
-    f = h5py.File(fpath, mode="r", locking=False)
+    f = h5py.File(fpath, mode='r', locking=False)
 
     # Validate and normalize columns
     columns = _validate_h5_columns(columns)
@@ -726,14 +687,13 @@ def load_h5(
     # Build final DataFrame
     return _build_dataframe(beam_frames, fpath, include_source, dropna)
 
-
 def load_h5_merged(
     prod_files: Dict[str, str],
     product_vars: Dict[str, List[str]],
     which_beams: Optional[List[str]] = None,
     shots: Optional[np.ndarray] = None,
     dropna: bool = True,
-    suffix_all: bool = False,
+    suffix_all: bool = False
 ) -> Optional[pd.DataFrame]:
     """
     Load and merge data from multiple GEDI product files.
@@ -765,38 +725,28 @@ def load_h5_merged(
     frames = []
     for i, (p, vars) in enumerate(product_vars.items()):
         ppath = prod_files.get(p)
-
+        
         if ppath is None:
             continue
-
-        idf = load_h5(
-            fpath=ppath,
-            columns=vars,
-            include_source=suffix_all or i == 0,
-            which_beams=which_beams,
-            shots=shots,
-            dropna=dropna,
-        )
-
+        
+        idf = load_h5(fpath=ppath, columns=vars, include_source = suffix_all or i==0, which_beams=which_beams, shots=shots, dropna=dropna)
+        
         suffix = f"_{p.lower()}"
         if suffix_all:
             idf = idf.rename(columns=lambda x: x if x.endswith(suffix) else f"{x}{suffix}")
 
         frames.append(idf)
-
+    
     if not frames:
         return None
-
+    
     if not suffix_all:
         all_cols = [col for frame in frames for col in frame.columns]
         if len(all_cols) != len(set(all_cols)):
-            raise GediVariableError(
-                "Duplicate columns detected. Remove duplicates or use suffix_all=True to avoid conflicts."
-            )
+            raise GediVariableError("Duplicate columns detected. Remove duplicates or use suffix_all=True to avoid conflicts.")
 
-    df = pd.concat(frames, axis=1, join="inner", copy=True)
+    df = pd.concat(frames, axis=1, join='inner', copy=True)
     return df
-
 
 def dask_h5_merged(
     prod_files_list: List[Dict[str, str]],
@@ -805,7 +755,7 @@ def dask_h5_merged(
     shots: Optional[np.ndarray] = None,
     dropna: bool = True,
     suffix_all: bool = False,
-    by_beam: bool = False,
+    by_beam: bool = False
 ) -> dask.dataframe.DataFrame:
     """
     Create a Dask DataFrame from multiple GEDI product file sets.
@@ -834,52 +784,30 @@ def dask_h5_merged(
     dask.dataframe.DataFrame
         Lazy Dask DataFrame for distributed processing
     """
-    _meta = load_h5_merged(
-        prod_files_list[0], product_vars=product_vars, which_beams=GEDI_BEAMS[:1], dropna=dropna, suffix_all=suffix_all
-    ).head(0)
+    _meta = load_h5_merged(prod_files_list[0], product_vars=product_vars, which_beams=GEDI_BEAMS[:1], dropna=dropna, suffix_all=suffix_all).head(0)
 
     def _load_h5_merged(prod_files, **kwargs):
         try:
             return load_h5_merged(prod_files, **kwargs)
-        except Exception:
+        except Exception as e:
             logger.warning(f"Error loading file combination: {prod_files}")
             return _meta
-
+    
     if by_beam:
-        beams = GEDI_BEAMS if which_beams is None else which_beams
-
+        beams = GEDI_BEAMS if which_beams is None else which_beams        
+        
         def load_by_beam(pfiles_beam_tuple, product_vars, shots, dropna, suffix_all):
             pfiles, beam = pfiles_beam_tuple
-            return _load_h5_merged(
-                pfiles, product_vars=product_vars, which_beams=[beam], shots=shots, dropna=dropna, suffix_all=suffix_all
-            )
+            return _load_h5_merged(pfiles, product_vars=product_vars, which_beams=[beam], shots=shots, dropna=dropna, suffix_all=suffix_all)
 
         file_beam_combinations = list(itertools.product(prod_files_list, beams))
-        return dask.dataframe.from_map(
-            load_by_beam,
-            file_beam_combinations,
-            product_vars=product_vars,
-            shots=shots,
-            dropna=dropna,
-            suffix_all=suffix_all,
-            meta=_meta,
-        )
+        return dask.dataframe.from_map(load_by_beam, file_beam_combinations, product_vars=product_vars, shots=shots, dropna=dropna, suffix_all=suffix_all, meta=_meta)
 
-    return dask.dataframe.from_map(
-        _load_h5_merged,
-        prod_files_list,
-        which_beams=which_beams,
-        shots=shots,
-        product_vars=product_vars,
-        dropna=dropna,
-        suffix_all=suffix_all,
-        meta=_meta,
-    )
+    return dask.dataframe.from_map(_load_h5_merged, prod_files_list, which_beams=which_beams, shots=shots, product_vars=product_vars, dropna=dropna, suffix_all=suffix_all, meta=_meta)
 
-
-def add_special_columns(df, lon_col: str = None, lat_col: str = None, dat_col: str = None):
+def add_special_columns(df, lon_col:str=None, lat_col:str=None, dat_col:str=None):
     if dat_col:
-        df = df.assign(datetime=pd.to_datetime(df[dat_col] + GEDI_START_DATE.timestamp(), unit="s").dt.as_unit("s"))
+        df = df.assign(datetime=pd.to_datetime(df[dat_col] + GEDI_START_DATE.timestamp(), unit='s').dt.as_unit('s'))
     if lon_col and lat_col:
-        df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lon_col], df[lat_col], crs="EPSG:4326"))
+        df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lon_col], df[lat_col], crs='EPSG:4326'))
     return df.copy()

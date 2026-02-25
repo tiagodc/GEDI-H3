@@ -1,36 +1,20 @@
-import os
-import warnings
-
-import dask.dataframe
-import dask_geopandas
-import geopandas as gpd
-import h3
+import os, h3
 import numpy as np
 import pandas as pd
+import geopandas as gpd
+import dask.dataframe
+import dask_geopandas
 
-from .cliutils import find_coordinate_column, get_aggregatable_columns
-from .config import BUILD_LOG_FILENAME, DATASET_META_FILENAME, GH3_DEFAULT_H3_DIR, configure_environment
-from .exceptions import (
-    GediDatabaseNotFoundError,
-    GediProcessingError,
-    GediSpatialError,
-    GediValidationError,
-    GediVariableError,
-)
-from .h3utils import fix_h3_geometry, intersect_h3_geometries
-from .utils import (
-    generate_manifest,
-    get_package_version,
-    is_parquet,
-    is_remote_path,
-    json_read,
-    json_write,
-    now,
-    smart_exists,
-    smart_glob,
-    smart_isdir,
-    smart_open,
-)
+import warnings
+
+from .config import GH3_DEFAULT_H3_DIR, configure_environment, BUILD_LOG_FILENAME, DATASET_META_FILENAME
+from .utils import (json_read, json_write, now, get_package_version, is_parquet,
+                     smart_glob, smart_exists, smart_isdir, is_remote_path,
+                     smart_open, generate_manifest)
+from .h3utils import intersect_h3_geometries, fix_h3_geometry
+from .cliutils import filter_data_columns, find_coordinate_column, get_aggregatable_columns
+from .exceptions import (GediValidationError, GediDatabaseNotFoundError, GediProcessingError,
+                         GediSpatialError, GediVariableError)
 
 
 def _detect_source(source=None, gh3_dir=None):
@@ -52,76 +36,62 @@ def _detect_source(source=None, gh3_dir=None):
 
     if source is not None and gh3_dir is not None:
         warnings.warn(
-            "Both 'source' and 'gh3_dir' provided; using 'source'. 'gh3_dir' is deprecated, use 'source' instead.",
-            DeprecationWarning,
-            stacklevel=3,
+            "Both 'source' and 'gh3_dir' provided; using 'source'. "
+            "'gh3_dir' is deprecated, use 'source' instead.",
+            DeprecationWarning, stacklevel=3
         )
 
     path = source if source is not None else (gh3_dir if gh3_dir is not None else GH3_DEFAULT_H3_DIR)
     info = get_dataset_index_info(path)
     return path, info
 
-
 def gh3_set_db_path(gh3_root_dir=GH3_DEFAULT_H3_DIR):
-    os.environ["GH3_DEFAULT_H3_DIR"] = gh3_root_dir
+    os.environ['GH3_DEFAULT_H3_DIR'] = gh3_root_dir
     configure_environment()
 
-
 def gh3_list_files(gh3_root_dir=GH3_DEFAULT_H3_DIR):
-    return smart_glob(os.path.join(gh3_root_dir, "**", "*.parquet"), recursive=True)
-
+    return smart_glob(os.path.join(gh3_root_dir, '**', '*.parquet'), recursive=True)
 
 def gh3_list_parts(gh3_root_dir=GH3_DEFAULT_H3_DIR):
-    files = smart_glob(os.path.join(gh3_root_dir, "h3_*/"))
-    h3_ids = [i.split("=")[-1].rstrip("/") for i in files]
+    files = smart_glob(os.path.join(gh3_root_dir, 'h3_*/'))
+    h3_ids = [i.split('=')[-1].rstrip('/') for i in files]
     return h3_ids
-
 
 def gh3_read_meta(var, gh3_root_dir=GH3_DEFAULT_H3_DIR):
     meta_path = os.path.join(gh3_root_dir, BUILD_LOG_FILENAME)
     meta = json_read(meta_path)
     return meta.get(var)
 
-
 def gh3_write_meta(opath, **kwargs):
     h3_partition_ids = gh3_list_parts(gh3_root_dir=opath)
     storage_kwargs = {}
     if is_remote_path(opath):
         from .utils import get_storage_options
-
-        protocol = opath.split("://")[0]
-        storage_kwargs["storage_options"] = get_storage_options(protocol)
-    ddf = dask_geopandas.read_parquet(
-        opath, gather_spatial_partitions=False, ignore_metadata_file=False, **storage_kwargs
-    )
-
+        protocol = opath.split('://')[0]
+        storage_kwargs['storage_options'] = get_storage_options(protocol)
+    ddf = dask_geopandas.read_parquet(opath, gather_spatial_partitions=False,
+                                       ignore_metadata_file=False, **storage_kwargs)
+    
     extracted_meta = {
-        "metadata": {"package_version": get_package_version()},
+        "metadata": {
+            "package_version": get_package_version()
+        },
         "h3_resolution_level": int(ddf.index.name[-2:]),
-        "h3_partition_level": h3.get_resolution(h3_partition_ids[0]),
+        "h3_partition_level": h3.get_resolution(h3_partition_ids[0]),        
         "h3_partition_ids": h3_partition_ids,
         "h3_columns": sorted(ddf.columns.tolist()),
-        "last_modified": now(),
+        "last_modified": now()
     }
-
+        
     extracted_meta.update(kwargs)
-
+    
     meta_path = os.path.join(opath, BUILD_LOG_FILENAME)
     json_write(extracted_meta, meta_path, rewrite=True)
     return meta_path
 
-
-def gh3_write_dataset_meta(
-    opath,
-    index_type="h3",
-    index_level=None,
-    columns=None,
-    source_database=None,
-    query_filter=None,
-    tool=None,
-    file_format="parquet",
-    **kwargs,
-):
+def gh3_write_dataset_meta(opath, index_type='h3', index_level=None, columns=None,
+                           source_database=None, query_filter=None, tool=None,
+                           file_format='parquet', **kwargs):
     """
     Write simplified metadata for extracted/aggregated datasets.
 
@@ -149,7 +119,7 @@ def gh3_write_dataset_meta(
     **kwargs
         Additional metadata to include
     """
-    from .cliutils import PIPELINE_FORMATS, list_dataset_files
+    from .cliutils import list_dataset_files, PIPELINE_FORMATS
 
     # List data files in output directory
     if file_format in PIPELINE_FORMATS:
@@ -159,7 +129,7 @@ def gh3_write_dataset_meta(
             data_files = []
     else:
         # Non-pipeline format: glob for whatever was written
-        data_files = smart_glob(os.path.join(opath, f"*.{file_format}"))
+        data_files = smart_glob(os.path.join(opath, f'*.{file_format}'))
 
     file_names = [os.path.basename(f) for f in data_files]
     partition_ids = [os.path.splitext(f)[0] for f in file_names]
@@ -168,7 +138,7 @@ def gh3_write_dataset_meta(
         "metadata": {
             "package_version": get_package_version(),
             "format": "simplified",
-            "description": "User-friendly dataset for use with external tools (R, QGIS, etc.)",
+            "description": "User-friendly dataset for use with external tools (R, QGIS, etc.)"
         },
         "file_format": file_format,
         "index_type": index_type,
@@ -179,7 +149,7 @@ def gh3_write_dataset_meta(
         "source_database": source_database,
         "query_filter": query_filter,
         "tool": tool,
-        "created": now(),
+        "created": now()
     }
 
     meta.update(kwargs)
@@ -206,12 +176,12 @@ def _detect_dataset_index_col(dataset_path):
 
     meta = json_read(meta_path)
 
-    idx_type = meta.get("index_type")
-    idx_level = meta.get("index_level")
-    if idx_type == "h3" and idx_level is not None:
-        return f"h3_{int(idx_level):02d}"
-    if idx_type == "egi" and idx_level is not None:
-        return f"egi{int(idx_level):02d}"
+    idx_type = meta.get('index_type')
+    idx_level = meta.get('index_level')
+    if idx_type == 'h3' and idx_level is not None:
+        return f'h3_{int(idx_level):02d}'
+    if idx_type == 'egi' and idx_level is not None:
+        return f'egi{int(idx_level):02d}'
 
     return None
 
@@ -227,9 +197,9 @@ def _find_dataset_files(dataset_path, fmt):
         return list_dataset_files(dataset_path, fmt=fmt), fmt
     except FileNotFoundError:
         # Fallback: check for hive-style parquet structure
-        hive_files = smart_glob(os.path.join(dataset_path, "**/*.parquet"), recursive=True)
+        hive_files = smart_glob(os.path.join(dataset_path, '**/*.parquet'), recursive=True)
         if hive_files:
-            return hive_files, "parquet"
+            return hive_files, 'parquet'
         raise GediDatabaseNotFoundError(f"No data files found in {dataset_path}")
 
 
@@ -257,26 +227,27 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
     -------
     dask GeoDataFrame or GeoDataFrame
     """
-    from .cliutils import _add_query_columns, detect_dataset_format, make_dataset_reader, read_dataset_schema
+    from .cliutils import (detect_dataset_format, read_dataset_schema,
+                           make_dataset_reader, _add_query_columns)
 
     # --- Eager mode ---
     if not lazy:
         # Single file
         if smart_exists(path) and not smart_isdir(path):
-            ext = os.path.splitext(path)[1].lstrip(".").lower()
-            fmt = ext if ext in ("parquet", "feather", "gpkg") else "parquet"
+            ext = os.path.splitext(path)[1].lstrip('.').lower()
+            fmt = ext if ext in ('parquet', 'feather', 'gpkg') else 'parquet'
             reader = make_dataset_reader(fmt, columns=columns)
             return reader(path)
 
         fmt = detect_dataset_format(path)
         data_files, fmt = _find_dataset_files(path, fmt)
 
-        if fmt == "parquet":
+        if fmt == 'parquet':
             kwargs = {}
             if columns:
-                kwargs["columns"] = columns
+                kwargs['columns'] = columns
             if filters:
-                kwargs["filters"] = filters
+                kwargs['filters'] = filters
             try:
                 return _read_parquet_files(data_files, geo=True, **kwargs)
             except Exception:
@@ -314,8 +285,8 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
 
     load_cols = list(load_columns) if load_columns else None
     if load_cols:
-        if has_geometry and "geometry" not in load_cols:
-            load_cols.append("geometry")
+        if has_geometry and 'geometry' not in load_cols:
+            load_cols.append('geometry')
         if index_col and index_col not in load_cols and index_col in col_names:
             load_cols.append(index_col)
 
@@ -324,7 +295,8 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
     _meta = reader(data_files[0])
 
     # Restore index for formats that don't preserve it (e.g. GPKG)
-    needs_index_restore = index_col and _meta.index.name != index_col and index_col in _meta.columns
+    needs_index_restore = (index_col and _meta.index.name != index_col
+                           and index_col in _meta.columns)
     if needs_index_restore:
         _meta = _meta.set_index(index_col)
 
@@ -336,8 +308,8 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
     else:
         ddf = dask.dataframe.from_map(reader, data_files, meta=_meta)
 
-    if "geometry" in ddf.columns:
-        ddf = dask_geopandas.from_dask_dataframe(ddf, geometry="geometry")
+    if 'geometry' in ddf.columns:
+        ddf = dask_geopandas.from_dask_dataframe(ddf, geometry='geometry')
 
     if query:
         ddf = ddf.query(query)
@@ -351,9 +323,8 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
 
 
 def gh3_part_from_df(df):
-    h3_cols = [col for col in df.columns if col.startswith("h3_")]
+    h3_cols = [col for col in df.columns if col.startswith('h3_')]
     return sorted(h3_cols)[0] if h3_cols else None
-
 
 def gh3_reindex(df):
     h3_col = gh3_part_from_df(df)
@@ -361,14 +332,14 @@ def gh3_reindex(df):
     if h3_col is not None and h3_id is not None and h3_id < h3_col:
         kwargs = {}
         if isinstance(df, (dask.dataframe.DataFrame, dask_geopandas.GeoDataFrame)):
-            kwargs["sort"] = False
+            kwargs['sort'] = False
         rdf = df.reset_index().set_index(h3_col, **kwargs)
         rdf[h3_id] = rdf[h3_id].astype(str)
         return rdf
     return df
 
-
-def gh3_aggregate_func(df, res, agg="mean", cols=None, **kwargs):
+def gh3_aggregate_func(df, res, agg='mean', cols=None, **kwargs):
+    import h3pandas
     df = gh3_reindex(df)
     h3col = f"h3_{res:02d}"
 
@@ -387,18 +358,16 @@ def gh3_aggregate_func(df, res, agg="mean", cols=None, **kwargs):
     out = g.apply(agg, include_groups=False, **kwargs) if callable(agg) else g.agg(agg)
 
     if isinstance(out.columns, pd.MultiIndex):
-        out.columns = ["_".join(map(str, col)).strip() for col in out.columns.values]
+        out.columns = ['_'.join(map(str, col)).strip() for col in out.columns.values]
 
     if isinstance(out.index, pd.MultiIndex):
         out.index = out.index.get_level_values(0)
     return out
 
-
 def gh3_add_geometry(df):
     geo = [fix_h3_geometry(i) for i in df.index]
     gdf = gpd.GeoDataFrame(df, geometry=geo, crs=4326)
     return gdf
-
 
 def _read_parquet_files(files, geo=True, **kwargs):
     """Read parquet file(s), handling remote paths correctly.
@@ -416,7 +385,7 @@ def _read_parquet_files(files, geo=True, **kwargs):
     # Single file
     if len(files) == 1:
         if remote:
-            with smart_open(files[0], "rb") as fobj:
+            with smart_open(files[0], 'rb') as fobj:
                 return reader(fobj, **kwargs)
         return reader(files[0], **kwargs)
 
@@ -427,23 +396,22 @@ def _read_parquet_files(files, geo=True, **kwargs):
     # Multiple remote files: read each via fsspec, concat
     dfs = []
     for f in files:
-        with smart_open(f, "rb") as fobj:
+        with smart_open(f, 'rb') as fobj:
             dfs.append(reader(fobj, **kwargs))
     return pd.concat(dfs, ignore_index=True)
 
 
 def gh3_load_hex(d, part_col=None, **kwargs):
-    files = smart_glob(os.path.join(d, "**/*.parquet"), recursive=True)
-    cols = kwargs.get("columns")
-    use_geo = cols is None or "geometry" in cols
+    files = smart_glob(os.path.join(d, '**/*.parquet'), recursive=True)
+    cols = kwargs.get('columns')
+    use_geo = cols is None or 'geometry' in cols
     df = _read_parquet_files(files, geo=use_geo, **kwargs)
     # Add partition column from hive-style directory name (e.g., 'h3_03=abc123')
     if part_col:
-        part_id = os.path.basename(d.rstrip("/")).split("=")[-1]
+        part_id = os.path.basename(d.rstrip('/')).split('=')[-1]
         if part_col not in df.columns and df.index.name != part_col:
             df[part_col] = part_id
     return df
-
 
 def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR, from_map=True):
     """Internal: load from H3 database (original gh3_load implementation)."""
@@ -459,7 +427,7 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
 
         # Always include shot_number for observation-level identification
         available_cols = gh3_read_meta("h3_columns", gh3_root_dir=gh3_dir)
-        sn_cols = [c for c in available_cols if c.startswith("shot_number")]
+        sn_cols = [c for c in available_cols if c.startswith('shot_number')]
         for c in sn_cols:
             if c not in columns:
                 columns.append(c)
@@ -470,15 +438,15 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
             q_cols = [col for col in available_cols if col in query]
             columns = list(set(columns + q_cols))
 
-        h3_filter["columns"] = columns
+        h3_filter['columns'] = columns
 
     if region is not None:
         h3_ids = intersect_h3_geometries(region, h3_ids=h3_ids)
-        h3_filter["filters"] = [(h3_part_col, "in", h3_ids)]
+        h3_filter['filters'] = [(h3_part_col,'in',h3_ids)]
 
-        if "columns" in h3_filter:
-            if "geometry" not in h3_filter["columns"]:
-                h3_filter["columns"].append("geometry")
+        if 'columns' in h3_filter:
+            if 'geometry' not in h3_filter['columns']:
+                h3_filter['columns'].append('geometry')
 
     if from_map:
         if is_remote_path(gh3_dir) or region is not None:
@@ -492,34 +460,33 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
                 h3_ids = sorted(h3_ids)
                 h3_dirs = [os.path.join(gh3_dir, f"{h3_part_col}={hid}/") for hid in h3_ids]
             else:
-                h3_ids = [os.path.basename(i.rstrip("/")).replace(f"{h3_part_col}=", "") for i in h3_dirs]
+                h3_ids = [os.path.basename(i.rstrip('/')).replace(f'{h3_part_col}=', '') for i in h3_dirs]
+
+        divs = h3_ids + h3_ids[-1:]
 
         # Remove partition column and filter from h3_filter (not in parquet files, derived from dir name)
-        fm_filter = {k: v for k, v in h3_filter.items() if k != "filters"}
-        if "columns" in fm_filter:
-            fm_filter["columns"] = [c for c in fm_filter["columns"] if c != h3_part_col]
+        fm_filter = {k: v for k, v in h3_filter.items() if k != 'filters'}
+        if 'columns' in fm_filter:
+            fm_filter['columns'] = [c for c in fm_filter['columns'] if c != h3_part_col]
 
         _meta = gh3_load_hex(h3_dirs[0], part_col=h3_part_col, **fm_filter)
         ddf = dask.dataframe.from_map(gh3_load_hex, h3_dirs, part_col=h3_part_col, **fm_filter, meta=_meta)
-        if "geometry" in ddf.columns:
-            ddf = dask_geopandas.from_dask_dataframe(ddf, geometry="geometry")
+        if 'geometry' in ddf.columns:
+            ddf = dask_geopandas.from_dask_dataframe(ddf, geometry='geometry')
     else:
         storage_kwargs = {}
         if is_remote_path(gh3_dir):
             from .utils import get_storage_options
-
-            protocol = gh3_dir.split("://")[0]
-            storage_kwargs["storage_options"] = get_storage_options(protocol)
-        ddf = dask_geopandas.read_parquet(
-            gh3_dir,
-            calculate_divisions=False,
-            split_row_groups=False,
-            aggregate_files=False,
-            gather_spatial_partitions=False,
-            ignore_metadata_file=False,
-            **storage_kwargs,
-            **h3_filter,
-        )
+            protocol = gh3_dir.split('://')[0]
+            storage_kwargs['storage_options'] = get_storage_options(protocol)
+        ddf = dask_geopandas.read_parquet(gh3_dir,
+                                        calculate_divisions=False,
+                                        split_row_groups=False,
+                                        aggregate_files=False,
+                                        gather_spatial_partitions=False,
+                                        ignore_metadata_file=False,
+                                        **storage_kwargs,
+                                        **h3_filter)
 
         ddf[h3_part_col] = ddf[h3_part_col].astype(str)
 
@@ -536,9 +503,8 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
     return ddf
 
 
-def gh3_load(
-    source=None, *, columns=None, region=None, query=None, gh3_dir=None, from_map=True, lazy=True, filters=None
-):
+def gh3_load(source=None, *, columns=None, region=None, query=None,
+             gh3_dir=None, from_map=True, lazy=True, filters=None):
     """Load H3-indexed GEDI data from any source.
 
     Auto-detects whether the source is an H3 database, simplified dataset,
@@ -589,30 +555,23 @@ def gh3_load(
     """
     path, info = _detect_source(source, gh3_dir)
 
-    if info.get("index_type") == "egi":
-        raise GediValidationError(f"Source '{path}' is an EGI-indexed dataset. Use egi_load() instead.")
+    if info.get('index_type') == 'egi':
+        raise GediValidationError(
+            f"Source '{path}' is an EGI-indexed dataset. Use egi_load() instead."
+        )
 
-    if info["source_type"] == "h3_database":
-        ddf = _load_h3_database(columns=columns, region=region, query=query, gh3_dir=path, from_map=from_map)
+    if info['source_type'] == 'h3_database':
+        ddf = _load_h3_database(columns=columns, region=region, query=query,
+                                gh3_dir=path, from_map=from_map)
     else:
-        ddf = _load_dataset(path, columns=columns, query=query, region=region, lazy=True, filters=filters)
+        ddf = _load_dataset(path, columns=columns, query=query, region=region,
+                            lazy=True, filters=filters)
 
     if not lazy:
         return ddf.compute()
     return ddf
 
-
-def gh3_aggregate(
-    gh3_df,
-    target_res=5,
-    agg="mean",
-    columns=None,
-    query=None,
-    add_geometry=True,
-    repartition=False,
-    partition_level=None,
-    **kwargs,
-):
+def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, add_geometry=True, repartition=False, partition_level=None, **kwargs):
     """
     Aggregate H3-indexed GEDI data to a coarser H3 resolution.
 
@@ -653,9 +612,7 @@ def gh3_aggregate(
     GediAggregationError
         If spatial aggregation fails.
     """
-    _meta = gh3_aggregate_func(
-        df=gh3_df.head(npartitions=min(gh3_df.npartitions, 10)), res=target_res, agg=agg, cols=columns, **kwargs
-    )
+    _meta = gh3_aggregate_func(df=gh3_df.head(npartitions=min(gh3_df.npartitions, 10)), res=target_res, agg=agg, cols=columns, **kwargs)
 
     if query is not None:
         gh3_df = gh3_df.query(query)
@@ -668,19 +625,26 @@ def gh3_aggregate(
 
     # Use map_partitions for efficient processing
     # Each partition corresponds to a single H3 partition cell when loaded with from_map=True
-    agg_df = gh3_df.map_partitions(gh3_aggregate_func, res=target_res, agg=agg, cols=columns, meta=_meta, **kwargs)
+    agg_df = gh3_df.map_partitions(
+        gh3_aggregate_func,
+        res=target_res,
+        agg=agg,
+        cols=columns,
+        meta=_meta,
+        **kwargs
+    )
     agg_df = agg_df.reset_index().set_index(h3agg, sort=False)
-
+    
     if add_geometry:
         _gmeta = agg_df._meta.copy()
-        _gmeta["geometry"] = gpd.GeoSeries([], crs=4326)
-        _gmeta = gpd.GeoDataFrame(_gmeta, geometry="geometry", crs=4326)
+        _gmeta['geometry'] = gpd.GeoSeries([], crs=4326)
+        _gmeta = gpd.GeoDataFrame(_gmeta, geometry='geometry', crs=4326)
         agg_df = agg_df.map_partitions(gh3_add_geometry, meta=_gmeta)
         if isinstance(agg_df, dask.dataframe.DataFrame):
             agg_df = dask_geopandas.from_dask_dataframe(agg_df)
 
     if repartition and h3part is not None:
-        h3part_res = int(h3part.split("_")[1])
+        h3part_res = int(h3part.split('_')[1])
 
         # Compute partition column from aggregated H3 cells
         def add_h3_parent(df, parent_col, parent_res, idx_col):
@@ -690,12 +654,10 @@ def gh3_aggregate(
 
         _part_meta = agg_df._meta.copy()
         _part_meta = _part_meta.reset_index()
-        _part_meta[h3part] = ""
+        _part_meta[h3part] = ''
         _part_meta = _part_meta.set_index(h3agg)
 
-        agg_df = agg_df.map_partitions(
-            add_h3_parent, parent_col=h3part, parent_res=h3part_res, idx_col=h3agg, meta=_part_meta
-        )
+        agg_df = agg_df.map_partitions(add_h3_parent, parent_col=h3part, parent_res=h3part_res, idx_col=h3agg, meta=_part_meta)
         uparts = sorted(agg_df[h3part].unique().compute().tolist())
         agg_df = agg_df.reset_index().set_index(h3part, sort=False, divisions=uparts + uparts[-1:])
         agg_df = agg_df.reset_index().set_index(h3agg, sort=False)
@@ -704,7 +666,7 @@ def gh3_aggregate(
     return agg_df
 
 
-def gh3_export_part(df, odir, fmt="parquet", is_file_path=False, part_col=None, group_by_partition=False):
+def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None, group_by_partition=False):
     """
     Export a single partition to file with a simple naming convention.
 
@@ -736,7 +698,7 @@ def gh3_export_part(df, odir, fmt="parquet", is_file_path=False, part_col=None, 
         Output file path(s). Comma-separated if multiple files written.
     """
     if df.empty:
-        return ""
+        return ''
 
     os.makedirs(odir, exist_ok=True)
 
@@ -744,12 +706,12 @@ def gh3_export_part(df, odir, fmt="parquet", is_file_path=False, part_col=None, 
     actual_part_col = part_col
     if not actual_part_col:
         # Check for H3 partition columns
-        h3_cols = [col for col in df.columns if col.startswith("h3_")]
+        h3_cols = [col for col in df.columns if col.startswith('h3_')]
         if h3_cols:
             actual_part_col = sorted(h3_cols)[0]
         else:
             # Check for EGI columns
-            egi_cols = [col for col in df.columns if str(col).startswith("egi")]
+            egi_cols = [col for col in df.columns if str(col).startswith('egi')]
             if egi_cols:
                 actual_part_col = sorted(egi_cols)[0]
 
@@ -766,11 +728,11 @@ def gh3_export_part(df, odir, fmt="parquet", is_file_path=False, part_col=None, 
             opath = os.path.join(odir, f"{oname}.{fmt}")
             _write_dataframe(part_df, opath, fmt)
             output_paths.append(opath)
-        return ",".join(output_paths)
+        return ','.join(output_paths)
 
     # Single file export (no grouping)
     if is_file_path:
-        odir = odir.rstrip("/")
+        odir = odir.rstrip('/')
         opath = f"{odir}.{fmt}" if not odir.endswith(fmt) else odir
     else:
         # Determine output filename from partition ID
@@ -781,7 +743,7 @@ def gh3_export_part(df, odir, fmt="parquet", is_file_path=False, part_col=None, 
             oname = str(df[actual_part_col].iloc[0])
         # Check index name
         if not oname and df.index.name:
-            if df.index.name.startswith("h3_") or str(df.index.name).startswith("egi"):
+            if df.index.name.startswith('h3_') or str(df.index.name).startswith('egi'):
                 oname = str(df.index[0])
 
         # Fallback to generic name
@@ -798,20 +760,20 @@ def _write_dataframe(df, opath, fmt):
     """Write a DataFrame to file in the specified format."""
     if is_parquet(opath):
         # Use compression for parquet
-        df.to_parquet(opath, compression="zstd")
-    elif fmt == "feather":
+        df.to_parquet(opath, compression='zstd')
+    elif fmt == 'feather':
         df.to_feather(opath)
-    elif fmt in ("geojson", "gpkg", "shp"):
+    elif fmt in ('geojson', 'gpkg', 'shp'):
         if isinstance(df, gpd.GeoDataFrame):
             df.to_file(opath)
         else:
             raise GediProcessingError(f"Cannot export non-GeoDataFrame to {fmt}")
-    elif fmt == "txt":
-        df.to_csv(opath, sep="\t")
-    elif fmt == "csv":
+    elif fmt == 'txt':
+        df.to_csv(opath, sep='\t')
+    elif fmt == 'csv':
         df.to_csv(opath)
-    elif fmt in ("h5", "hdf5"):
-        df.to_hdf(opath, key="GEDI", mode="w")
+    elif fmt in ('h5', 'hdf5'):
+        df.to_hdf(opath, key='GEDI', mode='w')
     else:
         raise GediProcessingError(f"Unsupported export format: {fmt}")
 
@@ -844,18 +806,18 @@ def _detect_export_params(ddf, index_type=None):
         - index_level: spatial index resolution level (int or None)
         - group_by_partition: whether to use group_by_partition in export
     """
-    meta = ddf._meta if hasattr(ddf, "_meta") else ddf
+    meta = ddf._meta if hasattr(ddf, '_meta') else ddf
 
     # Auto-detect index type if not provided
     if index_type is None:
         index_type = get_spatial_index_type(meta)
 
-    if index_type == "egi":
+    if index_type == 'egi':
         import re
-
         # Find EGI partition column (coarsest = highest level number)
         egi_cols = sorted(
-            [c for c in meta.columns if re.match(r"^egi\d{2}$", str(c))], key=lambda c: int(str(c).replace("egi", ""))
+            [c for c in meta.columns if re.match(r'^egi\d{2}$', str(c))],
+            key=lambda c: int(str(c).replace('egi', ''))
         )
         if egi_cols:
             part_col = egi_cols[-1]  # coarsest = highest level = partition
@@ -863,34 +825,35 @@ def _detect_export_params(ddf, index_type=None):
             part_col = None
 
         # Index level from index name
-        idx_name = str(meta.index.name) if meta.index.name else ""
-        if idx_name.startswith("egi"):
-            index_level = int(idx_name.replace("egi", ""))
+        idx_name = str(meta.index.name) if meta.index.name else ''
+        if idx_name.startswith('egi'):
+            index_level = int(idx_name.replace('egi', ''))
         elif egi_cols:
             # Finest EGI column
-            index_level = int(str(egi_cols[0]).replace("egi", ""))
+            index_level = int(str(egi_cols[0]).replace('egi', ''))
         else:
             index_level = None
 
         # EGI data after shuffle needs group_by_partition
         group_by_partition = True
 
-    elif index_type == "h3":
+    elif index_type == 'h3':
         import re
-
         # Find H3 partition column (coarsest = lowest level number)
-        h3_cols = sorted([c for c in meta.columns if re.match(r"^h3_\d{2}$", c)])
+        h3_cols = sorted(
+            [c for c in meta.columns if re.match(r'^h3_\d{2}$', c)]
+        )
         if h3_cols:
             part_col = h3_cols[0]  # coarsest = lowest level = partition
         else:
             part_col = None
 
         # Index level from index name
-        idx_name = str(meta.index.name) if meta.index.name else ""
-        if idx_name.startswith("h3_"):
-            index_level = int(idx_name.replace("h3_", ""))
+        idx_name = str(meta.index.name) if meta.index.name else ''
+        if idx_name.startswith('h3_'):
+            index_level = int(idx_name.replace('h3_', ''))
         elif h3_cols:
-            index_level = int(h3_cols[-1].replace("h3_", ""))
+            index_level = int(h3_cols[-1].replace('h3_', ''))
         else:
             index_level = None
 
@@ -904,18 +867,10 @@ def _detect_export_params(ddf, index_type=None):
     return index_type, part_col, index_level, group_by_partition
 
 
-def gh3_export(
-    ddf,
-    output,
-    fmt="parquet",
-    merge=False,
-    show_progress=True,
-    drop_internal=True,
-    write_metadata=True,
-    source_database=None,
-    tool=None,
-    **metadata_kwargs,
-):
+def gh3_export(ddf, output, fmt='parquet', merge=False,
+               show_progress=True, drop_internal=True,
+               write_metadata=True, source_database=None,
+               tool=None, **metadata_kwargs):
     """
     Export a Dask DataFrame to simplified flat files with metadata.
 
@@ -979,7 +934,7 @@ def gh3_export(
     index_type, part_col, index_level, group_by_partition = _detect_export_params(ddf)
 
     # Choose the right export function based on index type
-    if index_type == "egi":
+    if index_type == 'egi':
         export_func = egi_export_part
     else:
         export_func = gh3_export_part
@@ -1000,18 +955,20 @@ def gh3_export(
 
         # Build export kwargs based on index type
         # egi_export_part handles splitting internally; gh3_export_part uses part_col/group_by_partition
-        if index_type == "egi":
+        if index_type == 'egi':
             export_kwargs = dict(odir=output, fmt=fmt)
         else:
-            export_kwargs = dict(odir=output, fmt=fmt, part_col=part_col, group_by_partition=group_by_partition)
+            export_kwargs = dict(odir=output, fmt=fmt, part_col=part_col,
+                                 group_by_partition=group_by_partition)
 
-        write_task = ddf.map_partitions(export_func, **export_kwargs, meta=pd.Series(dtype=str))
+        write_task = ddf.map_partitions(
+            export_func, **export_kwargs, meta=pd.Series(dtype=str)
+        )
 
         # Try to use distributed progress if available
         client = get_dask_client()
         if client is not None:
             from dask.distributed import progress
-
             write_task = write_task.persist()
             if show_progress:
                 progress(write_task)
@@ -1020,7 +977,7 @@ def gh3_export(
         else:
             write_task.compute()
 
-        ofiles = smart_glob(os.path.join(output, f"*.{fmt}"))
+        ofiles = smart_glob(os.path.join(output, f'*.{fmt}'))
 
     if not ofiles:
         raise GediProcessingError("No output files were created.")
@@ -1030,13 +987,13 @@ def gh3_export(
         columns = list(ddf.columns)
         gh3_write_dataset_meta(
             opath=output,
-            index_type=index_type or "unknown",
+            index_type=index_type or 'unknown',
             index_level=index_level,
             columns=columns,
             source_database=source_database,
             tool=tool,
             file_format=fmt,
-            **metadata_kwargs,
+            **metadata_kwargs
         )
 
     return ofiles
@@ -1068,10 +1025,9 @@ def _prepare_egi_loading(region, gh3_dir):
         (egi_tiles, egi_to_h3, h3_part_col, region_gdf) for use in tile loading.
         region_gdf is the region as GeoDataFrame (for clipping).
     """
-    from shapely.geometry import box
-
     from . import egi
     from .h3utils import h3_parts_to_gdf
+    from shapely.geometry import box
 
     # Get H3 partition info
     h3_part = gh3_read_meta("h3_partition_level", gh3_root_dir=gh3_dir)
@@ -1083,7 +1039,10 @@ def _prepare_egi_loading(region, gh3_dir):
     if region is not None:
         if isinstance(region, (list, tuple)):
             # bbox: [W, S, E, N] -> GeoDataFrame
-            region_gdf = gpd.GeoDataFrame(geometry=[box(*region)], crs=4326)
+            region_gdf = gpd.GeoDataFrame(
+                geometry=[box(*region)],
+                crs=4326
+            )
         elif isinstance(region, gpd.GeoDataFrame):
             region_gdf = region
         elif isinstance(region, gpd.GeoSeries):
@@ -1107,9 +1066,8 @@ def _prepare_egi_loading(region, gh3_dir):
     return egi_tiles, egi_to_h3, h3_part_col, region_gdf
 
 
-def _load_egi_tile_from_h3(
-    egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols, query, index_level, partition_level, set_index=True
-):
+def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
+                            query, index_level, partition_level, set_index=True):
     """
     Load data for a single EGI tile from its intersecting H3 partitions.
 
@@ -1145,17 +1103,16 @@ def _load_egi_tile_from_h3(
     DataFrame or GeoDataFrame
         EGI-indexed data for this tile
     """
+    from gedih3 import egi as egi_mod
     from pyproj import Transformer
     from shapely.geometry import box
-
-    from gedih3 import egi as egi_mod
 
     egi_index_col = egi_mod.egi_col_name(index_level)
     egi_part_col = egi_mod.egi_col_name(partition_level)
 
     # Transform EGI bbox from EPSG:6933 to WGS84 for H3 data filtering
     # H3 database stores data in WGS84 (EPSG:4326)
-    transformer = Transformer.from_crs("EPSG:6933", "EPSG:4326", always_xy=True)
+    transformer = Transformer.from_crs('EPSG:6933', 'EPSG:4326', always_xy=True)
     minx, miny = transformer.transform(egi_bbox[0], egi_bbox[1])
     maxx, maxy = transformer.transform(egi_bbox[2], egi_bbox[3])
     wgs84_bbox = (minx, miny, maxx, maxy)
@@ -1165,9 +1122,9 @@ def _load_egi_tile_from_h3(
     for h3_id in h3_list:
         h3_path = os.path.join(gh3_dir, f"{h3_part_col}={h3_id}")
         # Search for parquet files - try direct children first, then recursive
-        parquet_files = smart_glob(os.path.join(h3_path, "*.parquet"))
+        parquet_files = smart_glob(os.path.join(h3_path, '*.parquet'))
         if not parquet_files:
-            parquet_files = smart_glob(os.path.join(h3_path, "**/*.parquet"), recursive=True)
+            parquet_files = smart_glob(os.path.join(h3_path, '**/*.parquet'), recursive=True)
         if not parquet_files:
             continue
 
@@ -1221,14 +1178,14 @@ def _load_egi_tile_from_h3(
         df = df.set_index(egi_index_col)
 
     # Reorder columns: data cols, partition col, geometry last
-    if "geometry" in df.columns:
+    if 'geometry' in df.columns:
         # Get data columns (not EGI cols or geometry)
-        special_cols = {"geometry", egi_part_col}
+        special_cols = {'geometry', egi_part_col}
         if not set_index:
             special_cols.add(egi_index_col)
         data_cols = [c for c in df.columns if c not in special_cols]
         # Build final column order
-        cols = data_cols + [egi_part_col, "geometry"]
+        cols = data_cols + [egi_part_col, 'geometry']
         cols = [c for c in cols if c in df.columns]
         df = df[cols]
 
@@ -1252,9 +1209,9 @@ def _find_parquet_file(gh3_dir):
     # Find a directory that actually has parquet files (search recursively)
     for h3_dir_path in h3_dirs:
         # Try direct children first, then recursive
-        parquet_files = smart_glob(os.path.join(h3_dir_path, "*.parquet"))
+        parquet_files = smart_glob(os.path.join(h3_dir_path, '*.parquet'))
         if not parquet_files:
-            parquet_files = smart_glob(os.path.join(h3_dir_path, "**/*.parquet"), recursive=True)
+            parquet_files = smart_glob(os.path.join(h3_dir_path, '**/*.parquet'), recursive=True)
         if parquet_files:
             return parquet_files[0]
 
@@ -1286,7 +1243,7 @@ def _get_schema_columns(load_cols, gh3_dir, exclude_geometry=False):
     # Get schema from a parquet file in database
     parquet_file = _find_parquet_file(gh3_dir)
     if is_remote_path(parquet_file):
-        with smart_open(parquet_file, "rb") as fobj:
+        with smart_open(parquet_file, 'rb') as fobj:
             schema = pq.read_schema(fobj)
     else:
         schema = pq.read_schema(parquet_file, memory_map=True)
@@ -1296,9 +1253,9 @@ def _get_schema_columns(load_cols, gh3_dir, exclude_geometry=False):
     if load_cols is not None:
         meta_cols = [c for c in load_cols if c in schema_cols]
         if exclude_geometry:
-            meta_cols = [c for c in meta_cols if c != "geometry"]
+            meta_cols = [c for c in meta_cols if c != 'geometry']
     else:
-        meta_cols = [c for c in schema_cols if c != "geometry"]
+        meta_cols = [c for c in schema_cols if c != 'geometry']
 
     return schema, meta_cols
 
@@ -1321,7 +1278,7 @@ def _build_meta_dict_from_schema(schema, columns):
     """
     meta_dict = {}
     for col in columns:
-        if col == "geometry":
+        if col == 'geometry':
             continue
         field_idx = schema.get_field_index(col)
         if field_idx >= 0:
@@ -1367,12 +1324,11 @@ def _build_egi_load_meta(load_cols, gh3_dir, index_level, partition_level, inclu
     return _meta
 
 
-def _load_egi_from_h3_database(
-    columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR, index_level=1, partition_level=12
-):
+def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR,
+                               index_level=1, partition_level=12):
     """Internal: load H3 database directly into EGI partitions (original egi_load body)."""
+    import dask
     from dask import dataframe as ddf
-
     from . import egi
 
     egi.validate_level(index_level)
@@ -1387,7 +1343,7 @@ def _load_egi_from_h3_database(
     if load_cols is not None:
         # Always include shot_number for observation-level identification
         available_cols = gh3_read_meta("h3_columns", gh3_root_dir=gh3_dir)
-        sn_cols = [c for c in available_cols if c.startswith("shot_number")]
+        sn_cols = [c for c in available_cols if c.startswith('shot_number')]
         for c in sn_cols:
             if c not in load_cols:
                 load_cols.append(c)
@@ -1396,10 +1352,10 @@ def _load_egi_from_h3_database(
         out_cols = load_cols.copy()
 
         # Ensure we have geometry for bbox filtering
-        if "geometry" not in load_cols:
-            load_cols.append("geometry")
-        if "geometry" not in out_cols:
-            out_cols.append("geometry")
+        if 'geometry' not in load_cols:
+            load_cols.append('geometry')
+        if 'geometry' not in out_cols:
+            out_cols.append('geometry')
 
         # Handle query columns (load but don't include in output)
         if query is not None:
@@ -1410,28 +1366,30 @@ def _load_egi_from_h3_database(
     egi_part_col = egi.egi_col_name(partition_level)
 
     # Build list of (egi_id, h3_list, egi_bbox) tuples for from_map
-    tile_args = [(egi_id, h3_list, egi_tiles.loc[egi_id, "geometry"].bounds) for egi_id, h3_list in egi_to_h3.items()]
+    tile_args = [
+        (egi_id, h3_list, egi_tiles.loc[egi_id, 'geometry'].bounds)
+        for egi_id, h3_list in egi_to_h3.items()
+    ]
 
     # Define loader function for from_map
     # set_index=True in tile loader avoids shuffle at the end
     def load_tile(args):
         egi_id, h3_list, egi_bbox = args
         return _load_egi_tile_from_h3(
-            egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols, query, index_level, partition_level, set_index=True
+            egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
+            query, index_level, partition_level, set_index=True
         )
 
     # Build metadata from schema (avoids empty sample issue)
     # set_index=True because tile loader sets index (metadata must match)
-    _meta = _build_egi_load_meta(
-        load_cols, gh3_dir, index_level, partition_level, include_geometry=True, set_index=True
-    )
+    _meta = _build_egi_load_meta(load_cols, gh3_dir, index_level, partition_level, include_geometry=True, set_index=True)
 
     # Use from_map instead of from_delayed (from_delayed is deprecated)
     result = ddf.from_map(load_tile, tile_args, meta=_meta)
 
     # Convert to dask_geopandas GeoDataFrame
-    if "geometry" in result.columns:
-        result = dask_geopandas.from_dask_dataframe(result, geometry="geometry")
+    if 'geometry' in result.columns:
+        result = dask_geopandas.from_dask_dataframe(result, geometry='geometry')
 
     # Filter to output columns only (exclude query-only columns)
     if out_cols is not None:
@@ -1451,9 +1409,8 @@ def _load_egi_from_h3_database(
     return result
 
 
-def egi_load(
-    source=None, *, columns=None, region=None, query=None, gh3_dir=None, index_level=1, partition_level=12, lazy=True
-):
+def egi_load(source=None, *, columns=None, region=None, query=None,
+             gh3_dir=None, index_level=1, partition_level=12, lazy=True):
     """Load EGI-indexed GEDI data from any source.
 
     Auto-detects whether the source is an H3 database (direct EGI loading)
@@ -1510,20 +1467,16 @@ def egi_load(
     """
     path, info = _detect_source(source, gh3_dir)
 
-    if info["source_type"] == "h3_database":
+    if info['source_type'] == 'h3_database':
         # Direct EGI loading from H3 database (no shuffle)
         ddf = _load_egi_from_h3_database(
-            columns=columns,
-            region=region,
-            query=query,
-            gh3_dir=path,
-            index_level=index_level,
-            partition_level=partition_level,
+            columns=columns, region=region, query=query,
+            gh3_dir=path, index_level=index_level, partition_level=partition_level
         )
-    elif info.get("index_type") == "egi":
+    elif info.get('index_type') == 'egi':
         # Simplified EGI dataset
         ddf = _load_dataset(path, columns=columns, query=query, region=region, lazy=True)
-    elif info.get("index_type") == "h3":
+    elif info.get('index_type') == 'h3':
         raise GediValidationError(
             f"Source '{path}' is an H3 dataset. Use gh3_load() for H3 data, "
             f"or load from an H3 database with egi_load() for direct EGI conversion."
@@ -1537,7 +1490,7 @@ def egi_load(
     return ddf
 
 
-def _egi_repartition(gh3_df, shuffle_level, x_col="lon_lowestmode", y_col="lat_lowestmode"):
+def _egi_repartition(gh3_df, shuffle_level, x_col='lon_lowestmode', y_col='lat_lowestmode'):
     """
     Repartition H3-indexed data by EGI tiles for efficient H3->EGI conversion.
 
@@ -1573,40 +1526,39 @@ def _egi_repartition(gh3_df, shuffle_level, x_col="lon_lowestmode", y_col="lat_l
 
     def add_shuffle_index(df, x_col, y_col, shuffle_level, shuffle_col):
         """Add EGI shuffle index and store projected + original coordinates."""
-        from pyproj import Transformer
-
         from gedih3.egi.core import to_hash as _to_hash
+        from pyproj import Transformer
 
         if len(df) == 0:
             df = df.copy()
             df[shuffle_col] = pd.Series([], dtype=np.uint64)
-            df["_egi_x"] = pd.Series([], dtype=np.float64)
-            df["_egi_y"] = pd.Series([], dtype=np.float64)
-            df["_wgs84_x"] = pd.Series([], dtype=np.float64)
-            df["_wgs84_y"] = pd.Series([], dtype=np.float64)
-            if "geometry" in df.columns:
-                df = df.drop(columns=["geometry"])
+            df['_egi_x'] = pd.Series([], dtype=np.float64)
+            df['_egi_y'] = pd.Series([], dtype=np.float64)
+            df['_wgs84_x'] = pd.Series([], dtype=np.float64)
+            df['_wgs84_y'] = pd.Series([], dtype=np.float64)
+            if 'geometry' in df.columns:
+                df = df.drop(columns=['geometry'])
             return df
 
         # Check if input is a GeoDataFrame with Point geometry
         is_point_gdf = (
-            isinstance(df, gpd.GeoDataFrame)
-            and "geometry" in df.columns
-            and len(df) > 0
-            and df.geom_type.iloc[0] == "Point"
+            isinstance(df, gpd.GeoDataFrame) and
+            'geometry' in df.columns and
+            len(df) > 0 and
+            df.geom_type.iloc[0] == 'Point'
         )
 
         if is_point_gdf:
             # Extract WGS84 coordinates from geometry
             if df.crs is not None and df.crs.to_epsg() != 4326:
                 # Transform to WGS84 first
-                transformer_wgs = Transformer.from_crs(df.crs, "EPSG:4326", always_xy=True)
+                transformer_wgs = Transformer.from_crs(df.crs, 'EPSG:4326', always_xy=True)
                 wgs84_x, wgs84_y = transformer_wgs.transform(df.geometry.x.values, df.geometry.y.values)
             else:
                 wgs84_x, wgs84_y = df.geometry.x.values, df.geometry.y.values
 
             # Transform to EPSG:6933 for EGI hash computation
-            transformer = Transformer.from_crs("EPSG:4326", "EPSG:6933", always_xy=True)
+            transformer = Transformer.from_crs('EPSG:4326', 'EPSG:6933', always_xy=True)
             x, y = transformer.transform(wgs84_x, wgs84_y)
         else:
             # Use coordinate columns (assumed WGS84)
@@ -1619,7 +1571,7 @@ def _egi_repartition(gh3_df, shuffle_level, x_col="lon_lowestmode", y_col="lat_l
             wgs84_y = df[actual_y_col].values
 
             # Transform from WGS84 to EPSG:6933
-            transformer = Transformer.from_crs("EPSG:4326", "EPSG:6933", always_xy=True)
+            transformer = Transformer.from_crs('EPSG:4326', 'EPSG:6933', always_xy=True)
             x, y = transformer.transform(wgs84_x, wgs84_y)
 
         # Compute EGI shuffle hash
@@ -1627,28 +1579,28 @@ def _egi_repartition(gh3_df, shuffle_level, x_col="lon_lowestmode", y_col="lat_l
         df[shuffle_col] = _to_hash(np.asarray(x), np.asarray(y), shuffle_level)
 
         # Store projected coordinates for fine-grained indexing after shuffle
-        df["_egi_x"] = x
-        df["_egi_y"] = y
+        df['_egi_x'] = x
+        df['_egi_y'] = y
 
         # Store original WGS84 coordinates for geometry recreation
-        df["_wgs84_x"] = wgs84_x
-        df["_wgs84_y"] = wgs84_y
+        df['_wgs84_x'] = wgs84_x
+        df['_wgs84_y'] = wgs84_y
 
         # Drop geometry column (can be recreated later if needed)
-        if "geometry" in df.columns:
-            df = df.drop(columns=["geometry"])
+        if 'geometry' in df.columns:
+            df = df.drop(columns=['geometry'])
 
         return df
 
     # Build metadata
     _meta = gh3_df._meta.copy()
-    if "geometry" in _meta.columns:
-        _meta = pd.DataFrame(_meta.drop(columns=["geometry"]))
+    if 'geometry' in _meta.columns:
+        _meta = pd.DataFrame(_meta.drop(columns=['geometry']))
     _meta[egi_shuffle_col] = np.uint64(0)
-    _meta["_egi_x"] = np.float64(0)
-    _meta["_egi_y"] = np.float64(0)
-    _meta["_wgs84_x"] = np.float64(0)
-    _meta["_wgs84_y"] = np.float64(0)
+    _meta['_egi_x'] = np.float64(0)
+    _meta['_egi_y'] = np.float64(0)
+    _meta['_wgs84_x'] = np.float64(0)
+    _meta['_wgs84_y'] = np.float64(0)
 
     shuffled = gh3_df.map_partitions(
         add_shuffle_index,
@@ -1656,7 +1608,7 @@ def _egi_repartition(gh3_df, shuffle_level, x_col="lon_lowestmode", y_col="lat_l
         y_col=y_col,
         shuffle_level=shuffle_level,
         shuffle_col=egi_shuffle_col,
-        meta=_meta,
+        meta=_meta
     )
 
     # Shuffle by EGI tile
@@ -1665,7 +1617,7 @@ def _egi_repartition(gh3_df, shuffle_level, x_col="lon_lowestmode", y_col="lat_l
     return shuffled
 
 
-def egi_aggregate_func(df, level, agg="mean", cols=None, x_col="lon_lowestmode", y_col="lat_lowestmode", **kwargs):
+def egi_aggregate_func(df, level, agg='mean', cols=None, x_col='lon_lowestmode', y_col='lat_lowestmode', **kwargs):
     """
     Aggregate H3-indexed DataFrame to EGI (EASE Grid Index) pixels.
 
@@ -1700,10 +1652,10 @@ def egi_aggregate_func(df, level, agg="mean", cols=None, x_col="lon_lowestmode",
 
     # Check if input is a GeoDataFrame with Point geometry
     is_point_gdf = (
-        isinstance(df, gpd.GeoDataFrame)
-        and "geometry" in df.columns
-        and len(df) > 0
-        and df.geom_type.iloc[0] == "Point"
+        isinstance(df, gpd.GeoDataFrame) and
+        'geometry' in df.columns and
+        len(df) > 0 and
+        df.geom_type.iloc[0] == 'Point'
     )
 
     if not is_point_gdf:
@@ -1723,8 +1675,8 @@ def egi_aggregate_func(df, level, agg="mean", cols=None, x_col="lon_lowestmode",
     egi_df = egi.egi_dataframe(df, x_col=x_col, y_col=y_col, level=level, set_index=True)
 
     # Remove geometry if present (will be regenerated)
-    if "geometry" in egi_df.columns:
-        egi_df = pd.DataFrame(egi_df.drop(columns="geometry"))
+    if 'geometry' in egi_df.columns:
+        egi_df = pd.DataFrame(egi_df.drop(columns='geometry'))
 
     # Filter to requested columns
     if cols is not None:
@@ -1740,7 +1692,7 @@ def egi_aggregate_func(df, level, agg="mean", cols=None, x_col="lon_lowestmode",
 
     # Flatten MultiIndex columns
     if isinstance(agg_df.columns, pd.MultiIndex):
-        agg_df.columns = ["_".join(map(str, col)).strip() for col in agg_df.columns.values]
+        agg_df.columns = ['_'.join(map(str, col)).strip() for col in agg_df.columns.values]
 
     return agg_df
 
@@ -1762,11 +1714,10 @@ def egi_add_geometry(df, polygons=True):
         GeoDataFrame with geometry column
     """
     from . import egi
-
     return egi.egi_to_geo(df, polygons=polygons)
 
 
-def _build_agg_meta(gh3_df, target_level, agg, columns, index_type="egi"):
+def _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi'):
     """
     Build metadata for aggregation result.
 
@@ -1790,10 +1741,10 @@ def _build_agg_meta(gh3_df, target_level, agg, columns, index_type="egi"):
     """
     from . import egi
 
-    if index_type == "egi":
+    if index_type == 'egi':
         idx_col = egi.egi_col_name(target_level)
     else:
-        idx_col = f"h3_{target_level:02d}"
+        idx_col = f'h3_{target_level:02d}'
 
     # Get sample columns
     sample = gh3_df._meta
@@ -1809,24 +1760,20 @@ def _build_agg_meta(gh3_df, target_level, agg, columns, index_type="egi"):
         return func.__name__ if callable(func) else str(func)
 
     if isinstance(agg, dict):
-        meta_cols = [
-            f"{col}_{_agg_name(func)}"
-            for col, funcs in agg.items()
-            for func in (funcs if isinstance(funcs, list) else [funcs])
-        ]
+        meta_cols = [f"{col}_{_agg_name(func)}" for col, funcs in agg.items()
+                     for func in (funcs if isinstance(funcs, list) else [funcs])]
     elif isinstance(agg, list):
         meta_cols = [f"{col}_{_agg_name(func)}" for col in cols for func in agg]
     else:
         meta_cols = cols
 
     _meta = pd.DataFrame(columns=meta_cols, dtype=float)
-    _meta.index = pd.Index([], dtype=np.uint64 if index_type == "egi" else str, name=idx_col)
+    _meta.index = pd.Index([], dtype=np.uint64 if index_type == 'egi' else str, name=idx_col)
     return _meta
 
 
-def _egi_aggregate_from_indexed(
-    gh3_df, target_level, partition_level, agg, columns, add_geometry, repartition, **kwargs
-):
+def _egi_aggregate_from_indexed(gh3_df, target_level, partition_level, agg,
+                                 columns, add_geometry, repartition, **kwargs):
     """
     Aggregate EGI-indexed data (from egi_load) without shuffle.
 
@@ -1862,7 +1809,6 @@ def _egi_aggregate_from_indexed(
         EGI-indexed aggregated data
     """
     import dask
-
     from . import egi
 
     egi_col = egi.egi_col_name(target_level)
@@ -1870,10 +1816,11 @@ def _egi_aggregate_from_indexed(
 
     # Read input EGI level from index name (e.g., 'egi06' -> 6)
     input_index_name = str(gh3_df.index.name)
-    input_level = int(input_index_name.replace("egi", ""))
-    needs_coarsen = input_level != target_level
+    input_level = int(input_index_name.replace('egi', ''))
+    needs_coarsen = (input_level != target_level)
 
-    def local_aggregate(df, target_level, input_level, needs_coarsen, agg, columns, egi_col, **agg_kwargs):
+    def local_aggregate(df, target_level, input_level, needs_coarsen,
+                        agg, columns, egi_col, **agg_kwargs):
         """Aggregate a single EGI-indexed partition locally."""
         from gedih3.egi.core import to_parent as _to_parent
 
@@ -1910,12 +1857,12 @@ def _egi_aggregate_from_indexed(
 
         # Flatten MultiIndex columns if present
         if isinstance(result.columns, pd.MultiIndex):
-            result.columns = ["_".join(map(str, col)).strip() for col in result.columns.values]
+            result.columns = ['_'.join(map(str, col)).strip() for col in result.columns.values]
 
         return result
 
     # Build metadata for result
-    _agg_meta = _build_agg_meta(gh3_df, target_level, agg, columns, index_type="egi")
+    _agg_meta = _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi')
 
     agg_df = gh3_df.map_partitions(
         local_aggregate,
@@ -1926,15 +1873,13 @@ def _egi_aggregate_from_indexed(
         columns=columns,
         egi_col=egi_col,
         meta=_agg_meta,
-        **kwargs,
+        **kwargs
     )
 
     # Add partition column for organized export
     if repartition:
-
         def add_partition_col(df, part_col, part_level):
             from gedih3.egi.core import to_parent as _to_parent
-
             if len(df) == 0:
                 df[part_col] = pd.Series([], dtype=np.uint64)
                 return df
@@ -1949,14 +1894,17 @@ def _egi_aggregate_from_indexed(
         _part_meta = _part_meta.set_index(egi_col)
 
         agg_df = agg_df.map_partitions(
-            add_partition_col, part_col=egi_part_col, part_level=partition_level, meta=_part_meta
+            add_partition_col,
+            part_col=egi_part_col,
+            part_level=partition_level,
+            meta=_part_meta
         )
 
     # Add geometry
     if add_geometry:
         _gmeta = agg_df._meta.copy()
-        _gmeta["geometry"] = gpd.GeoSeries([], crs=egi.EGI_CRS_STRING)
-        _gmeta = gpd.GeoDataFrame(_gmeta, geometry="geometry", crs=egi.EGI_CRS_STRING)
+        _gmeta['geometry'] = gpd.GeoSeries([], crs=egi.EGI_CRS_STRING)
+        _gmeta = gpd.GeoDataFrame(_gmeta, geometry='geometry', crs=egi.EGI_CRS_STRING)
         agg_df = agg_df.map_partitions(egi_add_geometry, meta=_gmeta)
         if isinstance(agg_df, dask.dataframe.DataFrame):
             agg_df = dask_geopandas.from_dask_dataframe(agg_df)
@@ -1964,19 +1912,9 @@ def _egi_aggregate_from_indexed(
     return agg_df
 
 
-def egi_aggregate(
-    gh3_df,
-    target_level=6,
-    agg="mean",
-    columns=None,
-    query=None,
-    add_geometry=True,
-    x_col="lon_lowestmode",
-    y_col="lat_lowestmode",
-    partition_level=12,
-    repartition=False,
-    **kwargs,
-):
+def egi_aggregate(gh3_df, target_level=6, agg='mean', columns=None, query=None,
+                  add_geometry=True, x_col='lon_lowestmode', y_col='lat_lowestmode',
+                  partition_level=12, repartition=False, **kwargs):
     """
     Aggregate GEDI data to EGI (EASE Grid Index) square pixels.
 
@@ -2034,10 +1972,14 @@ def egi_aggregate(
         gh3_df = gh3_df.query(query)
 
     # Fast path: input is already EGI-indexed (from egi_load)
-    input_is_egi = gh3_df.index.name is not None and str(gh3_df.index.name).startswith("egi")
+    input_is_egi = (
+        gh3_df.index.name is not None
+        and str(gh3_df.index.name).startswith('egi')
+    )
     if input_is_egi:
         return _egi_aggregate_from_indexed(
-            gh3_df, target_level, partition_level, agg, columns, add_geometry, repartition, **kwargs
+            gh3_df, target_level, partition_level, agg,
+            columns, add_geometry, repartition, **kwargs
         )
 
     # Shuffle path: H3-indexed input needs repartitioning
@@ -2060,15 +2002,15 @@ def egi_aggregate(
         df = df.reset_index(drop=True)
 
         # Use pre-computed projected coordinates from add_outer_index
-        x = df["_egi_x"].values
-        y = df["_egi_y"].values
+        x = df['_egi_x'].values
+        y = df['_egi_y'].values
 
         # Add fine EGI index directly (no geometry creation)
         df[egi_col] = _to_hash(np.asarray(x), np.asarray(y), target_level)
         df = df.set_index(egi_col)
 
         # Drop temporary coordinate columns
-        df = df.drop(columns=["_egi_x", "_egi_y"], errors="ignore")
+        df = df.drop(columns=['_egi_x', '_egi_y'], errors='ignore')
 
         # Filter columns for aggregation
         if columns is not None:
@@ -2091,12 +2033,12 @@ def egi_aggregate(
 
         # Flatten MultiIndex columns if present
         if isinstance(result.columns, pd.MultiIndex):
-            result.columns = ["_".join(map(str, col)).strip() for col in result.columns.values]
+            result.columns = ['_'.join(map(str, col)).strip() for col in result.columns.values]
 
         return result
 
     # Build metadata for result
-    _agg_meta = _build_agg_meta(gh3_df, target_level, agg, columns, index_type="egi")
+    _agg_meta = _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi')
 
     agg_df = shuffled.map_partitions(
         local_egi_aggregate,
@@ -2105,15 +2047,13 @@ def egi_aggregate(
         columns=columns,
         egi_col=egi_col,
         meta=_agg_meta,
-        **kwargs,
+        **kwargs
     )
 
     # Phase 4: Optional - add partition column for organized export
     if repartition:
-
         def add_partition_col(df, part_col, part_level):
             from gedih3.egi.core import to_parent as _to_parent
-
             if len(df) == 0:
                 df[part_col] = pd.Series([], dtype=np.uint64)
                 return df
@@ -2128,14 +2068,17 @@ def egi_aggregate(
         _part_meta = _part_meta.set_index(egi_col)
 
         agg_df = agg_df.map_partitions(
-            add_partition_col, part_col=egi_part_col, part_level=partition_level, meta=_part_meta
+            add_partition_col,
+            part_col=egi_part_col,
+            part_level=partition_level,
+            meta=_part_meta
         )
 
     # Phase 5: Add geometry
     if add_geometry:
         _gmeta = agg_df._meta.copy()
-        _gmeta["geometry"] = gpd.GeoSeries([], crs=egi.EGI_CRS_STRING)
-        _gmeta = gpd.GeoDataFrame(_gmeta, geometry="geometry", crs=egi.EGI_CRS_STRING)
+        _gmeta['geometry'] = gpd.GeoSeries([], crs=egi.EGI_CRS_STRING)
+        _gmeta = gpd.GeoDataFrame(_gmeta, geometry='geometry', crs=egi.EGI_CRS_STRING)
         agg_df = agg_df.map_partitions(egi_add_geometry, meta=_gmeta)
         if isinstance(agg_df, dask.dataframe.DataFrame):
             agg_df = dask_geopandas.from_dask_dataframe(agg_df)
@@ -2143,15 +2086,8 @@ def egi_aggregate(
     return agg_df
 
 
-def egi_extract(
-    gh3_df,
-    index_level=1,
-    partition_level=12,
-    query=None,
-    add_geometry=True,
-    x_col="lon_lowestmode",
-    y_col="lat_lowestmode",
-):
+def egi_extract(gh3_df, index_level=1, partition_level=12,
+                query=None, add_geometry=True, x_col='lon_lowestmode', y_col='lat_lowestmode'):
     """
     Extract H3-indexed GEDI data with EGI spatial indexing.
 
@@ -2199,16 +2135,14 @@ def egi_extract(
     # Phase 3: Add fine EGI index, partition columns, and optionally recreate geometry
     def add_egi_indices_and_geometry(df, index_level, partition_level, index_col, part_col, add_geom):
         """Add fine EGI index and partition columns, recreate geometry from WGS84 coords."""
+        from gedih3.egi.core import to_hash as _to_hash, to_parent as _to_parent
         from shapely.geometry import Point
-
-        from gedih3.egi.core import to_hash as _to_hash
-        from gedih3.egi.core import to_parent as _to_parent
 
         if len(df) == 0:
             df = df.reset_index(drop=True)
             df[index_col] = pd.Series([], dtype=np.uint64)
             df[part_col] = pd.Series([], dtype=np.uint64)
-            df = df.drop(columns=["_egi_x", "_egi_y", "_wgs84_x", "_wgs84_y"], errors="ignore")
+            df = df.drop(columns=['_egi_x', '_egi_y', '_wgs84_x', '_wgs84_y'], errors='ignore')
             if add_geom:
                 df = gpd.GeoDataFrame(df, geometry=[], crs=4326)
             df = df.set_index(index_col)
@@ -2218,8 +2152,8 @@ def egi_extract(
         df = df.reset_index(drop=True)
 
         # Use pre-computed projected coordinates for EGI hash
-        x = df["_egi_x"].values
-        y = df["_egi_y"].values
+        x = df['_egi_x'].values
+        y = df['_egi_y'].values
 
         # Compute fine EGI index
         df[index_col] = _to_hash(np.asarray(x), np.asarray(y), index_level)
@@ -2232,13 +2166,13 @@ def egi_extract(
 
         # Recreate geometry from original WGS84 coordinates (not EGI pixel centers!)
         if add_geom:
-            wgs84_x = df["_wgs84_x"].values
-            wgs84_y = df["_wgs84_y"].values
+            wgs84_x = df['_wgs84_x'].values
+            wgs84_y = df['_wgs84_y'].values
             points = [Point(px, py) for px, py in zip(wgs84_x, wgs84_y)]
             df = gpd.GeoDataFrame(df, geometry=points, crs=4326)
 
         # Drop temporary coordinate columns
-        df = df.drop(columns=["_egi_x", "_egi_y", "_wgs84_x", "_wgs84_y"], errors="ignore")
+        df = df.drop(columns=['_egi_x', '_egi_y', '_wgs84_x', '_wgs84_y'], errors='ignore')
 
         # Set EGI index column as DataFrame index (matches direct load behavior)
         df = df.set_index(index_col)
@@ -2249,7 +2183,7 @@ def egi_extract(
     _idx_meta = shuffled._meta.reset_index(drop=True)
     _idx_meta[egi_index_col] = np.uint64(0)
     _idx_meta[egi_part_col] = np.uint64(0)
-    _idx_meta = _idx_meta.drop(columns=["_egi_x", "_egi_y", "_wgs84_x", "_wgs84_y"], errors="ignore")
+    _idx_meta = _idx_meta.drop(columns=['_egi_x', '_egi_y', '_wgs84_x', '_wgs84_y'], errors='ignore')
     if add_geometry:
         _idx_meta = gpd.GeoDataFrame(_idx_meta, geometry=gpd.GeoSeries([], crs=4326), crs=4326)
     _idx_meta = _idx_meta.set_index(egi_index_col)
@@ -2261,17 +2195,16 @@ def egi_extract(
         index_col=egi_index_col,
         part_col=egi_part_col,
         add_geom=add_geometry,
-        meta=_idx_meta,
+        meta=_idx_meta
     )
 
     # Convert to dask_geopandas if geometry was added
-    if add_geometry and "geometry" in extracted.columns:
-        extracted = dask_geopandas.from_dask_dataframe(extracted, geometry="geometry")
+    if add_geometry and 'geometry' in extracted.columns:
+        extracted = dask_geopandas.from_dask_dataframe(extracted, geometry='geometry')
 
     return extracted
 
-
-def egi_export_part(df, odir, fmt="parquet", is_file_path=False):
+def egi_export_part(df, odir, fmt='parquet', is_file_path=False):
     """
     Export a single EGI partition to file(s).
 
@@ -2295,18 +2228,17 @@ def egi_export_part(df, odir, fmt="parquet", is_file_path=False):
     str
         Output file path(s) - comma-separated if multiple files written
     """
+    from . import egi
     import numpy as np
 
-    from . import egi
-
     if df.empty:
-        return ""
+        return ''
 
     os.makedirs(odir, exist_ok=True)
 
     if is_file_path:
         # Single file output mode - write all data to one file
-        odir = odir.rstrip("/")
+        odir = odir.rstrip('/')
         opath = f"{odir}.{fmt}" if not odir.endswith(fmt) else odir
         return _write_egi_file(df, opath, fmt)
 
@@ -2342,7 +2274,7 @@ def egi_export_part(df, odir, fmt="parquet", is_file_path=False):
         if written_path:
             output_paths.append(written_path)
 
-    return ",".join(output_paths) if output_paths else ""
+    return ','.join(output_paths) if output_paths else ''
 
 
 def _write_egi_file(df, opath, fmt):
@@ -2366,11 +2298,11 @@ def _write_egi_file(df, opath, fmt):
     from . import egi
 
     if df.empty:
-        return ""
+        return ''
 
     try:
         # Handle raster export
-        if fmt in ("tif", "tiff", "geotiff"):
+        if fmt in ('tif', 'tiff', 'geotiff'):
             raster = egi.geodf_to_raster(df)
             egi.export_raster(raster, opath)
             return opath
@@ -2378,23 +2310,23 @@ def _write_egi_file(df, opath, fmt):
         # Handle vector/tabular export
         if is_parquet(opath):
             df.to_parquet(opath)
-        elif fmt == "feather":
+        elif fmt == 'feather':
             df.to_feather(opath)
-        elif fmt in ("geojson", "gpkg", "shp"):
+        elif fmt in ('geojson', 'gpkg', 'shp'):
             df.to_file(opath)
-        elif fmt == "txt":
-            df.to_csv(opath, sep="\t")
-        elif fmt == "csv":
+        elif fmt == 'txt':
+            df.to_csv(opath, sep='\t')
+        elif fmt == 'csv':
             df.to_csv(opath)
-        elif fmt in ("h5", "hdf5"):
-            df.to_hdf(opath, key="GEDI", mode="w")
+        elif fmt in ('h5', 'hdf5'):
+            df.to_hdf(opath, key='GEDI', mode='w')
         else:
             raise GediProcessingError(f"Unsupported export format: {fmt}")
 
         return opath
 
     except Exception:
-        return ""
+        return ''
 
 
 def is_egi_indexed(df):
@@ -2411,9 +2343,9 @@ def is_egi_indexed(df):
     bool
         True if EGI-indexed, False otherwise
     """
-    if df.index.name and str(df.index.name).startswith("egi"):
+    if df.index.name and str(df.index.name).startswith('egi'):
         return True
-    egi_cols = [col for col in df.columns if str(col).startswith("egi")]
+    egi_cols = [col for col in df.columns if str(col).startswith('egi')]
     return len(egi_cols) > 0
 
 
@@ -2433,19 +2365,19 @@ def get_spatial_index_type(df):
     """
     # Check index name
     if df.index.name:
-        if str(df.index.name).startswith("h3_"):
-            return "h3"
-        if str(df.index.name).startswith("egi"):
-            return "egi"
+        if str(df.index.name).startswith('h3_'):
+            return 'h3'
+        if str(df.index.name).startswith('egi'):
+            return 'egi'
 
     # Check columns
-    h3_cols = [col for col in df.columns if str(col).startswith("h3_")]
-    egi_cols = [col for col in df.columns if str(col).startswith("egi")]
+    h3_cols = [col for col in df.columns if str(col).startswith('h3_')]
+    egi_cols = [col for col in df.columns if str(col).startswith('egi')]
 
     if egi_cols:
-        return "egi"
+        return 'egi'
     if h3_cols:
-        return "h3"
+        return 'h3'
 
     return None
 
@@ -2454,8 +2386,12 @@ def get_spatial_index_type(df):
 # Rasterization Support
 # ============================================================================
 
-
-def gh3_to_raster(gdf, columns=None, output_path=None, compress="LZW"):
+def gh3_to_raster(
+    gdf,
+    columns=None,
+    output_path=None,
+    compress='LZW'
+):
     """
     Convert H3-indexed GeoDataFrame to raster.
 
@@ -2487,7 +2423,7 @@ def gh3_to_raster(gdf, columns=None, output_path=None, compress="LZW"):
     >>> # Or save directly
     >>> raster = gh3_to_raster(agg_gdf, output_path="output.tif")
     """
-    from .raster import export_raster, h3_to_raster
+    from .raster import h3_to_raster, export_raster
 
     xras = h3_to_raster(gdf, columns=columns)
 
@@ -2497,7 +2433,13 @@ def gh3_to_raster(gdf, columns=None, output_path=None, compress="LZW"):
     return xras
 
 
-def gh3_rasterize_partitions(ddf, output_dir, columns=None, compress="LZW", show_progress=True):
+def gh3_rasterize_partitions(
+    ddf,
+    output_dir,
+    columns=None,
+    compress='LZW',
+    show_progress=True
+):
     """
     Rasterize Dask GeoDataFrame partitions to individual GeoTIFF files.
 
@@ -2522,7 +2464,8 @@ def gh3_rasterize_partitions(ddf, output_dir, columns=None, compress="LZW", show
     from .raster import rasterize_and_export_partitions, rasterize_h3_partition
 
     return rasterize_and_export_partitions(
-        ddf, output_dir, rasterize_h3_partition, columns=columns, compress=compress, show_progress=show_progress
+        ddf, output_dir, rasterize_h3_partition,
+        columns=columns, compress=compress, show_progress=show_progress
     )
 
 
@@ -2531,20 +2474,11 @@ def gh3_rasterize_partitions(ddf, output_dir, columns=None, compress="LZW", show
 # ============================================================================
 
 
-def gh3_sample_raster(
-    image_path,
-    data_source=None,
-    gh3_dir=None,
-    region=None,
-    query=None,
-    band_names=None,
-    band_indices=None,
-    window_ops=None,
-    fillna=None,
-    dropna=False,
-    geo=False,
-    file_format="tif",
-):
+def gh3_sample_raster(image_path, data_source=None, gh3_dir=None,
+                      region=None, query=None, band_names=None,
+                      band_indices=None, window_ops=None,
+                      fillna=None, dropna=False, geo=False,
+                      file_format='tif'):
     """
     Sample raster pixel values at GEDI shot locations.
 

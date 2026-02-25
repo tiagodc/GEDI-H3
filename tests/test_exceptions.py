@@ -9,77 +9,65 @@ work as expected.
 import socket
 import urllib.error
 
+import pytest
+
 from gedih3.exceptions import (
-    RETRY_DEFAULTS,
-    EGIValidationError,
-    GediAggregationError,
-    GediAuthenticationError,
-    GediCorruptedFileError,
-    GediDatabaseCorruptedError,
-    # Database
-    GediDatabaseError,
-    GediDatabaseNotFoundError,
-    GediDownloadError,
     # Base
     GediError,
+    # Network
+    GediNetworkError,
+    GediDownloadError,
+    GediAuthenticationError,
+    GediS3AccessError,
+    # Validation
+    GediValidationError,
+    H3ValidationError,
+    EGIValidationError,
+    GediProductError,
+    GediVariableError,
     # File
     GediFileError,
     GediHDF5Error,
-    GediImageSamplingError,
-    GediMergeError,
-    # Network
-    GediNetworkError,
     GediParquetError,
-    # Processing
-    GediProcessingError,
-    GediProductError,
-    GediRasterizationError,
-    GediS3AccessError,
+    GediCorruptedFileError,
+    GediTransactionError,
+    # Database
+    GediDatabaseError,
+    GediDatabaseNotFoundError,
+    GediDatabaseCorruptedError,
+    GediMergeError,
     # Spatial/Temporal
     GediSpatialError,
-    GediSpatialJoinError,
     GediTemporalError,
-    GediTransactionError,
-    # Validation
-    GediValidationError,
-    GediVariableError,
-    H3ValidationError,
+    # Processing
+    GediProcessingError,
+    GediAggregationError,
+    GediRasterizationError,
+    GediImageSamplingError,
+    GediSpatialJoinError,
     # Utilities
     is_retryable_error,
+    RETRY_DEFAULTS,
 )
+
 
 # =============================================================================
 # Test: Exception Hierarchy
 # =============================================================================
 
-
 class TestExceptionHierarchy:
+
     def test_all_inherit_from_gedi_error(self):
         all_exceptions = [
-            GediNetworkError,
-            GediDownloadError,
-            GediAuthenticationError,
-            GediS3AccessError,
-            GediValidationError,
-            H3ValidationError,
-            EGIValidationError,
-            GediProductError,
-            GediVariableError,
-            GediFileError,
-            GediHDF5Error,
-            GediParquetError,
-            GediCorruptedFileError,
-            GediTransactionError,
-            GediDatabaseError,
-            GediDatabaseNotFoundError,
-            GediDatabaseCorruptedError,
-            GediMergeError,
-            GediSpatialError,
-            GediTemporalError,
-            GediProcessingError,
-            GediAggregationError,
-            GediRasterizationError,
-            GediImageSamplingError,
+            GediNetworkError, GediDownloadError, GediAuthenticationError,
+            GediS3AccessError, GediValidationError, H3ValidationError,
+            EGIValidationError, GediProductError, GediVariableError,
+            GediFileError, GediHDF5Error, GediParquetError,
+            GediCorruptedFileError, GediTransactionError, GediDatabaseError,
+            GediDatabaseNotFoundError, GediDatabaseCorruptedError,
+            GediMergeError, GediSpatialError, GediTemporalError,
+            GediProcessingError, GediAggregationError,
+            GediRasterizationError, GediImageSamplingError,
             GediSpatialJoinError,
         ]
         for exc_cls in all_exceptions:
@@ -138,8 +126,8 @@ class TestExceptionHierarchy:
 # Test: Custom Attributes
 # =============================================================================
 
-
 class TestCustomAttributes:
+
     def test_download_error_attributes(self):
         err = GediDownloadError("failed", granule_id="G123", attempts=3)
         assert err.granule_id == "G123"
@@ -183,8 +171,8 @@ class TestCustomAttributes:
 # Test: is_retryable_error
 # =============================================================================
 
-
 class TestIsRetryableError:
+
     def test_connection_error(self):
         assert is_retryable_error(ConnectionError("reset")) is True
 
@@ -220,18 +208,18 @@ class TestIsRetryableError:
 # Test: RETRY_DEFAULTS
 # =============================================================================
 
-
 class TestRetryDefaults:
+
     def test_keys_present(self):
-        assert "max_attempts" in RETRY_DEFAULTS
-        assert "initial_wait" in RETRY_DEFAULTS
-        assert "max_wait" in RETRY_DEFAULTS
-        assert "exponential_base" in RETRY_DEFAULTS
-        assert "jitter" in RETRY_DEFAULTS
+        assert 'max_attempts' in RETRY_DEFAULTS
+        assert 'initial_wait' in RETRY_DEFAULTS
+        assert 'max_wait' in RETRY_DEFAULTS
+        assert 'exponential_base' in RETRY_DEFAULTS
+        assert 'jitter' in RETRY_DEFAULTS
 
     def test_values_reasonable(self):
-        assert RETRY_DEFAULTS["max_attempts"] >= 1
-        assert RETRY_DEFAULTS["initial_wait"] > 0
-        assert RETRY_DEFAULTS["max_wait"] >= RETRY_DEFAULTS["initial_wait"]
-        assert RETRY_DEFAULTS["exponential_base"] >= 1.0
-        assert isinstance(RETRY_DEFAULTS["jitter"], bool)
+        assert RETRY_DEFAULTS['max_attempts'] >= 1
+        assert RETRY_DEFAULTS['initial_wait'] > 0
+        assert RETRY_DEFAULTS['max_wait'] >= RETRY_DEFAULTS['initial_wait']
+        assert RETRY_DEFAULTS['exponential_base'] >= 1.0
+        assert isinstance(RETRY_DEFAULTS['jitter'], bool)

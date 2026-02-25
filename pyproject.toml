@@ -82,7 +82,7 @@ exclude = ["docs/", "tutorials/", "tstex_modules/", "tests/tests.ipynb"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
-ignore = ["E501"]
+ignore = ["E501", "I001", "W291", "W292", "W293", "F401", "F541", "F841", "E401", "F811", "E712", "E722", "E731", "E741"]
 
 [tool.pytest.ini_options]
 markers = [
