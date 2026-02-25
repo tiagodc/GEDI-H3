@@ -373,7 +373,7 @@ gh3_from_polygon -i boundaries.shp -p intersects -d /path/to/database -o output/
 | Flag | Description |
 |------|-------------|
 | `-r, --region` | Spatial filter: vector file, bbox as "W,S,E,N", or ISO3 country code |
-| `-d0, -d1` | Temporal filters (YYYY-MM-DD) |
+| `-t0, -t1` | Temporal filters (YYYY-MM-DD) |
 | `-l1b, -l2a, -l2b, -l4a, -l4c` | Product variables (use `default`, `minimal`, or list) |
 | `-N, -T, -M, -P` | Dask: workers, threads, memory per worker, dashboard port |
 | `-s, --dask-scheduler` | Connect to existing Dask scheduler |

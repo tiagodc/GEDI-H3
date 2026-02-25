@@ -57,11 +57,11 @@ gh3_build -r="-51,0,-50,1" -l2a minimal -l4a minimal -s3
 gh3_list_variables
 
 # 3. Extract filtered data for a spatial subset
-gh3_extract -r"-51,0,-50,1" -l agbd_l4a rh_098_l2a --quality -o extracted/
+gh3_extract -r="-51,0,-50,1" -l agbd_l4a rh_098_l2a --quality -o extracted/
 
 # 4. Aggregate to coarser resolution (~1km)
 gh3_list_resolutions
-gh3_aggregate -d extracted -h3 8 -a "['mean','std','count']" -o aggregated/
+gh3_aggregate -d extracted -h3 8 -a "['mean','std','count']" -l rh_098_l2a agbd_l4a -o aggregated/
 
 # 5. Export as GeoTIFF
 gh3_rasterize -d aggregated -o rasterized --compress ZSTD

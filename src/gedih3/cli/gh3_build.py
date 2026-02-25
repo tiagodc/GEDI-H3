@@ -10,9 +10,9 @@ def get_cmd_args():
     # Spatial/temporal filtering
     p.add_argument("-r", "--region", dest="region", type=str, default=None,
                    help="vector file, bbox 'W,S,E,N', or ISO3 country code")
-    p.add_argument("-d0", "--date-start", dest="date_start", type=str, default=None,
+    p.add_argument("-t0", "--time-start", dest="time_start", type=str, default=None,
                    help="start date [YYYY-MM-DD]")
-    p.add_argument("-d1", "--date-end", dest="date_end", type=str, default=None,
+    p.add_argument("-t1", "--time-end", dest="time_end", type=str, default=None,
                    help="end date [YYYY-MM-DD]")
 
     # H3 configuration
@@ -93,8 +93,8 @@ def main():
     product_vars = parse_gedi_args(args)
     spatial = parse_region(args.region) if args.region is not None else None
     temporal = None
-    if args.date_start or args.date_end:
-        temporal = (args.date_start, args.date_end)
+    if args.time_start or args.time_end:
+        temporal = (args.time_start, args.time_end)
 
     h3_logger = H3BuildLogger(
         product_vars=product_vars,
