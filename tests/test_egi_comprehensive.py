@@ -19,6 +19,12 @@ from dataclasses import dataclass
 from typing import List, Tuple, Optional
 import time
 
+# This module is a standalone test script (run via __main__), not a pytest module.
+# The test_* functions take explicit parameters and are called from main().
+# Tell pytest to skip collection entirely.
+import pytest
+pytestmark = pytest.mark.skip(reason="Standalone script, not a pytest module — run via: python tests/test_egi_comprehensive.py")
+
 # Add the source directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
