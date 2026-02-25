@@ -9,25 +9,13 @@
 ## Using conda (recommended)
 
 ```bash
-git clone https://github.com/tiagodc/gedih3
-cd gedih3
+git clone https://github.com/tiagodc/GEDI-H3
+cd GEDI-H3
 
-conda env create -f environment.yml
+conda env create -f environment.yml -n gedih3
 conda activate gedih3
 
-pip install -e .
-```
-
-## Using pip
-
-```bash
-pip install gedih3
-```
-
-### Documentation dependencies
-
-```bash
-pip install "gedih3[docs]"
+gh3_build --help
 ```
 
 ## NASA Earthdata Credentials
@@ -52,6 +40,6 @@ python -c "import earthaccess; earthaccess.login()"
 ## Verify Installation
 
 ```bash
-gh3_list_variables -l2a
+gh3_build --help
 gh3_list_resolutions
 ```
