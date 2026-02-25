@@ -28,6 +28,7 @@ jobs:
         run: |
           sudo apt-get update -q
           sudo apt-get install -y libgdal-dev gdal-bin
+          pip install GDAL==$(gdal-config --version)
 
       - name: Install docs dependencies
         run: pip install -e ".[docs]"
