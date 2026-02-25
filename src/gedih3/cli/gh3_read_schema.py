@@ -17,27 +17,46 @@ import sys
 
 def get_cmd_args():
     """Parse command line arguments"""
-    p = argparse.ArgumentParser(description="Inspect schema of parquet, feather, geopackage, or HDF5 files")
-
-    p.add_argument("path", type=str, help="path to file or directory to inspect")
+    p = argparse.ArgumentParser(
+        description="Inspect schema of parquet, feather, geopackage, or HDF5 files"
+    )
 
     p.add_argument(
-        "-g",
-        "--group",
+        "path",
+        type=str,
+        help="path to file or directory to inspect"
+    )
+
+    p.add_argument(
+        "-g", "--group",
         dest="group",
         type=str,
         default=None,
-        help="for HDF5 files, specific group/beam to inspect (e.g., 'BEAM0101')",
+        help="for HDF5 files, specific group/beam to inspect (e.g., 'BEAM0101')"
     )
 
-    p.add_argument("--json", dest="json_output", action="store_true", help="output in JSON format")
+    p.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="output in JSON format"
+    )
 
-    p.add_argument("--csv", dest="csv_output", action="store_true", help="output in CSV format")
+    p.add_argument(
+        "--csv",
+        dest="csv_output",
+        action="store_true",
+        help="output in CSV format"
+    )
 
-    p.add_argument("--no-header", dest="no_header", action="store_true", help="suppress headers in output")
+    p.add_argument(
+        "--no-header",
+        dest="no_header",
+        action="store_true",
+        help="suppress headers in output"
+    )
 
     from gedih3.cliutils import add_storage_args
-
     add_storage_args(p)
 
     return p.parse_args()
@@ -46,22 +65,19 @@ def get_cmd_args():
 def _detect_file_type(path):
     """Detect display name for the file/directory type."""
     from gedih3.utils import smart_exists, smart_isdir
-
     path_lower = path.lower()
-    if path_lower.endswith((".h5", ".hdf5")):
+    if path_lower.endswith(('.h5', '.hdf5')):
         return "HDF5"
     if smart_isdir(path):
         from gedih3.config import BUILD_LOG_FILENAME
-
         build_log = os.path.join(path, BUILD_LOG_FILENAME)
         if smart_exists(build_log):
             return "H3 Database"
         from gedih3.cliutils import detect_dataset_format
-
         fmt = detect_dataset_format(path)
-        return {"parquet": "Parquet", "feather": "Feather", "gpkg": "GeoPackage"}.get(fmt, fmt)
-    ext = os.path.splitext(path)[1].lstrip(".").lower()
-    return {"parquet": "Parquet", "feather": "Feather", "gpkg": "GeoPackage"}.get(ext, ext)
+        return {'parquet': 'Parquet', 'feather': 'Feather', 'gpkg': 'GeoPackage'}.get(fmt, fmt)
+    ext = os.path.splitext(path)[1].lstrip('.').lower()
+    return {'parquet': 'Parquet', 'feather': 'Feather', 'gpkg': 'GeoPackage'}.get(ext, ext)
 
 
 def _format_shape(rows, cols):
@@ -71,7 +87,7 @@ def _format_shape(rows, cols):
 
 def _print_table(schema_df, file_type, path, group=None, no_header=False):
     """Print schema as a formatted terminal table."""
-    is_hdf5 = "path" in schema_df.columns
+    is_hdf5 = 'path' in schema_df.columns
 
     if not no_header:
         print()
@@ -86,7 +102,7 @@ def _print_table(schema_df, file_type, path, group=None, no_header=False):
             print(f"{'Dataset Path':<40} {'Type':<15} {'Shape':<15}")
             print("-" * 70)
         for _, row in schema_df.iterrows():
-            shape = _format_shape(row["rows"], row["cols"])
+            shape = _format_shape(row['rows'], row['cols'])
             print(f"{row['path']:<40} {str(row['dtype']):<15} {shape:<15}")
     else:
         if not no_header:
@@ -104,21 +120,20 @@ def _print_table(schema_df, file_type, path, group=None, no_header=False):
 def _print_json(schema_df):
     """Print schema as JSON."""
     import json
-
-    is_hdf5 = "path" in schema_df.columns
+    is_hdf5 = 'path' in schema_df.columns
     if is_hdf5:
-        data = [
-            {"name": row["path"], "dtype": str(row["dtype"]), "shape": _format_shape(row["rows"], row["cols"])}
-            for _, row in schema_df.iterrows()
-        ]
+        data = [{"name": row['path'], "dtype": str(row['dtype']),
+                 "shape": _format_shape(row['rows'], row['cols'])}
+                for _, row in schema_df.iterrows()]
     else:
-        data = [{"name": row["column"], "dtype": str(row["dtype"])} for _, row in schema_df.iterrows()]
+        data = [{"name": row['column'], "dtype": str(row['dtype'])}
+                for _, row in schema_df.iterrows()]
     print(json.dumps(data, indent=2))
 
 
 def _print_csv(schema_df):
     """Print schema as CSV."""
-    is_hdf5 = "path" in schema_df.columns
+    is_hdf5 = 'path' in schema_df.columns
     if is_hdf5:
         print("name,dtype,shape")
         for _, row in schema_df.iterrows():
@@ -133,21 +148,18 @@ def main():
     args = get_cmd_args()
 
     from gedih3.cliutils import setup_storage
-
     setup_storage(args)
 
     from gedih3.utils import smart_exists
-
     if not smart_exists(args.path):
         print(f"Error: Path not found: {args.path}", file=sys.stderr)
         sys.exit(1)
 
     try:
         from gedih3.utils import read_schema
-
         schema_df = read_schema(args.path, root=args.group)
         # Sort by name column for user-friendly output
-        sort_col = "path" if "path" in schema_df.columns else "column"
+        sort_col = 'path' if 'path' in schema_df.columns else 'column'
         schema_df = schema_df.sort_values(sort_col).reset_index(drop=True)
         file_type = _detect_file_type(args.path)
     except Exception as e:
@@ -162,5 +174,5 @@ def main():
         _print_table(schema_df, file_type, args.path, args.group, args.no_header)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

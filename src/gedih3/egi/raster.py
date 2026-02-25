@@ -5,24 +5,27 @@ This module provides rasterization functions for converting EGI-indexed
 GeoDataFrames to raster (xarray/GeoTIFF) format. The native alignment of
 EGI with EASE-Grid 2.0 allows for direct rasterization without resampling.
 """
-
-from typing import List, Optional
-
-import geopandas as gpd
+from typing import List, Optional, Union
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 import xarray as xr
+import rioxarray  # Register .rio accessor for xarray
 from rasterio import transform
+from geocube.api.core import make_geocube
 
+from .config import LIMITS, RESOLUTIONS, OUTER_RES, OUTER_LEVEL, EGI_CRS_STRING, get_resolution
+from .core import get_level
+from .spatial import pixel_shape
+from .dataframe import egi_to_parent, egi_to_geo
 from ..cliutils import filter_raster_columns as _filter_raster_columns
 from ..exceptions import GediRasterizationError
-from .config import EGI_CRS_STRING, OUTER_LEVEL, OUTER_RES, RESOLUTIONS, get_resolution
-from .dataframe import egi_to_parent
-from .spatial import pixel_shape
 
 
 def geodf_to_raster(
-    geodf: gpd.GeoDataFrame, columns: Optional[List[str]] = None, fill_value: float = np.nan
+    geodf: gpd.GeoDataFrame,
+    columns: Optional[List[str]] = None,
+    fill_value: float = np.nan
 ) -> xr.Dataset:
     """
     Convert EGI-indexed GeoDataFrame to raster (xarray Dataset).
@@ -88,8 +91,8 @@ def geodf_to_raster(
 
     # Create coordinate arrays for xarray
     # Y coordinates go from top to bottom (north-up convention)
-    y_coords = np.linspace(top - res / 2, bottom + res / 2, pixels_per_tile)
-    x_coords = np.linspace(left + res / 2, right - res / 2, pixels_per_tile)
+    y_coords = np.linspace(top - res/2, bottom + res/2, pixels_per_tile)
+    x_coords = np.linspace(left + res/2, right - res/2, pixels_per_tile)
 
     # Extract outer tile indices from the dominant tile
     _, _, px_outer_tile, py_outer_tile, _, _ = from_hash(np.uint64(pid))
@@ -117,7 +120,12 @@ def geodf_to_raster(
                     raster_data[row, col_idx] = value
 
         # Create DataArray
-        da = xr.DataArray(raster_data, dims=["y", "x"], coords={"y": y_coords, "x": x_coords}, name=col)
+        da = xr.DataArray(
+            raster_data,
+            dims=['y', 'x'],
+            coords={'y': y_coords, 'x': x_coords},
+            name=col
+        )
         data_vars[col] = da
 
     # Create Dataset
@@ -139,7 +147,9 @@ def geodf_to_raster(
 
 
 def rasterize_partition(
-    gdf: gpd.GeoDataFrame, columns: Optional[List[str]] = None, include_egi_id: bool = True
+    gdf: gpd.GeoDataFrame,
+    columns: Optional[List[str]] = None,
+    include_egi_id: bool = True
 ) -> pd.Series:
     """
     Rasterize a single EGI partition (for use with Dask map_partitions).
@@ -171,7 +181,6 @@ def rasterize_partition(
         return pd.Series(dtype=object)
 
     import logging
-
     logger = logging.getLogger(__name__)
 
     try:
@@ -220,10 +229,10 @@ def rasterize_partition(
 def export_raster(
     xras: xr.Dataset,
     output_path: str,
-    compress: str = "LZW",
+    compress: str = 'LZW',
     tiled: bool = True,
     blocksize: int = 256,
-    bigtiff: bool = True,
+    bigtiff: bool = True
 ) -> str:
     """
     Export xarray Dataset to GeoTIFF file.
@@ -251,15 +260,18 @@ def export_raster(
     xras.rio.to_raster(
         output_path,
         compress=compress,
-        TILED="YES" if tiled else "NO",
+        TILED='YES' if tiled else 'NO',
         BLOCKXSIZE=blocksize,
         BLOCKYSIZE=blocksize,
-        BIGTIFF="YES" if bigtiff else "NO",
+        BIGTIFF='YES' if bigtiff else 'NO'
     )
     return output_path
 
 
-def merge_raster_partitions(raster_series: pd.Series, output_path: Optional[str] = None) -> xr.Dataset:
+def merge_raster_partitions(
+    raster_series: pd.Series,
+    output_path: Optional[str] = None
+) -> xr.Dataset:
     """
     Merge multiple raster partitions into a single raster.
 
@@ -283,7 +295,7 @@ def merge_raster_partitions(raster_series: pd.Series, output_path: Optional[str]
             return False
         if isinstance(x, xr.Dataset):
             return len(x.data_vars) > 0
-        if hasattr(x, "shape"):
+        if hasattr(x, 'shape'):
             return all(s > 0 for s in x.shape)
         return False
 
@@ -303,7 +315,11 @@ def merge_raster_partitions(raster_series: pd.Series, output_path: Optional[str]
     return result
 
 
-def get_raster_profile(level: int, bounds: tuple, crs: str = EGI_CRS_STRING) -> dict:
+def get_raster_profile(
+    level: int,
+    bounds: tuple,
+    crs: str = EGI_CRS_STRING
+) -> dict:
     """
     Generate a rasterio profile for EGI raster output.
 
@@ -327,15 +343,15 @@ def get_raster_profile(level: int, bounds: tuple, crs: str = EGI_CRS_STRING) -> 
     height = int((top - bottom) / res)
 
     return {
-        "driver": "GTiff",
-        "dtype": "float32",
-        "width": width,
-        "height": height,
-        "count": 1,
-        "crs": crs,
-        "transform": transform.from_bounds(left, bottom, right, top, width, height),
-        "compress": "lzw",
-        "tiled": True,
-        "blockxsize": 256,
-        "blockysize": 256,
+        'driver': 'GTiff',
+        'dtype': 'float32',
+        'width': width,
+        'height': height,
+        'count': 1,
+        'crs': crs,
+        'transform': transform.from_bounds(left, bottom, right, top, width, height),
+        'compress': 'lzw',
+        'tiled': True,
+        'blockxsize': 256,
+        'blockysize': 256
     }

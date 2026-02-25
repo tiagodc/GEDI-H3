@@ -12,20 +12,21 @@ Author: Tiago de Conto
 Package: gedih3
 """
 
-import glob as _glob
-import logging
 import os
 import re
+import logging
+import glob as _glob
 
-import geopandas as gpd
+import numpy as np
 import pandas as pd
+import geopandas as gpd
 
 from .exceptions import GediSpatialJoinError
 
 logger = logging.getLogger(__name__)
 
 # Supported vector file extensions
-_VECTOR_EXTENSIONS = ("*.shp", "*.gpkg", "*.geojson", "*.parquet", "*.geoparquet")
+_VECTOR_EXTENSIONS = ('*.shp', '*.gpkg', '*.geojson', '*.parquet', '*.geoparquet')
 
 # Worker-level cache for polygon data (same pattern as raster file opening in imgutils)
 _VECTOR_CACHE = {}
@@ -35,8 +36,7 @@ _VECTOR_CACHE = {}
 # Vector Source Resolution
 # =============================================================================
 
-
-def resolve_vector_source(vector_path, file_format="*"):
+def resolve_vector_source(vector_path, file_format='*'):
     """Resolve vector input to a single file path.
 
     - Single file -> return as-is
@@ -67,30 +67,34 @@ def resolve_vector_source(vector_path, file_format="*"):
         raise GediSpatialJoinError(f"Vector path not found: {vector_path}")
 
     # Directory: glob for vector files
-    if file_format == "*":
+    if file_format == '*':
         files = []
         for ext in _VECTOR_EXTENSIONS:
             files.extend(_glob.glob(os.path.join(vector_path, ext)))
         files = sorted(set(files))
     else:
-        fmt = file_format.lstrip(".")
-        files = sorted(_glob.glob(os.path.join(vector_path, f"*.{fmt}")))
+        fmt = file_format.lstrip('.')
+        files = sorted(_glob.glob(os.path.join(vector_path, f'*.{fmt}')))
 
     if not files:
-        raise GediSpatialJoinError(f"No vector files found in {vector_path}")
+        raise GediSpatialJoinError(
+            f"No vector files found in {vector_path}"
+        )
 
     if len(files) == 1:
         return files[0], 1
 
     # Multiple files found — use the first one and warn
-    logger.warning(f"Multiple vector files found in {vector_path}, using first: {os.path.basename(files[0])}")
+    logger.warning(
+        f"Multiple vector files found in {vector_path}, using first: "
+        f"{os.path.basename(files[0])}"
+    )
     return files[0], len(files)
 
 
 # =============================================================================
 # Vector Metadata
 # =============================================================================
-
 
 def get_vector_info(vector_path):
     """Read vector file metadata without loading all features.
@@ -112,15 +116,15 @@ def get_vector_info(vector_path):
         bounds = src.bounds  # (minx, miny, maxx, maxy)
         feature_count = len(src)
         schema = src.schema
-        geometry_type = schema["geometry"]
-        columns = list(schema["properties"].keys())
+        geometry_type = schema['geometry']
+        columns = list(schema['properties'].keys())
 
     # Compute WGS84 bounds for spatial filtering
     from pyproj import CRS, Transformer
 
     src_crs = CRS.from_user_input(crs)
     if src_crs.to_epsg() != 4326:
-        transformer = Transformer.from_crs(src_crs, "EPSG:4326", always_xy=True)
+        transformer = Transformer.from_crs(src_crs, 'EPSG:4326', always_xy=True)
         x_coords = [bounds[0], bounds[2], bounds[0], bounds[2]]
         y_coords = [bounds[1], bounds[1], bounds[3], bounds[3]]
         lons, lats = transformer.transform(x_coords, y_coords)
@@ -129,18 +133,17 @@ def get_vector_info(vector_path):
         bounds_wgs84 = bounds
 
     return {
-        "crs": str(src_crs),
-        "bounds_wgs84": bounds_wgs84,
-        "columns": columns,
-        "feature_count": feature_count,
-        "geometry_type": geometry_type,
+        'crs': str(src_crs),
+        'bounds_wgs84': bounds_wgs84,
+        'columns': columns,
+        'feature_count': feature_count,
+        'geometry_type': geometry_type,
     }
 
 
 # =============================================================================
 # Vector Loading (with worker-level cache)
 # =============================================================================
-
 
 def load_vector(vector_path, columns=None, to_crs=4326):
     """Load polygon GeoDataFrame, filter columns, reproject to WGS84.
@@ -168,11 +171,12 @@ def load_vector(vector_path, columns=None, to_crs=4326):
 
     # Validate geometry types
     geom_types = set(gdf.geometry.geom_type)
-    valid_types = {"Polygon", "MultiPolygon"}
+    valid_types = {'Polygon', 'MultiPolygon'}
     invalid = geom_types - valid_types
     if invalid:
         raise GediSpatialJoinError(
-            f"Vector file contains unsupported geometry types: {invalid}. Only Polygon and MultiPolygon are supported."
+            f"Vector file contains unsupported geometry types: {invalid}. "
+            f"Only Polygon and MultiPolygon are supported."
         )
 
     # Filter columns
@@ -180,9 +184,10 @@ def load_vector(vector_path, columns=None, to_crs=4326):
         missing = [c for c in columns if c not in gdf.columns]
         if missing:
             raise GediSpatialJoinError(
-                f"Columns not found in vector file: {missing}. Available: {list(gdf.columns.drop('geometry'))}"
+                f"Columns not found in vector file: {missing}. "
+                f"Available: {list(gdf.columns.drop('geometry'))}"
             )
-        gdf = gdf[columns + ["geometry"]]
+        gdf = gdf[columns + ['geometry']]
 
     # Reproject
     if gdf.crs is not None and gdf.crs.to_epsg() != to_crs:
@@ -192,7 +197,7 @@ def load_vector(vector_path, columns=None, to_crs=4326):
         gdf = gdf.set_crs(epsg=4326)
 
     # Ensure spatial index is built
-    _ = gdf.sindex  # ensure spatial index is built
+    gdf.sindex  # noqa: triggers spatial index creation
 
     return gdf
 
@@ -228,21 +233,18 @@ def _get_cached_polygons(vector_path, columns=None):
 # Spatial column detection (reuse from imgutils)
 # =============================================================================
 
-
 def _detect_spatial_cols(df):
     """Detect all spatial index columns (h3_XX, egiXX) from a DataFrame.
 
     Inspects both columns and index name for spatial patterns.
     """
     from .imgutils import _detect_spatial_cols
-
     return _detect_spatial_cols(df)
 
 
 def _finest_spatial_col(col_names):
     """Return the finest-resolution spatial column name from a list."""
     from .imgutils import _finest_spatial_col
-
     return _finest_spatial_col(col_names)
 
 
@@ -250,10 +252,9 @@ def _finest_spatial_col(col_names):
 # Core Spatial Join Function (called via map_partitions)
 # =============================================================================
 
-
-def join_polygons_to_points(
-    df, vector_path, join_columns=None, predicate="within", how="left", prefix=None, partition_col=None, geo=False
-):
+def join_polygons_to_points(df, vector_path, join_columns=None,
+                            predicate='within', how='left', prefix=None,
+                            partition_col=None, geo=False):
     """Spatially join polygon attributes to GEDI shot locations within a partition.
 
     Designed to be called via Dask map_partitions. For each partition:
@@ -286,29 +287,32 @@ def join_polygons_to_points(
     DataFrame or GeoDataFrame
         Joined data with polygon attribute columns
     """
-    if df is None or (hasattr(df, "empty") and df.empty) or len(df) == 0:
+    if df is None or (hasattr(df, 'empty') and df.empty) or len(df) == 0:
         return _empty_join_result(
-            join_columns, prefix, geo, partition_col, spatial_cols={partition_col: "object"} if partition_col else None
+            join_columns, prefix, geo, partition_col,
+            spatial_cols={partition_col: 'object'} if partition_col else None
         )
 
     # Load polygons (cached per worker)
     polygons = _get_cached_polygons(vector_path, columns=join_columns)
 
     # Determine polygon columns to include
-    poly_cols = [c for c in polygons.columns if c != "geometry"]
+    poly_cols = [c for c in polygons.columns if c != 'geometry']
 
     # Build GeoDataFrame from partition if not already
     if not isinstance(df, gpd.GeoDataFrame):
-        if "geometry" not in df.columns:
-            raise GediSpatialJoinError("Partition has no geometry column for spatial join")
-        gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
+        if 'geometry' not in df.columns:
+            raise GediSpatialJoinError(
+                "Partition has no geometry column for spatial join"
+            )
+        gdf = gpd.GeoDataFrame(df, geometry='geometry', crs='EPSG:4326')
     else:
         gdf = df
         if gdf.crs is None:
-            gdf = gdf.set_crs("EPSG:4326")
+            gdf = gdf.set_crs('EPSG:4326')
 
     # Check for column conflicts before join
-    existing_cols = set(gdf.columns) - {"geometry"}
+    existing_cols = set(gdf.columns) - {'geometry'}
     conflicts = existing_cols & set(poly_cols)
     if conflicts and prefix is None:
         raise GediSpatialJoinError(
@@ -324,8 +328,8 @@ def join_polygons_to_points(
         raise GediSpatialJoinError(f"Spatial join failed: {e}")
 
     # Cleanup: drop index_right column added by sjoin
-    if "index_right" in joined.columns:
-        joined = joined.drop(columns=["index_right"])
+    if 'index_right' in joined.columns:
+        joined = joined.drop(columns=['index_right'])
 
     # Warn about duplicates (overlapping polygons)
     n_orig = len(gdf)
@@ -346,10 +350,10 @@ def join_polygons_to_points(
     out = {}
 
     # Preserve all spatial index columns (h3_XX, egiXX)
-    if joined.index.name and re.match(r"^(h3_\d{2}|egi\d{2})$", str(joined.index.name)):
+    if joined.index.name and re.match(r'^(h3_\d{2}|egi\d{2})$', str(joined.index.name)):
         out[joined.index.name] = joined.index.values
     for col in joined.columns:
-        if re.match(r"^(h3_\d{2}|egi\d{2})$", str(col)):
+        if re.match(r'^(h3_\d{2}|egi\d{2})$', str(col)):
             out[str(col)] = joined[col].values
     if partition_col and partition_col not in out:
         logger.warning(f"Partition column '{partition_col}' not found in data")
@@ -357,11 +361,11 @@ def join_polygons_to_points(
     # shot_number
     sn_col = None
     for c in joined.columns:
-        if c.startswith("shot_number"):
+        if c.startswith('shot_number'):
             sn_col = c
             break
     if sn_col:
-        out["shot_number"] = joined[sn_col].values
+        out['shot_number'] = joined[sn_col].values
 
     # Polygon attribute columns
     for c in poly_cols:
@@ -371,8 +375,8 @@ def join_polygons_to_points(
     result = pd.DataFrame(out)
 
     # Geometry
-    if geo and "geometry" in joined.columns:
-        result = gpd.GeoDataFrame(result, geometry=joined["geometry"].values, crs="EPSG:4326")
+    if geo and 'geometry' in joined.columns:
+        result = gpd.GeoDataFrame(result, geometry=joined['geometry'].values, crs='EPSG:4326')
 
     # Set finest spatial column as the DataFrame index
     idx_col = _finest_spatial_col(result.columns)
@@ -386,8 +390,8 @@ def join_polygons_to_points(
 # Meta computation for Dask map_partitions
 # =============================================================================
 
-
-def _empty_join_result(join_columns, prefix, geo, partition_col, spatial_cols=None):
+def _empty_join_result(join_columns, prefix, geo, partition_col,
+                       spatial_cols=None):
     """Return empty DataFrame matching the join output schema.
 
     Parameters
@@ -408,16 +412,16 @@ def _empty_join_result(join_columns, prefix, geo, partition_col, spatial_cols=No
         for col_name, dtype in spatial_cols.items():
             cols[col_name] = pd.Series(dtype=dtype)
     elif partition_col:
-        cols[partition_col] = pd.Series(dtype="object")
-    cols["shot_number"] = pd.Series(dtype="int64")
+        cols[partition_col] = pd.Series(dtype='object')
+    cols['shot_number'] = pd.Series(dtype='int64')
 
     if join_columns:
         prefixed = [f"{prefix}{c}" if prefix else c for c in join_columns]
         for c in prefixed:
-            cols[c] = pd.Series(dtype="object")
+            cols[c] = pd.Series(dtype='object')
 
     if geo:
-        result = gpd.GeoDataFrame(cols, geometry=gpd.GeoSeries(dtype="geometry"))
+        result = gpd.GeoDataFrame(cols, geometry=gpd.GeoSeries(dtype='geometry'))
     else:
         result = pd.DataFrame(cols)
 
@@ -428,7 +432,8 @@ def _empty_join_result(join_columns, prefix, geo, partition_col, spatial_cols=No
     return result
 
 
-def _compute_join_meta(join_columns, polygon_dtypes, prefix, geo, partition_col, spatial_cols=None):
+def _compute_join_meta(join_columns, polygon_dtypes, prefix, geo,
+                       partition_col, spatial_cols=None):
     """Build empty DataFrame with correct schema for Dask map_partitions meta.
 
     Parameters
@@ -456,17 +461,17 @@ def _compute_join_meta(join_columns, polygon_dtypes, prefix, geo, partition_col,
         for col_name, dtype in spatial_cols.items():
             cols[col_name] = pd.Series(dtype=dtype)
     elif partition_col:
-        cols[partition_col] = pd.Series(dtype="object")
-    cols["shot_number"] = pd.Series(dtype="int64")
+        cols[partition_col] = pd.Series(dtype='object')
+    cols['shot_number'] = pd.Series(dtype='int64')
 
     if join_columns and polygon_dtypes:
         for c in join_columns:
             col_name = f"{prefix}{c}" if prefix else c
-            dtype = polygon_dtypes.get(c, "object")
+            dtype = polygon_dtypes.get(c, 'object')
             cols[col_name] = pd.Series(dtype=dtype)
 
     if geo:
-        result = gpd.GeoDataFrame(cols, geometry=gpd.GeoSeries(dtype="geometry"))
+        result = gpd.GeoDataFrame(cols, geometry=gpd.GeoSeries(dtype='geometry'))
     else:
         result = pd.DataFrame(cols)
 

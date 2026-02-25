@@ -6,38 +6,42 @@ edge cases, and boundary conditions.
 """
 
 import os
+import json
+import tempfile
+import shutil
 
-import h3
 import pytest
+import h3
 
-from gedih3.exceptions import (
-    EGIValidationError,
-    GediDatabaseNotFoundError,
-    GediFileError,
-    GediProductError,
-    GediVariableError,
-    H3ValidationError,
-)
 from gedih3.validation import (
-    validate_bbox,
-    validate_coordinates,
-    validate_database_path,
-    validate_directory_exists,
-    validate_egi_level,
-    validate_file_exists,
-    validate_h3_cell,
-    validate_h3_params,
     validate_h3_resolution,
+    validate_h3_params,
+    validate_h3_cell,
+    validate_egi_level,
     validate_product,
     validate_product_vars,
+    validate_file_exists,
+    validate_directory_exists,
+    validate_database_path,
+    validate_coordinates,
+    validate_bbox,
 )
+from gedih3.exceptions import (
+    H3ValidationError,
+    EGIValidationError,
+    GediProductError,
+    GediVariableError,
+    GediFileError,
+    GediDatabaseNotFoundError,
+)
+
 
 # =============================================================================
 # Test: validate_h3_resolution
 # =============================================================================
 
-
 class TestValidateH3Resolution:
+
     def test_valid_min(self):
         assert validate_h3_resolution(0) == 0
 
@@ -73,12 +77,12 @@ class TestValidateH3Resolution:
 
     def test_custom_param_name_in_error(self):
         with pytest.raises(H3ValidationError, match="partition"):
-            validate_h3_resolution(-1, param_name="partition")
+            validate_h3_resolution(-1, param_name='partition')
 
     def test_error_attributes(self):
         with pytest.raises(H3ValidationError) as exc_info:
             validate_h3_resolution(20)
-        assert exc_info.value.param_name == "resolution"
+        assert exc_info.value.param_name == 'resolution'
         assert exc_info.value.value == 20
 
 
@@ -86,8 +90,8 @@ class TestValidateH3Resolution:
 # Test: validate_h3_params
 # =============================================================================
 
-
 class TestValidateH3Params:
+
     def test_valid_pair_12_3(self):
         assert validate_h3_params(12, 3) == (12, 3)
 
@@ -124,8 +128,8 @@ class TestValidateH3Params:
 # Test: validate_h3_cell
 # =============================================================================
 
-
 class TestValidateH3Cell:
+
     def test_valid_cell_res3(self):
         cell = h3.latlng_to_cell(0, 0, 3)
         assert validate_h3_cell(cell) == cell
@@ -164,8 +168,8 @@ class TestValidateH3Cell:
 # Test: validate_egi_level
 # =============================================================================
 
-
 class TestValidateEgiLevel:
+
     def test_valid_min(self):
         assert validate_egi_level(1) == 1
 
@@ -205,12 +209,12 @@ class TestValidateEgiLevel:
 
     def test_custom_param_name(self):
         with pytest.raises(EGIValidationError, match="partition"):
-            validate_egi_level(0, param_name="partition")
+            validate_egi_level(0, param_name='partition')
 
     def test_error_attributes(self):
         with pytest.raises(EGIValidationError) as exc_info:
             validate_egi_level(0)
-        assert exc_info.value.param_name == "level"
+        assert exc_info.value.param_name == 'level'
         assert exc_info.value.value == 0
 
 
@@ -218,28 +222,28 @@ class TestValidateEgiLevel:
 # Test: validate_product
 # =============================================================================
 
-
 class TestValidateProduct:
+
     def test_valid_uppercase(self):
-        assert validate_product("L2A") == "L2A"
+        assert validate_product('L2A') == 'L2A'
 
     def test_valid_lowercase(self):
-        assert validate_product("l4a") == "L4A"
+        assert validate_product('l4a') == 'L4A'
 
     def test_valid_mixed_case(self):
-        assert validate_product("L2b") == "L2B"
+        assert validate_product('L2b') == 'L2B'
 
     def test_all_valid_products(self):
-        for p in ["L1B", "L2A", "L2B", "L3", "L4A", "L4B", "L4C"]:
+        for p in ['L1B', 'L2A', 'L2B', 'L3', 'L4A', 'L4B', 'L4C']:
             assert validate_product(p) == p
 
     def test_invalid_product_raises(self):
         with pytest.raises(GediProductError, match="Invalid GEDI product"):
-            validate_product("L5A")
+            validate_product('L5A')
 
     def test_empty_string_raises(self):
         with pytest.raises(GediProductError, match="Invalid GEDI product"):
-            validate_product("")
+            validate_product('')
 
     def test_non_string_raises(self):
         with pytest.raises(GediProductError, match="must be a string"):
@@ -254,32 +258,32 @@ class TestValidateProduct:
 # Test: validate_product_vars
 # =============================================================================
 
-
 class TestValidateProductVars:
+
     def test_valid_dict_with_list(self):
-        result = validate_product_vars({"L2A": ["rh", "quality_flag"]})
-        assert result == {"L2A": ["rh", "quality_flag"]}
+        result = validate_product_vars({'L2A': ['rh', 'quality_flag']})
+        assert result == {'L2A': ['rh', 'quality_flag']}
 
     def test_valid_dict_with_string(self):
-        result = validate_product_vars({"L4A": "agbd"})
-        assert result == {"L4A": ["agbd"]}
+        result = validate_product_vars({'L4A': 'agbd'})
+        assert result == {'L4A': ['agbd']}
 
     def test_valid_dict_with_none(self):
-        result = validate_product_vars({"L2A": None})
-        assert result == {"L2A": None}
+        result = validate_product_vars({'L2A': None})
+        assert result == {'L2A': None}
 
     def test_normalizes_product_case(self):
-        result = validate_product_vars({"l2a": ["rh"]})
-        assert "L2A" in result
+        result = validate_product_vars({'l2a': ['rh']})
+        assert 'L2A' in result
 
     def test_multiple_products(self):
-        result = validate_product_vars({"L2A": ["rh"], "L4A": ["agbd"]})
-        assert "L2A" in result
-        assert "L4A" in result
+        result = validate_product_vars({'L2A': ['rh'], 'L4A': ['agbd']})
+        assert 'L2A' in result
+        assert 'L4A' in result
 
     def test_invalid_product_raises(self):
         with pytest.raises(GediProductError, match="Invalid GEDI product"):
-            validate_product_vars({"L5A": ["var"]})
+            validate_product_vars({'L5A': ['var']})
 
     def test_non_dict_raises(self):
         with pytest.raises(GediProductError, match="must be a dictionary"):
@@ -287,32 +291,32 @@ class TestValidateProductVars:
 
     def test_non_string_vars_raises(self):
         with pytest.raises(GediVariableError, match="must be strings"):
-            validate_product_vars({"L2A": [1, 2, 3]})
+            validate_product_vars({'L2A': [1, 2, 3]})
 
     def test_invalid_var_type_raises(self):
         with pytest.raises(GediVariableError, match="must be a string, list, or None"):
-            validate_product_vars({"L2A": 42})
+            validate_product_vars({'L2A': 42})
 
 
 # =============================================================================
 # Test: validate_file_exists
 # =============================================================================
 
-
 class TestValidateFileExists:
+
     def test_existing_file(self, tmp_dir):
-        path = os.path.join(tmp_dir, "test.txt")
-        with open(path, "w") as f:
-            f.write("test")
+        path = os.path.join(tmp_dir, 'test.txt')
+        with open(path, 'w') as f:
+            f.write('test')
         assert validate_file_exists(path) == path
 
     def test_missing_file_raises(self):
         with pytest.raises(GediFileError, match="not found"):
-            validate_file_exists("/nonexistent/path/to/file.txt")
+            validate_file_exists('/nonexistent/path/to/file.txt')
 
     def test_custom_file_type_in_error(self):
         with pytest.raises(GediFileError, match="HDF5 file"):
-            validate_file_exists("/nonexistent/file.h5", file_type="HDF5 file")
+            validate_file_exists('/nonexistent/file.h5', file_type='HDF5 file')
 
     def test_directory_passes(self, tmp_dir):
         # validate_file_exists uses os.path.exists, which is True for dirs too
@@ -323,31 +327,31 @@ class TestValidateFileExists:
 # Test: validate_directory_exists
 # =============================================================================
 
-
 class TestValidateDirectoryExists:
+
     def test_existing_directory(self, tmp_dir):
         assert validate_directory_exists(tmp_dir) == tmp_dir
 
     def test_missing_directory_raises(self):
         with pytest.raises(GediFileError, match="Directory not found"):
-            validate_directory_exists("/nonexistent/directory")
+            validate_directory_exists('/nonexistent/directory')
 
     def test_create_missing_directory(self, tmp_dir):
-        new_dir = os.path.join(tmp_dir, "new_subdir")
+        new_dir = os.path.join(tmp_dir, 'new_subdir')
         assert not os.path.exists(new_dir)
         result = validate_directory_exists(new_dir, create=True)
         assert result == new_dir
         assert os.path.isdir(new_dir)
 
     def test_file_not_directory_raises(self, tmp_dir):
-        path = os.path.join(tmp_dir, "a_file.txt")
-        with open(path, "w") as f:
-            f.write("test")
+        path = os.path.join(tmp_dir, 'a_file.txt')
+        with open(path, 'w') as f:
+            f.write('test')
         with pytest.raises(GediFileError, match="not a directory"):
             validate_directory_exists(path)
 
     def test_create_nested(self, tmp_dir):
-        nested = os.path.join(tmp_dir, "a", "b", "c")
+        nested = os.path.join(tmp_dir, 'a', 'b', 'c')
         validate_directory_exists(nested, create=True)
         assert os.path.isdir(nested)
 
@@ -356,34 +360,34 @@ class TestValidateDirectoryExists:
 # Test: validate_database_path
 # =============================================================================
 
-
 class TestValidateDatabasePath:
+
     def test_valid_database_with_h3_dirs(self, tmp_dir):
         # Create fake H3 partition directory
-        h3_dir = os.path.join(tmp_dir, "h3_03=abc123")
+        h3_dir = os.path.join(tmp_dir, 'h3_03=abc123')
         os.makedirs(h3_dir)
         assert validate_database_path(tmp_dir) == tmp_dir
 
     def test_valid_database_with_parquet_files(self, tmp_dir):
         # Create a fake parquet file
-        pq_path = os.path.join(tmp_dir, "data.parquet")
-        with open(pq_path, "w") as f:
-            f.write("fake")
+        pq_path = os.path.join(tmp_dir, 'data.parquet')
+        with open(pq_path, 'w') as f:
+            f.write('fake')
         assert validate_database_path(tmp_dir) == tmp_dir
 
     def test_nonexistent_path_raises(self):
         with pytest.raises(GediDatabaseNotFoundError, match="not found"):
-            validate_database_path("/nonexistent/database")
+            validate_database_path('/nonexistent/database')
 
     def test_file_not_dir_raises(self, tmp_dir):
-        path = os.path.join(tmp_dir, "a_file.txt")
-        with open(path, "w") as f:
-            f.write("test")
+        path = os.path.join(tmp_dir, 'a_file.txt')
+        with open(path, 'w') as f:
+            f.write('test')
         with pytest.raises(GediDatabaseNotFoundError, match="not a directory"):
             validate_database_path(path)
 
     def test_empty_directory_raises(self, tmp_dir):
-        empty = os.path.join(tmp_dir, "empty_db")
+        empty = os.path.join(tmp_dir, 'empty_db')
         os.makedirs(empty)
         with pytest.raises(GediDatabaseNotFoundError, match="empty or invalid"):
             validate_database_path(empty)
@@ -393,8 +397,8 @@ class TestValidateDatabasePath:
 # Test: validate_coordinates
 # =============================================================================
 
-
 class TestValidateCoordinates:
+
     def test_valid_origin(self):
         assert validate_coordinates(0, 0) == (0, 0)
 
@@ -434,8 +438,8 @@ class TestValidateCoordinates:
 # Test: validate_bbox
 # =============================================================================
 
-
 class TestValidateBbox:
+
     def test_valid_bbox(self):
         result = validate_bbox([-50, 0, -49, 1])
         assert result == (-50, 0, -49, 1)

@@ -12,29 +12,28 @@ Author: Tiago de Conto
 Package: gedih3
 """
 
-import glob as _glob
-import logging
 import os
 import re
+import logging
+import glob as _glob
 
-import geopandas as gpd
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 
 from .exceptions import GediImageSamplingError
 
 logger = logging.getLogger(__name__)
 
 # Window operation IDs (matches legacy 3-digit spec)
-_WINDOW_OPS = {0: "sum", 1: "mean", 2: "median", 3: "mode"}
+_WINDOW_OPS = {0: 'sum', 1: 'mean', 2: 'median', 3: 'mode'}
 
 
 # =============================================================================
 # VRT Resolution
 # =============================================================================
 
-
-def resolve_raster_source(image_path, file_format="tif", odir=None):
+def resolve_raster_source(image_path, file_format='tif', odir=None):
     """Resolve image input to a single raster source.
 
     - Single file (.tif, .vrt, etc.) -> return as-is
@@ -62,7 +61,7 @@ def resolve_raster_source(image_path, file_format="tif", odir=None):
         If no valid raster found
     """
     # Remote URLs are valid GDAL sources — pass through directly
-    if image_path.startswith(("http://", "https://", "s3://", "/vsicurl/", "/vsis3/")):
+    if image_path.startswith(('http://', 'https://', 's3://', '/vsicurl/', '/vsis3/')):
         return image_path, False, 1
 
     if os.path.isfile(image_path):
@@ -72,9 +71,11 @@ def resolve_raster_source(image_path, file_format="tif", odir=None):
         raise GediImageSamplingError(f"Image path not found: {image_path}")
 
     # Directory: glob for tiles
-    tiles = sorted(_glob.glob(os.path.join(image_path, f"*.{file_format}")))
+    tiles = sorted(_glob.glob(os.path.join(image_path, f'*.{file_format}')))
     if not tiles:
-        raise GediImageSamplingError(f"No .{file_format} files found in {image_path}")
+        raise GediImageSamplingError(
+            f"No .{file_format} files found in {image_path}"
+        )
 
     if len(tiles) == 1:
         return tiles[0], False, 1
@@ -85,9 +86,9 @@ def resolve_raster_source(image_path, file_format="tif", odir=None):
     tiles_basename = os.path.basename(os.path.normpath(image_path))
     if odir:
         os.makedirs(odir, exist_ok=True)
-        vrt_path = os.path.join(odir, f"{tiles_basename}.vrt")
+        vrt_path = os.path.join(odir, f'{tiles_basename}.vrt')
     else:
-        vrt_path = os.path.join(image_path, "_gedih3_mosaic.vrt")
+        vrt_path = os.path.join(image_path, '_gedih3_mosaic.vrt')
     build_vrt(tiles, vrt_path)
     logger.info(f"Built VRT mosaic from {len(tiles)} tiles: {vrt_path}")
     return vrt_path, True, len(tiles)
@@ -96,7 +97,6 @@ def resolve_raster_source(image_path, file_format="tif", odir=None):
 # =============================================================================
 # Raster Metadata
 # =============================================================================
-
 
 def get_raster_info(raster_path):
     """Read raster metadata (CRS, bounds, resolution, bands, nodata).
@@ -120,25 +120,25 @@ def get_raster_info(raster_path):
         crs = ras.rio.crs
         bounds = ras.rio.bounds()  # (minx, miny, maxx, maxy)
         resolution = ras.rio.resolution()  # (x_res, y_res)
-        shape = (ras.sizes.get("y", ras.shape[-2]), ras.sizes.get("x", ras.shape[-1]))
-        band_count = ras.sizes.get("band", ras.shape[0]) if len(ras.shape) == 3 else 1
+        shape = (ras.sizes.get('y', ras.shape[-2]), ras.sizes.get('x', ras.shape[-1]))
+        band_count = ras.sizes.get('band', ras.shape[0]) if len(ras.shape) == 3 else 1
         nodata = ras.rio.nodata
 
         # Band names from long_name attribute or fallback to b0, b1, ...
-        if hasattr(ras, "long_name") and ras.long_name is not None:
+        if hasattr(ras, 'long_name') and ras.long_name is not None:
             long_name = ras.long_name
             if isinstance(long_name, str):
                 band_names = [long_name]
             else:
                 band_names = list(long_name)
         else:
-            band_names = [f"b{i}" for i in range(band_count)]
+            band_names = [f'b{i}' for i in range(band_count)]
 
     # Compute WGS84 bounds for spatial filtering
     from pyproj import Transformer
 
     if crs and not crs.to_epsg() == 4326:
-        transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+        transformer = Transformer.from_crs(crs, 'EPSG:4326', always_xy=True)
         x_coords = [bounds[0], bounds[2], bounds[0], bounds[2]]
         y_coords = [bounds[1], bounds[1], bounds[3], bounds[3]]
         lons, lats = transformer.transform(x_coords, y_coords)
@@ -147,14 +147,14 @@ def get_raster_info(raster_path):
         bounds_wgs84 = bounds
 
     return {
-        "crs": crs,
-        "bounds": bounds,
-        "bounds_wgs84": bounds_wgs84,
-        "resolution": resolution,
-        "shape": shape,
-        "band_count": band_count,
-        "band_names": band_names,
-        "nodata": nodata,
+        'crs': crs,
+        'bounds': bounds,
+        'bounds_wgs84': bounds_wgs84,
+        'resolution': resolution,
+        'shape': shape,
+        'band_count': band_count,
+        'band_names': band_names,
+        'nodata': nodata,
     }
 
 
@@ -162,21 +162,18 @@ def get_raster_info(raster_path):
 # Window Operations (ported from legacy, with median fix)
 # =============================================================================
 
-
 def _window_sum(data, size):
     """Sum within a moving window."""
     from scipy.ndimage import convolve
-
     kernel = np.ones((size, size))
-    return convolve(data, kernel, mode="constant", cval=0)
+    return convolve(data, kernel, mode='constant', cval=0)
 
 
 def _window_mean(data, size):
     """Mean within a moving window."""
     from scipy.ndimage import convolve
-
     kernel = np.ones((size, size)) / (size * size)
-    return convolve(data, kernel, mode="nearest")
+    return convolve(data, kernel, mode='nearest')
 
 
 def _window_median(data, size):
@@ -186,8 +183,7 @@ def _window_median(data, size):
     percentile (approximately the minimum). Corrected to 50 for actual median.
     """
     from scipy.ndimage import percentile_filter
-
-    return percentile_filter(data, 50, size=(size, size), mode="nearest")
+    return percentile_filter(data, 50, size=(size, size), mode='nearest')
 
 
 def _window_mode(data, size):
@@ -205,10 +201,10 @@ def _window_mode(data, size):
     kernel = np.ones((size, size))
     uvals = np.unique(data)
     result = np.full_like(data, uvals[0])
-    best_count = convolve((data == uvals[0]).astype(np.uint8), kernel, mode="constant", cval=0)
+    best_count = convolve((data == uvals[0]).astype(np.uint8), kernel, mode='constant', cval=0)
 
     for u in uvals[1:]:
-        count = convolve((data == u).astype(np.uint8), kernel, mode="constant", cval=0)
+        count = convolve((data == u).astype(np.uint8), kernel, mode='constant', cval=0)
         mask = count > best_count
         result[mask] = u
         best_count[mask] = count[mask]
@@ -217,17 +213,16 @@ def _window_mode(data, size):
 
 
 _WINDOW_FUNCS = {
-    "sum": _window_sum,
-    "mean": _window_mean,
-    "median": _window_median,
-    "mode": _window_mode,
+    'sum': _window_sum,
+    'mean': _window_mean,
+    'median': _window_median,
+    'mode': _window_mode,
 }
 
 
 # =============================================================================
 # Window Spec Parsing
 # =============================================================================
-
 
 def parse_window_specs(specs):
     """Parse legacy 3-digit format for window operations.
@@ -259,28 +254,34 @@ def parse_window_specs(specs):
     for spec in specs:
         spec = str(spec)
         if len(spec) != 3:
-            raise GediImageSamplingError(f"Window spec must be 3 digits (band/size/op), got '{spec}'")
+            raise GediImageSamplingError(
+                f"Window spec must be 3 digits (band/size/op), got '{spec}'"
+            )
         try:
             band = int(spec[0])
             size = int(spec[1])
             op_id = int(spec[2])
         except ValueError:
-            raise GediImageSamplingError(f"Window spec must be 3 digits (band/size/op), got '{spec}'")
+            raise GediImageSamplingError(
+                f"Window spec must be 3 digits (band/size/op), got '{spec}'"
+            )
 
         if size < 1 or size > 9 or size % 2 == 0:
-            raise GediImageSamplingError(f"Window size must be odd 1-9, got {size} in spec '{spec}'")
+            raise GediImageSamplingError(
+                f"Window size must be odd 1-9, got {size} in spec '{spec}'"
+            )
         if op_id not in _WINDOW_OPS:
-            raise GediImageSamplingError(f"Window op must be 0-3, got {op_id} in spec '{spec}'")
+            raise GediImageSamplingError(
+                f"Window op must be 0-3, got {op_id} in spec '{spec}'"
+            )
 
         op_name = _WINDOW_OPS[op_id]
-        result.append(
-            {
-                "band": band,
-                "size": size,
-                "op": op_name,
-                "name": f"b{band}_{op_name}_{size}x{size}",
-            }
-        )
+        result.append({
+            'band': band,
+            'size': size,
+            'op': op_name,
+            'name': f'b{band}_{op_name}_{size}x{size}',
+        })
 
     return result
 
@@ -289,19 +290,10 @@ def parse_window_specs(specs):
 # Core Sampling Function (called via map_partitions)
 # =============================================================================
 
-
-def sample_raster_at_points(
-    df,
-    raster_path,
-    band_names=None,
-    window_ops=None,
-    fillna=None,
-    dropna=False,
-    geo=False,
-    partition_col=None,
-    band_indices=None,
-    all_band_names=None,
-):
+def sample_raster_at_points(df, raster_path, band_names=None,
+                            window_ops=None, fillna=None, dropna=False,
+                            geo=False, partition_col=None, band_indices=None,
+                            all_band_names=None):
     """Sample raster values at GEDI shot locations within a single partition.
 
     Designed to be called via Dask map_partitions. For each partition:
@@ -346,42 +338,42 @@ def sample_raster_at_points(
         Sampled data with band columns, relative_pixel_distance, and
         optional window operation columns
     """
-    import rioxarray
     import xarray as xr
+    import rioxarray
 
-    if df is None or (hasattr(df, "empty") and df.empty) or len(df) == 0:
+    if df is None or (hasattr(df, 'empty') and df.empty) or len(df) == 0:
         spatial_cols = None
         if partition_col:
-            spatial_cols = {partition_col: "object"}
+            spatial_cols = {partition_col: 'object'}
         return _empty_sampling_result(band_names, window_ops, geo, partition_col, spatial_cols=spatial_cols)
 
     # --- Extract coordinates ---
-    if "geometry" in df.columns and hasattr(df["geometry"], "geom_type"):
-        geom = df["geometry"]
+    if 'geometry' in df.columns and hasattr(df['geometry'], 'geom_type'):
+        geom = df['geometry']
         # Ensure points, not other geometry types
         pts_lon = geom.x.values
         pts_lat = geom.y.values
     else:
         # Fallback to coordinate columns
         from .cliutils import find_coordinate_column
-
-        lon_col = find_coordinate_column(df.columns, "lon_lowestmode")
-        lat_col = find_coordinate_column(df.columns, "lat_lowestmode")
+        lon_col = find_coordinate_column(df.columns, 'lon_lowestmode')
+        lat_col = find_coordinate_column(df.columns, 'lat_lowestmode')
         if lon_col is None or lat_col is None:
             raise GediImageSamplingError(
-                "Cannot extract coordinates: no geometry column and no lon_lowestmode/lat_lowestmode columns found"
+                "Cannot extract coordinates: no geometry column and no "
+                "lon_lowestmode/lat_lowestmode columns found"
             )
         pts_lon = df[lon_col].values
         pts_lat = df[lat_col].values
 
     if len(pts_lon) == 0:
-        spatial_cols = _detect_spatial_cols(df) or ({partition_col: "object"} if partition_col else None)
+        spatial_cols = _detect_spatial_cols(df) or ({partition_col: 'object'} if partition_col else None)
         return _empty_sampling_result(band_names, window_ops, geo, partition_col, spatial_cols=spatial_cols)
 
     # --- Resolve band selection ---
     # Build merged band index set (selected + window-referenced) for efficient loading
     if band_indices is not None:
-        window_band_set = {wop["band"] for wop in (window_ops or [])}
+        window_band_set = {wop['band'] for wop in (window_ops or [])}
         load_indices = sorted(set(band_indices) | window_band_set)
         load_map = {orig: pos for pos, orig in enumerate(load_indices)}
     else:
@@ -389,7 +381,7 @@ def sample_raster_at_points(
         load_map = None
 
     # --- Open raster and clip to partition bbox ---
-    max_win_size = max((w["size"] for w in window_ops), default=0) if window_ops else 0
+    max_win_size = max((w['size'] for w in window_ops), default=0) if window_ops else 0
 
     with rioxarray.open_rasterio(raster_path, masked=True) as ras:
         ras_crs = ras.rio.crs
@@ -399,12 +391,12 @@ def sample_raster_at_points(
 
         # Determine band names from raster if not provided
         if band_names is None:
-            if hasattr(ras, "long_name") and ras.long_name is not None:
+            if hasattr(ras, 'long_name') and ras.long_name is not None:
                 ln = ras.long_name
                 band_names = [ln] if isinstance(ln, str) else list(ln)
             else:
-                nb = ras.sizes.get("band", ras.shape[0]) if len(ras.shape) == 3 else 1
-                band_names = [f"b{i}" for i in range(nb)]
+                nb = ras.sizes.get('band', ras.shape[0]) if len(ras.shape) == 3 else 1
+                band_names = [f'b{i}' for i in range(nb)]
 
         # Ensure all_band_names is set (for window column naming)
         # Must be set after band_names auto-detection from raster
@@ -414,8 +406,7 @@ def sample_raster_at_points(
         # Reproject points to raster CRS if needed
         if ras_crs and ras_crs.to_epsg() != 4326:
             from pyproj import Transformer
-
-            transformer = Transformer.from_crs("EPSG:4326", ras_crs, always_xy=True)
+            transformer = Transformer.from_crs('EPSG:4326', ras_crs, always_xy=True)
             pts_x, pts_y = transformer.transform(pts_lon, pts_lat)
         else:
             pts_x = pts_lon
@@ -423,7 +414,8 @@ def sample_raster_at_points(
 
         # Identify shots inside raster bounds
         inside_mask = (
-            (pts_x >= ras_bounds[0]) & (pts_x <= ras_bounds[2]) & (pts_y >= ras_bounds[1]) & (pts_y <= ras_bounds[3])
+            (pts_x >= ras_bounds[0]) & (pts_x <= ras_bounds[2]) &
+            (pts_y >= ras_bounds[1]) & (pts_y <= ras_bounds[3])
         )
 
         # Initialize output columns
@@ -451,12 +443,15 @@ def sample_raster_at_points(
 
             # Clip raster to bbox (efficient for VRT — reads only overlapping tiles)
             try:
-                ras_clip = ras.rio.clip_box(minx=clip_minx, miny=clip_miny, maxx=clip_maxx, maxy=clip_maxy)
+                ras_clip = ras.rio.clip_box(
+                    minx=clip_minx, miny=clip_miny,
+                    maxx=clip_maxx, maxy=clip_maxy
+                )
             except Exception:
                 # clip_box can fail if bbox doesn't overlap at all
                 ras_clip = None
 
-            if ras_clip is not None and ras_clip.sizes.get("x", 0) > 0 and ras_clip.sizes.get("y", 0) > 0:
+            if ras_clip is not None and ras_clip.sizes.get('x', 0) > 0 and ras_clip.sizes.get('y', 0) > 0:
                 if fillna is not None:
                     ras_clip = ras_clip.fillna(fillna)
 
@@ -465,9 +460,9 @@ def sample_raster_at_points(
                     ras_clip = ras_clip.isel(band=load_indices)
 
                 # Sample nearest pixel for inside shots
-                tgt_x = xr.DataArray(inside_x, dims="points")
-                tgt_y = xr.DataArray(inside_y, dims="points")
-                sampled = ras_clip.sel(x=tgt_x, y=tgt_y, method="nearest")
+                tgt_x = xr.DataArray(inside_x, dims='points')
+                tgt_y = xr.DataArray(inside_y, dims='points')
+                sampled = ras_clip.sel(x=tgt_x, y=tgt_y, method='nearest')
 
                 # Extract band values
                 inside_idx = np.where(inside_mask)[0]
@@ -485,8 +480,8 @@ def sample_raster_at_points(
 
                 # Compute relative_pixel_distance
                 # Get actual sampled x,y coordinates
-                sampled_x = sampled.coords["x"].values
-                sampled_y = sampled.coords["y"].values
+                sampled_x = sampled.coords['x'].values
+                sampled_y = sampled.coords['y'].values
                 offset_x = np.abs(inside_x - sampled_x)
                 offset_y = np.abs(inside_y - sampled_y)
                 dist = (offset_x + offset_y) / 2.0 / ras_res
@@ -495,7 +490,7 @@ def sample_raster_at_points(
                 # Apply window operations
                 if window_ops:
                     for wop in window_ops:
-                        band_idx = wop["band"]
+                        band_idx = wop['band']
                         if len(ras_clip.shape) == 3:
                             # Use load_map to find position in loaded band subset
                             pos = load_map[band_idx] if load_map else band_idx
@@ -511,14 +506,16 @@ def sample_raster_at_points(
                             band_data[band_data == ras_nodata] = np.nan
 
                         # Apply window function
-                        wfunc = _WINDOW_FUNCS[wop["op"]]
-                        filtered = wfunc(band_data, wop["size"])
+                        wfunc = _WINDOW_FUNCS[wop['op']]
+                        filtered = wfunc(band_data, wop['size'])
 
                         # Sample filtered raster at inside points
                         filtered_xr = xr.DataArray(
-                            filtered, coords={"y": ras_clip.coords["y"], "x": ras_clip.coords["x"]}, dims=["y", "x"]
+                            filtered,
+                            coords={'y': ras_clip.coords['y'], 'x': ras_clip.coords['x']},
+                            dims=['y', 'x']
                         )
-                        w_sampled = filtered_xr.sel(x=tgt_x, y=tgt_y, method="nearest")
+                        w_sampled = filtered_xr.sel(x=tgt_x, y=tgt_y, method='nearest')
                         col_name = _resolve_window_col_name(wop, all_band_names)
                         window_values[col_name][inside_idx] = w_sampled.values
 
@@ -527,11 +524,11 @@ def sample_raster_at_points(
 
     # Preserve all spatial index columns (h3_XX, egiXX)
     # Check DataFrame index first
-    if df.index.name and re.match(r"^(h3_\d{2}|egi\d{2})$", str(df.index.name)):
+    if df.index.name and re.match(r'^(h3_\d{2}|egi\d{2})$', str(df.index.name)):
         out[df.index.name] = df.index.values
     # Check columns
     for col in df.columns:
-        if re.match(r"^(h3_\d{2}|egi\d{2})$", str(col)):
+        if re.match(r'^(h3_\d{2}|egi\d{2})$', str(col)):
             out[str(col)] = df[col].values
     # Warn if partition_col was specified but not found
     if partition_col and partition_col not in out:
@@ -540,17 +537,17 @@ def sample_raster_at_points(
     # shot_number
     sn_col = None
     for c in df.columns:
-        if c.startswith("shot_number"):
+        if c.startswith('shot_number'):
             sn_col = c
             break
     if sn_col:
-        out["shot_number"] = df[sn_col].values
+        out['shot_number'] = df[sn_col].values
 
     # Band values
     out.update(band_values)
 
     # Distance
-    out["relative_pixel_distance"] = distances
+    out['relative_pixel_distance'] = distances
 
     # Window values
     out.update(window_values)
@@ -558,12 +555,12 @@ def sample_raster_at_points(
     result = pd.DataFrame(out)
 
     # Geometry
-    if geo and "geometry" in df.columns:
-        result = gpd.GeoDataFrame(result, geometry=df["geometry"].values, crs="EPSG:4326")
+    if geo and 'geometry' in df.columns:
+        result = gpd.GeoDataFrame(result, geometry=df['geometry'].values, crs='EPSG:4326')
 
     # dropna: drop rows where ALL band columns are NaN
     if dropna:
-        result = result.dropna(subset=band_names, how="all")
+        result = result.dropna(subset=band_names, how='all')
 
     # Set finest spatial column as the DataFrame index
     idx_col = _finest_spatial_col(result.columns)
@@ -575,8 +572,8 @@ def sample_raster_at_points(
 
 def _resolve_window_col_name(wop, band_names):
     """Resolve a window op's output column name using actual band names."""
-    bname = band_names[wop["band"]] if band_names and wop["band"] < len(band_names) else f"b{wop['band']}"
-    return wop["name"].replace(f"b{wop['band']}_", f"{bname}_")
+    bname = band_names[wop['band']] if band_names and wop['band'] < len(band_names) else f"b{wop['band']}"
+    return wop['name'].replace(f"b{wop['band']}_", f"{bname}_")
 
 
 def _detect_spatial_cols(df):
@@ -592,12 +589,12 @@ def _detect_spatial_cols(df):
     spatial = {}
 
     # Check DataFrame index
-    if df.index.name and re.match(r"^(h3_\d{2}|egi\d{2})$", str(df.index.name)):
+    if df.index.name and re.match(r'^(h3_\d{2}|egi\d{2})$', str(df.index.name)):
         spatial[df.index.name] = str(df.index.dtype)
 
     # Check columns
     for col in df.columns:
-        if re.match(r"^(h3_\d{2}|egi\d{2})$", str(col)):
+        if re.match(r'^(h3_\d{2}|egi\d{2})$', str(col)):
             spatial[str(col)] = str(df[col].dtype)
 
     return spatial
@@ -610,8 +607,8 @@ def _finest_spatial_col(col_names):
     For EGI: lowest level number is finest (egi01 < egi12).
     Returns None if no spatial columns found.
     """
-    h3_cols = sorted([c for c in col_names if re.match(r"^h3_\d{2}$", str(c))], reverse=True)
-    egi_cols = sorted([c for c in col_names if re.match(r"^egi\d{2}$", str(c))])
+    h3_cols = sorted([c for c in col_names if re.match(r'^h3_\d{2}$', str(c))], reverse=True)
+    egi_cols = sorted([c for c in col_names if re.match(r'^egi\d{2}$', str(c))])
     if h3_cols:
         return h3_cols[0]
     if egi_cols:
@@ -619,7 +616,8 @@ def _finest_spatial_col(col_names):
     return None
 
 
-def _empty_sampling_result(band_names, window_ops, geo, partition_col, spatial_cols=None, all_band_names=None):
+def _empty_sampling_result(band_names, window_ops, geo, partition_col,
+                           spatial_cols=None, all_band_names=None):
     """Return empty DataFrame matching the sampling output schema.
 
     Parameters
@@ -646,17 +644,17 @@ def _empty_sampling_result(band_names, window_ops, geo, partition_col, spatial_c
             cols[col_name] = pd.Series(dtype=dtype)
     elif partition_col:
         cols[partition_col] = pd.Series(dtype=str)
-    cols["shot_number"] = pd.Series(dtype="int64")
+    cols['shot_number'] = pd.Series(dtype='int64')
     if band_names:
         for bn in band_names:
-            cols[bn] = pd.Series(dtype="float64")
-    cols["relative_pixel_distance"] = pd.Series(dtype="float64")
+            cols[bn] = pd.Series(dtype='float64')
+    cols['relative_pixel_distance'] = pd.Series(dtype='float64')
     if window_ops:
         for wop in window_ops:
             col_name = _resolve_window_col_name(wop, all_band_names)
-            cols[col_name] = pd.Series(dtype="float64")
+            cols[col_name] = pd.Series(dtype='float64')
     if geo:
-        result = gpd.GeoDataFrame(cols, geometry=gpd.GeoSeries(dtype="geometry"))
+        result = gpd.GeoDataFrame(cols, geometry=gpd.GeoSeries(dtype='geometry'))
     else:
         result = pd.DataFrame(cols)
 
@@ -672,8 +670,8 @@ def _empty_sampling_result(band_names, window_ops, geo, partition_col, spatial_c
 # Meta computation for Dask map_partitions
 # =============================================================================
 
-
-def _compute_sampling_meta(band_names, window_ops, geo, partition_col, spatial_cols=None, all_band_names=None):
+def _compute_sampling_meta(band_names, window_ops, geo, partition_col,
+                           spatial_cols=None, all_band_names=None):
     """Build empty DataFrame with correct schema for Dask map_partitions meta.
 
     Parameters
@@ -696,30 +694,18 @@ def _compute_sampling_meta(band_names, window_ops, geo, partition_col, spatial_c
     DataFrame or GeoDataFrame
         Empty frame matching output schema
     """
-    return _empty_sampling_result(
-        band_names, window_ops, geo, partition_col, spatial_cols=spatial_cols, all_band_names=all_band_names
-    )
+    return _empty_sampling_result(band_names, window_ops, geo, partition_col,
+                                  spatial_cols=spatial_cols, all_band_names=all_band_names)
 
 
 # =============================================================================
 # High-Level Python API
 # =============================================================================
 
-
-def from_image(
-    image_path,
-    data_source=None,
-    gh3_dir=None,
-    region=None,
-    query=None,
-    band_names=None,
-    band_indices=None,
-    window_ops=None,
-    fillna=None,
-    dropna=False,
-    geo=False,
-    file_format="tif",
-):
+def from_image(image_path, data_source=None, gh3_dir=None, region=None,
+               query=None, band_names=None, band_indices=None,
+               window_ops=None, fillna=None,
+               dropna=False, geo=False, file_format='tif'):
     """Sample raster values at GEDI shot locations.
 
     Supports two input modes with different ROI logic:
@@ -772,18 +758,22 @@ def from_image(
     GediImageSamplingError
         If inputs are invalid or sampling fails
     """
+    import dask.dataframe
     import gedih3.gh3driver as gh3
 
     if data_source is None and gh3_dir is None:
-        raise GediImageSamplingError("Must provide either data_source (simplified dataset) or gh3_dir (H3 database)")
+        raise GediImageSamplingError(
+            "Must provide either data_source (simplified dataset) or gh3_dir (H3 database)"
+        )
 
     # Resolve raster source
     raster_path, is_vrt, tile_count = resolve_raster_source(image_path, file_format)
     raster_info = get_raster_info(raster_path)
-    logger.info(f"Raster: {raster_path} ({raster_info['band_count']} bands, CRS={raster_info['crs']})")
+    logger.info(f"Raster: {raster_path} ({raster_info['band_count']} bands, "
+                f"CRS={raster_info['crs']})")
 
     # Resolve band names
-    all_band_names = raster_info["band_names"]
+    all_band_names = raster_info['band_names']
     if band_names is None:
         if band_indices is not None:
             band_names = [all_band_names[i] for i in band_indices]
@@ -795,22 +785,21 @@ def from_image(
         # Mode 1: H3 database — ROI = image bounds (intersected with user region)
         from shapely.geometry import box
 
-        img_box = box(*raster_info["bounds_wgs84"])
+        img_box = box(*raster_info['bounds_wgs84'])
         if region is not None:
-            if hasattr(region, "geometry"):
-                roi = gpd.GeoDataFrame(geometry=[img_box], crs="EPSG:4326")
-                roi = gpd.overlay(roi, region.to_crs("EPSG:4326"), how="intersection")
+            if hasattr(region, 'geometry'):
+                roi = gpd.GeoDataFrame(geometry=[img_box], crs='EPSG:4326')
+                roi = gpd.overlay(roi, region.to_crs('EPSG:4326'), how='intersection')
             else:
-                roi = gpd.GeoDataFrame(geometry=[img_box], crs="EPSG:4326")
+                roi = gpd.GeoDataFrame(geometry=[img_box], crs='EPSG:4326')
         else:
-            roi = gpd.GeoDataFrame(geometry=[img_box], crs="EPSG:4326")
+            roi = gpd.GeoDataFrame(geometry=[img_box], crs='EPSG:4326')
 
-        columns = ["geometry"]  # Always need geometry for coordinate extraction
+        columns = ['geometry']  # Always need geometry for coordinate extraction
         ddf = gh3.gh3_load(columns=columns, region=roi, query=query, gh3_dir=gh3_dir)
         # Detect partition column
-        part_level = gh3.gh3_read_meta("h3_partition_level", gh3_root_dir=gh3_dir)
+        part_level = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=gh3_dir)
         from .cliutils import h3_col_name
-
         partition_col = h3_col_name(part_level)
     else:
         # Mode 2: Simplified dataset — load all tiles
@@ -820,32 +809,28 @@ def from_image(
 
         # Detect partition column from dataset
         from .cliutils import get_dataset_index_info
-
         ds_info = get_dataset_index_info(data_source)
-        if ds_info["index_type"] == "egi":
+        if ds_info['index_type'] == 'egi':
             from .egi.config import egi_col_name
-
-            part_level = ds_info.get("partition_level") or ds_info.get("egi_partition_level")
+            part_level = ds_info.get('partition_level') or ds_info.get('egi_partition_level')
             partition_col = egi_col_name(part_level) if part_level else None
-        elif ds_info["index_type"] == "h3":
+        elif ds_info['index_type'] == 'h3':
             from .cliutils import h3_col_name
-
-            part_level = ds_info.get("partition_level") or ds_info.get("h3_partition_level")
+            part_level = ds_info.get('partition_level') or ds_info.get('h3_partition_level')
             partition_col = h3_col_name(part_level) if part_level else None
         else:
             partition_col = None
 
     # Validate geometry is available
-    if "geometry" not in ddf.columns:
+    if 'geometry' not in ddf.columns:
         raise GediImageSamplingError(
             "Input data must contain geometry column for coordinate extraction. "
             "For simplified datasets, re-extract with the -g flag."
         )
 
     # Compute meta for map_partitions
-    meta = _compute_sampling_meta(
-        band_names, window_ops, geo, partition_col, all_band_names=all_band_names if band_indices else None
-    )
+    meta = _compute_sampling_meta(band_names, window_ops, geo, partition_col,
+                                  all_band_names=all_band_names if band_indices else None)
 
     # Apply sampling via map_partitions
     result = ddf.map_partitions(
@@ -859,7 +844,7 @@ def from_image(
         partition_col=partition_col,
         band_indices=band_indices,
         all_band_names=all_band_names if band_indices else None,
-        meta=meta,
+        meta=meta
     )
 
     return result

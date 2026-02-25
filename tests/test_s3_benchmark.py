@@ -10,9 +10,11 @@ Requires NASA Earthdata credentials and network access.
 
 import os
 import time
+import tempfile
+import shutil
 
-import h5py
 import pytest
+import h5py
 
 pytestmark = pytest.mark.integration
 
@@ -22,7 +24,6 @@ def earthaccess_session():
     """Authenticate with NASA Earthdata. Skip if credentials unavailable."""
     try:
         import earthaccess
-
         auth = earthaccess.login()
         if not auth.authenticated:
             pytest.skip("NASA Earthdata authentication failed")
@@ -53,11 +54,9 @@ def _get_h5_info(filepath):
     """Return dict with dataset count and total rows from first beam."""
     info = {"datasets": 0, "rows": 0}
     with h5py.File(filepath, "r") as f:
-
         def count(name, obj):
             if isinstance(obj, h5py.Dataset):
                 info["datasets"] += 1
-
         f.visititems(count)
         # Get row count from first available beam
         for key in f.keys():
@@ -108,7 +107,7 @@ def test_s3_vs_download_benchmark(earthaccess_session, l4a_granule, tmp_dir):
     t_s3_subset = time.perf_counter() - t0
 
     assert result_b is not None, "S3 subset produced no output"
-    size_b = os.path.getsize(subset_b)  # noqa: F841
+    size_b = os.path.getsize(subset_b)
 
     # --- Validate outputs match ---
     info_a = _get_h5_info(subset_a)
@@ -117,7 +116,9 @@ def test_s3_vs_download_benchmark(earthaccess_session, l4a_granule, tmp_dir):
     assert info_a["datasets"] == info_b["datasets"], (
         f"Dataset count mismatch: local={info_a['datasets']} vs s3={info_b['datasets']}"
     )
-    assert info_a["rows"] == info_b["rows"], f"Row count mismatch: local={info_a['rows']} vs s3={info_b['rows']}"
+    assert info_a["rows"] == info_b["rows"], (
+        f"Row count mismatch: local={info_a['rows']} vs s3={info_b['rows']}"
+    )
 
     # --- Report ---
     t_approach_a = t_download + t_local_subset
@@ -127,16 +128,16 @@ def test_s3_vs_download_benchmark(earthaccess_session, l4a_granule, tmp_dir):
     print("S3 ETL BENCHMARK RESULTS")
     print("=" * 60)
     print(f"Full file size:        {full_size / 1e6:.1f} MB")
-    print(f"Subset file size:      {size_a / 1e6:.1f} MB ({size_a / full_size * 100:.1f}%)")
+    print(f"Subset file size:      {size_a / 1e6:.1f} MB ({size_a/full_size*100:.1f}%)")
     print(f"Datasets in subset:    {info_a['datasets']}")
     print(f"Rows per beam:         {info_a['rows']}")
     print()
-    print("Approach A (download + local subset):")
+    print(f"Approach A (download + local subset):")
     print(f"  Download:            {t_download:.1f}s")
     print(f"  Local subset:        {t_local_subset:.1f}s")
     print(f"  Total:               {t_approach_a:.1f}s")
     print()
-    print("Approach B (S3 open + remote subset):")
+    print(f"Approach B (S3 open + remote subset):")
     print(f"  S3 open:             {t_s3_open:.1f}s")
     print(f"  S3 subset:           {t_s3_subset:.1f}s")
     print(f"  Total:               {t_approach_b:.1f}s")

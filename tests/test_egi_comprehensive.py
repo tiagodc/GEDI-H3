@@ -11,30 +11,27 @@ This test suite validates EGI coordinate-to-hash conversion by:
 If EGI is correctly implemented, every point should always intersect
 its corresponding EGI polygon at every resolution level.
 """
-
-import os
 import sys
-import time
+import os
+import numpy as np
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
-
-import numpy as np
+from typing import List, Tuple, Optional
+import time
 
 # Add the source directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from gedih3.egi.config import LIMITS, RESOLUTIONS, OUTER_RES, OUTER_LEVEL
+from gedih3.egi.core import to_hash, from_hash, hasher, to_parent, pixels_per_tile
+from gedih3.egi.spatial import pixel_shape, pixel_coordinate, pixel_coordinates
 
 from shapely.geometry import Point
-
-from gedih3.egi.config import LIMITS, OUTER_LEVEL, OUTER_RES, RESOLUTIONS
-from gedih3.egi.core import from_hash, pixels_per_tile, to_hash, to_parent
-from gedih3.egi.spatial import pixel_coordinate, pixel_shape
 
 
 @dataclass
 class TestResult:
     """Result of a single test case."""
-
     x: float
     y: float
     level: int
@@ -77,21 +74,21 @@ def test_point_polygon_intersection(x: float, y: float, level: int) -> TestResul
             # More detailed error info
             level_out, scale, px_outer, py_outer, px_inner, py_inner = from_hash(egi_hash)
             return TestResult(
-                x=x,
-                y=y,
-                level=level,
-                passed=False,
+                x=x, y=y, level=level, passed=False,
                 error_message=f"Point ({x}, {y}) not in polygon. Hash: {egi_hash}, "
-                f"px_outer={px_outer}, py_outer={py_outer}, "
-                f"px_inner={px_inner}, py_inner={py_inner}, "
-                f"polygon_bounds={polygon.bounds}",
-                hash_value=int(egi_hash),
+                             f"px_outer={px_outer}, py_outer={py_outer}, "
+                             f"px_inner={px_inner}, py_inner={py_inner}, "
+                             f"polygon_bounds={polygon.bounds}",
+                hash_value=int(egi_hash)
             )
 
         return TestResult(x=x, y=y, level=level, passed=True, hash_value=int(egi_hash))
 
     except Exception as e:
-        return TestResult(x=x, y=y, level=level, passed=False, error_message=f"Exception: {type(e).__name__}: {str(e)}")
+        return TestResult(
+            x=x, y=y, level=level, passed=False,
+            error_message=f"Exception: {type(e).__name__}: {str(e)}"
+        )
 
 
 def test_roundtrip(x: float, y: float, level: int) -> TestResult:
@@ -115,21 +112,21 @@ def test_roundtrip(x: float, y: float, level: int) -> TestResult:
             level_out, scale, px_outer, py_outer, px_inner, py_inner = from_hash(egi_hash)
             level_c, _, px_o_c, py_o_c, px_i_c, py_i_c = from_hash(center_hash)
             return TestResult(
-                x=x,
-                y=y,
-                level=level,
-                passed=False,
+                x=x, y=y, level=level, passed=False,
                 error_message=f"Roundtrip mismatch: original hash={egi_hash}, center hash={center_hash}. "
-                f"Original: px_o={px_outer}, py_o={py_outer}, px_i={px_inner}, py_i={py_inner}. "
-                f"Center: px_o={px_o_c}, py_o={py_o_c}, px_i={px_i_c}, py_i={py_i_c}. "
-                f"Center coords: ({cx}, {cy})",
-                hash_value=int(egi_hash),
+                             f"Original: px_o={px_outer}, py_o={py_outer}, px_i={px_inner}, py_i={py_inner}. "
+                             f"Center: px_o={px_o_c}, py_o={py_o_c}, px_i={px_i_c}, py_i={py_i_c}. "
+                             f"Center coords: ({cx}, {cy})",
+                hash_value=int(egi_hash)
             )
 
         return TestResult(x=x, y=y, level=level, passed=True, hash_value=int(egi_hash))
 
     except Exception as e:
-        return TestResult(x=x, y=y, level=level, passed=False, error_message=f"Exception: {type(e).__name__}: {str(e)}")
+        return TestResult(
+            x=x, y=y, level=level, passed=False,
+            error_message=f"Exception: {type(e).__name__}: {str(e)}"
+        )
 
 
 def test_outer_inner_consistency(x: float, y: float, fine_level: int = 6) -> TestResult:
@@ -151,22 +148,20 @@ def test_outer_inner_consistency(x: float, y: float, fine_level: int = 6) -> Tes
         # Outer tile coordinates should match
         if fine_px_o != outer_px_o or fine_py_o != outer_py_o:
             return TestResult(
-                x=x,
-                y=y,
-                level=fine_level,
-                passed=False,
+                x=x, y=y, level=fine_level, passed=False,
                 error_message=f"Outer tile mismatch: fine level has ({fine_px_o}, {fine_py_o}), "
-                f"outer level has ({outer_px_o}, {outer_py_o})",
+                             f"outer level has ({outer_px_o}, {outer_py_o})",
                 hash_value=int(fine_hash),
                 expected_py_outer=int(outer_py_o),
-                actual_py_outer=int(fine_py_o),
+                actual_py_outer=int(fine_py_o)
             )
 
         return TestResult(x=x, y=y, level=fine_level, passed=True, hash_value=int(fine_hash))
 
     except Exception as e:
         return TestResult(
-            x=x, y=y, level=fine_level, passed=False, error_message=f"Exception: {type(e).__name__}: {str(e)}"
+            x=x, y=y, level=fine_level, passed=False,
+            error_message=f"Exception: {type(e).__name__}: {str(e)}"
         )
 
 
@@ -192,20 +187,18 @@ def test_to_parent_consistency(x: float, y: float, fine_level: int = 1, parent_l
         # Outer tile coordinates should match
         if parent_px_o != direct_px_o or parent_py_o != direct_py_o:
             return TestResult(
-                x=x,
-                y=y,
-                level=fine_level,
-                passed=False,
+                x=x, y=y, level=fine_level, passed=False,
                 error_message=f"to_parent outer tile mismatch: to_parent gives ({parent_px_o}, {parent_py_o}), "
-                f"direct hash gives ({direct_px_o}, {direct_py_o})",
-                hash_value=int(fine_hash),
+                             f"direct hash gives ({direct_px_o}, {direct_py_o})",
+                hash_value=int(fine_hash)
             )
 
         return TestResult(x=x, y=y, level=fine_level, passed=True, hash_value=int(fine_hash))
 
     except Exception as e:
         return TestResult(
-            x=x, y=y, level=fine_level, passed=False, error_message=f"Exception: {type(e).__name__}: {str(e)}"
+            x=x, y=y, level=fine_level, passed=False,
+            error_message=f"Exception: {type(e).__name__}: {str(e)}"
         )
 
 
@@ -214,7 +207,7 @@ def test_tile_boundary(tile_y: int, eps: float = 1e-6) -> TestResult:
     Test consistency at a specific tile boundary.
     """
     x = 0  # Fixed x coordinate
-    y_boundary = LIMITS["lat_s"] + tile_y * OUTER_RES
+    y_boundary = LIMITS['lat_s'] + tile_y * OUTER_RES
 
     # Test just below boundary
     y = y_boundary - eps
@@ -231,25 +224,19 @@ def test_tile_boundary(tile_y: int, eps: float = 1e-6) -> TestResult:
 
         if outer_py_o != expected_tile or fine_py_o != expected_tile:
             return TestResult(
-                x=x,
-                y=y,
-                level=6,
-                passed=False,
+                x=x, y=y, level=6, passed=False,
                 error_message=f"Boundary test at tile {tile_y}, eps={eps}: "
-                f"expected tile {expected_tile}, outer={outer_py_o}, fine={fine_py_o}",
+                             f"expected tile {expected_tile}, outer={outer_py_o}, fine={fine_py_o}",
                 expected_py_outer=expected_tile,
-                actual_py_outer=int(fine_py_o),
+                actual_py_outer=int(fine_py_o)
             )
 
         return TestResult(x=x, y=y, level=6, passed=True)
 
     except Exception as e:
         return TestResult(
-            x=x,
-            y=y,
-            level=6,
-            passed=False,
-            error_message=f"Exception at tile boundary {tile_y}: {type(e).__name__}: {str(e)}",
+            x=x, y=y, level=6, passed=False,
+            error_message=f"Exception at tile boundary {tile_y}: {type(e).__name__}: {str(e)}"
         )
 
 
@@ -265,29 +252,26 @@ def test_inner_coordinate_range(x: float, y: float, level: int) -> TestResult:
 
         if px_inner > max_inner or py_inner > max_inner:
             return TestResult(
-                x=x,
-                y=y,
-                level=level,
-                passed=False,
+                x=x, y=y, level=level, passed=False,
                 error_message=f"Inner coordinates out of range: px_inner={px_inner}, py_inner={py_inner}, "
-                f"max_inner={max_inner}",
-                hash_value=int(egi_hash),
+                             f"max_inner={max_inner}",
+                hash_value=int(egi_hash)
             )
 
         if px_inner < 0 or py_inner < 0:
             return TestResult(
-                x=x,
-                y=y,
-                level=level,
-                passed=False,
+                x=x, y=y, level=level, passed=False,
                 error_message=f"Negative inner coordinates: px_inner={px_inner}, py_inner={py_inner}",
-                hash_value=int(egi_hash),
+                hash_value=int(egi_hash)
             )
 
         return TestResult(x=x, y=y, level=level, passed=True, hash_value=int(egi_hash))
 
     except Exception as e:
-        return TestResult(x=x, y=y, level=level, passed=False, error_message=f"Exception: {type(e).__name__}: {str(e)}")
+        return TestResult(
+            x=x, y=y, level=level, passed=False,
+            error_message=f"Exception: {type(e).__name__}: {str(e)}"
+        )
 
 
 def generate_random_points(n: int, seed: int = 42) -> Tuple[np.ndarray, np.ndarray]:
@@ -297,8 +281,8 @@ def generate_random_points(n: int, seed: int = 42) -> Tuple[np.ndarray, np.ndarr
     # Add some margin to avoid exact boundary issues
     margin = 1.0  # 1 meter margin
 
-    x = np.random.uniform(LIMITS["lon_w"] + margin, LIMITS["lon_e"] - margin, n)
-    y = np.random.uniform(LIMITS["lat_s"] + margin, LIMITS["lat_n"] - margin, n)
+    x = np.random.uniform(LIMITS['lon_w'] + margin, LIMITS['lon_e'] - margin, n)
+    y = np.random.uniform(LIMITS['lat_s'] + margin, LIMITS['lat_n'] - margin, n)
 
     return x, y
 
@@ -309,7 +293,7 @@ def generate_boundary_points() -> List[Tuple[float, float]]:
 
     # Test several tile boundaries in Y direction
     for tile_y in range(1, 91):  # All possible tile boundaries
-        y_boundary = LIMITS["lat_s"] + tile_y * OUTER_RES
+        y_boundary = LIMITS['lat_s'] + tile_y * OUTER_RES
         x = 0  # Fixed x
 
         # Points at various distances from boundary
@@ -327,15 +311,15 @@ def run_test_batch(args: Tuple) -> List[TestResult]:
 
     for x, y in zip(x_batch, y_batch):
         for level in levels:
-            if test_type == "intersection":
+            if test_type == 'intersection':
                 results.append(test_point_polygon_intersection(x, y, level))
-            elif test_type == "roundtrip":
+            elif test_type == 'roundtrip':
                 results.append(test_roundtrip(x, y, level))
-            elif test_type == "outer_consistency":
+            elif test_type == 'outer_consistency':
                 results.append(test_outer_inner_consistency(x, y, level))
-            elif test_type == "parent_consistency":
+            elif test_type == 'parent_consistency':
                 results.append(test_to_parent_consistency(x, y))
-            elif test_type == "inner_range":
+            elif test_type == 'inner_range':
                 results.append(test_inner_coordinate_range(x, y, level))
 
     return results
@@ -345,22 +329,25 @@ def main():
     """Run comprehensive EGI tests."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Comprehensive EGI Tests")
-    parser.add_argument(
-        "-n", "--num-points", type=int, default=5000, help="Number of random points to test (default: 5000)"
-    )
-    parser.add_argument("-j", "--jobs", type=int, default=20, help="Number of parallel workers (default: 20)")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
-    parser.add_argument("--levels", type=str, default="1,6,12", help="Comma-separated levels to test (default: 1,6,12)")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output (show all failures)")
+    parser = argparse.ArgumentParser(description='Comprehensive EGI Tests')
+    parser.add_argument('-n', '--num-points', type=int, default=5000,
+                       help='Number of random points to test (default: 5000)')
+    parser.add_argument('-j', '--jobs', type=int, default=20,
+                       help='Number of parallel workers (default: 20)')
+    parser.add_argument('--seed', type=int, default=42,
+                       help='Random seed (default: 42)')
+    parser.add_argument('--levels', type=str, default='1,6,12',
+                       help='Comma-separated levels to test (default: 1,6,12)')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                       help='Verbose output (show all failures)')
     args = parser.parse_args()
 
-    levels = [int(lv) for lv in args.levels.split(",")]
+    levels = [int(l) for l in args.levels.split(',')]
 
     print("=" * 70)
     print(" EGI Comprehensive Test Suite")
     print("=" * 70)
-    print("Configuration:")
+    print(f"Configuration:")
     print(f"  EGI_RES6 (base resolution): {RESOLUTIONS[6]}")
     print(f"  OUTER_RES (tile size): {OUTER_RES}")
     print(f"  LIMITS: lat_s={LIMITS['lat_s']}, lat_n={LIMITS['lat_n']}")
@@ -396,7 +383,7 @@ def main():
                 print(f"    {f.error_message}")
         all_failures.extend(boundary_failures)
     else:
-        print("  PASSED: All tile boundary tests passed")
+        print(f"  PASSED: All tile boundary tests passed")
     print()
 
     # =========================================================================
@@ -413,7 +400,7 @@ def main():
     batches = []
     for i in range(0, args.num_points, batch_size):
         end = min(i + batch_size, args.num_points)
-        batches.append((x[i:end], y[i:end], levels, "intersection"))
+        batches.append((x[i:end], y[i:end], levels, 'intersection'))
 
     intersection_results = []
     start_time = time.time()
@@ -449,7 +436,7 @@ def main():
     batches = []
     for i in range(0, args.num_points, batch_size):
         end = min(i + batch_size, args.num_points)
-        batches.append((x[i:end], y[i:end], levels, "roundtrip"))
+        batches.append((x[i:end], y[i:end], levels, 'roundtrip'))
 
     roundtrip_results = []
     start_time = time.time()
@@ -485,7 +472,7 @@ def main():
     batches = []
     for i in range(0, args.num_points, batch_size):
         end = min(i + batch_size, args.num_points)
-        batches.append((x[i:end], y[i:end], levels, "outer_consistency"))
+        batches.append((x[i:end], y[i:end], levels, 'outer_consistency'))
 
     consistency_results = []
     start_time = time.time()
@@ -521,7 +508,7 @@ def main():
     batches = []
     for i in range(0, args.num_points, batch_size):
         end = min(i + batch_size, args.num_points)
-        batches.append((x[i:end], y[i:end], levels, "inner_range"))
+        batches.append((x[i:end], y[i:end], levels, 'inner_range'))
 
     range_results = []
     start_time = time.time()
@@ -605,5 +592,5 @@ def main():
         return 0
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     sys.exit(main())

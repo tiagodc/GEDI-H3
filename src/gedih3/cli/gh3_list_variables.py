@@ -11,43 +11,62 @@ Package: gedih3
 """
 
 import argparse
+import os
 import sys
 
 
 def get_cmd_args():
     """Parse command line arguments"""
-    p = argparse.ArgumentParser(description="List column names and types from an H3 database")
+    p = argparse.ArgumentParser(
+        description="List column names and types from an H3 database"
+    )
 
     p.add_argument(
-        "-d",
-        "--database",
+        "-d", "--database",
         dest="database",
         type=str,
         default=None,
-        help="path to H3 database [default: GH3_DEFAULT_H3_DIR]",
+        help="path to H3 database [default: GH3_DEFAULT_H3_DIR]"
     )
 
     p.add_argument(
-        "-p",
-        "--product",
+        "-p", "--product",
         dest="product",
         type=str,
         default=None,
-        help="filter columns by product suffix (e.g., L2A → columns ending in _l2a)",
+        help="filter columns by product suffix (e.g., L2A → columns ending in _l2a)"
     )
 
     p.add_argument(
-        "-g", "--grep", dest="grep", type=str, default=None, help="filter columns by pattern (case-insensitive)"
+        "-g", "--grep",
+        dest="grep",
+        type=str,
+        default=None,
+        help="filter columns by pattern (case-insensitive)"
     )
 
-    p.add_argument("--json", dest="json_output", action="store_true", help="output in JSON format")
+    p.add_argument(
+        "--json",
+        dest="json_output",
+        action="store_true",
+        help="output in JSON format"
+    )
 
-    p.add_argument("--csv", dest="csv_output", action="store_true", help="output in CSV format")
+    p.add_argument(
+        "--csv",
+        dest="csv_output",
+        action="store_true",
+        help="output in CSV format"
+    )
 
-    p.add_argument("--no-header", dest="no_header", action="store_true", help="suppress headers in output")
+    p.add_argument(
+        "--no-header",
+        dest="no_header",
+        action="store_true",
+        help="suppress headers in output"
+    )
 
     from gedih3.cliutils import add_storage_args
-
     add_storage_args(p)
 
     return p.parse_args()
@@ -57,17 +76,14 @@ def main():
     args = get_cmd_args()
 
     from gedih3.cliutils import setup_storage
-
     setup_storage(args)
 
     # Resolve database path
     if args.database is None:
         from gedih3.config import GH3_DEFAULT_H3_DIR
-
         args.database = GH3_DEFAULT_H3_DIR
 
     from gedih3.utils import smart_exists
-
     if not smart_exists(args.database):
         print(f"Error: Database not found: {args.database}", file=sys.stderr)
         sys.exit(1)
@@ -75,7 +91,6 @@ def main():
     # Read schema
     try:
         from gedih3.utils import read_schema
-
         schema_df = read_schema(args.database)
     except Exception as e:
         print(f"Error reading schema: {e}", file=sys.stderr)
@@ -84,21 +99,20 @@ def main():
     # Apply product suffix filter (-p L2A → keep columns ending in _l2a)
     if args.product:
         suffix = f"_{args.product.lower()}"
-        mask = schema_df["column"].str.lower().str.endswith(suffix)
+        mask = schema_df['column'].str.lower().str.endswith(suffix)
         schema_df = schema_df[mask]
 
     # Apply grep filter
     if args.grep:
-        mask = schema_df["column"].str.contains(args.grep, case=False)
+        mask = schema_df['column'].str.contains(args.grep, case=False)
         schema_df = schema_df[mask]
 
-    columns = list(zip(schema_df["column"], schema_df["dtype"].astype(str)))
+    columns = list(zip(schema_df['column'], schema_df['dtype'].astype(str)))
     columns.sort(key=lambda c: c[0])  # Sort by column name
 
     # JSON output
     if args.json_output:
         import json
-
         data = [{"name": c[0], "dtype": c[1]} for c in columns]
         print(json.dumps(data, indent=2))
         return
@@ -128,5 +142,5 @@ def main():
         print()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

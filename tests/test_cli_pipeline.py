@@ -14,18 +14,17 @@ Requirements:
 Author: gedih3 team
 """
 
-import json
 import os
-import shutil
-import subprocess
 import sys
+import json
+import shutil
 import tempfile
+import subprocess
+import pytest
 from pathlib import Path
 
-import pytest
-
 # Add src to path for local development
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 
 # =============================================================================
@@ -43,7 +42,7 @@ TEST_DATE_END = "2020-06-30"
 
 # H3 resolution settings
 TEST_H3_RESOLUTION = 12  # Index level
-TEST_H3_PARTITION = 5  # Partition level (higher = smaller partitions for testing)
+TEST_H3_PARTITION = 5    # Partition level (higher = smaller partitions for testing)
 
 # Dask settings for tests (reduced for faster execution)
 TEST_CORES = 2
@@ -62,7 +61,8 @@ class CLITestConfig:
         self.raster_dir = os.path.join(self.base_dir, "rasters")
 
         # Create directories
-        for d in [self.soc_dir, self.h3_dir, self.extract_dir, self.aggregate_dir, self.raster_dir]:
+        for d in [self.soc_dir, self.h3_dir, self.extract_dir,
+                  self.aggregate_dir, self.raster_dir]:
             os.makedirs(d, exist_ok=True)
 
     def cleanup(self):
@@ -87,11 +87,16 @@ def run_cli(cmd: list, timeout: int = 600) -> subprocess.CompletedProcess:
     subprocess.CompletedProcess
         Result of the command execution
     """
-    print(f"\n{'=' * 70}")
+    print(f"\n{'='*70}")
     print(f"Running: {' '.join(cmd)}")
-    print(f"{'=' * 70}")
+    print(f"{'='*70}")
 
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=timeout
+    )
 
     if result.stdout:
         print("STDOUT:", result.stdout[:2000])
@@ -104,7 +109,6 @@ def run_cli(cmd: list, timeout: int = 600) -> subprocess.CompletedProcess:
 # =============================================================================
 # Unit Tests for CLI Argument Parsing
 # =============================================================================
-
 
 class TestCLIArguments:
     """Test CLI argument parsing for all tools."""
@@ -201,7 +205,6 @@ class TestGH3ListResolutions:
 # Integration Tests for CLI Pipeline
 # =============================================================================
 
-
 @pytest.fixture(scope="module")
 def test_config():
     """Create test configuration with temp directories."""
@@ -221,21 +224,14 @@ class TestCLIDownload:
         cmd = [
             "gh3_download",
             TEST_REGION_ARG,
-            "-d0",
-            TEST_DATE_START,
-            "-d1",
-            TEST_DATE_END,
-            "-l2a",
-            "default",
-            "-l4a",
-            "agbd",
-            "-o",
-            test_config.soc_dir,
-            "-N",
-            str(TEST_CORES),
-            "-M",
-            str(TEST_MEMORY),
-            "-v",
+            "-d0", TEST_DATE_START,
+            "-d1", TEST_DATE_END,
+            "-l2a", "default",
+            "-l4a", "agbd",
+            "-o", test_config.soc_dir,
+            "-N", str(TEST_CORES),
+            "-M", str(TEST_MEMORY),
+            "-v"
         ]
 
         result = run_cli(cmd, timeout=1800)  # 30 min timeout for download
@@ -248,21 +244,18 @@ class TestCLIDownload:
         if os.path.exists(log_file):
             with open(log_file) as f:
                 log_data = json.load(f)
-            assert log_data.get("status") in ["COMPLETED", "DOWNLOADING"]
+            assert log_data.get('status') in ['COMPLETED', 'DOWNLOADING']
 
     def test_download_resume(self, test_config):
         """Test resuming a download."""
         cmd = [
             "gh3_download",
             TEST_REGION_ARG,
-            "-l2a",
-            "default",
-            "-o",
-            test_config.soc_dir,
+            "-l2a", "default",
+            "-o", test_config.soc_dir,
             "--resume",
-            "-N",
-            str(TEST_CORES),
-            "-Q",  # Quiet mode
+            "-N", str(TEST_CORES),
+            "-Q"  # Quiet mode
         ]
 
         result = run_cli(cmd, timeout=600)
@@ -284,23 +277,15 @@ class TestCLIBuild:
         cmd = [
             "gh3_build",
             TEST_REGION_ARG,
-            "-l2a",
-            "default",
-            "-l4a",
-            "agbd",
-            "-h3r",
-            str(TEST_H3_RESOLUTION),
-            "-h3p",
-            str(TEST_H3_PARTITION),
-            "-i",
-            test_config.soc_dir,
-            "-o",
-            test_config.h3_dir,
-            "-N",
-            str(TEST_CORES),
-            "-M",
-            str(TEST_MEMORY),
-            "-v",
+            "-l2a", "default",
+            "-l4a", "agbd",
+            "-h3r", str(TEST_H3_RESOLUTION),
+            "-h3p", str(TEST_H3_PARTITION),
+            "-i", test_config.soc_dir,
+            "-o", test_config.h3_dir,
+            "-N", str(TEST_CORES),
+            "-M", str(TEST_MEMORY),
+            "-v"
         ]
 
         result = run_cli(cmd, timeout=1800)
@@ -315,9 +300,9 @@ class TestCLIBuild:
         with open(log_file) as f:
             log_data = json.load(f)
 
-        assert log_data.get("status") == "COMPLETED"
-        assert log_data.get("h3_resolution_level") == TEST_H3_RESOLUTION
-        assert log_data.get("h3_partition_level") == TEST_H3_PARTITION
+        assert log_data.get('status') == 'COMPLETED'
+        assert log_data.get('h3_resolution_level') == TEST_H3_RESOLUTION
+        assert log_data.get('h3_partition_level') == TEST_H3_PARTITION
 
     def test_build_with_custom_h3_levels(self, test_config):
         """Test building with custom H3 resolution levels."""
@@ -332,19 +317,13 @@ class TestCLIBuild:
         cmd = [
             "gh3_build",
             TEST_REGION_ARG,
-            "-l2a",
-            "minimal",
-            "-h3r",
-            "10",  # Coarser index
-            "-h3p",
-            "4",  # Different partition
-            "-i",
-            test_config.soc_dir,
-            "-o",
-            custom_h3_dir,
-            "-N",
-            str(TEST_CORES),
-            "-Q",
+            "-l2a", "minimal",
+            "-h3r", "10",  # Coarser index
+            "-h3p", "4",   # Different partition
+            "-i", test_config.soc_dir,
+            "-o", custom_h3_dir,
+            "-N", str(TEST_CORES),
+            "-Q"
         ]
 
         result = run_cli(cmd, timeout=1200)
@@ -355,8 +334,8 @@ class TestCLIBuild:
             if os.path.exists(log_file):
                 with open(log_file) as f:
                     log_data = json.load(f)
-                assert log_data.get("h3_resolution_level") == 10
-                assert log_data.get("h3_partition_level") == 4
+                assert log_data.get('h3_resolution_level') == 10
+                assert log_data.get('h3_partition_level') == 4
 
 
 @pytest.mark.integration
@@ -372,18 +351,13 @@ class TestCLIExtract:
 
         cmd = [
             "gh3_extract",
-            "-d",
-            test_config.h3_dir,
+            "-d", test_config.h3_dir,
             TEST_REGION_ARG,
-            "-l2a",
-            "rh",
-            "-l4a",
-            "agbd",
-            "-o",
-            test_config.extract_dir,
-            "-N",
-            str(TEST_CORES),
-            "-v",
+            "-l2a", "rh",
+            "-l4a", "agbd",
+            "-o", test_config.extract_dir,
+            "-N", str(TEST_CORES),
+            "-v"
         ]
 
         result = run_cli(cmd, timeout=600)
@@ -405,16 +379,12 @@ class TestCLIExtract:
 
         cmd = [
             "gh3_extract",
-            "-d",
-            test_config.h3_dir,
-            "-l4a",
-            "agbd",
+            "-d", test_config.h3_dir,
+            "-l4a", "agbd",
             "-y",  # Quality filter
-            "-o",
-            quality_dir,
-            "-N",
-            str(TEST_CORES),
-            "-Q",
+            "-o", quality_dir,
+            "-N", str(TEST_CORES),
+            "-Q"
         ]
 
         result = run_cli(cmd, timeout=600)
@@ -433,19 +403,13 @@ class TestCLIAggregate:
 
         cmd = [
             "gh3_aggregate",
-            "-d",
-            test_config.h3_dir,
-            "-h3",
-            "6",  # Aggregate to level 6
-            "-l4a",
-            "agbd",
-            "-a",
-            "mean",
-            "-o",
-            test_config.aggregate_dir,
-            "-N",
-            str(TEST_CORES),
-            "-v",
+            "-d", test_config.h3_dir,
+            "-h3", "6",  # Aggregate to level 6
+            "-l4a", "agbd",
+            "-a", "mean",
+            "-o", test_config.aggregate_dir,
+            "-N", str(TEST_CORES),
+            "-v"
         ]
 
         result = run_cli(cmd, timeout=600)
@@ -467,19 +431,13 @@ class TestCLIAggregate:
 
         cmd = [
             "gh3_aggregate",
-            "-d",
-            test_config.h3_dir,
-            "-egi",
-            "6",  # EGI level 6 (~1km)
-            "-l4a",
-            "agbd",
-            "-a",
-            "mean",
-            "-o",
-            egi_dir,
-            "-N",
-            str(TEST_CORES),
-            "-Q",
+            "-d", test_config.h3_dir,
+            "-egi", "6",  # EGI level 6 (~1km)
+            "-l4a", "agbd",
+            "-a", "mean",
+            "-o", egi_dir,
+            "-N", str(TEST_CORES),
+            "-Q"
         ]
 
         result = run_cli(cmd, timeout=600)
@@ -496,20 +454,14 @@ class TestCLIAggregate:
 
         cmd = [
             "gh3_aggregate",
-            "-d",
-            test_config.h3_dir,
-            "-egi",
-            "6",
-            "-l4a",
-            "agbd",
-            "-a",
-            "mean",
+            "-d", test_config.h3_dir,
+            "-egi", "6",
+            "-l4a", "agbd",
+            "-a", "mean",
             "-m",  # Merged output
-            "-o",
-            merged_dir,
-            "-N",
-            str(TEST_CORES),
-            "-Q",
+            "-o", merged_dir,
+            "-N", str(TEST_CORES),
+            "-Q"
         ]
 
         result = run_cli(cmd, timeout=600)
@@ -523,8 +475,8 @@ class TestCLIAggregate:
         with open(meta_file) as f:
             meta = json.load(f)
 
-        assert meta.get("index_type") == "egi", f"Expected index_type='egi', got '{meta.get('index_type')}'"
-        assert meta.get("index_level") == 6, f"Expected index_level=6, got {meta.get('index_level')}"
+        assert meta.get('index_type') == 'egi', f"Expected index_type='egi', got '{meta.get('index_type')}'"
+        assert meta.get('index_level') == 6, f"Expected index_level=6, got {meta.get('index_level')}"
 
 
 @pytest.mark.integration
@@ -545,29 +497,26 @@ class TestCLIRasterize:
         h3_agg_dir = os.path.join(test_config.base_dir, "raster_h3_agg")
         os.makedirs(h3_agg_dir, exist_ok=True)
 
-        agg_result = run_cli(
-            [
-                "gh3_aggregate",
-                "-d",
-                test_config.h3_dir,
-                "-h3",
-                "6",
-                "-l4a",
-                "agbd",
-                "-a",
-                "mean",
-                "-o",
-                h3_agg_dir,
-                "-N",
-                str(TEST_CORES),
-                "-Q",
-            ],
-            timeout=600,
-        )
+        agg_result = run_cli([
+            "gh3_aggregate",
+            "-d", test_config.h3_dir,
+            "-h3", "6",
+            "-l4a", "agbd",
+            "-a", "mean",
+            "-o", h3_agg_dir,
+            "-N", str(TEST_CORES),
+            "-Q"
+        ], timeout=600)
         assert agg_result.returncode == 0, f"H3 aggregation failed: {agg_result.stderr}"
 
         # Step 2: Rasterize the aggregated dataset
-        cmd = ["gh3_rasterize", "-d", h3_agg_dir, "-o", test_config.raster_dir, "-N", str(TEST_CORES), "-v"]
+        cmd = [
+            "gh3_rasterize",
+            "-d", h3_agg_dir,
+            "-o", test_config.raster_dir,
+            "-N", str(TEST_CORES),
+            "-v"
+        ]
 
         result = run_cli(cmd, timeout=600)
 
@@ -587,32 +536,29 @@ class TestCLIRasterize:
         egi_agg_dir = os.path.join(test_config.base_dir, "raster_egi_agg")
         os.makedirs(egi_agg_dir, exist_ok=True)
 
-        agg_result = run_cli(
-            [
-                "gh3_aggregate",
-                "-d",
-                test_config.h3_dir,
-                "-egi",
-                "6",
-                "-l4a",
-                "agbd",
-                "-a",
-                "mean",
-                "-o",
-                egi_agg_dir,
-                "-N",
-                str(TEST_CORES),
-                "-Q",
-            ],
-            timeout=600,
-        )
+        agg_result = run_cli([
+            "gh3_aggregate",
+            "-d", test_config.h3_dir,
+            "-egi", "6",
+            "-l4a", "agbd",
+            "-a", "mean",
+            "-o", egi_agg_dir,
+            "-N", str(TEST_CORES),
+            "-Q"
+        ], timeout=600)
         assert agg_result.returncode == 0, f"EGI aggregation failed: {agg_result.stderr}"
 
         # Step 2: Rasterize the aggregated dataset
         egi_raster_dir = os.path.join(test_config.base_dir, "raster_egi")
         os.makedirs(egi_raster_dir, exist_ok=True)
 
-        cmd = ["gh3_rasterize", "-d", egi_agg_dir, "-o", egi_raster_dir, "-N", str(TEST_CORES), "-Q"]
+        cmd = [
+            "gh3_rasterize",
+            "-d", egi_agg_dir,
+            "-o", egi_raster_dir,
+            "-N", str(TEST_CORES),
+            "-Q"
+        ]
 
         result = run_cli(cmd, timeout=600)
         assert result.returncode == 0
@@ -627,25 +573,16 @@ class TestCLIRasterize:
         merged_agg_dir = os.path.join(test_config.base_dir, "raster_merged_agg")
         os.makedirs(merged_agg_dir, exist_ok=True)
 
-        agg_result = run_cli(
-            [
-                "gh3_aggregate",
-                "-d",
-                test_config.h3_dir,
-                "-egi",
-                "6",
-                "-l4a",
-                "agbd",
-                "-a",
-                "mean",
-                "-o",
-                merged_agg_dir,
-                "-N",
-                str(TEST_CORES),
-                "-Q",
-            ],
-            timeout=600,
-        )
+        agg_result = run_cli([
+            "gh3_aggregate",
+            "-d", test_config.h3_dir,
+            "-egi", "6",
+            "-l4a", "agbd",
+            "-a", "mean",
+            "-o", merged_agg_dir,
+            "-N", str(TEST_CORES),
+            "-Q"
+        ], timeout=600)
         assert agg_result.returncode == 0, f"EGI aggregation failed: {agg_result.stderr}"
 
         # Step 2: Rasterize with merge
@@ -653,14 +590,11 @@ class TestCLIRasterize:
 
         cmd = [
             "gh3_rasterize",
-            "-d",
-            merged_agg_dir,
+            "-d", merged_agg_dir,
             "-m",  # Merge
-            "-o",
-            merged_raster,
-            "-N",
-            str(TEST_CORES),
-            "-Q",
+            "-o", merged_raster,
+            "-N", str(TEST_CORES),
+            "-Q"
         ]
 
         result = run_cli(cmd, timeout=600)
@@ -682,44 +616,36 @@ class TestCLIRasterize:
         ts_agg_dir = os.path.join(test_config.base_dir, "raster_ts_agg")
         os.makedirs(ts_agg_dir, exist_ok=True)
 
-        agg_result = run_cli(
-            [
-                "gh3_aggregate",
-                "-d",
-                test_config.h3_dir,
-                "-egi",
-                "6",
-                "-l4a",
-                "agbd",
-                "-a",
-                "mean",
-                "-ti",
-                "6",
-                "-tu",
-                "months",
-                "-t0",
-                TEST_DATE_START,
-                "-t1",
-                TEST_DATE_END,
-                "-o",
-                ts_agg_dir,
-                "-N",
-                str(TEST_CORES),
-                "-Q",
-            ],
-            timeout=600,
-        )
+        agg_result = run_cli([
+            "gh3_aggregate",
+            "-d", test_config.h3_dir,
+            "-egi", "6",
+            "-l4a", "agbd",
+            "-a", "mean",
+            "-ti", "6", "-tu", "months",
+            "-t0", TEST_DATE_START, "-t1", TEST_DATE_END,
+            "-o", ts_agg_dir,
+            "-N", str(TEST_CORES),
+            "-Q"
+        ], timeout=600)
         assert agg_result.returncode == 0, f"Time-series aggregation failed: {agg_result.stderr}"
 
         # Verify time-series subdirectories were created
-        window_dirs = [d for d in Path(ts_agg_dir).iterdir() if d.is_dir() and (d / "gedih3_dataset.json").exists()]
+        window_dirs = [d for d in Path(ts_agg_dir).iterdir()
+                       if d.is_dir() and (d / "gedih3_dataset.json").exists()]
         assert len(window_dirs) > 0, "No time-series window directories created"
 
         # Step 2: Rasterize the time-series dataset
         ts_raster_dir = os.path.join(test_config.base_dir, "raster_ts")
         os.makedirs(ts_raster_dir, exist_ok=True)
 
-        cmd = ["gh3_rasterize", "-d", ts_agg_dir, "-o", ts_raster_dir, "-N", str(TEST_CORES), "-Q"]
+        cmd = [
+            "gh3_rasterize",
+            "-d", ts_agg_dir,
+            "-o", ts_raster_dir,
+            "-N", str(TEST_CORES),
+            "-Q"
+        ]
 
         result = run_cli(cmd, timeout=600)
         assert result.returncode == 0, f"Time-series rasterize failed: {result.stderr}"
@@ -732,7 +658,6 @@ class TestCLIRasterize:
 # =============================================================================
 # Full Pipeline Test
 # =============================================================================
-
 
 @pytest.mark.integration
 @pytest.mark.slow
@@ -752,26 +677,20 @@ class TestFullCLIPipeline:
 
         try:
             # Step 1: Download
-            print("\n" + "=" * 70)
+            print("\n" + "="*70)
             print("STEP 1: Downloading GEDI data")
-            print("=" * 70)
+            print("="*70)
 
             download_cmd = [
                 "gh3_download",
                 TEST_REGION_ARG,
-                "-d0",
-                TEST_DATE_START,
-                "-d1",
-                TEST_DATE_END,
-                "-l2a",
-                "default",
-                "-l4a",
-                "agbd",
-                "-o",
-                config.soc_dir,
-                "-N",
-                str(TEST_CORES),
-                "-v",
+                "-d0", TEST_DATE_START,
+                "-d1", TEST_DATE_END,
+                "-l2a", "default",
+                "-l4a", "agbd",
+                "-o", config.soc_dir,
+                "-N", str(TEST_CORES),
+                "-v"
             ]
 
             result = run_cli(download_cmd, timeout=1800)
@@ -783,28 +702,21 @@ class TestFullCLIPipeline:
                 pytest.skip("No data available for test region/dates")
 
             # Step 2: Build
-            print("\n" + "=" * 70)
+            print("\n" + "="*70)
             print("STEP 2: Building H3 database")
-            print("=" * 70)
+            print("="*70)
 
             build_cmd = [
                 "gh3_build",
                 TEST_REGION_ARG,
-                "-l2a",
-                "default",
-                "-l4a",
-                "agbd",
-                "-h3r",
-                str(TEST_H3_RESOLUTION),
-                "-h3p",
-                str(TEST_H3_PARTITION),
-                "-i",
-                config.soc_dir,
-                "-o",
-                config.h3_dir,
-                "-N",
-                str(TEST_CORES),
-                "-v",
+                "-l2a", "default",
+                "-l4a", "agbd",
+                "-h3r", str(TEST_H3_RESOLUTION),
+                "-h3p", str(TEST_H3_PARTITION),
+                "-i", config.soc_dir,
+                "-o", config.h3_dir,
+                "-N", str(TEST_CORES),
+                "-v"
             ]
 
             result = run_cli(build_cmd, timeout=1800)
@@ -815,68 +727,55 @@ class TestFullCLIPipeline:
             assert os.path.exists(log_file), "Database not created"
 
             # Step 3: Extract
-            print("\n" + "=" * 70)
+            print("\n" + "="*70)
             print("STEP 3: Extracting data")
-            print("=" * 70)
+            print("="*70)
 
             extract_cmd = [
                 "gh3_extract",
-                "-d",
-                config.h3_dir,
-                "-l4a",
-                "agbd",
+                "-d", config.h3_dir,
+                "-l4a", "agbd",
                 "-y",  # Quality filter
-                "-o",
-                config.extract_dir,
-                "-N",
-                str(TEST_CORES),
-                "-v",
+                "-o", config.extract_dir,
+                "-N", str(TEST_CORES),
+                "-v"
             ]
 
             result = run_cli(extract_cmd, timeout=600)
             assert result.returncode == 0, "Extract step failed"
 
             # Step 4: Aggregate
-            print("\n" + "=" * 70)
+            print("\n" + "="*70)
             print("STEP 4: Aggregating data")
-            print("=" * 70)
+            print("="*70)
 
             aggregate_cmd = [
                 "gh3_aggregate",
-                "-d",
-                config.h3_dir,
-                "-egi",
-                "6",
-                "-l4a",
-                "agbd",
-                "-a",
-                "mean",
-                "-o",
-                config.aggregate_dir,
-                "-N",
-                str(TEST_CORES),
-                "-v",
+                "-d", config.h3_dir,
+                "-egi", "6",
+                "-l4a", "agbd",
+                "-a", "mean",
+                "-o", config.aggregate_dir,
+                "-N", str(TEST_CORES),
+                "-v"
             ]
 
             result = run_cli(aggregate_cmd, timeout=600)
             assert result.returncode == 0, "Aggregate step failed"
 
             # Step 5: Rasterize (uses pre-aggregated dataset from Step 4)
-            print("\n" + "=" * 70)
+            print("\n" + "="*70)
             print("STEP 5: Rasterizing data")
-            print("=" * 70)
+            print("="*70)
 
             raster_output = os.path.join(config.raster_dir, "agbd.tif")
             rasterize_cmd = [
                 "gh3_rasterize",
-                "-d",
-                config.aggregate_dir,
+                "-d", config.aggregate_dir,
                 "-m",  # Merged output
-                "-o",
-                raster_output,
-                "-N",
-                str(TEST_CORES),
-                "-v",
+                "-o", raster_output,
+                "-N", str(TEST_CORES),
+                "-v"
             ]
 
             result = run_cli(rasterize_cmd, timeout=600)
@@ -885,9 +784,9 @@ class TestFullCLIPipeline:
             # Verify final output
             assert os.path.exists(raster_output), "Final raster not created"
 
-            print("\n" + "=" * 70)
+            print("\n" + "="*70)
             print("FULL PIPELINE COMPLETED SUCCESSFULLY!")
-            print("=" * 70)
+            print("="*70)
 
         finally:
             # Cleanup (comment out to inspect results)
@@ -899,36 +798,59 @@ class TestFullCLIPipeline:
 # Error Handling Tests
 # =============================================================================
 
-
 class TestCLIErrorHandling:
     """Test CLI error handling."""
 
     def test_download_missing_product(self):
         """Test download with no product specified."""
-        result = run_cli(["gh3_download", TEST_REGION_ARG, "-o", "/tmp/test"])
+        result = run_cli([
+            "gh3_download",
+            TEST_REGION_ARG,
+            "-o", "/tmp/test"
+        ])
         # Should fail because no product selected
         assert result.returncode != 0
 
     def test_build_missing_source(self):
         """Test build with non-existent source directory."""
-        result = run_cli(["gh3_build", "-l2a", "default", "-i", "/nonexistent/path", "-o", "/tmp/test"])
+        result = run_cli([
+            "gh3_build",
+            "-l2a", "default",
+            "-i", "/nonexistent/path",
+            "-o", "/tmp/test"
+        ])
         assert result.returncode != 0
 
     def test_extract_missing_database(self):
         """Test extract with non-existent database."""
-        result = run_cli(["gh3_extract", "-d", "/nonexistent/database", "-l2a", "rh", "-o", "/tmp/test"])
+        result = run_cli([
+            "gh3_extract",
+            "-d", "/nonexistent/database",
+            "-l2a", "rh",
+            "-o", "/tmp/test"
+        ])
         assert result.returncode != 0
 
     def test_aggregate_missing_level(self):
         """Test aggregate without specifying target level."""
-        result = run_cli(["gh3_aggregate", "-d", "/nonexistent/database", "-l4a", "agbd", "-o", "/tmp/test"])
+        result = run_cli([
+            "gh3_aggregate",
+            "-d", "/nonexistent/database",
+            "-l4a", "agbd",
+            "-o", "/tmp/test"
+        ])
         # Should fail because neither -h3 nor -egi specified
         assert result.returncode != 0
 
     def test_rasterize_no_metadata(self):
         """Test gh3_rasterize with directory lacking dataset metadata."""
         with tempfile.TemporaryDirectory() as empty_dir:
-            result = run_cli(["gh3_rasterize", "-d", empty_dir, "-o", os.path.join(empty_dir, "output"), "-Q"])
+            result = run_cli([
+                "gh3_rasterize",
+                "-d", empty_dir,
+                "-o", os.path.join(empty_dir, "output"),
+                "-Q"
+            ])
             # Should fail because no gedih3_dataset.json and no valid subdirectories
             assert result.returncode != 0
 
@@ -948,18 +870,13 @@ class TestCLIExtractEGIShuffle:
 
         cmd = [
             "gh3_extract",
-            "-d",
-            test_config.h3_dir,
-            "-l4a",
-            "agbd",
-            "-egi",
-            "1:12",
+            "-d", test_config.h3_dir,
+            "-l4a", "agbd",
+            "-egi", "1:12",
             "--egi-shuffle",
-            "-o",
-            shuffle_dir,
-            "-N",
-            str(TEST_CORES),
-            "-Q",
+            "-o", shuffle_dir,
+            "-N", str(TEST_CORES),
+            "-Q"
         ]
 
         result = run_cli(cmd, timeout=600)
@@ -974,7 +891,7 @@ class TestCLIExtractEGIShuffle:
 # Main Entry Point
 # =============================================================================
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     # Run with: python -m pytest tests/test_cli_pipeline.py -v
     # Or: python tests/test_cli_pipeline.py
-    pytest.main([__file__, "-v", "-s", "--tb=short"])
+    pytest.main([__file__, '-v', '-s', '--tb=short'])

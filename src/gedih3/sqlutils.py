@@ -1,10 +1,7 @@
-import os
-
-import duckdb
+import os, duckdb
 
 from .config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR
 from .utils import get_system_resources
-
 
 def init_duckdb(threads=None, memory_limit=None, temp_directory=None, max_temp_size=None):
     temp_directory = temp_directory if temp_directory is not None else f"{GH3_DEFAULT_TMP_DIR}/duckdb"
@@ -27,8 +24,7 @@ def init_duckdb(threads=None, memory_limit=None, temp_directory=None, max_temp_s
     con.execute(f"PRAGMA threads={threads};")
     return con
 
-
-def attach_ducklake_db(con, name="gedi_dl"):
+def attach_ducklake_db(con, name='gedi_dl'):
     """Attach existing ducklake database located in GH3_DEFAULT_H3_DIR.
 
     Once this function is called, the gedi data can be queried using

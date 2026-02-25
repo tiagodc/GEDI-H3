@@ -19,13 +19,11 @@ Data Type Considerations:
     - Intermediate calculations use appropriate uint16/uint32 to prevent overflow
     - Coordinate divisions must use exact type casting to preserve precision
 """
-
-from typing import List, Tuple, Union
-
+from typing import List, Tuple, Union, overload
 import numpy as np
 from numpy.typing import NDArray
 
-from .config import LIMITS, OUTER_RES, RESOLUTIONS, validate_level
+from .config import LIMITS, RESOLUTIONS, OUTER_RES, validate_level
 
 
 def hasher(
@@ -33,7 +31,7 @@ def hasher(
     px_outer: Union[int, NDArray[np.uint16]],
     py_outer: Union[int, NDArray[np.uint16]],
     px_inner: Union[int, NDArray[np.uint32]],
-    py_inner: Union[int, NDArray[np.uint32]],
+    py_inner: Union[int, NDArray[np.uint32]]
 ) -> Union[np.uint64, NDArray[np.uint64]]:
     """
     Construct EGI hash from component parts.
@@ -66,17 +64,19 @@ def hasher(
     """
     # Convert to uint64 for multiplication to prevent overflow
     uint_hash = (
-        np.uint64(level) * np.uint64(1e18)
-        + np.uint64(px_outer) * np.uint64(1e15)
-        + np.uint64(py_outer) * np.uint64(1e12)
-        + np.uint64(px_inner) * np.uint64(1e6)
-        + np.uint64(py_inner)
+        np.uint64(level) * np.uint64(1e18) +
+        np.uint64(px_outer) * np.uint64(1e15) +
+        np.uint64(py_outer) * np.uint64(1e12) +
+        np.uint64(px_inner) * np.uint64(1e6) +
+        np.uint64(py_inner)
     )
     return uint_hash
 
 
 def to_hash(
-    x: Union[float, NDArray[np.floating]], y: Union[float, NDArray[np.floating]], level: int = 1
+    x: Union[float, NDArray[np.floating]],
+    y: Union[float, NDArray[np.floating]],
+    level: int = 1
 ) -> Union[np.uint64, NDArray[np.uint64]]:
     """
     Convert EPSG:6933 coordinates to EGI hash.
@@ -119,8 +119,8 @@ def to_hash(
     scale = RESOLUTIONS[level]
 
     # Calculate coordinate offsets from grid origin
-    x_offset = x - LIMITS["lon_w"]
-    y_offset = y - LIMITS["lat_s"]
+    x_offset = x - LIMITS['lon_w']
+    y_offset = y - LIMITS['lat_s']
 
     # Calculate outer tile indices using floor division
     # This matches the reference implementation exactly
@@ -138,14 +138,14 @@ def to_hash(
 
 
 def from_hash(
-    uint_hash: Union[np.uint64, NDArray[np.uint64]],
+    uint_hash: Union[np.uint64, NDArray[np.uint64]]
 ) -> Tuple[
     Union[int, NDArray[np.integer]],
     Union[float, NDArray[np.floating]],
     Union[np.uint16, NDArray[np.uint16]],
     Union[np.uint16, NDArray[np.uint16]],
     Union[np.uint32, NDArray[np.uint32]],
-    Union[np.uint32, NDArray[np.uint32]],
+    Union[np.uint32, NDArray[np.uint32]]
 ]:
     """
     Decode EGI hash into its component parts.
@@ -230,7 +230,8 @@ def get_scale(uint_hash: Union[np.uint64, NDArray[np.uint64]]) -> Union[float, N
 
 
 def to_parent(
-    uint_hash: Union[np.uint64, NDArray[np.uint64]], parent_level: int
+    uint_hash: Union[np.uint64, NDArray[np.uint64]],
+    parent_level: int
 ) -> Union[np.uint64, NDArray[np.uint64]]:
     """
     Convert EGI hash to a coarser (parent) resolution level.
@@ -269,18 +270,19 @@ def to_parent(
     if np.ndim(level) == 0:
         if int(level) > parent_level:
             raise ValueError(
-                f"Cannot convert to finer resolution. Current level: {level}, requested parent level: {parent_level}"
+                f"Cannot convert to finer resolution. Current level: {level}, "
+                f"requested parent level: {parent_level}"
             )
         current_scale = RESOLUTIONS[int(level)]
     else:
         if np.any(level > parent_level):
-            raise ValueError(f"Cannot convert to finer resolution. Some hashes have level > {parent_level}")
+            raise ValueError(
+                f"Cannot convert to finer resolution. Some hashes have level > {parent_level}"
+            )
         current_scale = np.array([RESOLUTIONS[int(lv)] for lv in level])
 
     parent_scale = RESOLUTIONS[parent_level]
-    scale_factor = (
-        round(parent_scale / current_scale) if np.ndim(current_scale) == 0 else np.round(parent_scale / current_scale)
-    )
+    scale_factor = round(parent_scale / current_scale) if np.ndim(current_scale) == 0 else np.round(parent_scale / current_scale)
 
     # Rescale inner pixel coordinates
     py_inner = np.uint32(uint_hash % np.uint32(1e6) // scale_factor)
@@ -291,16 +293,19 @@ def to_parent(
 
     # Reconstruct hash at parent level
     re_uint_hash = (
-        np.uint64(parent_level) * np.uint64(1e18)
-        + np.uint64(p_outer) * np.uint64(1e12)
-        + np.uint64(px_inner) * np.uint64(1e6)
-        + py_inner
+        np.uint64(parent_level) * np.uint64(1e18) +
+        np.uint64(p_outer) * np.uint64(1e12) +
+        np.uint64(px_inner) * np.uint64(1e6) +
+        py_inner
     )
 
     return re_uint_hash
 
 
-def get_children(uint_hash: Union[np.uint64, NDArray[np.uint64]], children_level: int = -1) -> List[np.uint64]:
+def get_children(
+    uint_hash: Union[np.uint64, NDArray[np.uint64]],
+    children_level: int = -1
+) -> List[np.uint64]:
     """
     Get all child pixels at a finer resolution.
 
@@ -336,11 +341,13 @@ def get_children(uint_hash: Union[np.uint64, NDArray[np.uint64]], children_level
 
     validate_level(children_level)
     if children_level >= level:
-        raise ValueError(f"Children level ({children_level}) must be finer than parent level ({level})")
+        raise ValueError(
+            f"Children level ({children_level}) must be finer than parent level ({level})"
+        )
 
     # Compute pixel bounds directly (no Shapely dependency)
-    minx = float(scale) * float(px_inner) + OUTER_RES * float(px_outer) + LIMITS["lon_w"]
-    miny = float(scale) * float(py_inner) + OUTER_RES * float(py_outer) + LIMITS["lat_s"]
+    minx = float(scale) * float(px_inner) + OUTER_RES * float(px_outer) + LIMITS['lon_w']
+    miny = float(scale) * float(py_inner) + OUTER_RES * float(py_outer) + LIMITS['lat_s']
     maxx = minx + float(scale)
     maxy = miny + float(scale)
 

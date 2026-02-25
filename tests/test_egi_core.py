@@ -18,34 +18,35 @@ Also tests egi.config utility functions:
 import numpy as np
 import pytest
 
-from gedih3.egi.config import (
-    EGI_CRS,
-    LIMITS,
-    OUTER_LEVEL,
-    OUTER_RES,
-    RESOLUTIONS,
-    egi_col_name,
-    get_level_from_resolution,
-    get_resolution,
-    validate_level,
-)
 from gedih3.egi.core import (
+    hasher,
+    to_hash,
     from_hash,
     get_level,
     get_scale,
-    hasher,
     pixels_per_tile,
-    to_hash,
-    to_parent,
     validate_hash,
+    to_parent,
 )
+from gedih3.egi.config import (
+    LIMITS,
+    RESOLUTIONS,
+    OUTER_RES,
+    OUTER_LEVEL,
+    EGI_CRS,
+    validate_level,
+    get_resolution,
+    get_level_from_resolution,
+    egi_col_name,
+)
+
 
 # =============================================================================
 # Test: get_level
 # =============================================================================
 
-
 class TestGetLevel:
+
     def test_known_levels(self):
         """Hash at each level should decode to that level."""
         x, y = 0.0, 0.0  # EPSG:6933 origin area
@@ -79,8 +80,8 @@ class TestGetLevel:
 # Test: get_scale
 # =============================================================================
 
-
 class TestGetScale:
+
     def test_level6_scale(self):
         """Level 6 should have ~1000m pixel size."""
         h = to_hash(0.0, 0.0, 6)
@@ -117,8 +118,8 @@ class TestGetScale:
 # Test: pixels_per_tile
 # =============================================================================
 
-
 class TestPixelsPerTile:
+
     def test_with_level_input(self):
         """Level input (1-12) should return OUTER_RES / scale."""
         for level in range(1, 13):
@@ -151,8 +152,8 @@ class TestPixelsPerTile:
 # Test: validate_hash
 # =============================================================================
 
-
 class TestValidateHash:
+
     def test_valid_hash_scalar(self):
         h = to_hash(0.0, 0.0, 6)
         assert validate_hash(h) is True
@@ -172,29 +173,26 @@ class TestValidateHash:
         assert validate_hash(fake_hash) is False
 
     def test_valid_array(self):
-        hashes = np.array(
-            [
-                to_hash(0.0, 0.0, 1),
-                to_hash(0.0, 0.0, 6),
-                to_hash(0.0, 0.0, 12),
-            ],
-            dtype=np.uint64,
-        )
-        assert validate_hash(hashes) is True
+        hashes = np.array([
+            to_hash(0.0, 0.0, 1),
+            to_hash(0.0, 0.0, 6),
+            to_hash(0.0, 0.0, 12),
+        ], dtype=np.uint64)
+        assert validate_hash(hashes) == True
 
     def test_invalid_array_mixed(self):
         valid = to_hash(0.0, 0.0, 6)
         invalid = np.uint64(0)
         hashes = np.array([valid, invalid], dtype=np.uint64)
-        assert validate_hash(hashes) is False
+        assert validate_hash(hashes) == False
 
 
 # =============================================================================
 # Test: hasher (component assembly)
 # =============================================================================
 
-
 class TestHasher:
+
     def test_scalar_inputs(self):
         """Scalar inputs should produce a uint64."""
         h = hasher(6, 100, 45, 500, 300)
@@ -249,8 +247,8 @@ class TestHasher:
 # Test: egi.config utility functions
 # =============================================================================
 
-
 class TestEgiConfig:
+
     def test_validate_level_valid(self):
         for level in range(1, 13):
             validate_level(level)  # Should not raise
@@ -300,9 +298,9 @@ class TestEgiConfig:
             get_level_from_resolution(12345.6789)
 
     def test_egi_col_name(self):
-        assert egi_col_name(1) == "egi01"
-        assert egi_col_name(6) == "egi06"
-        assert egi_col_name(12) == "egi12"
+        assert egi_col_name(1) == 'egi01'
+        assert egi_col_name(6) == 'egi06'
+        assert egi_col_name(12) == 'egi12'
 
     def test_outer_res_equals_level12(self):
         """OUTER_RES should equal the resolution at level 12."""
@@ -316,8 +314,8 @@ class TestEgiConfig:
 
     def test_limits_are_symmetric(self):
         """EPSG:6933 bounds should be symmetric around x=0."""
-        assert abs(LIMITS["lon_w"] + LIMITS["lon_e"]) < 1e-6
-        assert abs(LIMITS["lat_s"] + LIMITS["lat_n"]) < 1e-6
+        assert abs(LIMITS['lon_w'] + LIMITS['lon_e']) < 1e-6
+        assert abs(LIMITS['lat_s'] + LIMITS['lat_n']) < 1e-6
 
     def test_resolutions_table_complete(self):
         """All 12 levels should be present."""
@@ -330,8 +328,8 @@ class TestEgiConfig:
 # Test: to_hash and from_hash roundtrip (scalar, focused edge cases)
 # =============================================================================
 
-
 class TestToHashEdgeCases:
+
     def test_origin(self):
         """Coordinates near EPSG:6933 origin should hash correctly."""
         h = to_hash(0.0, 0.0, 6)
@@ -340,14 +338,14 @@ class TestToHashEdgeCases:
 
     def test_extreme_west(self):
         """Hash near western boundary of EPSG:6933."""
-        x = LIMITS["lon_w"] + 1.0  # 1 meter inside
+        x = LIMITS['lon_w'] + 1.0  # 1 meter inside
         y = 0.0
         h = to_hash(x, y, 6)
         assert validate_hash(h) is True
 
     def test_extreme_east(self):
         """Hash near eastern boundary of EPSG:6933."""
-        x = LIMITS["lon_e"] - 1.0  # 1 meter inside
+        x = LIMITS['lon_e'] - 1.0  # 1 meter inside
         y = 0.0
         h = to_hash(x, y, 6)
         assert validate_hash(h) is True
@@ -355,14 +353,14 @@ class TestToHashEdgeCases:
     def test_extreme_south(self):
         """Hash near southern boundary of EPSG:6933."""
         x = 0.0
-        y = LIMITS["lat_s"] + 1.0
+        y = LIMITS['lat_s'] + 1.0
         h = to_hash(x, y, 6)
         assert validate_hash(h) is True
 
     def test_extreme_north(self):
         """Hash near northern boundary of EPSG:6933."""
         x = 0.0
-        y = LIMITS["lat_n"] - 1.0
+        y = LIMITS['lat_n'] - 1.0
         h = to_hash(x, y, 6)
         assert validate_hash(h) is True
 

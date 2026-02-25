@@ -11,102 +11,71 @@ Author: Tiago de Conto
 Package: gedih3
 """
 
-import argparse
 import os
 import re
 import sys
+import argparse
 
 
 def get_cmd_args():
     """Parse command line arguments for raster sampling tool."""
-    from gedih3.cliutils import add_dask_args, add_storage_args, add_verbosity_args
+    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_storage_args
 
-    p = argparse.ArgumentParser(description="Sample raster pixel values at GEDI shot locations")
+    p = argparse.ArgumentParser(
+        description="Sample raster pixel values at GEDI shot locations"
+    )
 
     # Image input
-    p.add_argument(
-        "-i", "--image", dest="image", required=True, type=str, help="path to raster file, VRT, or tile directory"
-    )
-    p.add_argument(
-        "-if",
-        "--image-format",
-        dest="image_format",
-        type=str,
-        default="tif",
-        help="file extension for tile directory globbing [default=tif]",
-    )
+    p.add_argument("-i", "--image", dest="image", required=True, type=str,
+                   help="path to raster file, VRT, or tile directory")
+    p.add_argument("-if", "--image-format", dest="image_format", type=str, default='tif',
+                   help="file extension for tile directory globbing [default=tif]")
 
     # Band configuration
-    p.add_argument(
-        "-b",
-        "--band-names",
-        dest="band_names",
-        nargs="+",
-        type=str,
-        default=None,
-        help="custom band names for output columns",
-    )
-    p.add_argument(
-        "-B",
-        "--bands",
-        dest="bands",
-        nargs="+",
-        type=int,
-        default=None,
-        help="select specific bands by 0-based index (default: all bands)",
-    )
+    p.add_argument("-b", "--band-names", dest="band_names", nargs='+', type=str, default=None,
+                   help="custom band names for output columns")
+    p.add_argument("-B", "--bands", dest="bands", nargs='+', type=int, default=None,
+                   help="select specific bands by 0-based index (default: all bands)")
 
     # Data source
-    p.add_argument(
-        "-d",
-        "--database",
-        dest="database",
-        type=str,
-        default=None,
-        help="path to H3 database or simplified dataset directory",
-    )
+    p.add_argument("-d", "--database", dest="database", type=str, default=None,
+                   help="path to H3 database or simplified dataset directory")
 
     # Output
-    p.add_argument("-o", "--output", dest="output", required=True, type=str, help="output directory")
-    p.add_argument("-f", "--format", dest="format", type=str, default="parquet", help="output format [default=parquet]")
-    p.add_argument("-m", "--merge", dest="merge", action="store_true", help="merge all partitions into single file")
+    p.add_argument("-o", "--output", dest="output", required=True, type=str,
+                   help="output directory")
+    p.add_argument("-f", "--format", dest="format", type=str, default='parquet',
+                   help="output format [default=parquet]")
+    p.add_argument("-m", "--merge", dest="merge", action='store_true',
+                   help="merge all partitions into single file")
 
     # Window operations
-    p.add_argument(
-        "-w",
-        "--window",
-        dest="window",
-        nargs="+",
-        type=str,
-        default=None,
-        help="window ops in 3-digit format: band(0-9) size(1-9,odd) op(0=sum,1=mean,2=median,3=mode)",
-    )
+    p.add_argument("-w", "--window", dest="window", nargs='+', type=str, default=None,
+                   help="window ops in 3-digit format: band(0-9) size(1-9,odd) op(0=sum,1=mean,2=median,3=mode)")
 
     # Spatial/quality filtering
-    p.add_argument(
-        "-r",
-        "--region",
-        dest="region",
-        type=str,
-        default=None,
-        help="additional spatial filter: vector file, bbox 'W,S,E,N', or ISO3 code",
-    )
-    p.add_argument("-y", "--quality", dest="quality", action="store_true", help="apply quality filtering")
-    p.add_argument("-q", "--query", dest="query", type=str, default=None, help="pandas query string for filtering")
+    p.add_argument("-r", "--region", dest="region", type=str, default=None,
+                   help="additional spatial filter: vector file, bbox 'W,S,E,N', or ISO3 code")
+    p.add_argument("-y", "--quality", dest="quality", action='store_true',
+                   help="apply quality filtering")
+    p.add_argument("-q", "--query", dest="query", type=str, default=None,
+                   help="pandas query string for filtering")
 
     # Temporal filtering
-    p.add_argument(
-        "-d0", "-t0", "--time-start", dest="time_start", type=str, default=None, help="start date [YYYY-MM-DD]"
-    )
-    p.add_argument("-d1", "-t1", "--time-end", dest="time_end", type=str, default=None, help="end date [YYYY-MM-DD]")
+    p.add_argument("-d0", "-t0", "--time-start", dest="time_start", type=str, default=None,
+                   help="start date [YYYY-MM-DD]")
+    p.add_argument("-d1", "-t1", "--time-end", dest="time_end", type=str, default=None,
+                   help="end date [YYYY-MM-DD]")
 
     # Raster handling
-    p.add_argument("-g", "--geo", dest="geo", action="store_true", help="include geometry in output")
-    p.add_argument(
-        "-l", "--fillna", dest="fillna", type=float, default=None, help="fill raster NaN/NoData with this value"
-    )
-    p.add_argument("--dropna", dest="dropna", action="store_true", help="drop rows where all band columns are NaN")
-    p.add_argument("--resume", dest="resume", action="store_true", help="skip already-processed partitions")
+    p.add_argument("-g", "--geo", dest="geo", action='store_true',
+                   help="include geometry in output")
+    p.add_argument("-l", "--fillna", dest="fillna", type=float, default=None,
+                   help="fill raster NaN/NoData with this value")
+    p.add_argument("--dropna", dest="dropna", action='store_true',
+                   help="drop rows where all band columns are NaN")
+    p.add_argument("--resume", dest="resume", action='store_true',
+                   help="skip already-processed partitions")
 
     # Dask, storage, and verbosity
     add_dask_args(p)
@@ -123,29 +92,19 @@ def main():
 
     with cli_exception_handler(args):
         import glob
-
         import geopandas as gpd
         from dask.distributed import Client
 
         import gedih3.gh3driver as gh3
         from gedih3.cliutils import (
-            build_query_string,
-            configure_database_path,
-            get_dataset_index_info,
-            h3_col_name,
-            parse_dask_args,
-            parse_region,
-            print_banner,
-            print_success,
-            setup_logging,
-            setup_storage,
+            setup_logging, print_banner, print_success,
+            configure_database_path, parse_region, parse_dask_args,
+            h3_col_name, get_dataset_index_info, build_query_string,
+            setup_storage
         )
         from gedih3.imgutils import (
-            _compute_sampling_meta,
-            get_raster_info,
-            parse_window_specs,
-            resolve_raster_source,
-            sample_raster_at_points,
+            resolve_raster_source, get_raster_info, parse_window_specs,
+            sample_raster_at_points, _compute_sampling_meta
         )
 
         # Setup
@@ -169,26 +128,27 @@ def main():
         if window_ops:
             # Validate window band indices against full raster band count
             for wop in window_ops:
-                if wop["band"] >= raster_info["band_count"]:
+                if wop['band'] >= raster_info['band_count']:
                     raise ValueError(
                         f"Window spec references band {wop['band']} but raster "
                         f"only has {raster_info['band_count']} bands (0-indexed)"
                     )
 
         # Band selection (-B flag)
-        all_band_names = raster_info["band_names"]  # Full raster band names
+        all_band_names = raster_info['band_names']  # Full raster band names
         band_indices = args.bands  # None means all bands
         if band_indices is not None:
             # Validate band indices against raster
             for bi in band_indices:
-                if bi < 0 or bi >= raster_info["band_count"]:
+                if bi < 0 or bi >= raster_info['band_count']:
                     raise ValueError(
-                        f"Band index {bi} out of range for raster with {raster_info['band_count']} bands (0-indexed)"
+                        f"Band index {bi} out of range for raster with "
+                        f"{raster_info['band_count']} bands (0-indexed)"
                     )
 
             # Auto-include bands referenced by window ops
             if window_ops:
-                window_band_set = {wop["band"] for wop in window_ops}
+                window_band_set = {wop['band'] for wop in window_ops}
                 extra_bands = window_band_set - set(band_indices)
                 if extra_bands:
                     logger.info(f"  Auto-including bands {sorted(extra_bands)} for window operations")
@@ -210,7 +170,7 @@ def main():
             # All bands
             if args.band_names:
                 band_names = args.band_names
-                if len(band_names) != raster_info["band_count"]:
+                if len(band_names) != raster_info['band_count']:
                     raise ValueError(
                         f"Number of band names ({len(band_names)}) doesn't match "
                         f"raster band count ({raster_info['band_count']})"
@@ -226,14 +186,12 @@ def main():
         configure_database_path(args, logger=logger)
 
         from gedih3.utils import smart_exists
-
         if not smart_exists(args.database):
             logger.error(f"Database directory not found: {args.database}")
             sys.exit(1)
 
         # Detect data source type
         from gedih3.config import BUILD_LOG_FILENAME, DATASET_META_FILENAME
-
         build_log = os.path.join(args.database, BUILD_LOG_FILENAME)
         dataset_meta = os.path.join(args.database, DATASET_META_FILENAME)
         is_h3_database = smart_exists(build_log)
@@ -273,29 +231,34 @@ def main():
                 # Mode 1: H3 database — ROI = image bounds ∩ user region
                 from shapely.geometry import box as shapely_box
 
-                img_bounds = raster_info["bounds_wgs84"]
+                img_bounds = raster_info['bounds_wgs84']
                 img_geom = shapely_box(*img_bounds)
-                img_gdf = gpd.GeoDataFrame(geometry=[img_geom], crs="EPSG:4326")
+                img_gdf = gpd.GeoDataFrame(geometry=[img_geom], crs='EPSG:4326')
 
                 if region is not None:
                     # Intersect image bounds with user region
-                    roi = gpd.overlay(img_gdf, region.to_crs("EPSG:4326"), how="intersection")
+                    roi = gpd.overlay(img_gdf, region.to_crs('EPSG:4326'), how='intersection')
                     if roi.empty:
                         raise ValueError("Image bounds do not overlap with specified region")
                 else:
                     roi = img_gdf
 
                 logger.info("Loading GEDI data from H3 database...")
-                logger.info("  ROI: image bounds ∩ region")
+                logger.info(f"  ROI: image bounds ∩ region")
 
                 # Always load geometry for coordinate extraction
-                columns = ["geometry"]
-                ddf = gh3.gh3_load(columns=columns, region=roi, query=query_str, gh3_dir=args.database)
+                columns = ['geometry']
+                ddf = gh3.gh3_load(
+                    columns=columns,
+                    region=roi,
+                    query=query_str,
+                    gh3_dir=args.database
+                )
 
                 # Get partition column
-                part_level = gh3.gh3_read_meta("h3_partition_level", gh3_root_dir=args.database)
+                part_level = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)
                 partition_col = h3_col_name(part_level)
-                index_type = "h3"
+                index_type = 'h3'
                 index_level = part_level
 
             else:
@@ -305,10 +268,10 @@ def main():
 
                 # Detect index type before loading to route to correct loader
                 ds_info = get_dataset_index_info(args.database)
-                index_type = ds_info.get("index_type", "h3")
-                index_level = ds_info.get("index_level")
+                index_type = ds_info.get('index_type', 'h3')
+                index_level = ds_info.get('index_level')
 
-                if index_type == "egi":
+                if index_type == 'egi':
                     ddf = gh3.egi_load(args.database)
                 else:
                     ddf = gh3.gh3_load(args.database)
@@ -316,32 +279,31 @@ def main():
                 if query_str:
                     ddf = ddf.query(query_str)
 
-                if index_type == "egi":
+                if index_type == 'egi':
                     from gedih3.egi.config import egi_col_name
-
-                    part_level = ds_info.get("partition_level") or ds_info.get("egi_partition_level")
+                    part_level = ds_info.get('partition_level') or ds_info.get('egi_partition_level')
                     partition_col = egi_col_name(part_level) if part_level else None
                 else:
-                    part_level = ds_info.get("partition_level") or ds_info.get("h3_partition_level")
+                    part_level = ds_info.get('partition_level') or ds_info.get('h3_partition_level')
                     partition_col = h3_col_name(part_level) if part_level else None
 
             # Fallback partition detection: scan columns if metadata didn't provide it
             if partition_col is None:
-                h3_cols = sorted([c for c in ddf.columns if re.match(r"^h3_\d{2}$", c)])
-                egi_cols = sorted([c for c in ddf.columns if re.match(r"^egi\d{2}$", str(c))])
+                h3_cols = sorted([c for c in ddf.columns if re.match(r'^h3_\d{2}$', c)])
+                egi_cols = sorted([c for c in ddf.columns if re.match(r'^egi\d{2}$', str(c))])
                 if h3_cols:
                     partition_col = h3_cols[0]
-                    part_level = int(partition_col.replace("h3_", ""))
-                    index_type = index_type or "h3"
+                    part_level = int(partition_col.replace('h3_', ''))
+                    index_type = index_type or 'h3'
                     logger.info(f"  Detected partition column from data: {partition_col}")
                 elif egi_cols:
                     partition_col = egi_cols[0]
-                    part_level = int(partition_col.replace("egi", ""))
-                    index_type = index_type or "egi"
+                    part_level = int(partition_col.replace('egi', ''))
+                    index_type = index_type or 'egi'
                     logger.info(f"  Detected partition column from data: {partition_col}")
 
             # Validate geometry
-            if "geometry" not in ddf.columns:
+            if 'geometry' not in ddf.columns:
                 raise ValueError(
                     "Input data must contain geometry column for coordinate extraction. "
                     "For simplified datasets, re-extract with the -g flag."
@@ -354,7 +316,7 @@ def main():
             # Resume: filter out existing partitions
             os.makedirs(args.output, exist_ok=True)
             if args.resume:
-                existing = glob.glob(os.path.join(args.output, f"*.{args.format}"))
+                existing = glob.glob(os.path.join(args.output, f'*.{args.format}'))
                 if existing:
                     existing_ids = {os.path.splitext(os.path.basename(f))[0] for f in existing}
                     logger.info(f"  Resume: skipping {len(existing_ids)} existing partitions")
@@ -366,20 +328,14 @@ def main():
 
             # Detect spatial columns from loaded data for schema
             from gedih3.imgutils import _detect_spatial_cols
-
             spatial_cols = _detect_spatial_cols(ddf)
             if not spatial_cols and partition_col:
-                spatial_cols = {partition_col: "object"}
+                spatial_cols = {partition_col: 'object'}
 
             # Compute sampling meta for Dask
-            meta = _compute_sampling_meta(
-                band_names,
-                window_ops,
-                args.geo,
-                partition_col,
-                spatial_cols=spatial_cols,
-                all_band_names=all_band_names if band_indices else None,
-            )
+            meta = _compute_sampling_meta(band_names, window_ops, args.geo, partition_col,
+                                          spatial_cols=spatial_cols,
+                                          all_band_names=all_band_names if band_indices else None)
 
             # Apply sampling via map_partitions
             logger.info("Sampling raster at GEDI shot locations...")
@@ -394,7 +350,7 @@ def main():
                 partition_col=partition_col,
                 band_indices=band_indices,
                 all_band_names=all_band_names if band_indices else None,
-                meta=meta,
+                meta=meta
             )
 
             # Export
@@ -402,43 +358,36 @@ def main():
 
             # Build image-specific metadata
             from gedih3.imgutils import _resolve_window_col_name
-
             window_col_names = [_resolve_window_col_name(w, all_band_names) for w in (window_ops or [])]
 
             meta_kwargs = {
-                "query_filter": query_str,
-                "image_source": args.image
-                if args.image.startswith(("http://", "https://", "s3://", "/vsicurl/", "/vsis3/"))
-                else os.path.abspath(args.image),
-                "raster_crs": str(raster_info["crs"]),
-                "raster_resolution": list(raster_info["resolution"]),
-                "raster_bands": band_names,
+                'query_filter': query_str,
+                'image_source': args.image if args.image.startswith(('http://', 'https://', 's3://', '/vsicurl/', '/vsis3/')) else os.path.abspath(args.image),
+                'raster_crs': str(raster_info['crs']),
+                'raster_resolution': list(raster_info['resolution']),
+                'raster_bands': band_names,
             }
             if band_indices is not None:
-                meta_kwargs["raster_band_indices"] = band_indices
-            if index_type == "h3" and part_level is not None:
-                meta_kwargs["h3_partition_level"] = part_level
-            elif index_type == "egi" and part_level is not None:
-                meta_kwargs["egi_partition_level"] = part_level
+                meta_kwargs['raster_band_indices'] = band_indices
+            if index_type == 'h3' and part_level is not None:
+                meta_kwargs['h3_partition_level'] = part_level
+            elif index_type == 'egi' and part_level is not None:
+                meta_kwargs['egi_partition_level'] = part_level
                 if index_level is not None:
-                    meta_kwargs["egi_index_level"] = index_level
+                    meta_kwargs['egi_index_level'] = index_level
             if window_ops:
-                meta_kwargs["window_operations"] = window_col_names
+                meta_kwargs['window_operations'] = window_col_names
 
             gh3.gh3_export(
-                sampled,
-                output=args.output,
-                fmt=args.format,
-                merge=args.merge,
-                show_progress=not getattr(args, "quiet", False),
+                sampled, output=args.output, fmt=args.format, merge=args.merge,
+                show_progress=not getattr(args, 'quiet', False),
                 drop_internal=False,
-                source_database=args.database,
-                tool="gh3_from_img",
-                **meta_kwargs,
+                source_database=args.database, tool='gh3_from_img',
+                **meta_kwargs
             )
 
             print_success(f"Raster sampling complete → {args.output}", logger=logger)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

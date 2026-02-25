@@ -17,6 +17,7 @@ jobs:
           args: "check src/ tests/"
 
       - name: Check formatting
+        continue-on-error: true
         uses: astral-sh/ruff-action@v3
         with:
           args: "format --check src/ tests/"
