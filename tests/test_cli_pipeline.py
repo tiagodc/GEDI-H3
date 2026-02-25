@@ -154,8 +154,9 @@ class TestCLIArguments:
         assert result.returncode == 0
 
 
+@pytest.mark.integration
 class TestGH3ListVariables:
-    """Test gh3_list_variables tool."""
+    """Test gh3_list_variables tool (requires database)."""
 
     def test_list_l2a_variables(self):
         """Test listing L2A variables."""
