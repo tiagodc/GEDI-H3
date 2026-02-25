@@ -21,8 +21,6 @@ def get_cmd_args():
     # Output options
     p.add_argument("-o", "--outdir", dest="outdir", type=str, default=None,
                    help="output directory for downloaded files")
-    p.add_argument("--resume", dest="resume", action='store_true',
-                   help="resume and redownload missing/corrupted files")
     p.add_argument("-s3", "--s3", dest="s3", action='store_true',
                    help="use S3 ETL mode: stream and subset from NASA S3 (10-50x less data transfer)")
     p.add_argument("--gedi-version", dest="version", type=int, default=None,
