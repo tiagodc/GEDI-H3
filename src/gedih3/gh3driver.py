@@ -12,7 +12,7 @@ from .utils import (json_read, json_write, now, get_package_version, is_parquet,
                      smart_glob, smart_exists, smart_isdir, is_remote_path,
                      smart_open, generate_manifest)
 from .h3utils import intersect_h3_geometries, fix_h3_geometry
-from .cliutils import filter_data_columns, find_coordinate_column, get_aggregatable_columns
+from .cliutils import find_coordinate_column, get_aggregatable_columns
 from .exceptions import (GediValidationError, GediDatabaseNotFoundError, GediProcessingError,
                          GediSpatialError, GediVariableError)
 

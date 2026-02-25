@@ -14,7 +14,7 @@ import dask
 import dask.dataframe
 from dask.distributed import progress as dask_progress
 
-from .config import get_geotiff_options, is_raster_format, GEOTIFF_DEFAULTS
+from .config import get_geotiff_options, is_raster_format
 from ..exceptions import GediRasterizationError
 
 

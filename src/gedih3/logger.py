@@ -1,5 +1,4 @@
 import os, glob
-import geopandas as gpd
 from typing import Dict
 from datetime import datetime, timezone
 

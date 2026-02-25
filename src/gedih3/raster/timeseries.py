@@ -9,7 +9,6 @@ from GEDI data. It supports:
 """
 from typing import Callable, Generator, List, Optional, Tuple, Union
 import datetime
-import numpy as np
 import pandas as pd
 import geopandas as gpd
 import xarray as xr

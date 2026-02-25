@@ -10,7 +10,6 @@ pandas and GeoPandas DataFrames:
 """
 from typing import Callable, Dict, List, Optional, Union
 import numpy as np
-from numpy.typing import NDArray
 import pandas as pd
 import geopandas as gpd
 

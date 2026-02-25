@@ -1,63 +1,70 @@
 # gedih3
 
-A Python library for downloading, indexing, querying, and rasterizing NASA's GEDI satellite LiDAR data using H3 hexagonal and EGI square pixel spatial indexing.
+A Python library for automated downloading and processing of NASA's Global Ecosystem Dynamics Investigation (GEDI) LiDAR data, focused on spatially indexed data through the H3 hexagonal system and highly efficient tools for distributed processing of GEDI footprint data at any scale.
 
-GEDI (Global Ecosystem Dynamics Investigation) produces billions of LiDAR footprints distributed across thousands of HDF5 granules. **gedih3** transforms this data into a spatially-indexed Parquet database that enables fast spatial and temporal queries, multi-resolution aggregation, raster export, and integration with external datasets -- all from the command line or Python API.
+GEDI produces billions of LiDAR footprints distributed across thousands of HDF5 granules. **gedih3** transforms this data into a spatially-indexed GeoParquet database that enables fast spatial and temporal queries, multi-resolution aggregation, raster export, and integration with external datasets, all from the command line or Python API.
 
 ---
 
 ## Why gedih3?
 
-Working with GEDI data at scale is hard: granules are organized by orbit (not geography), files are large HDF5 containers requiring specialized libraries, and spatial queries over billions of footprints need an indexing strategy. Manual workflows break down quickly.
+Working with GEDI data at scale is hard: granules are organized by orbit (not geography), files are large HDF5 containers requiring specialized libraries, and spatial queries over billions of footprints require large computing times even for small regions. Manual workflows can break down quickly.
 
 **gedih3** solves this with:
 
-- **Complete pipeline**: Download from NASA DAAC, build a spatial database, query/aggregate, and export rasters -- all in one package
-- **Spatial indexing**: H3 hexagons (Uber's system) for flexible resolution queries + EGI square pixels (EASE-Grid 2.0) for GEDI L4B compatibility
-- **Scale via Dask**: Distributed computing handles billion-row datasets across HPC clusters
-- **Interoperable outputs**: Flat Parquet files work with R, QGIS, Python, or any Parquet-capable tool
-- **Ancillary data fusion**: Sample external rasters and join vector polygons at the shot level
-- **NASA Earthdata integration**: Authentication, search, download, and S3 streaming with automatic retry
+- **Complete pipeline**: Download from NASA DAAC, build a spatial database, query/aggregate, and export geospatial vector/raster files -- all in one package
+- **Spatial indexing**: H3 hexagons (Uber's system) for flexible resolution queries + EGI square pixels (EASE-Grid 2.0) for GEDI L4B compatibility and quick image generation
+- **Scale via Dask**: Distributed computing handles billion-row datasets across HPC clusters or in your homelab
+- **Interoperable outputs**: Parquet is a highly efficient column oriented file format with ample support in R, QGIS, Python and many other tools. Support to multiple vector/table formats are also available for broad compatibility
+- **Ancillary data fusion**: Sample external rasters and join vector polygons at the GEDI footprint level
+- **NASA Earthdata integration**: Authentication, search, download, and S3 streaming with automatic retry through the [earthaccess API](https://earthaccess.readthedocs.io/en/stable/)
 
 ---
 
 ## Key Features
 
+- Generation of analysis ready datasets suitable for users with or without familiarity to GEDI data, providing minimal and complete presets of GEDI data useful for both beginner and advanced users; and customizable data filtering and optional automatic selection of high quality data observations
+- Multiple ways to interact with the GEDI-H3 databases: command oine interface (CLI), Python API and DuckDB SQL queries
 - H3 hexagonal spatial indexing (levels 0-15) for efficient spatial queries
-- EGI square pixel indexing (EASE-Grid 2.0, EPSG:6933) aligned with GEDI L4B products
-- H3-to-raster and EGI-to-raster GeoTIFF export with time-series support
-- Ancillary data tools: raster sampling (`gh3_from_img`) and vector spatial join (`gh3_from_polygon`)
+- Optional EGI square pixel indexing outputs based on the [EASE-Grid 2.0](https://nsidc.org/data/user-resources/help-center/guide-ease-grids) (EPSG:6933) equal-area projection system
+- Aggregation of GEDI information at multiple resolutions with customizable functions and time-series support
+- Ancillary data tools: raster sampling (`gh3_from_img`) and vector spatial join (`gh3_from_polygon`) to match external data sources to GEDI footprints
 - Dask distributed processing for large datasets
-- Simplified flat Parquet output format for external tool compatibility
-- 26 structured exception types for targeted error handling
-- Atomic file writes with transaction safety
-- NASA Earthdata access with exponential backoff retry logic
-- Quality filtering, temporal windowing, and multi-product support (L1B, L2A, L2B, L4A, L4C)
+- Simplified flat Parquet output format for external tool compatibility and support of several other table and geospatial data formats (feather, geopackage, hdf5, shapefile etc.) 
+- NASA Earthdata access with resume/retry logic and on-the-fly file subsetting for efficient network usage and minimal disk allocation  
+- Quality filtering, temporal windowing, and support for all GEDI footprint products (L1B, L2A, L2B, L4A, L4C)
 
 ---
 
 ## Quick Start
 
+Installing through [conda](https://docs.conda.io/projects/conda/en/stable/) is recommended.
+
 ```bash
 # Install
+git clone https://github.com/tiagodc/GEDI-H3.git
+cd GEDI-H3
+
 conda env create -f environment.yml
 conda activate gedih3
-pip install -e .
 
-# 1. Download GEDI data for a region
-gh3_download -r "-51,0,-50,1" -l2a default -l4a default -N 8
+# 1. Build a H3-indexed database with minimal directly from the cloud
+  # - l2a: canopy height metrics
+  # - l4a: aboveground biomass estimates
+gh3_build -r="-51,0,-50,1" -l2a minimal -l4a minimal -s3
 
-# 2. Build H3-indexed database
-gh3_build -r "-51,0,-50,1" -l2a default -l4a default -h3r 12 -h3p 3
+# 2. See whcih variables are available in the built database
+gh3_list_variables
 
-# 3. Extract filtered data
-gh3_extract -d ~/gedih3_db -r region.shp -l4a agbd -q -o extracted/
+# 3. Extract filtered data for a spatial subset
+gh3_extract -r"-51,0,-50,1" -l agbd_l4a rh_098_l2a --quality -o extracted/
 
-# 4. Aggregate to coarser resolution
-gh3_aggregate -d ~/gedih3_db -egi 6 -a mean -o aggregated/
+# 4. Aggregate to coarser resolution (~1km)
+gh3_list_resolutions
+gh3_aggregate -d extracted -h3 8 -a "['mean','std','count']" -o aggregated/
 
 # 5. Export as GeoTIFF
-gh3_rasterize -d aggregated/ -o output/ --compress LZW
+gh3_rasterize -d aggregated -o rasterized --compress ZSTD
 ```
 
 ---
@@ -66,27 +73,27 @@ gh3_rasterize -d aggregated/ -o output/ --compress LZW
 
 | Tool | Purpose |
 |------|---------|
-| `gh3_download` | Download GEDI data from NASA DAAC |
-| `gh3_build` | Build H3-indexed Parquet database from HDF5 files |
-| `gh3_extract` | Extract data with spatial/temporal filters (H3 or EGI output) |
+| `gh3_download` | Download GEDI data from the NASA DAACs |
+| `gh3_build` | Build H3-indexed Parquet database from GEDI HDF5 files |
+| `gh3_extract` | Extract filtered data with spatial/temporal constraints |
 | `gh3_aggregate` | Aggregate to coarser H3/EGI resolution levels |
 | `gh3_rasterize` | Convert aggregated/extracted datasets to GeoTIFF |
 | `gh3_update` | Add/merge variables to existing datasets |
 | `gh3_from_img` | Sample external raster values at GEDI shot locations |
 | `gh3_from_polygon` | Spatial join vector polygon attributes to GEDI shots |
-| `gh3_list_variables` | List available GEDI variables with grep filtering |
+| `gh3_list_variables` | List available GEDI variables with grep filtering support |
 | `gh3_list_resolutions` | Display H3 and EGI resolution level tables |
 | `gh3_read_schema` | Inspect Parquet, GeoPackage, or HDF5 file schemas |
 
 ### Common Flags
 
 ```
--r, --region       Spatial filter: vector file, bbox "W,S,E,N", or ISO3 code
+-r, --region       Spatial filter: vector file, bbox "W,S,E,N", or ISO3 country code
 -d0, -d1           Temporal filters (YYYY-MM-DD)
--l2a, -l4a, ...    Product variables (use 'default', 'minimal', or explicit list)
--N, -T, -M         Dask workers, threads, memory per worker
+-l2a, -l4a, ...    Product variables (use 'default', 'minimal', or explicit list of variables)
+-N, -T, -M         Number of Dask workers, threads, memory per worker
 -v / -vv / -Q      Verbosity: INFO / DEBUG / quiet
--egi INDEX[:PART]   Use EGI indexing (e.g., -egi 6 or -egi 6:12)
+-egi INDEX[:PART]  Use EGI spatial indexing instead of H3 (e.g., -egi 6 or -egi 6:12)
 ```
 
 ---
