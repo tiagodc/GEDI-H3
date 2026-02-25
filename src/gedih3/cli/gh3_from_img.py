@@ -136,6 +136,16 @@ def main():
 
         # Band selection (-B flag)
         all_band_names = raster_info['band_names']  # Full raster band names
+
+        # Auto-prefix unnamed bands with image basename (no extension, spaces→_)
+        if not args.band_names:
+            expected_defaults = [f'b{i}' for i in range(raster_info['band_count'])]
+            if raster_info['band_names'] == expected_defaults:
+                raw = os.path.basename(args.image.rstrip('/\\'))
+                prefix = re.sub(r'\s+', '_', os.path.splitext(raw)[0])
+                all_band_names = [f'{prefix}_{name}' for name in expected_defaults]
+                logger.info(f"  Auto-prefixing unnamed bands: {all_band_names}")
+
         band_indices = args.bands  # None means all bands
         if band_indices is not None:
             # Validate band indices against raster

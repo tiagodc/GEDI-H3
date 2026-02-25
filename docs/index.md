@@ -1,6 +1,6 @@
 # gedih3
 
-**gedih3** is a Python library for accessing NASA's GEDI (Global Ecosystem Dynamics Investigation) satellite LiDAR data with H3 and EGI spatial indexing.
+**gedih3** is a Python library for accessing NASA's GEDI (Global Ecosystem Dynamics Investigation) LiDAR data with H3 and EGI spatial indexing.
 
 ## Key Features
 
