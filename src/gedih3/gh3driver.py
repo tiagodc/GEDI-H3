@@ -482,13 +482,21 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
 
     if query is not None:
         ddf = ddf.query(query)
-        if out_cols is not None:
-            # Remove index column from selection (it's the index, not a column)
-            out_cols = [c for c in out_cols if c != ddf.index.name]
-            ddf = ddf[out_cols]
 
-    if region is not None:
-        ddf = ddf.clip(region)
+    if region is not None and isinstance(ddf, dask_geopandas.GeoDataFrame):
+        from shapely.geometry import box as shapely_box
+        if isinstance(region, list):
+            mask = gpd.GeoDataFrame(geometry=[shapely_box(*region)], crs=4326)
+        elif isinstance(region, (gpd.GeoSeries, gpd.GeoDataFrame)):
+            mask = region.to_crs(4326)
+        else:
+            mask = gpd.GeoDataFrame(geometry=[region], crs=4326)
+        ddf = ddf.clip(mask)
+
+    if query is not None and out_cols is not None:
+        # Remove index column from selection (it's the index, not a column)
+        out_cols = [c for c in out_cols if c != ddf.index.name]
+        ddf = ddf[out_cols]
 
     return ddf
 
