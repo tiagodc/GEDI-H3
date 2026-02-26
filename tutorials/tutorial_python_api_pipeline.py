@@ -261,7 +261,7 @@ else:
 
         ddf = gh3.gh3_load(
             columns=['agbd_l4a', 'quality_flag_l2a', 'rh_098_l2a'],
-            gh3_dir=str(H3_DIR)
+            source=str(H3_DIR)
         )
 
         print(f"Loaded Dask DataFrame:")
@@ -274,7 +274,7 @@ else:
         ddf_region = gh3.gh3_load(
             columns=['agbd_l4a', 'lat_lowestmode', 'lon_lowestmode'],
             region=STUDY_AREA,  # Clip to study area
-            gh3_dir=str(H3_DIR)
+            source=str(H3_DIR)
         )
 
         print(f"Filtered to region: {ddf_region.npartitions} partitions")
@@ -286,7 +286,7 @@ else:
             columns=['agbd_l4a', 'quality_flag_l2a'],
             region=STUDY_AREA,
             query='quality_flag_l2a == 1',  # High-quality shots only
-            gh3_dir=str(H3_DIR)
+            source=str(H3_DIR)
         )
 
         print(f"Quality-filtered: {ddf_quality.npartitions} partitions")
@@ -343,7 +343,7 @@ if log_file.exists():
             columns=['agbd_l4a', 'rh_098_l2a', 'quality_flag_l2a',
                      'lat_lowestmode', 'lon_lowestmode'],
             query='quality_flag_l2a == 1',
-            gh3_dir=str(H3_DIR)
+            source=str(H3_DIR)
         )
 
         # --- Option A: H3 Hexagonal Aggregation ---
@@ -485,7 +485,7 @@ if log_file.exists():
             columns=['agbd_l4a', 'datetime', 'quality_flag_l2a',
                      'lat_lowestmode', 'lon_lowestmode'],
             query='quality_flag_l2a == 1',
-            gh3_dir=str(H3_DIR)
+            source=str(H3_DIR)
         )
 
         # Generate time windows
@@ -578,7 +578,7 @@ ddf = gh3.gh3_load(
     columns=['agbd_l4a', 'rh_098_l2a'],
     region=[-51, 0, -50, 1],           # Bounding box
     query='quality_flag_l2a == 1',     # Quality filter
-    gh3_dir='/path/to/database'
+    source='/path/to/database'
 )
 
 # 2. Load simplified dataset (from gh3_extract or gh3_aggregate output)

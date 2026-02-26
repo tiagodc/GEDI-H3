@@ -602,7 +602,7 @@ class TestIntegration:
             ddf = gh3.gh3_load(
                 columns=['geometry'],
                 region=roi,
-                gh3_dir=self.H3_DB
+                source=self.H3_DB
             )
 
             # Sample just the first few partitions

@@ -105,7 +105,7 @@ import gedih3.gh3driver as gh3
 
 # Load H3-indexed data with spatial filter
 ddf = gh3.gh3_load(
-    source='/path/to/database',  # preferred; gh3_dir= is deprecated
+    source='/path/to/database',
     columns=['agbd_l4a', 'rh_098_l2a'],
     region='region.shp',
     query='quality_flag_l2a == 1',
