@@ -262,7 +262,7 @@ def main():
                     columns=columns,
                     region=roi,
                     query=query_str,
-                    gh3_dir=args.database
+                    source=args.database
                 )
 
                 # Get partition column

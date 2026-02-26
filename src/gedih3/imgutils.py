@@ -702,7 +702,7 @@ def _compute_sampling_meta(band_names, window_ops, geo, partition_col,
 # High-Level Python API
 # =============================================================================
 
-def from_image(image_path, data_source=None, gh3_dir=None, region=None,
+def from_image(image_path, data_source=None, region=None,
                query=None, band_names=None, band_indices=None,
                window_ops=None, fillna=None,
                dropna=False, geo=False, file_format='tif'):
@@ -710,11 +710,11 @@ def from_image(image_path, data_source=None, gh3_dir=None, region=None,
 
     Supports two input modes with different ROI logic:
 
-    Mode 1 - H3 database (via gh3_dir):
+    Mode 1 - H3 database (via data_source pointing to an H3 database):
       ROI = image boundaries (intersected with user region if provided).
       Only H3 partitions overlapping the image are loaded.
 
-    Mode 2 - Simplified dataset (via data_source):
+    Mode 2 - Simplified dataset (via data_source pointing to a simplified dataset):
       ROI = entire dataset (all tiles loaded regardless of image coverage).
       Shots outside image bounds get NaN values.
 
@@ -725,9 +725,7 @@ def from_image(image_path, data_source=None, gh3_dir=None, region=None,
     image_path : str
         Path to raster file, VRT, or tile directory
     data_source : str, optional
-        Path to simplified dataset directory
-    gh3_dir : str, optional
-        Path to H3 database directory
+        Path to H3 database or simplified dataset directory
     region : GeoDataFrame or bbox, optional
         Additional spatial filter
     query : str, optional
@@ -761,9 +759,9 @@ def from_image(image_path, data_source=None, gh3_dir=None, region=None,
     import dask.dataframe
     import gedih3.gh3driver as gh3
 
-    if data_source is None and gh3_dir is None:
+    if data_source is None:
         raise GediImageSamplingError(
-            "Must provide either data_source (simplified dataset) or gh3_dir (H3 database)"
+            "Must provide data_source (H3 database or simplified dataset)"
         )
 
     # Resolve raster source
@@ -781,7 +779,10 @@ def from_image(image_path, data_source=None, gh3_dir=None, region=None,
             band_names = all_band_names
 
     # Detect input type and load data
-    if gh3_dir:
+    from .cliutils import get_dataset_index_info
+    ds_info = get_dataset_index_info(data_source)
+
+    if ds_info['source_type'] == 'h3_database':
         # Mode 1: H3 database — ROI = image bounds (intersected with user region)
         from shapely.geometry import box
 
@@ -796,9 +797,9 @@ def from_image(image_path, data_source=None, gh3_dir=None, region=None,
             roi = gpd.GeoDataFrame(geometry=[img_box], crs='EPSG:4326')
 
         columns = ['geometry']  # Always need geometry for coordinate extraction
-        ddf = gh3.gh3_load(columns=columns, region=roi, query=query, gh3_dir=gh3_dir)
+        ddf = gh3.gh3_load(source=data_source, columns=columns, region=roi, query=query)
         # Detect partition column
-        part_level = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=gh3_dir)
+        part_level = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=data_source)
         from .cliutils import h3_col_name
         partition_col = h3_col_name(part_level)
     else:
@@ -807,9 +808,7 @@ def from_image(image_path, data_source=None, gh3_dir=None, region=None,
         if query:
             ddf = ddf.query(query)
 
-        # Detect partition column from dataset
-        from .cliutils import get_dataset_index_info
-        ds_info = get_dataset_index_info(data_source)
+        # Detect partition column from dataset (ds_info already computed above)
         if ds_info['index_type'] == 'egi':
             from .egi.config import egi_col_name
             part_level = ds_info.get('partition_level') or ds_info.get('egi_partition_level')

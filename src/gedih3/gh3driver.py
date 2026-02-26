@@ -5,7 +5,6 @@ import geopandas as gpd
 import dask.dataframe
 import dask_geopandas
 
-import warnings
 
 from .config import GH3_DEFAULT_H3_DIR, configure_environment, BUILD_LOG_FILENAME, DATASET_META_FILENAME
 from .utils import (json_read, json_write, now, get_package_version, is_parquet,
@@ -17,15 +16,13 @@ from .exceptions import (GediValidationError, GediDatabaseNotFoundError, GediPro
                          GediSpatialError, GediVariableError)
 
 
-def _detect_source(source=None, gh3_dir=None):
+def _detect_source(source=None):
     """Resolve data source path and detect its type.
 
     Parameters
     ----------
     source : str, optional
         Path to any data source (H3 database, simplified dataset, parquet dir).
-    gh3_dir : str, optional
-        Deprecated alias for source.
 
     Returns
     -------
@@ -34,14 +31,7 @@ def _detect_source(source=None, gh3_dir=None):
     """
     from .cliutils import get_dataset_index_info
 
-    if source is not None and gh3_dir is not None:
-        warnings.warn(
-            "Both 'source' and 'gh3_dir' provided; using 'source'. "
-            "'gh3_dir' is deprecated, use 'source' instead.",
-            DeprecationWarning, stacklevel=3
-        )
-
-    path = source if source is not None else (gh3_dir if gh3_dir is not None else GH3_DEFAULT_H3_DIR)
+    path = source if source is not None else GH3_DEFAULT_H3_DIR
     info = get_dataset_index_info(path)
     return path, info
 
@@ -504,7 +494,7 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
 
 
 def gh3_load(source=None, *, columns=None, region=None, query=None,
-             gh3_dir=None, from_map=True, lazy=True, filters=None):
+             from_map=True, lazy=True, filters=None):
     """Load H3-indexed GEDI data from any source.
 
     Auto-detects whether the source is an H3 database, simplified dataset,
@@ -514,15 +504,13 @@ def gh3_load(source=None, *, columns=None, region=None, query=None,
     ----------
     source : str, optional
         Path to data source (H3 database, simplified dataset, or parquet dir).
-        If None, falls back to gh3_dir or default H3 directory.
+        If None, falls back to default H3 directory.
     columns : list, optional
         Columns to load.
     region : GeoDataFrame or bbox, optional
         Spatial filter.
     query : str, optional
         Pandas query string for filtering.
-    gh3_dir : str, optional
-        Deprecated alias for source. Use 'source' instead.
     from_map : bool
         Use from_map loading for H3 databases (default True).
     lazy : bool
@@ -553,7 +541,7 @@ def gh3_load(source=None, *, columns=None, region=None, query=None,
     ... )
     >>> ddf.compute().head()
     """
-    path, info = _detect_source(source, gh3_dir)
+    path, info = _detect_source(source)
 
     if info.get('index_type') == 'egi':
         raise GediValidationError(
@@ -915,7 +903,7 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
     Examples
     --------
     >>> import gedih3.gh3driver as gh3
-    >>> ddf = gh3.gh3_load(columns=['agbd_l4a'], region='roi.shp', gh3_dir='/db')
+    >>> ddf = gh3.gh3_load(source='/db', columns=['agbd_l4a'], region='roi.shp')
     >>> gh3.gh3_export(ddf, '/tmp/test_export/')
     >>>
     >>> # Merged export
@@ -1410,7 +1398,7 @@ def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH
 
 
 def egi_load(source=None, *, columns=None, region=None, query=None,
-             gh3_dir=None, index_level=1, partition_level=12, lazy=True):
+             index_level=1, partition_level=12, lazy=True):
     """Load EGI-indexed GEDI data from any source.
 
     Auto-detects whether the source is an H3 database (direct EGI loading)
@@ -1420,15 +1408,13 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
     ----------
     source : str, optional
         Path to data source (H3 database or EGI dataset).
-        If None, falls back to gh3_dir or default H3 directory.
+        If None, falls back to default H3 directory.
     columns : list, optional
         Columns to load.
     region : GeoDataFrame or bbox, optional
         Spatial filter.
     query : str, optional
         Pandas query string for filtering.
-    gh3_dir : str, optional
-        Deprecated alias for source. Use 'source' instead.
     index_level : int
         EGI resolution level for fine indexing (1-12, default=1 ~1m).
         Only used when loading from H3 database.
@@ -1465,7 +1451,7 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
     ... )
     >>> agg = gh3.egi_aggregate(ddf, target_level=6, agg='mean')
     """
-    path, info = _detect_source(source, gh3_dir)
+    path, info = _detect_source(source)
 
     if info['source_type'] == 'h3_database':
         # Direct EGI loading from H3 database (no shuffle)
@@ -2474,7 +2460,7 @@ def gh3_rasterize_partitions(
 # ============================================================================
 
 
-def gh3_sample_raster(image_path, data_source=None, gh3_dir=None,
+def gh3_sample_raster(image_path, data_source=None,
                       region=None, query=None, band_names=None,
                       band_indices=None, window_ops=None,
                       fillna=None, dropna=False, geo=False,
@@ -2490,9 +2476,7 @@ def gh3_sample_raster(image_path, data_source=None, gh3_dir=None,
     image_path : str
         Path to raster file, VRT, or tile directory
     data_source : str, optional
-        Path to simplified dataset directory
-    gh3_dir : str, optional
-        Path to H3 database directory
+        Path to H3 database or simplified dataset directory
     region : GeoDataFrame or bbox, optional
         Additional spatial filter
     query : str, optional
@@ -2521,7 +2505,7 @@ def gh3_sample_raster(image_path, data_source=None, gh3_dir=None,
     --------
     >>> import gedih3.gh3driver as gh3
     >>> ddf = gh3.gh3_sample_raster(
-    ...     'dem.tif', gh3_dir='/path/to/database',
+    ...     'dem.tif', data_source='/path/to/database',
     ...     band_names=['elevation'], geo=True
     ... )
     >>> gh3.gh3_export(ddf, '/tmp/sampled/')
@@ -2531,7 +2515,6 @@ def gh3_sample_raster(image_path, data_source=None, gh3_dir=None,
     return from_image(
         image_path=image_path,
         data_source=data_source,
-        gh3_dir=gh3_dir,
         region=region,
         query=query,
         band_names=band_names,

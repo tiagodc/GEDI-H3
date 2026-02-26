@@ -162,7 +162,7 @@ def main():
                         columns=columns,
                         region=region,
                         query=query_str,
-                        gh3_dir=args.database
+                        source=args.database
                     )
                     logger.info(f"  Loaded {ddf_h3.npartitions} H3 partitions")
                     logger.info("  Converting to EGI (shuffling data)...")
@@ -180,7 +180,7 @@ def main():
                         columns=columns,
                         region=region,
                         query=query_str,
-                        gh3_dir=args.database,
+                        source=args.database,
                         index_level=egi_index_level,
                         partition_level=egi_partition_level
                     )
@@ -195,7 +195,7 @@ def main():
                     columns=columns,
                     region=region,
                     query=query_str,
-                    gh3_dir=args.database
+                    source=args.database
                 )
                 logger.info(f"  Loaded {ddf.npartitions} partitions")
                 part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)

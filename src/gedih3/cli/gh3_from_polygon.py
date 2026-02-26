@@ -217,7 +217,7 @@ def main():
                     columns=columns,
                     region=roi,
                     query=query_str,
-                    gh3_dir=args.database
+                    source=args.database
                 )
 
                 part_level = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=args.database)

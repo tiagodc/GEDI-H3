@@ -535,7 +535,7 @@ import gedih3.gh3driver as gh3
 
 # Load H3-indexed data with spatial filter
 ddf = gh3.gh3_load(
-    source='/path/to/database',  # preferred; gh3_dir= is deprecated
+    source='/path/to/database',
     columns=['agbd_l4a', 'rh_098_l2a'],
     region='region.shp',  # or bbox or ISO3
     query='quality_flag_l2a == 1',
@@ -683,7 +683,7 @@ python tests/run_tests.py
 - **EGI alignment**: Square pixels aligned to EASE-Grid 2.0 (EPSG:6933) for L4B compatibility
 - **Direct EGI loading (no shuffle)**: `egi_load()` pre-computes EGI↔H3 intersection and reads tiles directly — no `set_index()` shuffle needed
 - **Parquet + JSON metadata**: Each H3 partition has a `.parquet` file; database root has `gedih3_build_log.json`
-- **Unified `source=` API**: `gh3_load()` and `egi_load()` accept `source=` as the primary path parameter; `gh3_dir=` emits a `DeprecationWarning`
+- **Unified `source=` API**: `gh3_load()` and `egi_load()` accept `source=` as the primary path parameter
 - **Variable expansion**: CLI accepts `default`, `minimal`, `*`, or explicit variable lists/files
 - **Spatial filtering**: Supports vector files, bounding boxes, or ISO3 country codes
 - **S3 ETL mode**: `gh3_build --s3` / `gh3_download --s3` stream from NASA S3 without persistent local download

@@ -508,7 +508,7 @@ class TestGH3Driver:
             ddf = gh3.gh3_load(
                 columns=['agbd_l4a'],
                 region=TEST_BBOX,
-                gh3_dir=test_config.h3_dir
+                source=test_config.h3_dir
             )
 
             assert ddf is not None
@@ -526,7 +526,7 @@ class TestGH3Driver:
         with Client(n_workers=2, threads_per_worker=1) as client:
             ddf = gh3.gh3_load(
                 columns=['agbd_l4a'],
-                gh3_dir=test_config.h3_dir
+                source=test_config.h3_dir
             )
 
             agg_df = gh3.gh3_aggregate(
@@ -552,7 +552,7 @@ class TestGH3Driver:
         with Client(n_workers=2, threads_per_worker=1) as client:
             ddf = gh3.gh3_load(
                 columns=['agbd_l4a', 'lat_lowestmode', 'lon_lowestmode'],
-                gh3_dir=test_config.h3_dir
+                source=test_config.h3_dir
             )
 
             agg_df = gh3.egi_aggregate(
@@ -583,7 +583,7 @@ class TestRasterization:
         with Client(n_workers=2, threads_per_worker=1) as client:
             ddf = gh3.gh3_load(
                 columns=['agbd_l4a'],
-                gh3_dir=test_config.h3_dir
+                source=test_config.h3_dir
             )
 
             agg_gdf = gh3.gh3_aggregate(
@@ -612,7 +612,7 @@ class TestRasterization:
         with Client(n_workers=2, threads_per_worker=1) as client:
             ddf = gh3.gh3_load(
                 columns=['agbd_l4a', 'lat_lowestmode', 'lon_lowestmode'],
-                gh3_dir=test_config.h3_dir
+                source=test_config.h3_dir
             )
 
             agg_gdf = gh3.egi_aggregate(
@@ -716,7 +716,7 @@ class TestFullPythonPipeline:
                              'lat_lowestmode', 'lon_lowestmode'],
                     region=TEST_BBOX,
                     query='quality_flag_l2a == 1',
-                    gh3_dir=config.h3_dir
+                    source=config.h3_dir
                 )
 
                 print(f"Loaded {ddf.npartitions} partitions")
@@ -809,7 +809,7 @@ class TestDataQuality:
             # Load original data
             ddf = gh3.gh3_load(
                 columns=['agbd_l4a'],
-                gh3_dir=test_config.h3_dir
+                source=test_config.h3_dir
             )
 
             original_count = ddf.map_partitions(len).compute().sum()

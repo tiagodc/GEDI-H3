@@ -126,7 +126,7 @@ def _aggregate_data(ddf, *, use_egi, is_database, args, agg, agg_is_dict,
                 columns=columns,
                 region=region,
                 query=query_str,
-                gh3_dir=args.database,
+                source=args.database,
                 index_level=egi_agg_level,
                 partition_level=egi_partition_level
             )
