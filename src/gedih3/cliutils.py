@@ -150,8 +150,8 @@ def read_dataset_schema(filepath, fmt):
         raise GediValidationError(f"Unsupported format for schema reading: {fmt}")
 
 
-def make_dataset_reader(fmt, columns=None):
-    """Return a callable that reads a single file into a GeoDataFrame.
+def make_dataset_reader(fmt, columns=None, geo=True):
+    """Return a callable that reads a single file into a DataFrame or GeoDataFrame.
 
     The returned callable supports column selection at read time.
 
@@ -161,25 +161,31 @@ def make_dataset_reader(fmt, columns=None):
         File format ('parquet', 'feather', or 'gpkg')
     columns : list, optional
         Columns to load
+    geo : bool
+        If True, use geopandas readers (for files with geometry metadata).
+        If False, use pandas readers (for files without geometry metadata).
 
     Returns
     -------
     callable
-        f(filepath) -> GeoDataFrame
+        f(filepath) -> DataFrame or GeoDataFrame
     """
     import geopandas as gpd
+    import pandas as pd
 
     if fmt == 'parquet':
         def reader(f):
             from .utils import is_remote_path, smart_open
+            read_fn = gpd.read_parquet if geo else pd.read_parquet
             if is_remote_path(f):
                 with smart_open(f, 'rb') as fobj:
-                    return gpd.read_parquet(fobj, columns=columns)
-            return gpd.read_parquet(f, columns=columns)
+                    return read_fn(fobj, columns=columns)
+            return read_fn(f, columns=columns)
         return reader
     elif fmt == 'feather':
         def reader(f):
-            return gpd.read_feather(f, columns=columns)
+            read_fn = gpd.read_feather if geo else pd.read_feather
+            return read_fn(f, columns=columns)
         return reader
     elif fmt == 'gpkg':
         def reader(f):
