@@ -89,7 +89,7 @@ gh3_rasterize -d aggregated -o rasterized --compress ZSTD
 
 ```
 -r, --region       Spatial filter: vector file, bbox "W,S,E,N", or ISO3 country code
--d0, -d1           Temporal filters (YYYY-MM-DD)
+-t0, -t1           Temporal filters (YYYY-MM-DD)
 -l2a, -l4a, ...    Product variables (use 'default', 'minimal', or explicit list of variables)
 -N, -T, -M         Number of Dask workers, threads, memory per worker
 -v / -vv / -Q      Verbosity: INFO / DEBUG / quiet
