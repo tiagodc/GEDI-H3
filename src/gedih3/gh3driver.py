@@ -952,7 +952,8 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
         # Build export kwargs based on index type
         # egi_export_part handles splitting internally; gh3_export_part uses part_col/group_by_partition
         if index_type == 'egi':
-            export_kwargs = dict(odir=output, fmt=fmt)
+            egi_partition_level = int(part_col.replace('egi', '')) if part_col else 12
+            export_kwargs = dict(odir=output, fmt=fmt, partition_level=egi_partition_level)
         else:
             export_kwargs = dict(odir=output, fmt=fmt, part_col=part_col,
                                  group_by_partition=group_by_partition)
@@ -1002,7 +1003,7 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
 # (EPSG:6933) for GEDI L4B-compatible outputs.
 
 
-def _prepare_egi_loading(region, gh3_dir):
+def _prepare_egi_loading(region, gh3_dir, partition_level=12):
     """
     Prepare EGI↔H3 intersection for direct loading.
 
@@ -1014,6 +1015,10 @@ def _prepare_egi_loading(region, gh3_dir):
         Region filter. Can be a GeoDataFrame, a bbox list [W, S, E, N], or None.
     gh3_dir : str
         Path to H3 database directory
+    partition_level : int
+        EGI level for output partitioning (1-12, default=12). When < 12, each
+        level-12 outer tile is expanded into its level-N children via get_children(),
+        so each Dask partition corresponds to one level-N tile.
 
     Returns
     -------
@@ -1046,10 +1051,21 @@ def _prepare_egi_loading(region, gh3_dir):
         else:
             raise GediValidationError(f"region must be GeoDataFrame, bbox list, or None. Got {type(region)}")
 
-    # Get EGI tiles for region
+    # Get level-12 outer EGI tiles for region
     egi_tiles = egi.aoi_tiles(region_gdf)
     if len(egi_tiles) == 0:
         raise GediSpatialError("No EGI tiles found for the specified region")
+
+    # Expand to finer partition_level by subdividing each level-12 tile
+    if partition_level < egi.OUTER_LEVEL:
+        all_children = []
+        for tile_hash in egi_tiles.index:
+            all_children.extend(egi.get_children(tile_hash, children_level=partition_level))
+        egi_tiles = egi.to_geodataframe(
+            np.array(all_children, dtype=np.uint64), return_polygons=True
+        )
+        # Drop degenerate edge-of-grid tiles (clamped to zero area by check_crs_limits)
+        egi_tiles = egi_tiles[egi_tiles.geometry.is_valid & (egi_tiles.geometry.area > 0)]
 
     # Get H3 partitions as GeoDataFrame
     h3_gdf = h3_parts_to_gdf(h3_ids)
@@ -1330,8 +1346,10 @@ def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH
     egi.validate_level(index_level)
     egi.validate_level(partition_level)
 
-    # Prepare EGI↔H3 intersection
-    egi_tiles, egi_to_h3, h3_part_col, region_gdf = _prepare_egi_loading(region, gh3_dir)
+    # Prepare EGI↔H3 intersection (tiles at partition_level)
+    egi_tiles, egi_to_h3, h3_part_col, region_gdf = _prepare_egi_loading(
+        region, gh3_dir, partition_level=partition_level
+    )
 
     # Track output columns (exclude query-only columns from final output)
     out_cols = None
@@ -2198,13 +2216,12 @@ def egi_extract(gh3_df, index_level=1, partition_level=12,
 
     return extracted
 
-def egi_export_part(df, odir, fmt='parquet', is_file_path=False):
+def egi_export_part(df, odir, fmt='parquet', is_file_path=False, partition_level=12):
     """
     Export a single EGI partition to file(s).
 
-    This function handles the case where a partition may contain data from
-    multiple EGI outer tiles by splitting the data and writing separate files
-    for each outer tile.
+    Splits the data by partition tile and writes one file per unique tile.
+    File names are the EGI hash of the partition tile at the requested level.
 
     Parameters
     ----------
@@ -2216,6 +2233,9 @@ def egi_export_part(df, odir, fmt='parquet', is_file_path=False):
         Output format ('parquet', 'gpkg', 'geojson', 'tif', etc.)
     is_file_path : bool
         If True, odir is treated as a complete file path (single output)
+    partition_level : int
+        EGI level used for output file naming (1-12, default=12). Used as a
+        fallback when no egiXX column is present in the DataFrame.
 
     Returns
     -------
@@ -2224,6 +2244,7 @@ def egi_export_part(df, odir, fmt='parquet', is_file_path=False):
     """
     from . import egi
     import numpy as np
+    import re
 
     if df.empty:
         return ''
@@ -2236,32 +2257,29 @@ def egi_export_part(df, odir, fmt='parquet', is_file_path=False):
         opath = f"{odir}.{fmt}" if not odir.endswith(fmt) else odir
         return _write_egi_file(df, opath, fmt)
 
-    # Multi-file mode: split by outer tile to ensure correct file organization
-    # This handles the case where Dask partitions may contain data from multiple
-    # EGI outer tiles (which can happen after shuffle operations)
-
-    # Compute outer tile for each row (preserving original level)
-    idx_array = df.index.to_numpy().astype(np.uint64)
-    # Extract outer tile part (px_outer, py_outer) and mask out inner indices
-    outer_tiles = (idx_array // np.uint64(1e12)) * np.uint64(1e12)
-
-    # Find unique outer tiles in this partition
-    unique_outer = np.unique(outer_tiles)
+    # Multi-file mode: split by partition tile for correct file naming.
+    # Prefer the egiXX column (present when drop_internal=False, i.e. CLI paths).
+    # Fall back to computing partition tiles from the index via to_parent().
+    egi_part_cols = sorted(
+        [c for c in df.columns if re.match(r'^egi\d{2}$', str(c))],
+        key=lambda c: int(str(c).replace('egi', ''))
+    )
+    if egi_part_cols:
+        part_col_name = egi_part_cols[-1]   # coarsest egiXX = partition column
+        part_hashes = df[part_col_name].to_numpy().astype(np.uint64)
+    else:
+        idx_array = df.index.to_numpy().astype(np.uint64)
+        part_hashes = egi.to_parent(idx_array, partition_level)
 
     output_paths = []
-    for outer_tile in unique_outer:
-        # Filter data for this outer tile
-        mask = outer_tiles == outer_tile
+    for part_hash in np.unique(part_hashes):
+        mask = part_hashes == part_hash
         tile_df = df.iloc[mask]
 
         if len(tile_df) == 0:
             continue
 
-        # Convert to level 12 (OUTER_LEVEL) for consistent filename
-        # This extracts px_outer and py_outer and creates a level 12 hash
-        p_outer = outer_tile % np.uint64(1e18) // np.uint64(1e12)
-        outer_tile_12 = np.uint64(egi.OUTER_LEVEL * 1e18) + np.uint64(p_outer * 1e12)
-        oname = str(outer_tile_12)
+        oname = str(part_hash)
         opath = os.path.join(odir, f"{oname}.{fmt}")
 
         written_path = _write_egi_file(tile_df, opath, fmt)

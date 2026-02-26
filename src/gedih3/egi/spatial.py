@@ -370,11 +370,12 @@ def egi_h3_intersection(
     >>> for egi_id, h3_list in egi_to_h3.items():
     ...     # Load data from h3_list files for egi_id tile
     """
-    # Ensure same CRS (use WGS84 for intersection)
-    if egi_tiles.crs.to_epsg() != 4326:
-        egi_tiles = egi_tiles.to_crs(4326)
-    if h3_gdf.crs.to_epsg() != 4326:
-        h3_gdf = h3_gdf.to_crs(4326)
+    # Use EPSG:6933 (EGI native CRS) for intersection.
+    # Avoids WGS84 reprojection failures near the poles for fine-level EGI tiles.
+    if egi_tiles.crs.to_epsg() != 6933:
+        egi_tiles = egi_tiles.to_crs(EGI_CRS_STRING)
+    if h3_gdf.crs.to_epsg() != 6933:
+        h3_gdf = h3_gdf.to_crs(EGI_CRS_STRING)
 
     # Build spatial index on H3 cells
     h3_sindex = h3_gdf.sindex
