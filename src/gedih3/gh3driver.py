@@ -226,11 +226,13 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         if smart_exists(path) and not smart_isdir(path):
             ext = os.path.splitext(path)[1].lstrip('.').lower()
             fmt = ext if ext in ('parquet', 'feather', 'gpkg') else 'parquet'
-            reader = make_dataset_reader(fmt, columns=columns)
+            _, has_geo = read_dataset_schema(path, fmt)
+            reader = make_dataset_reader(fmt, columns=columns, geo=has_geo)
             return reader(path)
 
         fmt = detect_dataset_format(path)
         data_files, fmt = _find_dataset_files(path, fmt)
+        _, has_geo = read_dataset_schema(data_files[0], fmt)
 
         if fmt == 'parquet':
             kwargs = {}
@@ -238,17 +240,14 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
                 kwargs['columns'] = columns
             if filters:
                 kwargs['filters'] = filters
-            try:
-                return _read_parquet_files(data_files, geo=True, **kwargs)
-            except Exception:
-                return _read_parquet_files(data_files, geo=False, **kwargs)
+            return _read_parquet_files(data_files, geo=has_geo, **kwargs)
         else:
             index_col = _detect_dataset_index_col(path)
             load_columns = columns
             if index_col and load_columns and index_col not in load_columns:
                 load_columns = list(load_columns) + [index_col]
 
-            reader = make_dataset_reader(fmt, columns=load_columns)
+            reader = make_dataset_reader(fmt, columns=load_columns, geo=has_geo)
             dfs = [reader(f) for f in data_files]
             result = pd.concat(dfs, ignore_index=True)
 
@@ -281,7 +280,7 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
             load_cols.append(index_col)
 
     # Build reader and metadata
-    reader = make_dataset_reader(fmt, columns=load_cols)
+    reader = make_dataset_reader(fmt, columns=load_cols, geo=has_geometry)
     _meta = reader(data_files[0])
 
     # Restore index for formats that don't preserve it (e.g. GPKG)
@@ -662,7 +661,8 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
     return agg_df
 
 
-def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None, group_by_partition=False):
+def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None,
+                    group_by_partition=False, naming_partition_level=None):
     """
     Export a single partition to file with a simple naming convention.
 
@@ -687,6 +687,9 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None, 
         Dask partition. Use this after shuffling data by partition column
         (via set_index) to ensure each unique partition ID is in exactly
         one Dask partition, avoiding file collision issues.
+    naming_partition_level : int, optional
+        H3 resolution level for deriving file names via cell_to_parent.
+        Used when no partition column is available (e.g., aggregated data).
 
     Returns
     -------
@@ -719,7 +722,7 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None, 
         unique_parts = df[actual_part_col].unique()
         output_paths = []
         for part_id in unique_parts:
-            part_df = df[df[actual_part_col] == part_id]
+            part_df = df[df[actual_part_col] == part_id].drop(columns=[actual_part_col])
             oname = str(part_id)
             opath = os.path.join(odir, f"{oname}.{fmt}")
             _write_dataframe(part_df, opath, fmt)
@@ -734,15 +737,23 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None, 
         # Determine output filename from partition ID
         oname = None
 
-        # Check for explicit partition column
+        # 1. Try partition column (raw data case)
         if actual_part_col and actual_part_col in df.columns:
             oname = str(df[actual_part_col].iloc[0])
-        # Check index name
+            df = df.drop(columns=[actual_part_col])
+
+        # 2. Try deriving from H3 index via cell_to_parent (aggregated data case)
+        if not oname and naming_partition_level is not None and df.index.name:
+            if str(df.index.name).startswith('h3_'):
+                import h3
+                oname = h3.cell_to_parent(str(df.index[0]), naming_partition_level)
+
+        # 3. Fallback to index value
         if not oname and df.index.name:
-            if df.index.name.startswith('h3_') or str(df.index.name).startswith('egi'):
+            if str(df.index.name).startswith('h3_') or str(df.index.name).startswith('egi'):
                 oname = str(df.index[0])
 
-        # Fallback to generic name
+        # 4. Generic fallback
         if not oname:
             oname = f"part_{hash(df.index[0]) % 10000:04d}"
 
@@ -866,7 +877,7 @@ def _detect_export_params(ddf, index_type=None):
 def gh3_export(ddf, output, fmt='parquet', merge=False,
                show_progress=True, drop_internal=True,
                write_metadata=True, source_database=None,
-               tool=None, **metadata_kwargs):
+               tool=None, h3_partition_level=None, **metadata_kwargs):
     """
     Export a Dask DataFrame to simplified flat files with metadata.
 
@@ -898,6 +909,11 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
         Path to source H3 database (recorded in metadata).
     tool : str, optional
         Name of the tool creating this dataset (recorded in metadata).
+    h3_partition_level : int, optional
+        H3 resolution level to use for naming output files. When provided,
+        files are named by the parent cell at this level (via h3.cell_to_parent).
+        Useful for aggregated data where the original partition column was lost.
+        If None, auto-detected from source_database metadata when available.
     **metadata_kwargs
         Additional key-value pairs to include in the dataset metadata.
         Common keys: query_filter, aggregation, egi_index_level,
@@ -935,11 +951,22 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
     else:
         export_func = gh3_export_part
 
-    # Drop internal columns if requested
+    # Drop internal columns if requested (but preserve partition column for naming)
     if drop_internal:
-        drop_cols = [c for c in ddf.columns if is_internal_column(c)]
+        drop_cols = [c for c in ddf.columns if is_internal_column(c) and c != part_col]
         if drop_cols:
             ddf = ddf.drop(columns=drop_cols)
+
+    # Determine naming partition level for H3 data (for aggregated data without partition column)
+    naming_partition_level = None
+    if index_type == 'h3' and part_col is None:
+        if h3_partition_level is not None:
+            naming_partition_level = h3_partition_level
+        elif source_database:
+            try:
+                naming_partition_level = gh3_read_meta("h3_partition_level", gh3_root_dir=source_database)
+            except Exception:
+                pass
 
     # Export data
     if merge:
@@ -956,7 +983,8 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
             export_kwargs = dict(odir=output, fmt=fmt, partition_level=egi_partition_level)
         else:
             export_kwargs = dict(odir=output, fmt=fmt, part_col=part_col,
-                                 group_by_partition=group_by_partition)
+                                 group_by_partition=group_by_partition,
+                                 naming_partition_level=naming_partition_level)
 
         write_task = ddf.map_partitions(
             export_func, **export_kwargs, meta=pd.Series(dtype=str)
@@ -2450,7 +2478,8 @@ def gh3_rasterize_partitions(
     output_dir,
     columns=None,
     compress='LZW',
-    show_progress=True
+    show_progress=True,
+    partition_level=None
 ):
     """
     Rasterize Dask GeoDataFrame partitions to individual GeoTIFF files.
@@ -2467,6 +2496,9 @@ def gh3_rasterize_partitions(
         Compression method for GeoTIFF
     show_progress : bool
         Show Dask progress bar
+    partition_level : int, optional
+        H3 partition level for grouping/naming tiles. If None, auto-detected
+        from data columns or defaults to treating each partition as one tile.
 
     Returns
     -------
@@ -2477,7 +2509,8 @@ def gh3_rasterize_partitions(
 
     return rasterize_and_export_partitions(
         ddf, output_dir, rasterize_h3_partition,
-        columns=columns, compress=compress, show_progress=show_progress
+        columns=columns, compress=compress, show_progress=show_progress,
+        partition_level=partition_level
     )
 
 

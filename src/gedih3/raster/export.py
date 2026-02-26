@@ -241,8 +241,11 @@ def rasterize_and_export_partitions(
         )
 
         if show_progress:
-            paths = paths.persist()
-            dask_progress(paths)
+            try:
+                paths = paths.persist()
+                dask_progress(paths)
+            except (ValueError, ImportError):
+                pass  # No distributed client — skip progress bar
 
         result = paths.compute().tolist()
     else:
@@ -324,8 +327,11 @@ def merge_and_export_rasters(
         )
 
         if show_progress:
-            raster_parts = raster_parts.persist()
-            dask_progress(raster_parts)
+            try:
+                raster_parts = raster_parts.persist()
+                dask_progress(raster_parts)
+            except (ValueError, ImportError):
+                pass  # No distributed client — skip progress bar
 
         rasters = raster_parts.compute()
 

@@ -12,12 +12,14 @@ The workflow:
 4. Reproject to target CRS (default: EPSG:4326)
 """
 from typing import List, Optional, Tuple
+import warnings
 import numpy as np
 import pandas as pd
 import geopandas as gpd
 import xarray as xr
 import h3
 import pyproj
+import rasterio.errors
 from geocube.api.core import make_geocube
 
 from .config import H3_RASTER_CRS
@@ -193,12 +195,15 @@ def h3_to_raster(
 
         # Create raster in UTM
         gdf_utm = gdf.to_crs(epsg=utm_epsg)
-        xras = make_geocube(
-            gdf_utm.reset_index(),
-            measurements=columns,
-            resolution=(-res_meters, res_meters),
-            fill=fill_value
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', message='Dataset has no geotransform', category=UserWarning)
+            warnings.filterwarnings('ignore', category=rasterio.errors.NotGeoreferencedWarning)
+            xras = make_geocube(
+                gdf_utm.reset_index(),
+                measurements=columns,
+                resolution=(-res_meters, res_meters),
+                fill=fill_value
+            )
 
         # Reproject to output CRS
         xras = xras.rio.reproject(output_crs)
@@ -206,12 +211,15 @@ def h3_to_raster(
         resolution = (yres, xres)
     else:
         # Use provided resolution directly
-        xras = make_geocube(
-            gdf.reset_index(),
-            measurements=columns,
-            resolution=resolution,
-            fill=fill_value
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', message='Dataset has no geotransform', category=UserWarning)
+            warnings.filterwarnings('ignore', category=rasterio.errors.NotGeoreferencedWarning)
+            xras = make_geocube(
+                gdf.reset_index(),
+                measurements=columns,
+                resolution=resolution,
+                fill=fill_value
+            )
 
     # Ensure NoData is tagged so GeoTIFF exports mask empty pixels
     for var in xras.data_vars:
@@ -300,8 +308,9 @@ def rasterize_h3_partition(
 
         # Determine grouping level for spatial tiles
         if partition_level is None:
-            # No partition level detected - fall back to 3 levels coarser
-            partition_level = max(0, h3_level - 3)
+            # No partition columns found — treat entire partition as one tile.
+            # When called via map_partitions, each partition is already a spatial tile.
+            partition_level = h3_level
 
         # Pre-aggregated data: partition_level >= h3_level means each
         # partition IS a complete tile - rasterize without splitting
