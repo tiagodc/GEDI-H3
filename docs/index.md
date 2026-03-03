@@ -41,7 +41,7 @@ gedih3 is built on four components that together make billion-shot GEDI analysis
 # Download → Build → Extract → Aggregate → Rasterize
 gh3_download  -r "-51,0,-50,1" -l2a minimal -l4a minimal
 gh3_build     -r "-51,0,-50,1" -l2a minimal -l4a minimal
-gh3_extract   -q -l agbd_l4a rh_098_l2a -o extracted/
+gh3_extract   -y -l agbd_l4a rh_098_l2a -o extracted/
 gh3_aggregate -d extracted/ -h3 6 -a mean -o aggregated/
 gh3_rasterize -d aggregated/ -o rasters/ --compress LZW
 ```

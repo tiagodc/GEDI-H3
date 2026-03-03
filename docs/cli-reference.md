@@ -19,14 +19,14 @@ Download GEDI data from NASA DAAC.
 
 ```bash
 gh3_download -r "W,S,E,N" -l2a default -l4a default -N 8
-gh3_download -r region.shp -l4a agbd -d0 2020-01-01 -d1 2021-01-01
+gh3_download -r region.shp -l4a agbd -t0 2020-01-01 -t1 2021-01-01
 gh3_download --s3  # Stream from NASA S3 without local download
 ```
 
 | Flag | Description |
 |------|-------------|
 | `-r, --region` | Spatial filter: bbox, vector file, or ISO3 code |
-| `-d0, -d1` | Start/end date (YYYY-MM-DD) |
+| `-t0, -t1` | Start/end date (YYYY-MM-DD) |
 | `-l1b, -l2a, -l2b, -l4a, -l4c` | Products to download (`default`, `minimal`, or list) |
 | `--gedi-version` | GEDI data version (default: latest) |
 | `--resume` | Skip already-downloaded files |
@@ -59,7 +59,7 @@ gh3_build --s3 -r region.shp -l4a agbd  # Build directly from S3
 Extract data from H3 database into simplified flat parquet files.
 
 ```bash
-gh3_extract -d /path/to/database -r region.shp -l2a rh -l4a agbd -q -o output/
+gh3_extract -d /path/to/database -r region.shp -l2a rh -l4a agbd -y -o output/
 ```
 
 | Flag | Description |
@@ -68,7 +68,8 @@ gh3_extract -d /path/to/database -r region.shp -l2a rh -l4a agbd -q -o output/
 | `-r` | Spatial filter |
 | `-d0, -d1` | Temporal filter |
 | `-l*` | Product variables |
-| `-q` | Apply quality filters |
+| `-y, --quality` | Apply pre-configured quality filters |
+| `-q, --query` | Pandas-style filter string |
 | `-g` | Include geometry |
 | `-o` | Output directory |
 
@@ -199,10 +200,15 @@ gh3_from_polygon -i boundaries.shp -p intersects -d /path/to/database -o output/
 List available GEDI variables by product.
 
 ```bash
-gh3_list_variables -l2a -l4a
-gh3_list_variables -g "agbd"    # grep filter
-gh3_list_variables -l4a --detail-level 1  # include descriptions
+gh3_list_variables -p L2A
+gh3_list_variables -g agbd     # grep filter
 ```
+
+| Flag | Description |
+|------|-------------|
+| `-d` | H3 database path (optional) |
+| `-p` | Filter by product (e.g., `L2A`, `L4A`) |
+| `-g` | Grep filter: show only variables matching keyword |
 
 ---
 

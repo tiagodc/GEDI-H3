@@ -43,15 +43,15 @@ gh3_list_variables -g agbd # filter with a keyword
 ## Step 4: Extract a Dataset
 
 ```bash
-gh3_extract -q -l agbd_l4a rh_098_l2a -o extracted/
+gh3_extract -y -l agbd_l4a rh_098_l2a -o extracted/
 ```
 
-The `-q` flag applies pre-configured quality filtering. Output is a set of flat Parquet files in `extracted/`, readable with pandas, R, QGIS, or DuckDB.
+The `-y` flag applies pre-configured quality filtering. Output is a set of flat Parquet files in `extracted/`, readable with pandas, R, QGIS, or DuckDB.
 
 To filter spatially or temporally:
 
 ```bash
-gh3_extract -q -r region.shp -t0 2020-01-01 -t1 2022-12-31 \
+gh3_extract -y -r region.shp -t0 2020-01-01 -t1 2022-12-31 \
             -l agbd_l4a rh_098_l2a -o extracted/
 ```
 
@@ -60,7 +60,7 @@ gh3_extract -q -r region.shp -t0 2020-01-01 -t1 2022-12-31 \
 ## Step 5: Aggregate
 
 ```bash
-gh3_aggregate -d extracted/ -h3 6 -a "['mean','std','count']" -o aggregated/
+gh3_aggregate -d extracted/ -h3 6 -a mean -o aggregated/
 ```
 
 Aggregates GEDI shots to H3 level 6 hexagons (~36 km²). Use `gh3_list_resolutions` to see all available levels.
