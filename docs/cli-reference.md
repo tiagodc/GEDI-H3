@@ -2,6 +2,13 @@
 
 gedih3 installs 11 command-line tools. All tools support `-v` (INFO) and `-vv` (DEBUG) verbosity, and `-Q` for quiet mode.
 
+> **Tip**: Every tool supports `--help` (`-h`) for a complete list of flags and examples:
+> ```bash
+> gh3_build --help
+> gh3_aggregate --help
+> gh3_extract --help
+> ```
+
 ---
 
 ## Core Workflow Tools
@@ -53,10 +60,6 @@ Extract data from H3 database into simplified flat parquet files.
 
 ```bash
 gh3_extract -d /path/to/database -r region.shp -l2a rh -l4a agbd -q -o output/
-
-# EGI indexing
-gh3_extract -d /path/to/database -r region.shp -l4a agbd -egi 1 -o output/
-gh3_extract -d /path/to/database -r region.shp -l4a agbd -egi 1:12 -o output/
 ```
 
 | Flag | Description |
@@ -67,32 +70,50 @@ gh3_extract -d /path/to/database -r region.shp -l4a agbd -egi 1:12 -o output/
 | `-l*` | Product variables |
 | `-q` | Apply quality filters |
 | `-g` | Include geometry |
-| `-egi INDEX[:PART]` | EGI indexing (index level and optional partition level) |
 | `-o` | Output directory |
+
+#### EGI variant
+
+For square-pixel indexing instead of H3 — see [EGI Indexing](concepts/egi-indexing.md).
+
+```bash
+gh3_extract -d /path/to/database -egi 6 -o output/       # ~1 km EGI index
+gh3_extract -d /path/to/database -egi 6:10 -o output/    # explicit index:partition
+```
+
+| Flag | Description |
+|------|-------------|
+| `-egi INDEX[:PART]` | EGI index level and optional partition level |
 
 ---
 
 ### `gh3_aggregate`
 
-Aggregate H3 database data to a coarser spatial resolution.
+Aggregate data to a coarser spatial resolution.
 
 ```bash
-# H3 aggregation
 gh3_aggregate -d /path/to/database -h3 6 -o output/
-
-# EGI aggregation
-gh3_aggregate -d /path/to/database -egi 6 -a mean -o output/
-gh3_aggregate -d /path/to/database -egi 6:10 -a mean -o output/  # explicit partition
-gh3_aggregate -d /path/to/database -egi 6 -a mean -R -o output/  # + rasterize
+gh3_aggregate -d /path/to/database -h3 6 -a "['mean','std','count']" -o output/
 ```
 
 | Flag | Description |
 |------|-------------|
 | `-h3 LEVEL` | Aggregate to H3 level |
-| `-egi INDEX[:PART]` | Aggregate to EGI level |
 | `-a` | Aggregation function: `mean`, `sum`, `median`, `std`, `count` |
 | `-R, --rasterize` | Also export rasters after aggregation |
 | `-o` | Output directory |
+
+#### EGI variant
+
+```bash
+gh3_aggregate -d /path/to/database -egi 6 -a mean -o output/        # ~1 km
+gh3_aggregate -d /path/to/database -egi 6:10 -a mean -o output/     # explicit partition
+gh3_aggregate -d /path/to/database -egi 6 -a mean -R -o output/     # aggregate + rasterize
+```
+
+| Flag | Description |
+|------|-------------|
+| `-egi INDEX[:PART]` | EGI aggregation level and optional partition level |
 
 ---
 

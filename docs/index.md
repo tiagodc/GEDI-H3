@@ -1,63 +1,93 @@
 # gedih3
 
-**gedih3** is a Python library for accessing NASA's GEDI (Global Ecosystem Dynamics Investigation) LiDAR data with H3 and EGI spatial indexing.
+**Turn billions of NASA GEDI LiDAR footprints into analysis-ready spatial datasets.**
+
+[GEDI](https://gedi.umd.edu/) (Global Ecosystem Dynamics Investigation) is NASA's premier spaceborne LiDAR mission measuring forest structure globally — but its raw data is a collection of thousands of large HDF5 files organized by satellite orbit, not by geography. Spatial queries, quality filtering, and format conversion require specialized expertise and significant engineering effort.
+
+**gedih3** handles all of this. It transforms raw GEDI data into a spatially-indexed GeoParquet database with expert-curated variable presets and pre-configured quality filtering, and provides a complete toolchain for querying, aggregating, and exporting this data in formats compatible with R, Python, QGIS, and any other modern tool.
+
+> **Suggested image (hero)**: A raster map of aboveground biomass (AGBD) or canopy height over a tropical forest region, generated from gedih3 output. A strong visual result immediately communicates what the package produces.
+
+---
+
+## What is GEDI-H3?
+
+gedih3 is built on four components that together make billion-shot GEDI analysis tractable:
+
+| Component | Role |
+|-----------|------|
+| **GEDI** | NASA ISS-mounted LiDAR: global forest height, biomass, and canopy structure at ~25 m footprints |
+| **H3** | Uber's hexagonal spatial indexing system — the primary database index enabling fast regional queries |
+| **Dask** | Distributed Python computing — scales from a laptop to an HPC cluster without changing your code |
+| **earthaccess** | NASA's official library for Earthdata authentication, search, and download |
+
+---
 
 ## Key Features
 
-- **H3 Hexagonal Indexing** — Uber's H3 system for efficient spatial queries
-- **EGI Square Pixel Indexing** — EASE Grid Index (EPSG:6933) for GEDI L4B compatibility
-- **Rasterization** — H3/EGI to GeoTIFF with time-series support
-- **Dask Integration** — Distributed processing for large datasets
-- **NASA Earthdata Access** — Direct download or S3 streaming via earthaccess
-- **Ancillary Data Fusion** — Sample rasters and join polygon attributes at shot level
+- **Expert-curated presets** — `minimal` and `default` variable sets for each GEDI product, ready to use immediately
+- **Pre-configured quality filtering** — scientifically-validated filters applied with a single flag
+- **Complete CLI pipeline** — 11 tools from download to GeoTIFF export
+- **Full Python API** — chain operations in memory; pass custom Python functions as aggregators
+- **H3 spatial indexing** — fast regional queries over billions of shots
+- **Dask-distributed** — works on laptops, workstations, and HPC clusters
+- **NASA Earthdata integration** — authenticated downloads with retry logic and S3 streaming
 
-## Quick Example
+---
+
+## Five-Minute Example
+
+```bash
+# Download → Build → Extract → Aggregate → Rasterize
+gh3_download  -r "-51,0,-50,1" -l2a minimal -l4a minimal
+gh3_build     -r "-51,0,-50,1" -l2a minimal -l4a minimal
+gh3_extract   -q -l agbd_l4a rh_098_l2a -o extracted/
+gh3_aggregate -d extracted/ -h3 6 -a mean -o aggregated/
+gh3_rasterize -d aggregated/ -o rasters/ --compress LZW
+```
+
+Or in Python, without saving intermediate files:
 
 ```python
-import gedih3
+import gedih3.gh3driver as gh3
+from gedih3 import raster
 
-# Load H3-indexed data with spatial filter
-ddf = gedih3.gh3_load(
-    source='/path/to/h3_database',
-    columns=['agbd_l4a', 'rh_098_l2a'],
-    region='region.shp',
-    query='quality_flag_l2a == 1',
-)
-
-# Aggregate to H3 level 6 (~36 km²)
-agg_df = gedih3.gh3_aggregate(ddf, target_res=6, agg='mean')
-agg_df.compute().head()
+ddf = gh3.gh3_load(source='~/gedi_data/h3/', columns=['agbd_l4a', 'rh_098_l2a'])
+agg = gh3.gh3_aggregate(ddf, target_res=6, agg='mean').compute()
+raster.export_raster(raster.h3_to_raster(agg), 'agbd_mean.tif')
 ```
 
-## Data Flow
+> Run any CLI tool with `--help` for the full list of options.
 
-```
-Download (gh3_download)
-    ↓
-Build H3 database (gh3_build)
-    ↓
-Extract / Aggregate (gh3_extract, gh3_aggregate)
-    ↓
-Rasterize (gh3_rasterize)
-```
+---
 
-## Navigation
+## Navigate the Docs
 
-- [**Getting Started**](getting-started/index.md) — Installation, configuration, and a 5-minute walkthrough
-- [**CLI Reference**](cli-reference.md) — All 11 command-line tools with examples
-- [**Data Formats**](data-formats.md) — H3 database structure vs. simplified datasets
-- [**API Reference**](autoapi/index) — Auto-generated from source docstrings
+- [**Getting Started**](getting-started/index.md) — Installation and a step-by-step walkthrough
+- [**Concepts**](concepts/index.md) — What is GEDI? How does H3 indexing work? When to use EGI?
+- [**Core Functionality**](reference/index.md) — CLI reference, Python API guide, and data format specifications
+- [**API Reference**](autoapi/index) — Auto-generated documentation from source code
 
 ```{toctree}
 :maxdepth: 2
 :caption: Getting Started
+:hidden:
 
 getting-started/index
 ```
 
 ```{toctree}
 :maxdepth: 2
-:caption: Reference
+:caption: Concepts
+:hidden:
+
+concepts/index
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Core Functionality
+:hidden:
 
 reference/index
 ```
@@ -65,6 +95,7 @@ reference/index
 ```{toctree}
 :maxdepth: 1
 :caption: API Reference
+:hidden:
 
 autoapi/index
 ```

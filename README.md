@@ -1,71 +1,98 @@
 # gedih3
 
-A Python library for automated downloading and processing of NASA's Global Ecosystem Dynamics Investigation (GEDI) LiDAR data, focused on spatially indexed data through the H3 hexagonal system and highly efficient tools for distributed processing of GEDI footprint data at any scale.
+**Turn billions of NASA GEDI LiDAR footprints into analysis-ready spatial datasets — from the command line or Python.**
 
-GEDI produces billions of LiDAR footprints distributed across thousands of HDF5 granules. **gedih3** transforms this data into a spatially-indexed GeoParquet database that enables fast spatial and temporal queries, multi-resolution aggregation, raster export, and integration with external datasets, all from the command line or Python API.
+GEDI (Global Ecosystem Dynamics Investigation) is NASA's premier spaceborne LiDAR mission, measuring forest structure and carbon stocks globally. Its raw data comprises thousands of large HDF5 files organized by satellite orbit — not by geography. Navigating quality flags, extracting variables of interest, and running spatial queries over billions of footprints requires significant engineering effort and domain expertise.
+
+**gedih3** handles all of that. It converts orbit-organized GEDI HDF5 files into a spatially-indexed GeoParquet database built with expert-curated presets and pre-configured quality filtering, then provides a complete toolchain for querying, aggregating, and exporting to GeoTIFF, GeoParquet, and other common formats.
+
+---
+
+## What is GEDI-H3?
+
+gedih3 is built on four components that together make billion-shot GEDI analysis tractable:
+
+| Component | Role |
+|-----------|------|
+| **[GEDI](https://gedi.umd.edu/)** | NASA ISS-mounted LiDAR measuring forest height, biomass, and canopy structure at ~25 m footprints globally |
+| **[H3](https://h3geo.org/)** | Uber's hexagonal spatial indexing system — the primary database index enabling fast regional queries |
+| **[Dask](https://dask.org/)** | Distributed Python computing — scales from a laptop to an HPC cluster without changing your code |
+| **[earthaccess](https://earthaccess.readthedocs.io/)** | NASA's official library for Earthdata authentication, search, and download |
 
 ---
 
 ## Why gedih3?
 
-Working with GEDI data at scale is hard: granules are organized by orbit (not geography), files are large HDF5 containers requiring specialized libraries, and spatial queries over billions of footprints require large computing times even for small regions. Manual workflows can break down quickly.
+Working with GEDI at scale is genuinely hard:
 
-**gedih3** solves this with:
+- **Orbit-organized, not spatially indexed** — files are sorted by acquisition time, not geography. A regional query means scanning thousands of files.
+- **Complex HDF5 containers** — deeply nested structure with hundreds of variables per beam, requiring specialized tools to navigate correctly.
+- **Quality filtering is non-trivial** — each product has its own flags; best practices require combining multiple criteria correctly to avoid biased results.
+- **Variable overload** — L2A alone provides 300+ variables per beam. Choosing the right ones for your analysis requires domain expertise.
+- **Scale** — the full dataset runs to terabytes and billions of rows. Without spatial indexing and distributed processing, even simple analyses can take days.
 
-- **Complete pipeline**: Download from NASA DAAC, build a spatial database, query/aggregate, and export geospatial vector/raster files -- all in one package
-- **Spatial indexing**: H3 hexagons (Uber's system) for flexible resolution queries + EGI square pixels (EASE-Grid 2.0) for GEDI L4B compatibility and quick image generation
-- **Scale via Dask**: Distributed computing handles billion-row datasets across HPC clusters or in your homelab
-- **Interoperable outputs**: Parquet is a highly efficient column oriented file format with ample support in R, QGIS, Python and many other tools. Support to multiple vector/table formats are also available for broad compatibility
-- **Ancillary data fusion**: Sample external rasters and join vector polygons at the GEDI footprint level
-- **NASA Earthdata integration**: Authentication, search, download, and S3 streaming with automatic retry through the [earthaccess API](https://earthaccess.readthedocs.io/en/stable/)
+**gedih3** addresses all of this:
+
+- **Expert-curated variable presets** — `minimal` and `default` sets for each product, designed by remote sensing scientists for common use cases.
+- **Pre-configured quality filtering** — scientifically-validated filters applied with a single flag (`-q`), following community best practices.
+- **Spatial indexing from first principles** — H3 hexagonal database enables fast regional queries after a one-time build step.
+- **Full pipeline in one package** — download → build → query → aggregate → export, all from the CLI or Python.
+- **Analysis-ready outputs** — flat GeoParquet, GeoTIFF, and other formats compatible with R, QGIS, Python, and DuckDB.
 
 ---
 
 ## Key Features
 
-- Generation of analysis ready datasets suitable for users with or without familiarity to GEDI data, providing minimal and complete presets of GEDI data useful for both beginner and advanced users; and customizable data filtering and optional automatic selection of high quality data observations
-- Multiple ways to interact with the GEDI-H3 databases: command oine interface (CLI), Python API and DuckDB SQL queries
-- H3 hexagonal spatial indexing (levels 0-15) for efficient spatial queries
-- Optional EGI square pixel indexing outputs based on the [EASE-Grid 2.0](https://nsidc.org/data/user-resources/help-center/guide-ease-grids) (EPSG:6933) equal-area projection system
-- Aggregation of GEDI information at multiple resolutions with customizable functions and time-series support
-- Ancillary data tools: raster sampling (`gh3_from_img`) and vector spatial join (`gh3_from_polygon`) to match external data sources to GEDI footprints
-- Dask distributed processing for large datasets
-- Simplified flat Parquet output format for external tool compatibility and support of several other table and geospatial data formats (feather, geopackage, hdf5, shapefile etc.) 
-- NASA Earthdata access with resume/retry logic and on-the-fly file subsetting for efficient network usage and minimal disk allocation  
-- Quality filtering, temporal windowing, and support for all GEDI footprint products (L1B, L2A, L2B, L4A, L4C)
+- Complete data pipeline: download, build, extract, aggregate, rasterize — 11 CLI tools
+- Expert-curated `minimal` and `default` variable presets for all GEDI products (L1B, L2A, L2B, L4A, L4C)
+- Pre-configured quality filtering with a single flag
+- H3 hexagonal spatial indexing (levels 0–15) for fast regional queries
+- Dask-distributed processing — works on laptops, workstations, and HPC clusters
+- Full Python API — chain operations in memory, no intermediate files required
+- Custom aggregation functions — pass any Python callable (e.g., per-hexagon regression models)
+- GeoTIFF export with compression, tiling, and time-series support
+- NASA Earthdata integration: authenticated downloads with retry logic and S3 streaming
+- Ancillary data fusion: sample external rasters and join vector polygons at shot level
 
 ---
 
 ## Quick Start
 
-Installing through [conda](https://docs.conda.io/projects/conda/en/stable/) is recommended.
-
 ```bash
 # Install
 git clone https://github.com/tiagodc/GEDI-H3.git
 cd GEDI-H3
-
 conda env create -f environment.yml
 conda activate gedih3
+```
 
-# 1. Build a H3-indexed database with minimal directly from the cloud
-  # - l2a: canopy height metrics
-  # - l4a: aboveground biomass estimates
-gh3_build -r="-51,0,-50,1" -l2a minimal -l4a minimal -s3
+No configuration needed. All outputs default to `~/gedi_data/`.
 
-# 2. See whcih variables are available in the built database
+```bash
+# 1. Download GEDI data for a region (W,S,E,N)
+gh3_download -r "-51,0,-50,1" -l2a minimal -l4a minimal
+
+# 2. Build the H3 spatial database
+gh3_build -r "-51,0,-50,1" -l2a minimal -l4a minimal
+
+# 3. See which variables are available
 gh3_list_variables
 
-# 3. Extract filtered data for a spatial subset
-gh3_extract -r="-51,0,-50,1" -l agbd_l4a rh_098_l2a --quality -o extracted/
+# 4. Extract with quality filtering
+gh3_extract -q -l agbd_l4a rh_098_l2a -o extracted/
 
-# 4. Aggregate to coarser resolution (~1km)
-gh3_list_resolutions
-gh3_aggregate -d extracted -h3 8 -a "['mean','std','count']" -l rh_098_l2a agbd_l4a -o aggregated/
+# 5. Aggregate to ~36 km² hexagons
+gh3_aggregate -d extracted/ -h3 6 -a "['mean','std','count']" -o aggregated/
 
-# 5. Export as GeoTIFF
-gh3_rasterize -d aggregated -o rasterized --compress ZSTD
+# 6. Export as GeoTIFF
+gh3_rasterize -d aggregated/ -o rasters/ --compress LZW
 ```
+
+> Run any tool with `--help` for the full list of options and flags:
+> ```bash
+> gh3_build --help
+> gh3_aggregate --help
+> ```
 
 ---
 
@@ -73,61 +100,108 @@ gh3_rasterize -d aggregated -o rasterized --compress ZSTD
 
 | Tool | Purpose |
 |------|---------|
-| `gh3_download` | Download GEDI data from the NASA DAACs |
-| `gh3_build` | Build H3-indexed Parquet database from GEDI HDF5 files |
-| `gh3_extract` | Extract filtered data with spatial/temporal constraints |
-| `gh3_aggregate` | Aggregate to coarser H3/EGI resolution levels |
-| `gh3_rasterize` | Convert aggregated/extracted datasets to GeoTIFF |
-| `gh3_update` | Add/merge variables to existing datasets |
+| `gh3_download` | Download GEDI HDF5 data from NASA DAACs |
+| `gh3_build` | Build H3-indexed Parquet database from HDF5 files |
+| `gh3_extract` | Extract and filter shots to flat Parquet files |
+| `gh3_aggregate` | Aggregate to coarser H3 resolution |
+| `gh3_rasterize` | Export aggregated data as GeoTIFF |
+| `gh3_update` | Merge new variables into an existing dataset |
 | `gh3_from_img` | Sample external raster values at GEDI shot locations |
-| `gh3_from_polygon` | Spatial join vector polygon attributes to GEDI shots |
-| `gh3_list_variables` | List available GEDI variables with grep filtering support |
-| `gh3_list_resolutions` | Display H3 and EGI resolution level tables |
-| `gh3_read_schema` | Inspect Parquet, GeoPackage, or HDF5 file schemas |
+| `gh3_from_polygon` | Join vector polygon attributes to GEDI shots |
+| `gh3_list_variables` | Browse available GEDI variables |
+| `gh3_list_resolutions` | View H3 and EGI resolution level tables |
+| `gh3_read_schema` | Inspect Parquet, GeoPackage, or HDF5 schemas |
 
 ### Common Flags
 
 ```
--r, --region       Spatial filter: vector file, bbox "W,S,E,N", or ISO3 country code
+-r, --region       Spatial filter: bbox "W,S,E,N", vector file, or ISO3 country code
 -t0, -t1           Temporal filters (YYYY-MM-DD)
--l2a, -l4a, ...    Product variables (use 'default', 'minimal', or explicit list of variables)
--N, -T, -M         Number of Dask workers, threads, memory per worker
+-l2a, -l4a, ...    Product variables: 'minimal', 'default', or explicit variable names
+-q, --quality      Apply pre-configured quality filters
+-N, -T, -M         Dask workers, threads per worker, memory per worker
 -v / -vv / -Q      Verbosity: INFO / DEBUG / quiet
--egi INDEX[:PART]  Use EGI spatial indexing instead of H3 (e.g., -egi 6 or -egi 6:12)
 ```
 
 ---
 
 ## Python API
 
+All CLI functionality is available from Python — with the added benefit of chaining operations in memory without saving intermediate files to disk.
+
 ```python
 import gedih3.gh3driver as gh3
-import geopandas as gpd
+from gedih3 import raster
 
-# shapefile
-shape = gpd.read_file('area_of_interest.shp')
-
-# Load H3-indexed data with spatial filter
+# Load data from the H3 database
 ddf = gh3.gh3_load(
-    source='/path/to/database/',
+    source='~/gedi_data/h3/',
     columns=['agbd_l4a', 'rh_098_l2a'],
-    region=shape,
-    query='quality_flag_l2a == 1 and agbd_l4a > 0',
+    region='-51,0,-50,1',           # bbox, shapefile, or ISO3
+    query='quality_flag_l2a == 1',
 )
 
-# Export filtered data
-gh3.gh3_export(ddf, output="path/to/filtered_data/", drop_internal=False)
+# Aggregate to H3 level 6 (~36 km²) and export as GeoTIFF
+agg = gh3.gh3_aggregate(ddf, target_res=6, agg='mean').compute()
+raster.export_raster(raster.h3_to_raster(agg), 'agbd_mean.tif', compress='LZW')
+```
 
-# Aggregate to coarser H3 level
-agg_df = gh3.gh3_aggregate(ddf, target_res=8, agg=['mean','std','count'])
+### Custom Aggregation Functions
 
-# Load aggregated vector map in memory
-agg_df = agg_df.compute()
-agg_df.plot(column = 'agbd_l4a_mean', legend=True)
+The Python API accepts any callable as the aggregation function. Each H3 hexagon's data is passed as a DataFrame, enabling analyses not possible from the CLI:
 
-# Transform to raster
-rast = gh3.gh3_to_raster(agg_df)
-rast.agbd_l4a_mean.plot()
+```python
+import numpy as np, pandas as pd
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
+
+def fit_regression(df):
+    """Fit height → biomass regression per hexagon."""
+    mask = ~(df['agbd_l4a'].isna() | df['rh_098_l2a'].isna())
+    X, y = df.loc[mask, 'rh_098_l2a'].values.reshape(-1, 1), df.loc[mask, 'agbd_l4a'].values
+    if len(X) < 2:
+        return pd.DataFrame({'r2': [np.nan], 'n': [len(df)]})
+    model = LinearRegression().fit(X, y)
+    return pd.DataFrame({'r2': [r2_score(y, model.predict(X))], 'n': [len(df)]})
+
+# Per-hexagon regression across all partitions, in parallel
+results = gh3.gh3_aggregate(ddf, target_res=6, agg=fit_regression)
+results.compute()
+```
+
+---
+
+## Spatial Indexing
+
+### H3 Hexagonal Index
+
+H3 is the primary spatial index. The database uses a dual-level H3 structure: a coarse **partition level** (default: level 3, ~12,000 km²) for file organization, and a fine **index level** (default: level 12, ~307 m²) for shot-level precision.
+
+| Level | Avg. Area | Typical Use |
+|-------|-----------|-------------|
+| 3 | ~12,393 km² | Partition level (database tiles) |
+| 6 | ~36 km² | Regional aggregation |
+| 9 | ~0.105 km² | Local analysis |
+| 12 | ~307 m² | Index level (shot precision) |
+
+> **Note**: H3 parent hexagons are not perfectly geometrically inclusive of their children — a known property of hexagonal grids. `gh3_aggregate` handles this correctly and consistently.
+
+### EGI Square-Pixel Index (Advanced)
+
+For workflows that require alignment with standard raster grids or the GEDI L4B gridded product, gedih3 supports the **EASE Grid Index (EGI)** — square pixels on EASE-Grid 2.0 (EPSG:6933).
+
+| Level | Pixel Size | Typical Use |
+|-------|------------|-------------|
+| 3 | ~25 m | GEDI footprint level |
+| 6 | ~1 km | GEDI L4B baseline |
+| 8 | ~10 km | Wall-to-wall analysis |
+
+> **Note**: Lower EGI level = finer resolution (opposite of H3).
+
+```bash
+# EGI extraction and aggregation
+gh3_extract -d ~/gedi_data/h3/ -egi 6 -o extracted_egi/
+gh3_aggregate -d ~/gedi_data/h3/ -egi 6 -a mean -o aggregated_egi/
 ```
 
 ---
@@ -141,18 +215,18 @@ config:
   layout: dagre
 ---
 flowchart TB
-    n1["☁️ DAAC"] --> n2["🌐 Network"]
+    n1["☁️ NASA DAAC"] --> n2["🌐 earthaccess"]
     n2 --> n17["⬇️ gh3_download"]
-    n17 --> n4["🪣 SOC"]
+    n17 --> n4["🗂️ HDF5 Files"]
     n4 --> C["⚙️ gh3_build"]
-    C --> n3["💽 Local H3<br>database"]
-    n3 --> D["gh3_extract"] & n10["gh3_list_variables"] & n11["gh3_list_resolutions"]
-    D --> SHOTS["📂 Shots dataset"]
-    SHOTS --> n6["gh3_aggregate"] & RAST["gh3_rasterize"] & n13["gh3_read_schema"]
-    n6 --> AGG["📊 Aggregated dataset"]
+    C --> n3["💽 H3 Database\n(Parquet)"]
+    n3 --> D["gh3_extract"] & n10["gh3_list_variables"]
+    D --> SHOTS["📂 Flat Dataset"]
+    SHOTS --> n6["gh3_aggregate"] & RAST["gh3_rasterize"]
+    n6 --> AGG["📊 Aggregated Dataset"]
+    AGG --> RAST
     RAST --> TIF["🗺️ GeoTIFF"]
-    AGG --> RAST & n13
-    SHOTS <--> n12["gh3_update"] & n8["🖼️ gh3_from_img"] & n9["🌐 gh3_from_polygon"]
+    SHOTS <--> n8["gh3_from_img"] & n9["gh3_from_polygon"]
     n15["External Raster"] -.-> n8
     n16["External Vector"] -.-> n9
     n1@{ shape: db}
@@ -164,18 +238,12 @@ flowchart TB
     TIF@{ shape: das}
     n15@{ shape: das}
     n16@{ shape: das}
-    n4:::fade
     n15:::fade
     n16:::fade
     classDef fade stroke:#757575,color:#757575
-    linkStyle 19 stroke:#757575,fill:none
-    linkStyle 20 stroke:#757575,fill:none
+    linkStyle 13 stroke:#757575,fill:none
+    linkStyle 14 stroke:#757575,fill:none
 ```
-
-**Output Formats**:
-- **H3 Database**: Hive-partitioned Parquet optimized for big datasets and repeated queries (`gh3_build`)
-- **Simplified Datasets**: Flat Parquet files and other file formats generated by `gh3_extract` and `gh3_aggregate`, designed for simple file structure and easy manipulation outside the gedih3 framework
-- **GeoTIFF**: Raster output with compression, tiling, and BIGTIFF support (`gh3_rasterize`)
 
 ---
 
@@ -184,80 +252,45 @@ flowchart TB
 | Product | Description |
 |---------|-------------|
 | L1B | Geolocated waveforms |
-| L2A | Elevation and height metrics (RH percentiles) |
-| L2B | Canopy cover and vertical profiles |
+| L2A | Elevation and height metrics (RH percentiles, canopy height) |
+| L2B | Canopy cover and vertical structure profiles |
 | L4A | Footprint-level aboveground biomass (AGBD) |
 | L4C | Footprint-level structural complexity (WSCI) |
 
-For more details see [gedi.umd.edu](https://gedi.umd.edu/dataproducts/download/)
-
----
-
-## Spatial Indexing
-
-### H3 (Hexagonal Hierarchical Index)
-
-Uber's H3 system for hexagonal spatial partitioning. Used as the primary index for the database.
-
-| Level | Avg. Hex Area | Typical Use |
-|-------|---------------|-------------|
-| 0 | ~4,250,547 km2 | Coarsest scale |
-| 3 | ~12,393 km2 | Global analysis (default partition level) |
-| 6 | ~36.13 km2 | Regional analysis |
-| 9 | ~0.105 km2 | Local analysis |
-| 12 | ~307 m2 | GEDI footprint scale (default index level) |
-| 15 | ~0.90 m2 | Maximum resolution |
-
-### EGI (EASE Grid Index)
-
-Square pixel indexing on EASE-Grid 2.0 (EPSG:6933) for compatibility with GEDI L4B gridded products.
-
-| Level | Pixel Size | Typical Use |
-|-------|------------|-------------|
-| 1 | ~1 m | Finest resolution |
-| 3 | ~25 m | GEDI footprint |
-| 6 | ~1 km | GEDI L4B baseline |
-| 8 | ~10 km | GEDI  Wall-to-wall |
-| 12 | ~160 km | Coarsest scale |
-
-> **Note**: Lower EGI level = finer resolution (opposite to H3).
+For variable details, run `gh3_list_variables` or see [gedi.umd.edu](https://gedi.umd.edu/dataproducts/download/).
 
 ---
 
 ## Configuration
 
-You can set environment variables or create a ~/.gedih3.env file defining directory paths where you want files created by `gedih3` to be stored. This allows users to skip writing the database path everytime a CLI tool is used.
+gedih3 works with zero configuration. All outputs default to `~/gedi_data/`.
+
+To customize storage locations, set environment variables or create `~/.gedih3.env`:
 
 ```bash
-GH3_DEFAULT_DOWNLOAD_DIR # default root directory for all gedih3 files
-GH3_DEFAULT_H3_DIR # where to build and query the gedih3 database
-GH3_DEFAULT_SOC_DIR # where to download data from the DAACs
-GH3_DEFAULT_TMP_DIR # temporary storage for intermediate files
+GH3_DEFAULT_DOWNLOAD_DIR=/data/gedi       # root for all gedih3 files
+GH3_DEFAULT_H3_DIR=/data/gedi/h3_db       # H3 database location
+GH3_DEFAULT_SOC_DIR=/data/gedi/soc        # downloaded HDF5 files
+GH3_DEFAULT_TMP_DIR=/data/gedi/tmp        # temporary storage
 ```
 
-If not set, all data is stored at the user's home directory (e.g. `~/gedih3_db`, `/home/username/gedih3_db`, `C://Users/username/gedih3_db`).
-
-Configuration priority (highest to lowest):
-1. Command-line arguments
-2. Environment variables (`GH3_DEFAULT_*`)
-3. `~/.gedih3.env` file
-4. Package defaults
+Configuration priority (highest to lowest): CLI arguments → environment variables → `~/.gedih3.env` → package defaults.
 
 ---
 
 ## Tutorials
 
 See the `tutorials/` directory:
-- `tutorial_cli_pipeline.sh` -- End-to-end CLI workflow
-- `tutorial_python_api_pipeline.py` -- Python API examples
+- `tutorial_cli_pipeline.sh` — End-to-end CLI workflow
+- `tutorial_python_api_pipeline.py` — Complete Python API examples
 
 ---
 
 ## Requirements
 
-- **Python** >= 3.13
-- **NASA Earthdata account** for downloading GEDI data
-- **Key dependencies**: dask, geopandas, h3, pyarrow, h5py, rioxarray, earthaccess
+- Python >= 3.12
+- NASA Earthdata account (free, required for downloading GEDI data)
+- Key dependencies: `dask`, `geopandas`, `h3`, `pyarrow`, `h5py`, `rioxarray`, `earthaccess`
 
 See `pyproject.toml` for the full dependency list.
 

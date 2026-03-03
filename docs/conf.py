@@ -54,7 +54,13 @@ intersphinx_mapping = {
 
 # -- HTML output -------------------------------------------------------------
 html_theme = "pydata_sphinx_theme"
+html_static_path = ["imgs"]
 html_theme_options = {
+    "logo": {
+        "image_light": "gh3_logo.png",
+        "image_dark": "gh3_logo.png",
+        "link": "/",
+    },
     "github_url": "https://github.com/tiagodc/GEDI-H3",
     "use_edit_page_button": False,
     "show_toc_level": 2,
