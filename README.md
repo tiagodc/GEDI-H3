@@ -34,7 +34,7 @@ Working with GEDI at scale is genuinely hard:
 **gedih3** addresses all of this:
 
 - **Expert-curated variable presets** — `minimal` and `default` sets for each product, designed by remote sensing scientists for common use cases.
-- **Pre-configured quality filtering** — scientifically-validated filters applied with a single flag (`-q`), following community best practices.
+- **Pre-configured quality filtering** — scientifically-validated filters applied with a single flag (`-y`), following community best practices.
 - **Spatial indexing from first principles** — H3 hexagonal database enables fast regional queries after a one-time build step.
 - **Full pipeline in one package** — download → build → query → aggregate → export, all from the CLI or Python.
 - **Analysis-ready outputs** — flat GeoParquet, GeoTIFF, and other formats compatible with R, QGIS, Python, and DuckDB.
@@ -79,10 +79,10 @@ gh3_build -r "-51,0,-50,1" -l2a minimal -l4a minimal
 gh3_list_variables
 
 # 4. Extract with quality filtering
-gh3_extract -q -l agbd_l4a rh_098_l2a -o extracted/
+gh3_extract -y -l agbd_l4a rh_098_l2a -o extracted/
 
 # 5. Aggregate to ~36 km² hexagons
-gh3_aggregate -d extracted/ -h3 6 -a "['mean','std','count']" -o aggregated/
+gh3_aggregate -d extracted/ -h3 6 -a mean -o aggregated/
 
 # 6. Export as GeoTIFF
 gh3_rasterize -d aggregated/ -o rasters/ --compress LZW
@@ -118,7 +118,8 @@ gh3_rasterize -d aggregated/ -o rasters/ --compress LZW
 -r, --region       Spatial filter: bbox "W,S,E,N", vector file, or ISO3 country code
 -t0, -t1           Temporal filters (YYYY-MM-DD)
 -l2a, -l4a, ...    Product variables: 'minimal', 'default', or explicit variable names
--q, --quality      Apply pre-configured quality filters
+-y, --quality      Apply pre-configured quality filters
+-q, --query        Pandas query string filter
 -N, -T, -M         Dask workers, threads per worker, memory per worker
 -v / -vv / -Q      Verbosity: INFO / DEBUG / quiet
 ```

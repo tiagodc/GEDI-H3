@@ -25,10 +25,10 @@ gedi_download(
 )
 
 # Step 2: Build the H3 database
-from gedih3.gh3builder import build_h3_database
-build_h3_database(
-    region=[-51, 0, -50, 1],
+from gedih3 import build_h3db
+build_h3db(
     product_vars={'L2A': ['minimal'], 'L4A': ['minimal']},
+    spatial=[-51, 0, -50, 1],
 )
 
 # Step 3: Load and filter data
@@ -108,19 +108,17 @@ ddf = gh3.gh3_load(
     columns=['agbd_l4a', 'rh_098_l2a'],
     region='region.shp',              # shapefile, bbox "W,S,E,N", or ISO3 code
     query='quality_flag_l2a == 1',    # pandas-style filter string
-    t0='2020-01-01',                  # temporal filter (optional)
-    t1='2022-12-31',
 )
 ```
 
 ### From a Simplified Dataset (gh3_extract / gh3_aggregate output)
 
 ```python
-# Load as GeoDataFrame (in memory)
-gdf = gh3.gh3_load_dataset('/path/to/extracted/')
+# Load as Dask DataFrame (lazy, for large datasets)
+ddf = gh3.gh3_load(source='/path/to/extracted/')
 
-# Load lazily as Dask DataFrame (for large datasets)
-ddf = gh3.gh3_load_dataset_lazy('/path/to/extracted/')
+# Collect into memory
+gdf = gh3.gh3_load(source='/path/to/extracted/').compute()
 ```
 
 ---

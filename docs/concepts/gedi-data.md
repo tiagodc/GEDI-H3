@@ -64,11 +64,11 @@ gh3_build -r "-51,0,-50,1" -l2a default -l4a default
 ```
 
 **Pre-configured quality filtering**
-A single `-q` flag applies scientifically-validated quality filters, combining multiple quality criteria correctly across products.
+A single `-y` flag applies scientifically-validated quality filters, combining multiple quality criteria correctly across products.
 
 ```bash
 # Extract only high-quality observations
-gh3_extract -q -l agbd_l4a rh_098_l2a -o filtered/
+gh3_extract -y -l agbd_l4a rh_098_l2a -o filtered/
 ```
 
 **Spatial indexing from the ground up**
