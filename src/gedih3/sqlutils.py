@@ -1,14 +1,15 @@
 import h3
 import duckdb
 import geopandas as gpd
+import shapely
 import os
 import warnings
 
 from typing import List
-from shapely.geometry import Polygon # typing only
 
 from .config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR
 from .utils import get_system_resources
+
 
 def init_duckdb(threads=None, memory_limit=None, temp_directory=None, max_temp_size=None):
     temp_directory = temp_directory if temp_directory is not None else f"{GH3_DEFAULT_TMP_DIR}/duckdb"
@@ -22,6 +23,8 @@ def init_duckdb(threads=None, memory_limit=None, temp_directory=None, max_temp_s
     con = duckdb.connect()
     con.install_extension("spatial")
     con.load_extension("spatial")
+    con.execute("INSTALL h3 FROM community;")
+    con.execute("LOAD h3;")
     con.execute("SET enable_progress_bar = true;")
     con.execute("SET preserve_insertion_order = false;")
     con.execute("SET parquet_metadata_cache = true;")
@@ -42,10 +45,13 @@ def attach_ducklake_db(con, name='gedi_dl'):
         USE {name};
     """)
 
-def shape_to_filter(shp: Polygon, resolution: int = 3):
-    """Convert a shapely geometry to H3 cells at the given resolution."""
-    h3shape = h3.geo_to_h3shape(shp)
-    h3_cells = h3.h3shape_to_cells_experimental(h3shape, resolution, 'overlap')
+def geoseries_to_filter(shp: gpd.GeoSeries, resolution: int = 3):
+    """Convert a GeoSeries to H3 cells at the given resolution."""
+    h3_cells = set()
+    for geom in shp:
+        h3shape = h3.geo_to_h3shape(geom)
+        cells = h3.h3shape_to_cells_experimental(h3shape, resolution, 'overlap')
+        h3_cells.update(cells)
     return "h3_03 = ANY({})".format(list(h3_cells))
 
 def duck_to_gdf(
@@ -77,23 +83,29 @@ def duck_to_gdf(
 def gdf_to_duck(
     con,
     gdf: gpd.GeoDataFrame,
-    table_name: str,
     geometry_columns: List[str] = ["geometry"],
-):
+) -> duckdb.DuckDBPyRelation:
     """Load a GeoDataFrame into a DuckDB table."""
     # Convert geometries to WKT
     gdf_tmp = gdf.copy()
+    # Geopandas overrides EPSG:4326 to have lon/lat order,
+    # but the official CRS definition has lat/lon.
+    # If the crs is EPSG:4326, we need to swap the order of coordinates when converting to WKT.
+    if gdf_tmp.crs is not None and gdf_tmp.crs.to_string() == "EPSG:4326":
+        for col in geometry_columns:
+            gdf_tmp[col] = gdf_tmp[col].apply(lambda polygon: shapely.ops.transform(lambda x, y: (y, x), polygon))
+    
     with warnings.catch_warnings():
         # ignore that the df now has a geometry column of strings
         warnings.simplefilter("ignore")
         for col in geometry_columns:
             gdf_tmp[col] = gdf_tmp[col].to_wkt()
-
     replace_cols = ", ".join(
         [f"ST_GeomFromText({col}) AS {col}" for col in geometry_columns]
     )
-    con.execute(f"""
-        CREATE OR REPLACE TABLE {table_name} AS
+    # Execute immediately to use local context table (gdf_tmp)
+    rel = con.sql(f"""
         SELECT * REPLACE ({replace_cols})
         FROM gdf_tmp
-    """)
+    """).execute()
+    return rel
