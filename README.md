@@ -293,9 +293,9 @@ See the `tutorials/` directory:
 
 ## Requirements
 
-- **Python** >= 3.13
-- **NASA Earthdata account** for downloading GEDI data
-- **Key dependencies**: dask, geopandas, h3, pyarrow, h5py, rioxarray, earthaccess
+- Python >= 3.12
+- NASA Earthdata account (free, required for downloading GEDI data)
+- Key dependencies: `dask`, `geopandas`, `h3`, `pyarrow`, `h5py`, `rioxarray`, `earthaccess`
 - **Optional dependencies**: duckdb
 
 See `pyproject.toml` for the full dependency list.
