@@ -15,6 +15,7 @@ Working with GEDI data at scale is hard: granules are organized by orbit (not ge
 - **Complete pipeline**: Download from NASA DAAC, build a spatial database, query/aggregate, and export geospatial vector/raster files -- all in one package
 - **Spatial indexing**: H3 hexagons (Uber's system) for flexible resolution queries + EGI square pixels (EASE-Grid 2.0) for GEDI L4B compatibility and quick image generation
 - **Scale via Dask**: Distributed computing handles billion-row datasets across HPC clusters or in your homelab
+- **Fast analytics via DuckDB**: Use standard spatial SQL for fast, parallelized analytics, including larger-than-memory queries
 - **Interoperable outputs**: Parquet is a highly efficient column oriented file format with ample support in R, QGIS, Python and many other tools. Support to multiple vector/table formats are also available for broad compatibility
 - **Ancillary data fusion**: Sample external rasters and join vector polygons at the GEDI footprint level
 - **NASA Earthdata integration**: Authentication, search, download, and S3 streaming with automatic retry through the [earthaccess API](https://earthaccess.readthedocs.io/en/stable/)
@@ -30,6 +31,7 @@ Working with GEDI data at scale is hard: granules are organized by orbit (not ge
 - Aggregation of GEDI information at multiple resolutions with customizable functions and time-series support
 - Ancillary data tools: raster sampling (`gh3_from_img`) and vector spatial join (`gh3_from_polygon`) to match external data sources to GEDI footprints
 - Dask distributed processing for large datasets
+- DuckDB compatible for fully featured spatial SQL querying, including larger-than-memory queries
 - Simplified flat Parquet output format for external tool compatibility and support of several other table and geospatial data formats (feather, geopackage, hdf5, shapefile etc.) 
 - NASA Earthdata access with resume/retry logic and on-the-fly file subsetting for efficient network usage and minimal disk allocation  
 - Quality filtering, temporal windowing, and support for all GEDI footprint products (L1B, L2A, L2B, L4A, L4C)
@@ -52,8 +54,10 @@ conda activate gedih3
   # - l2a: canopy height metrics
   # - l4a: aboveground biomass estimates
 gh3_build -r="-51,0,-50,1" -l2a minimal -l4a minimal -s3
+## Optionally build DuckDB metadata table (Ducklake)
+gh3_build_ducklake
 
-# 2. See whcih variables are available in the built database
+# 2. See which variables are available in the built database
 gh3_list_variables
 
 # 3. Extract filtered data for a spatial subset
@@ -75,6 +79,7 @@ gh3_rasterize -d aggregated -o rasterized --compress ZSTD
 |------|---------|
 | `gh3_download` | Download GEDI data from the NASA DAACs |
 | `gh3_build` | Build H3-indexed Parquet database from GEDI HDF5 files |
+| `gh3_build_ducklake` | Build DuckDB metadata database for SQL queries |
 | `gh3_extract` | Extract filtered data with spatial/temporal constraints |
 | `gh3_aggregate` | Aggregate to coarser H3/EGI resolution levels |
 | `gh3_rasterize` | Convert aggregated/extracted datasets to GeoTIFF |
@@ -250,6 +255,7 @@ Configuration priority (highest to lowest):
 See the `tutorials/` directory:
 - `tutorial_cli_pipeline.sh` -- End-to-end CLI workflow
 - `tutorial_python_api_pipeline.py` -- Python API examples
+- `tutorial_duckdb.ipynb` -- DuckDB query examples
 
 ---
 
@@ -258,6 +264,7 @@ See the `tutorials/` directory:
 - **Python** >= 3.13
 - **NASA Earthdata account** for downloading GEDI data
 - **Key dependencies**: dask, geopandas, h3, pyarrow, h5py, rioxarray, earthaccess
+- **Optional dependencies**: duckdb
 
 See `pyproject.toml` for the full dependency list.
 
