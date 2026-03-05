@@ -325,7 +325,7 @@ class GEDIAccessor:
             Product key to download. If None, downloads all granules.
         show_progress : bool, optional
             Whether to display download progress bar. Passed through
-            to earthaccess.download() via **kwargs.
+            to earthaccess.download() via ``**kwargs``.
         **kwargs
             Additional arguments passed to earthaccess.download().
         """
