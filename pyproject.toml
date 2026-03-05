@@ -33,7 +33,7 @@ dependencies = [
     "geocube >= 0.7.1",
     "python-dateutil >= 2.9.0",
     "python-dotenv",
-    "earthaccess >= 0.14.0",
+    "earthaccess >= 0.16.0",
     "pqdm",
     "pyyaml",
     "scipy >= 1.10.0",

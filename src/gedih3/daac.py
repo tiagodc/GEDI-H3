@@ -162,6 +162,11 @@ class GEDIAccessor:
                 password YOUR_PASSWORD
 
         Create an account at https://urs.earthdata.nasa.gov/ if needed.
+
+        Token-based authentication is also supported by setting the
+        EARTHDATA_TOKEN environment variable. When set, earthaccess
+        uses the token directly regardless of the strategy parameter.
+        This is the recommended approach for HPC environments.
         """
         # Check if netrc credentials exist before attempting login
         if strategy == 'netrc':
@@ -310,6 +315,20 @@ class GEDIAccessor:
         return parse_temporal(temporal)
     
     def download_all(self, download_dir: str = None, product: str = None, **kwargs):
+        """Download all searched granules.
+
+        Parameters
+        ----------
+        download_dir : str, optional
+            Output directory. Defaults to GH3_DEFAULT_DOWNLOAD_DIR.
+        product : str, optional
+            Product key to download. If None, downloads all granules.
+        show_progress : bool, optional
+            Whether to display download progress bar. Passed through
+            to earthaccess.download() via **kwargs.
+        **kwargs
+            Additional arguments passed to earthaccess.download().
+        """
         if not self.authenticated:
             raise GediAuthenticationError("Must authenticate before downloading")
 
@@ -339,7 +358,8 @@ class GEDIAccessor:
             product_key = product.upper() if product else 'CUSTOM'
             granules = self.product_files.get(product_key, self.granules)
 
-        s3_files = earthaccess.open(granules, pqdm_kwargs={'disable': True})
+        s3_files = earthaccess.open(granules, show_progress=False,
+                                     open_kwargs={'block_size': 16 * 1024 * 1024})
         return s3_files    
     
     def merge_paths(self, open_s3: bool = False):
@@ -395,13 +415,13 @@ def _download_with_retry(
 
     # Ensure authentication in worker processes (pqdm/Dask spawn fresh processes
     # that don't inherit the main-process earthaccess session)
-    if earthaccess.__store__ is None:
+    if not earthaccess.__auth__.authenticated:
         earthaccess.login(strategy='netrc', persist=False)
 
     last_error = None
     for attempt in range(1, max_attempts + 1):
         try:
-            opath = earthaccess.download(granule, odir_soc, threads=1, pqdm_kwargs={'disable': True})
+            opath = earthaccess.download(granule, odir_soc, threads=1, show_progress=False)
 
             if len(opath) == 0:
                 raise GediDownloadError(

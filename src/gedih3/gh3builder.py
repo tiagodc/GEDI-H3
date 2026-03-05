@@ -127,12 +127,13 @@ def _subset_s3_file(granule, prod, product_vars, odir, file_idx, n_files):
             os.unlink(local_path)
 
     # Re-authenticate in worker process (same pattern as daac.py:379)
-    if earthaccess.__store__ is None:
+    if not earthaccess.__auth__.authenticated:
         earthaccess.login(strategy='netrc', persist=False)
 
     # Open S3 handle from granule in this worker process
     try:
-        s3_files = earthaccess.open([granule], pqdm_kwargs={'disable': True})
+        s3_files = earthaccess.open([granule], show_progress=False,
+                                    open_kwargs={'block_size': 16 * 1024 * 1024})
     except Exception as e:
         logger.warning(f"[{file_idx}/{n_files}] Failed to open S3 handle for {gf.full_name}: {e}")
         return None
