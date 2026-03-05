@@ -53,6 +53,7 @@ gh3_rasterize = "gedih3.cli.gh3_rasterize:main"
 gh3_update = "gedih3.cli.gh3_update:main"
 gh3_from_img = "gedih3.cli.gh3_from_img:main"
 gh3_from_polygon = "gedih3.cli.gh3_from_polygon:main"
+gh3_build_ducklake = "gedih3.cli.gh3_build_ducklake:main"
 
 [project.optional-dependencies]
 docs = [

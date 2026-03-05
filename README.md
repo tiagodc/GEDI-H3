@@ -48,6 +48,7 @@ Working with GEDI at scale is genuinely hard:
 - Pre-configured quality filtering with a single flag
 - H3 hexagonal spatial indexing (levels 0–15) for fast regional queries
 - Dask-distributed processing — works on laptops, workstations, and HPC clusters
+- DuckDB compatible for fully featured spatial SQL querying, including larger-than-memory queries
 - Full Python API — chain operations in memory, no intermediate files required
 - Custom aggregation functions — pass any Python callable (e.g., per-hexagon regression models)
 - GeoTIFF export with compression, tiling, and time-series support
@@ -74,6 +75,8 @@ gh3_download -r "-51,0,-50,1" -l2a minimal -l4a minimal
 
 # 2. Build the H3 spatial database
 gh3_build -r "-51,0,-50,1" -l2a minimal -l4a minimal
+## Optionally build DuckDB metadata table (Ducklake)
+gh3_build_ducklake
 
 # 3. See which variables are available
 gh3_list_variables
@@ -102,6 +105,7 @@ gh3_rasterize -d aggregated/ -o rasters/ --compress LZW
 |------|---------|
 | `gh3_download` | Download GEDI HDF5 data from NASA DAACs |
 | `gh3_build` | Build H3-indexed Parquet database from HDF5 files |
+| `gh3_build_ducklake` | Build DuckDB metadata database for SQL queries |
 | `gh3_extract` | Extract and filter shots to flat Parquet files |
 | `gh3_aggregate` | Aggregate to coarser H3 resolution |
 | `gh3_rasterize` | Export aggregated data as GeoTIFF |
@@ -284,6 +288,7 @@ Configuration priority (highest to lowest): CLI arguments → environment variab
 See the `tutorials/` directory:
 - `tutorial_cli_pipeline.sh` — End-to-end CLI workflow
 - `tutorial_python_api_pipeline.py` — Complete Python API examples
+- `tutorial_duckdb_basics.ipynb` -- DuckDB query examples
 
 ---
 
@@ -292,6 +297,7 @@ See the `tutorials/` directory:
 - Python >= 3.12
 - NASA Earthdata account (free, required for downloading GEDI data)
 - Key dependencies: `dask`, `geopandas`, `h3`, `pyarrow`, `h5py`, `rioxarray`, `earthaccess`
+- **Optional dependencies**: duckdb
 
 See `pyproject.toml` for the full dependency list.
 
