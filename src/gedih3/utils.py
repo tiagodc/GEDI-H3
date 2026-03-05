@@ -877,35 +877,34 @@ def read_img_bounds(filepath: str, crs=4326):
 
 def geo_to_umm(obj):
     """
-    Converts a GeoDataFrame, shapely Polygon, or GeoJSON dictionary to a UMM-style list of coordinates.
+    Converts a GeoDataFrame, shapely Polygon, or GeoJSON dictionary to a UMM-style
+    list of (lon, lat) coordinate tuples for a single polygon.
+
+    Multi-polygon geometries are reduced to their convex hull since earthaccess/CMR
+    only supports single-polygon spatial queries.
     """
     import geopandas as gpd
     from shapely.ops import orient
     from shapely.geometry.base import BaseGeometry
-    geodf = None
+
+    geom = None
+
     if isinstance(obj, dict):
         geodf = from_geojson(obj)
+        geom = geodf.union_all()
     elif isinstance(obj, gpd.GeoDataFrame):
-        geodf = obj.geometry.apply(orient, args=(1,))
-
-    if geodf is not None:
-        geodf = geodf.explode(index_parts=False).reset_index()
-        if len(geodf) > 1:
-            geo_umm = [list(zip(*polygon.exterior.coords.xy)) for polygon in geodf.geometry]
-        else:
-            xy = geodf.geometry.get_coordinates()
-            geo_umm = list(zip(xy.x, xy.y))
-
+        geom = obj.union_all()
     elif isinstance(obj, BaseGeometry):
-        oriented_geom = orient(obj, 1)
-        if oriented_geom.geom_type == 'MultiPolygon':
-            geo_umm = [list(zip(*polygon.exterior.coords.xy)) for polygon in oriented_geom.geoms]
-        else:
-            coords = oriented_geom.exterior.coords
-            geo_umm = list(coords)
-
+        geom = obj
     else:
         raise GediValidationError(f"Unsupported type: {type(obj)}")
+
+    # Reduce multi-polygon to convex hull (earthaccess only supports single polygon)
+    if geom.geom_type == 'MultiPolygon':
+        geom = geom.convex_hull
+
+    geom = orient(geom, 1)
+    geo_umm = list(zip(*geom.exterior.coords.xy))
 
     return geo_umm
 
