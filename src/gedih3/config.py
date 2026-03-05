@@ -93,7 +93,7 @@ _GEDI_MIN_VARS = {
     },
     'L2B': {2: ['shot_number','cover_z','fhd_normal','pai_z','pgap_theta']},
     'L4A': {2: ['shot_number','agbd','sensitivity','l4_quality_flag']},
-    'L4C': {2: ['shot_number','wsci','wsci_pi_lower','wsci_pi_upper','wsci_quality_flag','land_cover_data/worldcover_class']},
+    'L4C': {2: ['shot_number','wsci', 'wsci_xy', 'wsci_z','wsci_pi_lower','wsci_pi_upper','wsci_quality_flag','land_cover_data/worldcover_class']},
 }
 
 GEDI_PRODUCTS = {
