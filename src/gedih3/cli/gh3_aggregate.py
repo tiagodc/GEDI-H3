@@ -171,7 +171,7 @@ def _aggregate_data(ddf, *, use_egi, is_database, args, agg, agg_is_dict,
 
 def _export_data(aggdf, *, export_func, part_col, output_dir, args,
                  use_egi, egi_agg_level, egi_partition_level, agg,
-                 logger):
+                 logger, h3_part_level=None):
     """
     Drop internal columns, persist, and export aggregated data.
 
@@ -263,6 +263,7 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
             aggdf, output=output_dir, fmt=args.format, merge=args.merge,
             show_progress=not args.quiet, drop_internal=False,
             source_database=args.database, tool='gh3_aggregate',
+            h3_partition_level=h3_part_level,
             **meta_kwargs
         )
         print_success(f"Data exported to {output_dir}", logger=logger)
@@ -390,10 +391,11 @@ def main():
         )
 
         # Shared kwargs for _export_data calls
+        h3_part_level = source_info.get('partition_level') if not use_egi else None
         export_kwargs = dict(
             args=args, use_egi=use_egi,
             egi_agg_level=egi_agg_level, egi_partition_level=egi_partition_level,
-            agg=agg, logger=logger,
+            agg=agg, logger=logger, h3_part_level=h3_part_level,
         )
 
         with Client(**dask_kwargs) as client:

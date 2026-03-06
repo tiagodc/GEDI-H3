@@ -722,7 +722,7 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None,
         unique_parts = df[actual_part_col].unique()
         output_paths = []
         for part_id in unique_parts:
-            part_df = df[df[actual_part_col] == part_id].drop(columns=[actual_part_col])
+            part_df = df[df[actual_part_col] == part_id]
             oname = str(part_id)
             opath = os.path.join(odir, f"{oname}.{fmt}")
             _write_dataframe(part_df, opath, fmt)
@@ -740,7 +740,6 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None,
         # 1. Try partition column (raw data case)
         if actual_part_col and actual_part_col in df.columns:
             oname = str(df[actual_part_col].iloc[0])
-            df = df.drop(columns=[actual_part_col])
 
         # 2. Try deriving from H3 index via cell_to_parent (aggregated data case)
         if not oname and naming_partition_level is not None and df.index.name:
@@ -1010,6 +1009,9 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
     # Write dataset metadata
     if write_metadata:
         columns = list(ddf.columns)
+        # Forward h3_partition_level to metadata (it's a named param, not in **metadata_kwargs)
+        if h3_partition_level is not None:
+            metadata_kwargs.setdefault('h3_partition_level', h3_partition_level)
         gh3_write_dataset_meta(
             opath=output,
             index_type=index_type or 'unknown',
