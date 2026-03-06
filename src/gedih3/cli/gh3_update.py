@@ -420,28 +420,47 @@ def _update_from_merge(args, dataset_path, dataset_meta, logger):
     n_updated = 0
     n_no_match = 0
 
-    for fpath in target_files:
-        part_id = os.path.splitext(os.path.basename(fpath))[0]
-        target_df = target_reader(fpath)
+    # Check if partition names match between target and merge datasets
+    matched_count = sum(1 for f in target_files
+                        if os.path.splitext(os.path.basename(f))[0] in merge_map)
 
-        if len(target_df) == 0:
-            continue
-
-        merge_file = merge_map.get(part_id)
-
-        if merge_file and smart_exists(merge_file):
-            merge_df = merge_reader(merge_file)
-            # Rename shot_number if different between datasets
-            if merge_sn != sn_col and merge_sn in merge_df.columns:
-                merge_df = merge_df.rename(columns={merge_sn: sn_col})
-            target_df = _join_new_columns(target_df, merge_df, new_cols, sn_col)
+    if matched_count == 0 and merge_map:
+        # Partition names don't match — fall back to global shot_number join
+        logger.info("  Partition names don't match — joining by shot_number across all files")
+        merge_all = pd.concat([merge_reader(f) for f in merge_files], ignore_index=True)
+        merge_all = merge_all.drop_duplicates(subset=[merge_sn])
+        if merge_sn != sn_col and merge_sn in merge_all.columns:
+            merge_all = merge_all.rename(columns={merge_sn: sn_col})
+        for fpath in target_files:
+            target_df = target_reader(fpath)
+            if len(target_df) == 0:
+                continue
+            target_df = _join_new_columns(target_df, merge_all, new_cols, sn_col)
+            gh3._write_dataframe(target_df, fpath, target_fmt)
             n_updated += 1
-        else:
-            for c in new_cols:
-                target_df[c] = np.nan
-            n_no_match += 1
+    else:
+        for fpath in target_files:
+            part_id = os.path.splitext(os.path.basename(fpath))[0]
+            target_df = target_reader(fpath)
 
-        gh3._write_dataframe(target_df, fpath, target_fmt)
+            if len(target_df) == 0:
+                continue
+
+            merge_file = merge_map.get(part_id)
+
+            if merge_file and smart_exists(merge_file):
+                merge_df = merge_reader(merge_file)
+                # Rename shot_number if different between datasets
+                if merge_sn != sn_col and merge_sn in merge_df.columns:
+                    merge_df = merge_df.rename(columns={merge_sn: sn_col})
+                target_df = _join_new_columns(target_df, merge_df, new_cols, sn_col)
+                n_updated += 1
+            else:
+                for c in new_cols:
+                    target_df[c] = np.nan
+                n_no_match += 1
+
+            gh3._write_dataframe(target_df, fpath, target_fmt)
 
     logger.info(f"  Updated {n_updated}/{len(target_files)} files ({n_no_match} with no matching merge partition).")
 

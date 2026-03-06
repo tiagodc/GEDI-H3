@@ -642,11 +642,21 @@ def get_dataset_index_info(database):
     elif smart_exists(dataset_meta_path):
         with smart_open(dataset_meta_path, 'r') as f:
             meta = json.load(f)
+        partition_level = meta.get('egi_partition_level') or meta.get('h3_partition_level')
+        # Infer partition level from filenames if not in metadata
+        if partition_level is None and meta.get('index_type') == 'h3':
+            partition_ids = meta.get('partition_ids', [])
+            if partition_ids:
+                try:
+                    import h3
+                    partition_level = h3.get_resolution(partition_ids[0])
+                except Exception:
+                    pass
         return {
             'source_type': 'simplified_dataset',
             'index_type': meta.get('index_type'),
             'index_level': meta.get('index_level'),
-            'partition_level': meta.get('egi_partition_level') or meta.get('h3_partition_level'),
+            'partition_level': partition_level,
             'file_format': meta.get('file_format', 'parquet'),
             **meta
         }
