@@ -179,7 +179,6 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
     """
     import glob as globmod
     import pandas as pd
-    from dask.distributed import progress
 
     import gedih3.gh3driver as gh3
     from gedih3.cliutils import is_internal_column, print_success
@@ -191,11 +190,9 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
         logger.info(f"  Dropping internal columns: {drop_cols}")
         aggdf = aggdf.drop(columns=drop_cols)
 
-    # Materialize the aggregation graph before export
-    # (avoids dask-expr issues with SetIndex + map_partitions chaining)
-    aggdf = aggdf.persist()
-    if not args.quiet:
-        progress(aggdf)
+    # No persist() here — let gh3_export() handle compute/persist internally.
+    # Without SetIndex calls in the aggregation graph, partitions can be
+    # processed and exported on-the-fly without holding all data in memory.
 
     # Export
     if args.rasterize:
@@ -416,14 +413,13 @@ def main():
                 logger.info(f"Time-series mode: {args.time_interval} {args.time_units} "
                             f"from {args.time_start} to {args.time_end}")
 
-                # Load data once (for non-database EGI or any H3 path)
+                # Load data lazily (for non-database EGI or any H3 path).
+                # Each time window re-reads from parquet with temporal filtering,
+                # avoiding holding the full dataset in memory.
                 if not (use_egi and is_database):
                     logger.info("Loading data...")
                     ddf = load_data_from_source(args.database, columns, region, query_str, logger)
                     logger.info(f"  Loaded {ddf.npartitions} partitions")
-                    ddf = ddf.persist()
-                    if not args.quiet:
-                        progress(ddf)
                 else:
                     ddf = None  # EGI+database path loads per-window via egi_load + egi_aggregate
 

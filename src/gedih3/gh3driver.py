@@ -607,7 +607,10 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
     GediAggregationError
         If spatial aggregation fails.
     """
-    _meta = gh3_aggregate_func(df=gh3_df.head(npartitions=min(gh3_df.npartitions, 10)), res=target_res, agg=agg, cols=columns, **kwargs)
+    # Infer output schema from the empty _meta DataFrame (no data read).
+    # gh3_aggregate_func handles empty DataFrames correctly, returning the
+    # right column names (including multi-agg suffixes) and index name.
+    _meta = gh3_aggregate_func(df=gh3_df._meta, res=target_res, agg=agg, cols=columns, **kwargs)
 
     if query is not None:
         gh3_df = gh3_df.query(query)
