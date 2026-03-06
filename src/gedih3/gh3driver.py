@@ -628,8 +628,9 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
         meta=_meta,
         **kwargs
     )
-    agg_df = agg_df.reset_index().set_index(h3agg, sort=False)
-    
+    # gh3_aggregate_func returns data already indexed by h3agg (groupby result).
+    # No set_index shuffle needed — the index is already correct.
+
     if add_geometry:
         _gmeta = agg_df._meta.copy()
         _gmeta['geometry'] = gpd.GeoSeries([], crs=4326)
@@ -641,21 +642,19 @@ def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, ad
     if repartition and h3part is not None:
         h3part_res = int(h3part.split('_')[1])
 
-        # Compute partition column from aggregated H3 cells
-        def add_h3_parent(df, parent_col, parent_res, idx_col):
-            df = df.reset_index()
-            df[parent_col] = df[idx_col].apply(lambda x: h3.cell_to_parent(x, parent_res))
-            return df.set_index(idx_col)
+        # Add partition column via map_partitions (no shuffle).
+        # Each Dask partition already contains data from a single H3 parent
+        # cell (from from_map loading), so part_col values are uniform within
+        # each partition. Export uses part_col as a data column for file naming.
+        def add_h3_parent(df, parent_col, parent_res):
+            df = df.copy()
+            df[parent_col] = [h3.cell_to_parent(x, parent_res) for x in df.index]
+            return df
 
         _part_meta = agg_df._meta.copy()
-        _part_meta = _part_meta.reset_index()
         _part_meta[h3part] = ''
-        _part_meta = _part_meta.set_index(h3agg)
 
-        agg_df = agg_df.map_partitions(add_h3_parent, parent_col=h3part, parent_res=h3part_res, idx_col=h3agg, meta=_part_meta)
-        uparts = sorted(agg_df[h3part].unique().compute().tolist())
-        agg_df = agg_df.reset_index().set_index(h3part, sort=False, divisions=uparts + uparts[-1:])
-        agg_df = agg_df.reset_index().set_index(h3agg, sort=False)
+        agg_df = agg_df.map_partitions(add_h3_parent, parent_col=h3part, parent_res=h3part_res, meta=_part_meta)
 
     agg_df.index = agg_df.index.astype(str)
     return agg_df
