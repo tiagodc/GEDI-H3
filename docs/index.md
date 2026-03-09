@@ -6,7 +6,11 @@
 
 **gedih3** handles all of this. It transforms raw GEDI data into a spatially-indexed GeoParquet database with expert-curated variable presets and pre-configured quality filtering, and provides a complete toolchain for querying, aggregating, and exporting this data in formats compatible with R, Python, QGIS, and any other modern tool.
 
-> **Suggested image (hero)**: A raster map of aboveground biomass (AGBD) or canopy height over a tropical forest region, generated from gedih3 output. A strong visual result immediately communicates what the package produces.
+```{raw} html
+<video autoplay loop muted playsinline style="width: 100%; border-radius: 8px;">
+  <source src="_static/zooming.mp4" type="video/mp4">
+</video>
+```
 
 ---
 

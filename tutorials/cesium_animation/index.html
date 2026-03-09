@@ -75,16 +75,16 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   #scalebar {
-    position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);
+    position: absolute; top: 20px; right: 20px;
     z-index: 10; pointer-events: none; text-align: center;
     opacity: 0; transition: opacity 0.5s;
   }
   #scaleBar {
-    height: 4px; background: #fff; border: 1px solid rgba(0,0,0,0.5);
+    height: 6px; background: #fff; border: 1px solid rgba(0,0,0,0.5);
     border-top: none; box-shadow: 0 1px 3px rgba(0,0,0,0.5); margin: 0 auto;
   }
   #scaleLabel {
-    color: #fff; font-size: 11px; margin-top: 3px;
+    color: #fff; font-size: 13px; margin-top: 4px;
     text-shadow: 0 1px 2px rgba(0,0,0,0.8);
   }
 </style>
@@ -114,7 +114,7 @@
 <div id="legend" style="opacity:0">
   <div style="font-size:13px; font-weight:bold; margin-bottom:4px;">Canopy Height (rh98)</div>
   <div class="bar"></div>
-  <div class="labels"><span>0 m</span><span>10</span><span>20</span><span>30+ m</span></div>
+  <div class="labels"><span>0 m</span><span>10</span><span>20</span><span>35+ m</span></div>
 </div>
 
 <div id="controls" style="display:none">
@@ -151,7 +151,7 @@ function rh98Color(v, alpha) {
 
 // ---- Config ----
 var DATA_MAX = 40;    // normalization max used when generating height_color (meters)
-var DISPLAY_MAX = 30; // clamp to this for display (meters)
+var DISPLAY_MAX = 35; // clamp to this for display (meters)
 var COLOR_SCALE = DATA_MAX / DISPLAY_MAX;
 var CACHE_V = "?v=8";
 var LAYER_CONFIG = {
@@ -165,25 +165,26 @@ var LAYER_CONFIG = {
 
 var CAMERAS = {
   global:      { lon: -40.0, lat: 20.0, height: 20000000 },
-  maryland:    { lon: -77.0, lat: 38.8, height: 120000 },
+  maryland:    { lon: -76.55, lat: 38.96, height: 120000 },
   midatlantic: { lon: -77.5, lat: 39.0, height: 400000 },
   eastern:     { lon: -80.0, lat: 37.5, height: 1200000 },
   central:     { lon: -85.0, lat: 37.5, height: 3000000 },
   conus:       { lon: -98.0, lat: 39.0, height: 5500000 },
 };
 
-var FLY_DUR = 3.5;
-var HOLD_DUR = 0.5;
+var FLY_DUR = 3.0;
+var HOLD_DUR = 0.25;
+var FILL_ALPHA = 0.75; // transparency for filled hex layers
 
 // Streaming strategy: each stage preloads the NEXT layer in background at its start,
 // then destroys the previous layer after the transition completes.
 // At most 2 polygon layers exist in memory at any time.
 var STAGES = [
-  { dur: 2, title: "NASA GEDI Mission",
+  { dur: 1, title: "NASA GEDI Mission",
     desc: "The Global Ecosystem Dynamics Investigation measures Earth's forests from the International Space Station using LiDAR.",
     action: async function() { hideAllLayers(); spinEnabled = true; document.getElementById('scalebar').style.opacity = '0'; } },
 
-  { dur: HOLD_DUR, title: "Zooming to CONUS",
+  { dur: HOLD_DUR, title: "Zooming to North America",
     desc: "Flying to the continental United States to explore GEDI canopy height at multiple scales.",
     action: async function(runToken) {
       // Preload next level in background while flying
@@ -192,8 +193,8 @@ var STAGES = [
       await Promise.all([flyTo(CAMERAS.conus, 3.0, runToken), revealLayerGradually("h3_03", 2.6, runToken)]);
     } },
 
-  { dur: 0, title: "H3 Level 3 (~110km)",
-    desc: "Continental-scale canopy height across CONUS. Tall forests in the Southeast, shorter canopy in the agricultural Midwest.",
+  { dur: 0, title: "H3 Level 3 (~115km)",
+    desc: "GEDI data is stored on coarse spatial partitions. Continental-scale canopy height aggregated across the US.",
     action: async function(runToken) {
       ensureLayer("h3_05").catch(function(e) { console.warn("Preload h3_05:", e.message); });
       await delayWithPause(HOLD_DUR, runToken);
@@ -201,8 +202,8 @@ var STAGES = [
       destroyLayer("h3_03");
     } },
 
-  { dur: 0, title: "H3 Level 4 (~40km)",
-    desc: "Zooming in to the central US. Broader patterns of forest cover become clearer at ~40km resolution.",
+  { dur: 0, title: "H3 Level 4 (~50km)",
+    desc: "Zooming in to the central US. Broader patterns of forest cover become clearer at ~50km resolution.",
     action: async function(runToken) {
       ensureLayer("h3_06").catch(function(e) { console.warn("Preload h3_06:", e.message); });
       await delayWithPause(HOLD_DUR, runToken);
@@ -210,8 +211,8 @@ var STAGES = [
       destroyLayer("h3_04");
     } },
 
-  { dur: 0, title: "H3 Level 5 (~16km)",
-    desc: "Zooming in to the Eastern US. The Appalachian Mountains show tall canopy at ~16km resolution.",
+  { dur: 0, title: "H3 Level 5 (~20km)",
+    desc: "Zooming in to the Eastern US. The Appalachian Mountains show tall canopies at ~20km resolution.",
     action: async function(runToken) {
       ensureLayer("h3_07").catch(function(e) { console.warn("Preload h3_07:", e.message); });
       await delayWithPause(HOLD_DUR, runToken);
@@ -228,20 +229,20 @@ var STAGES = [
       destroyLayer("h3_06");
     } },
 
-  { dur: 0, title: "H3 Level 7 (~2km)",
-    desc: "Fine-scale canopy height patterns emerge across Maryland at ~2km resolution.",
+  { dur: 0, title: "H3 Level 7 (~3km)",
+    desc: "Finer scale canopy height patterns emerge across Maryland at ~3km resolution.",
     action: async function(runToken) {
       await delayWithPause(HOLD_DUR, runToken);
       await transitionLayers("h3_07", "shots", null, FLY_DUR, runToken);
       destroyLayer("h3_07");
     } },
 
-  { dur: 2, title: "Individual GEDI Shots",
-    desc: "Each point is a single 25m GEDI footprint, colored by canopy height (rh98). GEDI fires 242 laser shots per second along 8 ground tracks.",
+  { dur: 1.5, title: "Individual GEDI Shots",
+    desc: "Hexagons aggregate information from intersecting GEDI tracks. Each point is a single 25m GEDI footprint.",
     action: async function() { hideAllHexLayers(); } },
 
-  { dur: 3, title: "gedih3 - Multi-Scale GEDI",
-    desc: "From continental patterns to individual laser shots, all from one H3-indexed parquet database.",
+  { dur: 2, title: "gedih3 - Multi-Scale GEDI",
+    desc: "From continental patterns to individual laser shots, all in one H3-indexed database.",
     action: async function() {
       viewer.scene.screenSpaceCameraController.enableRotate = true;
       viewer.scene.screenSpaceCameraController.enableZoom = true;
@@ -289,7 +290,6 @@ async function initViewer() {
   await waitFrames(10); // let Cesium finalize GPU resources for h3_03
   document.getElementById("loadingOverlay").style.display = "none";
 
-  document.getElementById("controls").style.display = "block";
   runAnimation(++animationToken);
 }
 
@@ -341,7 +341,7 @@ async function buildFilledLayer(name, data) {
     if (!e.polygon) continue;
     var hc = e.properties.height_color ? e.properties.height_color.getValue() : 0;
     e._gh3HeightColor = Math.min(1, hc * COLOR_SCALE);
-    e.polygon.material = rh98Color(e._gh3HeightColor, 1.0);
+    e.polygon.material = rh98Color(e._gh3HeightColor, FILL_ALPHA);
     e.polygon.outline = false;
     e.polygon.height = 0;
     e.show = false;
@@ -519,23 +519,29 @@ async function transitionLayers(coarseName, fineName, camera, flyDur, runToken) 
   if (!coarseLayer) throw new Error("Missing layer: " + coarseName);
   if (!fineLayer) throw new Error("Missing layer: " + fineName);
 
-  // Ensure coarse is visible at full opacity
+  // Ensure coarse is visible at fill opacity
   showLayer(coarseName);
-  setPolygonAlpha(coarseLayer, 1.0);
+  setPolygonAlpha(coarseLayer, FILL_ALPHA);
 
-  // Phase 1: Fade wireframe IN while fills stay at full opacity (~0.6s).
-  // This lets the user see the hex grid overlaid on the filled hexes before the transition.
+  // Phase 1: Fade wireframe IN over filled hexagons
   setWireAlpha(wireName, 0.0);
   showLayer(wireName);
-  await animateProgress(0.6, function(progress) {
+  await animateProgress(0.4, function(progress) {
     setWireAlpha(wireName, progress);
   }, runToken);
   setWireAlpha(wireName, 1.0);
 
-  // Brief pause with both wire + fills fully visible
-  await delayWithPause(0.25, runToken);
+  // Phase 2: Fade out fill only — wireframe stays, basemap shows through
+  await animateProgress(0.6, function(progress) {
+    setPolygonAlpha(coarseLayer, FILL_ALPHA * (1.0 - progress));
+  }, runToken);
+  hideLayer(coarseName);
+  setPolygonAlpha(coarseLayer, FILL_ALPHA);
 
-  // Phase 2: Prepare fine layer for reveal (entities hidden before datasource is shown)
+  // Brief pause with wireframe + basemap visible
+  await delayWithPause(0.4, runToken);
+
+  // Phase 3: Prepare fine layer for reveal (entities hidden before datasource is shown)
   var isPoints = fineLayer.type === "points";
   var revealCount, revealOrder;
 
@@ -548,33 +554,23 @@ async function transitionLayers(coarseName, fineName, camera, flyDur, runToken) 
     var entities = fineLayer.entities;
     revealCount = entities.length;
     revealOrder = ensureRevealOrder(fineLayer, revealCount);
-    // Hide all before showing datasource to prevent flash
     for (var j = 0; j < revealCount; j++) entities[j].show = false;
     fineLayer.datasource.show = true;
   }
 
-  // Phase 2: Camera flight starts simultaneously with fill fade-out
+  // Phase 4: Fly camera and reveal fine layer simultaneously
   var flyPromise = camera
     ? flyTo(camera, flyDur, runToken)
     : delayWithPause(flyDur, runToken);
 
-  // Phase 2 master timeline: fill fades out, fine layer reveals gradually
-  // Wire stays at full alpha (1.0) from Phase 1 — no longer animated here
   var revealCursor = 0;
-  var REVEAL_DELAY = 0.1; // fine layer starts appearing after 10% of progress
-
   await animateProgress(flyDur * 0.85, function(progress) {
-    setPolygonAlpha(coarseLayer, 1.0 - progress); // fill: 1 → 0
-
-    if (progress > REVEAL_DELAY) {
-      var revealProgress = (progress - REVEAL_DELAY) / (1.0 - REVEAL_DELAY);
-      var target = Math.floor(revealCount * revealProgress);
-      while (revealCursor < target) {
-        var idx = revealOrder[revealCursor];
-        if (isPoints) fineLayer.primitive.get(idx).show = true;
-        else fineLayer.entities[idx].show = true;
-        revealCursor++;
-      }
+    var target = Math.floor(revealCount * progress);
+    while (revealCursor < target) {
+      var idx = revealOrder[revealCursor];
+      if (isPoints) fineLayer.primitive.get(idx).show = true;
+      else fineLayer.entities[idx].show = true;
+      revealCursor++;
     }
   }, runToken);
 
@@ -586,14 +582,10 @@ async function transitionLayers(coarseName, fineName, camera, flyDur, runToken) 
     revealCursor++;
   }
 
-  // Hide coarse fill (fully faded out); restore alpha for potential future use
-  hideLayer(coarseName);
-  setPolygonAlpha(coarseLayer, 1.0);
-
   // Wait for camera
   await flyPromise;
 
-  // Fade wireframe out
+  // Phase 5: Fade wireframe out now that fine layer is fully loaded
   await animateProgress(0.5, function(progress) {
     setWireAlpha(wireName, 1.0 - progress);
   }, runToken);
@@ -650,6 +642,7 @@ async function runAnimation(runToken) {
   viewer.scene.screenSpaceCameraController.enableRotate = false;
   viewer.scene.screenSpaceCameraController.enableZoom = false;
   document.getElementById("progressBar").style.width = "0%";
+  document.getElementById("controls").style.display = "none";
   startSpinLoop();
 
   for (var i = 0; i < STAGES.length; i++) {
@@ -663,7 +656,10 @@ async function runAnimation(runToken) {
     await delayWithPause(stage.dur, runToken);
     setProgress(i, STAGES.length);
   }
-  if (!isRunStale(runToken)) animationRunning = false;
+  if (!isRunStale(runToken)) {
+    animationRunning = false;
+    document.getElementById("controls").style.display = "block";
+  }
 }
 
 function waitFrames(n) {

@@ -25,13 +25,18 @@ from gedih3.gedidriver import GEDIShot
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
 # Max height for normalization (meters)
-RH98_MAX = 40.0
+RH98_MAX = 35.0
 # Number of orbits to sample for shot display
 N_ORBITS = 20
+
+# Restrict shots and h3_09 to a single partition file for smaller output
+SINGLE_FILE_LAYERS = {"shots_maryland", "h3_09_maryland"}
+SINGLE_FILE_NAME = "832aa8fffffffff.parquet"
 
 # Layer definitions
 LAYERS = [
     ("shots_maryland",      "shots_points.json", True),
+    ("h3_09_maryland",      "h3_09.geojson",     False),
     ("h3_07_maryland",      "h3_07.geojson",     False),
     ("h3_06_midatlantic",   "h3_06.geojson",     False),
     ("h3_05_eastern",       "h3_05.geojson",     False),
@@ -40,9 +45,17 @@ LAYERS = [
 ]
 
 
-def load_parquet_dir(src_dir):
-    """Load all parquet files from a directory into a single GeoDataFrame."""
-    files = sorted(f for f in os.listdir(src_dir) if f.endswith(".parquet"))
+def load_parquet_dir(src_dir, single_file=None):
+    """Load all parquet files from a directory into a single GeoDataFrame.
+
+    If single_file is given, load only that file instead of all parquet files.
+    """
+    if single_file:
+        files = [single_file]
+        if not os.path.exists(os.path.join(src_dir, single_file)):
+            raise FileNotFoundError(f"{single_file} not found in {src_dir}")
+    else:
+        files = sorted(f for f in os.listdir(src_dir) if f.endswith(".parquet"))
     if not files:
         raise FileNotFoundError(f"No parquet files in {src_dir}")
     gdfs = []
@@ -90,13 +103,13 @@ def find_shot_number_column(df):
     return candidates[0]
 
 
-def process_shots(src_dir, out_path):
+def process_shots(src_dir, out_path, single_file=None):
     """Convert shots to compact [[lon, lat, normalizedValue], ...] JSON.
 
     Selects all shots from N_ORBITS randomly chosen orbits to show
     GEDI's orbital ground-track pattern instead of random scatter.
     """
-    gdf = load_parquet_dir(src_dir)
+    gdf = load_parquet_dir(src_dir, single_file=single_file)
     rh98_col = find_rh98_column(gdf)
     gdf = gdf[gdf[rh98_col] >= 0].copy()
     print(f"  Loaded {len(gdf)} shots (rh98 col: {rh98_col})")
@@ -127,9 +140,9 @@ def process_shots(src_dir, out_path):
     print(f"  Wrote {len(points)} points -> {out_path.name} ({size_mb:.1f} MB)")
 
 
-def process_h3(src_dir, out_path):
+def process_h3(src_dir, out_path, single_file=None):
     """Convert H3 aggregated data to GeoJSON with hex polygon geometries."""
-    df = load_parquet_dir(src_dir)
+    df = load_parquet_dir(src_dir, single_file=single_file)
     rh98_col = find_rh98_column(df)
     h3_col = find_h3_column(df)
     df = df[df[rh98_col] >= 0].copy()
@@ -176,10 +189,11 @@ def main():
         if not src.exists():
             print(f"  SKIP: {src} not found\n")
             continue
+        sf = SINGLE_FILE_NAME if subdir in SINGLE_FILE_LAYERS else None
         if is_shots:
-            process_shots(src, out)
+            process_shots(src, out, single_file=sf)
         else:
-            process_h3(src, out)
+            process_h3(src, out, single_file=sf)
         print()
 
     print("Done! Output files are in:", DATA_DIR)
