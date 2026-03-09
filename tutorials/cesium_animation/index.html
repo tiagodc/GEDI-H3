@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GEDI Canopy Height Animation - gedih3</title>
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Cesium.js"></script>
+<link href="https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+<style>
+  html, body, #cesiumContainer {
+    width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+    font-family: 'Segoe UI', Arial, sans-serif;
+  }
+  #overlay {
+    position: absolute; top: 20px; left: 20px; z-index: 10;
+    background: rgba(0,0,0,0.75); color: #fff; padding: 16px 24px;
+    border-radius: 8px; max-width: 400px; pointer-events: none;
+    transition: opacity 0.5s;
+  }
+  #overlay h2 { margin: 0 0 8px 0; font-size: 18px; }
+  #overlay p { margin: 0; font-size: 14px; line-height: 1.4; opacity: 0.85; }
+  #legend {
+    position: absolute; bottom: 40px; right: 20px; z-index: 10;
+    background: rgba(0,0,0,0.75); color: #fff; padding: 12px 16px;
+    border-radius: 8px; pointer-events: none; transition: opacity 0.5s;
+  }
+  #legend .bar {
+    width: 200px; height: 16px; border-radius: 3px;
+    background: linear-gradient(to right, #440154, #3b528b, #21918c, #5ec962, #fde725);
+    margin: 6px 0;
+  }
+  #legend .labels { display: flex; justify-content: space-between; font-size: 11px; }
+  #controls {
+    position: absolute; bottom: 40px; left: 20px; z-index: 10;
+  }
+  #controls button {
+    background: rgba(0,0,0,0.75); color: #fff; border: 1px solid rgba(255,255,255,0.3);
+    padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px;
+    margin-right: 8px;
+  }
+  #controls button:hover { background: rgba(60,60,60,0.9); }
+  #progress {
+    position: absolute; bottom: 20px; left: 20px; right: 20px; z-index: 10;
+    height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px;
+  }
+  #progressBar {
+    height: 100%; background: #5ec962; border-radius: 2px; width: 0%;
+    transition: width 0.5s;
+  }
+  #tokenDialog {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    z-index: 100; background: #1e1e1e; color: #fff; padding: 32px;
+    border-radius: 12px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  #tokenDialog input {
+    width: 300px; padding: 8px 12px; margin: 12px 0; border: 1px solid #555;
+    border-radius: 4px; background: #333; color: #fff; font-size: 14px;
+  }
+  #tokenDialog button {
+    padding: 8px 24px; border: none; border-radius: 4px;
+    background: #5ec962; color: #000; font-weight: bold; cursor: pointer;
+    font-size: 14px;
+  }
+  #tokenDialog a { color: #5ec962; }
+  #loadingOverlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 50; background: rgba(0,0,0,0.85);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; color: #fff;
+  }
+  .spinner {
+    width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3);
+    border-top-color: #5ec962; border-radius: 50%;
+    animation: spin 1s linear infinite; margin-bottom: 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #scalebar {
+    position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);
+    z-index: 10; pointer-events: none; text-align: center;
+    opacity: 0; transition: opacity 0.5s;
+  }
+  #scaleBar {
+    height: 4px; background: #fff; border: 1px solid rgba(0,0,0,0.5);
+    border-top: none; box-shadow: 0 1px 3px rgba(0,0,0,0.5); margin: 0 auto;
+  }
+  #scaleLabel {
+    color: #fff; font-size: 11px; margin-top: 3px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  }
+</style>
+</head>
+<body>
+
+<div id="tokenDialog">
+  <h2>Cesium Ion Access Token</h2>
+  <p>Get a free token at <a href="https://ion.cesium.com/tokens" target="_blank">ion.cesium.com/tokens</a></p>
+  <input id="tokenInput" type="text" placeholder="Paste your Cesium Ion token here">
+  <br>
+  <button onclick="startApp()">Start Animation</button>
+</div>
+
+<div id="loadingOverlay" style="display:none">
+  <div class="spinner"></div>
+  <p id="loadingStatus">Loading data...</p>
+</div>
+
+<div id="cesiumContainer"></div>
+
+<div id="overlay" style="opacity:0">
+  <h2 id="stageTitle"></h2>
+  <p id="stageDesc"></p>
+</div>
+
+<div id="legend" style="opacity:0">
+  <div style="font-size:13px; font-weight:bold; margin-bottom:4px;">Canopy Height (rh98)</div>
+  <div class="bar"></div>
+  <div class="labels"><span>0 m</span><span>10</span><span>20</span><span>30+ m</span></div>
+</div>
+
+<div id="controls" style="display:none">
+  <button onclick="restartAnimation()">Replay</button>
+  <button onclick="togglePause()">Pause</button>
+</div>
+
+<div id="progress"><div id="progressBar"></div></div>
+
+<div id="scalebar"><div id="scaleBar"></div><div id="scaleLabel"></div></div>
+
+<script>
+console.log("GEDI Animation v17 - Streaming layers, polyline wireframe, unified timeline");
+
+// ---- Viridis color ramp ----
+var VIRIDIS = [
+  { t: 0.00, r:  68, g:   1, b:  84 },
+  { t: 0.25, r:  59, g:  82, b: 139 },
+  { t: 0.50, r:  33, g: 145, b: 140 },
+  { t: 0.75, r:  94, g: 201, b:  98 },
+  { t: 1.00, r: 253, g: 231, b:  37 },
+];
+
+function rh98Color(v, alpha) {
+  alpha = alpha !== undefined ? alpha : 1.0;
+  v = Math.max(0, Math.min(1, v));
+  var lo = VIRIDIS[0], hi = VIRIDIS[VIRIDIS.length - 1];
+  for (var i = 0; i < VIRIDIS.length - 1; i++) {
+    if (v >= VIRIDIS[i].t && v <= VIRIDIS[i + 1].t) { lo = VIRIDIS[i]; hi = VIRIDIS[i + 1]; break; }
+  }
+  var f = (hi.t === lo.t) ? 0 : (v - lo.t) / (hi.t - lo.t);
+  return new Cesium.Color((lo.r + f * (hi.r - lo.r)) / 255, (lo.g + f * (hi.g - lo.g)) / 255, (lo.b + f * (hi.b - lo.b)) / 255, alpha);
+}
+
+// ---- Config ----
+var DATA_MAX = 40;    // normalization max used when generating height_color (meters)
+var DISPLAY_MAX = 30; // clamp to this for display (meters)
+var COLOR_SCALE = DATA_MAX / DISPLAY_MAX;
+var CACHE_V = "?v=8";
+var LAYER_CONFIG = {
+  shots:  { file: "data/shots_points.json" + CACHE_V, type: "points", pointSize: 3 },
+  h3_07:  { file: "data/h3_07.geojson" + CACHE_V,     type: "polygons" },
+  h3_06:  { file: "data/h3_06.geojson" + CACHE_V,     type: "polygons" },
+  h3_05:  { file: "data/h3_05.geojson" + CACHE_V,     type: "polygons" },
+  h3_04:  { file: "data/h3_04.geojson" + CACHE_V,     type: "polygons" },
+  h3_03:  { file: "data/h3_03.geojson" + CACHE_V,     type: "polygons" },
+};
+
+var CAMERAS = {
+  global:      { lon: -40.0, lat: 20.0, height: 20000000 },
+  maryland:    { lon: -77.0, lat: 38.8, height: 120000 },
+  midatlantic: { lon: -77.5, lat: 39.0, height: 400000 },
+  eastern:     { lon: -80.0, lat: 37.5, height: 1200000 },
+  central:     { lon: -85.0, lat: 37.5, height: 3000000 },
+  conus:       { lon: -98.0, lat: 39.0, height: 5500000 },
+};
+
+var FLY_DUR = 3.5;
+var HOLD_DUR = 0.5;
+
+// Streaming strategy: each stage preloads the NEXT layer in background at its start,
+// then destroys the previous layer after the transition completes.
+// At most 2 polygon layers exist in memory at any time.
+var STAGES = [
+  { dur: 2, title: "NASA GEDI Mission",
+    desc: "The Global Ecosystem Dynamics Investigation measures Earth's forests from the International Space Station using LiDAR.",
+    action: async function() { hideAllLayers(); spinEnabled = true; document.getElementById('scalebar').style.opacity = '0'; } },
+
+  { dur: HOLD_DUR, title: "Zooming to CONUS",
+    desc: "Flying to the continental United States to explore GEDI canopy height at multiple scales.",
+    action: async function(runToken) {
+      // Preload next level in background while flying
+      ensureLayer("h3_04").catch(function(e) { console.warn("Preload h3_04:", e.message); });
+      spinEnabled = false;
+      await Promise.all([flyTo(CAMERAS.conus, 3.0, runToken), revealLayerGradually("h3_03", 2.6, runToken)]);
+    } },
+
+  { dur: 0, title: "H3 Level 3 (~110km)",
+    desc: "Continental-scale canopy height across CONUS. Tall forests in the Southeast, shorter canopy in the agricultural Midwest.",
+    action: async function(runToken) {
+      ensureLayer("h3_05").catch(function(e) { console.warn("Preload h3_05:", e.message); });
+      await delayWithPause(HOLD_DUR, runToken);
+      await transitionLayers("h3_03", "h3_04", CAMERAS.central, FLY_DUR, runToken);
+      destroyLayer("h3_03");
+    } },
+
+  { dur: 0, title: "H3 Level 4 (~40km)",
+    desc: "Zooming in to the central US. Broader patterns of forest cover become clearer at ~40km resolution.",
+    action: async function(runToken) {
+      ensureLayer("h3_06").catch(function(e) { console.warn("Preload h3_06:", e.message); });
+      await delayWithPause(HOLD_DUR, runToken);
+      await transitionLayers("h3_04", "h3_05", CAMERAS.eastern, FLY_DUR, runToken);
+      destroyLayer("h3_04");
+    } },
+
+  { dur: 0, title: "H3 Level 5 (~16km)",
+    desc: "Zooming in to the Eastern US. The Appalachian Mountains show tall canopy at ~16km resolution.",
+    action: async function(runToken) {
+      ensureLayer("h3_07").catch(function(e) { console.warn("Preload h3_07:", e.message); });
+      await delayWithPause(HOLD_DUR, runToken);
+      await transitionLayers("h3_05", "h3_06", CAMERAS.midatlantic, FLY_DUR, runToken);
+      destroyLayer("h3_05");
+    } },
+
+  { dur: 0, title: "H3 Level 6 (~7km)",
+    desc: "Zooming in to the Mid-Atlantic. Hexagons show average canopy height at ~7km resolution.",
+    action: async function(runToken) {
+      ensureLayer("shots").catch(function(e) { console.warn("Preload shots:", e.message); });
+      await delayWithPause(HOLD_DUR, runToken);
+      await transitionLayers("h3_06", "h3_07", CAMERAS.maryland, FLY_DUR, runToken);
+      destroyLayer("h3_06");
+    } },
+
+  { dur: 0, title: "H3 Level 7 (~2km)",
+    desc: "Fine-scale canopy height patterns emerge across Maryland at ~2km resolution.",
+    action: async function(runToken) {
+      await delayWithPause(HOLD_DUR, runToken);
+      await transitionLayers("h3_07", "shots", null, FLY_DUR, runToken);
+      destroyLayer("h3_07");
+    } },
+
+  { dur: 2, title: "Individual GEDI Shots",
+    desc: "Each point is a single 25m GEDI footprint, colored by canopy height (rh98). GEDI fires 242 laser shots per second along 8 ground tracks.",
+    action: async function() { hideAllHexLayers(); } },
+
+  { dur: 3, title: "gedih3 - Multi-Scale GEDI",
+    desc: "From continental patterns to individual laser shots, all from one H3-indexed parquet database.",
+    action: async function() {
+      viewer.scene.screenSpaceCameraController.enableRotate = true;
+      viewer.scene.screenSpaceCameraController.enableZoom = true;
+    } },
+];
+
+var viewer, spinEnabled = true, paused = false, animationRunning = false;
+var animationToken = 0;
+var spinLoopRunning = false;
+
+// Active Cesium objects: layers["h3_03"], layers["h3_03_wire"], layers["shots"], etc.
+var layers = {};
+// In-flight load promises for deduplication
+var layerBuilding = {};
+
+function startApp() {
+  var token = document.getElementById("tokenInput").value.trim();
+  if (!token) { alert("Please enter a Cesium Ion token"); return; }
+  Cesium.Ion.defaultAccessToken = token;
+  document.getElementById("tokenDialog").style.display = "none";
+  initViewer();
+}
+
+async function initViewer() {
+  viewer = new Cesium.Viewer("cesiumContainer", {
+    baseLayer: false, baseLayerPicker: false, geocoder: false, homeButton: false,
+    sceneModePicker: false, selectionIndicator: false, navigationHelpButton: false,
+    animation: false, timeline: false, fullscreenButton: false, infoBox: false,
+    creditContainer: document.createElement("div"),
+  });
+  viewer.imageryLayers.addImageryProvider(
+    await Cesium.ArcGisMapServerImageryProvider.fromUrl(
+      "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"
+    )
+  );
+  viewer.scene.screenSpaceCameraController.enableRotate = false;
+  viewer.scene.screenSpaceCameraController.enableZoom = false;
+  viewer.camera.setView({ destination: Cesium.Cartesian3.fromDegrees(CAMERAS.global.lon, CAMERAS.global.lat, CAMERAS.global.height) });
+  viewer.scene.postRender.addEventListener(updateScalebar);
+
+  // Load only the first layer before starting — all others stream on demand
+  document.getElementById("loadingOverlay").style.display = "flex";
+  document.getElementById("loadingStatus").textContent = "Loading initial data...";
+  await ensureLayer("h3_03");
+  await waitFrames(10); // let Cesium finalize GPU resources for h3_03
+  document.getElementById("loadingOverlay").style.display = "none";
+
+  document.getElementById("controls").style.display = "block";
+  runAnimation(++animationToken);
+}
+
+// ---- Layer building ----
+
+async function ensureLayer(name) {
+  if (layers[name]) return;
+  if (layerBuilding[name]) { await layerBuilding[name]; return; }
+
+  var cfg = LAYER_CONFIG[name];
+  if (!cfg) return;
+
+  var buildPromise = (async function() {
+    console.log("Loading " + name + "...");
+    try {
+      var resp = await fetch(cfg.file);
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      var data = await resp.json();
+      var n = cfg.type === "points" ? data.length : data.features.length;
+      console.log("  " + name + ": " + n + " features loaded");
+      if (cfg.type === "points") {
+        buildPointsLayer(name, data);
+      } else {
+        await buildFilledLayer(name, data);
+        buildWireLayerPolyline(name, data);
+        // data goes out of scope here — GC can reclaim the raw JSON
+      }
+      console.log("  " + name + " ready");
+    } catch(e) {
+      console.error("  FAILED " + name + ": " + e.message);
+      throw e;
+    }
+  })();
+
+  layerBuilding[name] = buildPromise;
+  try {
+    await buildPromise;
+  } finally {
+    if (layerBuilding[name] === buildPromise) delete layerBuilding[name];
+  }
+  if (!layers[name]) throw new Error("Layer did not finish building: " + name);
+}
+
+async function buildFilledLayer(name, data) {
+  var ds = await Cesium.GeoJsonDataSource.load(data, { clampToGround: false });
+  var entities = ds.entities.values;
+  for (var j = 0; j < entities.length; j++) {
+    var e = entities[j];
+    if (!e.polygon) continue;
+    var hc = e.properties.height_color ? e.properties.height_color.getValue() : 0;
+    e._gh3HeightColor = Math.min(1, hc * COLOR_SCALE);
+    e.polygon.material = rh98Color(e._gh3HeightColor, 1.0);
+    e.polygon.outline = false;
+    e.polygon.height = 0;
+    e.show = false;
+  }
+  ds.show = false;
+  viewer.dataSources.add(ds);
+  layers[name] = { type: "polygons", datasource: ds, entities: entities, revealOrder: null };
+}
+
+function buildWireLayerPolyline(name, data) {
+  var wireName = name + "_wire";
+  var collection = viewer.scene.primitives.add(new Cesium.PolylineCollection());
+  var features = data.features;
+  var polylines = [];
+
+  for (var i = 0; i < features.length; i++) {
+    var geom = features[i].geometry;
+    var rings = geom.type === "MultiPolygon" ? geom.coordinates[0] : geom.coordinates;
+    var coords = rings[0]; // outer ring only
+    var positions = [];
+    for (var j = 0; j < coords.length; j++) {
+      positions.push(Cesium.Cartesian3.fromDegrees(coords[j][0], coords[j][1], 500));
+    }
+    var pl = collection.add({
+      positions: positions,
+      width: 2.0,
+      material: Cesium.Material.fromType("Color", {
+        color: Cesium.Color.BLACK.withAlpha(0.0)
+      }),
+    });
+    polylines.push(pl);
+  }
+
+  collection.show = false;
+  layers[wireName] = { type: "wireframe", primitive: collection, polylines: polylines };
+}
+
+function buildPointsLayer(name, data) {
+  var cfg = LAYER_CONFIG[name];
+  var collection = viewer.scene.primitives.add(new Cesium.PointPrimitiveCollection());
+  for (var j = 0; j < data.length; j++) {
+    var p = data[j];
+    collection.add({
+      position: Cesium.Cartesian3.fromDegrees(p[0], p[1]),
+      pixelSize: cfg.pointSize,
+      color: rh98Color(Math.min(1, p[2] * COLOR_SCALE), 1.0),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    });
+  }
+  collection.show = false;
+  layers[name] = { type: "points", primitive: collection, revealOrder: null };
+}
+
+// ---- Layer lifecycle ----
+
+function showLayer(name) {
+  var L = layers[name];
+  if (!L) { console.warn("showLayer: missing layer " + name); return false; }
+  if (L.type === "points" || L.type === "wireframe") L.primitive.show = true;
+  else L.datasource.show = true;
+  return true;
+}
+
+function hideLayer(name) {
+  var L = layers[name];
+  if (!L) return false;
+  if (L.type === "points" || L.type === "wireframe") L.primitive.show = false;
+  else L.datasource.show = false;
+  return true;
+}
+
+function hideAllLayers() {
+  var names = Object.keys(layers);
+  for (var i = 0; i < names.length; i++) hideLayer(names[i]);
+}
+
+function hideAllHexLayers() {
+  var names = Object.keys(layers);
+  for (var i = 0; i < names.length; i++) {
+    if (names[i] !== "shots") hideLayer(names[i]);
+  }
+}
+
+// Destroy a layer and its wireframe, freeing GPU and JS memory.
+function destroyLayer(name) {
+  var L = layers[name];
+  if (L) {
+    if (L.type === "polygons") {
+      viewer.dataSources.remove(L.datasource, true); // true = destroy entities
+    } else if (L.type === "points" || L.type === "wireframe") {
+      viewer.scene.primitives.remove(L.primitive);
+    }
+    delete layers[name];
+  }
+  var wireName = name + "_wire";
+  var W = layers[wireName];
+  if (W) {
+    viewer.scene.primitives.remove(W.primitive);
+    delete layers[wireName];
+  }
+}
+
+// Destroy all active layers (called on replay to reset memory).
+function destroyAllLayers() {
+  var names = Object.keys(layers);
+  for (var i = 0; i < names.length; i++) {
+    var L = layers[names[i]];
+    if (!L) continue;
+    if (L.type === "polygons") {
+      viewer.dataSources.remove(L.datasource, true);
+    } else if (L.type === "points" || L.type === "wireframe") {
+      viewer.scene.primitives.remove(L.primitive);
+    }
+  }
+  layers = {};
+  layerBuilding = {}; // abandon any in-flight loads
+}
+
+// ---- Gradual reveal ----
+
+async function revealLayerGradually(name, seconds, runToken) {
+  var L = layers[name];
+  if (!L) { console.warn("revealLayerGradually: layer not found:", name); return; }
+  console.log("Revealing layer:", name, "type:", L.type);
+
+  if (L.type === "points") {
+    L.primitive.show = true;
+    var pointCount = L.primitive.length;
+    var pointOrder = ensureRevealOrder(L, pointCount);
+    for (var i = 0; i < pointCount; i++) L.primitive.get(i).show = false;
+    var pointCursor = 0;
+    await animateProgress(Math.max(0.8, seconds || 1.5), function(progress) {
+      var target = Math.floor(pointCount * progress);
+      while (pointCursor < target) {
+        L.primitive.get(pointOrder[pointCursor]).show = true;
+        pointCursor++;
+      }
+    }, runToken);
+    while (pointCursor < pointCount) {
+      L.primitive.get(pointOrder[pointCursor]).show = true;
+      pointCursor++;
+    }
+  } else {
+    var entities = L.entities;
+    var order = ensureRevealOrder(L, entities.length);
+    // Hide all entities BEFORE showing datasource to prevent flash of all cells
+    for (var j = 0; j < entities.length; j++) entities[j].show = false;
+    L.datasource.show = true;
+    var cursor = 0;
+    await animateProgress(Math.max(1.0, seconds || 1.8), function(progress) {
+      var target = Math.floor(entities.length * progress);
+      while (cursor < target) {
+        entities[order[cursor]].show = true;
+        cursor++;
+      }
+    }, runToken);
+    while (cursor < entities.length) {
+      entities[order[cursor]].show = true;
+      cursor++;
+    }
+  }
+  await waitFrames(4);
+}
+
+// ---- Transition: unified timeline for wire-in, fill-out, fly, reveal ----
+
+async function transitionLayers(coarseName, fineName, camera, flyDur, runToken) {
+  // Ensure fine layer is ready (should already be loaded by background preload)
+  await ensureLayer(fineName);
+
+  var wireName = coarseName + "_wire";
+  var coarseLayer = layers[coarseName];
+  var fineLayer = layers[fineName];
+
+  if (!coarseLayer) throw new Error("Missing layer: " + coarseName);
+  if (!fineLayer) throw new Error("Missing layer: " + fineName);
+
+  // Ensure coarse is visible at full opacity
+  showLayer(coarseName);
+  setPolygonAlpha(coarseLayer, 1.0);
+
+  // Phase 1: Fade wireframe IN while fills stay at full opacity (~0.6s).
+  // This lets the user see the hex grid overlaid on the filled hexes before the transition.
+  setWireAlpha(wireName, 0.0);
+  showLayer(wireName);
+  await animateProgress(0.6, function(progress) {
+    setWireAlpha(wireName, progress);
+  }, runToken);
+  setWireAlpha(wireName, 1.0);
+
+  // Brief pause with both wire + fills fully visible
+  await delayWithPause(0.25, runToken);
+
+  // Phase 2: Prepare fine layer for reveal (entities hidden before datasource is shown)
+  var isPoints = fineLayer.type === "points";
+  var revealCount, revealOrder;
+
+  if (isPoints) {
+    fineLayer.primitive.show = true;
+    revealCount = fineLayer.primitive.length;
+    revealOrder = ensureRevealOrder(fineLayer, revealCount);
+    for (var i = 0; i < revealCount; i++) fineLayer.primitive.get(i).show = false;
+  } else {
+    var entities = fineLayer.entities;
+    revealCount = entities.length;
+    revealOrder = ensureRevealOrder(fineLayer, revealCount);
+    // Hide all before showing datasource to prevent flash
+    for (var j = 0; j < revealCount; j++) entities[j].show = false;
+    fineLayer.datasource.show = true;
+  }
+
+  // Phase 2: Camera flight starts simultaneously with fill fade-out
+  var flyPromise = camera
+    ? flyTo(camera, flyDur, runToken)
+    : delayWithPause(flyDur, runToken);
+
+  // Phase 2 master timeline: fill fades out, fine layer reveals gradually
+  // Wire stays at full alpha (1.0) from Phase 1 — no longer animated here
+  var revealCursor = 0;
+  var REVEAL_DELAY = 0.1; // fine layer starts appearing after 10% of progress
+
+  await animateProgress(flyDur * 0.85, function(progress) {
+    setPolygonAlpha(coarseLayer, 1.0 - progress); // fill: 1 → 0
+
+    if (progress > REVEAL_DELAY) {
+      var revealProgress = (progress - REVEAL_DELAY) / (1.0 - REVEAL_DELAY);
+      var target = Math.floor(revealCount * revealProgress);
+      while (revealCursor < target) {
+        var idx = revealOrder[revealCursor];
+        if (isPoints) fineLayer.primitive.get(idx).show = true;
+        else fineLayer.entities[idx].show = true;
+        revealCursor++;
+      }
+    }
+  }, runToken);
+
+  // Flush any remaining unrevealed items
+  while (revealCursor < revealCount) {
+    var idx = revealOrder[revealCursor];
+    if (isPoints) fineLayer.primitive.get(idx).show = true;
+    else fineLayer.entities[idx].show = true;
+    revealCursor++;
+  }
+
+  // Hide coarse fill (fully faded out); restore alpha for potential future use
+  hideLayer(coarseName);
+  setPolygonAlpha(coarseLayer, 1.0);
+
+  // Wait for camera
+  await flyPromise;
+
+  // Fade wireframe out
+  await animateProgress(0.5, function(progress) {
+    setWireAlpha(wireName, 1.0 - progress);
+  }, runToken);
+  hideLayer(wireName);
+}
+
+// ---- Utility ----
+
+function flyTo(cam, dur, runToken) {
+  return new Promise(function(resolve) {
+    var settled = false;
+    var monitor = null;
+    function finish() {
+      if (settled) return;
+      settled = true;
+      if (monitor) clearInterval(monitor);
+      resolve();
+    }
+
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(cam.lon, cam.lat, cam.height),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+      duration: dur || 2,
+      complete: finish,
+      cancel: finish,
+    });
+
+    if (runToken !== undefined) {
+      monitor = setInterval(function() {
+        if (isRunStale(runToken)) {
+          viewer.camera.cancelFlight();
+          finish();
+        }
+      }, 50);
+    }
+  });
+}
+
+function updateOverlay(stage) {
+  document.getElementById("stageTitle").textContent = stage.title;
+  document.getElementById("stageDesc").textContent = stage.desc;
+  document.getElementById("overlay").style.opacity = "1";
+}
+
+function setProgress(i, total) {
+  document.getElementById("progressBar").style.width = ((i + 1) / total * 100) + "%";
+}
+
+// ---- Animation loop ----
+
+async function runAnimation(runToken) {
+  if (runToken === undefined) runToken = ++animationToken;
+  animationRunning = true; paused = false; spinEnabled = true;
+  viewer.scene.screenSpaceCameraController.enableRotate = false;
+  viewer.scene.screenSpaceCameraController.enableZoom = false;
+  document.getElementById("progressBar").style.width = "0%";
+  startSpinLoop();
+
+  for (var i = 0; i < STAGES.length; i++) {
+    if (isRunStale(runToken)) return;
+    var stage = STAGES[i];
+    console.log("Stage " + i + ": " + stage.title);
+    updateOverlay(stage);
+    document.getElementById("legend").style.opacity = i >= 1 ? "1" : "0";
+    await stage.action(runToken);
+    if (isRunStale(runToken)) return;
+    await delayWithPause(stage.dur, runToken);
+    setProgress(i, STAGES.length);
+  }
+  if (!isRunStale(runToken)) animationRunning = false;
+}
+
+function waitFrames(n) {
+  return new Promise(function(resolve) {
+    var c = 0;
+    function tick() { if (++c >= n) resolve(); else requestAnimationFrame(tick); }
+    requestAnimationFrame(tick);
+  });
+}
+
+function delayWithPause(seconds, runToken) {
+  return new Promise(function(resolve) {
+    var remaining = seconds * 1000;
+    function tick() {
+      if (isRunStale(runToken)) { resolve(); return; }
+      if (!paused) remaining -= 50;
+      if (remaining <= 0) resolve(); else setTimeout(tick, 50);
+    }
+    setTimeout(tick, 50);
+  });
+}
+
+function startSpinLoop() {
+  if (spinLoopRunning) return;
+  spinLoopRunning = true;
+  function spin() {
+    if (spinEnabled && !paused && viewer)
+      viewer.scene.camera.rotate(Cesium.Cartesian3.UNIT_Z, Cesium.Math.toRadians(0.05));
+    if (animationRunning || spinEnabled) requestAnimationFrame(spin);
+    else spinLoopRunning = false;
+  }
+  requestAnimationFrame(spin);
+}
+
+async function restartAnimation() {
+  var runToken = ++animationToken;
+  animationRunning = false;
+  paused = false;
+  spinEnabled = false;
+  viewer.camera.cancelFlight();
+
+  // Destroy all layers to free memory, then rebuild from scratch
+  destroyAllLayers();
+  await flyTo(CAMERAS.global, 1.0, runToken);
+  if (isRunStale(runToken)) return;
+
+  document.getElementById("loadingOverlay").style.display = "flex";
+  document.getElementById("loadingStatus").textContent = "Loading initial data...";
+  await ensureLayer("h3_03");
+  await waitFrames(10);
+  document.getElementById("loadingOverlay").style.display = "none";
+
+  runAnimation(runToken);
+}
+
+function togglePause() { paused = !paused; }
+
+function isRunStale(runToken) {
+  return runToken !== undefined && runToken !== animationToken;
+}
+
+function ensureRevealOrder(layerObj, count) {
+  if (layerObj.revealOrder && layerObj.revealOrder.length === count) return layerObj.revealOrder;
+  var idx = new Array(count);
+  for (var i = 0; i < count; i++) idx[i] = i;
+  for (var j = count - 1; j > 0; j--) {
+    var k = Math.floor(Math.random() * (j + 1));
+    var tmp = idx[j];
+    idx[j] = idx[k];
+    idx[k] = tmp;
+  }
+  layerObj.revealOrder = idx;
+  return idx;
+}
+
+async function animateProgress(seconds, onUpdate, runToken) {
+  return new Promise(function(resolve) {
+    var duration = Math.max(0.05, seconds || 0.05) * 1000;
+    var elapsed = 0;
+    var lastTs = null;
+    function step(ts) {
+      if (isRunStale(runToken)) { resolve(); return; }
+      if (lastTs === null) lastTs = ts;
+      var dt = ts - lastTs;
+      lastTs = ts;
+      if (!paused) elapsed += dt;
+      var progress = Math.min(1, elapsed / duration);
+      onUpdate(progress);
+      if (progress >= 1) resolve();
+      else requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+function setPolygonAlpha(layerObj, alpha) {
+  if (!layerObj || layerObj.type !== "polygons") return;
+  var entities = layerObj.entities;
+  for (var i = 0; i < entities.length; i++) {
+    var e = entities[i];
+    if (!e.polygon) continue;
+    var hc = (e._gh3HeightColor !== undefined) ? e._gh3HeightColor : 0;
+    e.polygon.material = rh98Color(hc, alpha);
+  }
+}
+
+// ---- Scalebar ----
+
+var NICE_DISTS = [1,2,5,10,20,50,100,200,500,1e3,2e3,5e3,1e4,2e4,5e4,1e5,2e5,5e5,1e6,2e6,5e6];
+
+function niceDistance(m) {
+  for (var i = NICE_DISTS.length - 1; i >= 0; i--)
+    if (NICE_DISTS[i] <= m) return NICE_DISTS[i];
+  return NICE_DISTS[0];
+}
+
+function formatDistance(m) {
+  return m >= 1000 ? (m / 1000) + ' km' : m + ' m';
+}
+
+function updateScalebar() {
+  if (!viewer) return;
+  var canvas = viewer.canvas;
+  var w = canvas.clientWidth, h = canvas.clientHeight;
+  var left  = viewer.camera.pickEllipsoid(new Cesium.Cartesian2(w * 0.25, h / 2));
+  var right = viewer.camera.pickEllipsoid(new Cesium.Cartesian2(w * 0.75, h / 2));
+  var el = document.getElementById('scalebar');
+  if (!left || !right) { el.style.opacity = '0'; return; }
+  var mpp = Cesium.Cartesian3.distance(left, right) / (w * 0.5);
+  var target = niceDistance(mpp * 120);
+  document.getElementById('scaleBar').style.width = (target / mpp) + 'px';
+  document.getElementById('scaleLabel').textContent = formatDistance(target);
+  el.style.opacity = '1';
+}
+
+function setWireAlpha(wireName, alpha) {
+  var L = layers[wireName];
+  if (!L || L.type !== "wireframe") return;
+  var polylines = L.polylines;
+  var color = Cesium.Color.BLACK.withAlpha(alpha);
+  for (var i = 0; i < polylines.length; i++) {
+    polylines[i].material.uniforms.color = color;
+  }
+}
+</script>
+</body>
+</html>
