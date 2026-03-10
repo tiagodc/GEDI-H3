@@ -25,6 +25,13 @@ from .exceptions import H3ValidationError, GediValidationError, GediFileError, G
 logger = get_logger(__name__)
 
 
+def _init_earthaccess_worker():
+    """Pre-authenticate earthaccess in Dask worker processes."""
+    import earthaccess
+    if not earthaccess.__auth__.authenticated:
+        earthaccess.login(strategy='netrc', persist=False)
+
+
 def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=False, update=False, version=None, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5, on_granule_complete=None, ensure_l2a=True):
     """
     Download GEDI HDF5 files in SOC (Science Operation Center) format.
@@ -130,16 +137,33 @@ def _subset_s3_file(granule, prod, product_vars, odir, file_idx, n_files):
     if not earthaccess.__auth__.authenticated:
         earthaccess.login(strategy='netrc', persist=False)
 
-    # Open S3 handle from granule in this worker process
-    try:
-        s3_files = earthaccess.open([granule], show_progress=False,
-                                    open_kwargs={'block_size': 16 * 1024 * 1024})
-    except Exception as e:
-        logger.warning(f"[{file_idx}/{n_files}] Failed to open S3 handle for {gf.full_name}: {e}")
-        return None
+    # Open S3 handle with retry (transient failures common during worker startup)
+    from .exceptions import RETRY_DEFAULTS
+    max_attempts = RETRY_DEFAULTS['max_attempts']
+    initial_wait = RETRY_DEFAULTS['initial_wait']
+    max_wait = RETRY_DEFAULTS['max_wait']
+
+    s3_files = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            s3_files = earthaccess.open([granule], show_progress=False,
+                                        open_kwargs={'block_size': 16 * 1024 * 1024})
+            if s3_files:
+                break
+        except Exception as e:
+            if attempt == max_attempts:
+                logger.warning(f"[{file_idx}/{n_files}] Failed to open S3 handle for "
+                               f"{gf.full_name} after {max_attempts} attempts: {e}")
+                return None
+            wait_time = min(initial_wait * (2 ** (attempt - 1)), max_wait)
+            logger.debug(f"[{file_idx}/{n_files}] S3 open attempt {attempt} failed for "
+                         f"{gf.full_name}, retrying in {wait_time:.1f}s: {e}")
+            import time
+            time.sleep(wait_time)
 
     if not s3_files:
-        logger.warning(f"[{file_idx}/{n_files}] No S3 handle returned for {gf.full_name}")
+        logger.warning(f"[{file_idx}/{n_files}] No S3 handle returned for "
+                       f"{gf.full_name} after {max_attempts} attempts")
         return None
 
     s3_file = s3_files[0]
@@ -260,6 +284,8 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
     if client is not None:
         n_workers = sum(client.nthreads().values())
         logger.info(f"Subsetting {n_files} files from S3 with Dask ({n_workers} workers)")
+
+        client.run(_init_earthaccess_worker)
 
         futures = [
             client.submit(

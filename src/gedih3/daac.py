@@ -681,6 +681,8 @@ def gedi_download(
     dask_client = get_dask_client()
     if dask_client is not None:
         logger.info(f"Using Dask client: {dask_client.dashboard_link}")
+        from .gh3builder import _init_earthaccess_worker
+        dask_client.run(_init_earthaccess_worker)
     else:
         logger.info(f"No Dask client detected, using pqdm with {n_jobs} jobs")
 
