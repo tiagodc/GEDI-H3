@@ -40,10 +40,10 @@ DATE_START="2020-01-01"
 DATE_END="2020-03-01"
 
 # Output directories (customize these paths)
-BASE_DIR="../tmp/gedih3_tutorial_soc"
+BASE_DIR="/media/tiago/Seagate Backup Plus Drive/gedih3"
 TMP_DIR="${BASE_DIR}/tmp"             # Temporary files
 SOC_DIR="${BASE_DIR}/soc_data"        # Downloaded HDF5 files
-H3_DIR="${BASE_DIR}/h3_database"      # H3-indexed parquet database
+H3_DIR="${BASE_DIR}/h3_database_dl"      # H3-indexed parquet database
 EXTRACT_DIR="${BASE_DIR}/extracted"   # Extracted data
 AGG_DIR="${BASE_DIR}/aggregated"      # Aggregated data
 RASTER_DIR="${BASE_DIR}/rasters"      # Output rasters
@@ -55,10 +55,6 @@ H3_PARTITION=3    # Partition level (~100km tiles for file organization)
 # Dask settings (adjust based on your system)
 N_WORKERS=3       # Number of parallel workers
 MEMORY_GB=4       # Memory per worker in GB
-
-# Skip flags (set via environment to skip long-running steps)
-SKIP_DOWNLOAD=${SKIP_DOWNLOAD:-false}
-SKIP_BUILD=${SKIP_BUILD:-false}
 
 # Create directories
 mkdir -p "$SOC_DIR" "$H3_DIR" "$EXTRACT_DIR" "$AGG_DIR" "$RASTER_DIR"
@@ -72,42 +68,31 @@ echo ""
 # Step 1: Download GEDI Data
 # -----------------------------------------------------------------------------
 
-# echo ""
-# echo "=============================================="
-# echo "Step 1: Downloading GEDI Data"
-# echo "=============================================="
-# echo ""
+echo ""
+echo "=============================================="
+echo "Step 1: Downloading GEDI Data"
+echo "=============================================="
+echo ""
 
-# if [ "$SKIP_DOWNLOAD" = "false" ]; then
+echo "Downloading GEDI minimal datasets across all L2 and L4 products..."
+echo "This may take several minutes depending on data availability and internet speed..."
+echo ""
 
-#     # Download L2A (heights) and L4A (biomass) products
-#     # Use 'default' for the standard variable set, or list specific variables
+gh3_download \
+    -r="$REGION" \
+    -l2a min -l2b min -l4a min -l4c min \
+    -o "$SOC_DIR" \
+    -N "$N_WORKERS" \
+    -M "$MEMORY_GB" \
+    -T 3 \
+    -s3
 
-#     echo "Downloading GEDI L2A and L4A data..."
-#     echo "This may take several minutes depending on data availability..."
-#     echo ""
+echo ""
+echo "Download complete! Files saved to: $SOC_DIR"
+echo "Downloaded files:"
+find "$SOC_DIR" -name "*.h5" | head -10
+echo ""
 
-#     gh3_download \
-#         -r="$REGION" \
-#         -d0 "$DATE_START" \
-#         -d1 "$DATE_END" \
-#         -l2a min \
-#         -l4a min \
-#         -o "$SOC_DIR" \
-#         -N "$N_WORKERS" \
-#         -M "$MEMORY_GB" \
-#         -v
-
-#     echo ""
-#     echo "Download complete! Files saved to: $SOC_DIR"
-#     echo "Downloaded files:"
-#     find "$SOC_DIR" -name "*.h5" | head -10
-#     echo ""
-
-# else
-#     echo "Skipping download (SKIP_DOWNLOAD=true)"
-#     echo ""
-# fi
 
 # # -----------------------------------------------------------------------------
 # # Step 2: Build H3-Indexed Database
@@ -118,110 +103,29 @@ echo "Step 2: Building H3-Indexed Database"
 echo "=============================================="
 echo ""
 
-if [ "$SKIP_BUILD" = "false" ]; then
+echo "Building H3 database with:"
+echo "  - Index resolution: $H3_RESOLUTION (~9m hexagons)"
+echo "  - Partition level: $H3_PARTITION (~100km tiles)"
+echo ""
 
-    echo "Building H3 database with:"
-    echo "  - Index resolution: $H3_RESOLUTION (~9m hexagons)"
-    echo "  - Partition level: $H3_PARTITION (~100km tiles)"
-    echo ""
+# Build the database from downloaded HDF5 files
+# -i points to the SOC directory from Step 1
+# Variables must match what was downloaded (Step 1 used: -l2a default -l4a agbd)
+gh3_build \
+    -r="$REGION" \
+    -l2a min -l2b min -l4a min -l4c min \
+    -h3r "$H3_RESOLUTION" \
+    -h3p "$H3_PARTITION" \
+    -t "$TMP_DIR" \
+    -o "$H3_DIR" \
+    -N "$N_WORKERS" \
+    -M "$MEMORY_GB" \
+    -i "$SOC_DIR" -dl -vv
 
-    # Build the database from downloaded HDF5 files
-    # -i points to the SOC directory from Step 1
-    # Variables must match what was downloaded (Step 1 used: -l2a default -l4a agbd)
-    gh3_build \
-        -r="$REGION" \
-        -d0 "$DATE_START" \
-        -d1 "$DATE_END" \
-        -l2a min \
-        -l4a agbd \
-        -h3r "$H3_RESOLUTION" \
-        -h3p "$H3_PARTITION" \
-        -t "$TMP_DIR" \
-        -o "$H3_DIR" \
-        -N "$N_WORKERS" \
-        -M "$MEMORY_GB" \
-        -vv \
-        -i "$SOC_DIR" -dl
+echo ""
+echo "Database built! Location: $H3_DIR"
+echo ""
 
-    echo ""
-    echo "Database built! Location: $H3_DIR"
-    echo ""
-
-    # View database metadata
-    echo "Database metadata:"
-    cat "$H3_DIR/gedih3_build_log.json" | python -m json.tool | head -30
-
-    echo ""
-    echo "Database structure:"
-    ls -la "$H3_DIR" | head -20
-    echo ""
-
-
-    echo "Updating H3 database with L4C data..."
-
-        gh3_build \
-            -r="$REGION" \
-            -d0 "$DATE_START" \
-            -d1 "$DATE_END" \
-            -l2a min \
-            -l4a agbd \
-            -h3r "$H3_RESOLUTION" \
-            -h3p "$H3_PARTITION" \
-            -t "$TMP_DIR" \
-            -o "$H3_DIR" \
-            -N "$N_WORKERS" \
-            -M "$MEMORY_GB" \
-            -vv \
-            -l4c min \
-            -i "$SOC_DIR"
-
-
-    echo "Updating H3 database with L2B data from s3..."
-
-        gh3_build \
-            -r="$REGION" \
-            -d0 "$DATE_START" \
-            -d1 "$DATE_END" \
-            -l2a min \
-            -l4a agbd \
-            -h3r "$H3_RESOLUTION" \
-            -h3p "$H3_PARTITION" \
-            -t "$TMP_DIR" \
-            -o "$H3_DIR" \
-            -N "$N_WORKERS" \
-            -M "$MEMORY_GB" \
-            -vv \
-            -l2b min -s3
-
-
-    echo "Updating H3 database with later datafrom s3..."
-
-        gh3_build \
-            -r="$REGION" \
-            -d0 "$DATE_START" \
-            -d1 "2020-06-01" \
-            -t "$TMP_DIR" \
-            -o "$H3_DIR" \
-            -N "$N_WORKERS" \
-            -M "$MEMORY_GB" \
-            -vv \
-            -s3
-
-
-else
-    echo "Skipping build (SKIP_BUILD=true)"
-    echo ""
-fi
-
-
------------------------------------------------------------------------------
-Verify H3 database exists before proceeding
------------------------------------------------------------------------------
-
-if [ ! -f "$H3_DIR/gedih3_build_log.json" ]; then
-    echo "H3 database not found. Run build step first."
-    exit 1
-fi
 
 # -----------------------------------------------------------------------------
 # Step 3: Extract Data with Filters

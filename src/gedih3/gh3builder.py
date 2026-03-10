@@ -967,6 +967,7 @@ def _merge_and_finalize(
         logger.info("All partitions already merged (resume)")
     else:
         from dask.distributed import as_completed as dask_as_completed
+        from tqdm import tqdm as tqdm_bar
 
         client = get_dask_client()
         futures = {}
@@ -976,7 +977,8 @@ def _merge_and_finalize(
 
         merged_count = 0
         failed_count = 0
-        for future in dask_as_completed(futures.keys()):
+        pbar = tqdm_bar(dask_as_completed(futures.keys()), total=len(remaining_dirs), desc="Merging partitions", unit="part")
+        for future in pbar:
             d = futures[future]
             try:
                 future.result()
@@ -986,10 +988,8 @@ def _merge_and_finalize(
             except Exception as e:
                 failed_count += 1
                 logger.warning(f"Merge failed for {os.path.basename(d)}: {e}")
-
-            total = merged_count + failed_count
-            if total % 50 == 0 or total == len(remaining_dirs):
-                logger.info(f"Merge progress: {merged_count}/{len(remaining_dirs)} done, {failed_count} failed")
+            pbar.set_postfix(ok=merged_count, fail=failed_count)
+        pbar.close()
 
         del futures
 
