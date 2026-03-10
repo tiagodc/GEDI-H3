@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import earthaccess; ea = earthaccess.login\\(strategy=''netrc''\\); print\\(type\\(ea\\)\\); print\\(ea.authenticated\\)\")",
+      "Bash(python -c:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(pip show:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.h5py.org)",
+      "WebFetch(domain:filesystem-spec.readthedocs.io)",
+      "Bash(conda run -n gh3_dev python -c \"import rasterio; print\\(rasterio.__version__\\)\")",
+      "Bash(conda run -n gh3_dev conda list rasterio)",
+      "Bash(conda run -n gh3_dev conda list gdal)",
+      "Bash(conda run -n gh3_dev conda list python)",
+      "Bash(conda run -n gh3_dev conda list)",
+      "Bash(conda run -n gh3_dev conda search -c conda-forge rasterio)",
+      "Bash(conda run -n gh3_dev conda install -c conda-forge rasterio=1.4.4 --no-update-deps -y)",
+      "Bash(conda run -n gh3_dev python -c \"import rasterio; print\\(''rasterio OK:'', rasterio.__version__\\)\")",
+      "Bash(conda run -n gh3_dev python -c \":*)",
+      "Bash(conda run -n gh3_dev conda list --revisions)",
+      "Bash(conda run -n gh3_dev conda install --revision 2 -y)",
+      "Bash(conda run -n gh3_dev conda list gdal rasterio)",
+      "Bash(conda run -n gh3_dev conda install -c conda-forge \"gdal=3.12.2=py314h589ebb0_1\" --no-update-deps -y)",
+      "Bash(conda run:*)",
+      "Bash(conda search:*)",
+      "WebFetch(domain:earthaccess.readthedocs.io)",
+      "WebFetch(domain:docs.dask.org)",
+      "WebFetch(domain:lpdaac.usgs.gov)",
+      "WebFetch(domain:daac.ornl.gov)",
+      "WebFetch(domain:www.earthdata.nasa.gov)",
+      "Bash(/c/ProgramData/miniconda3/envs/gedih3/python.exe --version)",
+      "Read(//c/ProgramData/miniconda3/**)"
+    ]
+  }
+}

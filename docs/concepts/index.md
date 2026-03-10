@@ -6,6 +6,7 @@ Understand the core components that make up gedih3 — the data it works with, t
 :maxdepth: 2
 
 gedi-data
+variable-presets
 h3-indexing
 egi-indexing
 ```

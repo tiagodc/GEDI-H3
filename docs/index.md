@@ -41,6 +41,36 @@ gedih3 is built on four components that together make billion-shot GEDI analysis
 
 ## Five-Minute Example
 
+```{raw} html
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 150" style="width:100%;max-width:1000px;display:block;margin:1.5em 0">
+  <rect width="1000" height="150" fill="#0d1b2e" rx="6"/>
+  <!-- Box 1 -->
+  <rect x="22" y="18" width="175" height="68" fill="#0f2340" stroke="#00e676" stroke-width="2" rx="2"/>
+  <text x="109" y="58" text-anchor="middle" fill="#00e676" font-size="16" font-weight="700" font-family="'Courier New',monospace">gh3_download</text>
+  <text x="109" y="118" text-anchor="middle" fill="#8ba4b8" font-size="13" font-family="sans-serif">NASA DAAC</text>
+  <rect x="200" y="62" width="14" height="14" fill="#00e676"/>
+  <!-- Box 2 -->
+  <rect x="217" y="18" width="175" height="68" fill="#0f2340" stroke="#00e676" stroke-width="2" rx="2"/>
+  <text x="304" y="58" text-anchor="middle" fill="#00e676" font-size="16" font-weight="700" font-family="'Courier New',monospace">gh3_build</text>
+  <text x="304" y="118" text-anchor="middle" fill="#8ba4b8" font-size="13" font-family="sans-serif">H3 Database</text>
+  <rect x="395" y="62" width="14" height="14" fill="#00e676"/>
+  <!-- Box 3 -->
+  <rect x="412" y="18" width="175" height="68" fill="#0f2340" stroke="#00e676" stroke-width="2" rx="2"/>
+  <text x="499" y="58" text-anchor="middle" fill="#00e676" font-size="16" font-weight="700" font-family="'Courier New',monospace">gh3_extract</text>
+  <text x="499" y="118" text-anchor="middle" fill="#8ba4b8" font-size="13" font-family="sans-serif">Filter &amp; Query</text>
+  <rect x="590" y="62" width="14" height="14" fill="#00e676"/>
+  <!-- Box 4 -->
+  <rect x="607" y="18" width="175" height="68" fill="#0f2340" stroke="#00e676" stroke-width="2" rx="2"/>
+  <text x="694" y="58" text-anchor="middle" fill="#00e676" font-size="16" font-weight="700" font-family="'Courier New',monospace">gh3_aggregate</text>
+  <text x="694" y="118" text-anchor="middle" fill="#8ba4b8" font-size="13" font-family="sans-serif">Multi-scale</text>
+  <rect x="785" y="62" width="14" height="14" fill="#00e676"/>
+  <!-- Box 5 -->
+  <rect x="802" y="18" width="175" height="68" fill="#0f2340" stroke="#00e676" stroke-width="2" rx="2"/>
+  <text x="889" y="58" text-anchor="middle" fill="#00e676" font-size="16" font-weight="700" font-family="'Courier New',monospace">gh3_rasterize</text>
+  <text x="889" y="118" text-anchor="middle" fill="#8ba4b8" font-size="13" font-family="sans-serif">GeoTIFF</text>
+</svg>
+```
+
 ```bash
 # Download → Build → Extract → Aggregate → Rasterize
 gh3_download  -r "-51,0,-50,1" -l2a minimal -l4a minimal
@@ -49,6 +79,14 @@ gh3_extract   -y -l agbd_l4a rh_098_l2a -o extracted/
 gh3_aggregate -d extracted/ -h3 6 -a mean -o aggregated/
 gh3_rasterize -d aggregated/ -o rasters/ --compress LZW
 ```
+
+:::{tip} Shortcut: steps 3–5 in one command
+`gh3_aggregate` can read the H3 database directly — no need to run `gh3_extract` first. Add `-R` and it also rasterizes, collapsing steps 3–5 into one command.
+
+```bash
+gh3_aggregate -y -l agbd_l4a rh_098_l2a -h3 6 -a mean -R -o output/
+```
+:::
 
 Or in Python, without saving intermediate files:
 
@@ -69,6 +107,7 @@ raster.export_raster(raster.h3_to_raster(agg), 'agbd_mean.tif')
 
 - [**Getting Started**](getting-started/index.md) — Installation and a step-by-step walkthrough
 - [**Concepts**](concepts/index.md) — What is GEDI? How does H3 indexing work? When to use EGI?
+- [**Building a Database**](reference/building-a-database.md) — The most important step: variable selection, subsetting, source modes, and performance tuning
 - [**Core Functionality**](reference/index.md) — CLI reference, Python API guide, and data format specifications
 - [**API Reference**](autoapi/index) — Auto-generated documentation from source code
 

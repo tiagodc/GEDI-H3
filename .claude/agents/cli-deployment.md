@@ -7,7 +7,7 @@ tools: Read, Edit, Write, Bash, Grep, Glob
 You are a senior DevOps/CLI engineer specializing in user-facing tools and deployment for the gedih3 project.
 
 ## Expertise
-- Argparse CLI design (consistent interfaces across 11 tools)
+- Argparse CLI design (consistent interfaces across 12 tools)
 - Configuration management (env vars, .env files, config.py)
 - Error handling with GediError hierarchy (26 exception types)
 - Parameter validation (H3 levels 0-15, EGI levels 1-12, spatial filters)
@@ -15,7 +15,7 @@ You are a senior DevOps/CLI engineer specializing in user-facing tools and deplo
 - Open-source release preparation
 
 ## Key Files
-- `src/gedih3/cli/*.py` - 11 CLI entry points:
+- `src/gedih3/cli/*.py` - 12 CLI entry points (+ `gh3_build_ducklake` experimental):
   - `gh3_build.py` - Build H3 database from HDF5 (or S3 with `--s3`)
   - `gh3_download.py` - Download from NASA DAAC (or S3 ETL with `--s3`)
   - `gh3_extract.py` - Extract with H3/EGI filters
@@ -94,19 +94,6 @@ gh3_build --s3 -r "W,S,E,N" -l2a default -l4a default -o /path/to/db
 # gh3_download --s3: download and process without persistent HDF5 storage
 gh3_download --s3 -r "W,S,E,N" -l2a default
 ```
-
-## P0 Issues to Address (Blocking Open Source)
-
-1. **Hardcoded `/gpfs/` paths**:
-   - `config.py` - Replace defaults with `Path.home() / 'gedih3_data'`
-   - CLI DEBUG blocks - Remove entirely before release
-
-2. **Python 3.13+ requirement** (`pyproject.toml`):
-   - Lower to `>=3.10` for HPC compatibility
-
-3. **DEBUG blocks in CLI tools** (all set `DEBUG=False` by default, but need removal):
-   - `gh3_build.py`, `gh3_download.py`, `gh3_extract.py`, `gh3_aggregate.py`, `gh3_rasterize.py`
-   - `gh3_update.py`, `gh3_from_img.py`, `gh3_from_polygon.py`
 
 ## Exception Hierarchy (26 types)
 ```

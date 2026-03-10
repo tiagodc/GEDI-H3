@@ -300,7 +300,7 @@ def generate_manifest(root_path, pattern='**/*.parquet'):
 
     root = root_path.rstrip('/') + '/'
     files = sorted(_glob_mod.glob(os.path.join(root, pattern), recursive=True))
-    rel_paths = [os.path.relpath(f, root) for f in files]
+    rel_paths = [os.path.relpath(f, root).replace(os.sep, '/') for f in files]
 
     manifest_path = os.path.join(root, MANIFEST_FILENAME)
     with open(manifest_path, 'w') as f:
@@ -514,12 +514,15 @@ def smart_glob(pattern, recursive=False):
     root = _extract_glob_root(pattern)
     manifest = _read_manifest(root)
     if manifest is not None:
+        # Normalize separators for cross-platform compatibility (Windows backslashes)
+        manifest = [e.replace(os.sep, '/') for e in manifest]
+        norm_pattern = pattern.replace(os.sep, '/')
         # Build relative pattern from root
         root_stripped = root.rstrip('/')
-        if pattern.startswith(root_stripped):
-            rel_pattern = pattern[len(root_stripped):].lstrip('/')
+        if norm_pattern.startswith(root_stripped):
+            rel_pattern = norm_pattern[len(root_stripped):].lstrip('/')
         else:
-            rel_pattern = pattern
+            rel_pattern = norm_pattern
 
         is_dir_pattern = rel_pattern.endswith('/')
         rx = _glob_to_regex(rel_pattern)
