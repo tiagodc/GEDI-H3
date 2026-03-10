@@ -195,6 +195,5 @@ Every database build is logged with metadata (products, variables, region, resol
 ## GEDI Mission Resources
 
 - [GEDI homepage at UMD](https://gedi.umd.edu/)
-- [ORNL DAAC GEDI data access](https://daac.ornl.gov/gedi/)
-- [GEDI product documentation](https://gedi.umd.edu/dataproducts/download/)
-- [earthaccess — NASA Earthdata Python library](https://earthaccess.readthedocs.io/en/stable/)
+- [NASA GEDI data access](https://daac.ornl.gov/gedi/)
+- [GEDI products documentation](https://gedi.umd.edu/dataproducts/download/)
