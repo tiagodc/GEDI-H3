@@ -4,41 +4,25 @@ EGI (EASE Grid Index) Module
 A spatial indexing system for GEDI data using the EASE-Grid 2.0 projection (EPSG:6933).
 This module provides square pixel indexing compatible with GEDI L4B products.
 
-Key Features
-------------
+Notes
+-----
 - 12 resolution levels from ~1m to ~160km
 - Hash-based coordinate encoding for efficient storage and queries
 - Native alignment with GEDI L4B raster products
 - Seamless integration with pandas/GeoPandas DataFrames
 - Direct rasterization without resampling artifacts
 
-Basic Usage
------------
+**Resolution levels:** Level 1 ~1m · Level 4 ~100m (NISAR) · Level 5 ~200m (BIOMASS) ·
+Level 6 ~1km (GEDI baseline) · Level 7 ~2km · Level 8 ~10km · Level 12 ~160km (partition).
+See ``egi.RESOLUTIONS`` for full table.
+
+Examples
+--------
 >>> import gedih3.egi as egi
->>>
->>> # Add EGI index to a DataFrame
->>> gdf = egi.egi_dataframe(shots_df, level=6)  # ~1km resolution
->>>
->>> # Convert to coarser resolution
+>>> gdf = egi.egi_dataframe(shots_df, level=6)   # ~1km resolution
 >>> coarse_gdf = egi.egi_to_parent(gdf, parent_level=8)
->>>
->>> # Aggregate data spatially
 >>> agg_gdf = egi.egi_aggregate(gdf, mapper='mean')
->>>
->>> # Rasterize for GIS output
 >>> raster = egi.geodf_to_raster(agg_gdf, columns=['agbd_mean'])
-
-Resolution Levels
------------------
-Level 1:  ~1m     (finest resolution)
-Level 4:  ~100m   (NISAR compatible)
-Level 5:  ~200m   (BIOMASS compatible)
-Level 6:  ~1km    (GEDI baseline)
-Level 7:  ~2km    (GEDI threshold)
-Level 8:  ~10km   (GEDI wall-to-wall)
-Level 12: ~160km  (partition level)
-
-For detailed resolution values, see: egi.RESOLUTIONS
 """
 
 # Configuration constants

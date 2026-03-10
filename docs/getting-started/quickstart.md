@@ -54,13 +54,9 @@ gh3_build -r "-51,0,-50,1" -l2a minimal -l4a minimal
 
 Converts downloaded HDF5 files into an H3-indexed Parquet database at `~/gedi_data/h3/`. This is a one-time step; the database can be queried and re-used without rebuilding.
 
-> The database you build here determines which variables, region, and time period are available to all downstream tools. For a full guide to variable selection, subsetting strategies, source modes, and performance tuning, see [**Building a Database**](../reference/building-a-database.md).
+> The database you build here determines which variables, region, and time period are available to all downstream tools. For a full guide to variable selection, subsetting strategies, source modes, and performance tuning, see [**Building a Database**](../user-guide/building-a-database.md).
 
 ---
-
-:::{note} Steps 3–5 can be collapsed into one command
-`gh3_aggregate` can read the H3 database directly and optionally rasterize in the same call with `-R`. See the [shortcut section](#shortcut-all-in-one) below if you want to skip straight to results.
-:::
 
 ## Step 3: Browse Variables
 
@@ -91,10 +87,10 @@ gh3_extract -y -r region.shp -t0 2020-01-01 -t1 2022-12-31 \
 ## Step 5: Aggregate
 
 ```bash
-gh3_aggregate -d extracted/ -h3 6 -a mean -o aggregated/
+gh3_aggregate -d extracted/ -h3 7 -a mean -o aggregated/
 ```
 
-Aggregates GEDI shots to H3 level 6 hexagons (~36 km²). Use `gh3_list_resolutions` to see all available levels.
+Aggregates GEDI shots to H3 level 7 hexagons (~5 km²). Use `gh3_list_resolutions` to see all available levels.
 
 ---
 
@@ -104,10 +100,17 @@ Aggregates GEDI shots to H3 level 6 hexagons (~36 km²). Use `gh3_list_resolutio
 `gh3_aggregate` can read the H3 database directly (no prior `gh3_extract` needed) and produce rasters in the same call with `-R`, collapsing steps 3–5 into one command:
 
 ```bash
-gh3_aggregate -y -l agbd_l4a rh_098_l2a -h3 6 -a mean -R -o output/
+gh3_aggregate -y -l agbd_l4a rh_098_l2a -h3 7 -a mean -R -o output/
 ```
 
-This writes flat Parquet files **and** GeoTIFFs to `output/` in a single pass. Use this when you don't need the intermediate extracted dataset.
+This writes GeoTIFFs to `output/` in a single pass. Use this when you don't need to export intermediate datasets.
+
+--- 
+
+:::{note} 
+Aggregating from H3 hexagons to raster files will resample hexagon polygons to pixels using nearest neighbor interpolation.
+For exact pixel matches consider using the [**EGI indexing**](../concepts/egi-indexing.md) system. 
+:::
 
 ---
 
@@ -118,6 +121,7 @@ gh3_rasterize -d aggregated/ -o rasters/ --compress LZW
 ```
 
 Produces one GeoTIFF per variable per partition, tiled for efficient access.
+
 
 ---
 
@@ -151,7 +155,7 @@ For advanced Python API usage (custom aggregation functions, ancillary data inte
 ## Next Steps
 
 - [Configuration](configuration.md) — customize storage paths and Dask settings (optional)
-- [CLI Reference](../cli-reference.md) — all 11 tools with full flag documentation
+- [CLI Reference](../user-guide/cli-reference.md) — all 11 tools with full flag documentation
 - [Python API](../user-guide/python-api.md) — custom aggregation functions and in-memory workflows
 - [Concepts: GEDI Data](../concepts/gedi-data.md) — understand what you're working with
 - [Concepts: EGI Indexing](../concepts/egi-indexing.md) — advanced square-pixel indexing for L4B compatibility

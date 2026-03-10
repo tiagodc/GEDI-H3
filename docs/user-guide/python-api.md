@@ -89,7 +89,10 @@ results = gh3.gh3_aggregate(ddf, target_res=6, agg=fit_height_biomass)
 results_df = results.compute()
 ```
 
-> **Suggested image**: A map visualization of the per-hexagon R² values from this regression, showing spatial patterns of biomass-height correlation strength across a forested region. Generated with matplotlib and geopandas from the `results_df` output.
+:::{figure} ../imgs/regression_r2.png
+:alt: Per-hexagon R² values for AGBD ~ RH98 regression
+Per-hexagon R² (AGBD ~ RH98 canopy height) at H3 level 7, computed using the custom callable API. Spatial patterns reflect forest structure heterogeneity. Hexes with fewer than 5 quality shots are excluded.
+:::
 
 The callable receives a pandas DataFrame with all shots in one Dask partition. The return value must be a DataFrame with one row per group — in this case, one row per H3 hexagon.
 

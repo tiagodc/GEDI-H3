@@ -4,7 +4,7 @@
 :maxdepth: 2
 
 building-a-database
-../cli-reference
-../data-formats
-../user-guide/python-api
+cli-reference
+data-formats
+python-api
 ```

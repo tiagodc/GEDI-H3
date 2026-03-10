@@ -224,20 +224,17 @@ def add_dask_args(parser, profile=None):
         Resource profile hint. ``'build'`` uses fewer workers with more memory
         (suitable for HDF5→parquet pipelines). ``None`` uses generic defaults.
     """
-    if '--help' in sys.argv or '-h' in sys.argv:
-        n, m = 4, 4  # placeholder defaults for help text
-    else:
-        from .utils import get_system_resources
-        cpus, ram, _ = get_system_resources()
+    from .utils import get_system_resources
+    cpus, ram, _ = get_system_resources()
 
-        if profile == 'build':
-            # Build/download pipeline: fewer workers, more memory each.
-            # HDF5 reads + parquet writes benefit from fewer, fatter workers.
-            n = max(1, cpus // 8)
-            m = int(max(2, ram / n))
-        else:
-            n = max(1, cpus // 4)
-            m = int(max(1, ram / n))
+    if profile == 'build':
+        # Build/download pipeline: fewer workers, more memory each.
+        # HDF5 reads + parquet writes benefit from fewer, fatter workers.
+        n = max(1, cpus // 4)
+        m = int(max(2, ram / n))
+    else:
+        n = max(1, cpus // 2)
+        m = int(max(1, ram / n))
 
     parser.add_argument("-s", "--dask-scheduler", dest="dask_scheduler", type=str, default=None,
                         help="existing dask scheduler address, e.g. tcp://localhost:8786")

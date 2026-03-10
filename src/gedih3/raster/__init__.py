@@ -4,31 +4,27 @@ Raster Module
 This module provides comprehensive rasterization capabilities for GEDI data,
 supporting both H3 hexagon and EGI square pixel outputs.
 
-Key Features
-------------
+Notes
+-----
 - H3 hexagon to raster conversion with automatic resolution detection
 - Time-series raster generation (years, months, weeks, days)
 - GeoTIFF export with compression, tiling, and BigTIFF support
 - Batch and parallel rasterization for large datasets
 - Integration with Dask for distributed processing
 
-Basic Usage
------------
->>> from gedih3 import raster
->>>
->>> # Rasterize H3 data
+For EGI (square pixel) rasterization, use the ``gedih3.egi`` module instead,
+which provides native raster alignment without interpolation.
+
+Examples
+--------
 >>> from gedih3.raster import h3_to_raster
 >>> ras = h3_to_raster(h3_gdf, columns=['agbd_mean'])
 >>> ras.rio.to_raster("output.tif")
 >>>
->>> # Generate time-series rasters
 >>> from gedih3.raster import TimeSeriesRasterizer
 >>> ts = TimeSeriesRasterizer(data, time_col='datetime', target_level=6)
 >>> for raster, suffix in ts.generate('2020-01-01', '2023-01-01', 1, 'years'):
 ...     raster.rio.to_raster(f"output_{suffix}.tif")
-
-For EGI (square pixel) rasterization, use the `gedih3.egi` module instead,
-which provides native raster alignment without interpolation.
 """
 
 # Configuration
