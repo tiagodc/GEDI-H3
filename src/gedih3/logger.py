@@ -107,6 +107,9 @@ class SOCDownloadLogger:
             self.product_vars = product_vars
             self.spatial = parse_spatial(spatial)
             self.temporal = parse_temporal(temporal)
+            self.new_spatial = None
+            self.new_temporal = None
+            self.new_product_vars = None
             return
 
         self._load_filters_from_log()
@@ -304,6 +307,9 @@ class H3BuildLogger:
             self.res = res
             self.part = part
             self.gedi_version = version
+            self.new_spatial = None
+            self.new_temporal = None
+            self.new_product_vars = None
             return
 
         self._load_filters_from_log()
