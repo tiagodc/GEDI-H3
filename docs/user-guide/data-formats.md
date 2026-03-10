@@ -39,7 +39,7 @@ The H3 database uses two H3 resolution levels simultaneously:
 - **Partition level** (default: 3) — determines the directory structure. A query for a specific region only reads tiles that overlap that region.
 - **Index level** (default: 12) — the H3 cell ID assigned to each individual GEDI shot, stored as a column in every parquet file.
 
-> **Parent/child caveat**: H3 parent hexagons are not perfectly geometrically inclusive of their children. When aggregating across resolution levels, `gh3_aggregate` uses `h3.cell_to_parent()` which assigns each shot to its closest parent, which is consistent and fast but not a strict geometric containment. See [H3 Indexing](concepts/h3-indexing.md) for details.
+> **Parent/child caveat**: H3 parent hexagons are not perfectly geometrically inclusive of their children. When aggregating across resolution levels, `gh3_aggregate` uses `h3.cell_to_parent()` which assigns each shot to its closest parent, which is consistent and fast but not a strict geometric containment. See [H3 Indexing](../concepts/h3-indexing.md) for details.
 
 ---
 
@@ -157,4 +157,4 @@ gh3_read_schema /path/to/database/gedih3_build_log.json
 | Parent/child nesting | Approximate (see above) | Exact |
 | Default in gedih3 | Yes | No |
 
-EGI is the right choice when you need alignment with GEDI L4B gridded products or when producing global pixel-grid datasets for interoperability with raster-native workflows. For general analysis and exploratory work, H3 is simpler and faster. See [EGI Indexing](concepts/egi-indexing.md) for a detailed comparison.
+EGI is the right choice when you need alignment with GEDI L4B gridded products or when producing global pixel-grid datasets for interoperability with raster-native workflows. For general analysis and exploratory work, H3 is simpler and faster. See [EGI Indexing](../concepts/egi-indexing.md) for a detailed comparison.

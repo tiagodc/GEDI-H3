@@ -75,7 +75,7 @@ gh3_extract -d /path/to/database -r region.shp -l2a rh -l4a agbd -y -o output/
 
 #### EGI variant
 
-For square-pixel indexing instead of H3 — see [EGI Indexing](concepts/egi-indexing.md).
+For square-pixel indexing instead of H3 — see [EGI Indexing](../concepts/egi-indexing.md).
 
 ```bash
 gh3_extract -d /path/to/database -egi 6 -o output/       # ~1 km EGI index

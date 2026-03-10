@@ -20,7 +20,7 @@ gh3_build --help
 
 ## NASA Earthdata Credentials
 
-GEDI data is hosted by NASA's DAAC. Authentication is required for downloads.
+GEDI data is hosted by the NASA DAACs (Distributed Active Archive Centers). Authentication is required for downloads.
 
 1. Create an account at [https://urs.earthdata.nasa.gov/](https://urs.earthdata.nasa.gov/)
 2. Create `~/.netrc` with your credentials:

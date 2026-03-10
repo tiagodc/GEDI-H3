@@ -16,7 +16,10 @@ Unlike H3 hexagons, EGI pixels are perfectly regular squares in an equal-area pr
 - **Compatible with standard GeoTIFF workflows** — no hexagon-to-pixel conversion step required
 - **Aligned with the GEDI L4B standard grid** — GEDI's official gridded biomass product uses a 1 km EASE-Grid 2.0 grid, which corresponds to EGI level 6
 
-> **Suggested image**: A side-by-side visualization of H3 hexagons vs. EGI square pixels over the same study area, both at approximately 1 km resolution. This directly illustrates the geometric difference and motivates the choice between the two systems.
+:::{figure} ../imgs/h3_vs_egi.png
+:alt: AGBD aggregated to H3 hexagons vs. EGI square pixels
+The same AGBD data aggregated to H3 level-7 hexagons (~5 km², left) and EGI level-6 square pixels (~1 km, right). Square pixels map 1:1 to raster output and align with the GEDI L4B grid; hexagons suit general spatial queries.
+:::
 
 ---
 
@@ -119,7 +122,10 @@ EGI accepts an optional `INDEX:PARTITION` syntax to control both the index resol
 - You are producing global gridded products for external users
 - You want native GeoTIFF outputs without hexagon-to-pixel interpolation
 
-> **Suggested image**: A raster plot showing an EGI-aggregated AGBD map at level 6 (~1 km) alongside the official GEDI L4B product at the same resolution, demonstrating alignment and comparability. This directly motivates the EGI use case.
+:::{figure} ../imgs/egi_agbd_map.png
+:alt: EGI level-6 mean AGBD map
+EGI level-6 (~1 km) mean AGBD across the study area. Each square pixel maps directly to one raster cell in EASE-Grid 2.0 (EPSG:6933), making this output directly comparable to the official GEDI L4B gridded biomass product.
+:::
 
 ---
 

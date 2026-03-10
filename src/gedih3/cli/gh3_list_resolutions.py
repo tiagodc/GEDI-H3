@@ -183,15 +183,15 @@ def display_h3_resolutions(args):
         if res == 3:
             marker = " <- typical partition level"
         elif res == 12:
-            marker = " <- typical index (~9m)"
+            marker = " <- typical index level for GEDI footprint resolution"
 
         print(f"{res:>4}  {edge:>18}  {area:>18}  {cells:>20}{marker}")
 
     print("-" * 75)
     print()
     print("Recommendations:")
-    print("  - Partition level (--h3p): 2-4 for regional, 0-1 for global datasets")
-    print("  - Index level (--h3r): 11-12 for GEDI footprint resolution (~25m)")
+    print("  - Partition level (--h3p): 2-4 for continental scale datasets")
+    print("  - Index level (--h3r): 12 for GEDI footprint resolution (~25m)")
     print("  - Index level must be >= partition level")
     print()
 
@@ -248,7 +248,7 @@ def display_egi_resolutions(args):
     print()
     print("Recommendations:")
     print("  - Level 3 (~25m): GEDI footprint resolution")
-    print("  - Level 6 (~1km): GEDI L4B baseline (most common)")
+    print("  - Level 6 (~1km): GEDI L4B baseline")
     print("  - Level 8 (~10km): GEDI wall-to-wall products")
     print("  - Higher levels (9-12) for coarse regional/global analysis")
     print()

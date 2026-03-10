@@ -17,7 +17,10 @@ Hexagons have several geometric properties that make them well-suited for spatia
 - **Compact shape**: Hexagons minimize the ratio of perimeter to area, reducing edge effects in spatial analyses.
 - **Hierarchical nesting**: Each cell has a well-defined parent at the next coarser resolution level, enabling multi-resolution aggregation.
 
-> **Suggested image**: A side-by-side comparison of GEDI shot locations indexed by H3 hexagons at resolution levels 3, 6, and 9, shown on a map. This would illustrate how the same data appears at different scales of aggregation.
+:::{figure} ../imgs/h3_multi_resolution.png
+:alt: GEDI shots indexed by H3 hexagons at three resolution levels
+The same GEDI shots indexed by H3 hexagons at three resolution levels. Level 3 (~12,400 km²) defines partition tiles for disk layout; level 6 (~36 km²) suits regional aggregation; level 9 (~0.1 km²) approaches individual shot density.
+:::
 
 ---
 
@@ -54,7 +57,10 @@ The coarse H3 level used to organize files on disk. Each H3 partition cell becom
 **Index level** (default: level 12, ~307 m²)
 The fine H3 level assigned to each individual GEDI shot. At level 12, each hexagon is roughly the size of a GEDI footprint, making this a natural resolution for shot-level indexing. This column is stored in every parquet file and is used for multi-resolution aggregation.
 
-> **Suggested image**: A diagram showing the two-level H3 structure: a large level-3 hexagon (the partition tile) containing many small level-12 hexagons (the shot index), with GEDI shot dots distributed inside. This would clarify the partition vs. index concept intuitively.
+:::{figure} ../imgs/h3_two_level.png
+:alt: H3 dual-level partition and index structure
+The H3 dual-level structure used by gedih3. A single level-3 partition tile (large hexagon outline, ~12,400 km²) holds thousands of fine-resolution index cells and the GEDI shot dots they index.
+:::
 
 ```bash
 # Customize index and partition levels at build time
@@ -70,7 +76,10 @@ H3 is a hierarchical system, but hexagonal grids cannot be perfectly nested acro
 
 What this means in practice: when you compute the parent of a level-12 cell at level-6, the returned parent is the level-6 cell whose *center* is closest to the level-12 cell's center — not necessarily the cell that *geometrically contains* it. Near hexagon boundaries, a small fraction of child cells (typically 1–2%) may be assigned to a neighboring parent rather than the containing one.
 
-> **Suggested image**: A close-up illustration of a hexagon boundary between two level-6 cells, with level-12 child cells colored by their computed parent. Some child cells near the boundary appear inside one parent's geometry but are assigned to the adjacent parent. This is the most important conceptual diagram for this section.
+:::{figure} ../imgs/h3_boundary.png
+:alt: H3 parent/child boundary nesting
+H3 parent/child boundary nesting. Level-10 child cells are colored by their computed level-5 parent (`h3.cell_to_parent`). Cells near the geometric boundary are sometimes assigned to the non-enclosing neighbor — a known property of H3's hierarchical approximation.
+:::
 
 **How gedih3 handles this**: `gh3_aggregate` groups shots by their computed H3 parent cell (using `h3.cell_to_parent()`), which is consistent and fast. The assignment is deterministic and matches what H3 users expect — it is simply not a perfect geometric containment, which is a known property of H3 that users should be aware of when comparing cross-resolution results.
 
