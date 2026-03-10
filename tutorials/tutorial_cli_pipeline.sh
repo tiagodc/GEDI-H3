@@ -40,10 +40,10 @@ DATE_START="2020-01-01"
 DATE_END="2020-03-01"
 
 # Output directories (customize these paths)
-BASE_DIR="/media/tiago/Seagate Backup Plus Drive/gedih3"
+BASE_DIR="E:/gedih3"
 TMP_DIR="${BASE_DIR}/tmp"             # Temporary files
 SOC_DIR="${BASE_DIR}/soc_data"        # Downloaded HDF5 files
-H3_DIR="${BASE_DIR}/h3_database_dl"      # H3-indexed parquet database
+H3_DIR="${BASE_DIR}/h3_database"      # H3-indexed parquet database
 EXTRACT_DIR="${BASE_DIR}/extracted"   # Extracted data
 AGG_DIR="${BASE_DIR}/aggregated"      # Aggregated data
 RASTER_DIR="${BASE_DIR}/rasters"      # Output rasters
@@ -53,7 +53,7 @@ H3_RESOLUTION=12  # Index level (~9m, matches GEDI footprint)
 H3_PARTITION=3    # Partition level (~100km tiles for file organization)
 
 # Dask settings (adjust based on your system)
-N_WORKERS=3       # Number of parallel workers
+N_WORKERS=6       # Number of parallel workers
 MEMORY_GB=4       # Memory per worker in GB
 
 # Create directories
@@ -80,12 +80,11 @@ echo ""
 
 gh3_download \
     -r="$REGION" \
-    -l2a min -l2b min -l4a min -l4c min \
+    -l2a -l2b -l4a -l4c \
     -o "$SOC_DIR" \
     -N "$N_WORKERS" \
     -M "$MEMORY_GB" \
-    -T 3 \
-    -s3
+    -T 2 
 
 echo ""
 echo "Download complete! Files saved to: $SOC_DIR"

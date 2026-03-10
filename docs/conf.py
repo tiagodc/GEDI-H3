@@ -16,6 +16,8 @@ extensions = [
     "autoapi.extension",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
+    "sphinx_design",
+    "sphinxcontrib.mermaid",
 ]
 
 # sphinx-autoapi: generates API docs without importing the package

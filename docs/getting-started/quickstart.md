@@ -2,6 +2,31 @@
 
 This guide covers the core workflow in five steps: download → build → extract → aggregate → rasterize.
 
+```{raw} html
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 150" style="width:100%;max-width:1000px;display:block;margin:1.5em 0">
+  <rect width="1000" height="150" fill="#0d1b2e" rx="6"/>
+  <rect x="22" y="18" width="175" height="68" fill="#0f2340" stroke="#00e676" stroke-width="2" rx="2"/>
+  <text x="109" y="58" text-anchor="middle" fill="#00e676" font-size="16" font-weight="700" font-family="'Courier New',monospace">gh3_download</text>
+  <text x="109" y="118" text-anchor="middle" fill="#8ba4b8" font-size="13" font-family="sans-serif">NASA DAAC</text>
+  <rect x="200" y="62" width="14" height="14" fill="#00e676"/>
+  <rect x="217" y="18" width="175" height="68" fill="#0f2340" stroke="#00e676" stroke-width="2" rx="2"/>
+  <text x="304" y="58" text-anchor="middle" fill="#00e676" font-size="16" font-weight="700" font-family="'Courier New',monospace">gh3_build</text>
+  <text x="304" y="118" text-anchor="middle" fill="#8ba4b8" font-size="13" font-family="sans-serif">H3 Database</text>
+  <rect x="395" y="62" width="14" height="14" fill="#00e676"/>
+  <rect x="412" y="18" width="175" height="68" fill="#0f2340" stroke="#00e676" stroke-width="2" rx="2"/>
+  <text x="499" y="58" text-anchor="middle" fill="#00e676" font-size="16" font-weight="700" font-family="'Courier New',monospace">gh3_extract</text>
+  <text x="499" y="118" text-anchor="middle" fill="#8ba4b8" font-size="13" font-family="sans-serif">Filter &amp; Query</text>
+  <rect x="590" y="62" width="14" height="14" fill="#00e676"/>
+  <rect x="607" y="18" width="175" height="68" fill="#0f2340" stroke="#00e676" stroke-width="2" rx="2"/>
+  <text x="694" y="58" text-anchor="middle" fill="#00e676" font-size="16" font-weight="700" font-family="'Courier New',monospace">gh3_aggregate</text>
+  <text x="694" y="118" text-anchor="middle" fill="#8ba4b8" font-size="13" font-family="sans-serif">Multi-scale</text>
+  <rect x="785" y="62" width="14" height="14" fill="#00e676"/>
+  <rect x="802" y="18" width="175" height="68" fill="#0f2340" stroke="#00e676" stroke-width="2" rx="2"/>
+  <text x="889" y="58" text-anchor="middle" fill="#00e676" font-size="16" font-weight="700" font-family="'Courier New',monospace">gh3_rasterize</text>
+  <text x="889" y="118" text-anchor="middle" fill="#8ba4b8" font-size="13" font-family="sans-serif">GeoTIFF</text>
+</svg>
+```
+
 > **Tip**: Run any tool with `--help` for the full list of options.
 > ```bash
 > gh3_build --help
@@ -29,7 +54,13 @@ gh3_build -r "-51,0,-50,1" -l2a minimal -l4a minimal
 
 Converts downloaded HDF5 files into an H3-indexed Parquet database at `~/gedi_data/h3/`. This is a one-time step; the database can be queried and re-used without rebuilding.
 
+> The database you build here determines which variables, region, and time period are available to all downstream tools. For a full guide to variable selection, subsetting strategies, source modes, and performance tuning, see [**Building a Database**](../reference/building-a-database.md).
+
 ---
+
+:::{note} Steps 3–5 can be collapsed into one command
+`gh3_aggregate` can read the H3 database directly and optionally rasterize in the same call with `-R`. See the [shortcut section](#shortcut-all-in-one) below if you want to skip straight to results.
+:::
 
 ## Step 3: Browse Variables
 
@@ -64,6 +95,19 @@ gh3_aggregate -d extracted/ -h3 6 -a mean -o aggregated/
 ```
 
 Aggregates GEDI shots to H3 level 6 hexagons (~36 km²). Use `gh3_list_resolutions` to see all available levels.
+
+---
+
+(shortcut-all-in-one)=
+## Shortcut: All-in-One
+
+`gh3_aggregate` can read the H3 database directly (no prior `gh3_extract` needed) and produce rasters in the same call with `-R`, collapsing steps 3–5 into one command:
+
+```bash
+gh3_aggregate -y -l agbd_l4a rh_098_l2a -h3 6 -a mean -R -o output/
+```
+
+This writes flat Parquet files **and** GeoTIFFs to `output/` in a single pass. Use this when you don't need the intermediate extracted dataset.
 
 ---
 
