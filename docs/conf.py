@@ -40,6 +40,8 @@ numpydoc_additional_section_headers = ['Key Features', 'Basic Usage', 'Resolutio
 
 # myst-parser: allow Markdown files in toctree
 myst_enable_extensions = ["colon_fence"]
+myst_heading_anchors = 0
+suppress_warnings = ["myst.header"]
 source_suffix = {
     ".rst": "restructuredtext",
     ".md": "markdown",
