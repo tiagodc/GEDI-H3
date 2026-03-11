@@ -270,12 +270,13 @@ def fig_h3_multi_resolution(gdf, out):
     setup()
     fig, axes = plt.subplots(1, 3, figsize=(10, 3.8))
 
-    region_geojson = mapping(box(*BBOX))
-    area_labels = {3: "~12,400 km²", 6: "~36 km²", 9: "~0.1 km²"}
+    _bbox = [-52.0, -1.0, -49.0, 2.0]  # slightly larger bbox for better hex coverage
+    region_geojson = mapping(box(*_bbox))
+    area_labels = {3: "~12,400 km²", 5: "~252 km²", 7: "~5 km²"}
 
     shots_sub = gdf.sample(min(5000, len(gdf)), random_state=42) if len(gdf) > 5000 else gdf
 
-    for ax, res in zip(axes, [3, 6, 9]):
+    for ax, res in zip(axes, [3, 5, 7]):
         cells = list(h3.geo_to_cells(region_geojson, res))
         hex_gdf = cells_to_gdf(cells)
 
@@ -294,8 +295,9 @@ def fig_h3_multi_resolution(gdf, out):
             rasterized=True,
         )
 
-        ax.set_xlim(BBOX[0], BBOX[2])
-        ax.set_ylim(BBOX[1], BBOX[3])
+        ax.set_xlim(_bbox[0], _bbox[2])
+        ax.set_ylim(_bbox[1], _bbox[3])        
+        
         ax.set_aspect("equal")
         ax.set_title(f"H3 level {res}\n(cell area {area_labels[res]})", fontsize=8)
 
@@ -314,124 +316,178 @@ def fig_h3_multi_resolution(gdf, out):
 
 
 # ─── Figure 5: H3 dual-level structure ───────────────────────────────────────
-def fig_h3_two_level(gdf, out):
-    """One level-3 partition filled with level-9 children + shot dots."""
-    setup()
-    fig, ax = plt.subplots(figsize=(4.5, 4.5))
+def fig_h3_two_level(db_path, out):
+    """Two-panel: level-3 partition with shots (left) + zoomed level-12 cells (right)."""
+    import gedih3.gh3driver as gh3
+    from matplotlib.patches import ConnectionPatch, Rectangle
 
-    part_id = "838041fffffffff"
+    setup()
+    ZOOM_COLOR = "#E65100"  # orange for the zoom rectangle + right border
+
+    # Load real data from a specific partition
+    part_id = "83804cfffffffff"
+    part_dir = str(Path(db_path) / f"h3_03={part_id}")
+    df_full = gh3.gh3_load_hex(part_dir, columns=["lat_lowestmode_l2a", "lon_lowestmode_l2a"])
+
+    lons_full = df_full["lon_lowestmode_l2a"].values
+    lats_full = df_full["lat_lowestmode_l2a"].values
+    h3_12_full = df_full.index if df_full.index.name == "h3_12" else df_full["h3_12"]
+
     part_poly = h3_cell_poly(part_id)
     part_gdf = gpd.GeoDataFrame(geometry=[part_poly], crs=4326)
 
-    # Level-9 children (use geo_to_cells within the partition polygon)
-    children = list(h3.geo_to_cells(mapping(part_poly), 9))
-    children_gdf = cells_to_gdf(children)
+    # ── Find densest ~500 m area via fine binning on full data ───────────────
+    bin_size = 0.005
+    lon_bins = ((lons_full - lons_full.min()) / bin_size).astype(int)
+    lat_bins = ((lats_full - lats_full.min()) / bin_size).astype(int)
+    bin_ids = lon_bins * 10000 + lat_bins
+    counts = pd.Series(bin_ids).value_counts()
+    best_bin = counts.index[0]
+    best_lon_bin, best_lat_bin = divmod(best_bin, 10000)
+    zoom_cx = lons_full.min() + (best_lon_bin + 0.5) * bin_size
+    zoom_cy = lats_full.min() + (best_lat_bin + 0.5) * bin_size
 
-    children_gdf.plot(
-        ax=ax,
-        facecolor="#dbeafe",
-        edgecolor="#93c5fd",
-        linewidth=0.2,
-        alpha=0.7,
-    )
-    part_gdf.boundary.plot(ax=ax, color=HEX_COLOR, linewidth=1.8, zorder=5)
+    half_w = 0.003  # ~0.006° ≈ 670 m window
+    zoom_x0, zoom_y0 = zoom_cx - half_w, zoom_cy - half_w
+    zoom_x1, zoom_y1 = zoom_cx + half_w, zoom_cy + half_w
 
-    # Shot dots (within partition)
-    shots_in = gdf[
-        (gdf["lon_lowestmode_l2a"] >= part_poly.bounds[0])
-        & (gdf["lon_lowestmode_l2a"] <= part_poly.bounds[2])
-        & (gdf["lat_lowestmode_l2a"] >= part_poly.bounds[1])
-        & (gdf["lat_lowestmode_l2a"] <= part_poly.bounds[3])
-    ]
-    shots_sub = shots_in.sample(min(3000, len(shots_in)), random_state=0) if len(shots_in) > 3000 else shots_in
-    ax.scatter(
-        shots_sub["lon_lowestmode_l2a"],
-        shots_sub["lat_lowestmode_l2a"],
-        s=0.3,
-        color=SHOT_COLOR,
-        alpha=0.5,
-        zorder=6,
-        rasterized=True,
+    # Zoom mask on full data
+    mask_zoom = (
+        (lons_full >= zoom_x0) & (lons_full <= zoom_x1) &
+        (lats_full >= zoom_y0) & (lats_full <= zoom_y1)
     )
+    zoom_lons = lons_full[mask_zoom]
+    zoom_lats = lats_full[mask_zoom]
+    zoom_cells = set(h3_12_full[mask_zoom])
 
-    # Annotations
-    cx, cy = part_poly.centroid.x, part_poly.centroid.y
-    ax.text(
-        cx, part_poly.bounds[3] + 0.15,
-        "Partition tile  (H3 level 3,  ~12,400 km²)",
-        ha="center", va="bottom",
-        fontsize=7.5, color=HEX_COLOR, fontweight="bold",
-    )
-    ax.text(
-        cx, cy,
-        "Index cells\n(H3 level 12, ~307 m²)\n+ GEDI shots",
-        ha="center", va="center",
-        fontsize=7, color="#1e40af", alpha=0.85,
+    # Sample for left panel plotting speed
+    if len(df_full) > 15000:
+        df_sampled = df_full.sample(15000, random_state=42)
+    else:
+        df_sampled = df_full
+    lons = df_sampled["lon_lowestmode_l2a"].values
+    lats = df_sampled["lat_lowestmode_l2a"].values
+
+    # ── Two-panel figure ─────────────────────────────────────────────────────
+    fig, (ax_l, ax_r) = plt.subplots(1, 2, figsize=(8, 4))
+
+    # ── Left panel: full partition ───────────────────────────────────────────
+    part_gdf.boundary.plot(ax=ax_l, color=HEX_COLOR, linewidth=1.8, zorder=5)
+    ax_l.scatter(
+        lons, lats,
+        s=0.3, color=SHOT_COLOR, alpha=0.5, zorder=6, rasterized=True,
     )
 
-    ax.set_aspect("equal")
-    ax.set_xlabel("Longitude (°)")
-    ax.set_ylabel("Latitude (°)")
-    ax.set_title("H3 dual-level structure")
-    hide_spines(ax)
+    # Orange zoom rectangle on left panel
+    rect = Rectangle(
+        (zoom_x0, zoom_y0), zoom_x1 - zoom_x0, zoom_y1 - zoom_y0,
+        linewidth=1.5, edgecolor=ZOOM_COLOR, facecolor="none", zorder=10,
+    )
+    ax_l.add_patch(rect)
 
+    cx = part_poly.centroid.x
+    ax_l.set_title("H3 level-3 partition (~12,400 km²)",
+                    fontsize=8, color=HEX_COLOR, fontweight="bold")
+    ax_l.set_aspect("equal")
+    ax_l.set_xlabel("Longitude (°)")
+    ax_l.set_ylabel("Latitude (°)")
+    hide_spines(ax_l)
+
+    # ── Right panel: zoomed H3 level-12 cells ────────────────────────────────
+    if zoom_cells:
+        hex_gdf = cells_to_gdf(list(zoom_cells))
+        hex_gdf.plot(
+            ax=ax_r,
+            facecolor="#dbeafe",
+            edgecolor="#93c5fd",
+            linewidth=0.8,
+            alpha=0.8,
+        )
+
+    ax_r.scatter(
+        zoom_lons, zoom_lats,
+        s=8, color=SHOT_COLOR, alpha=0.8, zorder=6, rasterized=True,
+    )
+
+    ax_r.set_xlim(zoom_x0, zoom_x1)
+    ax_r.set_ylim(zoom_y0, zoom_y1)
+    ax_r.set_aspect("equal")
+    ax_r.set_title("H3 level-12 index cells (~307 m²)",
+                    fontsize=8, color=ZOOM_COLOR, fontweight="bold")
+    ax_r.set_xlabel("Longitude (°)")
+    hide_spines(ax_r)
+
+    # Orange border on right panel to match the zoom rectangle
+    for spine in ax_r.spines.values():
+        spine.set_edgecolor(ZOOM_COLOR)
+        spine.set_linewidth(1.5)
+        spine.set_visible(True)
+
+    # ── Connector lines between panels ───────────────────────────────────────
+    for (x_l, y_l), (x_r, y_r) in [
+        ((zoom_x1, zoom_y1), (zoom_x0, zoom_y1)),  # top-right → top-left
+        ((zoom_x1, zoom_y0), (zoom_x0, zoom_y0)),  # bot-right → bot-left
+    ]:
+        con = ConnectionPatch(
+            xyA=(x_l, y_l), coordsA=ax_l.transData,
+            xyB=(x_r, y_r), coordsB=ax_r.transData,
+            color=ZOOM_COLOR, linewidth=0.8, linestyle="--", alpha=0.7,
+        )
+        fig.add_artist(con)
+
+    fig.suptitle("H3 dual-level structure", fontsize=10, y=1.02)
+    plt.tight_layout()
     save_fig(fig, "h3_two_level.png", out)
 
 
 # ─── Figure 6: H3 boundary / parent-child nesting ────────────────────────────
 def fig_h3_boundary(out):
-    """Show two adjacent level-5 hexes, children colored by assigned parent."""
+    """Two adjacent level-3 hexes with hierarchical children centroids (Gosper Island)."""
     setup()
     fig, ax = plt.subplots(figsize=(4.5, 4.5))
 
-    # Pick a level-5 hex inside the study region
+    # Two adjacent level-3 hexagons
     center_lat = (BBOX[1] + BBOX[3]) / 2
     center_lon = (BBOX[0] + BBOX[2]) / 2
-    seed_cell = h3.latlng_to_cell(center_lat, center_lon, 5)
+    seed_cell = h3.latlng_to_cell(center_lat, center_lon, 3)
     neighbors = list(h3.grid_disk(seed_cell, 1))
-    # Pick the seed and one neighbor
     neighbor = [n for n in neighbors if n != seed_cell][0]
-    parent_pair = [seed_cell, neighbor]
 
-    colors = {"A": "#dbeafe", "B": "#fef3c7"}
-    edge_colors = {"A": HEX_COLOR, "B": "#d97706"}
+    colors = {"A": HEX_COLOR, "B": "#d97706"}
+    fill_colors = {"A": "#dbeafe", "B": "#fef3c7"}
     label_map = {seed_cell: "A", neighbor: "B"}
 
-    # Children at level 10
-    child_level = 10
-    for p_id in parent_pair:
-        children = list(h3.geo_to_cells(mapping(h3_cell_poly(p_id)), child_level))
-        for c in children:
-            assigned_parent = h3.cell_to_parent(c, 5)
-            lbl = label_map.get(assigned_parent, "A")
-            poly = h3_cell_poly(c)
-            ax.fill(
-                *poly.exterior.xy,
-                color=colors[lbl],
-                alpha=0.7,
-                lw=0,
-            )
-            ax.plot(*poly.exterior.xy, color=edge_colors[lbl], lw=0.1, alpha=0.5)
+    # Hierarchical children at level 7 (~2,401 per parent) — plotted as hexagons
+    child_level = 7
+    for p_id in [seed_cell, neighbor]:
+        lbl = label_map[p_id]
+        children = list(h3.cell_to_children(p_id, child_level))
+        child_gdf = cells_to_gdf(children)
+        child_gdf.plot(
+            ax=ax,
+            facecolor=fill_colors[lbl],
+            edgecolor=colors[lbl],
+            linewidth=0.15,
+            alpha=0.9,
+            zorder=4,
+        )
 
-    # Draw parent boundaries on top
-    for p_id in parent_pair:
+    # Parent hexagon outlines on top
+    for p_id in [seed_cell, neighbor]:
         poly = h3_cell_poly(p_id)
         lbl = label_map[p_id]
-        ax.plot(*poly.exterior.xy, color=edge_colors[lbl], lw=1.5, zorder=5)
+        ax.plot(*poly.exterior.xy, color=colors[lbl], lw=1.5, zorder=5)
         cx, cy = poly.centroid.x, poly.centroid.y
         ax.text(cx, cy, f"Cell {lbl}", ha="center", va="center",
-                fontsize=8, color=edge_colors[lbl], fontweight="bold", zorder=6)
+                fontsize=8, color=colors[lbl], fontweight="bold", zorder=6)
 
     ax.set_aspect("equal")
     ax.set_xlabel("Longitude (°)")
     ax.set_ylabel("Latitude (°)")
-    ax.set_title(
-        "H3 parent/child nesting\nChildren near the boundary may be\nassigned to the non-enclosing parent",
-        fontsize=8,
-    )
+    ax.set_title("H3 parent/child nesting pattern", fontsize=9)
     legend_handles = [
-        mpatches.Patch(facecolor=colors["A"], edgecolor=edge_colors["A"], label="Assigned to cell A"),
-        mpatches.Patch(facecolor=colors["B"], edgecolor=edge_colors["B"], label="Assigned to cell B"),
+        mpatches.Patch(facecolor=fill_colors["A"], edgecolor=colors["A"], label="Children of cell A"),
+        mpatches.Patch(facecolor=fill_colors["B"], edgecolor=colors["B"], label="Children of cell B"),
     ]
     ax.legend(handles=legend_handles, fontsize=7, frameon=False, loc="upper right")
     hide_spines(ax)
@@ -665,7 +721,7 @@ def main():
     fig_h3_multi_resolution(gdf, out)
 
     print("[5/8] h3_two_level.png")
-    fig_h3_two_level(gdf, out)
+    fig_h3_two_level(args.db, out)
 
     # ── Aggregated data ───────────────────────────────────────────────────────
     print("\nAggregating data (H3 level 7 + EGI level 6)…")

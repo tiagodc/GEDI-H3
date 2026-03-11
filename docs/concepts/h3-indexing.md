@@ -2,7 +2,7 @@
 
 ## What is H3?
 
-**H3** is a hierarchical geospatial indexing system developed by Uber. It divides the Earth's surface into a multi-resolution grid of hexagonal cells. Every point on Earth can be assigned to a unique H3 cell at any of 16 resolution levels (0–15), ranging from continental scale (~4.25 million km²) down to sub-meter scale (~0.90 m²).
+[**H3**](https://h3geo.org/) is a hierarchical geospatial indexing system developed by Uber. It divides the Earth's surface into a multi-resolution grid of hexagonal cells. Every point on Earth can be assigned to a unique H3 cell at any of 16 resolution levels (0–15), ranging from continental scale (~4.25 million km²) down to sub-meter scale (~0.90 m²).
 
 H3 is the primary spatial index in gedih3 and serves as the backbone of the H3 database.
 
@@ -19,7 +19,7 @@ Hexagons have several geometric properties that make them well-suited for spatia
 
 :::{figure} ../imgs/h3_multi_resolution.png
 :alt: GEDI shots indexed by H3 hexagons at three resolution levels
-The same GEDI shots indexed by H3 hexagons at three resolution levels. Level 3 (~12,400 km²) defines partition tiles for disk layout; level 6 (~36 km²) suits regional aggregation; level 9 (~0.1 km²) approaches individual shot density.
+The same GEDI shots indexed by H3 hexagons at three resolution levels. Level 3 (~12,400 km²) defines partition tiles for disk layout; level 6 (~36 km²) suits regional analysis; level 9 (~0.1 km²) is suited for exploring fine scale spatial gradients.
 :::
 
 ---
@@ -51,21 +51,21 @@ The same GEDI shots indexed by H3 hexagons at three resolution levels. Level 3 (
 
 gedih3 uses H3 at two different resolution levels simultaneously:
 
-**Partition level** (default: level 3, ~12,000 km²)
-The coarse H3 level used to organize files on disk. Each H3 partition cell becomes a directory in the database, containing all GEDI shots that fall within that geographic tile. This partitioning enables spatial queries to skip irrelevant tiles entirely — a query for "shots over Brazil" only reads the tiles that overlap Brazil.
-
 **Index level** (default: level 12, ~307 m²)
-The fine H3 level assigned to each individual GEDI shot. At level 12, each hexagon is roughly the size of a GEDI footprint, making this a natural resolution for shot-level indexing. This column is stored in every parquet file and is used for multi-resolution aggregation.
+The fine H3 level assigned to each individual GEDI shot. At level 12, each hexagon is roughly the size of a GEDI footprint, so a shot's coordinates are intersected at this scale to determine its cell. All coarser groupings are derived from this index via H3's parent hierarchy
+
+**Partition level** (default: level 3, ~12,000 km²)
+The coarse H3 level used to organize files on disk. Because every level-12 cell has a unique level-3 ancestor, shots are grouped into partitions by that ancestor — no separate spatial lookup needed. A spatial query then only reads the partitions whose level-3 cell overlaps the area of interest, skipping everything else.
 
 :::{figure} ../imgs/h3_two_level.png
 :alt: H3 dual-level partition and index structure
-The H3 dual-level structure used by gedih3. A single level-3 partition tile (large hexagon outline, ~12,400 km²) holds thousands of fine-resolution index cells and the GEDI shot dots they index.
+The H3 dual-level structure used by gedih3. **Left:** a level-3 partition tile (~12,400 km²) containing thousands of GEDI shots. **Right:** zoomed view of the orange rectangle, showing individual H3 level-12 index cells (~307 m² each) with the GEDI shots they contain.
 :::
 
 ```bash
 # Customize index and partition levels at build time
 gh3_build -r "-51,0,-50,1" -h3r 12 -h3p 3  # defaults
-gh3_build -r "-51,0,-50,1" -h3r 11 -h3p 4  # finer index, larger partitions
+gh3_build -r "-51,0,-50,1" -h3r 11 -h3p 4  # coarser index, finer partitions
 ```
 
 ---
@@ -74,11 +74,11 @@ gh3_build -r "-51,0,-50,1" -h3r 11 -h3p 4  # finer index, larger partitions
 
 H3 is a hierarchical system, but hexagonal grids cannot be perfectly nested across resolution levels due to the geometry of tiling a sphere with hexagons. **H3 parent hexagons are not perfectly geometrically inclusive of their children.**
 
-What this means in practice: when you compute the parent of a level-12 cell at level-6, the returned parent is the level-6 cell whose *center* is closest to the level-12 cell's center — not necessarily the cell that *geometrically contains* it. Near hexagon boundaries, a small fraction of child cells (typically 1–2%) may be assigned to a neighboring parent rather than the containing one.
+What this means in practice: hexagons do not cleanly subdivide into seven finer hexagons at each resolution step — the aperture-7 subdivision is an approximation. While [logical containment in the H3 index is exact, geographic containment is approximate](https://h3geo.org/docs/highlights/indexing). Near hexagon boundaries, a small fraction of child cells may sit outside the geometric boundary of their logical parent, forming a fractal [Gosper Island](https://github.com/uber/h3/issues/1114) shape rather than a perfect hexagon fill.
 
 :::{figure} ../imgs/h3_boundary.png
-:alt: H3 parent/child boundary nesting
-H3 parent/child boundary nesting. Level-10 child cells are colored by their computed level-5 parent (`h3.cell_to_parent`). Cells near the geometric boundary are sometimes assigned to the non-enclosing neighbor — a known property of H3's hierarchical approximation.
+:alt: H3 parent/child nesting caveat — Gosper Island
+H3 parent/child nesting caveat. Level-7 hierarchical children of two adjacent level-3 cells. Children form a Gosper Island shape that does not perfectly fill the parent hexagon — a known property of H3's hierarchical approximation.
 :::
 
 **How gedih3 handles this**: `gh3_aggregate` groups shots by their computed H3 parent cell (using `h3.cell_to_parent()`), which is consistent and fast. The assignment is deterministic and matches what H3 users expect — it is simply not a perfect geometric containment, which is a known property of H3 that users should be aware of when comparing cross-resolution results.
