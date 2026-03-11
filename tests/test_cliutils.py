@@ -34,6 +34,7 @@ from gedih3.cliutils import (
     detect_dataset_format,
     _expand_percentile_specs,
     cli_exception_handler,
+    resolve_product_vars,
 )
 from gedih3.exceptions import GediValidationError
 
@@ -643,3 +644,72 @@ class TestCliExceptionHandler:
             with cli_exception_handler(args):
                 raise KeyboardInterrupt()
         assert exc_info.value.code == 130
+
+
+# =============================================================================
+# Test: resolve_product_vars
+# =============================================================================
+
+def _make_product_args(**overrides):
+    """Build a Namespace mimicking parsed add_product_args() output."""
+    defaults = dict(detail_level=None, l1b=None, l2a=None, l2b=None, l4a=None, l4c=None)
+    defaults.update(overrides)
+    return argparse.Namespace(**defaults)
+
+
+class TestResolveProductVars:
+
+    def test_detail_level_excludes_l1b(self):
+        """--detail-level default should include L2A/L2B/L4A/L4C but NOT L1B."""
+        result = resolve_product_vars(_make_product_args(detail_level='default'))
+        assert 'L1B' not in result
+        for prod in ('L2A', 'L2B', 'L4A', 'L4C'):
+            assert result[prod] == ['default']
+
+    def test_detail_level_minimal_excludes_l1b(self):
+        result = resolve_product_vars(_make_product_args(detail_level='min'))
+        assert 'L1B' not in result
+        assert result['L2A'] == ['min']
+
+    def test_detail_level_all_excludes_l1b(self):
+        result = resolve_product_vars(_make_product_args(detail_level='all'))
+        assert 'L1B' not in result
+        assert result['L4A'] == ['all']
+
+    def test_detail_level_with_l1b_bare(self):
+        """--detail-level min -l1b (bare) should include L1B as all."""
+        result = resolve_product_vars(_make_product_args(detail_level='min', l1b=[]))
+        assert result['L1B'] == ['all']
+        assert result['L2A'] == ['min']
+
+    def test_detail_level_with_l1b_vars(self):
+        """--detail-level all -l1b rxwaveform should include L1B with specified vars."""
+        result = resolve_product_vars(_make_product_args(detail_level='all', l1b=['rxwaveform']))
+        assert result['L1B'] == ['rxwaveform']
+        assert result['L2A'] == ['all']
+
+    def test_detail_level_with_l2a_raises(self):
+        """--detail-level default -l2a should raise GediValidationError."""
+        with pytest.raises(GediValidationError):
+            resolve_product_vars(_make_product_args(detail_level='default', l2a=['rh']))
+
+    def test_detail_level_with_l4c_raises(self):
+        """--detail-level default -l4c should raise GediValidationError."""
+        with pytest.raises(GediValidationError):
+            resolve_product_vars(_make_product_args(detail_level='default', l4c=[]))
+
+    def test_per_product_mode(self):
+        """-l2a default -l4a minimal should work without --detail-level."""
+        result = resolve_product_vars(_make_product_args(l2a=['default'], l4a=['minimal']))
+        assert result == {'L2A': ['default'], 'L4A': ['minimal']}
+
+    def test_per_product_with_l1b(self):
+        """-l1b -l2a default should both be included."""
+        result = resolve_product_vars(_make_product_args(l1b=[], l2a=['default']))
+        assert result['L1B'] == ['all']
+        assert result['L2A'] == ['default']
+
+    def test_no_flags_returns_empty(self):
+        """No flags at all should return empty dict."""
+        result = resolve_product_vars(_make_product_args())
+        assert result == {}

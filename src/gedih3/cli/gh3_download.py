@@ -69,7 +69,11 @@ def main():
         soc_logger.s3_access = True
 
     if not soc_logger.product_vars and not soc_logger.updating:
-        raise ValueError("No GEDI product selected for download - please select at least one of --l1b, --l2a, --l2b, --l4a, --l4c")
+        raise ValueError(
+            "No GEDI product selected for download - please select at least one of "
+            "--l2a, --l2b, --l4a, --l4c (or use --detail-level for all four), "
+            "and/or --l1b for waveform data"
+        )
     if soc_logger.get_spatial() is None:
         logger.warning("No spatial filter provided - downloading global data")
     if soc_logger.get_temporal() is None:

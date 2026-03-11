@@ -346,8 +346,9 @@ def add_product_args(parser):
     """
     parser.add_argument("--detail-level", dest="detail_level", type=str, default=None,
                         choices=['minimal', 'min', 'default', 'def', 'all'],
-                        help="set variable detail level for ALL products "
-                             "(minimal/default/all). Mutually exclusive with per-product flags.")
+                        help="set variable detail level for L2A/L2B/L4A/L4C "
+                             "(minimal/default/all). L1B must be added separately with -l1b. "
+                             "Mutually exclusive with -l2a, -l2b, -l4a, -l4c flags.")
     parser.add_argument("-l1b", "--l1b", dest="l1b", nargs='*', type=str, default=None,
                         help="GEDI L1B variables [keyword, var list, or bare flag for all]")
     parser.add_argument("-l2a", "--l2a", dest="l2a", nargs='*', type=str, default=None,
@@ -1047,9 +1048,11 @@ def parse_file_format(args, default='parquet'):
 def resolve_product_vars(args):
     """Resolve product variables from CLI args.
 
-    Two modes (mutually exclusive):
-    1. Global: ``-l <level>`` applies level to ALL products.
+    Two modes (mutually exclusive for L2A/L2B/L4A/L4C):
+    1. Global: ``--detail-level <level>`` applies level to L2A/L2B/L4A/L4C (not L1B).
     2. Per-product: ``-l2a <...> -l4a <...>`` selects specific products.
+
+    L1B is always specified separately via ``-l1b`` and can be combined with either mode.
 
     Per-product flag semantics (with ``nargs='*'``):
     - Flag absent → ``args.l2a = None`` (product not selected)
@@ -1065,30 +1068,42 @@ def resolve_product_vars(args):
     Raises
     ------
     GediValidationError
-        If ``-l`` is combined with per-product flags.
+        If ``--detail-level`` is combined with non-L1B per-product flags.
     """
     detail_level = getattr(args, 'detail_level', None)
 
     per_product = {}
+    l1b_val = None
     for prod in GEDI_PRODUCTS.keys():
         val = getattr(args, prod.lower(), None)
         if val is not None:
-            per_product[prod] = val
+            if prod == 'L1B':
+                l1b_val = val
+            else:
+                per_product[prod] = val
 
     if detail_level and per_product:
         raise GediValidationError(
-            "Cannot combine -l/--detail-level with per-product flags (-l1b, -l2a, etc.). "
-            "Use -l for all products OR specify each product individually."
+            "Cannot combine --detail-level with per-product flags (-l2a, -l2b, -l4a, -l4c). "
+            "Use --detail-level for L2A/L2B/L4A/L4C OR specify each product individually. "
+            "Note: -l1b can be used alongside --detail-level."
         )
 
     product_vars = {}
     if detail_level:
-        # Global mode: apply to ALL products
+        # Global mode: apply to L2A/L2B/L4A/L4C (not L1B)
         for prod in GEDI_PRODUCTS.keys():
-            product_vars[prod] = [detail_level]
+            if prod != 'L1B':
+                product_vars[prod] = [detail_level]
+        # L1B only if explicitly requested via -l1b
+        if l1b_val is not None:
+            product_vars['L1B'] = ['all'] if len(l1b_val) == 0 else l1b_val
     else:
-        # Per-product mode
-        for prod, flag_val in per_product.items():
+        # Per-product mode (includes L1B if specified)
+        all_products = {**per_product}
+        if l1b_val is not None:
+            all_products['L1B'] = l1b_val
+        for prod, flag_val in all_products.items():
             if len(flag_val) == 0:
                 # Bare flag → dump everything
                 product_vars[prod] = ['all']
