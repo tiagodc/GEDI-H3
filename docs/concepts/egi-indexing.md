@@ -18,7 +18,7 @@ Unlike H3 hexagons, EGI pixels are perfectly regular squares in an equal-area pr
 
 :::{figure} ../imgs/h3_vs_egi.png
 :alt: AGBD aggregated to H3 hexagons vs. EGI square pixels
-The same AGBD data aggregated to H3 level-7 hexagons (~5 km², left) and EGI level-6 square pixels (~1 km, right). Square pixels map 1:1 to raster output and align with the GEDI L4B grid; hexagons suit general spatial queries.
+The same AGBD data aggregated to H3 level-7 hexagons (~5 km², left) and EGI level-7 square pixels (~2 km, right). Square pixels map 1:1 to raster output and align with the GEDI L4B grid; hexagons suit general spatial queries.
 :::
 
 ---
@@ -122,9 +122,9 @@ EGI accepts an optional `INDEX:PARTITION` syntax to control both the index resol
 - You are producing global gridded products for external users
 - You want native GeoTIFF outputs without hexagon-to-pixel interpolation
 
-:::{figure} ../imgs/egi_agbd_map.png
-:alt: EGI level-6 mean AGBD map
-EGI level-6 (~1 km) mean AGBD across the study area. Each square pixel maps directly to one raster cell in EASE-Grid 2.0 (EPSG:6933), making this output directly comparable to the official GEDI L4B gridded biomass product.
+:::{figure} ../imgs/h3_egi_nesting.png
+:alt: Hierarchical nesting in H3 hexagons vs EGI square pixels
+H3 (left) and EGI (right) hierarchical nesting. H3 levels 3 → 5 → 6 show the Gosper-island fractal subdivision; EGI levels 12 → 9 → 8 show regular square containment — each parent subdivides evenly into child pixels. EGI tiles appear rectangular here because they are square in EPSG:6933 (equal-area) but distort when reprojected to WGS84 for display.
 :::
 
 ---

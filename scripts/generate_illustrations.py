@@ -8,8 +8,8 @@ Figures produced:
   3. h3_multi_resolution.png  — H3 hexagons at levels 3, 6, 9 (real data)
   4. h3_two_level.png         — H3 dual-level partition+index structure
   5. h3_boundary.png          — H3 parent/child boundary nesting caveat
-  6. h3_vs_egi.png            — H3 hexagons vs EGI square pixels (real data)
-  7. egi_agbd_map.png         — EGI-aggregated AGBD map (real data)
+  6. h3_egi_nesting.png       — H3 vs EGI hierarchical nesting comparison (conceptual)
+  7. h3_vs_egi.png            — H3 level-7 hexagons vs EGI level-7 square pixels (real data)
   8. regression_r2.png        — Per-hexagon AGBD~height R² map (real data)
 
 Usage:
@@ -106,39 +106,61 @@ def load_shots(db_path):
     return ddf.compute()
 
 
-def load_aggregated(db_path, gdf_shots):
-    """Compute H3 level-7 and EGI level-6 aggregated AGBD (quality-filtered).
+def load_aggregated(db_path, gdf_shots, region=None):
+    """Compute H3 level-7 and EGI level-7 aggregated AGBD (quality-filtered).
 
     H3 aggregation uses Dask (partition-level, no shuffle).
     EGI aggregation uses the lower-level pandas egi_dataframe/egi_aggregate
     directly on the already-loaded shots to avoid Dask metadata issues.
+
+    Parameters
+    ----------
+    region : GeoDataFrame or bbox tuple (W, S, E, N), optional
+        Spatial filter for constraining the output extent.
     """
     import gedih3.gh3driver as gh3
     from gedih3.egi.dataframe import egi_dataframe, egi_aggregate as egi_agg_fn
 
     # ── H3 aggregation (Dask, efficient) ─────────────────────────────────────
-    ddf = gh3.gh3_load(
-        source=db_path,
-        columns=["agbd_l4a", "l4_quality_flag_l4a"],
-    )
-    ddf_q = ddf.query("l4_quality_flag_l4a == 1 and agbd_l4a > 0")
+    load_cols = ["agbd_l4a"]
+    if "l4_quality_flag_l4a" in gdf_shots.columns:
+        load_cols.append("l4_quality_flag_l4a")
+
+    ddf = gh3.gh3_load(source=db_path, columns=load_cols, region=region)
+    if "l4_quality_flag_l4a" in ddf.columns:
+        ddf_q = ddf.query("l4_quality_flag_l4a == 1 and agbd_l4a > 0")
+    else:
+        ddf_q = ddf.query("agbd_l4a > 0")
     h3_agg = gh3.gh3_aggregate(ddf_q, target_res=7, agg="mean").compute()
 
     # ── EGI aggregation (pandas, using already-loaded shots) ─────────────────
-    mask = (
-        (gdf_shots["l4_quality_flag_l4a"] == 1)
-        & (gdf_shots["agbd_l4a"] > 0)
-        & gdf_shots["agbd_l4a"].notna()
-    )
-    shots_q = gdf_shots.loc[mask, ["agbd_l4a", "lon_lowestmode_l2a", "lat_lowestmode_l2a"]].copy()
+    conditions = (gdf_shots["agbd_l4a"] > 0) & gdf_shots["agbd_l4a"].notna()
+    if "l4_quality_flag_l4a" in gdf_shots.columns:
+        conditions = conditions & (gdf_shots["l4_quality_flag_l4a"] == 1)
+    shots_q = gdf_shots.loc[conditions, ["agbd_l4a", "lon_lowestmode_l2a", "lat_lowestmode_l2a"]].copy()
+
+    # Clip to region bbox if provided
+    if region is not None:
+        if hasattr(region, "total_bounds"):
+            w, s, e, n = region.total_bounds
+        else:
+            w, s, e, n = region
+        shots_q = shots_q[
+            (shots_q["lon_lowestmode_l2a"] >= w)
+            & (shots_q["lon_lowestmode_l2a"] <= e)
+            & (shots_q["lat_lowestmode_l2a"] >= s)
+            & (shots_q["lat_lowestmode_l2a"] <= n)
+        ]
 
     shots_egi = egi_dataframe(
         shots_q,
         x_col="lon_lowestmode_l2a",
         y_col="lat_lowestmode_l2a",
-        level=6,
+        level=7,
     )
-    egi_agg = egi_agg_fn(shots_egi, mapper="mean", return_geometry=True)
+    # Keep only numeric columns for aggregation
+    num_cols = shots_egi.select_dtypes(include="number").columns.tolist()
+    egi_agg = egi_agg_fn(shots_egi[num_cols], mapper="mean", return_geometry=True)
 
     return h3_agg, egi_agg
 
@@ -497,9 +519,9 @@ def fig_h3_boundary(out):
 
 # ─── Figure 7: H3 hexagons vs EGI square pixels ──────────────────────────────
 def fig_h3_vs_egi(h3_agg, egi_agg, out):
-    """Side-by-side: H3 level-7 AGBD hexagons and EGI level-6 AGBD squares."""
+    """Side-by-side: H3 level-7 AGBD hexagons and EGI level-7 AGBD squares."""
     setup()
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 4))
 
     col_h3 = "agbd_l4a"
     col_egi = "agbd_l4a"
@@ -508,6 +530,12 @@ def fig_h3_vs_egi(h3_agg, egi_agg, out):
     egi_vals = egi_agg[col_egi].dropna()
     vmin = min(h3_vals.quantile(0.05), egi_vals.quantile(0.05))
     vmax = max(h3_vals.quantile(0.95), egi_vals.quantile(0.95))
+
+    sm = plt.cm.ScalarMappable(
+        cmap=CMAP_AGBD,
+        norm=plt.Normalize(vmin=vmin, vmax=vmax),
+    )
+    sm.set_array([])
 
     # H3 panel
     h3_agg.plot(
@@ -521,18 +549,13 @@ def fig_h3_vs_egi(h3_agg, egi_agg, out):
         legend=False,
         missing_kwds={"color": "#f3f4f6"},
     )
-    ax1.set_title("H3 hexagons  (level 7, ~5 km²)\n", fontsize=8)
+    ax1.set_title("H3 hexagons  (level 7, ~5 km²)", fontsize=8)
     ax1.set_xlabel("Longitude (°)")
     ax1.set_ylabel("Latitude (°)")
     hide_spines(ax1)
 
     # EGI panel
     egi_plot = egi_agg.to_crs(4326) if egi_agg.crs and egi_agg.crs.to_epsg() != 4326 else egi_agg
-    sm = plt.cm.ScalarMappable(
-        cmap=CMAP_AGBD,
-        norm=plt.Normalize(vmin=vmin, vmax=vmax),
-    )
-    sm.set_array([])
     egi_plot.plot(
         column=col_egi,
         ax=ax2,
@@ -544,77 +567,148 @@ def fig_h3_vs_egi(h3_agg, egi_agg, out):
         legend=False,
         missing_kwds={"color": "#f3f4f6"},
     )
-    ax2.set_title("EGI square pixels  (level 6, ~1 km)\n", fontsize=8)
+    ax2.set_title("EGI square pixels  (level 7, ~2 km)", fontsize=8)
     ax2.set_xlabel("Longitude (°)")
     ax2.set_yticklabels([])
     hide_spines(ax2)
 
-    cbar = fig.colorbar(sm, ax=[ax1, ax2], shrink=0.7, pad=0.02)
+    # Sync axes extents from data bounds (with small padding)
+    all_bounds = h3_agg.total_bounds  # [minx, miny, maxx, maxy]
+    egi_bounds = egi_plot.total_bounds
+    xmin = min(all_bounds[0], egi_bounds[0]) - 0.02
+    ymin = min(all_bounds[1], egi_bounds[1]) - 0.02
+    xmax = max(all_bounds[2], egi_bounds[2]) + 0.02
+    ymax = max(all_bounds[3], egi_bounds[3]) + 0.02
+    for ax in (ax1, ax2):
+        ax.set_xlim(xmin, xmax)
+        ax.set_ylim(ymin, ymax)
+
+    fig.subplots_adjust(right=0.88, wspace=0.08)
+    cax = fig.add_axes([0.90, 0.15, 0.02, 0.7])
+    cbar = fig.colorbar(sm, cax=cax)
     cbar.set_label("Mean AGBD (Mg ha⁻¹)", fontsize=7)
     cbar.ax.tick_params(labelsize=6)
 
-    plt.suptitle("H3 hexagons vs EGI square pixels — same AGBD data", fontsize=9, y=1.01)
-    plt.tight_layout()
+    fig.suptitle("H3 hexagons vs EGI square pixels — same AGBD data", fontsize=9)
     save_fig(fig, "h3_vs_egi.png", out)
 
 
-# ─── Figure 8: EGI AGBD map ───────────────────────────────────────────────────
-def fig_egi_agbd_map(egi_agg, out):
-    """Single-panel EGI level-6 AGBD map."""
+# ─── Figure 8: H3 vs EGI hierarchical nesting ────────────────────────────────
+def fig_h3_egi_nesting(out):
+    """Side-by-side: H3 and EGI hierarchical nesting (conceptual, no data)."""
+    import gedih3.egi.core as egi_core
+    import gedih3.egi.spatial as egi_spatial
+
     setup()
-    fig, ax = plt.subplots(figsize=(5, 4.5))
+    fig, (ax_h3, ax_egi) = plt.subplots(1, 2, figsize=(10, 4))
 
-    col = "agbd_l4a"
-    egi_plot = egi_agg.to_crs(4326) if egi_agg.crs and egi_agg.crs.to_epsg() != 4326 else egi_agg
-    vmin = egi_agg[col].quantile(0.05)
-    vmax = egi_agg[col].quantile(0.95)
+    colors = {"coarse": "#1a1a1a", "mid": "#2563eb", "fine": "#e07b39"}
 
-    sm = plt.cm.ScalarMappable(
-        cmap=CMAP_AGBD,
-        norm=plt.Normalize(vmin=vmin, vmax=vmax),
+    # ── H3 panel (left) ──────────────────────────────────────────────────────
+    seed = h3.latlng_to_cell(0.5, -50.5, 3)
+    children5 = list(h3.cell_to_children(seed, 5))
+    children6 = list(h3.cell_to_children(seed, 6))
+
+    # Finest first (bottom), coarsest on top
+    cells_to_gdf(children6).plot(
+        ax=ax_h3, facecolor="none", edgecolor=colors["fine"],
+        linewidth=0.3, zorder=2,
     )
-    sm.set_array([])
-    egi_plot.plot(
-        column=col,
-        ax=ax,
-        cmap=CMAP_AGBD,
-        vmin=vmin,
-        vmax=vmax,
-        edgecolor="none",
-        legend=False,
-        missing_kwds={"color": "#f3f4f6"},
+    cells_to_gdf(children5).plot(
+        ax=ax_h3, facecolor="none", edgecolor=colors["mid"],
+        linewidth=0.6, zorder=3,
+    )
+    parent_poly = h3_cell_poly(seed)
+    ax_h3.plot(*parent_poly.exterior.xy, color=colors["coarse"], lw=2.0, zorder=4)
+
+    ax_h3.set_title("H3 hexagons  (levels 3 → 5 → 6)", fontsize=8)
+    ax_h3.set_xlabel("Longitude (°)")
+    ax_h3.set_ylabel("Latitude (°)")
+    ax_h3.set_aspect("equal")
+    hide_spines(ax_h3)
+
+    # ── EGI panel (right) ────────────────────────────────────────────────────
+    # Find EGI level-12 tile near the H3 cell
+    h3_cx, h3_cy = parent_poly.centroid.x, parent_poly.centroid.y
+    pt_6933 = gpd.GeoDataFrame(
+        geometry=gpd.points_from_xy([h3_cx], [h3_cy]), crs=4326,
+    ).to_crs(6933)
+    cx6933, cy6933 = pt_6933.geometry[0].x, pt_6933.geometry[0].y
+    hash12 = egi_core.to_hash(cx6933, cy6933, level=12)
+
+    children9 = egi_core.get_children(np.uint64(hash12), children_level=9)
+    children8 = egi_core.get_children(np.uint64(hash12), children_level=8)
+
+    # Convert to GeoDataFrames in WGS84
+    gdf8 = egi_spatial.to_geodataframe(children8).to_crs(4326)
+    gdf9 = egi_spatial.to_geodataframe(children9).to_crs(4326)
+    parent12 = gpd.GeoDataFrame(
+        geometry=[egi_spatial.pixel_shape(np.uint64(hash12))], crs=6933,
+    ).to_crs(4326)
+
+    gdf8.plot(
+        ax=ax_egi, facecolor="none", edgecolor=colors["fine"],
+        linewidth=0.3, zorder=2,
+    )
+    gdf9.plot(
+        ax=ax_egi, facecolor="none", edgecolor=colors["mid"],
+        linewidth=0.6, zorder=3,
+    )
+    ax_egi.plot(
+        *parent12.geometry[0].exterior.xy,
+        color=colors["coarse"], lw=2.0, zorder=4,
     )
 
-    cbar = fig.colorbar(sm, ax=ax, shrink=0.85, pad=0.02)
-    cbar.set_label("Mean AGBD (Mg ha⁻¹)", fontsize=7)
-    cbar.ax.tick_params(labelsize=6)
+    ax_egi.set_title("EGI square pixels  (levels 12 → 9 → 8)", fontsize=8)
+    ax_egi.set_xlabel("Longitude (°)")
+    ax_egi.set_yticklabels([])
+    ax_egi.set_aspect("equal")
+    hide_spines(ax_egi)
 
-    ax.set_xlabel("Longitude (°)")
-    ax.set_ylabel("Latitude (°)")
-    ax.set_title("EGI level-6 (~1 km) aggregated AGBD", fontsize=9)
-    hide_spines(ax)
+    # ── Sync extents ─────────────────────────────────────────────────────────
+    for ax in (ax_h3, ax_egi):
+        ax.set_xlim(-51, -48.5)
+        ax.set_ylim(-1, 1)
 
-    save_fig(fig, "egi_agbd_map.png", out)
+    # ── Legend ────────────────────────────────────────────────────────────────
+    legend_handles = [
+        mpatches.Patch(facecolor="none", edgecolor=colors["coarse"], lw=2.0,
+                       label="Coarsest  (H3 L3 / EGI L12)"),
+        mpatches.Patch(facecolor="none", edgecolor=colors["mid"], lw=1.0,
+                       label="Mid-level  (H3 L5 / EGI L9)"),
+        mpatches.Patch(facecolor="none", edgecolor=colors["fine"], lw=0.5,
+                       label="Finest  (H3 L6 / EGI L8)"),
+    ]
+    fig.legend(handles=legend_handles, loc="lower center", ncol=3,
+               fontsize=7, frameon=False, bbox_to_anchor=(0.5, -0.02))
+
+    fig.suptitle("Hierarchical nesting — H3 vs EGI", fontsize=9)
+    fig.subplots_adjust(wspace=0.08, bottom=0.12)
+    save_fig(fig, "h3_egi_nesting.png", out)
 
 
-# ─── Figure 9: Per-hexagon regression R² ─────────────────────────────────────
+# ─── Figure 9: Per-hexagon regression R² and slope significance ──────────────
 def fig_regression_r2(gdf_shots, out):
-    """Per-hexagon R² of AGBD ~ canopy height (rh_098) at H3 level 7.
+    """Two-panel: R² (left) and slope p-value (right) for AGBD ~ RH98 at H3 level 7.
 
-    Uses pandas directly (avoids Dask metadata mismatch with custom callables).
+    Uses scipy.stats.linregress for both R² and slope p-value.
     """
+    from matplotlib.colors import LogNorm
+    from scipy.stats import linregress
+
     setup()
 
-    from sklearn.linear_model import LinearRegression
-    from sklearn.metrics import r2_score
-
-    # Quality filter
+    # Quality filter + spatial clip to study region
     mask = (
         (gdf_shots["l4_quality_flag_l4a"] == 1)
         & (gdf_shots["quality_flag_l2a"] == 1)
         & gdf_shots["agbd_l4a"].notna()
         & gdf_shots["rh_098_l2a"].notna()
         & (gdf_shots["agbd_l4a"] > 0)
+        & (gdf_shots["lon_lowestmode_l2a"] >= BBOX[0])
+        & (gdf_shots["lon_lowestmode_l2a"] <= BBOX[2])
+        & (gdf_shots["lat_lowestmode_l2a"] >= BBOX[1])
+        & (gdf_shots["lat_lowestmode_l2a"] <= BBOX[3])
     )
     shots_q = gdf_shots[mask][["agbd_l4a", "rh_098_l2a"]].copy()
 
@@ -627,61 +721,79 @@ def fig_regression_r2(gdf_shots, out):
         print("  [skip] regression_r2.png — no H3 index column found")
         return
 
-    # Add H3 level-7 parent for each shot (vectorized list comprehension)
+    # Add H3 level-7 parent for each shot
     shots_q["h3_07"] = [h3.cell_to_parent(c, 7) for c in shots_q["h3_12"]]
 
-    # Regression per hexagon
+    # Regression per hexagon (R², slope p-value)
     def fit_per_hex(df):
         n = len(df)
         if n < 5:
-            return pd.Series({"r2": np.nan, "n": n})
-        X = df["rh_098_l2a"].values.reshape(-1, 1)
-        y = df["agbd_l4a"].values
-        model = LinearRegression().fit(X, y)
-        r2 = r2_score(y, model.predict(X))
-        return pd.Series({"r2": float(max(0.0, r2)), "n": n})
+            return pd.Series({"r2": np.nan, "pvalue": np.nan, "n": n})
+        res = linregress(df["rh_098_l2a"].values, df["agbd_l4a"].values)
+        return pd.Series({"r2": float(res.rvalue ** 2), "pvalue": float(res.pvalue), "n": n})
 
     results = shots_q.groupby("h3_07").apply(fit_per_hex, include_groups=False).reset_index()
-    results = results[results["n"] >= 5].dropna(subset=["r2"])
+    results = results[(results["n"] >= 5) & (results["r2"] > 0)].dropna(subset=["r2", "pvalue"])
 
     if len(results) == 0:
         print("  [skip] regression_r2.png — insufficient data")
         return
 
+    # Clamp p-values away from zero for log scale
+    results["pvalue"] = results["pvalue"].clip(lower=1e-20)
+
     # Add polygon geometry
     results["geometry"] = [h3_cell_poly(c) for c in results["h3_07"]]
     results = gpd.GeoDataFrame(results, geometry="geometry", crs=4326)
 
-    fig, ax = plt.subplots(figsize=(5, 4.5))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 4))
 
-    sm = plt.cm.ScalarMappable(
-        cmap=CMAP_R2,
-        norm=plt.Normalize(vmin=0, vmax=1),
-    )
-    sm.set_array([])
+    # ── Left panel: R² ───────────────────────────────────────────────────────
+    sm_r2 = plt.cm.ScalarMappable(cmap=CMAP_R2, norm=plt.Normalize(vmin=0, vmax=1))
+    sm_r2.set_array([])
     results.plot(
-        column="r2",
-        ax=ax,
-        cmap=CMAP_R2,
-        vmin=0,
-        vmax=1,
-        edgecolor="none",
-        legend=False,
-        missing_kwds={"color": "#f3f4f6"},
+        column="r2", ax=ax1, cmap=CMAP_R2, vmin=0, vmax=1,
+        edgecolor="none", legend=False, missing_kwds={"color": "#f3f4f6"},
     )
+    ax1.set_xlim(BBOX[0] - 0.02, BBOX[2] + 0.02)
+    ax1.set_ylim(BBOX[1] - 0.02, BBOX[3] + 0.02)
+    ax1.set_aspect("equal")
+    ax1.set_xlabel("Longitude (°)")
+    ax1.set_ylabel("Latitude (°)")
+    ax1.set_title("R²  (AGBD ~ RH98)", fontsize=8)
+    hide_spines(ax1)
+    cbar1 = fig.colorbar(sm_r2, ax=ax1, shrink=0.85, pad=0.02)
+    cbar1.set_label("R²", fontsize=7)
+    cbar1.ax.tick_params(labelsize=6)
 
-    cbar = fig.colorbar(sm, ax=ax, shrink=0.85, pad=0.02)
-    cbar.set_label("R²  (AGBD ~ canopy height)", fontsize=7)
-    cbar.ax.tick_params(labelsize=6)
+    # ── Right panel: slope p-value (log scale) ───────────────────────────────
+    pmin = results["pvalue"].min()
+    pmax = results["pvalue"].max()
+    log_norm = LogNorm(vmin=max(pmin, 1e-20), vmax=min(pmax, 1.0))
 
-    ax.set_xlabel("Longitude (°)")
-    ax.set_ylabel("Latitude (°)")
-    ax.set_title(
-        "Per-hexagon linear regression R²\nAGBD ~ RH98 canopy height  (H3 level 7)",
-        fontsize=8,
+    sm_pv = plt.cm.ScalarMappable(cmap="RdYlGn_r", norm=log_norm)
+    sm_pv.set_array([])
+    results.plot(
+        column="pvalue", ax=ax2, cmap="RdYlGn_r", norm=log_norm,
+        edgecolor="none", legend=False, missing_kwds={"color": "#f3f4f6"},
     )
-    hide_spines(ax)
+    ax2.set_xlim(BBOX[0] - 0.02, BBOX[2] + 0.02)
+    ax2.set_ylim(BBOX[1] - 0.02, BBOX[3] + 0.02)
+    ax2.set_aspect("equal")
+    ax2.set_xlabel("Longitude (°)")
+    ax2.set_yticklabels([])
+    ax2.set_title("Slope p-value  (95% significance)", fontsize=8)
+    hide_spines(ax2)
+    cbar2 = fig.colorbar(sm_pv, ax=ax2, shrink=0.85, pad=0.02)
+    cbar2.set_label("p-value (slope)", fontsize=7)
+    cbar2.ax.tick_params(labelsize=6)
+    # Mark 0.05 threshold on colorbar
+    cbar2.ax.axhline(0.05, color="black", lw=1.0, ls="--")
+    cbar2.ax.text(1.3, 0.05, "p = 0.05", transform=cbar2.ax.get_yaxis_transform(),
+                  va="center", fontsize=6, color="black")
 
+    fig.suptitle("Per-hexagon AGBD ~ RH98 regression (H3 level 7)", fontsize=9)
+    fig.subplots_adjust(wspace=0.08)
     save_fig(fig, "regression_r2.png", out)
 
 
@@ -690,6 +802,8 @@ def parse_args():
     p = argparse.ArgumentParser(description="Generate gedih3 documentation illustrations.")
     p.add_argument("--db", default=DEFAULT_DB, help="Path to H3 database")
     p.add_argument("--out", default=DEFAULT_OUT, help="Output directory for PNGs")
+    p.add_argument("--only", type=int, default=None,
+                   help="Generate only figure N (1-8), skip the rest")
     return p.parse_args()
 
 
@@ -697,46 +811,60 @@ def main():
     args = parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    only = args.only
 
     print(f"Database : {args.db}")
     print(f"Output   : {out.resolve()}")
+    if only is not None:
+        print(f"Only     : figure {only}")
     print()
 
     # ── Conceptual figures (no data needed) ──────────────────────────────────
-    print("[1/8] lidar_waveform.png  (conceptual)")
-    fig_lidar_waveform(out)
+    if only is None or only == 1:
+        print("[1/8] lidar_waveform.png  (conceptual)")
+        fig_lidar_waveform(out)
 
-    print("[2/8] h3_boundary.png  (H3 library only)")
-    fig_h3_boundary(out)
+    if only is None or only == 2:
+        print("[2/8] h3_boundary.png  (H3 library only)")
+        fig_h3_boundary(out)
 
-    # ── Load data once ────────────────────────────────────────────────────────
-    print("\nLoading shots from database…")
-    gdf = load_shots(args.db)
-    print(f"  {len(gdf):,} shots loaded")
+    if only is None or only == 3:
+        print("[3/8] h3_egi_nesting.png  (conceptual)")
+        fig_h3_egi_nesting(out)
 
-    print("\n[3/8] gedi_tracks.png")
-    fig_gedi_tracks(gdf, out)
+    # ── Load data once (needed for figures 4-8) ──────────────────────────────
+    gdf = None
+    if only is None or only >= 4:
+        print("\nLoading shots from database…")
+        gdf = load_shots(args.db)
+        print(f"  {len(gdf):,} shots loaded")
 
-    print("[4/8] h3_multi_resolution.png")
-    fig_h3_multi_resolution(gdf, out)
+    if only is None or only == 4:
+        print("\n[4/8] gedi_tracks.png")
+        fig_gedi_tracks(gdf, out)
 
-    print("[5/8] h3_two_level.png")
-    fig_h3_two_level(args.db, out)
+    if only is None or only == 5:
+        print("[5/8] h3_multi_resolution.png")
+        fig_h3_multi_resolution(gdf, out)
 
-    # ── Aggregated data ───────────────────────────────────────────────────────
-    print("\nAggregating data (H3 level 7 + EGI level 6)…")
-    h3_agg, egi_agg = load_aggregated(args.db, gdf)
-    print(f"  H3 agg: {len(h3_agg):,} hexes  |  EGI agg: {len(egi_agg):,} pixels")
+    if only is None or only == 6:
+        print("[6/8] h3_two_level.png")
+        fig_h3_two_level(args.db, out)
 
-    print("\n[6/8] h3_vs_egi.png")
-    fig_h3_vs_egi(h3_agg, egi_agg, out)
+    # ── Aggregated data (needed for figure 7) ────────────────────────────────
+    if only is None or only == 7:
+        print("\nAggregating data (H3 level 7 + EGI level 7)…")
+        from gedih3.cliutils import parse_region
+        h3_agg, egi_agg = load_aggregated(args.db, gdf, region=parse_region("-51,0,-50,1"))
+        print(f"  H3 agg: {len(h3_agg):,} hexes  |  EGI agg: {len(egi_agg):,} pixels")
 
-    print("[7/8] egi_agbd_map.png")
-    fig_egi_agbd_map(egi_agg, out)
+        print("\n[7/8] h3_vs_egi.png")
+        fig_h3_vs_egi(h3_agg, egi_agg, out)
 
     # ── Regression ────────────────────────────────────────────────────────────
-    print("[8/8] regression_r2.png")
-    fig_regression_r2(gdf, out)
+    if only is None or only == 8:
+        print("[8/8] regression_r2.png")
+        fig_regression_r2(gdf, out)
 
     print(f"\nDone — {len(list(out.glob('*.png')))} PNGs in {out.resolve()}")
 
