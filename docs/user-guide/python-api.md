@@ -3,7 +3,7 @@
 All functionality available through the CLI is also accessible from Python — with two important advantages:
 
 1. **No intermediate files**: Chain operations in memory without saving and reloading datasets between steps.
-2. **Custom aggregation functions**: Pass any Python callable to `gh3_aggregate` or `egi_aggregate`, enabling analyses that are impossible from the CLI alone.
+2. **Custom aggregation functions**: Pass Python callables to `gh3_aggregate` or `egi_aggregate`, enabling analyses that are impossible from the CLI alone.
 
 ---
 
@@ -52,7 +52,7 @@ raster.export_raster(xras, 'agbd_mean.tif', compress='LZW')
 
 ## Custom Aggregation Functions
 
-This is the most powerful feature of the Python API. `gh3_aggregate` accepts any callable that takes a DataFrame (one H3 hexagon's worth of data) and returns a DataFrame with results. This enables analyses such as regression, statistical modeling, or custom metrics — computed independently per hexagon across all Dask partitions.
+This is the most powerful feature of the Python API. `gh3_aggregate` accepts any callable that takes a `pandas` DataFrame (one H3 partition's worth of data) and returns a DataFrame with results. This enables analyses such as statistical modeling or custom metrics — computed independently per hexagon across all Dask partitions.
 
 ### Example: Linear Regression Per Hexagon
 
@@ -95,7 +95,7 @@ results_df = results.compute()
 Per-hexagon AGBD ~ RH98 regression at H3 level 7. Left: R² values. Right: slope p-value on a log scale (dashed line = 0.05 threshold). Hexagons with fewer than 5 quality shots or R² <= 0 are excluded.
 :::
 
-The callable receives a pandas DataFrame with all shots in one Dask partition. The return value must be a DataFrame with one row per group — in this case, one row per H3 hexagon.
+The callable receives a pandas DataFrame with all shots in one Dask partition. The return value must be a DataFrame with one row per group — in this case, one row per H3 hexagon after aggregating.
 
 ---
 
@@ -105,13 +105,16 @@ The callable receives a pandas DataFrame with all shots in one Dask partition. T
 
 ```python
 import gedih3.gh3driver as gh3
+import geopandas as gpd
+
+polygon = gpd.read_file('my_region.shp')
 
 # Load with spatial and temporal filters
 ddf = gh3.gh3_load(
     source='/path/to/h3_database/',
     columns=['agbd_l4a', 'rh_098_l2a'],
-    region='region.shp',              # shapefile, bbox "W,S,E,N", or ISO3 code
-    query='quality_flag_l2a == 1',    # pandas-style filter string
+    region=polygon,                # shapefile or bbox [W,S,E,N]
+    query='quality_flag_l2a == 1', # pandas-style filter string
 )
 ```
 
@@ -146,6 +149,8 @@ gdf = gh3.gh3_load(source='/path/to/extracted/').compute()
 
 ### Built-in Functions
 
+Any way of passing functions compatible with [`pandas.DataFrame.groupby`](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.groupby.html) is accepted. 
+
 ```python
 # Single function
 agg = gh3.gh3_aggregate(ddf, target_res=6, agg='mean')
@@ -154,7 +159,7 @@ agg = gh3.gh3_aggregate(ddf, target_res=6, agg='mean')
 agg = gh3.gh3_aggregate(ddf, target_res=6, agg=['mean', 'std', 'count'])
 ```
 
-Available built-in functions: `mean`, `sum`, `median`, `std`, `count`, `min`, `max`.
+Some available built-in function include: `mean`, `sum`, `median`, `std`, `count`, `min`, `max`.
 
 ### Custom Callable
 
@@ -198,13 +203,17 @@ for xras, suffix in ts.generate('2020-01-01', '2023-01-01', 1, 'years'):
 ### Sample a Raster at GEDI Shot Locations
 
 ```python
-from gedih3.imgutils import from_image, parse_window_specs
+import geopandas as gpd
+from gedih3.imgutils import from_image
+
+# region must be a GeoDataFrame or bbox, not a file path
+region = gpd.read_file('region.shp')
 
 # Sample DEM elevation at each GEDI shot location
 ddf = from_image(
     image_path='/path/to/dem.tif',
     data_source='/path/to/h3_database/',
-    region='region.shp',
+    region=region,
     band_names=['elevation'],
 )
 ```
@@ -212,9 +221,13 @@ ddf = from_image(
 ### Join Polygon Attributes to GEDI Shots
 
 ```python
+import gedih3.gh3driver as gh3
 from gedih3.vecutils import join_polygons_to_points
 
-# Use within map_partitions for Dask integration
+# Load data with geometry (required for spatial join)
+ddf = gh3.gh3_load(source='/path/to/h3_database/', columns=['geometry'])
+
+# join_polygons_to_points is partition-level, so use map_partitions
 result = ddf.map_partitions(
     join_polygons_to_points,
     vector_path='ecoregions.shp',
@@ -246,7 +259,7 @@ For large datasets, configure the Dask distributed client directly:
 ```python
 from dask.distributed import Client
 
-client = Client(n_workers=8, threads_per_worker=2, memory_limit='8GB')
+client = Client(n_workers=8, threads_per_worker=1, memory_limit='8GB')
 
 # All gh3 operations automatically use this client
 ddf = gh3.gh3_load(source='~/gedi_data/h3/', columns=['agbd_l4a'])
