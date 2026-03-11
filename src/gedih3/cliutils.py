@@ -333,22 +333,29 @@ def setup_storage(args, logger=None):
         configure_storage('ssh', **sftp_kwargs)
 
 
-def add_product_args(parser):
+def add_product_args(parser, include_detail_level=True):
     """Add GEDI product variable arguments to an argument parser.
 
     Supports two mutually exclusive modes:
-    1. Global: ``-l <level>`` applies a detail level to ALL products.
+    1. Global: ``--detail-level <level>`` applies a detail level to ALL products.
     2. Per-product: ``-l2a <...> -l4a <...>`` selects specific products.
 
     Per-product flags use ``nargs='*'`` so a bare flag (e.g. ``-l2a``)
     means "dump everything from L2A", while ``-l2a default`` uses the
     standard variable set.
+
+    Parameters
+    ----------
+    parser : argparse.ArgumentParser
+    include_detail_level : bool
+        Include ``--detail-level`` flag (only useful for download/build).
     """
-    parser.add_argument("--detail-level", dest="detail_level", type=str, default=None,
-                        choices=['minimal', 'min', 'default', 'def', 'all'],
-                        help="set variable detail level for L2A/L2B/L4A/L4C "
-                             "(minimal/default/all). L1B must be added separately with -l1b. "
-                             "Mutually exclusive with -l2a, -l2b, -l4a, -l4c flags.")
+    if include_detail_level:
+        parser.add_argument("--detail-level", dest="detail_level", type=str, default=None,
+                            choices=['minimal', 'min', 'default', 'def', 'all'],
+                            help="set variable detail level for L2A/L2B/L4A/L4C "
+                                 "(minimal/default/all). L1B must be added separately with -l1b. "
+                                 "Mutually exclusive with -l2a, -l2b, -l4a, -l4c flags.")
     parser.add_argument("-l1b", "--l1b", dest="l1b", nargs='*', type=str, default=None,
                         help="GEDI L1B variables [keyword, var list, or bare flag for all]")
     parser.add_argument("-l2a", "--l2a", dest="l2a", nargs='*', type=str, default=None,

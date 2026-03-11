@@ -68,7 +68,7 @@ def get_cmd_args():
                    help="source H3 database (default: from dataset metadata)")
     p.add_argument("-l", "--list", dest="list", nargs='+', type=str, default=None,
                    help="variables to add (space-separated or file path)")
-    add_product_args(p)
+    add_product_args(p, include_detail_level=False)
 
     # Mode 2: Merge from another dataset
     p.add_argument("-m", "--merge", dest="merge", type=str, default=None,
