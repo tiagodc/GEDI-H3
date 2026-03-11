@@ -343,9 +343,8 @@ All 11 CLI tools are implemented and registered as entry points in `pyproject.to
 | `gh3_update` | Add/merge variables to existing datasets | ✅ Implemented |
 | `gh3_from_img` | Sample raster data at GEDI shot locations | ✅ Implemented |
 | `gh3_from_polygon` | Spatial join with vector polygons | ✅ Implemented |
-| `gh3_list_variables` | List available GEDI variables with grep filtering | ✅ Implemented |
 | `gh3_list_resolutions` | Display H3/EGI resolution levels | ✅ Implemented |
-| `gh3_read_schema` | Inspect parquet/geopackage/HDF5 schemas | ✅ Implemented |
+| `gh3_read_schema` | Inspect schemas and browse variables (merged `gh3_list_variables`) | ✅ Implemented |
 
 **Future CLI tools** (not blocking release):
 

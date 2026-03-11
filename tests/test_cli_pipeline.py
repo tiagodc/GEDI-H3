@@ -143,10 +143,11 @@ class TestCLIArguments:
         assert result.returncode == 0
         assert "rasterize" in result.stdout.lower() or "GeoTIFF" in result.stdout
 
-    def test_gh3_list_variables_help(self):
-        """Test gh3_list_variables --help works."""
-        result = run_cli(["gh3_list_variables", "--help"])
+    def test_gh3_read_schema_help(self):
+        """Test gh3_read_schema --help works."""
+        result = run_cli(["gh3_read_schema", "--help"])
         assert result.returncode == 0
+        assert "schema" in result.stdout.lower() or "inspect" in result.stdout.lower()
 
     def test_gh3_list_resolutions_help(self):
         """Test gh3_list_resolutions --help works."""
@@ -155,26 +156,26 @@ class TestCLIArguments:
 
 
 @pytest.mark.integration
-class TestGH3ListVariables:
-    """Test gh3_list_variables tool (requires database)."""
+class TestGH3ReadSchemaFilters:
+    """Test gh3_read_schema product and grep filters (requires database)."""
 
-    def test_list_l2a_variables(self):
-        """Test listing L2A variables."""
-        result = run_cli(["gh3_list_variables", "-p", "L2A"])
+    def test_schema_product_filter_l2a(self):
+        """Test filtering schema by L2A product."""
+        result = run_cli(["gh3_read_schema", "-p", "L2A"])
         assert result.returncode == 0
         # Should contain common L2A variables
         assert "rh" in result.stdout.lower() or "height" in result.stdout.lower()
 
-    def test_list_l4a_variables(self):
-        """Test listing L4A variables."""
-        result = run_cli(["gh3_list_variables", "-p", "L4A"])
+    def test_schema_product_filter_l4a(self):
+        """Test filtering schema by L4A product."""
+        result = run_cli(["gh3_read_schema", "-p", "L4A"])
         assert result.returncode == 0
         # Should contain AGBD
         assert "agbd" in result.stdout.lower()
 
-    def test_list_variables_with_grep(self):
-        """Test grep filtering of variables."""
-        result = run_cli(["gh3_list_variables", "-p", "L2A", "-g", "quality"])
+    def test_schema_grep_filter(self):
+        """Test grep filtering of schema columns."""
+        result = run_cli(["gh3_read_schema", "-p", "L2A", "--grep", "quality"])
         assert result.returncode == 0
         # Should filter to quality-related variables
         assert "quality" in result.stdout.lower()

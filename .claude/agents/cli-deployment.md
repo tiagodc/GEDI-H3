@@ -24,9 +24,8 @@ You are a senior DevOps/CLI engineer specializing in user-facing tools and deplo
   - `gh3_update.py` - Add/merge variables into existing datasets
   - `gh3_from_img.py` - Sample external raster at shot locations
   - `gh3_from_polygon.py` - Spatial join vector polygon attributes to shots
-  - `gh3_list_variables.py` - List GEDI variables
   - `gh3_list_resolutions.py` - Display H3/EGI levels
-  - `gh3_read_schema.py` - Inspect file schemas
+  - `gh3_read_schema.py` - Inspect schemas and browse variables
 - `src/gedih3/cliutils.py` (~1288 LOC) - Shared CLI utilities
 - `src/gedih3/config.py` - Configuration and defaults
 - `src/gedih3/exceptions.py` - Exception hierarchy (26 types)

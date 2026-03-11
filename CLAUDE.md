@@ -75,15 +75,14 @@ gh3_rasterize -d /path/to/aggregated_dataset -l agbd_l4a -o output/  # Select va
 ### Utility Tools
 
 ```bash
-# List available GEDI variables
-gh3_list_variables
-gh3_list_variables -g "agbd"  # grep filter
-
 # Display H3/EGI resolution levels
 gh3_list_resolutions
 gh3_list_resolutions -egi  # EGI levels
 
-# Inspect file schemas
+# Inspect schemas and browse variables
+gh3_read_schema                    # default H3 database
+gh3_read_schema --grep "agbd"      # grep filter
+gh3_read_schema -p L2A             # filter by product
 gh3_read_schema /path/to/file.parquet
 gh3_read_schema /path/to/file.h5
 ```
