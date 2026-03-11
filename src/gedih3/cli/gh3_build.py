@@ -110,7 +110,8 @@ def main():
     if not h3_logger.product_vars and not h3_logger.updating:
         raise ValueError(
             "No GEDI product selected - please select at least one of "
-            "--l1b, --l2a, --l2b, --l4a, --l4c, or use -l/--detail-level"
+            "--l2a, --l2b, --l4a, --l4c (or use --detail-level for all four), "
+            "and/or --l1b for waveform data"
         )
     if h3_logger.get_spatial() is None:
         logger.warning("No spatial filter provided - processing global data")
