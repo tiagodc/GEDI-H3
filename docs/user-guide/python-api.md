@@ -115,6 +115,21 @@ ddf = gh3.gh3_load(
 )
 ```
 
+::::{tip} The database can also live on a remote filesystem. Use `configure_storage()` to set credentials, then pass a remote URI to `source=`:
+
+```python
+from gedih3.utils import configure_storage
+
+configure_storage('s3', anon=True)                          # public bucket
+ddf = gh3.gh3_load(source='s3://my-bucket/h3_database/', columns=['agbd_l4a'])
+
+configure_storage('sftp', username='user', key_filename='~/.ssh/id_rsa')
+ddf = gh3.gh3_load(source='sftp://server.example.com/data/h3/')
+```
+
+Supported protocols: `s3`, `http`, `https`, `ftp`, `sftp`/`ssh`. See the {ref}`CLI credential flags <remote-storage-credentials>` for the equivalent command-line options.
+::::
+
 ### From a Simplified Dataset (gh3_extract / gh3_aggregate output)
 
 ```python

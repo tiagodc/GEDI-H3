@@ -10,16 +10,28 @@ Created by `gh3_build`. Optimized for repeated queries with Dask.
 
 ```
 h3_database/
-├── h3_03=abc123/
-│   └── data.parquet
-├── h3_03=def456/
-│   └── data.parquet
-└── gedih3_build_log.json
+├── h3_03=838041fffffffff/
+│   ├── 838041fffffffff.metadata.json
+│   ├── year=2019/
+│   │   ├── 838041fffffffff.2019.0.parquet
+│   │   └── 838041fffffffff.2019.0.metadata.json
+│   ├── year=2020/
+│   │   ├── 838041fffffffff.2020.0.parquet
+│   │   └── 838041fffffffff.2020.0.metadata.json
+│   │   ...
+├── h3_03=83804cfffffffff/
+│   ├── 83804cfffffffff.metadata.json
+│   ├── year=2019/
+│   │   ...
+│   ...
+├── gedih3_build_log.json
+└── _manifest.txt
 ```
 
-- **Hive-partitioned** by H3 cell at the partition level (default: level 3, ~12,000 km²)
-- Each directory corresponds to one H3 partition tile; its contents can be read independently
-- `gedih3_build_log.json` records build metadata (products, variables, region, resolution levels)
+- **Nested hive-partitioned** — first by H3 cell at the partition level (default: level 3, ~12,000 km²), then by year
+- Each H3 directory contains a cell-level metadata file and yearly sub-directories; each year holds a `.parquet` data file and a companion `.metadata.json`
+- This two-level scheme caps file size and makes it easy to append new data without touching existing files
+- `gedih3_build_log.json` records build metadata (products, variables, region, resolution levels); `_manifest.txt` lists all partition paths
 - **Not designed for direct use with external tools** — use `gh3_extract` to produce user-friendly flat files
 
 ### Build Log Keys
@@ -67,7 +79,7 @@ df = pd.read_parquet('/path/to/output/abc123.parquet')
 
 # Load all files with gedih3
 import gedih3.gh3driver as gh3
-gdf = gh3.gh3_load_dataset('/path/to/output/')
+gdf = gh3.gh3_load(source='/path/to/output/').compute()
 ```
 
 ### Dataset Metadata (`gedih3_dataset.json`)
@@ -141,7 +153,7 @@ Each simplified dataset Parquet file contains:
 ```bash
 # Inspect schema from CLI
 gh3_read_schema /path/to/output/abc123.parquet
-gh3_read_schema /path/to/database/gedih3_build_log.json
+gh3_read_schema /path/to/database/
 ```
 
 ---
