@@ -59,39 +59,40 @@ This is the most powerful feature of the Python API. `gh3_aggregate` accepts any
 ```python
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import r2_score, mean_squared_error
+from scipy.stats import linregress
 import gedih3.gh3driver as gh3
 
 def fit_height_biomass(df):
-    """Fit a linear regression of biomass ~ canopy height for each H3 hexagon."""
-    mask = ~(df['agbd_l4a'].isna() | df['rh_098_l2a'].isna())
-    X = df.loc[mask, 'rh_098_l2a'].values.reshape(-1, 1)
-    y = df.loc[mask, 'agbd_l4a'].values
+    """Fit AGBD ~ RH98 linear regression per hexagon with slope significance."""
+    x = df['rh_098_l2a'].values
+    y = df['agbd_l4a'].values
 
-    if len(X) < 2:
-        return pd.DataFrame({'r2': [np.nan], 'rmse': [np.nan], 'coef': [np.nan], 'n': [len(df)]})
+    if len(x) < 5:
+        return pd.DataFrame({'r2': [np.nan], 'pvalue': [np.nan], 'coef': [np.nan], 'n': [0]})
 
-    model = LinearRegression().fit(X, y)
-    y_pred = model.predict(X)
+    res = linregress(x, y)
     return pd.DataFrame({
-        'r2':        [r2_score(y, y_pred)],
-        'rmse':      [np.sqrt(mean_squared_error(y, y_pred))],
-        'coef':      [model.coef_[0]],
-        'intercept': [model.intercept_],
-        'n':         [len(df)],
+        'r2':      [res.rvalue ** 2],
+        'pvalue':  [res.pvalue],
+        'coef':    [res.slope],
+        'n':       [len(x)],
     })
 
-ddf = gh3.gh3_load(source='~/gedi_data/h3/', columns=['agbd_l4a', 'rh_098_l2a'])
+ddf = gh3.gh3_load(
+    source='~/gedi_data/h3/',
+    columns=['agbd_l4a', 'rh_098_l2a'],
+    region=[-51, 0, -50, 1],
+    query='quality_flag_l2a == 1 and l4_quality_flag_l4a == 1 and agbd_l4a > 0',
+)
 
 # Each hexagon gets its own regression — Dask processes all partitions in parallel
-results = gh3.gh3_aggregate(ddf, target_res=6, agg=fit_height_biomass)
+results = gh3.gh3_aggregate(ddf, target_res=7, agg=fit_height_biomass)
 results_df = results.compute()
 ```
 
 :::{figure} ../imgs/regression_r2.png
-:alt: Per-hexagon R² values for AGBD ~ RH98 regression
-Per-hexagon R² (AGBD ~ RH98 canopy height) at H3 level 7, computed using the custom callable API. Spatial patterns reflect forest structure heterogeneity. Hexes with fewer than 5 quality shots are excluded.
+:alt: Per-hexagon R² and slope p-value for AGBD ~ RH98 regression
+Per-hexagon AGBD ~ RH98 regression at H3 level 7. Left: R² values. Right: slope p-value on a log scale (dashed line = 0.05 threshold). Hexagons with fewer than 5 quality shots or R² <= 0 are excluded.
 :::
 
 The callable receives a pandas DataFrame with all shots in one Dask partition. The return value must be a DataFrame with one row per group — in this case, one row per H3 hexagon.
