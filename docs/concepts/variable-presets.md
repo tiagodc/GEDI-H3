@@ -10,9 +10,9 @@ When you pass `-l2a default` or `-l2a minimal` on the command line, gedih3 expan
 |---|---|
 | `minimal` / `min` | Smallest usable set per product/version — geolocation, timestamp, primary quality flag, and the one or two headline scientific variables. Hardcoded in `config.py`. |
 | `default` / `def` | Expert-curated science-ready set, loaded from the bundled `.txt` file in `src/gedih3/data/`. Designed to cover common research workflows without requiring HDF5 expertise. |
-| `all` / `*` / bare flag | Every variable present in the HDF5 file for that product (all beams). Use with caution on L2A — there are 300+ variables per beam. |
+| `all` / `*` / bare flag | Every variable present in the HDF5 file for that product (all beams). Use with caution — there are 100+ variables per beam for each product. |
 | `/path/to/file.txt` | Plain-text file with one HDF5 variable name per line; `#`-prefixed lines are treated as comments. |
-| explicit names | One or more exact HDF5 variable names, e.g. `-l2a rh agbd quality_flag`. |
+| explicit names | One or more exact HDF5 variable names inline, e.g. `-l2a rh agbd quality_flag`. |
 
 ---
 
@@ -20,13 +20,13 @@ When you pass `-l2a default` or `-l2a minimal` on the command line, gedih3 expan
 
 ```bash
 # Minimal set (fastest build, smallest files)
-gh3_build -r "-51,0,-50,1" -l2a minimal -l4a minimal
+gh3_build -r "-51,0,-50,1" -l2a minimal -l4a minimal -s3
 
-# Default science-ready set (recommended)
+# Default science-ready set
 gh3_build -r "-51,0,-50,1" -l2a default -l4a default
 
 # Explicit variables
-gh3_build -r "-51,0,-50,1" -l2a rh quality_flag lat_lowestmode lon_lowestmode
+gh3_build -r "-51,0,-50,1" -l2a rh quality_flag lat_lowestmode lon_lowestmode -l2b cover -l4a agbd
 
 # From a custom file (one variable per line, # comments allowed)
 gh3_build -r "-51,0,-50,1" -l2a /path/to/my_l2a_vars.txt

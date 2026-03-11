@@ -5,13 +5,12 @@ generate_illustrations.py — Generate gedih3 documentation figures.
 Figures produced:
   1. gedi_tracks.png          — GEDI orbital track pattern (real data)
   2. lidar_waveform.png       — Full-waveform LiDAR schematic (synthetic)
-  3. hdf5_vs_h3.png           — HDF5 hierarchy → H3 parquet layout (conceptual)
-  4. h3_multi_resolution.png  — H3 hexagons at levels 3, 6, 9 (real data)
-  5. h3_two_level.png         — H3 dual-level partition+index structure
-  6. h3_boundary.png          — H3 parent/child boundary nesting caveat
-  7. h3_vs_egi.png            — H3 hexagons vs EGI square pixels (real data)
-  8. egi_agbd_map.png         — EGI-aggregated AGBD map (real data)
-  9. regression_r2.png        — Per-hexagon AGBD~height R² map (real data)
+  3. h3_multi_resolution.png  — H3 hexagons at levels 3, 6, 9 (real data)
+  4. h3_two_level.png         — H3 dual-level partition+index structure
+  5. h3_boundary.png          — H3 parent/child boundary nesting caveat
+  6. h3_vs_egi.png            — H3 hexagons vs EGI square pixels (real data)
+  7. egi_agbd_map.png         — EGI-aggregated AGBD map (real data)
+  8. regression_r2.png        — Per-hexagon AGBD~height R² map (real data)
 
 Usage:
   conda run -n gh3_dev python scripts/generate_illustrations.py
@@ -263,103 +262,6 @@ def fig_lidar_waveform(out):
 
     save_fig(fig, "lidar_waveform.png", out)
 
-
-# ─── Figure 3: HDF5 hierarchy vs H3 parquet layout ───────────────────────────
-def fig_hdf5_vs_h3(out):
-    """Conceptual diagram: nested HDF5 structure → flat H3 database."""
-    setup()
-    fig, axes = plt.subplots(1, 3, figsize=(10, 4.5), gridspec_kw={"width_ratios": [2, 0.4, 2]})
-    ax_left, ax_mid, ax_right = axes
-
-    for ax in axes:
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.axis("off")
-
-    # ── Left: HDF5 nested hierarchy ──
-    def hdf5_box(ax, x, y, w, h, label, color, fontsize=7):
-        rect = mpatches.FancyBboxPatch(
-            (x, y), w, h,
-            boxstyle="round,pad=0.01",
-            facecolor=color,
-            edgecolor="#aaaaaa",
-            lw=0.5,
-        )
-        ax.add_patch(rect)
-        ax.text(x + w / 2, y + h / 2, label, ha="center", va="center",
-                fontsize=fontsize, color="#222222")
-
-    # Year
-    hdf5_box(ax_left, 0.05, 0.82, 0.90, 0.13, "Year  (2019, 2020, … 2025)", "#dbeafe", 7.5)
-    # DOY
-    hdf5_box(ax_left, 0.12, 0.65, 0.76, 0.13, "Day-of-year  (001, 002, …)", "#dbeafe", 7.5)
-    # Granule file
-    hdf5_box(ax_left, 0.18, 0.48, 0.64, 0.13, "GEDI_L4A_…orbit….h5", "#bfdbfe", 7.5)
-    # Beam
-    hdf5_box(ax_left, 0.24, 0.31, 0.52, 0.13, "BEAM0000  ···  BEAM0110  (8 beams)", "#93c5fd", 7)
-    # Variables
-    hdf5_box(ax_left, 0.30, 0.13, 0.40, 0.13, "agbd  lat  lon  rh  …  (100s vars)", "#60a5fa", 7)
-
-    # Indent lines
-    for xs, ys, xe, ye in [
-        (0.19, 0.82, 0.19, 0.78), (0.19, 0.78, 0.22, 0.78),
-        (0.26, 0.65, 0.26, 0.61), (0.26, 0.61, 0.29, 0.61),
-        (0.32, 0.48, 0.32, 0.44), (0.32, 0.44, 0.35, 0.44),
-        (0.38, 0.31, 0.38, 0.27), (0.38, 0.27, 0.41, 0.27),
-    ]:
-        ax_left.plot([xs, xe], [ys, ye], color="#9ca3af", lw=0.5)
-
-    ax_left.text(0.5, 0.98, "Raw GEDI (HDF5)", ha="center", va="top",
-                 fontsize=9, fontweight="bold", color="#1e3a5f")
-    ax_left.text(0.5, 0.03, "Orbit-organised  ·  thousands of large files\n"
-                 "Spatial queries scan every file",
-                 ha="center", va="bottom", fontsize=6.5, color="#555", style="italic")
-
-    # ── Middle: arrow + label ──
-    ax_mid.annotate(
-        "",
-        xy=(0.85, 0.5), xytext=(0.15, 0.5),
-        arrowprops=dict(arrowstyle="-|>", color="#374151", lw=1.5),
-    )
-    ax_mid.text(0.5, 0.60, "gh3_build", ha="center", va="bottom",
-                fontsize=7, fontweight="bold", color="#374151")
-
-    # ── Right: H3 parquet layout ──
-    def h3_box(ax, x, y, w, h, label, color, fontsize=7):
-        rect = mpatches.FancyBboxPatch(
-            (x, y), w, h,
-            boxstyle="round,pad=0.01",
-            facecolor=color,
-            edgecolor="#aaaaaa",
-            lw=0.5,
-        )
-        ax.add_patch(rect)
-        ax.text(x + w / 2, y + h / 2, label, ha="center", va="center",
-                fontsize=fontsize, color="#222222", family="monospace")
-
-    # Database root
-    h3_box(ax_right, 0.05, 0.82, 0.90, 0.13, "h3_database/", "#d1fae5", 8)
-    # Build log
-    h3_box(ax_right, 0.12, 0.65, 0.76, 0.11, "gedih3_build_log.json", "#a7f3d0", 7.5)
-    # Partition tiles
-    for i, (hex_id, y0) in enumerate([
-        ("h3_03=838041fffffffff", 0.47),
-        ("h3_03=83804cfffffffff", 0.32),
-        ("h3_03=83804efffffffff", 0.17),
-    ]):
-        h3_box(ax_right, 0.12, y0, 0.76, 0.11, hex_id + "/", "#6ee7b7", 7)
-        # parquet inside
-        h3_box(ax_right, 0.22, y0 - 0.10, 0.56, 0.09, "data.parquet", "#34d399", 6.5)
-        ax_right.plot([0.25, 0.25], [y0, y0 - 0.01], color="#9ca3af", lw=0.5)
-
-    ax_right.text(0.5, 0.98, "gedih3 H3 Database", ha="center", va="top",
-                  fontsize=9, fontweight="bold", color="#064e3b")
-    ax_right.text(0.5, 0.03, "Spatially partitioned  ·  4 files for 1°×1°\n"
-                  "Regional queries read only relevant tiles",
-                  ha="center", va="bottom", fontsize=6.5, color="#555", style="italic")
-
-    plt.tight_layout(pad=0.2)
-    save_fig(fig, "hdf5_vs_h3.png", out)
 
 
 # ─── Figure 4: H3 multi-resolution ───────────────────────────────────────────
@@ -745,13 +647,10 @@ def main():
     print()
 
     # ── Conceptual figures (no data needed) ──────────────────────────────────
-    print("[1/9] lidar_waveform.png  (conceptual)")
+    print("[1/8] lidar_waveform.png  (conceptual)")
     fig_lidar_waveform(out)
 
-    print("[2/9] hdf5_vs_h3.png  (conceptual)")
-    fig_hdf5_vs_h3(out)
-
-    print("[3/9] h3_boundary.png  (H3 library only)")
+    print("[2/8] h3_boundary.png  (H3 library only)")
     fig_h3_boundary(out)
 
     # ── Load data once ────────────────────────────────────────────────────────
@@ -759,13 +658,13 @@ def main():
     gdf = load_shots(args.db)
     print(f"  {len(gdf):,} shots loaded")
 
-    print("\n[4/9] gedi_tracks.png")
+    print("\n[3/8] gedi_tracks.png")
     fig_gedi_tracks(gdf, out)
 
-    print("[5/9] h3_multi_resolution.png")
+    print("[4/8] h3_multi_resolution.png")
     fig_h3_multi_resolution(gdf, out)
 
-    print("[6/9] h3_two_level.png")
+    print("[5/8] h3_two_level.png")
     fig_h3_two_level(gdf, out)
 
     # ── Aggregated data ───────────────────────────────────────────────────────
@@ -773,14 +672,14 @@ def main():
     h3_agg, egi_agg = load_aggregated(args.db, gdf)
     print(f"  H3 agg: {len(h3_agg):,} hexes  |  EGI agg: {len(egi_agg):,} pixels")
 
-    print("\n[7/9] h3_vs_egi.png")
+    print("\n[6/8] h3_vs_egi.png")
     fig_h3_vs_egi(h3_agg, egi_agg, out)
 
-    print("[8/9] egi_agbd_map.png")
+    print("[7/8] egi_agbd_map.png")
     fig_egi_agbd_map(egi_agg, out)
 
     # ── Regression ────────────────────────────────────────────────────────────
-    print("[9/9] regression_r2.png")
+    print("[8/8] regression_r2.png")
     fig_regression_r2(gdf, out)
 
     print(f"\nDone — {len(list(out.glob('*.png')))} PNGs in {out.resolve()}")
