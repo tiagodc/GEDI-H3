@@ -58,7 +58,8 @@ intersphinx_mapping = {
 
 # -- HTML output -------------------------------------------------------------
 html_theme = "pydata_sphinx_theme"
-html_static_path = ["imgs"]
+html_static_path = ["imgs", "_static"]
+html_css_files = ["custom.css"]
 html_theme_options = {
     "logo": {
         "image_light": "gh3_logo.png",

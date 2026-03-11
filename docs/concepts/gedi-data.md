@@ -41,7 +41,7 @@ The tables below list the most often used variables from each GEDI product on ap
 
 L1B contains the raw digitised waveform from each laser pulse. Most applications do not rely with L1B data directly — it is the input to L2A/L2B — but it is included here for completeness and for users building custom waveform-processing workflows.
 
-:::{warning} Column expansion warning
+:::{warning}
 `rxwaveform` is a variable-length waveform. **gedih3** expands it into 1420 individual columns: `rxwaveform_0000_l1b` through `rxwaveform_1419_l1b`. For small study areas (a few thousand shots) this is manageable. For databases covering millions of shots it becomes impractical, with dramatic impacts on disk and memory usage. **Building L1B waveform data for large areas is strongly discouraged.** Use L1B only if your workflow specifically requires the raw waveform shape and/or you're working from an HPCC environment.
 :::
 
@@ -61,7 +61,9 @@ L1B contains the raw digitised waveform from each laser pulse. Most applications
 
 L2A is the workhorse product for canopy height studies. It decomposes the received waveform into Gaussian modes and reports the relative height (RH) at each 1-percentile energy interval measured from the ground return upward.
 
-> **Note on `rh` in the HDF5 file:** `rh` is stored as a 101-element array per shot (`rh[0]`–`rh[100]`). gedih3 expands selected percentiles into individual named columns: `rh_000_l2a`, `rh_025_l2a`, `rh_050_l2a`, `rh_075_l2a`, `rh_098_l2a`, `rh_100_l2a`, etc.
+:::{note} 
+`rh` is stored as a 101-element array per shot (`rh[0]`–`rh[100]`). gedih3 expands selected percentiles into individual named columns: `rh_000_l2a`, `rh_025_l2a`, `rh_050_l2a`, `rh_075_l2a`, `rh_098_l2a`, `rh_100_l2a`, etc.
+:::
 
 | HDF5 variable | gedih3 column | Short description | Definition |
 |---|---|---|---|
@@ -84,7 +86,8 @@ L2A is the workhorse product for canopy height studies. It decomposes the receiv
 
 L2B uses the full waveform to estimate the vertical distribution of plant material within the canopy column. Key uses include characterising multi-layered canopy structure, estimating light availability at the forest floor, and habitat suitability modelling.
 
-> **Note on array variables:** `pai_z`, `pavd_z` and `cover_z` are 30-element arrays per shot, covering 5 m height bins from 0 to 150 m. gedih3 expands each into 30 individual columns (`pavd_z_000_l2b` … `pavd_z_029_l2b`, `cover_z_000_l2b` … `cover_z_029_l2b`). Building each adds 30 columns to the database — modest compared to waveforms, but worth keeping in mind for large databases.
+:::{note} `pai_z`, `pavd_z` and `cover_z` are 30-element arrays per shot, covering 5 m height bins from 0 to 150 m. gedih3 expands each into 30 individual columns (`pavd_z_000_l2b` … `pavd_z_029_l2b`, `cover_z_000_l2b` … `cover_z_029_l2b`). Building each adds 30 columns to the database — modest compared to waveforms, but worth keeping in mind for large databases.
+:::
 
 | HDF5 variable | gedih3 column | Short description | Definition |
 |---|---|---|---|
@@ -153,10 +156,50 @@ The full GEDI dataset spans billions of footprints across thousands of HDF5 file
 **5. Variable proliferation**
 L2A alone provides over 300 variables per beam. Knowing which variables are relevant for a given analysis requires domain expertise.
 
-:::{figure} ../imgs/hdf5_vs_h3.png
-:alt: HDF5 hierarchy vs. H3 GeoParquet database
-`gh3_build` transforms GEDI's time-organized HDF5 hierarchy (left) into a spatially partitioned H3 GeoParquet database (right). A 1°×1° region that spans thousands of orbit files becomes 4 queryable tiles.
+::::{grid} 1 1 2 2
+:gutter: 3
+
+:::{grid-item-card} Raw GEDI (HDF5)
+:shadow: md
+:class-header: sd-bg-danger sd-bg-text-danger
+:class-card: sd-border-danger comparison-card
+^^^
+
+**Files** — Hundreds of orbit files (~1–3 GB each) must be parsed even for a small study site
+
+**Spatial scope** — Each file spans ~1/4 of an ISS orbital track; a large portion of data falls outside your region of interest
+
+**Storage** — All variables included: hundreds of GB for a regional analysis
+
+**Format** — Deeply nested HDF5 requiring `h5py` and domain knowledge of the beam/group structure
+
+**Multi-product** — Each product (L2A, L4A, ...) is a separate file set; must be parsed and joined independently by shot
+
+**Tools** — Limited to Python `h5py`, R `rhdf5`, or specialized GEDI tools
 :::
+
+:::{grid-item-card} gedih3 H3 Database (GeoParquet)
+:shadow: md
+:class-header: sd-bg-success sd-bg-text-success
+:class-card: sd-border-success comparison-card
+^^^
+
+**Files** — ~4 spatial tiles for a 1°×1° region; queries read only tiles that intersect your area
+
+**Spatial scope** — Spatially partitioned; each tile contains only shots within its H3 cell
+
+**Storage** — Curated variable presets (`minimal`, `default`): 10–100× smaller on disk
+
+**Format** — Flat GeoParquet DataFrames: one row per shot, one column per variable
+
+**Multi-product** — Variables from all products (L2A, L4A, ...) are fused into a single cohesive dataset during build
+
+**Tools** — *gedih3* API, Python (pandas, GeoPandas, Dask), R (sf, arrow, sfarrow), QGIS, DuckDB, and any Parquet-compatible tool
+:::
+
+::::
+
+*`gh3_build` transforms GEDI's time-organized HDF5 hierarchy into a spatially partitioned H3 GeoParquet database. A 1°×1° region that spans hundreds of orbit files becomes a handful of queryable tiles.*
 
 ---
 
