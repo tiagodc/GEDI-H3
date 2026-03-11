@@ -6,7 +6,7 @@ gedih3 produces and consumes several data formats throughout the pipeline. This 
 
 ## H3 Database (Internal Format)
 
-Created by `gh3_build`. Optimized for repeated queries with Dask.
+Created by `gh3_build`. Optimized for repeated queries with Dask and DuckDB.
 
 ```
 h3_database/
@@ -49,7 +49,7 @@ h3_database/
 The H3 database uses two H3 resolution levels simultaneously:
 
 - **Partition level** (default: 3) — determines the directory structure. A query for a specific region only reads tiles that overlap that region.
-- **Index level** (default: 12) — the H3 cell ID assigned to each individual GEDI shot, stored as a column in every parquet file.
+- **Index level** (default: 12) — the H3 cell ID assigned to each individual GEDI shot, stored as a column/index in every parquet file.
 
 > **Parent/child caveat**: H3 parent hexagons are not perfectly geometrically inclusive of their children. When aggregating across resolution levels, `gh3_aggregate` uses `h3.cell_to_parent()` which assigns each shot to its closest parent, which is consistent and fast but not a strict geometric containment. See [H3 Indexing](../concepts/h3-indexing.md) for details.
 
@@ -61,21 +61,21 @@ Created by `gh3_extract` and `gh3_aggregate`. Flat Parquet files for use with an
 
 ```
 output/
-├── abc123.parquet
-├── def456.parquet
-├── ghi789.parquet
+├── 838041fffffffff.parquet
+├── 83804cfffffffff.parquet
+├── 83804efffffffff.parquet
 └── gedih3_dataset.json
 ```
 
 - Files named by H3 or EGI partition ID
 - `gedih3_dataset.json` describes the whole dataset (index type, columns, aggregation, etc.)
 - Readable with **pandas, R, QGIS, DuckDB**, and any other Parquet-compatible tool
-- Used as input for `gh3_rasterize`, `gh3_from_img`, `gh3_from_polygon`, `gh3_update`
+- Used as input for `gh3_aggregate`, `gh3_rasterize`, `gh3_from_img`, `gh3_from_polygon`, `gh3_update`
 
 ```python
 # Read with pandas
 import pandas as pd
-df = pd.read_parquet('/path/to/output/abc123.parquet')
+df = pd.read_parquet('/path/to/output/838041fffffffff.parquet')
 
 # Load all files with gedih3
 import gedih3.gh3driver as gh3
@@ -96,7 +96,7 @@ gdf = gh3.gh3_load(source='/path/to/output/').compute()
 
 ## GeoTIFF (Raster Output)
 
-Created by `gh3_rasterize` or the `-R` flag in `gh3_aggregate`. Standard GeoTIFF files compatible with GDAL, QGIS, R (`terra`), Python (`rioxarray`), and virtually any GIS tool.
+Created by `gh3_rasterize` or the `-R` flag in `gh3_aggregate`. Standard GeoTIFF files compatible with GDAL, QGIS, R (`terra`), Python (`rasterio`,`rioxarray`), and virtually any GIS tool.
 
 ```bash
 # Tiled output (one file per partition)
@@ -113,7 +113,7 @@ Key properties:
 - **Tiled by default** — output is split by spatial partition for efficient access
 - **Compression support** — `LZW`, `DEFLATE`, `ZSTD`, `NONE`
 - **BIGTIFF support** — for files exceeding 4 GB
-- **Time-series naming** — when produced from time-windowed data, files are named with a temporal suffix
+- **Time-series naming** — when produced from time-windowed data, files are named after their temporal windows
 
 ```python
 # Load GeoTIFF output in Python
@@ -131,9 +131,9 @@ xds.plot()
 | Format | Extension | Notes |
 |--------|-----------|-------|
 | GeoParquet | `.parquet` | Default; includes geometry for spatial tools |
-| Feather | `.feather` | Fast in-memory format; no geometry |
+| Feather | `.feather` | Fast in-memory format |
 | GeoPackage | `.gpkg` | OGC standard vector format; QGIS native |
-| HDF5 | `.h5` | For compatibility with scientific workflows |
+| HDF5 | `.h5` | For compatibility with scientific workflows; no geometry |
 | Shapefile | `.shp` | Legacy vector format; column name length limited |
 | CSV | `.csv` | Tabular export; no geometry |
 
@@ -164,9 +164,10 @@ gh3_read_schema /path/to/database/
 |--------------|----|----|
 | Grid shape | Hexagonal | Square |
 | Coordinate system | WGS84 (EPSG:4326) | EASE-Grid 2.0 (EPSG:6933) |
-| Rasterization | Requires hex-to-pixel conversion | Direct 1:1 mapping |
+| Rasterization | Requires hex-to-pixel interpolation | Direct 1:1 mapping |
 | GEDI L4B compatible | No | Yes |
 | Parent/child nesting | Approximate (see above) | Exact |
 | Default in gedih3 | Yes | No |
+| Support by external software | Yes | No |
 
-EGI is the right choice when you need alignment with GEDI L4B gridded products or when producing global pixel-grid datasets for interoperability with raster-native workflows. For general analysis and exploratory work, H3 is simpler and faster. See [EGI Indexing](../concepts/egi-indexing.md) for a detailed comparison.
+EGI is the right choice when you need perfect pixel alignment or when producing gridded datasets for interoperability with raster-native workflows. For general analysis and exploratory work, H3 is simpler and faster. See [EGI Indexing](../concepts/egi-indexing.md) for a detailed comparison.
