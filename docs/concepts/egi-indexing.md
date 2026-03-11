@@ -115,7 +115,7 @@ EGI accepts an optional `INDEX:PARTITION` syntax to control both the index resol
 **Use H3 (default) when:**
 - You want the simplest setup for exploratory analysis
 - You are performing spatial queries, joins, or custom aggregations
-- You are not comparing against GEDI L4B or EASE-Grid products
+- You are not comparing against gridded products
 
 **Use EGI when:**
 - You need GEDI L4B-compatible outputs

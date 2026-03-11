@@ -230,7 +230,7 @@ Inspect parquet or HDF5 file schemas.
 ```bash
 gh3_read_schema /path/to/file.parquet
 gh3_read_schema /path/to/file.h5
-gh3_read_schema /path/to/database/gedih3_build_log.json
+gh3_read_schema /path/to/database/
 ```
 
 ---
@@ -248,3 +248,32 @@ gh3_read_schema /path/to/database/gedih3_build_log.json
 | `-Q` | Quiet mode (errors only) |
 | `-egi INDEX[:PART]` | EGI indexing |
 | `-R` | Rasterize after aggregation (`gh3_aggregate` only) |
+
+---
+
+(remote-storage-credentials)=
+## Remote Storage Credentials
+
+All tools that accept a database path (`-d`) can read from remote filesystems. Pass the appropriate credential flags alongside the remote URI:
+
+| Flag | Description |
+|------|-------------|
+| `--s3-endpoint` | S3 endpoint URL (e.g. `http://localhost:7000`) |
+| `--s3-key` | S3 access key |
+| `--s3-secret` | S3 secret key |
+| `--s3-anon` | Anonymous S3 access (for public buckets) |
+| `--remote-user` | Username for HTTP basic auth / FTP / SFTP |
+| `--remote-pass` | Password for HTTP basic auth / FTP / SFTP |
+| `--remote-token` | Bearer token for HTTP(S) auth |
+| `--ssh-key` | Path to SSH/SFTP private key file |
+
+::::{note} Supported protocols: `s3://`, `http://`, `https://`, `ftp://`, `sftp://` (or `ssh://`). Credentials are passed through to [fsspec](https://filesystem-spec.readthedocs.io/) — any option that fsspec accepts for a given protocol will work.
+
+```bash
+# Public S3 bucket (anonymous)
+gh3_extract -d s3://my-bucket/h3_database/ --s3-anon -r region.shp -o output/
+
+# SFTP with SSH key
+gh3_aggregate -d sftp://server.example.com/data/h3/ --ssh-key ~/.ssh/id_rsa -egi 6 -o output/
+```
+::::
