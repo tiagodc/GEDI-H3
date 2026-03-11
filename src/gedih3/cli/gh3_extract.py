@@ -51,7 +51,7 @@ def get_cmd_args():
     # Variable selection
     p.add_argument("-l", "--list", dest="list", nargs='+', type=str, default=None,
                    help="variables to export (space-separated or file path)")
-    add_product_args(p)
+    add_product_args(p, include_detail_level=False)
 
     # Options
     p.add_argument("-g", "--geo", dest="geo", action='store_true',
