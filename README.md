@@ -79,7 +79,7 @@ gh3_build -r "-51,0,-50,1" -l2a minimal -l4a minimal
 gh3_build_ducklake
 
 # 3. See which variables are available
-gh3_list_variables
+gh3_read_schema
 
 # 4. Extract with quality filtering
 gh3_extract -y -l agbd_l4a rh_098_l2a -o extracted/
@@ -112,9 +112,8 @@ gh3_rasterize -d aggregated/ -o rasters/ --compress LZW
 | `gh3_update` | Merge new variables into an existing dataset |
 | `gh3_from_img` | Sample external raster values at GEDI shot locations |
 | `gh3_from_polygon` | Join vector polygon attributes to GEDI shots |
-| `gh3_list_variables` | Browse available GEDI variables |
 | `gh3_list_resolutions` | View H3 and EGI resolution level tables |
-| `gh3_read_schema` | Inspect Parquet, GeoPackage, or HDF5 schemas |
+| `gh3_read_schema` | Inspect schemas and browse variables from any file or database |
 
 ### Common Flags
 
@@ -225,7 +224,7 @@ flowchart TB
     n17 --> n4["🗂️ HDF5 Files"]
     n4 --> C["⚙️ gh3_build"]
     C --> n3["💽 H3 Database\n(Parquet)"]
-    n3 --> D["gh3_extract"] & n10["gh3_list_variables"]
+    n3 --> D["gh3_extract"] & n10["gh3_read_schema"]
     D --> SHOTS["📂 Flat Dataset"]
     SHOTS --> n6["gh3_aggregate"] & RAST["gh3_rasterize"]
     n6 --> AGG["📊 Aggregated Dataset"]
@@ -262,7 +261,7 @@ flowchart TB
 | L4A | Footprint-level aboveground biomass (AGBD) |
 | L4C | Footprint-level structural complexity (WSCI) |
 
-For variable details, run `gh3_list_variables` or see [gedi.umd.edu](https://gedi.umd.edu/dataproducts/download/).
+For variable details, run `gh3_read_schema` or see [gedi.umd.edu](https://gedi.umd.edu/dataproducts/download/).
 
 ---
 

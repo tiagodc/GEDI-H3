@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 """
-Inspect schema of parquet, feather, geopackage, or HDF5 files.
+Inspect schema of parquet, feather, geopackage, HDF5 files, or H3 databases.
 
 Read and display column names and data types from output datasets,
 useful for understanding extracted data structure. Supports single
-files and dataset directories (auto-detects format from metadata).
+files, dataset directories, and H3 databases (auto-detects format).
+When no path is given, reads from the default H3 database.
 
 Author: Tiago de Conto
 Package: gedih3
@@ -18,13 +19,31 @@ import sys
 def get_cmd_args():
     """Parse command line arguments"""
     p = argparse.ArgumentParser(
-        description="Inspect schema of parquet, feather, geopackage, or HDF5 files"
+        description="Inspect schema of parquet, feather, geopackage, HDF5 files, or H3 databases"
     )
 
     p.add_argument(
         "path",
         type=str,
-        help="path to file or directory to inspect"
+        nargs='?',
+        default=None,
+        help="path to file or directory to inspect [default: GH3_DEFAULT_H3_DIR]"
+    )
+
+    p.add_argument(
+        "-p", "--product",
+        dest="product",
+        type=str,
+        default=None,
+        help="filter columns by product suffix (e.g., L2A → columns ending in _l2a)"
+    )
+
+    p.add_argument(
+        "--grep",
+        dest="grep",
+        type=str,
+        default=None,
+        help="filter columns by pattern (case-insensitive)"
     )
 
     p.add_argument(
@@ -150,6 +169,11 @@ def main():
     from gedih3.cliutils import setup_storage
     setup_storage(args)
 
+    # Resolve default path from environment
+    if args.path is None:
+        from gedih3.config import GH3_DEFAULT_H3_DIR
+        args.path = GH3_DEFAULT_H3_DIR
+
     from gedih3.utils import smart_exists
     if not smart_exists(args.path):
         print(f"Error: Path not found: {args.path}", file=sys.stderr)
@@ -165,6 +189,16 @@ def main():
     except Exception as e:
         print(f"Error reading schema: {e}", file=sys.stderr)
         sys.exit(1)
+
+    # Apply column filters (only for non-HDF5 schemas)
+    if 'column' in schema_df.columns:
+        if args.product:
+            suffix = f"_{args.product.lower()}"
+            mask = schema_df['column'].str.lower().str.endswith(suffix)
+            schema_df = schema_df[mask]
+        if args.grep:
+            mask = schema_df['column'].str.contains(args.grep, case=False)
+            schema_df = schema_df[mask]
 
     if args.json_output:
         _print_json(schema_df)

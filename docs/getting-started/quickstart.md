@@ -61,8 +61,8 @@ Converts downloaded HDF5 files into an H3-indexed Parquet database at `~/gedi_da
 ## Step 3: Browse Variables
 
 ```bash
-gh3_list_variables         # list all available variables
-gh3_list_variables -g agbd # filter with a keyword
+gh3_read_schema              # list all available variables
+gh3_read_schema --grep agbd  # filter with a keyword
 ```
 
 ---

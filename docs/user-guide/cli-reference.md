@@ -1,6 +1,6 @@
 # CLI Reference
 
-gedih3 installs 11 command-line tools. All tools support `-v` (INFO) and `-vv` (DEBUG) verbosity, and `-Q` for quiet mode.
+gedih3 installs 10 command-line tools. All tools support `-v` (INFO) and `-vv` (DEBUG) verbosity, and `-Q` for quiet mode.
 
 > **Tip**: Every tool supports `--help` (`-h`) for a complete list of flags and examples:
 > ```bash
@@ -29,7 +29,6 @@ gh3_download --s3  # Stream from NASA S3 without local download
 | `-t0, -t1` | Start/end date (YYYY-MM-DD) |
 | `-l1b, -l2a, -l2b, -l4a, -l4c` | Products to download (`default`, `minimal`, or list) |
 | `--gedi-version` | GEDI data version (default: latest) |
-| `--resume` | Skip already-downloaded files |
 | `--s3` | S3 streaming mode |
 
 ---
@@ -48,8 +47,7 @@ gh3_build --s3 -r region.shp -l4a agbd  # Build directly from S3
 |------|-------------|
 | `-h3r` | H3 index resolution (default: 12, ~25 m²) |
 | `-h3p` | H3 partition resolution (default: 3, ~12,393 km²) |
-| `--resume` | Skip already-built partitions |
-| `-i` | Input SOC directory (default: `GH3_DEFAULT_SOC_DIR`) |
+| `-i` | Input directory where GEDI HDF5 files are stored (default: `GH3_DEFAULT_SOC_DIR`) |
 | `-d` | Output H3 database directory |
 
 ---
@@ -59,14 +57,14 @@ gh3_build --s3 -r region.shp -l4a agbd  # Build directly from S3
 Extract data from H3 database into simplified flat parquet files.
 
 ```bash
-gh3_extract -d /path/to/database -r region.shp -l2a rh -l4a agbd -y -o output/
+gh3_extract -d /path/to/database -r region.shp -l2a rh_098 -l4a agbd -y -o output/
 ```
 
 | Flag | Description |
 |------|-------------|
 | `-d` | H3 database path |
 | `-r` | Spatial filter |
-| `-d0, -d1` | Temporal filter |
+| `-t0, -t1` | Temporal filter |
 | `-l*` | Product variables |
 | `-y, --quality` | Apply pre-configured quality filters |
 | `-q, --query` | Pandas-style filter string |
@@ -101,7 +99,7 @@ gh3_aggregate -d /path/to/database -h3 6 -a "['mean','std','count']" -o output/
 |------|-------------|
 | `-h3 LEVEL` | Aggregate to H3 level |
 | `-a` | Aggregation function: `mean`, `sum`, `median`, `std`, `count` |
-| `-R, --rasterize` | Also export rasters after aggregation |
+| `-R, --rasterize` | Export as rasters after aggregation |
 | `-o` | Output directory |
 
 #### EGI variant
@@ -149,7 +147,7 @@ Sample raster pixel values at GEDI shot locations.
 gh3_from_img -i /path/to/dem.tif -d /path/to/database -r region.shp -o output/
 
 # Tile directory with band selection and window operations
-gh3_from_img -i /path/to/tiles/ -if tif -B 0 2 -w 131 -d /path/to/database -o output/
+gh3_from_img -i /path/to/tiles/ -B 0 2 -w 131 -d /path/to/database -o output/
 
 # Custom band names, quality filter, include geometry
 gh3_from_img -i /path/to/raster.vrt -b elevation slope -d /path/to/database -y -g -o output/
@@ -157,12 +155,11 @@ gh3_from_img -i /path/to/raster.vrt -b elevation slope -d /path/to/database -y -
 
 | Flag | Description |
 |------|-------------|
-| `-i` | Raster file, VRT, or tile directory |
-| `-if` | Tile file extension (default: `tif`) |
+| `-i` | Raster file (tif), VRT, or tile directory |
 | `-B` | Band indices to sample (0-based) |
 | `-b` | Custom band names |
 | `-w` | Window operations (3-digit BZO format) |
-| `-y, --fillna` | Fill NoData value |
+| `-F, --fillna` | Fill NoData value |
 | `-g` | Include geometry in output |
 
 **Window spec format** (`-w BZO`):
@@ -195,23 +192,6 @@ gh3_from_polygon -i boundaries.shp -p intersects -d /path/to/database -o output/
 
 ## Utility Tools
 
-### `gh3_list_variables`
-
-List available GEDI variables by product.
-
-```bash
-gh3_list_variables -p L2A
-gh3_list_variables -g agbd     # grep filter
-```
-
-| Flag | Description |
-|------|-------------|
-| `-d` | H3 database path (optional) |
-| `-p` | Filter by product (e.g., `L2A`, `L4A`) |
-| `-g` | Grep filter: show only variables matching keyword |
-
----
-
 ### `gh3_list_resolutions`
 
 Display H3 and EGI resolution levels with pixel sizes.
@@ -225,13 +205,23 @@ gh3_list_resolutions -egi   # EGI levels
 
 ### `gh3_read_schema`
 
-Inspect parquet or HDF5 file schemas.
+Inspect file or database schemas. Lists column names and types from parquet, feather, geopackage, HDF5 files, or H3 databases. When no path is given, reads from the default H3 database.
 
 ```bash
-gh3_read_schema /path/to/file.parquet
-gh3_read_schema /path/to/file.h5
-gh3_read_schema /path/to/database/
+gh3_read_schema                        # default H3 database
+gh3_read_schema /path/to/database/     # specific H3 database
+gh3_read_schema /path/to/file.parquet  # single file
+gh3_read_schema /path/to/file.h5       # HDF5 file
+gh3_read_schema -p L2A                 # filter by product
+gh3_read_schema --grep agbd            # grep filter
 ```
+
+| Flag | Description |
+|------|-------------|
+| `path` | File or directory to inspect (default: H3 database) |
+| `-p` | Filter by product suffix (e.g., `L2A` → `_l2a` columns) |
+| `--grep` | Filter columns by keyword (case-insensitive) |
+| `-g` | HDF5 group/beam filter (e.g., `BEAM0101`) |
 
 ---
 
@@ -240,7 +230,7 @@ gh3_read_schema /path/to/database/
 | Flag | Description |
 |------|-------------|
 | `-r, --region` | Spatial filter: vector file, bbox `"W,S,E,N"`, or ISO3 code |
-| `-d0, -d1` | Temporal filters (YYYY-MM-DD) |
+| `-t0, -t1` | Temporal filters (YYYY-MM-DD) |
 | `-l1b, -l2a, -l2b, -l4a, -l4c` | Product variables |
 | `-N, -T, -M, -P` | Dask workers, threads, memory, dashboard port |
 | `-s` | Connect to existing Dask scheduler |
