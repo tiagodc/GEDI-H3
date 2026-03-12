@@ -12,7 +12,7 @@ When you pass `-l2a default` or `-l2a minimal` on the command line, gedih3 expan
 | `default` / `def` | Expert-curated science-ready set, loaded from the bundled `.txt` file in `src/gedih3/data/`. Designed to cover common research workflows without requiring HDF5 expertise. |
 | `all` / `*` / bare flag | Every variable present in the HDF5 file for that product (all beams). Use with caution — there are 100+ variables per beam for each product. |
 | `/path/to/file.txt` | Plain-text file with one HDF5 variable name per line; `#`-prefixed lines are treated as comments. |
-| explicit names | One or more exact HDF5 variable names inline, e.g. `-l2a rh quality_flag land_cover_data/pft_class -l4a agbd `. |
+| explicit names | One or more exact HDF5 variable names inline, e.g. `-l2a rh quality_flag land_cover_data/pft_class -l4a agbd`. |
 
 ---
 
