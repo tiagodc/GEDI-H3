@@ -16,6 +16,32 @@ from .exceptions import (GediValidationError, GediDatabaseNotFoundError, GediPro
                          GediSpatialError, GediVariableError)
 
 
+def _resolve_columns(columns, path, info):
+    """Expand fnmatch wildcards in ``columns`` against available column names.
+
+    If no wildcard characters are present, returns ``columns`` unchanged.
+    """
+    if columns is None:
+        return None
+    if not any(any(c in col for c in ('*', '?', '[', ']')) for col in columns):
+        return columns
+
+    # Obtain available column names from the source
+    if info['source_type'] == 'h3_database':
+        available = gh3_read_meta("h3_columns", gh3_root_dir=path)
+    else:
+        from .cliutils import detect_dataset_format, read_dataset_schema, list_dataset_files
+        fmt = detect_dataset_format(path)
+        if smart_exists(path) and not smart_isdir(path):
+            available, _ = read_dataset_schema(path, fmt)
+        else:
+            files = list_dataset_files(path, fmt=fmt)
+            available, _ = read_dataset_schema(files[0], fmt)
+
+    from .gedidriver import expand_var_wildcards
+    return expand_var_wildcards(columns, available)
+
+
 def _detect_source(source=None):
     """Resolve data source path and detect its type.
 
@@ -549,6 +575,7 @@ def gh3_load(source=None, *, columns=None, region=None, query=None,
     >>> ddf.compute().head()
     """
     path, info = _detect_source(source)
+    columns = _resolve_columns(columns, path, info)
 
     if info.get('index_type') == 'egi':
         raise GediValidationError(
@@ -1510,6 +1537,7 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
     >>> agg = gh3.egi_aggregate(ddf, target_level=6, agg='mean')
     """
     path, info = _detect_source(source)
+    columns = _resolve_columns(columns, path, info)
 
     if info['source_type'] == 'h3_database':
         # Direct EGI loading from H3 database (no shuffle)
