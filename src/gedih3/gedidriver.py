@@ -180,6 +180,27 @@ def gedi_vars_expand(product_vars, version=None):
             raise GediProductError(f"Unknown variable specification for product {prod}: {vars}")
     return product_vars
 
+def expand_var_wildcards(var_specs, available_vars):
+    """Expand fnmatch-style wildcard patterns in variable specifications.
+
+    Supports ``*``, ``?``, ``[seq]``, ``[!seq]``.  Non-pattern specs pass
+    through unchanged.  Raises :class:`GediValidationError` if a pattern
+    matches nothing.
+    """
+    import fnmatch
+    expanded = []
+    for spec in var_specs:
+        if any(c in spec for c in ('*', '?', '[', ']')):
+            matched = fnmatch.filter(available_vars, spec)
+            if not matched:
+                raise GediValidationError(
+                    f"Wildcard pattern '{spec}' matched no available variables"
+                )
+            expanded.extend(matched)
+        else:
+            expanded.append(spec)
+    return list(dict.fromkeys(expanded))  # deduplicate, preserve order
+
 def gedi_vars_from_h5(gedi_file):
     with h5py.File(gedi_file, 'r') as f:
         b = [i for i in f.keys() if i.upper().startswith('BEAM')][0]
@@ -226,6 +247,10 @@ def validate_soc_files(product_vars: Dict, soc_dir: str = GH3_DEFAULT_SOC_DIR):
             validation_report["missing_products"].append(prod)
             validation_report["can_skip"] = False
         elif required_vars is not None:
+            try:
+                required_vars = expand_var_wildcards(required_vars, available_products[prod])
+            except GediValidationError:
+                pass  # unmatched patterns will surface as missing vars below
             missing_vars = [v for v in required_vars if v not in set(available_products[prod])]
             if missing_vars:
                 validation_report["missing_variables"][prod] = missing_vars

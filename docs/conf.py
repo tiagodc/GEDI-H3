@@ -3,7 +3,7 @@ import sys
 
 # -- Project information -----------------------------------------------------
 project = "gedih3"
-copyright = "2024, Tiago de Conto"
+copyright = "2026, Tiago de Conto"
 author = "Tiago de Conto"
 release = "0.0.1"
 

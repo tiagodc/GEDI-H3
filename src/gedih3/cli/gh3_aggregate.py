@@ -70,7 +70,7 @@ def get_cmd_args():
 
     # Variable selection
     p.add_argument("-l", "--list", dest="list", nargs='+', type=str, default=None,
-                   help="variables to aggregate (space-separated or file path)")
+                   help="variables to aggregate (space-separated, file path, or wildcards like 'agbd_*_l4a')")
     add_product_args(p, include_detail_level=False)
 
     # Filtering

@@ -139,6 +139,68 @@ class TestGediDriver:
 
         assert isinstance(expanded['L2A'], list)
 
+    def test_expand_var_wildcards_basic(self):
+        """Test wildcard expansion with * pattern."""
+        from gedih3.gedidriver import expand_var_wildcards
+        available = ['rh_000', 'rh_050', 'rh_098', 'agbd', 'sensitivity']
+        result = expand_var_wildcards(['rh_*'], available)
+        assert set(result) == {'rh_000', 'rh_050', 'rh_098'}
+
+    def test_expand_var_wildcards_nested(self):
+        """Test wildcard expansion with nested HDF5 paths."""
+        from gedih3.gedidriver import expand_var_wildcards
+        available = [
+            'geolocation/num_detectedmodes_a1',
+            'geolocation/num_detectedmodes_a2',
+            'geolocation/num_detectedmodes_a5',
+            'geolocation/sensitivity_a1',
+            'agbd',
+        ]
+        result = expand_var_wildcards(['geolocation/num_*'], available)
+        assert len(result) == 3
+        assert all('num_detectedmodes' in v for v in result)
+
+    def test_expand_var_wildcards_question_mark(self):
+        """Test wildcard expansion with ? pattern."""
+        from gedih3.gedidriver import expand_var_wildcards
+        available = ['sensitivity_a1', 'sensitivity_a2', 'sensitivity_a5', 'sensitivity_a10']
+        result = expand_var_wildcards(['sensitivity_a?'], available)
+        assert set(result) == {'sensitivity_a1', 'sensitivity_a2', 'sensitivity_a5'}
+
+    def test_expand_var_wildcards_char_set(self):
+        """Test wildcard expansion with [seq] pattern."""
+        from gedih3.gedidriver import expand_var_wildcards
+        available = ['sensitivity_a1', 'sensitivity_a2', 'sensitivity_a5']
+        result = expand_var_wildcards(['sensitivity_a[15]'], available)
+        assert set(result) == {'sensitivity_a1', 'sensitivity_a5'}
+
+    def test_expand_var_wildcards_no_match(self):
+        """Test wildcard expansion raises on no matches."""
+        from gedih3.gedidriver import expand_var_wildcards
+        from gedih3.exceptions import GediValidationError
+        with pytest.raises(GediValidationError, match="matched no available variables"):
+            expand_var_wildcards(['nonexistent_*'], ['agbd', 'rh'])
+
+    def test_expand_var_wildcards_passthrough(self):
+        """Test non-wildcard specs pass through unchanged."""
+        from gedih3.gedidriver import expand_var_wildcards
+        result = expand_var_wildcards(['agbd', 'sensitivity'], ['agbd', 'sensitivity', 'rh'])
+        assert result == ['agbd', 'sensitivity']
+
+    def test_expand_var_wildcards_dedup(self):
+        """Test duplicate matches are deduplicated."""
+        from gedih3.gedidriver import expand_var_wildcards
+        available = ['rh_050', 'rh_098', 'agbd']
+        result = expand_var_wildcards(['rh_*', 'rh_050'], available)
+        assert result.count('rh_050') == 1
+
+    def test_expand_var_wildcards_mixed(self):
+        """Test mix of wildcards and exact names."""
+        from gedih3.gedidriver import expand_var_wildcards
+        available = ['rh_000', 'rh_050', 'rh_098', 'agbd', 'sensitivity']
+        result = expand_var_wildcards(['rh_*', 'agbd'], available)
+        assert set(result) == {'rh_000', 'rh_050', 'rh_098', 'agbd'}
+
 
 class TestH3Utils:
     """Test gedih3.h3utils module."""
