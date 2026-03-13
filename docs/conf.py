@@ -41,13 +41,14 @@ numpydoc_additional_section_headers = ['Key Features', 'Basic Usage', 'Resolutio
 # myst-parser: allow Markdown files in toctree
 myst_enable_extensions = ["colon_fence"]
 myst_heading_anchors = 0
-suppress_warnings = ["myst.header"]
+suppress_warnings = ["myst.header", "intersphinx.remote"]
 source_suffix = {
     ".rst": "restructuredtext",
     ".md": "markdown",
 }
 
 # intersphinx: cross-reference to other projects
+intersphinx_timeout = 10  # seconds — fail fast on unreachable servers
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable", None),
