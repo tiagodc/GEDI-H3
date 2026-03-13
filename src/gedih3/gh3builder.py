@@ -16,7 +16,7 @@ from dask.distributed import progress
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME, _get_versioned, _GEDI_L2A_ESSENTIALS
 from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, parquet_schema_add_bbox, generate_manifest
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
-from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_subset, validate_soc_files, load_h5
+from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_subset, validate_soc_files, load_h5, expand_var_wildcards
 from .daac import gedi_download
 from .logging_config import get_logger
 from .validation import validate_h3_params, validate_product_vars, validate_directory_exists
@@ -701,6 +701,15 @@ def _expand_product_vars(
                 break
 
     product_vars = gedi_vars_expand(product_vars, version=version)
+
+    # Expand wildcard patterns (e.g. 'rh_*', 'geolocation/sensitivity_a?')
+    # against available HDF5 variables before further processing.
+    for k, val in product_vars.items():
+        if val is not None and any(any(c in v for c in ('*', '?', '[', ']')) for v in val):
+            file = soc_files[0].get(k)
+            if file:
+                available = gedi_vars_from_h5(file)
+                product_vars[k] = expand_var_wildcards(val, available)
 
     essentials = _get_versioned(_GEDI_L2A_ESSENTIALS, version)
     if 'L2A' in product_vars:

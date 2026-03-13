@@ -357,15 +357,15 @@ def add_product_args(parser, include_detail_level=True):
                                  "(minimal/default/all). L1B must be added separately with -l1b. "
                                  "Mutually exclusive with -l2a, -l2b, -l4a, -l4c flags.")
     parser.add_argument("-l1b", "--l1b", dest="l1b", nargs='*', type=str, default=None,
-                        help="GEDI L1B variables [keyword, var list, or bare flag for all]")
+                        help="GEDI L1B variables [keyword, var list, wildcards (e.g. 'rx_*'), or bare flag for all]")
     parser.add_argument("-l2a", "--l2a", dest="l2a", nargs='*', type=str, default=None,
-                        help="GEDI L2A variables [keyword, var list, or bare flag for all]")
+                        help="GEDI L2A variables [keyword, var list, wildcards (e.g. 'rh_*'), or bare flag for all]")
     parser.add_argument("-l2b", "--l2b", dest="l2b", nargs='*', type=str, default=None,
-                        help="GEDI L2B variables [keyword, var list, or bare flag for all]")
+                        help="GEDI L2B variables [keyword, var list, wildcards (e.g. 'cover_*'), or bare flag for all]")
     parser.add_argument("-l4a", "--l4a", dest="l4a", nargs='*', type=str, default=None,
-                        help="GEDI L4A variables [keyword, var list, or bare flag for all]")
+                        help="GEDI L4A variables [keyword, var list, wildcards (e.g. 'agbd_*'), or bare flag for all]")
     parser.add_argument("-l4c", "--l4c", dest="l4c", nargs='*', type=str, default=None,
-                        help="GEDI L4C variables [keyword, var list, or bare flag for all]")
+                        help="GEDI L4C variables [keyword, var list, wildcards (e.g. 'wsci_*'), or bare flag for all]")
     return parser
 
 
@@ -1227,15 +1227,23 @@ def collect_columns(args, available_columns=None):
     read_cols = []
 
     if args.list is not None:
+        import fnmatch
         if len(args.list) == 1 and os.path.isfile(args.list[0]):
             with open(args.list[0], 'r') as f:
-                read_cols += list({line.strip() for line in f if line.strip() and not line.strip().startswith('#')})
+                raw_vars = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
         else:
-            read_cols += list({v.strip() for v in args.list if v.strip()})
+            raw_vars = [v.strip() for v in args.list if v.strip()]
 
-        missing = [v for v in read_cols if v not in available_columns]
-        if missing:
-            raise GediValidationError(f"The following variables from --list were not found: {', '.join(missing)}")
+        for var in raw_vars:
+            if any(c in var for c in ('*', '?', '[', ']')):
+                matched = fnmatch.filter(available_columns, var)
+                if not matched:
+                    raise GediValidationError(f"Wildcard pattern '{var}' from --list matched no columns")
+                read_cols += matched
+            else:
+                if var not in available_columns:
+                    raise GediValidationError(f"Variable '{var}' from --list was not found in database columns")
+                read_cols.append(var)
 
     product_map = {i: getattr(args, i.lower()) for i in GEDI_PRODUCTS.keys() if getattr(args, i.lower()) is not None}
     from .gedidriver import gedi_vars_expand
@@ -1249,15 +1257,15 @@ def collect_columns(args, available_columns=None):
                 file_vars = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
             vars = file_vars
 
+        import fnmatch
         for var in vars:
-            if '*' in var:
-                var = var.replace('*', '.*')
-            if not var.endswith(f"_{prod.lower()}"):
-                var = f"{var}_{prod.lower()}"
+            suffixed = var if var.endswith(f"_{prod.lower()}") else f"{var}_{prod.lower()}"
+            if any(c in suffixed for c in ('*', '?', '[', ']')):
+                matched_vars = fnmatch.filter(available_columns, suffixed)
+            else:
+                matched_vars = [suffixed] if suffixed in available_columns else []
 
-            matched_vars = [col for col in available_columns if re.match(var, col)]
-
-            if len(matched_vars) == 0:
+            if not matched_vars:
                 raise GediValidationError(f"Variable '{var}' from --{prod.lower()} not found in database columns")
 
             read_cols += matched_vars

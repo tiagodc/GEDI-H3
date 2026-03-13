@@ -13,6 +13,39 @@ When you pass `-l2a default` or `-l2a minimal` on the command line, gedih3 expan
 | `all` / `*` / bare flag | Every variable present in the HDF5 file for that product (all beams). Use with caution — there are 100+ variables per beam for each product. |
 | `/path/to/file.txt` | Plain-text file with one HDF5 variable name per line; `#`-prefixed lines are treated as comments. |
 | explicit names | One or more exact HDF5 variable names inline, e.g. `-l2a rh quality_flag land_cover_data/pft_class -l4a agbd`. |
+| wildcard pattern | Shell-style pattern using `*`, `?`, `[seq]`, `[!seq]` to match multiple variables at once (see below). |
+
+---
+
+## Wildcard Patterns
+
+All tools that accept variable names also support shell-style wildcard patterns.  This works across all stages — download, build, extract, and aggregate.
+
+| Pattern | Matches |
+|---|---|
+| `rh_*` | All RH percentiles (`rh_000` through `rh_100`) |
+| `geolocation/sensitivity_a*` | `sensitivity_a1`, `sensitivity_a2`, `sensitivity_a5`, ... |
+| `geolocation/*_a[125]` | All algorithm a1/a2/a5 geolocation variables |
+| `wsci_*` | All WSCI variables |
+| `agbd_prediction/agbd_?e_a*` | `agbd_se_a1`, `agbd_se_a2`, `agbd_se_a5`, ... |
+
+```bash
+# Build with only algorithm-a1 geolocation variables
+gh3_build -r "-51,0,-50,1" -l2a "geolocation/*_a1" -l4a default -s3
+
+# Extract all RH percentiles
+gh3_extract -d /path/to/database -l2a "rh_*" -o output/
+
+# Aggregate all AGBD variables
+gh3_aggregate -d /path/to/database -h3 6 -l4a "agbd*" -o output/
+
+# Use --list with suffixed wildcard
+gh3_extract -d /path/to/database -l "rh_*_l2a" -o output/
+```
+
+::::{important}
+Quote wildcard patterns to prevent shell expansion: use `-l2a "rh_*"` or `-l2a 'rh_*'`, not `-l2a rh_*`.
+::::
 
 ---
 

@@ -231,7 +231,7 @@ gh3_read_schema --grep agbd            # grep filter
 |------|-------------|
 | `-r, --region` | Spatial filter: vector file, bbox `"W,S,E,N"`, or ISO3 code |
 | `-t0, -t1` | Temporal filters (YYYY-MM-DD) |
-| `-l1b, -l2a, -l2b, -l4a, -l4c` | Product variables |
+| `-l1b, -l2a, -l2b, -l4a, -l4c` | Product variables (supports wildcards, e.g. `"rh_*"`) |
 | `-N, -T, -M, -P` | Dask workers, threads, memory, dashboard port |
 | `-s` | Connect to existing Dask scheduler |
 | `-v, -vv` | Verbosity: INFO, DEBUG |

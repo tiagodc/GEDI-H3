@@ -35,6 +35,7 @@ from gedih3.cliutils import (
     _expand_percentile_specs,
     cli_exception_handler,
     resolve_product_vars,
+    collect_columns,
 )
 from gedih3.exceptions import GediValidationError
 
@@ -713,3 +714,104 @@ class TestResolveProductVars:
         """No flags at all should return empty dict."""
         result = resolve_product_vars(_make_product_args())
         assert result == {}
+
+
+# =============================================================================
+# Test: collect_columns wildcard support
+# =============================================================================
+
+def _make_collect_args(**overrides):
+    """Build a Namespace mimicking parsed CLI args for collect_columns()."""
+    defaults = dict(
+        list=None, database=None, region=None,
+        time_start=None, time_end=None,
+        l1b=None, l2a=None, l2b=None, l4a=None, l4c=None,
+        detail_level=None,
+    )
+    defaults.update(overrides)
+    return argparse.Namespace(**defaults)
+
+
+# Simulated database columns (as they appear in parquet after build)
+_SAMPLE_COLUMNS = [
+    'rh_000_l2a', 'rh_025_l2a', 'rh_050_l2a', 'rh_075_l2a', 'rh_098_l2a', 'rh_100_l2a',
+    'quality_flag_l2a', 'elev_lowestmode_l2a', 'sensitivity_l2a',
+    'geolocation/sensitivity_a1_l2a', 'geolocation/sensitivity_a2_l2a', 'geolocation/sensitivity_a5_l2a',
+    'agbd_l4a', 'agbd_se_l4a', 'agbd_t_l4a', 'sensitivity_l4a', 'l4_quality_flag_l4a',
+    'wsci_l4c', 'wsci_xy_l4c', 'wsci_z_l4c',
+    'geometry', 'datetime',
+]
+
+
+class TestCollectColumnsWildcard:
+
+    def test_product_flag_wildcard_star(self):
+        """Wildcard -l2a 'rh_*' should match all RH columns."""
+        args = _make_collect_args(l2a=['rh_*'])
+        cols = collect_columns(args, available_columns=_SAMPLE_COLUMNS)
+        rh_cols = [c for c in cols if c.startswith('rh_')]
+        assert len(rh_cols) == 6
+
+    def test_product_flag_wildcard_question_mark(self):
+        """Wildcard -l2a 'geolocation/sensitivity_a?' should match single-digit algorithms."""
+        args = _make_collect_args(l2a=['geolocation/sensitivity_a?'])
+        cols = collect_columns(args, available_columns=_SAMPLE_COLUMNS)
+        assert set(cols) == {
+            'geolocation/sensitivity_a1_l2a',
+            'geolocation/sensitivity_a2_l2a',
+            'geolocation/sensitivity_a5_l2a',
+        }
+
+    def test_product_flag_wildcard_char_set(self):
+        """Wildcard -l2a 'geolocation/sensitivity_a[15]' should match a1 and a5."""
+        args = _make_collect_args(l2a=['geolocation/sensitivity_a[15]'])
+        cols = collect_columns(args, available_columns=_SAMPLE_COLUMNS)
+        assert set(cols) == {
+            'geolocation/sensitivity_a1_l2a',
+            'geolocation/sensitivity_a5_l2a',
+        }
+
+    def test_product_flag_wildcard_no_match_raises(self):
+        """Wildcard matching nothing should raise GediValidationError."""
+        args = _make_collect_args(l4a=['nonexistent_*'])
+        with pytest.raises(GediValidationError):
+            collect_columns(args, available_columns=_SAMPLE_COLUMNS)
+
+    def test_list_flag_wildcard(self):
+        """--list 'rh_*_l2a' should match all RH columns."""
+        args = _make_collect_args(list=['rh_*_l2a'])
+        cols = collect_columns(args, available_columns=_SAMPLE_COLUMNS)
+        rh_cols = [c for c in cols if c.startswith('rh_')]
+        assert len(rh_cols) == 6
+
+    def test_list_flag_wildcard_no_match_raises(self):
+        """--list wildcard matching nothing should raise GediValidationError."""
+        args = _make_collect_args(list=['zzz_*'])
+        with pytest.raises(GediValidationError, match="matched no columns"):
+            collect_columns(args, available_columns=_SAMPLE_COLUMNS)
+
+    def test_list_flag_exact_still_works(self):
+        """--list with exact names should still work."""
+        args = _make_collect_args(list=['agbd_l4a', 'sensitivity_l4a'])
+        cols = collect_columns(args, available_columns=_SAMPLE_COLUMNS)
+        assert set(cols) == {'agbd_l4a', 'sensitivity_l4a'}
+
+    def test_list_flag_exact_missing_raises(self):
+        """--list with missing exact name should raise."""
+        args = _make_collect_args(list=['nonexistent_col'])
+        with pytest.raises(GediValidationError, match="not found"):
+            collect_columns(args, available_columns=_SAMPLE_COLUMNS)
+
+    def test_mixed_wildcard_and_exact(self):
+        """Wildcard -l4a 'agbd*' matches all agbd variants (agbd, agbd_se, agbd_t)."""
+        args = _make_collect_args(l4a=['agbd*'])
+        cols = collect_columns(args, available_columns=_SAMPLE_COLUMNS)
+        assert 'agbd_l4a' in cols
+        assert 'agbd_se_l4a' in cols
+        assert 'agbd_t_l4a' in cols
+
+    def test_product_flag_exact_still_works(self):
+        """Exact product var names should still work."""
+        args = _make_collect_args(l4a=['agbd'])
+        cols = collect_columns(args, available_columns=_SAMPLE_COLUMNS)
+        assert cols == ['agbd_l4a']

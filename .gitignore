@@ -12,3 +12,4 @@ docs/_site/
 _site/
 tstex_modules/
 **/__init__.pyc
+.claude/settings.local.json
