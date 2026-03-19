@@ -79,8 +79,6 @@ _GEDI_L2A_ESSENTIALS = {
     2: ['shot_number','delta_time','quality_flag','lat_lowestmode','lon_lowestmode','elev_lowestmode'],
     3: ['shot_number','delta_time','l2a_quality_flag_rel3','lat_lowestmode','lon_lowestmode','elev_lowestmode'],
 }
-GEDI_L2A_ESSENTIALS = _GEDI_L2A_ESSENTIALS[2]  # backward compat
-
 # Version-keyed minimum variable sets per product.
 # _get_versioned() falls back to nearest lower version, so only entries
 # that differ from the previous version need to be added (e.g., v4 falls
@@ -103,9 +101,7 @@ GEDI_PRODUCTS = {
         'daac': 'LPDAAC',
         'version': 2,
         'format': '.h5',
-        'description': 'Geolocated waveforms',
-        'min_vars': ['shot_number','noise_mean_corrected','rx_sample_start_index','rx_sample_count','rxwaveform'],
-        'default_vars_file': get_package_data_path('GEDI01_B_DATASETS_002.txt')
+        'description': 'Geolocated waveforms'
     },
     'L2A': {
         'short_name': 'GEDI02_A',
@@ -113,9 +109,7 @@ GEDI_PRODUCTS = {
         'daac': 'LPDAAC',
         'version': 2,
         'format': '.h5',
-        'description': 'Elevation and height metrics',
-        'min_vars': GEDI_L2A_ESSENTIALS + ['rh'],
-        'default_vars_file': get_package_data_path('GEDI02_A_DATASETS_002.txt')
+        'description': 'Elevation and height metrics'
     },
     'L2B': {
         'short_name': 'GEDI02_B',
@@ -123,9 +117,7 @@ GEDI_PRODUCTS = {
         'daac': 'LPDAAC',
         'version': 2,
         'format': '.h5',
-        'description': 'Canopy cover and vertical profile metrics',
-        'min_vars': ['shot_number','cover_z','fhd_normal', 'pai_z', 'pgap_theta'],
-        'default_vars_file': get_package_data_path('GEDI02_B_DATASETS_002.txt')
+        'description': 'Canopy cover and vertical profile metrics'
     },
     # 'L3': {
     #     'short_name': 'GEDI03',
@@ -141,9 +133,7 @@ GEDI_PRODUCTS = {
         'daac': 'ORNLDAAC',
         'version': 2.1,
         'format': '.h5',
-        'description': 'Footprint level aboveground biomass',
-        'min_vars': ['shot_number','agbd','sensitivity','l4_quality_flag'],
-        'default_vars_file': get_package_data_path('GEDI04_A_DATASETS_002.txt')
+        'description': 'Footprint level aboveground biomass'
     },
     # 'L4B': {
     #     'short_name': 'GEDI04_B',
@@ -159,9 +149,7 @@ GEDI_PRODUCTS = {
         'daac': 'ORNLDAAC',
         'version': 2,
         'format': '.h5',
-        'description': 'Footprint level structural complexity',
-        'min_vars': ['shot_number','wsci', 'wsci_pi_lower', 'wsci_pi_upper', 'wsci_quality_flag', 'land_cover_data/worldcover_class'],
-        'default_vars_file': get_package_data_path('GEDI04_C_DATASETS_002.txt')
+        'description': 'Footprint level structural complexity'
     }
     # Future products:
     # 'L4C_FUSION': {'short_name': '', 'daac': 'ORNLDAAC', 'version': '002', 'format': '.tif'},
@@ -185,7 +173,8 @@ def get_default_vars_file(product, version=None):
         Path to the variable list file
     """
     product = product.upper()
-    prod_info = GEDI_PRODUCTS[product]
+    if product not in GEDI_PRODUCTS:
+        raise ValueError(f"Unknown product: {product}")
     if version is None:
         version = 2
     # Derive canonical prefix from product key (e.g., 'L2A' → 'GEDI02_A')
@@ -193,7 +182,6 @@ def get_default_vars_file(product, version=None):
     prefix = f"GEDI0{product[1]}_{product[2]}"
     fname = f'{prefix}_DATASETS_{int(version):03d}.txt'
     path = get_package_data_path(fname)
-    if path.is_file():
-        return path
-    # Fall back to the configured default
-    return prod_info['default_vars_file']
+    if not path.is_file():
+        raise FileNotFoundError(f"Variable list file not found: {fname}")
+    return path
