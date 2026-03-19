@@ -101,7 +101,7 @@ def main():
                 if args.s3:
                     # S3 ETL mode: stream and subset from NASA S3 to permanent output dir
                     s3_etl_subset(
-                        product_vars=soc_logger.get_product_vars(),
+                        product_vars=soc_logger.product_vars,
                         spatial=soc_logger.get_spatial(),
                         temporal=soc_logger.get_temporal(),
                         version=args.version,
@@ -111,7 +111,7 @@ def main():
                 else:
                     # Standard DAAC download mode
                     download_soc(
-                        product_vars=soc_logger.get_product_vars(),
+                        product_vars=soc_logger.product_vars,
                         spatial=soc_logger.get_spatial(),
                         temporal=soc_logger.get_temporal(),
                         direct_access=False,
