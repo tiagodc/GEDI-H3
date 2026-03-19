@@ -13,3 +13,5 @@ _site/
 tstex_modules/
 **/__init__.pyc
 .claude/settings.local.json
+docs/getting-started/hpc-workflow.md
+tutorials/hpc_tutorial.ipynb
