@@ -304,4 +304,4 @@ See `pyproject.toml` for the full dependency list.
 
 ## License
 
-TBD
+See the LICENSE file for terms.
