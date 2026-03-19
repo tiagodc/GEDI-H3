@@ -713,7 +713,9 @@ def _expand_product_vars(
 
     essentials = _get_versioned(_GEDI_L2A_ESSENTIALS, version)
     if 'L2A' in product_vars:
-        product_vars['L2A'] = list(set(product_vars['L2A'] + essentials))
+        if product_vars['L2A'] is not None:
+            product_vars['L2A'] = list(set(product_vars['L2A'] + essentials))
+        # None means "all variables" — essentials already included
     else:
         product_vars['L2A'] = essentials
 

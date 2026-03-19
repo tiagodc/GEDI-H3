@@ -547,6 +547,8 @@ def download_granule(
     expected_filename = gfile.full_name
     expected_path = os.path.join(odir_soc, expected_filename)
 
+    logger.debug(f"download_granule: {expected_filename}, subset_vars={'None' if subset_vars is None else f'{len(subset_vars)} vars'}")
+
     # Check for existing file if resume mode
     if resume and os.path.exists(expected_path):
         if subset_vars is not None:
@@ -586,6 +588,7 @@ def download_granule(
 
     # Apply variable subsetting if requested
     if subset_vars is not None:
+        logger.warning(f"Subsetting {expected_filename} with {len(subset_vars)} vars: {subset_vars[:5]}...")
         osub = opath.replace('.h5', '_subset.h5')
         try:
             osub = gedi_subset(opath, osub, subset_vars)
@@ -719,10 +722,12 @@ def gedi_download(
                     )
                 else:
                     # Use GEDI-specific download with variable subsetting
+                    # None means "download all variables" — no subsetting
+                    prod_subset = list(vars) if vars is not None else None
                     download_func = partial(
                         download_granule,
                         odir=odir,
-                        subset_vars=vars,
+                        subset_vars=prod_subset,
                         resume=resume,
                         max_attempts=max_attempts
                     )
