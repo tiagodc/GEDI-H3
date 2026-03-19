@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/imgs/gh3_logo.png" alt="gedih3 logo" width="400">
+</p>
+
 # gedih3
 
 **Turn billions of NASA GEDI LiDAR footprints into analysis-ready spatial datasets — from the command line or Python.**
