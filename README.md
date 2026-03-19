@@ -304,4 +304,4 @@ See `pyproject.toml` for the full dependency list.
 
 ## License
 
-TBD
+This project is licensed under the [MIT License](LICENSE).

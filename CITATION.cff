@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "gedih3"
+abstract: "Access, index, and analyze NASA GEDI LiDAR data with H3 hexagonal spatial indexing and Dask-distributed processing."
+version: 0.1.0
+date-released: 2026-03-19
+license: MIT
+url: "https://github.com/tiagodc/GEDI-H3"
+repository-code: "https://github.com/tiagodc/GEDI-H3"
+authors:
+  - family-names: "de Conto"
+    given-names: "Tiago"
+    email: "tiagodc@umd.edu"
+    affiliation: "University of Maryland"
+keywords:
+  - gedi
+  - lidar
+  - h3
+  - spatial-indexing
+  - remote-sensing
+  - biomass
+  - nasa
