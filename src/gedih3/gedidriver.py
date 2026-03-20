@@ -23,7 +23,7 @@ import dask
 import dask.dataframe
 from earthaccess.store import EarthAccessFile
 
-from .config import GEDI_BEAMS, GEDI_START_DATE, GH3_DEFAULT_SOC_DIR, get_default_vars_file, _get_versioned, _GEDI_MIN_VARS
+from .config import GEDI_BEAMS, GEDI_MISSION_START, GEDI_START_DATE, GH3_DEFAULT_SOC_DIR, get_default_vars_file, _get_versioned, _GEDI_MIN_VARS
 from .utils import h5_copy_subset, h5_info
 from .logging_config import get_logger
 from .exceptions import GediValidationError, GediProductError, GediVariableError
@@ -286,6 +286,8 @@ class GEDIFile:
         Processing level (e.g., 'A', 'B')
     date : datetime
         Acquisition date and time
+    product_code : str
+        Combined product code (e.g., 'L2A', 'L4A')
     orbit : int
         Orbit number
     orbit_granule : int
@@ -294,6 +296,14 @@ class GEDIFile:
         Ground track number
     version : int
         Data version number
+    year : str
+        Year string (e.g., '2019')
+    doy : str
+        Day-of-year string (e.g., '338')
+    mission_week : int
+        Mission week number since GEDI launch (2018-12-13)
+    suffix : str or None
+        Extra filename parts after version field, if any
 
     Examples
     --------
@@ -333,6 +343,11 @@ class GEDIFile:
         self.pge = int(fl[7])
         self.generation = int(fl[8])
         self.version = int(fl[9][1:])
+        self.product_code = f"L{self.product[-1]}{self.level}"
+        self.year = str(self.date.year)
+        self.doy = self.date.strftime('%j')
+        self.mission_week = (self.date - GEDI_MISSION_START).days // 7 + 1
+        self.suffix = '_'.join(fl[10:]) if len(fl) > 10 else None
     
     def get_glob_pattern(self, product:int=1, level:str='B', ppds:int=2):
         return gedi_file_glob(self.orbit, self.orbit_granule, self.track, product, level, ppds)

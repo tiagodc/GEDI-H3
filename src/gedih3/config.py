@@ -74,6 +74,7 @@ def configure_environment(mkdirs=False):
 configure_environment()
 
 GEDI_START_DATE = datetime.strptime('2018-01-01', '%Y-%m-%d')
+GEDI_MISSION_START = datetime(2018, 12, 13)
 GEDI_BEAMS = ['BEAM0000','BEAM0001','BEAM0010','BEAM0011','BEAM0101','BEAM0110','BEAM1000','BEAM1011']
 _GEDI_L2A_ESSENTIALS = {
     2: ['shot_number','delta_time','quality_flag','lat_lowestmode','lon_lowestmode','elev_lowestmode'],

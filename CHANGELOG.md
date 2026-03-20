@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.1.1] - 2026-03-20
+
+### Changed
+- Enriched `GEDIFile` parser with `product_code`, `year`, `doy`, `mission_week`, and `suffix` attributes
+- Removed deprecated `min_vars`, `default_vars_file`, and `GEDI_L2A_ESSENTIALS` from config
+
+### Fixed
+- Fixed `pyproject.toml` dependencies incorrectly nested under `[project.urls]`
+- Fixed docs CI intersphinx inventory failure tolerance
+- Removed license classifier superseded by PEP 639 license expression
+
 ## [0.1.0] - 2026-03-19
 
 ### Added
