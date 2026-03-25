@@ -33,13 +33,6 @@ from gedih3.exceptions import GediImageSamplingError
 # Fixtures
 # =============================================================================
 
-@pytest.fixture
-def tmp_dir():
-    """Temporary directory for test outputs."""
-    d = tempfile.mkdtemp(prefix='test_imgutils_')
-    yield d
-    shutil.rmtree(d, ignore_errors=True)
-
 
 def _make_synthetic_raster(path, nx=10, ny=10, crs='EPSG:4326',
                            bounds=(-10, -10, 10, 10), values=None,

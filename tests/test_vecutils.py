@@ -39,12 +39,6 @@ def clear_vector_cache():
     _VECTOR_CACHE.clear()
 
 
-@pytest.fixture
-def tmp_dir():
-    d = tempfile.mkdtemp(prefix="vecutils_test_")
-    yield d
-    shutil.rmtree(d, ignore_errors=True)
-
 
 @pytest.fixture
 def sample_polygons(tmp_dir):

@@ -39,66 +39,7 @@ import geopandas as gpd
 import pyarrow as pa
 import pyarrow.parquet as pq
 from shapely.geometry import Point
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture
-def tmp_dir():
-    """Temporary directory with automatic cleanup."""
-    d = tempfile.mkdtemp(prefix="gedih3_test_build_safety_")
-    yield d
-    shutil.rmtree(d, ignore_errors=True)
-
-
-def _make_gedi_parquet(path, n=50, extra_cols=None, shot_offset=0):
-    """Create a minimal GEDI-like GeoParquet file."""
-    np.random.seed(42 + shot_offset)
-    lats = np.random.uniform(-1, 1, n)
-    lons = np.random.uniform(-51, -50, n)
-    data = {
-        'shot_number': np.arange(shot_offset, shot_offset + n, dtype=np.uint64),
-        'agbd_l4a': np.random.uniform(0, 300, n),
-        'rh_098_l2a': np.random.uniform(0, 50, n),
-    }
-    if extra_cols:
-        for col, vals in extra_cols.items():
-            data[col] = vals if vals is not None else np.random.uniform(0, 1, n)
-    geometry = [Point(lon, lat) for lon, lat in zip(lons, lats)]
-    gdf = gpd.GeoDataFrame(data, geometry=geometry, crs='EPSG:4326')
-    gdf.to_parquet(path)
-    return gdf
-
-
-def _make_partition_dir(base_dir, h3_part='83184bfffffffff', year='2020',
-                        n=50, extra_cols=None, shot_offset=0, granules=None):
-    """Create an H3 partition directory with parquet + metadata files."""
-    part_dir = os.path.join(base_dir, f'h3_03={h3_part}')
-    year_dir = os.path.join(part_dir, f'year={year}')
-    os.makedirs(year_dir, exist_ok=True)
-
-    pq_path = os.path.join(year_dir, f'{h3_part}.{year}.0.parquet')
-    gdf = _make_gedi_parquet(pq_path, n=n, extra_cols=extra_cols,
-                              shot_offset=shot_offset)
-
-    # Create partition-level metadata
-    if granules is None:
-        granules = [{'orbit': 1, 'granule': 1, 'track': 1}]
-
-    meta = {
-        'h3_partition': h3_part,
-        'columns': list(gdf.columns),
-        'granules': granules,
-        'date_range': ['2020-01-01', '2020-03-31'],
-        'l2a_version': 2,
-    }
-    meta_path = os.path.join(part_dir, f'{h3_part}.metadata.json')
-    with open(meta_path, 'w') as f:
-        json.dump(meta, f)
-
-    return part_dir, pq_path
+from conftest import make_gedi_parquet, make_partition_dir, make_build_log
 
 
 # ===========================================================================
@@ -115,8 +56,8 @@ class TestParquetMergeAtomicWrite:
         # Create two source files
         f1 = os.path.join(tmp_dir, 'a.parquet')
         f2 = os.path.join(tmp_dir, 'b.parquet')
-        _make_gedi_parquet(f1, n=10, shot_offset=0)
-        _make_gedi_parquet(f2, n=10, shot_offset=10)
+        make_gedi_parquet(f1, n=10, shot_offset=0)
+        make_gedi_parquet(f2, n=10, shot_offset=10)
 
         ofile = os.path.join(tmp_dir, 'merged.parquet')
 
@@ -135,7 +76,7 @@ class TestParquetMergeAtomicWrite:
         from gedih3.utils import parquet_merge_files
 
         f1 = os.path.join(tmp_dir, 'a.parquet')
-        _make_gedi_parquet(f1, n=10)
+        make_gedi_parquet(f1, n=10)
 
         ofile = os.path.join(tmp_dir, 'merged.parquet')
 
@@ -157,8 +98,8 @@ class TestParquetMergeAtomicWrite:
         f1 = os.path.join(tmp_dir, 'a.parquet')
         f2 = os.path.join(tmp_dir, 'b.parquet')
         # Both have shots 0-9; should deduplicate
-        _make_gedi_parquet(f1, n=10, shot_offset=0)
-        _make_gedi_parquet(f2, n=10, shot_offset=0)
+        make_gedi_parquet(f1, n=10, shot_offset=0)
+        make_gedi_parquet(f2, n=10, shot_offset=0)
 
         ofile = os.path.join(tmp_dir, 'merged.parquet')
         parquet_merge_files(ofile, [f1, f2], check_shots=True)
@@ -173,8 +114,8 @@ class TestParquetMergeAtomicWrite:
 
         f1 = os.path.join(tmp_dir, 'a.parquet')
         f2 = os.path.join(tmp_dir, 'b.parquet')
-        _make_gedi_parquet(f1, n=10, shot_offset=0)
-        _make_gedi_parquet(f2, n=10, shot_offset=10)
+        make_gedi_parquet(f1, n=10, shot_offset=0)
+        make_gedi_parquet(f2, n=10, shot_offset=10)
 
         ofile = os.path.join(tmp_dir, 'merged.parquet')
 
@@ -186,7 +127,7 @@ class TestParquetMergeAtomicWrite:
 
         # Second merge: ofile appears in flist (simulating append scenario)
         f3 = os.path.join(tmp_dir, 'c.parquet')
-        _make_gedi_parquet(f3, n=5, shot_offset=100)
+        make_gedi_parquet(f3, n=5, shot_offset=100)
 
         parquet_merge_files(ofile, [ofile, f3], rm_src=True)
         assert os.path.exists(ofile)  # ofile should survive
@@ -262,7 +203,7 @@ class TestAddVariablesResume:
         from gedih3.gh3builder import _add_variables_to_partition
 
         # Create partition that already has the "new" columns
-        part_dir, pq_path = _make_partition_dir(
+        part_dir, pq_path = make_partition_dir(
             tmp_dir, n=20,
             extra_cols={'wsci_l4c': None},
         )
@@ -424,42 +365,11 @@ class TestResumeFromFailed:
     correct detection of 'already up-to-date' and 'variable-only update'.
     """
 
-    def _make_build_log(self, log_dir, status='COMPLETED', products=None,
-                        granules=None, pending_var_update=None):
-        """Create a minimal build log file."""
-        if products is None:
-            products = {
-                'L2A': {'status': status, 'variables': ['rh_098', 'shot_number']},
-                'L4A': {'status': status, 'variables': ['agbd', 'shot_number']},
-            }
-        if granules is None:
-            granules = [
-                {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED'},
-                {'orbit': 2, 'granule': 1, 'track': 2, 'status': 'INDEXED'},
-            ]
-        log = {
-            'status': status,
-            'h3_resolution_level': 12,
-            'h3_partition_level': 3,
-            'gedi_version': 2,
-            'spatial_filter': '{"type":"FeatureCollection","features":[{"type":"Feature","properties":{},"geometry":{"type":"Polygon","coordinates":[[[-50,0],[-50,1],[-51,1],[-51,0],[-50,0]]]}}]}',
-            'temporal_filter': ['2020-01-01', '2020-03-31'],
-            'products': products,
-            'granules': granules,
-            'h3_partition_ids': ['838041fffffffff'],
-        }
-        if pending_var_update:
-            log['_pending_variable_update'] = pending_var_update
-        log_path = os.path.join(log_dir, 'gedih3_build_log.json')
-        with open(log_path, 'w') as f:
-            json.dump(log, f)
-        return log_path
-
     def test_resume_from_failed_merges_filters(self, tmp_dir):
         """Resume from FAILED with same args → filters merged, no new products detected."""
         from gedih3.logger import H3BuildLogger
 
-        self._make_build_log(tmp_dir, status='FAILED')
+        make_build_log(tmp_dir, status='FAILED')
 
         logger = H3BuildLogger(
             product_vars={'L2A': ['rh_098'], 'L4A': ['agbd']},
@@ -483,7 +393,7 @@ class TestResumeFromFailed:
             'L4A': {'status': 'INTERRUPTED', 'variables': ['agbd', 'shot_number']},
             'L4C': {'status': 'INTERRUPTED', 'variables': ['wsci', 'shot_number']},
         }
-        self._make_build_log(tmp_dir, status='INTERRUPTED', products=products)
+        make_build_log(tmp_dir, status='INTERRUPTED', products=products)
 
         logger = H3BuildLogger(
             product_vars={'L2A': ['rh_098'], 'L4A': ['agbd'], 'L4C': ['wsci']},
@@ -500,7 +410,7 @@ class TestResumeFromFailed:
         """FAILED log with L2A+L4A, user adds L4C → new_product_vars detected."""
         from gedih3.logger import H3BuildLogger
 
-        self._make_build_log(tmp_dir, status='FAILED')
+        make_build_log(tmp_dir, status='FAILED')
 
         logger = H3BuildLogger(
             product_vars={'L2A': ['rh_098'], 'L4A': ['agbd'], 'L4C': ['wsci']},
@@ -518,7 +428,7 @@ class TestResumeFromFailed:
         """Log with _pending_variable_update → not up-to-date."""
         from gedih3.logger import H3BuildLogger
 
-        self._make_build_log(
+        make_build_log(
             tmp_dir, status='FAILED',
             pending_var_update={'product_vars': {'L4C': ['wsci']}},
         )
@@ -540,7 +450,7 @@ class TestResumeFromFailed:
             {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED'},
             {'orbit': 2, 'granule': 1, 'track': 2, 'status': 'PENDING'},
         ]
-        self._make_build_log(tmp_dir, status='FAILED', granules=granules)
+        make_build_log(tmp_dir, status='FAILED', granules=granules)
 
         logger = H3BuildLogger(
             product_vars={'L2A': ['rh_098'], 'L4A': ['agbd']},
