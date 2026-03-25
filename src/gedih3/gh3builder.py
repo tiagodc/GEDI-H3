@@ -14,7 +14,7 @@ from earthaccess.store import EarthAccessFile
 from dask.distributed import progress
 
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME, _get_versioned, _GEDI_L2A_ESSENTIALS
-from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, parquet_schema_add_bbox, generate_manifest
+from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, parquet_schema_add_bbox, generate_manifest, check_nan_only_columns
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
 from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_subset, validate_soc_files, load_h5, expand_var_wildcards
 from .daac import gedi_download
@@ -1008,6 +1008,16 @@ def _merge_and_finalize(
             logger.error(f"{failed_count} partition merges failed. Re-run to retry.")
 
     h3_files = glob.glob(os.path.join(h3_dir, 'h3_*', '*', '*.parquet'), recursive=False)
+
+    # Check a sample of merged files for NaN-only columns
+    if h3_files:
+        import geopandas as _gpd
+        for f in h3_files[:5]:
+            try:
+                _sample = _gpd.read_parquet(f)
+                check_nan_only_columns(_sample, context=f"Build partition {os.path.basename(f)}: ", logger=logger)
+            except Exception:
+                pass
 
     logger.info("Compiling H3 metadata files")
 

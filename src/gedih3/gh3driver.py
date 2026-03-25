@@ -9,7 +9,7 @@ import dask_geopandas
 from .config import GH3_DEFAULT_H3_DIR, configure_environment, BUILD_LOG_FILENAME, DATASET_META_FILENAME
 from .utils import (json_read, json_write, now, get_package_version, is_parquet,
                      smart_glob, smart_exists, smart_isdir, is_remote_path,
-                     smart_open, generate_manifest)
+                     smart_open, generate_manifest, check_nan_only_columns)
 from .h3utils import intersect_h3_geometries, fix_h3_geometry
 from .cliutils import find_coordinate_column, get_aggregatable_columns
 from .exceptions import (GediValidationError, GediDatabaseNotFoundError, GediProcessingError,
@@ -727,6 +727,8 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None,
     """
     if df.empty:
         return ''
+
+    check_nan_only_columns(df, context='Export partition: ')
 
     os.makedirs(odir, exist_ok=True)
 

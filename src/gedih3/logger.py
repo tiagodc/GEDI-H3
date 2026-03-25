@@ -3,6 +3,7 @@ from typing import Dict
 from datetime import datetime, timezone
 
 from .config import GEDI_PRODUCTS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, BUILD_LOG_FILENAME, PARTITION_META_FILENAME
+from .exceptions import GediValidationError
 from .utils import now, json_read, json_write, read_vector_file, to_geojson, from_geojson, parse_spatial, merge_spatial, parse_temporal, get_package_version
 from .h3utils import intersect_h3_geometries
 from .gedidriver import GEDIFile, gedi_vars_expand, soc_file_tree, check_soc_file_vars, validate_soc_files
@@ -313,6 +314,12 @@ class H3BuildLogger:
             return
 
         self._load_filters_from_log()
+
+        if version is not None and self.gedi_version is not None and version != self.gedi_version:
+            raise GediValidationError(
+                f"GEDI version mismatch: existing database is version {self.gedi_version}, "
+                f"but version {version} was requested. Different versions require separate databases."
+            )
 
         self.updating = True
         self.new_spatial = None
