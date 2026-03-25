@@ -80,12 +80,6 @@ def _make_build_log(
     }
 
 
-@pytest.fixture
-def tmp_dir():
-    d = tempfile.mkdtemp(prefix="merge_logs_test_")
-    yield d
-    shutil.rmtree(d, ignore_errors=True)
-
 
 # =============================================================================
 # Tests
