@@ -610,13 +610,41 @@ def get_system_resources(disk_path:str=None):
 def json_write(obj, path, mode='w', rewrite=False):
     if os.path.isfile(path) and not rewrite:
         obj = json_read(path) | obj
-    with open(path, mode) as file:
-        json.dump(obj, file)
+    with AtomicFileWriter(path) as tmp_path:
+        with open(tmp_path, mode) as file:
+            json.dump(obj, file)
 
 def json_read(path, mode='r'):
     with smart_open(path, mode) as f:
         obj = json.load(f)
         return obj
+
+def check_nan_only_columns(df, context='', logger=None):
+    """Warn about columns that are entirely NaN.
+
+    Parameters
+    ----------
+    df : DataFrame or GeoDataFrame
+        Data to check.
+    context : str
+        Optional prefix for the warning message.
+    logger : logging.Logger, optional
+        Logger instance. If None, uses module-level warnings.
+
+    Returns
+    -------
+    list
+        Column names that are entirely NaN.
+    """
+    nan_cols = [c for c in df.columns if c != 'geometry' and df[c].isna().all()]
+    if nan_cols:
+        msg = f"{context}Columns with all NaN values: {nan_cols}"
+        if logger:
+            logger.warning(msg)
+        else:
+            import warnings
+            warnings.warn(msg, stacklevel=2)
+    return nan_cols
 
 def is_parquet(file: str) -> bool:
     return file.lower().endswith(('.parquet','.parq','.pq'))
