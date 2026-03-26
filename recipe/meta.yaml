@@ -1,0 +1,86 @@
+{% set name = "gedih3" %}
+{% set version = "0.1.2" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://pypi.org/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz
+  # sha256: UPDATE_WITH_ACTUAL_HASH_AFTER_PYPI_UPLOAD
+
+build:
+  number: 0
+  noarch: python
+  script: {{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
+  entry_points:
+    - gh3_build = gedih3.cli.gh3_build:main
+    - gh3_download = gedih3.cli.gh3_download:main
+    - gh3_extract = gedih3.cli.gh3_extract:main
+    - gh3_aggregate = gedih3.cli.gh3_aggregate:main
+    - gh3_list_resolutions = gedih3.cli.gh3_list_resolutions:main
+    - gh3_read_schema = gedih3.cli.gh3_read_schema:main
+    - gh3_rasterize = gedih3.cli.gh3_rasterize:main
+    - gh3_update = gedih3.cli.gh3_update:main
+    - gh3_from_img = gedih3.cli.gh3_from_img:main
+    - gh3_from_polygon = gedih3.cli.gh3_from_polygon:main
+    - gh3_build_ducklake = gedih3.cli.gh3_build_ducklake:main
+
+requirements:
+  host:
+    - python >=3.12
+    - pip
+    - setuptools >=80.0.0
+  run:
+    - python >=3.12
+    - numpy >=1.24.0
+    - pandas >=2.0.0
+    - geopandas >=0.14.0
+    - shapely >=2.0.0
+    - fiona >=1.10.0
+    - pyproj >=3.6.0
+    - h3-py >=4.3.0
+    - h3pandas >=0.3.0
+    - antimeridian >=0.3.0
+    - fsspec >=2023.1.0
+    - dask >=2024.1.0
+    - dask-geopandas >=0.5.0
+    - distributed >=2024.1.0
+    - numba >=0.58.0
+    - pyarrow >=14.0.0
+    - h5py >=3.8.0
+    - xarray >=2024.1.0
+    - rioxarray >=0.15.0
+    - geocube >=0.7.1
+    - python-dateutil >=2.9.0
+    - python-dotenv >=1.0.0
+    - earthaccess >=0.16.0
+    - pqdm >=0.2.0
+    - pyyaml >=6.0
+    - scipy >=1.10.0
+    - gdal >=3.4.0
+    - python-duckdb >=0.9.0
+
+test:
+  imports:
+    - gedih3
+  commands:
+    - gh3_list_resolutions --help
+
+about:
+  home: https://github.com/tiagodc/GEDI-H3
+  summary: Access, index, and analyze NASA GEDI LiDAR data with H3 hexagonal spatial indexing and Dask-distributed processing
+  description: |
+    gedih3 is a Python library for accessing NASA's GEDI satellite LiDAR data
+    with H3 and EGI spatial indexing. It handles downloading GEDI products from
+    NASA's DAACs, building spatially-indexed parquet databases for efficient
+    queries, extracting/aggregating data, and producing raster outputs.
+  license: MIT
+  license_family: MIT
+  license_file: LICENSE
+  doc_url: https://tiagodc.github.io/GEDI-H3/
+  dev_url: https://github.com/tiagodc/GEDI-H3
+
+extra:
+  recipe-maintainers:
+    - tiagodc
