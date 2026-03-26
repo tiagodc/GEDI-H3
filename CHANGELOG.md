@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.1.2] - 2026-03-26
+
+### Fixed
+- Fixed Windows file-locking bug in `parquet_join_columns`, `parquet_append_rows`, and `parquet_append_columns` where open `ParquetFile` handles prevented `os.replace` from completing
+- Variable-only updates (`gh3_build -l4c wsci` on existing database) now correctly merge new columns into partition parquet files on all platforms
+- Added warning when variable update completes but no partition files were modified
+- Orphaned `.join.tmp` files are now cleaned up on failure instead of left on disk
+
+### Added
+- Comprehensive test suite: `test_data_integrity.py` (data safety, correctness, error messages), `test_pipeline_integration.py` (S3 end-to-end workflows), `TESTING.md` (testing principles)
+- Unit tests for `parquet_join_columns` (basic join, index preservation, partial match)
+- Shared test fixtures in `conftest.py` for synthetic H3 databases and persistent test output
+
 ## [0.1.1] - 2026-03-20
 
 ### Changed
