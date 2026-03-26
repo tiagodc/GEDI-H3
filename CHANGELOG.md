@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.1.3] - 2026-03-26
+
+### Changed
+- Moved GDAL from runtime dependencies to optional extras (`pip install gedih3[gdal]`) to prevent pip install failures
+- Pinned all previously unpinned dependencies with minimum versions
+- Added `gedih3.data` to setuptools packages list (fixes build warning)
+
+### Added
+- Conda-forge recipe skeleton (`recipe/meta.yaml`) for future publication
+
 ## [0.1.2] - 2026-03-26
 
 ### Fixed
