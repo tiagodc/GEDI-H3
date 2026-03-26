@@ -1335,6 +1335,11 @@ def build_h3db(
                     h3_dir, product_vars,
                     soc_source=_s3_tmp_dir, version=version,
                 )
+                if not result:
+                    logger.warning(
+                        "Variable update completed but no partition files were modified. "
+                        "New columns may not have been added to the database."
+                    )
                 return result
             finally:
                 if os.path.exists(_s3_tmp_dir):
@@ -1373,6 +1378,11 @@ def build_h3db(
         if variable_only_update:
             logger.info(f"Variable-only update: adding {set(product_vars.keys())} to existing database")
             result = _build_add_variables(h3_dir, product_vars, soc_source=soc_source, version=version)
+            if not result:
+                logger.warning(
+                    "Variable update completed but no partition files were modified. "
+                    "New columns may not have been added to the database."
+                )
             return result
 
         # Expand variable specifications and ensure L2A essentials

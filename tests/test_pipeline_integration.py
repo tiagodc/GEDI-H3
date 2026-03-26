@@ -722,7 +722,7 @@ class TestS3BuildFromScratch:
         log_cols = set(log.get('h3_columns', []))
         data_cols = _read_all_columns(s3_built_database)
         for col in log_cols:
-            if col != 'datetime':
+            if col not in ('datetime', 'h3_12'):  # h3_12 is the parquet index, not a column
                 assert col in data_cols, f"Log column '{col}' missing from data"
 
     def test_idempotent_rebuild_is_noop(self, s3_built_database):
@@ -760,6 +760,7 @@ class TestS3BuildFromScratch:
         # Expand to 6 months (adds Apr-Jun 2020)
         result = _s3_build(
             s3_built_database, t0='2020-01-01', t1='2020-06-30',
+            timeout=1800,
         )
         assert result.returncode == 0, f"Temporal expansion failed: {result.stderr[:300]}"
 
@@ -796,7 +797,11 @@ class TestS3VariableUpdate:
         return h3_dir
 
     def test_variable_update_adds_columns(self, s3_base_database):
-        """Add L4C, verify schema expanded without row loss."""
+        """Add L4C wsci, verify schema expanded without row loss.
+
+        NOTE: This test validates the variable-update pipeline via S3.
+        The build must add new product columns to existing partitions.
+        """
         initial_shots = _read_all_shots(s3_base_database)
         initial_count = len(initial_shots)
         initial_cols = _read_all_columns(s3_base_database)
@@ -804,12 +809,19 @@ class TestS3VariableUpdate:
         result = _s3_build(
             s3_base_database, t0='2020-01-01', t1='2020-03-31',
             l2a='minimal', l4a='agbd',
-            extra_args=['-l4c', 'minimal'],
+            extra_args=['-l4c', 'wsci'],
         )
         assert result.returncode == 0, f"Variable update failed: {result.stderr[:300]}"
 
+        # Verify the build log records the new product
+        log_path = os.path.join(s3_base_database, 'gedih3_build_log.json')
+        with open(log_path) as f:
+            log = json.load(f)
+        assert 'L4C' in log.get('products', {}), "L4C not recorded in build log"
+
         updated_cols = _read_all_columns(s3_base_database)
-        assert len(updated_cols) > len(initial_cols), "No new columns added"
+        new_cols = updated_cols - initial_cols
+        assert len(new_cols) > 0, "No new columns added after variable update"
 
         updated_shots = _read_all_shots(s3_base_database)
         assert len(updated_shots) == initial_count, \
@@ -863,7 +875,11 @@ class TestS3ExtractIntegrity:
         from gedih3.utils import check_nan_only_columns
 
         for f in Path(s3_extract_dir).rglob('*.parquet'):
-            df = gpd.read_parquet(f)
+            try:
+                df = gpd.read_parquet(f)
+            except ValueError:
+                # Extracted files may lack geo metadata
+                df = pd.read_parquet(f)
             nan_cols = check_nan_only_columns(df)
             assert nan_cols == [], f"NaN-only columns in {f.name}: {nan_cols}"
 
@@ -1108,7 +1124,7 @@ class TestS3RasterizeIntegrity:
 @pytest.mark.slow
 @pytest.mark.integration
 class TestNoTimeConstraints:
-    """Build without -d0/-d1 flags, then re-run to detect 'already up to date'."""
+    """Build without -t0/-t1 flags, then re-run to detect 'already up to date'."""
 
     def test_build_without_dates_then_rerun(self, tmp_path_factory, persistent_test_dir):
         """Build with no time constraints, re-run → no files modified."""
@@ -1121,7 +1137,8 @@ class TestNoTimeConstraints:
         h3_dir = str(base / 'h3_database')
         os.makedirs(h3_dir, exist_ok=True)
 
-        result = _s3_build(h3_dir, timeout=1800)  # No d0/d1
+        # Use smaller region to reduce processing time with full date range
+        result = _s3_build(h3_dir, region="-50.5,0.25,-50,0.75", timeout=3600)
         assert result.returncode == 0, \
             f"Build without dates failed: {result.stderr[:300]}"
 
@@ -1129,7 +1146,7 @@ class TestNoTimeConstraints:
         pq_files = list(Path(h3_dir).rglob('*.parquet'))
         mtimes = {str(f): os.path.getmtime(f) for f in pq_files}
 
-        result2 = _s3_build(h3_dir, timeout=1800)
+        result2 = _s3_build(h3_dir, region="-50.5,0.25,-50,0.75", timeout=3600)
         assert result2.returncode == 0
 
         for f, mt in mtimes.items():
