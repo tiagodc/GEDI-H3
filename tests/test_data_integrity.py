@@ -231,6 +231,73 @@ class TestBuildLogMetadataAccuracy:
             f"Log partitions {log_parts} != disk partitions {disk_parts}"
 
 
+class TestParquetJoinColumns:
+    """parquet_join_columns must merge new columns and clean up temp files."""
+
+    def test_join_adds_new_column(self, tmp_dir):
+        """Basic join: adds a new column via shot_number key."""
+        from gedih3.utils import parquet_join_columns
+
+        base = pd.DataFrame({'shot_number': [1, 2, 3], 'col_a': [10, 20, 30]})
+        base_path = os.path.join(tmp_dir, 'base.parquet')
+        base.to_parquet(base_path, index=False)
+
+        extra = pd.DataFrame({'shot_number': [1, 2, 3], 'col_b': [100, 200, 300]})
+        extra_path = os.path.join(tmp_dir, 'extra.parquet')
+        extra.to_parquet(extra_path, index=False)
+
+        parquet_join_columns([base_path, extra_path], base_path, key_col='shot_number')
+
+        result = pd.read_parquet(base_path)
+        assert 'col_b' in result.columns
+        assert list(result['col_b']) == [100, 200, 300]
+        assert not os.path.exists(base_path + '.join.tmp')
+
+    def test_join_preserves_index(self, tmp_dir):
+        """Join preserves the original parquet index (h3_12 pattern)."""
+        from gedih3.utils import parquet_join_columns
+
+        base = pd.DataFrame({
+            'h3_12': ['abc', 'def', 'ghi'],
+            'shot_number': [1, 2, 3],
+            'col_a': [10, 20, 30],
+        }).set_index('h3_12')
+        base_path = os.path.join(tmp_dir, 'base.parquet')
+        base.to_parquet(base_path)
+
+        extra = pd.DataFrame({'shot_number': [1, 2, 3], 'col_b': [100, 200, 300]})
+        extra_path = os.path.join(tmp_dir, 'extra.parquet')
+        extra.to_parquet(extra_path, index=False)
+
+        parquet_join_columns([base_path, extra_path], base_path, key_col='shot_number')
+
+        result = pd.read_parquet(base_path)
+        assert result.index.name == 'h3_12'
+        assert 'col_b' in result.columns
+        assert 'shot_number' in result.columns
+        assert not os.path.exists(base_path + '.join.tmp')
+
+    def test_join_partial_match(self, tmp_dir):
+        """Left join fills NaN for unmatched keys."""
+        from gedih3.utils import parquet_join_columns
+
+        base = pd.DataFrame({'shot_number': [1, 2, 3], 'col_a': [10, 20, 30]})
+        base_path = os.path.join(tmp_dir, 'base.parquet')
+        base.to_parquet(base_path, index=False)
+
+        # Only shot 1 and 3 in extra
+        extra = pd.DataFrame({'shot_number': [1, 3], 'col_b': [100, 300]})
+        extra_path = os.path.join(tmp_dir, 'extra.parquet')
+        extra.to_parquet(extra_path, index=False)
+
+        parquet_join_columns([base_path, extra_path], base_path, key_col='shot_number')
+
+        result = pd.read_parquet(base_path)
+        assert 'col_b' in result.columns
+        assert len(result) == 3
+        assert pd.isna(result.loc[result['shot_number'] == 2, 'col_b'].iloc[0])
+
+
 class TestAtomicJsonWrite:
     """json_write must not corrupt files on crash."""
 

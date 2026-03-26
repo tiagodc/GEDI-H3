@@ -981,7 +981,14 @@ def parquet_append_rows(df, f: str, id_col: str = 'shot_number', tmp_suffix: str
             writer.write_batch(batch)
         writer.write_table(new_table)
 
-    os.replace(temp_f, f)
+    # Close file handle before atomic replace (required on Windows)
+    parquet_file.close()
+    try:
+        os.replace(temp_f, f)
+    except OSError:
+        if os.path.exists(temp_f):
+            os.unlink(temp_f)
+        raise
 
 def parquet_append_columns(df, f: str, tmp_suffix:str = '.col.tmp'):
     import pandas as pd
@@ -1010,7 +1017,14 @@ def parquet_append_columns(df, f: str, tmp_suffix:str = '.col.tmp'):
                 new_batch_dict[field.name] = [None] * len(new_table)
         writer.write_batch(pa.RecordBatch.from_pydict(new_batch_dict, combined_schema))
 
-    os.replace(temp_f, f)
+    # Close file handle before atomic replace (required on Windows)
+    parquet_file.close()
+    try:
+        os.replace(temp_f, f)
+    except OSError:
+        if os.path.exists(temp_f):
+            os.unlink(temp_f)
+        raise
 
 def parquet_schema_add_bbox(schema, bbox):
     if bbox is None:
@@ -1176,8 +1190,15 @@ def parquet_join_columns(flist: List[str], ofile: str, key_col: str = 'shot_numb
             batch = batch[cols_to_select]
 
             writer.write_table(pa.Table.from_pandas(batch, schema=combined_schema))
-   
-    os.replace(temp_ofile, ofile)
+
+    # Close file handle before atomic replace (required on Windows)
+    base_file.close()
+    try:
+        os.replace(temp_ofile, ofile)
+    except OSError:
+        if os.path.exists(temp_ofile):
+            os.unlink(temp_ofile)
+        raise
 
 def parse_temporal(temporal):
     if temporal is None:
