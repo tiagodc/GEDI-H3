@@ -462,6 +462,105 @@ class TestResumeFromFailed:
         assert logger.is_up_to_date() is False
 
 
+class TestHasNewLocalGranules:
+    """Unit tests for _has_new_local_granules() — detects untracked H5 files on disk."""
+
+    def _make_fake_h5(self, soc_dir, orbit, granule, track, product='02_A'):
+        """Create an empty file with a valid GEDI filename."""
+        fname = f"GEDI{product}_2020100120000_O{orbit:05d}_{granule:02d}_T{track:05d}_02_003_01_V002.h5"
+        fpath = os.path.join(soc_dir, fname)
+        with open(fpath, 'w') as f:
+            f.write('')
+        return fpath
+
+    def test_detects_new_granule(self, tmp_dir):
+        """SOC dir has a file not in build log → returns True."""
+        from gedih3.cli.gh3_build import _has_new_local_granules
+        from gedih3.logger import H3BuildLogger
+
+        soc_dir = os.path.join(tmp_dir, 'soc')
+        h3_dir = os.path.join(tmp_dir, 'h3')
+        os.makedirs(soc_dir)
+
+        # Build log tracks orbits 1 and 2
+        make_build_log(h3_dir)
+
+        logger = H3BuildLogger(
+            product_vars={'L2A': ['rh_098'], 'L4A': ['agbd']},
+            spatial=[-51, 0, -50, 1],
+            temporal=('2020-01-01', '2020-03-31'),
+            dir=h3_dir,
+        )
+
+        # SOC dir has orbits 1, 2 (tracked) AND 3 (new)
+        self._make_fake_h5(soc_dir, orbit=1, granule=1, track=1)
+        self._make_fake_h5(soc_dir, orbit=2, granule=1, track=2)
+        self._make_fake_h5(soc_dir, orbit=3, granule=1, track=3)
+
+        assert _has_new_local_granules(soc_dir, logger) is True
+
+    def test_no_new_granules(self, tmp_dir):
+        """SOC dir matches build log exactly → returns False."""
+        from gedih3.cli.gh3_build import _has_new_local_granules
+        from gedih3.logger import H3BuildLogger
+
+        soc_dir = os.path.join(tmp_dir, 'soc')
+        h3_dir = os.path.join(tmp_dir, 'h3')
+        os.makedirs(soc_dir)
+
+        make_build_log(h3_dir)
+
+        logger = H3BuildLogger(
+            product_vars={'L2A': ['rh_098'], 'L4A': ['agbd']},
+            spatial=[-51, 0, -50, 1],
+            temporal=('2020-01-01', '2020-03-31'),
+            dir=h3_dir,
+        )
+
+        # SOC dir has only tracked files
+        self._make_fake_h5(soc_dir, orbit=1, granule=1, track=1)
+        self._make_fake_h5(soc_dir, orbit=2, granule=1, track=2)
+
+        assert _has_new_local_granules(soc_dir, logger) is False
+
+    def test_empty_soc_dir(self, tmp_dir):
+        """Empty SOC directory → returns False."""
+        from gedih3.cli.gh3_build import _has_new_local_granules
+        from gedih3.logger import H3BuildLogger
+
+        soc_dir = os.path.join(tmp_dir, 'soc')
+        h3_dir = os.path.join(tmp_dir, 'h3')
+        os.makedirs(soc_dir)
+
+        make_build_log(h3_dir)
+
+        logger = H3BuildLogger(
+            product_vars={'L2A': ['rh_098'], 'L4A': ['agbd']},
+            spatial=[-51, 0, -50, 1],
+            temporal=('2020-01-01', '2020-03-31'),
+            dir=h3_dir,
+        )
+
+        assert _has_new_local_granules(soc_dir, logger) is False
+
+    def test_nonexistent_soc_dir(self, tmp_dir):
+        """SOC path doesn't exist → returns False."""
+        from gedih3.cli.gh3_build import _has_new_local_granules
+        from gedih3.logger import H3BuildLogger
+
+        h3_dir = os.path.join(tmp_dir, 'h3')
+        make_build_log(h3_dir)
+
+        logger = H3BuildLogger(
+            product_vars={'L2A': ['rh_098'], 'L4A': ['agbd']},
+            spatial=[-51, 0, -50, 1],
+            temporal=('2020-01-01', '2020-03-31'),
+            dir=h3_dir,
+        )
+
+        assert _has_new_local_granules('/nonexistent/path', logger) is False
+
+
 # ===========================================================================
 # INTEGRATION TESTS (require tutorial DB or NASA creds)
 # ===========================================================================

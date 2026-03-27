@@ -44,6 +44,32 @@ def get_cmd_args():
 
     return p.parse_args()
 
+
+def _has_new_local_granules(soc_source, h3_logger):
+    """Check if SOC directory has HDF5 files not tracked in the build log."""
+    import os
+    import glob as globmod
+    from gedih3.gedidriver import GEDIFile
+
+    if not soc_source or not os.path.isdir(soc_source):
+        return False
+
+    tracked = set()
+    if hasattr(h3_logger, 'granule_info') and h3_logger.granule_info:
+        for g in h3_logger.granule_info:
+            tracked.add((g['orbit'], g['granule'], g['track']))
+
+    for f in globmod.glob(os.path.join(soc_source, '**', 'GEDI*.h5'), recursive=True):
+        try:
+            gf = GEDIFile(f)
+            if (gf.orbit, gf.orbit_granule, gf.track) not in tracked:
+                return True
+        except Exception:
+            continue
+
+    return False
+
+
 def main():
     args = get_cmd_args()
 
@@ -155,12 +181,19 @@ def main():
             and not pending_var_update
             and hasattr(h3_logger, 'h3_partition_ids')
             and h3_logger.h3_partition_ids):
-        if h3_logger.previous_status != 'COMPLETED':
-            h3_logger.set_post_build_info()
-            h3_logger.save_log('COMPLETED')
-        logger.info("Database is already up-to-date with requested parameters")
-        print_success("Database is up-to-date, no changes needed", logger=logger)
-        return
+        # S3/download modes: skip early exit — let the pipeline query CMR
+        # or run download_soc() to discover new NASA granules
+        if not args.s3 and not args.download:
+            # Local mode: check SOC directory for new HDF5 files
+            if not _has_new_local_granules(soc_source, h3_logger):
+                if h3_logger.previous_status != 'COMPLETED':
+                    h3_logger.set_post_build_info()
+                    h3_logger.save_log('COMPLETED')
+                logger.info("Database is already up-to-date with requested parameters")
+                print_success("Database is up-to-date, no changes needed", logger=logger)
+                return
+            else:
+                logger.info("New granules detected in SOC directory — updating database")
 
     if soc_source is None:
         source_label = "NASA S3 (temp download)"
@@ -266,8 +299,10 @@ def main():
                             else:
                                 logger.info("New products not found in existing HDF5 files — downloading them")
                         elif not h3_logger.new_spatial and not h3_logger.new_temporal and not h3_logger.new_product_vars:
-                            needs_download = False
-                            logger.info(f"Using existing downloads at {soc_source} ({len(soc_logger.granule_info)} granules)")
+                            # Same parameters — still run download to discover new NASA granules.
+                            # download_soc() is idempotent: existing files are skipped via resume=True.
+                            needs_download = True
+                            logger.info(f"Checking for new GEDI data ({len(soc_logger.granule_info)} granules already downloaded)")
                         else:
                             _validate_existing_h5(h3_logger.get_product_vars(), soc_source)
                             needs_download = True  # Spatial/temporal expansion needs new granules
