@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.1.4] - 2026-03-27
+
+### Fixed
+- Fixed `gh3_build` early exit blocking detection of new GEDI granules when re-run with identical parameters
+- Local mode now scans the SOC directory for untracked HDF5 files before deciding the database is up-to-date
+- S3 and download modes bypass the early exit to query CMR for newly released data
+- `gh3_build --download` no longer skips the NASA download when parameters haven't changed
+
 ## [0.1.3] - 2026-03-26
 
 ### Changed
