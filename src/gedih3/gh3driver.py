@@ -417,7 +417,24 @@ def _read_parquet_files(files, geo=True, **kwargs):
     return pd.concat(dfs, ignore_index=True)
 
 
-def gh3_load_hex(d, part_col=None, **kwargs):
+def _restore_storage_on_worker(storage_cfg):
+    """Restore storage credentials on Dask worker processes.
+
+    Dask workers are separate processes that don't inherit the
+    module-level ``_storage_options`` configured in the main process.
+    This must be called at the start of any function that runs on a
+    worker and needs remote filesystem access.
+    """
+    if not storage_cfg:
+        return
+    from .utils import _storage_options
+    for protocol, opts in storage_cfg.items():
+        if protocol not in _storage_options:
+            _storage_options[protocol] = opts
+
+
+def gh3_load_hex(d, part_col=None, _storage_cfg=None, **kwargs):
+    _restore_storage_on_worker(_storage_cfg)
     files = smart_glob(smart_join(d, '**/*.parquet'), recursive=True)
     cols = kwargs.get('columns')
     use_geo = cols is None or 'geometry' in cols
@@ -484,6 +501,12 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
         fm_filter = {k: v for k, v in h3_filter.items() if k != 'filters'}
         if 'columns' in fm_filter:
             fm_filter['columns'] = [c for c in fm_filter['columns'] if c != h3_part_col]
+
+        # Pass storage credentials so Dask workers (separate processes) can
+        # authenticate against remote filesystems.
+        if is_remote_path(gh3_dir):
+            from .utils import _storage_options
+            fm_filter['_storage_cfg'] = dict(_storage_options)
 
         _meta = gh3_load_hex(h3_dirs[0], part_col=h3_part_col, **fm_filter)
         ddf = dask.dataframe.from_map(gh3_load_hex, h3_dirs, part_col=h3_part_col, **fm_filter, meta=_meta)
@@ -1447,9 +1470,16 @@ def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH
         for egi_id, h3_list in egi_to_h3.items()
     ]
 
+    # Capture storage credentials for Dask workers (separate processes)
+    _scfg = None
+    if is_remote_path(gh3_dir):
+        from .utils import _storage_options
+        _scfg = dict(_storage_options)
+
     # Define loader function for from_map
     # set_index=True in tile loader avoids shuffle at the end
     def load_tile(args):
+        _restore_storage_on_worker(_scfg)
         egi_id, h3_list, egi_bbox = args
         return _load_egi_tile_from_h3(
             egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
