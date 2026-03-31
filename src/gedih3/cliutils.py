@@ -88,7 +88,7 @@ def list_dataset_files(dataset_path, fmt=None):
     FileNotFoundError
         If no matching files found
     """
-    from .utils import smart_glob
+    from .utils import smart_glob, smart_join
 
     if fmt is None:
         fmt = detect_dataset_format(dataset_path)
