@@ -414,7 +414,7 @@ def _read_parquet_files(files, geo=True, **kwargs):
     for f in files:
         with smart_open(f, 'rb') as fobj:
             dfs.append(reader(fobj, **kwargs))
-    return pd.concat(dfs, ignore_index=True)
+    return pd.concat(dfs)
 
 
 def _restore_storage_on_worker(storage_cfg):
