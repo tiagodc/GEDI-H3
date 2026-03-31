@@ -310,6 +310,12 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
     reader = make_dataset_reader(fmt, columns=load_cols, geo=has_geometry)
     _meta = reader(data_files[0])
 
+    # Wrap reader to propagate storage credentials to Dask workers
+    _scfg = None
+    if is_remote_path(path):
+        from .utils import _storage_options
+        _scfg = dict(_storage_options)
+
     # Restore index for formats that don't preserve it (e.g. GPKG)
     needs_index_restore = (index_col and _meta.index.name != index_col
                            and index_col in _meta.columns)
@@ -317,11 +323,18 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         _meta = _meta.set_index(index_col)
 
         def read_and_set_index(f):
+            _restore_storage_on_worker(_scfg)
             df = reader(f)
             return df.set_index(index_col)
 
         ddf = dask.dataframe.from_map(read_and_set_index, data_files, meta=_meta)
     else:
+        if _scfg:
+            _base_reader = reader
+            def reader(f):
+                _restore_storage_on_worker(_scfg)
+                return _base_reader(f)
+
         ddf = dask.dataframe.from_map(reader, data_files, meta=_meta)
 
     if 'geometry' in ddf.columns:
