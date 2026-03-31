@@ -161,8 +161,9 @@ def main():
 
         # Detect data source type
         from gedih3.config import BUILD_LOG_FILENAME, DATASET_META_FILENAME
-        build_log = os.path.join(args.database, BUILD_LOG_FILENAME)
-        dataset_meta = os.path.join(args.database, DATASET_META_FILENAME)
+        from gedih3.utils import smart_join
+        build_log = smart_join(args.database, BUILD_LOG_FILENAME)
+        dataset_meta = smart_join(args.database, DATASET_META_FILENAME)
         is_h3_database = smart_exists(build_log)
         is_simplified_dataset = smart_exists(dataset_meta)
 

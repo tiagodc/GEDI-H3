@@ -69,7 +69,8 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
     from gedih3.config import DATASET_META_FILENAME
 
     # Read metadata
-    dataset_meta_path = os.path.join(dataset_path, DATASET_META_FILENAME)
+    from gedih3.utils import smart_join
+    dataset_meta_path = smart_join(dataset_path, DATASET_META_FILENAME)
     with open(dataset_meta_path, 'r') as f:
         dataset_meta = json.load(f)
 
@@ -184,7 +185,8 @@ def main():
             logger.info(f"Dask dashboard: {client.dashboard_link}")
 
             # Detect dataset type
-            dataset_meta_path = os.path.join(args.dataset, DATASET_META_FILENAME)
+            from gedih3.utils import smart_join
+            dataset_meta_path = smart_join(args.dataset, DATASET_META_FILENAME)
 
             if smart_exists(dataset_meta_path):
                 # Single dataset (existing behavior)
@@ -194,9 +196,9 @@ def main():
             else:
                 # Check for time-series (subdirectories with metadata)
                 window_dirs = sorted([
-                    d for d in smart_glob(os.path.join(args.dataset, '*'))
+                    d for d in smart_glob(smart_join(args.dataset, '*'))
                     if smart_isdir(d) and
-                       smart_exists(os.path.join(d, DATASET_META_FILENAME))
+                       smart_exists(smart_join(d, DATASET_META_FILENAME))
                 ])
 
                 if not window_dirs:
