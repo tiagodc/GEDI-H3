@@ -9,7 +9,8 @@ import dask_geopandas
 from .config import GH3_DEFAULT_H3_DIR, configure_environment, BUILD_LOG_FILENAME, DATASET_META_FILENAME
 from .utils import (json_read, json_write, now, get_package_version, is_parquet,
                      smart_glob, smart_exists, smart_isdir, is_remote_path,
-                     smart_open, generate_manifest, check_nan_only_columns)
+                     smart_open, generate_manifest, check_nan_only_columns,
+                     smart_join)
 from .h3utils import intersect_h3_geometries, fix_h3_geometry
 from .cliutils import find_coordinate_column, get_aggregatable_columns
 from .exceptions import (GediValidationError, GediDatabaseNotFoundError, GediProcessingError,
@@ -66,15 +67,15 @@ def gh3_set_db_path(gh3_root_dir=GH3_DEFAULT_H3_DIR):
     configure_environment()
 
 def gh3_list_files(gh3_root_dir=GH3_DEFAULT_H3_DIR):
-    return smart_glob(os.path.join(gh3_root_dir, '**', '*.parquet'), recursive=True)
+    return smart_glob(smart_join(gh3_root_dir, '**', '*.parquet'), recursive=True)
 
 def gh3_list_parts(gh3_root_dir=GH3_DEFAULT_H3_DIR):
-    files = smart_glob(os.path.join(gh3_root_dir, 'h3_*/'))
+    files = smart_glob(smart_join(gh3_root_dir, 'h3_*/'))
     h3_ids = [i.split('=')[-1].rstrip('/') for i in files]
     return h3_ids
 
 def gh3_read_meta(var, gh3_root_dir=GH3_DEFAULT_H3_DIR):
-    meta_path = os.path.join(gh3_root_dir, BUILD_LOG_FILENAME)
+    meta_path = smart_join(gh3_root_dir, BUILD_LOG_FILENAME)
     meta = json_read(meta_path)
     return meta.get(var)
 
@@ -101,7 +102,7 @@ def gh3_write_meta(opath, **kwargs):
         
     extracted_meta.update(kwargs)
     
-    meta_path = os.path.join(opath, BUILD_LOG_FILENAME)
+    meta_path = smart_join(opath, BUILD_LOG_FILENAME)
     json_write(extracted_meta, meta_path, rewrite=True)
     return meta_path
 
@@ -145,7 +146,7 @@ def gh3_write_dataset_meta(opath, index_type='h3', index_level=None, columns=Non
             data_files = []
     else:
         # Non-pipeline format: glob for whatever was written
-        data_files = smart_glob(os.path.join(opath, f'*.{file_format}'))
+        data_files = smart_glob(smart_join(opath, f'*.{file_format}'))
 
     file_names = [os.path.basename(f) for f in data_files]
     partition_ids = [os.path.splitext(f)[0] for f in file_names]
@@ -170,7 +171,7 @@ def gh3_write_dataset_meta(opath, index_type='h3', index_level=None, columns=Non
 
     meta.update(kwargs)
 
-    meta_path = os.path.join(opath, DATASET_META_FILENAME)
+    meta_path = smart_join(opath, DATASET_META_FILENAME)
     json_write(meta, meta_path, rewrite=True)
 
     # Generate manifest for accelerated file listing
@@ -186,7 +187,7 @@ def _detect_dataset_index_col(dataset_path):
     Reads dataset metadata to determine the index column name.
     Returns None if metadata is missing or doesn't specify an index.
     """
-    meta_path = os.path.join(dataset_path, DATASET_META_FILENAME)
+    meta_path = smart_join(dataset_path, DATASET_META_FILENAME)
     if not smart_exists(meta_path):
         return None
 
@@ -213,7 +214,7 @@ def _find_dataset_files(dataset_path, fmt):
         return list_dataset_files(dataset_path, fmt=fmt), fmt
     except FileNotFoundError:
         # Fallback: check for hive-style parquet structure
-        hive_files = smart_glob(os.path.join(dataset_path, '**/*.parquet'), recursive=True)
+        hive_files = smart_glob(smart_join(dataset_path, '**/*.parquet'), recursive=True)
         if hive_files:
             return hive_files, 'parquet'
         raise GediDatabaseNotFoundError(f"No data files found in {dataset_path}")
@@ -417,7 +418,7 @@ def _read_parquet_files(files, geo=True, **kwargs):
 
 
 def gh3_load_hex(d, part_col=None, **kwargs):
-    files = smart_glob(os.path.join(d, '**/*.parquet'), recursive=True)
+    files = smart_glob(smart_join(d, '**/*.parquet'), recursive=True)
     cols = kwargs.get('columns')
     use_geo = cols is None or 'geometry' in cols
     df = _read_parquet_files(files, geo=use_geo, **kwargs)
@@ -468,12 +469,12 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
             # For remote paths and spatial filters, construct paths directly from metadata
             # (avoids expensive directory listing over HTTP/S3)
             h3_ids = sorted(h3_ids)
-            h3_dirs = [os.path.join(gh3_dir, f"{h3_part_col}={hid}/") for hid in h3_ids]
+            h3_dirs = [smart_join(gh3_dir, f"{h3_part_col}={hid}/") for hid in h3_ids]
         else:
-            h3_dirs = smart_glob(os.path.join(gh3_dir, f"{h3_part_col}=*/"))
+            h3_dirs = smart_glob(smart_join(gh3_dir, f"{h3_part_col}=*/"))
             if not h3_dirs:
                 h3_ids = sorted(h3_ids)
-                h3_dirs = [os.path.join(gh3_dir, f"{h3_part_col}={hid}/") for hid in h3_ids]
+                h3_dirs = [smart_join(gh3_dir, f"{h3_part_col}={hid}/") for hid in h3_ids]
             else:
                 h3_ids = [os.path.basename(i.rstrip('/')).replace(f'{h3_part_col}=', '') for i in h3_dirs]
 
@@ -755,7 +756,7 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None,
         for part_id in unique_parts:
             part_df = df[df[actual_part_col] == part_id]
             oname = str(part_id)
-            opath = os.path.join(odir, f"{oname}.{fmt}")
+            opath = smart_join(odir, f"{oname}.{fmt}")
             _write_dataframe(part_df, opath, fmt)
             output_paths.append(opath)
         return ','.join(output_paths)
@@ -787,7 +788,7 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None,
         if not oname:
             oname = f"part_{hash(df.index[0]) % 10000:04d}"
 
-        opath = os.path.join(odir, f"{oname}.{fmt}")
+        opath = smart_join(odir, f"{oname}.{fmt}")
 
     _write_dataframe(df, opath, fmt)
     return opath
@@ -1032,7 +1033,7 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
         else:
             write_task.compute()
 
-        ofiles = smart_glob(os.path.join(output, f'*.{fmt}'))
+        ofiles = smart_glob(smart_join(output, f'*.{fmt}'))
 
     if not ofiles:
         raise GediProcessingError("No output files were created.")
@@ -1193,11 +1194,11 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
 
     dfs = []
     for h3_id in h3_list:
-        h3_path = os.path.join(gh3_dir, f"{h3_part_col}={h3_id}")
+        h3_path = smart_join(gh3_dir, f"{h3_part_col}={h3_id}")
         # Search for parquet files - try direct children first, then recursive
-        parquet_files = smart_glob(os.path.join(h3_path, '*.parquet'))
+        parquet_files = smart_glob(smart_join(h3_path, '*.parquet'))
         if not parquet_files:
-            parquet_files = smart_glob(os.path.join(h3_path, '**/*.parquet'), recursive=True)
+            parquet_files = smart_glob(smart_join(h3_path, '**/*.parquet'), recursive=True)
         if not parquet_files:
             continue
 
@@ -1274,7 +1275,7 @@ def _find_parquet_file(gh3_dir):
     """
     h3_part = gh3_read_meta("h3_partition_level", gh3_root_dir=gh3_dir)
     h3_part_col = f"h3_{h3_part:02d}"
-    h3_dirs = smart_glob(os.path.join(gh3_dir, f"{h3_part_col}=*/"))
+    h3_dirs = smart_glob(smart_join(gh3_dir, f"{h3_part_col}=*/"))
 
     if not h3_dirs:
         raise GediDatabaseNotFoundError(f"No H3 partition directories found in {gh3_dir}")
@@ -1282,9 +1283,9 @@ def _find_parquet_file(gh3_dir):
     # Find a directory that actually has parquet files (search recursively)
     for h3_dir_path in h3_dirs:
         # Try direct children first, then recursive
-        parquet_files = smart_glob(os.path.join(h3_dir_path, '*.parquet'))
+        parquet_files = smart_glob(smart_join(h3_dir_path, '*.parquet'))
         if not parquet_files:
-            parquet_files = smart_glob(os.path.join(h3_dir_path, '**/*.parquet'), recursive=True)
+            parquet_files = smart_glob(smart_join(h3_dir_path, '**/*.parquet'), recursive=True)
         if parquet_files:
             return parquet_files[0]
 
@@ -2342,7 +2343,7 @@ def egi_export_part(df, odir, fmt='parquet', is_file_path=False, partition_level
             continue
 
         oname = str(part_hash)
-        opath = os.path.join(odir, f"{oname}.{fmt}")
+        opath = smart_join(odir, f"{oname}.{fmt}")
 
         written_path = _write_egi_file(tile_df, opath, fmt)
         if written_path:

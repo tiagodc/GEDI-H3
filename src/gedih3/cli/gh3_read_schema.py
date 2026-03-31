@@ -83,13 +83,13 @@ def get_cmd_args():
 
 def _detect_file_type(path):
     """Detect display name for the file/directory type."""
-    from gedih3.utils import smart_exists, smart_isdir
+    from gedih3.utils import smart_exists, smart_isdir, smart_join
     path_lower = path.lower()
     if path_lower.endswith(('.h5', '.hdf5')):
         return "HDF5"
     if smart_isdir(path):
         from gedih3.config import BUILD_LOG_FILENAME
-        build_log = os.path.join(path, BUILD_LOG_FILENAME)
+        build_log = smart_join(path, BUILD_LOG_FILENAME)
         if smart_exists(build_log):
             return "H3 Database"
         from gedih3.cliutils import detect_dataset_format

@@ -23,6 +23,19 @@ def is_remote_path(path):
     )
 
 
+def smart_join(*parts):
+    """os.path.join() that uses forward slashes for remote URLs.
+
+    On Windows, os.path.join uses backslashes which corrupts URLs like
+    ``http://host:port/path`` into ``http://host:port\\path``, causing
+    port-parsing failures in urllib3.
+    """
+    if parts and is_remote_path(parts[0]):
+        import posixpath
+        return posixpath.join(*parts)
+    return os.path.join(*parts)
+
+
 _storage_options = {}  # keyed by protocol → options dict
 
 
@@ -266,7 +279,7 @@ def _read_manifest(root_path):
     if root_path in _manifest_cache:
         return _manifest_cache[root_path]
 
-    manifest_path = os.path.join(root_path.rstrip('/'), MANIFEST_FILENAME)
+    manifest_path = smart_join(root_path.rstrip('/'), MANIFEST_FILENAME)
 
     try:
         with smart_open(manifest_path, 'r') as f:
@@ -537,11 +550,11 @@ def smart_glob(pattern, recursive=False):
                 if len(segments) >= depth:
                     candidate = '/'.join(segments[:depth])
                     if rx.match(candidate):
-                        dirs.add(os.path.join(root_stripped, candidate))
+                        dirs.add(smart_join(root_stripped, candidate))
             return sorted(dirs)
         else:
             matched = [
-                os.path.join(root_stripped, entry)
+                smart_join(root_stripped, entry)
                 for entry in manifest
                 if rx.match(entry)
             ]
@@ -736,12 +749,12 @@ def read_h3_database_schema(db_path):
     FileNotFoundError
         If no H3 partition directories or parquet files found
     """
-    partition_dirs = smart_glob(os.path.join(db_path, 'h3_*=*/'))
+    partition_dirs = smart_glob(smart_join(db_path, 'h3_*=*/'))
     if not partition_dirs:
         raise GediDatabaseNotFoundError(f"No H3 partition directories found in {db_path}")
     for pdir in partition_dirs:
         # Search recursively — partitions may have nested hive dirs (e.g. year=*)
-        pq_files = smart_glob(os.path.join(pdir, '**', '*.parquet'), recursive=True)
+        pq_files = smart_glob(smart_join(pdir, '**', '*.parquet'), recursive=True)
         if pq_files:
             return read_parquet_schema(pq_files[0])
     raise GediDatabaseNotFoundError(f"No parquet files found in any partition of {db_path}")
@@ -776,7 +789,7 @@ def read_schema(path, root=None):
     if smart_isdir(path):
         # Check for H3 database first (has build log)
         from .config import BUILD_LOG_FILENAME
-        build_log = os.path.join(path, BUILD_LOG_FILENAME)
+        build_log = smart_join(path, BUILD_LOG_FILENAME)
         if smart_exists(build_log):
             return read_h3_database_schema(path)
         # Fall through to simplified dataset detection

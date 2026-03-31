@@ -44,9 +44,9 @@ def detect_dataset_format(dataset_path):
         If detected format is not in PIPELINE_FORMATS
     """
     import json
-    from .utils import smart_exists, smart_open, smart_glob
+    from .utils import smart_exists, smart_open, smart_glob, smart_join
 
-    meta_path = os.path.join(dataset_path, DATASET_META_FILENAME)
+    meta_path = smart_join(dataset_path, DATASET_META_FILENAME)
     if smart_exists(meta_path):
         with smart_open(meta_path, 'r') as f:
             meta = json.load(f)
@@ -62,7 +62,7 @@ def detect_dataset_format(dataset_path):
     # Scan directory for known extensions (parquet first for backwards compat)
     for fmt, patterns in FORMAT_EXTENSIONS.items():
         for pattern in patterns:
-            if smart_glob(os.path.join(dataset_path, pattern)):
+            if smart_glob(smart_join(dataset_path, pattern)):
                 return fmt
 
     return 'parquet'
@@ -102,7 +102,7 @@ def list_dataset_files(dataset_path, fmt=None):
 
     files = []
     for pattern in patterns:
-        files.extend(smart_glob(os.path.join(dataset_path, pattern)))
+        files.extend(smart_glob(smart_join(dataset_path, pattern)))
 
     if not files:
         raise GediDatabaseNotFoundError(
@@ -631,8 +631,9 @@ def get_dataset_index_info(database):
     import json
     from .utils import smart_exists, smart_open
 
-    build_log_path = os.path.join(database, BUILD_LOG_FILENAME)
-    dataset_meta_path = os.path.join(database, DATASET_META_FILENAME)
+    from .utils import smart_join
+    build_log_path = smart_join(database, BUILD_LOG_FILENAME)
+    dataset_meta_path = smart_join(database, DATASET_META_FILENAME)
 
     if smart_exists(build_log_path):
         with smart_open(build_log_path, 'r') as f:
