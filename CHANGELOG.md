@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.1.5] - 2026-03-31
+
+### Fixed
+- Fixed `os.path.join` producing backslash-corrupted URLs on Windows for all remote paths (HTTP, S3, FTP)
+- Added `smart_join` utility that uses forward slashes for remote URLs across all CLI tools and library functions
+- Fixed Dask workers failing to authenticate against remote HTTP/S3 servers (storage credentials were not propagated to worker processes)
+- Fixed `h3_12` index being dropped when reading multi-file H3 partitions from remote servers (`pd.concat` with `ignore_index=True`)
+- Fixed lint failure from missing `smart_join` import in `list_dataset_files`
+
 ## [0.1.4] - 2026-03-27
 
 ### Fixed
