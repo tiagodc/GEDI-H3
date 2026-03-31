@@ -127,14 +127,15 @@ def _update_from_database(args, dataset_path, dataset_meta, logger):
     # If source_database points to a simplified dataset (not an H3 database),
     # walk back the metadata chain to find the original H3 database.
     from gedih3.config import BUILD_LOG_FILENAME, DATASET_META_FILENAME
-    build_log_path = os.path.join(db_path, BUILD_LOG_FILENAME)
+    from gedih3.utils import smart_join
+    build_log_path = smart_join(db_path, BUILD_LOG_FILENAME)
     if not smart_exists(build_log_path):
-        chain_meta_path = os.path.join(db_path, DATASET_META_FILENAME)
+        chain_meta_path = smart_join(db_path, DATASET_META_FILENAME)
         if smart_exists(chain_meta_path):
             with open(chain_meta_path, 'r') as f:
                 chain_meta = json.load(f)
             upstream = chain_meta.get('source_database')
-            if upstream and smart_exists(os.path.join(upstream, BUILD_LOG_FILENAME)):
+            if upstream and smart_exists(smart_join(upstream, BUILD_LOG_FILENAME)):
                 logger.info(f"  source_database is a simplified dataset, tracing back to: {upstream}")
                 db_path = upstream
             else:
@@ -240,7 +241,7 @@ def _update_h3_partitions(dataset_path, db_path, data_files, fmt, new_cols,
 
     import gedih3.gh3driver as gh3
     from gedih3.cliutils import make_dataset_reader, h3_col_name
-    from gedih3.utils import smart_exists
+    from gedih3.utils import smart_exists, smart_join
 
     h3_part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=db_path)
     h3_part_col = h3_col_name(h3_part)
@@ -251,7 +252,7 @@ def _update_h3_partitions(dataset_path, db_path, data_files, fmt, new_cols,
 
     for fpath in data_files:
         part_id = os.path.splitext(os.path.basename(fpath))[0]
-        h3_dir = os.path.join(db_path, f"{h3_part_col}={part_id}")
+        h3_dir = smart_join(db_path, f"{h3_part_col}={part_id}")
 
         target_df = reader(fpath)
 
@@ -286,7 +287,7 @@ def _update_egi_partitions(dataset_path, db_path, data_files, fmt, new_cols,
     import gedih3.gh3driver as gh3
     from gedih3.cliutils import make_dataset_reader
     from gedih3.egi.config import egi_col_name
-    from gedih3.utils import smart_exists
+    from gedih3.utils import smart_exists, smart_join
 
     # Get EGI partition level from metadata
     egi_partition_level = dataset_meta.get('egi_partition_level', 12)
@@ -310,7 +311,7 @@ def _update_egi_partitions(dataset_path, db_path, data_files, fmt, new_cols,
 
         source_dfs = []
         for h3_id in h3_list:
-            h3_dir = os.path.join(db_path, f"{h3_part_col}={h3_id}")
+            h3_dir = smart_join(db_path, f"{h3_part_col}={h3_id}")
             if smart_exists(h3_dir):
                 df = gh3.gh3_load_hex(h3_dir, columns=load_cols)
                 if len(df) > 0:
@@ -351,8 +352,8 @@ def _update_from_merge(args, dataset_path, dataset_meta, logger):
     merge_path = args.merge
 
     # Validate merge dataset
-    merge_meta_path = os.path.join(merge_path, DATASET_META_FILENAME)
-    from gedih3.utils import smart_exists
+    from gedih3.utils import smart_exists, smart_join
+    merge_meta_path = smart_join(merge_path, DATASET_META_FILENAME)
     if not smart_exists(merge_meta_path):
         raise FileNotFoundError(f"Not a simplified dataset (no {DATASET_META_FILENAME}): {merge_path}")
 
@@ -501,8 +502,8 @@ def main():
         dataset_path = args.dataset
 
         # Validate target dataset
-        from gedih3.utils import smart_exists
-        meta_path = os.path.join(dataset_path, DATASET_META_FILENAME)
+        from gedih3.utils import smart_exists, smart_join
+        meta_path = smart_join(dataset_path, DATASET_META_FILENAME)
         if not smart_exists(meta_path):
             raise FileNotFoundError(
                 f"Not a simplified dataset (no {DATASET_META_FILENAME}): {dataset_path}\n"

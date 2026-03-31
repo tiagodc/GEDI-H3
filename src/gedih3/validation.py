@@ -391,8 +391,9 @@ def validate_database_path(db_path: str) -> str:
         )
 
     # Check for H3 partition directories or parquet files
-    h3_dirs = smart_glob(os.path.join(db_path, 'h3_*/'))
-    parquet_files = smart_glob(os.path.join(db_path, '**/*.parquet'), recursive=True)
+    from .utils import smart_join
+    h3_dirs = smart_glob(smart_join(db_path, 'h3_*/'))
+    parquet_files = smart_glob(smart_join(db_path, '**/*.parquet'), recursive=True)
 
     if not h3_dirs and not parquet_files:
         raise GediDatabaseNotFoundError(
