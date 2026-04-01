@@ -1298,6 +1298,14 @@ def build_query_string(args, available_columns=None):
     if args.time_end:
         queries.append(f"datetime <= '{args.time_end}'")
         
+    # Beam type filter — decode beam from shot_number arithmetic
+    if getattr(args, 'beam_type', None):
+        beam_expr = "shot_number % 10000000000000 // 100000000000"
+        if args.beam_type == 'power':
+            queries.append(f"({beam_expr}) > 3")
+        elif args.beam_type == 'coverage':
+            queries.append(f"({beam_expr}) <= 3")
+
     # Custom query
     if args.query:
         queries.append(f"({args.query})")
