@@ -241,11 +241,11 @@ result = ddf.map_partitions(
 ## Exporting Data
 
 ```python
-# Export to flat Parquet (default)
-gh3.gh3_export(ddf, output='path/to/output/', drop_internal=True)
+# Export to flat Parquet — preserves shot_number and spatial indexes by default
+gh3.gh3_export(ddf, output='path/to/output/')
 
-# Export with geometry (GeoParquet)
-gh3.gh3_export(ddf, output='path/to/output/', geometry=True)
+# Drop spatial index columns (h3_XX, egiXX, shot_number) for external consumers
+gh3.gh3_export(ddf, output='path/to/output/', drop_internal=True)
 ```
 
 The exported dataset is compatible with `gh3_rasterize`, `gh3_from_img`, `gh3_from_polygon`, and any tool that reads Parquet (pandas, R, QGIS, DuckDB).

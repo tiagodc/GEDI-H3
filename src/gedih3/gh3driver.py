@@ -942,15 +942,15 @@ def _detect_export_params(ddf, index_type=None):
 
 
 def gh3_export(ddf, output, fmt='parquet', merge=False,
-               show_progress=True, drop_internal=True,
+               show_progress=True, drop_internal=False,
                write_metadata=True, source_database=None,
                tool=None, h3_partition_level=None, **metadata_kwargs):
     """
     Export a Dask DataFrame to simplified flat files with metadata.
 
     This is the high-level export function that encapsulates the full export
-    pipeline: drop internal columns, persist, write partition files, and
-    write dataset metadata. It replaces the boilerplate pattern of
+    pipeline: persist, write partition files, and write dataset metadata.
+    It replaces the boilerplate pattern of
     map_partitions + persist + progress + gh3_write_dataset_meta.
 
     Parameters
@@ -969,7 +969,8 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
         If True and a Dask distributed client is available, show progress bar.
     drop_internal : bool
         If True, drop internal columns (h3_XX, egiXX, _egi_x/y, shot_number*)
-        before export.
+        before export. Default False — internal columns are kept so downstream
+        tools can join on shot_number or spatial indexes.
     write_metadata : bool
         If True, write dataset metadata file.
     source_database : str, optional

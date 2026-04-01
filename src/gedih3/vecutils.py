@@ -365,6 +365,11 @@ def join_polygons_to_points(df, vector_path, join_columns=None,
             break
     if sn_col:
         out['shot_number'] = joined[sn_col].values
+    else:
+        logger.warning(
+            "shot_number column not found in partition — output will lack shot identifiers. "
+            "Use an H3 database or gh3_extract output as the data source."
+        )
 
     # Polygon attribute columns
     for c in poly_cols:

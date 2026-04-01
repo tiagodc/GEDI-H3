@@ -542,6 +542,11 @@ def sample_raster_at_points(df, raster_path, band_names=None,
             break
     if sn_col:
         out['shot_number'] = df[sn_col].values
+    else:
+        logger.warning(
+            "shot_number column not found in partition — output will lack shot identifiers. "
+            "Use an H3 database or gh3_extract output as the data source."
+        )
 
     # Band values
     out.update(band_values)
