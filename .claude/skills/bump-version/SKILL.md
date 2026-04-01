@@ -66,16 +66,19 @@ Read each file first, then use the Edit tool to replace the OLD version with the
 3. **`docs/conf.py`**: `release = "OLD"` → `release = "NEW"`
 4. **`CITATION.cff`**: `version: OLD` → `version: NEW` — also update `date-released` to today's date (YYYY-MM-DD)
 5. **`tests/test_merge_build_logs.py`**: `'package_version': 'OLD'` → `'package_version': 'NEW'`
+6. **`recipe/meta.yaml`**: `{% set version = "OLD" %}` → `{% set version = "NEW" %}`
 
 ## Step 4: Verify updates
 
 Run this command (substituting the actual old version string):
 
 ```bash
-grep -rn "OLD_VERSION" pyproject.toml src/gedih3/__init__.py docs/conf.py CITATION.cff tests/test_merge_build_logs.py
+grep -rn "OLD_VERSION" pyproject.toml src/gedih3/__init__.py docs/conf.py CITATION.cff tests/test_merge_build_logs.py recipe/meta.yaml
 ```
 
 If any matches are found, fix them before proceeding. Matches in CHANGELOG.md are expected (historical entries) and should NOT be modified.
+
+> **Note**: `recipe/meta.yaml` also has a commented-out `sha256` field that must be updated **manually** after uploading to PyPI. The skill only updates the version string.
 
 ## Step 5: Update CHANGELOG.md
 
@@ -109,7 +112,7 @@ git rev-parse --short HEAD
 Stage all modified files and commit:
 
 ```bash
-git add pyproject.toml src/gedih3/__init__.py docs/conf.py CITATION.cff tests/test_merge_build_logs.py CHANGELOG.md
+git add pyproject.toml src/gedih3/__init__.py docs/conf.py CITATION.cff tests/test_merge_build_logs.py CHANGELOG.md recipe/meta.yaml
 git commit -m "bump version to NEW_VERSION"
 ```
 
@@ -123,6 +126,6 @@ Display:
 Version bump complete: OLD → NEW
 Pre-bump commit:  <short hash>
 Bump commit:      <short hash>
-Files updated:    6
+Files updated:    7
 Run `git push` when ready to publish.
 ```
