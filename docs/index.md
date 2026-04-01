@@ -227,17 +227,15 @@ gedih3 is not the only way to access GEDI data. Here is an honest look at when i
 :::{grid-item-card} {octicon}`check-circle-fill;1.2em` Where gedih3 wins
 :class-card: sd-border-success comparison-card
 
+**Fast spatial aggregation** --- H3 indexing resolves spatial containment by arithmetic, not geometry operations. Pick a resolution and a reduction function --- grouping is instant. Any Python callable from the API; GEE is limited to fixed reducers.
+
 **Full variable access** --- 300+ variables per product vs. ~101 in GEE. Per-algorithm RH metrics, waveform parameters, and geolocation details that GEE does not expose.
 
-**All GEDI products** --- L1B, L2A, L2B, L4A, and L4C. GEE lacks L1B waveforms and the newer L4C structural complexity index (WSCI).
+**All GEDI products** --- L1B, L2A, L2B, L4A, and L4C. GEE lacks L1B waveforms and L4C (WSCI).
 
-**Custom aggregation** --- pass any Python function (per-hexagon regressions, bootstrap confidence intervals, custom filters). GEE is limited to fixed reducers.
+**Your data, your hardware** --- offline databases, no compute quotas, fully reproducible. Scales from laptop to HPC cluster.
 
-**Beam-level control** --- separate full-power vs. coverage beams, apply beam-specific sensitivity thresholds, analyze per-algorithm results independently.
-
-**Your data, your hardware** --- offline databases, no compute quotas, fully reproducible analyses. Scales from a laptop to an HPC cluster.
-
-**DuckDB/SQL compatible** --- query your GEDI database with SQL, join with any other dataset, run larger-than-memory queries.
+**DuckDB/SQL compatible** --- query your GEDI database with SQL, join with any dataset, larger-than-memory queries.
 :::
 
 :::{grid-item-card} {octicon}`arrow-switch;1.2em` Where GEE may be better
@@ -254,19 +252,19 @@ gedih3 is not the only way to access GEDI data. Here is an honest look at when i
 
 ::::
 
-**In short:** if you need quick access to basic height and biomass variables for exploratory analysis, GEE is hard to beat. If you need the full variable set, custom processing, L4C data, beam-level control, or reproducible offline pipelines --- gedih3 is the right tool.
+**In short:** if you need quick access to basic height and biomass variables for exploratory analysis, GEE is hard to beat. If you need the full variable set, fast index-based spatial aggregation with custom functions, L4C data, beam-level control, or reproducible offline pipelines --- gedih3 is the right tool.
 
 :::{dropdown} Other GEDI tools and how they compare
 
-**[rGEDI](https://github.com/carlos-alberto-silva/rGEDI)** (R, ~180 stars) --- Supports L1B, L2A, L2B with waveform visualization and a unique waveform simulation capability. Removed from CRAN; no L4A/L4C support, no distributed processing. Best for: R users doing waveform-level analysis on small areas.
+**[rGEDI](https://github.com/carlos-alberto-silva/rGEDI)** (R, ~180 stars) --- Supports L1B, L2A, L2B with waveform visualization and a unique waveform simulation capability. Removed from CRAN; no L4A/L4C support, no distributed processing, no index-based aggregation. Best for: R users doing waveform-level analysis on small areas.
 
-**[gediDB](https://github.com/simonbesnard1/gedidb)** (Python, published in JOSS) --- The closest tool in spirit to gedih3. Uses TileDB as the storage backend instead of H3-partitioned Parquet. Supports L2A-B and L4A-C. No CLI tools, no rasterization pipeline, no variable presets. Best for: users who prefer the TileDB ecosystem.
+**[gediDB](https://github.com/simonbesnard1/gedidb)** (Python, published in JOSS) --- Uses TileDB as the storage backend instead of H3-partitioned Parquet. Supports L2A-B and L4A-C. No CLI tools, no rasterization pipeline, no variable presets, and no built-in spatial aggregation. Best for: users who prefer the TileDB ecosystem.
 
-**[SlideRule Earth](https://slideruleearth.io/)** (cloud service) --- On-demand, cloud-based processing of GEDI and ICESat-2 data. Returns subsets with quality filtering but no custom aggregation or rasterization. Best for: quick, on-demand subsets without local infrastructure.
+**[SlideRule Earth](https://slideruleearth.io/)** (cloud service) --- On-demand, cloud-based processing of GEDI and ICESat-2 data. Returns subsets with quality filtering but no spatial aggregation or rasterization. Best for: quick, on-demand subsets without local infrastructure.
 
 **[chewie](https://github.com/Permian-Global-Research/chewie)** (R, experimental) --- Lightweight download-to-Parquet tool with Arrow integration. No spatial indexing or aggregation. Best for: R users who want Parquet output without the full pipeline.
 
-**Manual workflow** (earthaccess + h5py + geopandas) --- Always an option. gedih3 automates the ~500 lines of boilerplate this typically requires: authentication, file discovery, HDF5 parsing, beam iteration, quality filtering, coordinate extraction, spatial indexing, and format conversion.
+**Manual workflow** (earthaccess + h5py + geopandas) --- Always an option, but spatial aggregation alone typically requires writing point-in-polygon joins or manual grid binning. gedih3 automates the ~500 lines of boilerplate this requires and replaces geometry operations with instant index-based grouping.
 
 :::
 
@@ -299,7 +297,7 @@ Learn about GEDI data, H3 hexagonal indexing, EGI square-pixel indexing, and var
 :link: user-guide/index
 :link-type: doc
 
-Complete guide to building databases, CLI reference for all 11 tools, Python API, and data format specifications.
+Complete guide to building databases, CLI reference, Python API, and data format specifications.
 
 *Best for: users ready to run their own analyses*
 :::
