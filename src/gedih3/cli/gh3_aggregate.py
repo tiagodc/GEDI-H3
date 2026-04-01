@@ -78,7 +78,7 @@ def get_cmd_args():
                    help="pandas query string for filtering")
     p.add_argument("-y", "--quality", dest="quality", action='store_true',
                    help="apply quality filtering")
-    p.add_argument("--beam-type", dest="beam_type", type=str, default=None,
+    p.add_argument("-b", "--beam-type", dest="beam_type", type=str, default=None,
                    choices=["power", "coverage"],
                    help="filter by beam type: 'power' (full-power beams) or 'coverage' (coverage beams)")
 
