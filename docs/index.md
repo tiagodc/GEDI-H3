@@ -146,3 +146,11 @@ user-guide/index
 
 autoapi/index
 ```
+
+```{toctree}
+:maxdepth: 1
+:caption: About
+:hidden:
+
+about
+```
