@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.0] - 2026-04-01
+
+### Added
+- Beam type selection option for filtering GEDI data by beam type
+- Short beam type selector flag for convenient beam filtering
+
+### Changed
+- Updated tool comparisons documentation
+- New landing page for documentation
+- Added funding acknowledgements
+
 ## [0.1.6] - 2026-04-01
 
 ### Changed

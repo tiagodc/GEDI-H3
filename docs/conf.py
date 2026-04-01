@@ -5,7 +5,7 @@ import sys
 project = "gedih3"
 copyright = "2026, Tiago de Conto"
 author = "Tiago de Conto"
-release = "0.1.6"
+release = "0.2.0"
 
 # -- General configuration ---------------------------------------------------
 extensions = [
