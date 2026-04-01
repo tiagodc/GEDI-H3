@@ -276,7 +276,7 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
 
             reader = make_dataset_reader(fmt, columns=load_columns, geo=has_geo)
             dfs = [reader(f) for f in data_files]
-            result = pd.concat(dfs, ignore_index=True)
+            result = pd.concat(dfs)
 
             if index_col and result.index.name != index_col and index_col in result.columns:
                 result = result.set_index(index_col)
