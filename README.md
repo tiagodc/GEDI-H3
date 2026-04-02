@@ -35,29 +35,37 @@ Working with GEDI at scale is genuinely hard:
 - **Variable overload** — L2A alone provides 300+ variables per beam. Choosing the right ones for your analysis requires domain expertise.
 - **Scale** — the full dataset runs to terabytes and billions of rows. Without spatial indexing and distributed processing, even simple analyses can take days.
 
-**gedih3** addresses all of this:
-
-- **Expert-curated variable presets** — `minimal` and `default` sets for each product, designed by remote sensing scientists for common use cases.
-- **Pre-configured quality filtering** — scientifically-validated filters applied with a single flag (`-y`), following community best practices.
-- **Spatial indexing from first principles** — H3 hexagonal database enables fast regional queries after a one-time build step.
-- **Full pipeline in one package** — download → build → query → aggregate → export, all from the CLI or Python.
-- **Analysis-ready outputs** — flat GeoParquet, GeoTIFF, and other formats compatible with R, QGIS, Python, and DuckDB.
+**gedih3** addresses all of this.
 
 ---
 
 ## Key Features
 
-- Complete data pipeline: download, build, extract, aggregate, rasterize — 11 CLI tools
 - Expert-curated `minimal` and `default` variable presets for all GEDI products (L1B, L2A, L2B, L4A, L4C)
-- Pre-configured quality filtering with a single flag
-- H3 hexagonal spatial indexing (levels 0–15) for fast regional queries
-- Dask-distributed processing — works on laptops, workstations, and HPC clusters
-- DuckDB compatible for fully featured spatial SQL querying, including larger-than-memory queries
-- Full Python API — chain operations in memory, no intermediate files required
-- Custom aggregation functions — pass any Python callable (e.g., per-hexagon regression models)
-- GeoTIFF export with compression, tiling, and time-series support
-- NASA Earthdata integration: authenticated downloads with retry logic and S3 streaming
-- Ancillary data fusion: sample external rasters and join vector polygons at shot level
+- Pre-configured quality filtering applied with a single flag (`-y | --quality`)
+- H3 hexagonal spatial indexing (levels 0–15) with partition pruning — only tiles intersecting your region are read
+- Incremental database: add new orbits, time periods, or variables without rebuilding; interrupted builds resume automatically
+- Memory-efficient builds: streams HDF5 data beam-by-beam, writes partitions independently, merges at row-group level
+- Network-efficient downloads: S3 streaming with on-the-fly variable subsetting and automatic resume
+- Build once, iterate fast: once built, extract/aggregate/rasterize run in seconds to minutes
+- Dask-distributed processing; works on laptops, workstations, and HPC clusters without code changes
+- command-line tools covering the full pipeline from download to analysis ready data outputs
+- Full Python API with custom aggregation functions (any callable, e.g., per-hexagon regression)
+- DuckDB compatible for spatial SQL querying, including larger-than-memory datasets
+- Multi-format export: GeoTIFF (with compression, tiling, time-series), GeoParquet, and others
+- Ancillary data fusion: sample external rasters and join vector polygons at GEDI footprint level
+
+---
+
+## How it works
+
+gedih3 is designed around a simple principle: **build once, iterate fast**.
+
+1. **Build** (`gh3_build`): Reads raw HDF5 files beam-by-beam via Dask, assigns each shot an H3 spatial index, and writes partitioned GeoParquet — one file per spatial tile per year. A build log tracks every ingested granule. Interrupted builds resume from where they stopped. New data merges into the existing database.
+
+2. **Query** (`gh3_load` / `gh3_extract`): The H3 partition structure resolves which files to read via index arithmetic — no scanning. Only partitions whose H3 cells intersect your region are opened.
+
+3. **Aggregate** (`gh3_aggregate`): Every shot carries an H3 cell ID, so aggregation to any coarser resolution is a local groupby within each partition — no data shuffle across parallel workers.
 
 ---
 

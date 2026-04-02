@@ -55,7 +55,7 @@ gedih3 uses H3 at two different resolution levels simultaneously:
 The fine H3 level assigned to each individual GEDI shot. At level 12, each hexagon is roughly the size of a GEDI footprint, so a shot's coordinates are intersected at this scale to determine its cell. All coarser groupings are derived from this index via H3's parent hierarchy
 
 **Partition level** (default: level 3, ~12,000 km²)
-The coarse H3 level used to organize files on disk. Because every level-12 cell has a unique level-3 ancestor, shots are grouped into partitions by that ancestor — no separate spatial lookup needed. A spatial query then only reads the partitions whose level-3 cell overlaps the area of interest, skipping everything else.
+The coarse H3 level used to organize files on disk. Because every level-12 cell has a unique level-3 ancestor, shots are grouped into partitions by that ancestor — no separate spatial lookup needed. A spatial query then only reads the partitions whose cells overlap the area of interest, skipping everything else. For a country-sized query against a global database, this typically means 95%+ of partitions are never opened.
 
 :::{figure} ../imgs/h3_two_level.png
 :alt: H3 dual-level partition and index structure
