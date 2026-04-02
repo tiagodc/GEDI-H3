@@ -86,7 +86,9 @@ gedih3 is a Python library and CLI toolchain that handles the entire pipeline fr
 :link: concepts/h3-indexing
 :link-type: doc
 
-gedih3 builds a spatially-indexed database from raw GEDI files using [Uber's H3 hexagonal grid](https://h3geo.org/). Once built, you query by region --- bounding box, shapefile, or country code --- and only relevant data is read. A query over Costa Rica touches only tiles that cover Costa Rica.
+gedih3 builds a spatially-indexed database from raw GEDI files using [Uber's H3 hexagonal grid](https://h3geo.org/). Once built, you query by region --- bounding box, shapefile, or country code --- and only relevant partitions are read from disk. A query over Costa Rica touches only tiles that cover Costa Rica; everything else is skipped before any data is loaded.
+
+The database is incremental. New orbits, time periods, or variables merge into an existing database without rebuilding --- gedih3 tracks what has been ingested and processes only what is new. Interrupted builds resume from the last completed step.
 :::
 
 :::{grid-item-card} {octicon}`list-unordered;1.2em` Expert-curated variable presets
@@ -103,20 +105,29 @@ Instead of figuring out which of the hundreds of GEDI variables matter for your 
 Quality flags are included in every database by default. A single `--quality` flag enforces them across all products at once --- no need to remember which flags apply where. Need finer control? Use `--query` to add any custom pandas filter on top (beam type, sensitivity thresholds, time ranges, or any variable in the database).
 :::
 
-:::{grid-item-card} {octicon}`rocket;1.2em` Scales from laptop to cluster
+:::{grid-item-card} {octicon}`beaker;1.2em` Flexible aggregation
 
-Built on [Dask](https://www.dask.org/), gedih3 runs on a laptop for small areas and scales to HPC clusters for continental analyses --- without changing your code. Aggregate billions of shots to hexagonal maps or GeoTIFF rasters using the same commands.
+From the CLI: `mean`, `std`, `count`, percentile shorthands (`p25`, `p95`), per-column specs, or JSON/text files. From the Python API: pass any callable --- fit a regression model, compute a custom metric, or run any analysis per hexagon. Aggregation uses partition-local grouping with no data shuffle across workers, so it scales linearly with data size.
 :::
 
-:::{grid-item-card} {octicon}`tools;1.2em` Complete pipeline
+:::{grid-item-card} {octicon}`rocket;1.2em` Scales from laptop to cluster
+
+Built on [Dask](https://www.dask.org/), gedih3 auto-detects available resources and distributes work accordingly. On a laptop, it streams HDF5 data beam-by-beam without loading entire files into memory --- the build process works within constrained RAM. On an HPC cluster, it can use an existing Dask scheduler with no code changes. NASA credentials are propagated to worker processes automatically.
+:::
+
+:::{grid-item-card} {octicon}`tools;1.2em` Complete pipeline --- from download to analysis ready datasets
 :link: user-guide/cli-reference
 :link-type: doc
 :columns: 12
 
-Command line tools and a full Python API cover every step: download from NASA, build the database, extract and filter, aggregate to any spatial scale, fuse with external rasters or vector data, and export to GeoTIFF, GeoParquet or any other geospatial format of your preference. Supports all major GEDI products (L1B, L2A, L2B, L4A, L4C).
+several command-line tools and a full Python API cover every step: download from NASA, build the database, extract and filter, aggregate to any spatial scale, fuse with external rasters or vector data, and export to GeoTIFF, GeoParquet, or any format your tools can read. Downloads subset HDF5 files on the fly, keeping only the variables you requested. S3 streaming mode uses range requests to transfer only selected variables --- up to 10--50x less data than downloading full GEDI granules. Supports all major GEDI products (L1B, L2A, L2B, L4A, L4C).
 :::
 
 ::::
+
+### Build once, iterate fast
+
+The download and build steps run once and may take time depending on your network, system resources, and region of interest. But once the database exists, everything downstream is fast. Extract, aggregate, and rasterize read only the partitions they need and process them without shuffling data between parallel workers. Changing your aggregation resolution, variable selection, quality filters, or output format takes seconds to minutes --- not hours. This makes gedih3 well-suited for iterative exploration and experimentation.
 
 ---
 
@@ -236,6 +247,10 @@ gedih3 is not the only way to access GEDI data. Here is an honest look at when i
 **Your data, your hardware** --- offline databases, no compute quotas, fully reproducible. Scales from laptop to HPC cluster.
 
 **DuckDB/SQL compatible** --- query your GEDI database with SQL, join with any dataset, larger-than-memory queries.
+
+**Incremental and resumable** --- add new time periods, regions, or variables to an existing database without starting over. gedih3 tracks every ingested granule and processes only what is new. Interrupted builds resume automatically.
+
+**Network/storage efficient** --- S3 streaming mode transfers only selected variables via range requests. Post-download subsetting trims already-fetched files to the variables you need. The storage required is a fraction of the full archive.
 :::
 
 :::{grid-item-card} {octicon}`arrow-switch;1.2em` Where GEE may be better
@@ -256,13 +271,22 @@ gedih3 is not the only way to access GEDI data. Here is an honest look at when i
 
 :::{dropdown} Other GEDI tools and how they compare
 
-**[rGEDI](https://github.com/carlos-alberto-silva/rGEDI)** (R, ~180 stars) --- Supports L1B, L2A, L2B with waveform visualization and a unique waveform simulation capability. Removed from CRAN; no L4A/L4C support, no distributed processing, no index-based aggregation. Best for: R users doing waveform-level analysis on small areas.
+| Capability | gedih3 | rGEDI | gediDB | SlideRule |
+|---|:---:|:---:|:---:|:---:|
+| Incremental database | Yes | -- | Yes | -- |
+| On-the-fly variable subsetting | Yes | -- | Yes | Yes |
+| Spatial indexing | Yes | -- | -- | -- |
+| Spatial aggregation functions | Yes | -- | -- | -- |
+| CLI pipeline | Yes | -- | -- | -- |
+| GeoTIFF rasterization | Yes | -- | -- | -- |
+| Offline / reproducible | Yes | Yes | Yes | -- |
+| All GEDI products (L1B--L4C) | Yes | Partial | Partial | Partial |
 
-**[gediDB](https://github.com/simonbesnard1/gedidb)** (Python, published in JOSS) --- Uses TileDB as the storage backend instead of H3-partitioned Parquet. Supports L2A-B and L4A-C. No CLI tools, no rasterization pipeline, no variable presets, and no built-in spatial aggregation. Best for: users who prefer the TileDB ecosystem.
+**[rGEDI](https://github.com/carlos-alberto-silva/rGEDI)** (R) --- Supports L1B, L2A, L2B with waveform visualization and waveform simulation capability. Best for: R users doing waveform-level analysis on small areas.
+
+**[gediDB](https://github.com/simonbesnard1/gedidb)** (Python) --- Uses TileDB as the storage backend instead of H3-partitioned Parquet. Supports L2A-B and L4A-C. Best for: users who prefer the TileDB ecosystem with strong Python programming skills.
 
 **[SlideRule Earth](https://slideruleearth.io/)** (cloud service) --- On-demand, cloud-based processing of GEDI and ICESat-2 data. Returns subsets with quality filtering but no spatial aggregation or rasterization. Best for: quick, on-demand subsets without local infrastructure.
-
-**[chewie](https://github.com/Permian-Global-Research/chewie)** (R, experimental) --- Lightweight download-to-Parquet tool with Arrow integration. No spatial indexing or aggregation. Best for: R users who want Parquet output without the full pipeline.
 
 **Manual workflow** (earthaccess + h5py + geopandas) --- Always an option, but spatial aggregation alone typically requires writing point-in-polygon joins or manual grid binning. gedih3 automates the ~500 lines of boilerplate this requires and replaces geometry operations with instant index-based grouping.
 

@@ -54,6 +54,10 @@ gh3_build -r "-51,0,-50,1" -l2a minimal -l4a minimal
 
 Converts downloaded HDF5 files into an H3-indexed Parquet database at `~/gedi_data/h3/`. This is a one-time step; the database can be queried and re-used without rebuilding.
 
+:::{tip}
+The database is incremental. If you later expand your region, time range, or variable selection, re-run `gh3_build` with the updated parameters --- existing data is preserved and only new data is processed.
+:::
+
 > The database you build here determines which variables, region, and time period are available to all downstream tools. For a full guide to variable selection, subsetting strategies, source modes, and performance tuning, see [**Building a Database**](../user-guide/building-a-database.md).
 
 ---

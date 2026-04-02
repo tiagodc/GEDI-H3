@@ -1,6 +1,6 @@
 # Building a Database
 
-The H3 database is the foundation of every gedih3 workflow. Every other tool — `gh3_extract`, `gh3_aggregate`, `gh3_rasterize`, and the ancillary data tools — reads from this database. Getting the build right means faster queries, less disk usage, and analysis-ready data from the start.
+The H3 database is the foundation of every gedih3 workflow. Every other tool — `gh3_extract`, `gh3_aggregate`, `gh3_rasterize`, and the ancillary data tools — reads from this database. The database is designed to grow incrementally: you can expand its spatial, temporal, or variable coverage at any time without rebuilding from scratch. Getting the build right means faster queries, less disk usage, and analysis-ready data from the start.
 
 This page explains what `gh3_build` does, what it produces, how to control the process, and how to make good choices for your specific use case.
 
