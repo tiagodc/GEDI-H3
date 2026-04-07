@@ -1085,8 +1085,9 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
             write_task = write_task.persist()
             if show_progress:
                 progress(write_task)
-            else:
-                write_task.compute()
+            # Always compute after persist/progress to raise any task failures.
+            # progress() shows a bar but does not propagate exceptions from failed tasks.
+            write_task.compute()
         else:
             write_task.compute()
 
