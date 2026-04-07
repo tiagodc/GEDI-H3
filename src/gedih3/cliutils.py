@@ -235,6 +235,8 @@ def add_dask_args(parser, profile=None):
     else:
         n = max(1, cpus // 2)
         m = int(max(1, ram / n))
+    
+    n = min(n, 20)  # Cap at 20 workers for build profile to avoid too many small workers
 
     parser.add_argument("-s", "--dask-scheduler", dest="dask_scheduler", type=str, default=None,
                         help="existing dask scheduler address, e.g. tcp://localhost:8786")
