@@ -56,19 +56,19 @@ GEDI is one of the most important datasets for understanding forests at a global
 :gutter: 3
 
 :::{grid-item-card} {octicon}`globe;1.2em` Organized by orbit, not by location
-GEDI files are organized by when the International Space Station (ISS) passed overhead, not where. Asking *"show me all the data over Costa Rica"* means downloading and scanning thousands of files --- most of which contain no relevant data.
+GEDI files are organized by time, not geography. Querying a study area means scanning thousands of orbits --- most containing no relevant data.
 :::
 
-:::{grid-item-card} {octicon}`file-code;1.2em` Hundreds of variables, and which ones matter?
-Each GEDI product contains hundreds of variables across 8 laser beams in deeply nested HDF5 files. Most data tools cannot open them directly --- and even if you can, knowing which variables are relevant for your analysis requires domain expertise that most users don't have.
+:::{grid-item-card} {octicon}`file-code;1.2em` Hundreds of variables, buried in HDF5
+Each product has hundreds of variables across 8 laser beams in nested HDF5 files. Knowing which ones matter requires domain expertise most users don't have.
 :::
 
-:::{grid-item-card} {octicon}`alert;1.2em` Quality flags and filters buried in the data
-Each GEDI product ships with its own quality flags, and using all of them correctly is easy to overlook. Without enforcing them, results look plausible but carry silent biases. Applying custom filters on top (e.g. beam selection, sensitivity thresholds) adds another layer of complexity.
+:::{grid-item-card} {octicon}`alert;1.2em` Quality flags easy to miss or misapply
+Each product ships with different quality flags. Skipping or misapplying them produces plausible but silently biased results.
 :::
 
 :::{grid-item-card} {octicon}`graph;1.2em` Scale: billions of measurements
-The full GEDI archive stores terabytes of data across thousands of files. Even a single country can involve millions of footprints. Without spatial indexing and distributed processing, simple analyses take hours or fail entirely.
+The full archive is terabytes across thousands of files. Without spatial indexing and distributed processing, simple analyses take hours or fail entirely.
 :::
 
 ::::
@@ -79,55 +79,48 @@ The full GEDI archive stores terabytes of data across thousands of files. Even a
 
 gedih3 is a Python library and CLI toolchain that handles the entire pipeline from raw NASA data to analysis-ready output.
 
-::::{grid} 1 1 2 2
+::::{grid} 1 2 3 3
 :gutter: 3
 
 :::{grid-item-card} {octicon}`database;1.2em` Spatial database from day one
 :link: concepts/h3-indexing
 :link-type: doc
 
-gedih3 builds a spatially-indexed database from raw GEDI files using [Uber's H3 hexagonal grid](https://h3geo.org/). Once built, you query by region --- bounding box, shapefile, or country code --- and only relevant partitions are read from disk. A query over Costa Rica touches only tiles that cover Costa Rica; everything else is skipped before any data is loaded.
-
-The database is incremental. New orbits, time periods, or variables merge into an existing database without rebuilding --- gedih3 tracks what has been ingested and processes only what is new. Interrupted builds resume from the last completed step.
+H3-indexed, region-partitioned database built from raw GEDI files. Queries touch only relevant tiles. Builds incrementally; interrupted builds resume automatically.
 :::
 
 :::{grid-item-card} {octicon}`list-unordered;1.2em` Expert-curated variable presets
 :link: concepts/variable-presets
 :link-type: doc
 
-Instead of figuring out which of the hundreds of GEDI variables matter for your analysis, use `minimal` or `default` presets designed by remote sensing scientists. They select the right variables from each product so you don't have to. The output is flat GeoParquet --- one row per measurement, one column per variable --- readable by pandas, R, QGIS, DuckDB, or any modern tool.
+Use `minimal` or `default` presets designed by remote sensing scientists. Output is flat GeoParquet --- readable by pandas, R, QGIS, DuckDB, or any modern tool.
 :::
 
-:::{grid-item-card} {octicon}`check-circle;1.2em` Automated quality filtering + custom queries
+:::{grid-item-card} {octicon}`check-circle;1.2em` Automated quality filtering
 :link: user-guide/building-a-database
 :link-type: doc
 
-Quality flags are included in every database by default. A single `--quality` flag enforces them across all products at once --- no need to remember which flags apply where. Need finer control? Use `--query` to add any custom pandas filter on top (beam type, sensitivity thresholds, time ranges, or any variable in the database).
+A single `--quality` flag enforces all product-specific flags at once. Add custom pandas filters for beams, sensitivity thresholds, or time ranges with `--query`.
 :::
 
 :::{grid-item-card} {octicon}`beaker;1.2em` Flexible aggregation
 
-From the CLI: `mean`, `std`, `count`, percentile shorthands (`p25`, `p95`), per-column specs, or JSON/text files. From the Python API: pass any callable --- fit a regression model, compute a custom metric, or run any analysis per hexagon. Aggregation uses partition-local grouping with no data shuffle across workers, so it scales linearly with data size.
+CLI shorthands (`mean`, `p95`) or any Python callable per hexagon. Partition-local grouping avoids data shuffling --- scales linearly with data size.
 :::
 
 :::{grid-item-card} {octicon}`rocket;1.2em` Scales from laptop to cluster
 
-Built on [Dask](https://www.dask.org/), gedih3 auto-detects available resources and distributes work accordingly. On a laptop, it streams HDF5 data beam-by-beam without loading entire files into memory --- the build process works within constrained RAM. On an HPC cluster, it can use an existing Dask scheduler with no code changes. NASA credentials are propagated to worker processes automatically.
+Built on [Dask](https://www.dask.org/). Streams HDF5 beam-by-beam within constrained RAM on a laptop; connects to an existing Dask scheduler on HPC with no code changes.
 :::
 
-:::{grid-item-card} {octicon}`tools;1.2em` Complete pipeline --- from download to analysis ready datasets
+:::{grid-item-card} {octicon}`tools;1.2em` Complete pipeline
 :link: user-guide/cli-reference
 :link-type: doc
-:columns: 12
 
-several command-line tools and a full Python API cover every step: download from NASA, build the database, extract and filter, aggregate to any spatial scale, fuse with external rasters or vector data, and export to GeoTIFF, GeoParquet, or any format your tools can read. Downloads subset HDF5 files on the fly, keeping only the variables you requested. S3 streaming mode uses range requests to transfer only selected variables --- up to 10--50x less data than downloading full GEDI granules. Supports all major GEDI products (L1B, L2A, L2B, L4A, L4C).
+Download, build, extract, aggregate, fuse with external data, and export to GeoTIFF or GeoParquet --- all from the CLI or Python API. All GEDI products (L1B–L4C).
 :::
 
 ::::
-
-### Build once, iterate fast
-
-The download and build steps run once and may take time depending on your network, system resources, and region of interest. But once the database exists, everything downstream is fast. Extract, aggregate, and rasterize read only the partitions they need and process them without shuffling data between parallel workers. Changing your aggregation resolution, variable selection, quality filters, or output format takes seconds to minutes --- not hours. This makes gedih3 well-suited for iterative exploration and experimentation.
 
 ---
 
@@ -238,31 +231,31 @@ gedih3 is not the only way to access GEDI data. Here is an honest look at when i
 :::{grid-item-card} {octicon}`check-circle-fill;1.2em` Where gedih3 wins
 :class-card: sd-border-success comparison-card
 
-**Fast spatial aggregation** --- H3 indexing resolves spatial containment by arithmetic, not geometry operations. Pick a resolution and a reduction function --- grouping is instant. Any Python callable from the API; GEE is limited to fixed reducers.
+**Fast spatial aggregation** --- index-based grouping, not geometry operations. Any Python callable; GEE is limited to fixed reducers.
 
-**Full variable access** --- 300+ variables per product vs. ~101 in GEE. Per-algorithm RH metrics, waveform parameters, and geolocation details that GEE does not expose.
+**Full variable access** --- 300+ variables per product vs. ~100 in GEE. Includes per-algorithm RH metrics and waveform parameters.
 
 **All GEDI products** --- L1B, L2A, L2B, L4A, and L4C. GEE lacks L1B waveforms and L4C (WSCI).
 
-**Your data, your hardware** --- offline databases, no compute quotas, fully reproducible. Scales from laptop to HPC cluster.
+**Your data, your hardware** --- offline, no compute quotas, reproducible. Scales from laptop to HPC.
 
-**DuckDB/SQL compatible** --- query your GEDI database with SQL, join with any dataset, larger-than-memory queries.
+**SQL compatible** --- query with DuckDB, join with any dataset, larger-than-memory queries.
 
-**Incremental and resumable** --- add new time periods, regions, or variables to an existing database without starting over. gedih3 tracks every ingested granule and processes only what is new. Interrupted builds resume automatically.
+**Incremental and resumable** --- add orbits, time periods, or variables without rebuilding. Interrupted builds resume automatically.
 
-**Network/storage efficient** --- S3 streaming mode transfers only selected variables via range requests. Post-download subsetting trims already-fetched files to the variables you need. The storage required is a fraction of the full archive.
+**Storage efficient** --- S3 streaming transfers only selected variables. A fraction of the full archive footprint.
 :::
 
 :::{grid-item-card} {octicon}`arrow-switch;1.2em` Where GEE may be better
 :class-card: sd-border-danger comparison-card
 
-**Zero setup** --- GEE has pre-loaded GEDI data. No download step, no build step, no local storage needed.
+**Zero setup** --- GEDI data pre-loaded. No download, no build, no local storage.
 
-**Quick exploration** --- for simple queries on common variables (canopy height, biomass), GEE is faster to a first result.
+**Quick exploration** --- faster to a first result for common variables.
 
-**Massive ecosystem** --- thousands of existing scripts, tutorials, and community examples. If your workflow already lives in GEE, adding GEDI is straightforward.
+**Massive ecosystem** --- thousands of existing scripts and community examples.
 
-**No local infrastructure** --- everything runs in the cloud. No disk space, no conda environments, no dependency management.
+**No local infrastructure** --- runs in the cloud; no disk space or conda environments.
 :::
 
 ::::
