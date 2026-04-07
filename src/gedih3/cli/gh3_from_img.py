@@ -51,7 +51,7 @@ def get_cmd_args():
 
     # Window operations
     p.add_argument("-w", "--window", dest="window", nargs='+', type=str, default=None,
-                   help="window ops in 3-digit format: band(0-9) size(1-9,odd) op(0=sum,1=mean,2=median,3=mode,4=std,5=min,6=max,7=count)")
+                   help="window ops in 3-digit format: band(0-9) size(1-9,odd) op(0=sum,1=mean,2=median,3=mode,4=std,5=min,6=max,7=count,8=range)")
 
     # Spatial/quality filtering
     p.add_argument("-r", "--region", dest="region", type=str, default=None,

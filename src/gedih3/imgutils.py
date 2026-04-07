@@ -26,7 +26,7 @@ from .exceptions import GediImageSamplingError
 logger = logging.getLogger(__name__)
 
 # Window operation IDs (matches legacy 3-digit spec)
-_WINDOW_OPS = {0: 'sum', 1: 'mean', 2: 'median', 3: 'mode', 4: 'std', 5: 'min', 6: 'max', 7: 'count'}
+_WINDOW_OPS = {0: 'sum', 1: 'mean', 2: 'median', 3: 'mode', 4: 'std', 5: 'min', 6: 'max', 7: 'count', 8: 'range'}
 
 
 # =============================================================================
@@ -239,6 +239,13 @@ def _window_count(data, size):
     return convolve(valid, kernel, mode='constant', cval=0)
 
 
+def _window_range(data, size):
+    """Range (max - min) within a moving window."""
+    from scipy.ndimage import maximum_filter, minimum_filter
+    return maximum_filter(data, size=(size, size), mode='nearest') \
+         - minimum_filter(data, size=(size, size), mode='nearest')
+
+
 _WINDOW_FUNCS = {
     'sum': _window_sum,
     'mean': _window_mean,
@@ -248,6 +255,7 @@ _WINDOW_FUNCS = {
     'min': _window_min,
     'max': _window_max,
     'count': _window_count,
+    'range': _window_range,
 }
 
 
@@ -261,7 +269,7 @@ def parse_window_specs(specs):
     Format: each spec is a 3-character string 'BZO' where:
     - B = band number (0-indexed)
     - Z = window size (1-9, must be odd)
-    - O = operation ID (0=sum, 1=mean, 2=median, 3=mode, 4=std, 5=min, 6=max, 7=count)
+    - O = operation ID (0=sum, 1=mean, 2=median, 3=mode, 4=std, 5=min, 6=max, 7=count, 8=range)
 
     Parameters
     ----------
@@ -303,7 +311,7 @@ def parse_window_specs(specs):
             )
         if op_id not in _WINDOW_OPS:
             raise GediImageSamplingError(
-                f"Window op must be 0-7, got {op_id} in spec '{spec}'"
+                f"Window op must be 0-8, got {op_id} in spec '{spec}'"
             )
 
         op_name = _WINDOW_OPS[op_id]
