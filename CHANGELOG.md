@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.0] - 2026-04-07
+
+### Added
+- Window operations `std`, `min`, `max`, and `count` for raster sampling (`gh3_from_img`)
+
+### Changed
+- Cap Dask worker CPU count to 20
+- Revised documentation
+
 ## [0.2.0] - 2026-04-01
 
 ### Added
