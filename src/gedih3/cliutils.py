@@ -1283,6 +1283,36 @@ def collect_columns(args, available_columns=None):
 
     return list(set(read_cols))
 
+def get_product_quality_flag_cols(selected_products, version, available_columns):
+    """Return the primary quality flag column(s) for the selected products and GEDI version.
+
+    Parameters
+    ----------
+    selected_products : list[str]
+        Product keys that were requested (e.g. ['L2A', 'L4A']).
+    version : int or None
+        GEDI data version from build log (e.g. 2 or 3). None defaults to 2.
+    available_columns : list[str]
+        Columns present in the database (suffixed form e.g. 'quality_flag_l2a').
+
+    Returns
+    -------
+    list[str]
+        Column names (suffixed) to use in the quality filter query.
+    """
+    from .config import _PRODUCT_QUALITY_FLAGS, _get_versioned
+    result = []
+    for prod in selected_products:
+        flag_map = _PRODUCT_QUALITY_FLAGS.get(prod.upper())
+        if not flag_map:
+            continue
+        flag = _get_versioned(flag_map, version)
+        col = f"{flag}_{prod.lower()}"
+        if col in available_columns:
+            result.append(col)
+    return result
+
+
 def build_query_string(args, available_columns=None):
     """Build pandas query string from arguments"""
     if available_columns is None:
@@ -1290,9 +1320,22 @@ def build_query_string(args, available_columns=None):
         available_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)
     queries = []
 
-    # Quality filter - use backticks to escape column names with special characters
+    # Quality filter — apply only the primary flag for each selected product + version.
+    # Falls back to brute-force column scan if no products are specified.
     if args.quality:
-        queries += [f"`{i}` == 1" for i in available_columns if 'quality_flag' in i]
+        selected_products = [p for p in GEDI_PRODUCTS if getattr(args, p.lower(), None) is not None]
+        if selected_products:
+            version = None
+            if getattr(args, 'database', None):
+                try:
+                    from .gh3driver import gh3_read_meta
+                    version = gh3_read_meta('gedi_version', gh3_root_dir=args.database)
+                except Exception:
+                    pass
+            quality_cols = get_product_quality_flag_cols(selected_products, version, available_columns)
+        else:
+            quality_cols = [i for i in available_columns if 'quality_flag' in i]
+        queries += [f"`{i}` == 1" for i in quality_cols]
 
     # Temporal filters
     if args.time_start:

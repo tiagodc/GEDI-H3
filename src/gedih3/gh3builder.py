@@ -83,6 +83,15 @@ def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=
         if 'shot_number' not in val:
             val.append('shot_number')
 
+    # Ensure primary quality flag is included for every product with an explicit var list.
+    from .config import _PRODUCT_QUALITY_FLAGS, _get_versioned
+    for prod, val in product_vars.items():
+        flag_map = _PRODUCT_QUALITY_FLAGS.get(prod)
+        if flag_map and val is not None:
+            flag = _get_versioned(flag_map, version)
+            if flag not in val:
+                val.append(flag)
+
     soc_files = gedi_download(
         product_vars=product_vars,
         odir=None if direct_access else odir,
@@ -718,6 +727,16 @@ def _expand_product_vars(
         # None means "all variables" — essentials already included
     else:
         product_vars['L2A'] = essentials
+
+    # Ensure primary quality flag is included for every product with an explicit var list.
+    # (None means "all variables" — quality flag already included.)
+    from .config import _PRODUCT_QUALITY_FLAGS
+    for prod, val in product_vars.items():
+        flag_map = _PRODUCT_QUALITY_FLAGS.get(prod)
+        if flag_map and val is not None:
+            flag = _get_versioned(flag_map, version)
+            if flag not in val:
+                val.append(flag)
 
     for k, val in product_vars.items():
         if val is None:
