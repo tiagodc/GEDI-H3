@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.0] - 2026-04-07
+
+### Added
+- Targeted quality flag selection per product and version for `--quality` in extract/aggregate: applies only the primary flag for each selected product (e.g. `l4_quality_flag` for L4A, `l2a_quality_flag_rel3` for L2A v3)
+- Quality flag auto-injection during build and download: each product's primary quality flag is always included in the database regardless of the variable list specified
+
+### Fixed
+- Stale test for invalid window operation spec (extended ops 0-8 error message)
+
 ## [0.3.2] - 2026-04-07
 
 ### Fixed
