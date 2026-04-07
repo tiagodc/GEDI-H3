@@ -95,6 +95,15 @@ _GEDI_MIN_VARS = {
     'L4C': {2: ['shot_number','wsci', 'wsci_xy', 'wsci_z','wsci_pi_lower','wsci_pi_upper','wsci_quality_flag','land_cover_data/worldcover_class']},
 }
 
+# Primary quality flag variable name per product and GEDI version (before product suffix).
+# Use _get_versioned() to resolve for a given version.
+_PRODUCT_QUALITY_FLAGS = {
+    'L2A': {2: 'quality_flag', 3: 'l2a_quality_flag_rel3'},
+    'L2B': {2: 'l2b_quality_flag', 3: 'l2b_quality_flag_rel3'},
+    'L4A': {2: 'l4_quality_flag'},
+    'L4C': {2: 'wsci_quality_flag'},
+}
+
 GEDI_PRODUCTS = {
     'L1B': {
         'short_name': 'GEDI01_B',
