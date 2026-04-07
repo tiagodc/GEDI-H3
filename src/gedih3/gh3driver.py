@@ -384,7 +384,27 @@ def gh3_aggregate_func(df, res, agg='mean', cols=None, **kwargs):
         filtered_cols = get_aggregatable_columns(df)
         if filtered_cols:
             g = g[filtered_cols]
-    out = g.apply(agg, include_groups=False, **kwargs) if callable(agg) else g.agg(agg)
+
+    if callable(agg) and len(df) == 0:
+        # pandas groupby.apply on an empty DataFrame does not call the function;
+        # it returns an empty DataFrame with the *input* columns, which causes a
+        # column mismatch when Dask validates map_partitions output against _meta.
+        # Call the function directly with an empty DataFrame to infer the true schema.
+        # Use df directly (preserves correct dtypes) — pd.DataFrame(columns=...) gives
+        # object dtype, which breaks functions that call np.isfinite on the values.
+        _sample_cols = list(g.obj.columns) if hasattr(g, 'obj') else df.columns.tolist()
+        _typed = [c for c in _sample_cols if c in df.columns]
+        _sample = df[_typed].iloc[0:0].copy() if _typed else pd.DataFrame(columns=_sample_cols)
+        try:
+            out = agg(_sample, **kwargs)
+            out = out.iloc[0:0].copy()
+            out.index = pd.Index([], name=h3col, dtype='object')
+        except Exception:
+            out = g.apply(agg, include_groups=False, **kwargs)
+    elif callable(agg):
+        out = g.apply(agg, include_groups=False, **kwargs)
+    else:
+        out = g.agg(agg)
 
     if isinstance(out.columns, pd.MultiIndex):
         out.columns = ['_'.join(map(str, col)).strip() for col in out.columns.values]
