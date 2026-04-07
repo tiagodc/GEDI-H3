@@ -289,8 +289,8 @@ class TestParseWindowSpecs:
             parse_window_specs(['020'])
 
     def test_invalid_op_raises(self):
-        with pytest.raises(GediImageSamplingError, match="0-3"):
-            parse_window_specs(['034'])
+        with pytest.raises(GediImageSamplingError, match="0-8"):
+            parse_window_specs(['039'])
 
 
 # =============================================================================
