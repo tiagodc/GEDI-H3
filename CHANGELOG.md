@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.2] - 2026-04-07
+
+### Fixed
+- Bug fix for check exported files tasks
+- Apply schema to metadata on custom aggregation
+
 ## [0.3.1] - 2026-04-07
 
 ### Added
