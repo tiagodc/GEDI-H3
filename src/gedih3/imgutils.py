@@ -26,7 +26,7 @@ from .exceptions import GediImageSamplingError
 logger = logging.getLogger(__name__)
 
 # Window operation IDs (matches legacy 3-digit spec)
-_WINDOW_OPS = {0: 'sum', 1: 'mean', 2: 'median', 3: 'mode'}
+_WINDOW_OPS = {0: 'sum', 1: 'mean', 2: 'median', 3: 'mode', 4: 'std', 5: 'min', 6: 'max', 7: 'count'}
 
 
 # =============================================================================
@@ -177,11 +177,7 @@ def _window_mean(data, size):
 
 
 def _window_median(data, size):
-    """Median within a moving window.
-
-    NOTE: Legacy used percentile_filter(data, 0.5, ...) which is the 0.5th
-    percentile (approximately the minimum). Corrected to 50 for actual median.
-    """
+    """Median within a moving window."""
     from scipy.ndimage import percentile_filter
     return percentile_filter(data, 50, size=(size, size), mode='nearest')
 
@@ -212,11 +208,46 @@ def _window_mode(data, size):
     return result
 
 
+def _window_std(data, size):
+    """Std deviation within a moving window via sum-of-squares (exact, O(n))."""
+    from scipy.ndimage import convolve
+    kernel = np.ones((size, size)) / (size * size)
+    d = data.astype(float)
+    mean = convolve(d, kernel, mode='nearest')
+    mean_sq = convolve(d ** 2, kernel, mode='nearest')
+    return np.sqrt(np.maximum(0.0, mean_sq - mean ** 2))
+
+
+def _window_min(data, size):
+    """Minimum within a moving window."""
+    from scipy.ndimage import minimum_filter
+    return minimum_filter(data, size=(size, size), mode='nearest')
+
+
+def _window_max(data, size):
+    """Maximum within a moving window."""
+    from scipy.ndimage import maximum_filter
+    return maximum_filter(data, size=(size, size), mode='nearest')
+
+
+def _window_count(data, size):
+    """Count of valid (non-NaN/non-zero) pixels within a moving window."""
+    from scipy.ndimage import convolve
+    kernel = np.ones((size, size))
+    valid = (data != 0).astype(np.uint16) if not np.issubdtype(data.dtype, np.floating) \
+        else np.isfinite(data).astype(np.uint16)
+    return convolve(valid, kernel, mode='constant', cval=0)
+
+
 _WINDOW_FUNCS = {
     'sum': _window_sum,
     'mean': _window_mean,
     'median': _window_median,
     'mode': _window_mode,
+    'std': _window_std,
+    'min': _window_min,
+    'max': _window_max,
+    'count': _window_count,
 }
 
 
@@ -230,7 +261,7 @@ def parse_window_specs(specs):
     Format: each spec is a 3-character string 'BZO' where:
     - B = band number (0-indexed)
     - Z = window size (1-9, must be odd)
-    - O = operation ID (0=sum, 1=mean, 2=median, 3=mode)
+    - O = operation ID (0=sum, 1=mean, 2=median, 3=mode, 4=std, 5=min, 6=max, 7=count)
 
     Parameters
     ----------
@@ -272,7 +303,7 @@ def parse_window_specs(specs):
             )
         if op_id not in _WINDOW_OPS:
             raise GediImageSamplingError(
-                f"Window op must be 0-3, got {op_id} in spec '{spec}'"
+                f"Window op must be 0-7, got {op_id} in spec '{spec}'"
             )
 
         op_name = _WINDOW_OPS[op_id]
