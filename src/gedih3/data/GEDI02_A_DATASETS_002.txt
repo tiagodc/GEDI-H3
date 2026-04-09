@@ -7,6 +7,7 @@ digital_elevation_model_srtm
 elevation_bias_flag
 selected_algorithm
 selected_mode
+num_detectedmodes
 shot_number
 solar_azimuth
 solar_elevation
@@ -16,6 +17,7 @@ lon_lowestmode
 elev_lowestmode
 quality_flag
 rh
+sensitivity
 geolocation/stale_return_flag
 geolocation/elev_highestreturn_a1
 geolocation/elev_lowestmode_a1

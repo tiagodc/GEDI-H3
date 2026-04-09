@@ -7,6 +7,7 @@ digital_elevation_model_srtm
 elevation_bias_flag
 selected_algorithm
 selected_mode
+num_detectedmodes
 shot_number
 solar_azimuth
 solar_elevation
@@ -14,6 +15,7 @@ surface_flag
 lat_lowestmode
 lon_lowestmode
 elev_lowestmode
+l2a_quality_flag_rel2
 l2a_quality_flag_rel3
 rh
 sensitivity
@@ -103,3 +105,6 @@ land_cover_data/leaf_off_flag
 land_cover_data/pft_class
 land_cover_data/region_class
 land_cover_data/urban_proportion
+land_cover_data/phenology_phase
+land_cover_data/phenology_year
+land_cover_data/worldcover_class
