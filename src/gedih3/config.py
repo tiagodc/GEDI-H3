@@ -77,8 +77,8 @@ GEDI_START_DATE = datetime.strptime('2018-01-01', '%Y-%m-%d')
 GEDI_MISSION_START = datetime(2018, 12, 13)
 GEDI_BEAMS = ['BEAM0000','BEAM0001','BEAM0010','BEAM0011','BEAM0101','BEAM0110','BEAM1000','BEAM1011']
 _GEDI_L2A_ESSENTIALS = {
-    2: ['shot_number','delta_time','quality_flag','lat_lowestmode','lon_lowestmode','elev_lowestmode'],
-    3: ['shot_number','delta_time','l2a_quality_flag_rel3','lat_lowestmode','lon_lowestmode','elev_lowestmode'],
+    2: ['shot_number','delta_time','quality_flag','degrade_flag','lat_lowestmode','lon_lowestmode','elev_lowestmode'],
+    3: ['shot_number','delta_time','l2a_quality_flag_rel3','degrade_flag','sensitivity','lat_lowestmode','lon_lowestmode','elev_lowestmode'],
 }
 # Version-keyed minimum variable sets per product.
 # _get_versioned() falls back to nearest lower version, so only entries
@@ -90,18 +90,42 @@ _GEDI_MIN_VARS = {
         2: _GEDI_L2A_ESSENTIALS[2] + ['rh'],
         3: _GEDI_L2A_ESSENTIALS[3] + ['rh'],
     },
-    'L2B': {2: ['shot_number','cover_z','fhd_normal','pai_z','pgap_theta']},
-    'L4A': {2: ['shot_number','agbd','sensitivity','l4_quality_flag']},
-    'L4C': {2: ['shot_number','wsci', 'wsci_xy', 'wsci_z','wsci_pi_lower','wsci_pi_upper','wsci_quality_flag','land_cover_data/worldcover_class']},
+    'L2B': {
+        2: ['shot_number','l2b_quality_flag','sensitivity','cover_z','fhd_normal','pai_z','pavd_z','pgap_theta'],
+        3: ['shot_number','l2b_quality_flag_rel3','cover_z','fhd_normal','pai_z','pavd_z','pgap_theta'],
+    },
+    'L4A': {
+        2: ['shot_number','agbd','agbd_se','sensitivity','l4_quality_flag'],
+        3: ['shot_number','agbd','agbd_se','l4a_quality_flag_rel3'],
+    },
+    'L4C': {
+        2: ['shot_number','wsci','wsci_xy','wsci_z','wsci_pi_lower','wsci_pi_upper','wsci_quality_flag','sensitivity','land_cover_data/worldcover_class'],
+        3: ['shot_number','wsci','wsci_xy','wsci_z','wsci_pi_lower','wsci_pi_upper','l4c_quality_flag_rel3','land_cover_data/worldcover_class'],
+    },
 }
 
-# Primary quality flag variable name per product and GEDI version (before product suffix).
+# Quality flag conditions per product and GEDI version (before product suffix).
+# Each entry is a list of (flag_name, condition_str) tuples applied when --quality is used.
+# degrade_flag lives in L2A only (always present via essentials); downstream products
+# rely on L2A's degrade_flag rather than carrying redundant copies.
 # Use _get_versioned() to resolve for a given version.
 _PRODUCT_QUALITY_FLAGS = {
-    'L2A': {2: 'quality_flag', 3: 'l2a_quality_flag_rel3'},
-    'L2B': {2: 'l2b_quality_flag', 3: 'l2b_quality_flag_rel3'},
-    'L4A': {2: 'l4_quality_flag'},
-    'L4C': {2: 'wsci_quality_flag'},
+    'L2A': {
+        2: [('quality_flag', '== 1'), ('degrade_flag', '== 0')],
+        3: [('l2a_quality_flag_rel3', '== 1'), ('degrade_flag', '== 0')],
+    },
+    'L2B': {
+        2: [('l2b_quality_flag', '== 1')],
+        3: [('l2b_quality_flag_rel3', '== 1')],
+    },
+    'L4A': {
+        2: [('l4_quality_flag', '== 1')],
+        3: [('l4a_quality_flag_rel3', '== 1'), ('elev_highestreturn_outlier_flag', '== 0')],
+    },
+    'L4C': {
+        2: [('wsci_quality_flag', '== 1')],
+        3: [('l4c_quality_flag_rel3', '== 1')],
+    },
 }
 
 GEDI_PRODUCTS = {

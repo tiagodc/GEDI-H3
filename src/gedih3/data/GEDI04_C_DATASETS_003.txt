@@ -8,10 +8,14 @@ wsci_xy_pi_lower
 wsci_xy_pi_upper
 wsci_z_pi_lower
 wsci_z_pi_upper
-wsci_quality_flag
+l4c_quality_flag_rel2
+l4c_quality_flag_rel3
 l2_quality_flag
+l2a_quality_flag_rel3
+l2_algrunflag
 algorithm_run_flag
-sensitivity
+elev_highestreturn_outlier_flag
+degrade_include_flag
 surface_flag
 selected_algorithm
 solar_elevation
