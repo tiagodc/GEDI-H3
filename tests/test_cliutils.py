@@ -36,7 +36,7 @@ from gedih3.cliutils import (
     cli_exception_handler,
     resolve_product_vars,
     collect_columns,
-    get_product_quality_flag_cols,
+    get_product_quality_conditions,
 )
 from gedih3.exceptions import GediValidationError
 
@@ -586,56 +586,65 @@ class TestSafeQuery:
 
 
 # =============================================================================
-# Test: get_product_quality_flag_cols
+# Test: get_product_quality_conditions
 # =============================================================================
 
-class TestGetProductQualityFlagCols:
+class TestGetProductQualityConditions:
 
     def test_l2a_only_v2(self):
-        cols = ['quality_flag_l2a', 'l4_quality_flag_l4a', 'agbd_l4a']
-        result = get_product_quality_flag_cols(['L2A'], version=2, available_columns=cols)
-        assert result == ['quality_flag_l2a']
+        cols = ['quality_flag_l2a', 'degrade_flag_l2a', 'l4_quality_flag_l4a', 'agbd_l4a']
+        result = get_product_quality_conditions(['L2A'], version=2, available_columns=cols)
+        assert result == [('quality_flag_l2a', '== 1'), ('degrade_flag_l2a', '== 0')]
 
     def test_l4a_only_v2(self):
         cols = ['quality_flag_l2a', 'l4_quality_flag_l4a', 'agbd_l4a']
-        result = get_product_quality_flag_cols(['L4A'], version=2, available_columns=cols)
-        assert result == ['l4_quality_flag_l4a']
+        result = get_product_quality_conditions(['L4A'], version=2, available_columns=cols)
+        assert result == [('l4_quality_flag_l4a', '== 1')]
 
     def test_l2a_l4a_v2(self):
-        cols = ['quality_flag_l2a', 'l4_quality_flag_l4a', 'agbd_l4a']
-        result = get_product_quality_flag_cols(['L2A', 'L4A'], version=2, available_columns=cols)
-        assert set(result) == {'quality_flag_l2a', 'l4_quality_flag_l4a'}
+        cols = ['quality_flag_l2a', 'degrade_flag_l2a', 'l4_quality_flag_l4a', 'agbd_l4a']
+        result = get_product_quality_conditions(['L2A', 'L4A'], version=2, available_columns=cols)
+        assert set(result) == {('quality_flag_l2a', '== 1'), ('degrade_flag_l2a', '== 0'), ('l4_quality_flag_l4a', '== 1')}
 
     def test_l2a_v3(self):
-        cols = ['l2a_quality_flag_rel3_l2a', 'agbd_l4a']
-        result = get_product_quality_flag_cols(['L2A'], version=3, available_columns=cols)
-        assert result == ['l2a_quality_flag_rel3_l2a']
+        cols = ['l2a_quality_flag_rel3_l2a', 'degrade_flag_l2a', 'agbd_l4a']
+        result = get_product_quality_conditions(['L2A'], version=3, available_columns=cols)
+        assert result == [('l2a_quality_flag_rel3_l2a', '== 1'), ('degrade_flag_l2a', '== 0')]
 
     def test_flag_not_in_db_excluded(self):
-        # Flag not present in DB → excluded gracefully (shouldn't happen after build fix)
         cols = ['agbd_l4a', 'rh_098_l2a']
-        result = get_product_quality_flag_cols(['L4A'], version=2, available_columns=cols)
+        result = get_product_quality_conditions(['L4A'], version=2, available_columns=cols)
         assert result == []
 
     def test_l1b_no_quality_flag(self):
         cols = ['rxwaveform_l1b']
-        result = get_product_quality_flag_cols(['L1B'], version=2, available_columns=cols)
+        result = get_product_quality_conditions(['L1B'], version=2, available_columns=cols)
         assert result == []
 
     def test_version_none_defaults_to_v2(self):
-        cols = ['quality_flag_l2a']
-        result = get_product_quality_flag_cols(['L2A'], version=None, available_columns=cols)
-        assert result == ['quality_flag_l2a']
+        cols = ['quality_flag_l2a', 'degrade_flag_l2a']
+        result = get_product_quality_conditions(['L2A'], version=None, available_columns=cols)
+        assert result == [('quality_flag_l2a', '== 1'), ('degrade_flag_l2a', '== 0')]
 
     def test_l2b_v3(self):
         cols = ['l2b_quality_flag_rel3_l2b']
-        result = get_product_quality_flag_cols(['L2B'], version=3, available_columns=cols)
-        assert result == ['l2b_quality_flag_rel3_l2b']
+        result = get_product_quality_conditions(['L2B'], version=3, available_columns=cols)
+        assert result == [('l2b_quality_flag_rel3_l2b', '== 1')]
 
     def test_l4c_v2(self):
         cols = ['wsci_quality_flag_l4c', 'wsci_l4c']
-        result = get_product_quality_flag_cols(['L4C'], version=2, available_columns=cols)
-        assert result == ['wsci_quality_flag_l4c']
+        result = get_product_quality_conditions(['L4C'], version=2, available_columns=cols)
+        assert result == [('wsci_quality_flag_l4c', '== 1')]
+
+    def test_l4a_v3_with_outlier_flag(self):
+        cols = ['l4a_quality_flag_rel3_l4a', 'elev_highestreturn_outlier_flag_l4a']
+        result = get_product_quality_conditions(['L4A'], version=3, available_columns=cols)
+        assert result == [('l4a_quality_flag_rel3_l4a', '== 1'), ('elev_highestreturn_outlier_flag_l4a', '== 0')]
+
+    def test_l4c_v3(self):
+        cols = ['l4c_quality_flag_rel3_l4c', 'wsci_l4c']
+        result = get_product_quality_conditions(['L4C'], version=3, available_columns=cols)
+        assert result == [('l4c_quality_flag_rel3_l4c', '== 1')]
 
 
 # =============================================================================

@@ -1283,8 +1283,8 @@ def collect_columns(args, available_columns=None):
 
     return list(set(read_cols))
 
-def get_product_quality_flag_cols(selected_products, version, available_columns):
-    """Return the primary quality flag column(s) for the selected products and GEDI version.
+def get_product_quality_conditions(selected_products, version, available_columns):
+    """Return quality filter conditions for the selected products and GEDI version.
 
     Parameters
     ----------
@@ -1297,8 +1297,9 @@ def get_product_quality_flag_cols(selected_products, version, available_columns)
 
     Returns
     -------
-    list[str]
-        Column names (suffixed) to use in the quality filter query.
+    list[tuple[str, str]]
+        Pairs of (column_name, condition_str) to use in the quality filter query,
+        e.g. ``[('quality_flag_l2a', '== 1'), ('degrade_flag_l2a', '== 0')]``.
     """
     from .config import _PRODUCT_QUALITY_FLAGS, _get_versioned
     result = []
@@ -1306,10 +1307,11 @@ def get_product_quality_flag_cols(selected_products, version, available_columns)
         flag_map = _PRODUCT_QUALITY_FLAGS.get(prod.upper())
         if not flag_map:
             continue
-        flag = _get_versioned(flag_map, version)
-        col = f"{flag}_{prod.lower()}"
-        if col in available_columns:
-            result.append(col)
+        flags = _get_versioned(flag_map, version)
+        for flag_name, condition in flags:
+            col = f"{flag_name}_{prod.lower()}"
+            if col in available_columns:
+                result.append((col, condition))
     return result
 
 
@@ -1320,11 +1322,15 @@ def build_query_string(args, available_columns=None):
         available_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)
     queries = []
 
-    # Quality filter — apply only the primary flag for each selected product + version.
-    # Falls back to brute-force column scan if no products are specified.
+    # Quality filter — apply conditions for each selected product + version.
+    # L2A conditions (incl. degrade_flag) are always applied since L2A essentials
+    # are present in every database.  Falls back to brute-force column scan if
+    # no products are specified.
     if args.quality:
         selected_products = [p for p in GEDI_PRODUCTS if getattr(args, p.lower(), None) is not None]
         if selected_products:
+            # Always include L2A quality conditions — L2A essentials are always in the database
+            products_for_quality = list(dict.fromkeys(['L2A'] + selected_products))
             version = None
             if getattr(args, 'database', None):
                 try:
@@ -1332,10 +1338,11 @@ def build_query_string(args, available_columns=None):
                     version = gh3_read_meta('gedi_version', gh3_root_dir=args.database)
                 except Exception:
                     pass
-            quality_cols = get_product_quality_flag_cols(selected_products, version, available_columns)
+            quality_conditions = get_product_quality_conditions(products_for_quality, version, available_columns)
+            queries += [f"`{col}` {op}" for col, op in quality_conditions]
         else:
             quality_cols = [i for i in available_columns if 'quality_flag' in i]
-        queries += [f"`{i}` == 1" for i in quality_cols]
+            queries += [f"`{i}` == 1" for i in quality_cols]
 
     # Temporal filters
     if args.time_start:

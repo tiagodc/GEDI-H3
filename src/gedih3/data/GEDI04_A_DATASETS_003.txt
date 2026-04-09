@@ -1,15 +1,19 @@
 agbd
+agbd_pi_lower
+agbd_pi_upper
 agbd_se
 agbd_t
 agbd_t_se
-algorithm_run_flag
-l2_quality_flag
-l4_quality_flag
+degrade_include_flag
+elev_highestreturn_outlier_flag
+l2_algrunflag
+l2a_quality_flag_rel3
+l4a_quality_flag_rel3
 predict_stratum
 predictor_limit_flag
 response_limit_flag
 selected_algorithm
-sensitivity
+selected_mode_flag
 shot_number
 solar_elevation
 surface_flag
@@ -18,8 +22,10 @@ land_cover_data/landsat_treecover
 land_cover_data/landsat_water_persistence
 land_cover_data/leaf_off_flag
 land_cover_data/pft_class
+land_cover_data/pft_infilled_class
 land_cover_data/region_class
 land_cover_data/urban_proportion
+land_cover_data/worldcover_class
 geolocation/elev_lowestmode_a1
 geolocation/lat_lowestmode_a1
 geolocation/lon_lowestmode_a1
@@ -32,55 +38,51 @@ geolocation/elev_lowestmode_a5
 geolocation/lat_lowestmode_a5
 geolocation/lon_lowestmode_a5
 geolocation/sensitivity_a5
-# geolocation/elev_lowestmode_a10
-# geolocation/lat_lowestmode_a10
-# geolocation/lon_lowestmode_a10
-# geolocation/sensitivity_a10
+geolocation/elev_lowestmode_a10
+geolocation/lat_lowestmode_a10
+geolocation/lon_lowestmode_a10
+geolocation/sensitivity_a10
 agbd_prediction/agbd_a1
+agbd_prediction/agbd_pi_lower_a1
+agbd_prediction/agbd_pi_upper_a1
 agbd_prediction/agbd_se_a1
 agbd_prediction/agbd_t_a1
 agbd_prediction/agbd_t_se_a1
-agbd_prediction/algorithm_run_flag_a1
-agbd_prediction/l2_quality_flag_a1
-agbd_prediction/l4_quality_flag_a1
+agbd_prediction/l2_algrunflag_a1
 agbd_prediction/predictor_limit_flag_a1
 agbd_prediction/response_limit_flag_a1
-agbd_prediction/selected_mode_a1
 agbd_prediction/selected_mode_flag_a1
 agbd_prediction/xvar_a1
 agbd_prediction/agbd_a2
+agbd_prediction/agbd_pi_lower_a2
+agbd_prediction/agbd_pi_upper_a2
 agbd_prediction/agbd_se_a2
 agbd_prediction/agbd_t_a2
 agbd_prediction/agbd_t_se_a2
-agbd_prediction/algorithm_run_flag_a2
-agbd_prediction/l2_quality_flag_a2
-agbd_prediction/l4_quality_flag_a2
+agbd_prediction/l2_algrunflag_a2
 agbd_prediction/predictor_limit_flag_a2
 agbd_prediction/response_limit_flag_a2
-agbd_prediction/selected_mode_a2
 agbd_prediction/selected_mode_flag_a2
 agbd_prediction/xvar_a2
 agbd_prediction/agbd_a5
+agbd_prediction/agbd_pi_lower_a5
+agbd_prediction/agbd_pi_upper_a5
 agbd_prediction/agbd_se_a5
 agbd_prediction/agbd_t_a5
 agbd_prediction/agbd_t_se_a5
-agbd_prediction/algorithm_run_flag_a5
-agbd_prediction/l2_quality_flag_a5
-agbd_prediction/l4_quality_flag_a5
+agbd_prediction/l2_algrunflag_a5
 agbd_prediction/predictor_limit_flag_a5
 agbd_prediction/response_limit_flag_a5
-agbd_prediction/selected_mode_a5
 agbd_prediction/selected_mode_flag_a5
 agbd_prediction/xvar_a5
-# agbd_prediction/agbd_a10
-# agbd_prediction/agbd_se_a10
-# agbd_prediction/agbd_t_a10
-# agbd_prediction/agbd_t_se_a10
-# agbd_prediction/algorithm_run_flag_a10
-# agbd_prediction/l2_quality_flag_a10
-# agbd_prediction/l4_quality_flag_a10
-# agbd_prediction/predictor_limit_flag_a10
-# agbd_prediction/response_limit_flag_a10
-# agbd_prediction/selected_mode_a10
-# agbd_prediction/selected_mode_flag_a10
-# agbd_prediction/xvar_a10
+agbd_prediction/agbd_a10
+agbd_prediction/agbd_pi_lower_a10
+agbd_prediction/agbd_pi_upper_a10
+agbd_prediction/agbd_se_a10
+agbd_prediction/agbd_t_a10
+agbd_prediction/agbd_t_se_a10
+agbd_prediction/l2_algrunflag_a10
+agbd_prediction/predictor_limit_flag_a10
+agbd_prediction/response_limit_flag_a10
+agbd_prediction/selected_mode_flag_a10
+agbd_prediction/xvar_a10
