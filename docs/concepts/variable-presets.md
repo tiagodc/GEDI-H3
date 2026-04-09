@@ -113,17 +113,105 @@ gh3_build -r "-51,0,-50,1" -l2a all
 
 ## L1B — Geolocated Waveforms
 
-Only version 2 is available. The `minimal` and `default` presets select identical variables.
+### minimal
 
-### minimal = default (5 variables)
-
+::::{tab-set}
+:::{tab-item} v2 — 6 variables
 ```
 shot_number
+stale_return_flag
 noise_mean_corrected
 rx_sample_start_index
 rx_sample_count
 rxwaveform
 ```
+:::
+:::{tab-item} v3 — 7 variables
+```
+shot_number
+stale_return_flag
+rx_clipflag
+noise_mean_corrected
+rx_sample_start_index
+rx_sample_count
+rxwaveform
+```
+:::
+::::
+
+### default
+
+::::{tab-set}
+:::{tab-item} v2 — 21 variables
+
+```
+# Receive waveform (7)
+shot_number
+stale_return_flag
+noise_mean_corrected
+noise_stddev_corrected
+rx_sample_start_index
+rx_sample_count
+rx_energy
+rxwaveform
+
+# Transmit waveform (3)
+tx_sample_start_index
+tx_sample_count
+tx_pulseflag
+txwaveform
+
+# Geolocation (8)
+geolocation/degrade
+geolocation/latitude_bin0
+geolocation/longitude_bin0
+geolocation/elevation_bin0
+geolocation/latitude_lastbin
+geolocation/longitude_lastbin
+geolocation/elevation_lastbin
+geolocation/digital_elevation_model
+geolocation/solar_elevation
+```
+
+:::
+:::{tab-item} v3 — 26 variables
+
+```
+# Receive waveform (11) — new: rx_clip*, mean_64kadjusted, th_right_used
+shot_number
+stale_return_flag
+mean_64kadjusted
+noise_mean_corrected
+noise_stddev_corrected
+rx_clipbin0
+rx_clipbin_count
+rx_clipflag
+rx_sample_start_index
+rx_sample_count
+rx_energy
+rxwaveform
+th_right_used
+
+# Transmit waveform (3)
+tx_sample_start_index
+tx_sample_count
+tx_pulseflag
+txwaveform
+
+# Geolocation (8)
+geolocation/degrade
+geolocation/latitude_bin0
+geolocation/longitude_bin0
+geolocation/elevation_bin0
+geolocation/latitude_lastbin
+geolocation/longitude_lastbin
+geolocation/elevation_lastbin
+geolocation/digital_elevation_model
+geolocation/solar_elevation
+```
+
+:::
+::::
 
 ---
 
@@ -947,6 +1035,8 @@ applied since L2A data is present in every database.
 
 | Product | Version | Conditions Applied |
 |---|---|---|
+| L1B | v2 | `stale_return_flag == 0` |
+| L1B | v3 | `stale_return_flag == 0` AND `rx_clipflag == 0` |
 | L2A (always) | v2 | `quality_flag == 1` AND `degrade_flag == 0` |
 | L2A (always) | v3 | `l2a_quality_flag_rel3 == 1` AND `degrade_flag == 0` |
 | L2B | v2 | `l2b_quality_flag == 1` |
@@ -969,6 +1059,7 @@ The `default` preset for each product/version is loaded directly from a plain-te
 | Product | Version | Source file |
 |---|---|---|
 | L1B | v2 | `src/gedih3/data/GEDI01_B_DATASETS_002.txt` |
+| L1B | v3 | `src/gedih3/data/GEDI01_B_DATASETS_003.txt` |
 | L2A | v2 | `src/gedih3/data/GEDI02_A_DATASETS_002.txt` |
 | L2A | v3 | `src/gedih3/data/GEDI02_A_DATASETS_003.txt` |
 | L2B | v2 | `src/gedih3/data/GEDI02_B_DATASETS_002.txt` |

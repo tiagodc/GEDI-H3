@@ -1,11 +1,16 @@
 shot_number
 stale_return_flag
+mean_64kadjusted
 noise_mean_corrected
 noise_stddev_corrected
+rx_clipbin0
+rx_clipbin_count
+rx_clipflag
 rx_sample_start_index
 rx_sample_count
 rx_energy
 rxwaveform
+th_right_used
 tx_sample_start_index
 tx_sample_count
 tx_pulseflag
