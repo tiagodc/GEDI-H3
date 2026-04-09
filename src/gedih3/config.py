@@ -124,7 +124,7 @@ _PRODUCT_QUALITY_FLAGS = {
     },
     'L4C': {
         2: [('wsci_quality_flag', '== 1')],
-        3: [('l4c_quality_flag_rel3', '== 1')],
+        3: [('l4c_quality_flag_rel3', '== 1'), ('elev_highestreturn_outlier_flag', '== 0')],
     },
 }
 

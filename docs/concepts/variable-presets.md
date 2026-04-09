@@ -954,10 +954,11 @@ applied since L2A data is present in every database.
 | L4A | v2 | `l4_quality_flag == 1` |
 | L4A | v3 | `l4a_quality_flag_rel3 == 1` AND `elev_highestreturn_outlier_flag == 0` |
 | L4C | v2 | `wsci_quality_flag == 1` (includes degrade+sensitivity+surface internally) |
-| L4C | v3 | `l4c_quality_flag_rel3 == 1` (comprehensive) |
+| L4C | v3 | `l4c_quality_flag_rel3 == 1` AND `elev_highestreturn_outlier_flag == 0` |
 
-L4C quality flags already encapsulate degrade, sensitivity, and surface checks
-internally, so no additional flags are needed.
+`degrade_flag == 0` is always applied through L2A regardless of which products are
+selected. L4C v2's `wsci_quality_flag` already encapsulates degrade, sensitivity, and
+surface checks internally.
 
 ---
 

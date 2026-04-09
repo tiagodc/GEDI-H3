@@ -642,9 +642,9 @@ class TestGetProductQualityConditions:
         assert result == [('l4a_quality_flag_rel3_l4a', '== 1'), ('elev_highestreturn_outlier_flag_l4a', '== 0')]
 
     def test_l4c_v3(self):
-        cols = ['l4c_quality_flag_rel3_l4c', 'wsci_l4c']
+        cols = ['l4c_quality_flag_rel3_l4c', 'elev_highestreturn_outlier_flag_l4c', 'wsci_l4c']
         result = get_product_quality_conditions(['L4C'], version=3, available_columns=cols)
-        assert result == [('l4c_quality_flag_rel3_l4c', '== 1')]
+        assert result == [('l4c_quality_flag_rel3_l4c', '== 1'), ('elev_highestreturn_outlier_flag_l4c', '== 0')]
 
 
 # =============================================================================
