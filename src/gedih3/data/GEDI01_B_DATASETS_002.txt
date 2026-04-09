@@ -6,10 +6,7 @@ rx_sample_start_index
 rx_sample_count
 rx_energy
 rxwaveform
-tx_sample_start_index
-tx_sample_count
 tx_pulseflag
-txwaveform
 geolocation/degrade
 geolocation/latitude_bin0
 geolocation/longitude_bin0
@@ -17,5 +14,16 @@ geolocation/elevation_bin0
 geolocation/latitude_lastbin
 geolocation/longitude_lastbin
 geolocation/elevation_lastbin
+geolocation/latitude_bin0_error
+geolocation/longitude_bin0_error
+geolocation/elevation_bin0_error
+geolocation/latitude_lastbin_error
+geolocation/longitude_lastbin_error
+geolocation/elevation_lastbin_error
 geolocation/digital_elevation_model
+geolocation/digital_elevation_model_srtm
 geolocation/solar_elevation
+geolocation/local_beam_elevation
+geolocation/local_beam_elevation_error
+geolocation/local_beam_azimuth
+geolocation/local_beam_azimuth_error
