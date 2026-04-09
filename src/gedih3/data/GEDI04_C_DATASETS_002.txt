@@ -16,9 +16,10 @@ surface_flag
 selected_algorithm
 solar_elevation
 fhd_normal
-master_frac
-master_int
+land_cover_data/landsat_treecover
+land_cover_data/landsat_water_persistence
 land_cover_data/leaf_off_flag
 land_cover_data/pft_class
 land_cover_data/region_class
+land_cover_data/urban_proportion
 land_cover_data/worldcover_class

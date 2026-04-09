@@ -10,8 +10,6 @@ wsci_z_pi_lower
 wsci_z_pi_upper
 l4c_quality_flag_rel2
 l4c_quality_flag_rel3
-l2_quality_flag
-l2a_quality_flag_rel3
 l2_algrunflag
 algorithm_run_flag
 elev_highestreturn_outlier_flag
@@ -20,9 +18,12 @@ surface_flag
 selected_algorithm
 solar_elevation
 fhd_normal
-master_frac
-master_int
+land_cover_data/landsat_treecover
+land_cover_data/landsat_water_persistence
 land_cover_data/leaf_off_flag
+land_cover_data/phenology_phase
+land_cover_data/phenology_year
 land_cover_data/pft_class
 land_cover_data/region_class
+land_cover_data/urban_proportion
 land_cover_data/worldcover_class
