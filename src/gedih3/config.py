@@ -86,8 +86,8 @@ _GEDI_L2A_ESSENTIALS = {
 # back to v3 automatically if no v4 entry exists).
 _GEDI_MIN_VARS = {
     'L1B': {
-        2: ['shot_number','stale_return_flag','noise_mean_corrected','rx_sample_start_index','rx_sample_count','rxwaveform'],
-        3: ['shot_number','stale_return_flag','rx_clipflag','noise_mean_corrected','rx_sample_start_index','rx_sample_count','rxwaveform'],
+        2: ['shot_number','stale_return_flag','noise_mean_corrected','rx_sample_start_index','rx_sample_count','rxwaveform','geolocation/elevation_bin0','geolocation/elevation_lastbin'],
+        3: ['shot_number','stale_return_flag','noise_mean_corrected','rx_sample_start_index','rx_sample_count','rxwaveform','geolocation/elevation_bin0','geolocation/elevation_lastbin','rx_clipflag'],
     },
     'L2A': {
         2: _GEDI_L2A_ESSENTIALS[2] + ['rh'],
@@ -99,11 +99,11 @@ _GEDI_MIN_VARS = {
     },
     'L4A': {
         2: ['shot_number','agbd','agbd_se','sensitivity','l4_quality_flag'],
-        3: ['shot_number','agbd','agbd_se','l4a_quality_flag_rel3'],
+        3: ['shot_number','agbd','agbd_se','l4a_quality_flag_rel3','elev_highestreturn_outlier_flag'],
     },
     'L4C': {
         2: ['shot_number','wsci','wsci_xy','wsci_z','wsci_pi_lower','wsci_pi_upper','wsci_quality_flag','sensitivity','land_cover_data/worldcover_class'],
-        3: ['shot_number','wsci','wsci_xy','wsci_z','wsci_pi_lower','wsci_pi_upper','l4c_quality_flag_rel3','land_cover_data/worldcover_class'],
+        3: ['shot_number','wsci','wsci_xy','wsci_z','wsci_pi_lower','wsci_pi_upper','l4c_quality_flag_rel3','land_cover_data/worldcover_class','elev_highestreturn_outlier_flag'],
     },
 }
 
