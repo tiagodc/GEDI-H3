@@ -85,7 +85,10 @@ _GEDI_L2A_ESSENTIALS = {
 # that differ from the previous version need to be added (e.g., v4 falls
 # back to v3 automatically if no v4 entry exists).
 _GEDI_MIN_VARS = {
-    'L1B': {2: ['shot_number','noise_mean_corrected','rx_sample_start_index','rx_sample_count','rxwaveform']},
+    'L1B': {
+        2: ['shot_number','stale_return_flag','noise_mean_corrected','rx_sample_start_index','rx_sample_count','rxwaveform'],
+        3: ['shot_number','stale_return_flag','rx_clipflag','noise_mean_corrected','rx_sample_start_index','rx_sample_count','rxwaveform'],
+    },
     'L2A': {
         2: _GEDI_L2A_ESSENTIALS[2] + ['rh'],
         3: _GEDI_L2A_ESSENTIALS[3] + ['rh'],
@@ -110,6 +113,10 @@ _GEDI_MIN_VARS = {
 # rely on L2A's degrade_flag rather than carrying redundant copies.
 # Use _get_versioned() to resolve for a given version.
 _PRODUCT_QUALITY_FLAGS = {
+    'L1B': {
+        2: [('stale_return_flag', '== 0')],
+        3: [('stale_return_flag', '== 0'), ('rx_clipflag', '== 0')],
+    },
     'L2A': {
         2: [('quality_flag', '== 1'), ('degrade_flag', '== 0')],
         3: [('l2a_quality_flag_rel3', '== 1'), ('degrade_flag', '== 0')],
