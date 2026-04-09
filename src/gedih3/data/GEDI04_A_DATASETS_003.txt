@@ -7,13 +7,13 @@ agbd_t_se
 degrade_include_flag
 elev_highestreturn_outlier_flag
 l2_algrunflag
-l2a_quality_flag_rel3
 l4a_quality_flag_rel3
 predict_stratum
 predictor_limit_flag
 response_limit_flag
 selected_algorithm
 selected_mode_flag
+sensitivity
 shot_number
 solar_elevation
 surface_flag
@@ -21,6 +21,8 @@ xvar
 land_cover_data/landsat_treecover
 land_cover_data/landsat_water_persistence
 land_cover_data/leaf_off_flag
+land_cover_data/phenology_phase
+land_cover_data/phenology_year
 land_cover_data/pft_class
 land_cover_data/pft_infilled_class
 land_cover_data/region_class
