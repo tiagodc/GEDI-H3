@@ -331,7 +331,7 @@ class TestAncillaryToolsCLI:
 
     def test_from_img(self, tmp_output):
         """gh3_from_img with synthetic raster."""
-        import rioxarray  # noqa: ensure available
+        import rioxarray  # noqa: F401
         import xarray as xr
 
         # Create a synthetic raster covering the study area
