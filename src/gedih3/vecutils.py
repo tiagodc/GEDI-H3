@@ -196,7 +196,7 @@ def load_vector(vector_path, columns=None, to_crs=4326):
         gdf = gdf.set_crs(epsg=4326)
 
     # Ensure spatial index is built
-    gdf.sindex  # noqa: triggers spatial index creation
+    gdf.sindex  # noqa: B018
 
     return gdf
 
