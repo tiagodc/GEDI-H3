@@ -30,6 +30,7 @@ shot_number
 delta_time
 quality_flag
 degrade_flag
+sensitivity
 lat_lowestmode
 lon_lowestmode
 elev_lowestmode
@@ -116,7 +117,7 @@ gh3_build -r "-51,0,-50,1" -l2a all
 ### minimal
 
 ::::{tab-set}
-:::{tab-item} v2 — 6 variables
+:::{tab-item} v2 — 8 variables
 ```
 shot_number
 stale_return_flag
@@ -124,9 +125,11 @@ noise_mean_corrected
 rx_sample_start_index
 rx_sample_count
 rxwaveform
+geolocation/elevation_bin0
+geolocation/elevation_lastbin
 ```
 :::
-:::{tab-item} v3 — 7 variables
+:::{tab-item} v3 — 9 variables
 ```
 shot_number
 stale_return_flag
@@ -135,6 +138,8 @@ noise_mean_corrected
 rx_sample_start_index
 rx_sample_count
 rxwaveform
+geolocation/elevation_bin0
+geolocation/elevation_lastbin
 ```
 :::
 ::::
@@ -142,10 +147,10 @@ rxwaveform
 ### default
 
 ::::{tab-set}
-:::{tab-item} v2 — 21 variables
+:::{tab-item} v2 — 29 variables
 
 ```
-# Receive waveform (7)
+# Receive waveform (8)
 shot_number
 stale_return_flag
 noise_mean_corrected
@@ -155,13 +160,10 @@ rx_sample_count
 rx_energy
 rxwaveform
 
-# Transmit waveform (3)
-tx_sample_start_index
-tx_sample_count
+# Transmit pulse flag (1)
 tx_pulseflag
-txwaveform
 
-# Geolocation (8)
+# Geolocation (20) — position, elevation, errors, DEM, solar, beam angles
 geolocation/degrade
 geolocation/latitude_bin0
 geolocation/longitude_bin0
@@ -169,20 +171,31 @@ geolocation/elevation_bin0
 geolocation/latitude_lastbin
 geolocation/longitude_lastbin
 geolocation/elevation_lastbin
+geolocation/latitude_bin0_error
+geolocation/longitude_bin0_error
+geolocation/elevation_bin0_error
+geolocation/latitude_lastbin_error
+geolocation/longitude_lastbin_error
+geolocation/elevation_lastbin_error
 geolocation/digital_elevation_model
+geolocation/digital_elevation_model_srtm
 geolocation/solar_elevation
+geolocation/local_beam_elevation
+geolocation/local_beam_elevation_error
+geolocation/local_beam_azimuth
+geolocation/local_beam_azimuth_error
 ```
 
 :::
-:::{tab-item} v3 — 26 variables
+:::{tab-item} v3 — 33 variables
 
 ```
-# Receive waveform (11) — new: rx_clip*, mean_64kadjusted, th_right_used
+# Receive waveform (12) — new: rx_clip*, mean_64kadjusted
 shot_number
 stale_return_flag
-mean_64kadjusted
 noise_mean_corrected
 noise_stddev_corrected
+mean_64kadjusted
 rx_clipbin0
 rx_clipbin_count
 rx_clipflag
@@ -190,15 +203,11 @@ rx_sample_start_index
 rx_sample_count
 rx_energy
 rxwaveform
-th_right_used
 
-# Transmit waveform (3)
-tx_sample_start_index
-tx_sample_count
+# Transmit pulse flag (1)
 tx_pulseflag
-txwaveform
 
-# Geolocation (8)
+# Geolocation (20) — position, elevation, errors, DEM, solar, beam angles
 geolocation/degrade
 geolocation/latitude_bin0
 geolocation/longitude_bin0
@@ -206,8 +215,19 @@ geolocation/elevation_bin0
 geolocation/latitude_lastbin
 geolocation/longitude_lastbin
 geolocation/elevation_lastbin
+geolocation/latitude_bin0_error
+geolocation/longitude_bin0_error
+geolocation/elevation_bin0_error
+geolocation/latitude_lastbin_error
+geolocation/longitude_lastbin_error
+geolocation/elevation_lastbin_error
 geolocation/digital_elevation_model
+geolocation/digital_elevation_model_srtm
 geolocation/solar_elevation
+geolocation/local_beam_elevation
+geolocation/local_beam_elevation_error
+geolocation/local_beam_azimuth
+geolocation/local_beam_azimuth_error
 ```
 
 :::
@@ -220,12 +240,13 @@ geolocation/solar_elevation
 ### minimal
 
 ::::{tab-set}
-:::{tab-item} v2 — 8 variables
+:::{tab-item} v2 — 9 variables
 ```
 shot_number
 delta_time
 quality_flag
 degrade_flag
+sensitivity
 lat_lowestmode
 lon_lowestmode
 elev_lowestmode
@@ -250,10 +271,10 @@ rh
 ### default
 
 ::::{tab-set}
-:::{tab-item} v2 — 86 variables
+:::{tab-item} v2 — 88 variables
 
 ```
-# Core (18)
+# Core (20)
 beam
 channel
 degrade_flag
@@ -263,6 +284,7 @@ digital_elevation_model_srtm
 elevation_bias_flag
 selected_algorithm
 selected_mode
+num_detectedmodes
 shot_number
 solar_azimuth
 solar_elevation
@@ -272,6 +294,7 @@ lon_lowestmode
 elev_lowestmode
 quality_flag
 rh
+sensitivity
 
 # Geolocation — stale flag (1)
 geolocation/stale_return_flag
@@ -361,10 +384,10 @@ land_cover_data/urban_proportion
 ```
 
 :::
-:::{tab-item} v3 — 105 variables
+:::{tab-item} v3 — 110 variables
 
 ```
-# Core (19) — quality_flag renamed; sensitivity added at top level
+# Core (21) — dual quality flags; num_detectedmodes added
 beam
 channel
 degrade_flag
@@ -374,6 +397,7 @@ digital_elevation_model_srtm
 elevation_bias_flag
 selected_algorithm
 selected_mode
+num_detectedmodes
 shot_number
 solar_azimuth
 solar_elevation
@@ -381,6 +405,7 @@ surface_flag
 lat_lowestmode
 lon_lowestmode
 elev_lowestmode
+l2a_quality_flag_rel2
 l2a_quality_flag_rel3
 rh
 sensitivity
@@ -485,13 +510,16 @@ rx_processing_a10/botloc
 rx_processing_a10/rx_algrunflag
 rx_processing_a10/selected_mode_flag
 
-# land_cover_data (6)
+# land_cover_data (9) — adds phenology_phase, phenology_year, worldcover_class
 land_cover_data/landsat_treecover
 land_cover_data/landsat_water_persistence
 land_cover_data/leaf_off_flag
 land_cover_data/pft_class
 land_cover_data/region_class
 land_cover_data/urban_proportion
+land_cover_data/phenology_phase
+land_cover_data/phenology_year
+land_cover_data/worldcover_class
 ```
 
 :::
@@ -508,15 +536,15 @@ land_cover_data/urban_proportion
 ```
 shot_number
 l2b_quality_flag
-sensitivity
 cover_z
 fhd_normal
 pai_z
 pavd_z
-pgap_theta
+cover
+pai
 ```
 :::
-:::{tab-item} v3 — 7 variables
+:::{tab-item} v3 — 9 variables
 ```
 shot_number
 l2b_quality_flag_rel3
@@ -524,10 +552,10 @@ cover_z
 fhd_normal
 pai_z
 pavd_z
-pgap_theta
+cover
+pai
+rch
 ```
-
-v3 drops `sensitivity` — it comes from L2A v3 essentials.
 :::
 ::::
 
@@ -603,14 +631,15 @@ rx_processing/rx_energy_a5
 ```
 
 :::
-:::{tab-item} v3 — 59 variables
+:::{tab-item} v3 — 68 variables
 
 ```
-# Core (25) — quality flag renamed; new metrics rch, rhov_rhog, rv_rg_r
+# Core (27) — dual quality flags; new metrics rch, rhov_rhog, rv_rg_r; sensitivity retained
 cover
 cover_z
 fhd_normal
 l2_algrunflag
+l2b_quality_flag_rel2
 l2b_quality_flag_rel3
 omega
 pai
@@ -629,51 +658,61 @@ rh100
 rx_range_highestreturn
 selected_rg_algorithm
 selected_l2a_algorithm
+sensitivity
 shot_number
 stale_return_flag
 surface_flag
 
-# geolocation (7) — no L2A duplicates; new local_beam_azimuth
-geolocation/digital_elevation_model
-geolocation/elev_highestreturn
-geolocation/lat_highestreturn
+# geolocation (4) — v3 removes DEM and highestreturn fields; adds solar_azimuth
 geolocation/local_beam_azimuth
 geolocation/local_beam_elevation
-geolocation/lon_highestreturn
+geolocation/solar_azimuth
 geolocation/solar_elevation
 
-# land_cover_data (6)
+# land_cover_data (9) — adds phenology_phase, phenology_year, worldcover_class
 land_cover_data/landsat_treecover
 land_cover_data/landsat_water_persistence
 land_cover_data/urban_proportion
 land_cover_data/leaf_off_flag
+land_cover_data/phenology_phase
+land_cover_data/phenology_year
 land_cover_data/pft_class
 land_cover_data/region_class
+land_cover_data/worldcover_class
 
-# rx_processing — algorithms a1, a2, a5, a10 (5 each)
+# rx_processing — algorithms a1, a2, a5, a10 (7 each) — adds fhd_normal, rch per algo
+rx_processing/fhd_normal_a1
 rx_processing/l2_algrunflag_a1
+rx_processing/rch_a1
 rx_processing/rg_a1
 rx_processing/rg_error_a1
 rx_processing/rv_a1
 rx_processing/rx_energy_a1
+rx_processing/fhd_normal_a2
 rx_processing/l2_algrunflag_a2
+rx_processing/rch_a2
 rx_processing/rg_a2
 rx_processing/rg_error_a2
 rx_processing/rv_a2
 rx_processing/rx_energy_a2
+rx_processing/fhd_normal_a5
 rx_processing/l2_algrunflag_a5
+rx_processing/rch_a5
 rx_processing/rg_a5
 rx_processing/rg_error_a5
 rx_processing/rv_a5
 rx_processing/rx_energy_a5
+rx_processing/fhd_normal_a10
 rx_processing/l2_algrunflag_a10
+rx_processing/rch_a10
 rx_processing/rg_a10
 rx_processing/rg_error_a10
 rx_processing/rv_a10
 rx_processing/rx_energy_a10
 ```
 
-v3 drops `sensitivity` (from L2A v3 essentials) and renames `algorithmrun_flag` → `l2_algrunflag`.
+v3 adds dual quality flags (`l2b_quality_flag_rel2/rel3`), new metrics (`rch`, `rhov_rhog`, `rv_rg_r`),
+restructures geolocation, expands land cover, and adds `fhd_normal_aX`/`rch_aX` to rx_processing.
 
 :::
 ::::
@@ -685,31 +724,29 @@ v3 drops `sensitivity` (from L2A v3 essentials) and renames `algorithmrun_flag` 
 ### minimal
 
 ::::{tab-set}
-:::{tab-item} v2 — 5 variables
+:::{tab-item} v2 — 4 variables
 ```
 shot_number
 agbd
 agbd_se
-sensitivity
 l4_quality_flag
 ```
 :::
-:::{tab-item} v3 — 4 variables
+:::{tab-item} v3 — 5 variables
 ```
 shot_number
 agbd
 agbd_se
 l4a_quality_flag_rel3
+elev_highestreturn_outlier_flag
 ```
-
-v3 drops `sensitivity` (from L2A v3 essentials) and renames the quality flag.
 :::
 ::::
 
 ### default
 
 ::::{tab-set}
-:::{tab-item} v2 — 75 variables
+:::{tab-item} v2 — 70 variables
 
 ```
 # Core (16) — no L2A duplicates (coords/time/degrade from L2A)
@@ -792,10 +829,10 @@ agbd_prediction/xvar_a5
 ```
 
 :::
-:::{tab-item} v3 — 85 variables
+:::{tab-item} v3 — 90 variables
 
 ```
-# Core (20) — no L2A duplicates; new v3 flags and prediction intervals
+# Core (20) — no L2A duplicates; new v3 flags and prediction intervals; sensitivity retained
 agbd
 agbd_pi_lower
 agbd_pi_upper
@@ -805,22 +842,24 @@ agbd_t_se
 degrade_include_flag
 elev_highestreturn_outlier_flag
 l2_algrunflag
-l2a_quality_flag_rel3
 l4a_quality_flag_rel3
 predict_stratum
 predictor_limit_flag
 response_limit_flag
 selected_algorithm
 selected_mode_flag
+sensitivity
 shot_number
 solar_elevation
 surface_flag
 xvar
 
-# land_cover_data (8) — new: pft_infilled_class, worldcover_class
+# land_cover_data (10) — new: pft_infilled_class, worldcover_class, phenology
 land_cover_data/landsat_treecover
 land_cover_data/landsat_water_persistence
 land_cover_data/leaf_off_flag
+land_cover_data/phenology_phase
+land_cover_data/phenology_year
 land_cover_data/pft_class
 land_cover_data/pft_infilled_class
 land_cover_data/region_class
@@ -894,8 +933,8 @@ agbd_prediction/selected_mode_flag_a10
 agbd_prediction/xvar_a10
 ```
 
-v3 drops `sensitivity` (from L2A v3 essentials), renames `algorithm_run_flag` → `l2_algrunflag`,
-and adds prediction intervals (`agbd_pi_lower/upper`).
+v3 renames `algorithm_run_flag` → `l2_algrunflag`, adds prediction intervals (`agbd_pi_lower/upper`),
+and expands land cover with phenology and PFT infilled class.
 
 :::
 ::::
@@ -907,7 +946,7 @@ and adds prediction intervals (`agbd_pi_lower/upper`).
 ### minimal
 
 ::::{tab-set}
-:::{tab-item} v2 — 9 variables
+:::{tab-item} v2 — 8 variables
 ```
 shot_number
 wsci
@@ -916,11 +955,10 @@ wsci_z
 wsci_pi_lower
 wsci_pi_upper
 wsci_quality_flag
-sensitivity
 land_cover_data/worldcover_class
 ```
 :::
-:::{tab-item} v3 — 8 variables
+:::{tab-item} v3 — 9 variables
 ```
 shot_number
 wsci
@@ -930,22 +968,19 @@ wsci_pi_lower
 wsci_pi_upper
 l4c_quality_flag_rel3
 land_cover_data/worldcover_class
+elev_highestreturn_outlier_flag
 ```
-
-v3 drops `sensitivity` (from L2A v3 essentials) and renames the quality flag.
 :::
 ::::
 
 ### default
 
 ::::{tab-set}
-:::{tab-item} v2 — 24 variables
+:::{tab-item} v2 — 69 variables
 
 ```
-# Identity
+# Core (18)
 shot_number
-
-# WSCI core (10)
 wsci
 wsci_xy
 wsci_z
@@ -955,8 +990,6 @@ wsci_xy_pi_lower
 wsci_xy_pi_upper
 wsci_z_pi_lower
 wsci_z_pi_upper
-
-# Quality & flags (6)
 wsci_quality_flag
 l2_quality_flag
 algorithm_run_flag
@@ -964,27 +997,70 @@ sensitivity
 surface_flag
 selected_algorithm
 solar_elevation
-
-# Supporting science (3)
 fhd_normal
-master_frac
-master_int
 
-# Land cover (4)
+# Land cover (7)
+land_cover_data/landsat_treecover
+land_cover_data/landsat_water_persistence
 land_cover_data/leaf_off_flag
 land_cover_data/pft_class
 land_cover_data/region_class
+land_cover_data/urban_proportion
 land_cover_data/worldcover_class
+
+# wsci_prediction — algorithms a1, a2, a5, a10 (11 each)
+wsci_prediction/algorithm_run_flag_a1
+wsci_prediction/wsci_quality_flag_a1
+wsci_prediction/wsci_a1
+wsci_prediction/wsci_pi_lower_a1
+wsci_prediction/wsci_pi_upper_a1
+wsci_prediction/wsci_xy_a1
+wsci_prediction/wsci_xy_pi_lower_a1
+wsci_prediction/wsci_xy_pi_upper_a1
+wsci_prediction/wsci_z_a1
+wsci_prediction/wsci_z_pi_lower_a1
+wsci_prediction/wsci_z_pi_upper_a1
+wsci_prediction/algorithm_run_flag_a2
+wsci_prediction/wsci_quality_flag_a2
+wsci_prediction/wsci_a2
+wsci_prediction/wsci_pi_lower_a2
+wsci_prediction/wsci_pi_upper_a2
+wsci_prediction/wsci_xy_a2
+wsci_prediction/wsci_xy_pi_lower_a2
+wsci_prediction/wsci_xy_pi_upper_a2
+wsci_prediction/wsci_z_a2
+wsci_prediction/wsci_z_pi_lower_a2
+wsci_prediction/wsci_z_pi_upper_a2
+wsci_prediction/algorithm_run_flag_a5
+wsci_prediction/wsci_quality_flag_a5
+wsci_prediction/wsci_a5
+wsci_prediction/wsci_pi_lower_a5
+wsci_prediction/wsci_pi_upper_a5
+wsci_prediction/wsci_xy_a5
+wsci_prediction/wsci_xy_pi_lower_a5
+wsci_prediction/wsci_xy_pi_upper_a5
+wsci_prediction/wsci_z_a5
+wsci_prediction/wsci_z_pi_lower_a5
+wsci_prediction/wsci_z_pi_upper_a5
+wsci_prediction/algorithm_run_flag_a10
+wsci_prediction/wsci_quality_flag_a10
+wsci_prediction/wsci_a10
+wsci_prediction/wsci_pi_lower_a10
+wsci_prediction/wsci_pi_upper_a10
+wsci_prediction/wsci_xy_a10
+wsci_prediction/wsci_xy_pi_lower_a10
+wsci_prediction/wsci_xy_pi_upper_a10
+wsci_prediction/wsci_z_a10
+wsci_prediction/wsci_z_pi_lower_a10
+wsci_prediction/wsci_z_pi_upper_a10
 ```
 
 :::
-:::{tab-item} v3 — 28 variables
+:::{tab-item} v3 — 73 variables
 
 ```
-# Identity
+# Core (20) — dual quality flags; new v3-specific flags
 shot_number
-
-# WSCI core (10)
 wsci
 wsci_xy
 wsci_z
@@ -994,12 +1070,8 @@ wsci_xy_pi_lower
 wsci_xy_pi_upper
 wsci_z_pi_lower
 wsci_z_pi_upper
-
-# Quality & flags (11) — dual quality flags; new v3-specific flags
 l4c_quality_flag_rel2
 l4c_quality_flag_rel3
-l2_quality_flag
-l2a_quality_flag_rel3
 l2_algrunflag
 algorithm_run_flag
 elev_highestreturn_outlier_flag
@@ -1007,20 +1079,68 @@ degrade_include_flag
 surface_flag
 selected_algorithm
 solar_elevation
-
-# Supporting science (3)
 fhd_normal
-master_frac
-master_int
 
-# Land cover (4)
+# Land cover (9) — adds phenology_phase, phenology_year
+land_cover_data/landsat_treecover
+land_cover_data/landsat_water_persistence
 land_cover_data/leaf_off_flag
+land_cover_data/phenology_phase
+land_cover_data/phenology_year
 land_cover_data/pft_class
 land_cover_data/region_class
+land_cover_data/urban_proportion
 land_cover_data/worldcover_class
+
+# wsci_prediction — algorithms a1, a2, a5, a10 (11 each) — wsci_quality_flag_aX → l4c_quality_flag_rel3_aX
+wsci_prediction/algorithm_run_flag_a1
+wsci_prediction/l4c_quality_flag_rel3_a1
+wsci_prediction/wsci_a1
+wsci_prediction/wsci_pi_lower_a1
+wsci_prediction/wsci_pi_upper_a1
+wsci_prediction/wsci_xy_a1
+wsci_prediction/wsci_xy_pi_lower_a1
+wsci_prediction/wsci_xy_pi_upper_a1
+wsci_prediction/wsci_z_a1
+wsci_prediction/wsci_z_pi_lower_a1
+wsci_prediction/wsci_z_pi_upper_a1
+wsci_prediction/algorithm_run_flag_a2
+wsci_prediction/l4c_quality_flag_rel3_a2
+wsci_prediction/wsci_a2
+wsci_prediction/wsci_pi_lower_a2
+wsci_prediction/wsci_pi_upper_a2
+wsci_prediction/wsci_xy_a2
+wsci_prediction/wsci_xy_pi_lower_a2
+wsci_prediction/wsci_xy_pi_upper_a2
+wsci_prediction/wsci_z_a2
+wsci_prediction/wsci_z_pi_lower_a2
+wsci_prediction/wsci_z_pi_upper_a2
+wsci_prediction/algorithm_run_flag_a5
+wsci_prediction/l4c_quality_flag_rel3_a5
+wsci_prediction/wsci_a5
+wsci_prediction/wsci_pi_lower_a5
+wsci_prediction/wsci_pi_upper_a5
+wsci_prediction/wsci_xy_a5
+wsci_prediction/wsci_xy_pi_lower_a5
+wsci_prediction/wsci_xy_pi_upper_a5
+wsci_prediction/wsci_z_a5
+wsci_prediction/wsci_z_pi_lower_a5
+wsci_prediction/wsci_z_pi_upper_a5
+wsci_prediction/algorithm_run_flag_a10
+wsci_prediction/l4c_quality_flag_rel3_a10
+wsci_prediction/wsci_a10
+wsci_prediction/wsci_pi_lower_a10
+wsci_prediction/wsci_pi_upper_a10
+wsci_prediction/wsci_xy_a10
+wsci_prediction/wsci_xy_pi_lower_a10
+wsci_prediction/wsci_xy_pi_upper_a10
+wsci_prediction/wsci_z_a10
+wsci_prediction/wsci_z_pi_lower_a10
+wsci_prediction/wsci_z_pi_upper_a10
 ```
 
-v3 drops `sensitivity` (from L2A v3 essentials) and adds v3-specific quality flags.
+v3 adds dual quality flags, drops `sensitivity` (from L2A v3 essentials), expands land cover with phenology,
+and renames `wsci_quality_flag_aX` → `l4c_quality_flag_rel3_aX` in wsci_prediction.
 
 :::
 ::::
