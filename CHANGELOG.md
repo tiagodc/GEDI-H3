@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.0] - 2026-04-11
+
+### Changed
+- Revised `default` variable presets for all products and GEDI versions (L1B, L2A, L2B, L4A, L4C): updated variable selections to match current HDF5 file contents, corrected variable counts, and aligned minimal/default presets with `config.py`
+- Updated documentation to reflect new variable lists in `docs/concepts/variable-presets.md`
+
 ## [0.4.0] - 2026-04-07
 
 ### Added
