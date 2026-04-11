@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.1] - 2026-04-11
+
+### Fixed
+- Ruff lint: moved `_PRODUCT_QUALITY_FLAGS` to top-level import in `gh3builder.py` to fix F823 (local variable referenced before assignment caused by inline re-import shadowing module-level binding)
+- Ruff lint: corrected two malformed `# noqa` directives to use explicit rule codes (`B018`, `F401`)
+
 ## [0.5.0] - 2026-04-11
 
 ### Changed
