@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.3] - 2026-04-15
+
+### Fixed
+- `gh3_build_ducklake`: interactive `input()` confirmation was silently bypassed when invoking via the installed CLI entry point; replaced with standard argparse CLI (`-d`/`--database`, `-t`/`--tmpdir`, `-v`/`-Q`) matching all other tools
+
+### Changed
+- `gh3_build_ducklake` now uses `setup_logging`, `print_banner`, `print_success`, and `cli_exception_handler` from `cliutils`, and `get_file_list()` is parameterised to accept a custom database path
+
 ## [0.5.2] - 2026-04-15
 
 ### Fixed
