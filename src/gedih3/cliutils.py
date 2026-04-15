@@ -1322,27 +1322,36 @@ def build_query_string(args, available_columns=None):
         available_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)
     queries = []
 
-    # Quality filter — apply conditions for each selected product + version.
+    # Quality filter — apply minimal conditions for each selected product + version.
     # L2A conditions (incl. degrade_flag) are always applied since L2A essentials
-    # are present in every database.  Falls back to brute-force column scan if
-    # no products are specified.
+    # are present in every database.  When no product flags are given, infer
+    # products from -l/--list variable name suffixes (e.g. "wsci_l4c" → L4C).
     if args.quality:
         selected_products = [p for p in GEDI_PRODUCTS if getattr(args, p.lower(), None) is not None]
-        if selected_products:
-            # Always include L2A quality conditions — L2A essentials are always in the database
-            products_for_quality = list(dict.fromkeys(['L2A'] + selected_products))
-            version = None
-            if getattr(args, 'database', None):
-                try:
-                    from .gh3driver import gh3_read_meta
-                    version = gh3_read_meta('gedi_version', gh3_root_dir=args.database)
-                except Exception:
-                    pass
-            quality_conditions = get_product_quality_conditions(products_for_quality, version, available_columns)
-            queries += [f"`{col}` {op}" for col, op in quality_conditions]
-        else:
-            quality_cols = [i for i in available_columns if 'quality_flag' in i]
-            queries += [f"`{i}` == 1" for i in quality_cols]
+
+        # Infer products from -l/--list variable name suffixes when no product flags used.
+        if not selected_products:
+            product_suffixes = {p.lower(): p for p in GEDI_PRODUCTS}
+            for var in (getattr(args, 'list', None) or []):
+                for suffix, prod in product_suffixes.items():
+                    if var.endswith(f'_{suffix}'):
+                        if prod not in selected_products:
+                            selected_products.append(prod)
+                        break
+
+        # Resolve GEDI version once (shared for all products)
+        version = None
+        if getattr(args, 'database', None):
+            try:
+                from .gh3driver import gh3_read_meta
+                version = gh3_read_meta('gedi_version', gh3_root_dir=args.database)
+            except Exception:
+                pass
+
+        # Always include L2A conditions; fall back to L2A-only if no products detected
+        products_for_quality = list(dict.fromkeys(['L2A'] + selected_products))
+        quality_conditions = get_product_quality_conditions(products_for_quality, version, available_columns)
+        queries += [f"`{col}` {op}" for col, op in quality_conditions]
 
     # Temporal filters
     if args.time_start:
