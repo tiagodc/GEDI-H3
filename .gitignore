@@ -16,3 +16,4 @@ tstex_modules/
 docs/getting-started/hpc-workflow.md
 tutorials/hpc_tutorial.ipynb
 tutorials/*.pdf
+.claude/scheduled_tasks.lock
