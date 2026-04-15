@@ -314,6 +314,22 @@ See `pyproject.toml` for the full dependency list.
 
 ---
 
+## Docker
+
+A Docker image is available for running `gedih3` without a conda installation:
+
+```bash
+# Build
+docker build -f docker/Dockerfile -t gedih3:latest .
+
+# Run any CLI tool
+docker run --rm -v /your/data:/data gedih3:latest gh3_list_resolutions
+```
+
+See [`docker/README.md`](docker/README.md) for the full usage guide, including volume mounts, NASA credential setup, and rootless usage with Podman.
+
+---
+
 ## Acknowledgements
 
 `gedih3` was developed as a supporting tool in the course of research funded by the National Aeronautics and Space Administration (NASA) contract NNL 15AA03C for the development and execution of the GEDI mission, and NASA FINNEST grant 80NSSC22K1543. This software was not a contracted deliverable of these projects but emerged from work conducted under them.

@@ -1,0 +1,40 @@
+# Version control
+.git/
+.github/
+
+# IDE and tooling
+.vscode/
+.claude/
+
+# Documentation (not needed for runtime image)
+docs/
+tutorials/
+
+# Test suite
+tests/
+
+# Build artifacts
+build/
+*.egg-info/
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Project tooling
+recipe/
+scripts/
+tasks/
+
+# Temporary files
+tmp/
+
+# Runtime config (users provide their own at runtime)
+dask-*.yaml
+environment.yml
+
+# Docs metadata
+CHANGELOG.md
+CONTRIBUTING.md
+CITATION.cff
+.readthedocs.yaml
