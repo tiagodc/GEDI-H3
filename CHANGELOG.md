@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.2] - 2026-04-15
+
+### Fixed
+- Quality filtering with `-l/--list` flag now infers products from variable name suffixes (e.g. `wsci_l4c` → L4C) and applies only the minimal flags from `_PRODUCT_QUALITY_FLAGS`, instead of brute-force applying every `quality_flag` column in the dataset
+
 ## [0.5.1] - 2026-04-11
 
 ### Fixed
