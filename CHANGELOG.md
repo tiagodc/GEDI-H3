@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.4] - 2026-04-20
+
+### Changed
+- `gh3_aggregate`: more flexible callable handling in `gh3driver` aggregation pipeline
+
 ## [0.5.3] - 2026-04-15
 
 ### Fixed
