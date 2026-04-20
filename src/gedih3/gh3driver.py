@@ -378,10 +378,15 @@ def gh3_aggregate_func(df, res, agg='mean', cols=None, **kwargs):
         g = df.h3.h3_to_parent(resolution=res).groupby(h3col, observed=True)
 
     if cols is not None:
+        active_cols = list(cols) if not isinstance(cols, str) else [cols]
         g = g[cols]
+    elif callable(agg) or isinstance(agg, dict):
+        # Callables and dicts handle column selection/naming themselves — pass everything.
+        active_cols = [c for c in df.columns if c != h3col]
     else:
         # Filter out internal columns (h3_XX, egiXX, _egi_x, _egi_y, shot_number, geometry)
         filtered_cols = get_aggregatable_columns(df)
+        active_cols = filtered_cols if filtered_cols else df.columns.tolist()
         if filtered_cols:
             g = g[filtered_cols]
 
@@ -392,9 +397,9 @@ def gh3_aggregate_func(df, res, agg='mean', cols=None, **kwargs):
         # Call the function directly with an empty DataFrame to infer the true schema.
         # Use df directly (preserves correct dtypes) — pd.DataFrame(columns=...) gives
         # object dtype, which breaks functions that call np.isfinite on the values.
-        _sample_cols = list(g.obj.columns) if hasattr(g, 'obj') else df.columns.tolist()
-        _typed = [c for c in _sample_cols if c in df.columns]
-        _sample = df[_typed].iloc[0:0].copy() if _typed else pd.DataFrame(columns=_sample_cols)
+        # Use active_cols (not g.obj.columns) — g.obj has all columns but apply only sees the selection.
+        _typed = [c for c in active_cols if c in df.columns]
+        _sample = df[_typed].iloc[0:0].copy() if _typed else pd.DataFrame(columns=active_cols)
         try:
             out = agg(_sample, **kwargs)
             out = out.iloc[0:0].copy()
@@ -1818,7 +1823,7 @@ def egi_aggregate_func(df, level, agg='mean', cols=None, x_col='lon_lowestmode',
     if 'geometry' in egi_df.columns:
         egi_df = pd.DataFrame(egi_df.drop(columns='geometry'))
 
-    # Filter to requested columns
+    # Filter to requested columns (skip for callable/dict — they handle selection themselves)
     if cols is not None:
         egi_df = egi_df[[c for c in cols if c in egi_df.columns]]
 
