@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.5] - 2026-04-24
+
+### Added
+- `gedi_download`: new `granule_names` parameter forwards a filename list to the CMR search (`.h5` suffix is stripped since CMR's `readable_granule_name` matches the stem), so callers that already know which granules to fetch no longer need to enumerate the full release
+
+### Fixed
+- `gedi_download` `on_granule_complete` callback now receives the file path in `granule_info_dict['path']` (target SOC path on PENDING, actual downloaded path on DOWNLOADED, None on FAILED) — previously callers had no way to reach the file they just landed
+- `GEDIAccessor.search_data` DOI-fallback warning now names every dropped filter (`short_name` and `version`) and the DOI being used, instead of silently broadening across versions
+
 ## [0.5.4] - 2026-04-20
 
 ### Changed
