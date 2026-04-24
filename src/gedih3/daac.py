@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Union, List, Dict, Optional, Tuple, Any, Callable
+from typing import Union, List, Dict, Optional, Tuple, Any, Callable, Iterable
 from functools import partial
 from itertools import chain
 import earthaccess
@@ -284,7 +284,12 @@ class GEDIAccessor:
 
         # DOI fallback: if short_name search returned 0 results, retry with DOI
         if len(self.granules) == 0 and self.product is not None and 'short_name' in search_params and 'doi' in self.product:
-            logger.warning(f"No granules found with short_name '{search_params['short_name']}', retrying with DOI")
+            dropped = [k for k in ('short_name', 'version') if k in search_params]
+            logger.warning(
+                f"No granules found for short_name={search_params.get('short_name')!r}"
+                f" version={search_params.get('version')!r}; dropping {dropped} and"
+                f" retrying with DOI {self.product['doi']} (search will broaden across all versions)"
+            )
             fallback_params = {k: v for k, v in search_params.items() if k not in ('short_name', 'version')}
             fallback_params['doi'] = self.product['doi']
             self.granules = earthaccess.search_data(**fallback_params)
@@ -611,6 +616,7 @@ def gedi_download(
     resume: bool = False,
     max_attempts: int = RETRY_DEFAULTS['max_attempts'],
     search_kwargs: Dict = None,
+    granule_names: Optional[Iterable[str]] = None,
     on_granule_complete: Optional[Callable] = None,
 ) -> Union[Dict[str, List[str]], List[str]]:
     """
@@ -639,10 +645,19 @@ def gedi_download(
         Maximum download attempts per granule
     search_kwargs : dict, optional
         Custom search parameters for non-GEDI datasets.
+    granule_names : iterable of str, optional
+        Restrict the CMR search to these specific GEDI granule filenames.
+        Trailing ``.h5`` is stripped before forwarding to CMR because
+        ``readable_granule_name`` matches the filename stem, not the full
+        filename. Ignored for ``CUSTOM`` datasets (use ``search_kwargs``
+        with ``granule_name=...`` instead).
     on_granule_complete : callable, optional
         Callback ``(granule_info_dict, status_str) -> None`` called after
-        each granule completes. ``granule_info_dict`` has orbit/granule/track
-        keys; ``status_str`` is 'PENDING', 'DOWNLOADED', or 'FAILED'.
+        each granule completes. ``granule_info_dict`` has ``orbit``,
+        ``granule``, ``track``, and ``path`` keys. ``path`` is the target
+        SOC path on ``'PENDING'``, the actual downloaded file path on
+        ``'DOWNLOADED'``, and ``None`` on ``'FAILED'``. ``status_str`` is
+        one of ``'PENDING'``, ``'DOWNLOADED'``, or ``'FAILED'``.
 
     Returns
     -------
@@ -699,7 +714,13 @@ def gedi_download(
             else:
                 # Use per-product config version when --gedi-version not specified
                 prod_version = version if version is not None else GEDI_PRODUCTS.get(prod.upper(), {}).get('version')
-                granules = gass.search_data(product=prod, version=prod_version)
+                search_extra = {}
+                if granule_names is not None:
+                    # CMR's readable_granule_name matches the stem, not the full filename.
+                    search_extra['granule_name'] = [
+                        n[:-3] if n.endswith('.h5') else n for n in granule_names
+                    ]
+                granules = gass.search_data(product=prod, version=prod_version, **search_extra)
 
             if len(granules) == 0:
                 logger.warning(f"No granules found for product {prod}")
@@ -736,7 +757,15 @@ def gedi_download(
                 if on_granule_complete and prod != 'CUSTOM':
                     for g in granules:
                         gfile = GEDIFile(g.data_links()[0])
-                        ginfo = {'orbit': gfile.orbit, 'granule': gfile.orbit_granule, 'track': gfile.track}
+                        expected_path = os.path.join(
+                            odir, str(gfile.date.year), gfile.date.strftime('%j'), gfile.full_name
+                        )
+                        ginfo = {
+                            'orbit': gfile.orbit,
+                            'granule': gfile.orbit_granule,
+                            'track': gfile.track,
+                            'path': expected_path,
+                        }
                         on_granule_complete(ginfo, 'PENDING')
 
                 if dask_client is not None:
@@ -752,7 +781,12 @@ def gedi_download(
                             opaths_map[future] = result
                             g = future_to_granule[future]
                             gfile = GEDIFile(g.data_links()[0])
-                            ginfo = {'orbit': gfile.orbit, 'granule': gfile.orbit_granule, 'track': gfile.track}
+                            ginfo = {
+                                'orbit': gfile.orbit,
+                                'granule': gfile.orbit_granule,
+                                'track': gfile.track,
+                                'path': result,
+                            }
                             status = 'DOWNLOADED' if result else 'FAILED'
                             on_granule_complete(ginfo, status)
                             logger.info(f"[{prod}] {i+1}/{n_total} granules processed")
@@ -768,7 +802,12 @@ def gedi_download(
                     if on_granule_complete and prod != 'CUSTOM':
                         for g, result in zip(granules, opaths):
                             gfile = GEDIFile(g.data_links()[0])
-                            ginfo = {'orbit': gfile.orbit, 'granule': gfile.orbit_granule, 'track': gfile.track}
+                            ginfo = {
+                                'orbit': gfile.orbit,
+                                'granule': gfile.orbit_granule,
+                                'track': gfile.track,
+                                'path': result,
+                            }
                             status = 'DOWNLOADED' if result else 'FAILED'
                             on_granule_complete(ginfo, status)
 
