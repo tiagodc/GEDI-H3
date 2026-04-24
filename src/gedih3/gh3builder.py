@@ -60,7 +60,9 @@ def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=
         Number of parallel download workers.
     on_granule_complete : callable, optional
         Callback ``(granule_info_dict, status_str) -> None`` for per-granule
-        progress tracking. Passed through to ``gedi_download()``.
+        progress tracking. Passed through to ``gedi_download()``; see its
+        docstring for the ``granule_info_dict`` contract (includes a
+        ``path`` key).
     ensure_l2a : bool, default True
         If True, automatically add L2A essentials when L2A is not in
         product_vars. Set to False for variable-only updates where L2A
