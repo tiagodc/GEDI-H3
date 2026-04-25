@@ -1,0 +1,236 @@
+#! python
+"""gh3_doctor — audit and (optionally) heal a gedih3 database."""
+
+import argparse
+
+
+def get_cmd_args():
+    from gedih3.cliutils import add_dask_args, add_verbosity_args, add_storage_args
+
+    p = argparse.ArgumentParser(
+        description="Audit and (optionally) heal a gedih3 database",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""\
+Examples:
+  gh3_doctor -i /db                        # read-only audit, all DB diagnoses
+  gh3_doctor -i /db --check db,soc         # explicit subset / aliases
+  gh3_doctor -i /db --check backfill       # one diagnosis
+  gh3_doctor -i /db --fix                  # apply safe remedies
+  gh3_doctor -i /db --fix backfill --s3    # backfill via S3 ETL temp
+  gh3_doctor -i /db --online               # decorate with NASA upstream check
+  gh3_doctor -i /db --report report.json   # machine-readable output
+""",
+    )
+
+    p.add_argument("-i", "--indir", dest="indir", type=str, default=None,
+                   help="root directory of the gedih3 database (default: GH3_DEFAULT_H3_DIR)")
+    p.add_argument("--soc-dir", dest="soc_dir", type=str, default=None,
+                   help="root directory of SOC HDF5 files (default: GH3_DEFAULT_SOC_DIR)")
+    p.add_argument("-t", "--tmpdir", dest="tmpdir", type=str, default=None,
+                   help="temp directory for orphan scans and S3 ETL")
+
+    p.add_argument("--check", dest="check", type=str, default=None,
+                   help="comma-separated diagnosis names or aliases (db, soc, all). Default: all DB diagnoses.")
+    p.add_argument("--fix", dest="fix", type=str, nargs='?', const='__ALL__', default=None,
+                   help="apply safe remedies. Optional comma-separated names; default: all checked.")
+
+    p.add_argument("-s3", "--s3", dest="s3", action='store_true',
+                   help="for backfill, fetch missing source files via NASA S3 ETL temp directory")
+    p.add_argument("--online", dest="online", action='store_true',
+                   help="query NASA CMR for granule availability and emit recommendations")
+
+    p.add_argument("--report", dest="report", type=str, default=None,
+                   help="write machine-readable JSON report to this path")
+    p.add_argument("--orphan-age-hours", dest="orphan_age_hours", type=float, default=24.0,
+                   help="minimum age (hours) before orphan files/dirs are eligible for cleanup [default=24]")
+    p.add_argument("--gedi-version", dest="version", type=int, default=None,
+                   help="GEDI data version (only needed when --online uses CMR)")
+
+    add_dask_args(p)
+    add_verbosity_args(p)
+    add_storage_args(p)
+
+    return p.parse_args()
+
+
+def _resolve_request(arg_value, default_aliases):
+    """Split a comma-separated arg into a list of names. None → default_aliases."""
+    if arg_value is None:
+        return list(default_aliases)
+    return [n.strip() for n in arg_value.split(',') if n.strip()]
+
+
+def main():
+    args = get_cmd_args()
+
+    import os
+    import sys
+    import json
+
+    from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR
+    from gedih3.cliutils import (
+        setup_logging, print_banner, print_success, cli_exception_handler, parse_dask_args, setup_storage,
+    )
+    from gedih3.logger import H3BuildLogger
+    from gedih3.doctor import DoctorContext, run_diagnoses, get_diagnoses
+    from gedih3.doctor.runner import resolve_names
+    # Importing the diagnoses package auto-registers all known diagnoses.
+    import gedih3.doctor.diagnoses  # noqa: F401
+    from gedih3.doctor.inspect import discover_partition_dirs
+
+    logger = setup_logging(args, __name__)
+    print_banner("GEDI H3 Database Doctor", logger=logger)
+
+    if args.indir is None:
+        args.indir = GH3_DEFAULT_H3_DIR
+    if args.soc_dir is None:
+        args.soc_dir = GH3_DEFAULT_SOC_DIR if os.path.isdir(GH3_DEFAULT_SOC_DIR) else None
+    if args.tmpdir is None:
+        args.tmpdir = os.path.join(args.indir, '.tmp')
+
+    if not os.path.isdir(args.indir):
+        logger.error(f"Database directory not found: {args.indir}")
+        sys.exit(2)
+
+    setup_storage(args, logger=logger)
+
+    with cli_exception_handler(args, logger=logger):
+        # Load the build log (lazy upgrade applied automatically). If absent,
+        # most diagnoses still work — they fall back to filesystem inspection.
+        try:
+            h3_logger = H3BuildLogger(product_vars=None, dir=args.indir, version=args.version)
+        except Exception as e:
+            logger.warning(f"Could not load build log: {e}. Diagnoses will skip log-only checks.")
+            h3_logger = None
+
+        partition_dirs = discover_partition_dirs(args.indir)
+        logger.info(f"Database: {args.indir} ({len(partition_dirs)} partitions)")
+        if args.soc_dir:
+            logger.info(f"SOC directory: {args.soc_dir}")
+
+        ctx = DoctorContext(
+            h3_dir=args.indir,
+            soc_dir=args.soc_dir,
+            tmp_dir=args.tmpdir,
+            h3_logger=h3_logger,
+            partition_dirs=partition_dirs,
+            args=args,
+        )
+
+        # Optionally enrich with upstream availability info before diagnoses run.
+        if args.online:
+            try:
+                from gedih3.doctor.upstream import gather_upstream
+                ctx.upstream = gather_upstream(ctx, logger=logger)
+            except Exception as e:
+                logger.warning(f"Upstream check failed (continuing without): {e}")
+
+        # Determine which diagnoses to check
+        registry = get_diagnoses()
+        if not registry:
+            logger.error("No diagnoses registered. This is a packaging bug.")
+            sys.exit(2)
+
+        check_names = _resolve_request(args.check, default_aliases=['db'])
+
+        try:
+            check_resolved = resolve_names(check_names)
+        except ValueError as e:
+            logger.error(str(e))
+            sys.exit(2)
+
+        logger.info(f"Running diagnoses: {', '.join(check_resolved)}")
+
+        # Run as 'check' (read-only) first to know what's wrong.
+        check_reports = run_diagnoses(ctx, check_names, mode='check')
+
+        # If --fix is requested, run only the requested fix subset against
+        # the same context (re-runs the check then applies remedy).
+        fix_reports = None
+        if args.fix is not None:
+            if args.fix == '__ALL__':
+                fix_names = check_resolved
+            else:
+                fix_names = _resolve_request(args.fix, default_aliases=check_resolved)
+            try:
+                resolve_names(fix_names)
+            except ValueError as e:
+                logger.error(str(e))
+                sys.exit(2)
+            logger.info(f"Applying fixes: {', '.join(fix_names)}")
+            fix_reports = run_diagnoses(ctx, fix_names, mode='fix')
+            # Persist any logger mutations made by fix routines
+            if h3_logger is not None and any(getattr(r, 'applied', False) for r in fix_reports):
+                try:
+                    h3_logger.save_log(h3_logger.previous_status or 'COMPLETED')
+                except Exception as e:
+                    logger.warning(f"Failed to persist build log updates: {e}")
+
+        reports_to_emit = fix_reports if fix_reports is not None else check_reports
+        _print_summary(reports_to_emit, logger)
+
+        if ctx.upstream is not None:
+            _print_upstream(ctx.upstream, logger)
+
+        if args.report:
+            payload = {
+                'reports': [r.to_dict() for r in reports_to_emit],
+                'upstream': ctx.upstream.to_dict() if ctx.upstream is not None else None,
+            }
+            with open(args.report, 'w') as f:
+                json.dump(payload, f, indent=2, default=str)
+            logger.info(f"Wrote report: {args.report}")
+
+        worst = _worst_severity(reports_to_emit)
+        if not any(r.has_findings for r in reports_to_emit):
+            print_success("Database is clean", logger=logger)
+            sys.exit(0)
+
+        # Exit code: 0 if --fix was used and resolved everything, 1 if findings remain
+        if fix_reports is not None and all(r.is_clean for r in fix_reports):
+            print_success("All issues resolved", logger=logger)
+            sys.exit(0)
+
+        sys.exit(2 if worst == 'error' else 1)
+
+
+def _worst_severity(reports):
+    order = {'info': 0, 'warn': 1, 'error': 2}
+    if not reports:
+        return 'info'
+    return max((r.severity.value if hasattr(r.severity, 'value') else r.severity for r in reports),
+               key=lambda s: order.get(s, 0))
+
+
+def _print_summary(reports, logger):
+    logger.info("")
+    logger.info("=" * 70)
+    logger.info(" Doctor Summary".center(70))
+    logger.info("=" * 70)
+    for r in reports:
+        sev = r.severity.value if hasattr(r.severity, 'value') else str(r.severity)
+        marker = {'info': '·', 'warn': '!', 'error': 'X'}.get(sev, '?')
+        status = 'fixed' if r.applied else 'check'
+        logger.info(f" [{marker}] {r.name:<18} {status:<5} {len(r.findings):>4} findings  {r.summary}")
+        for rec in r.recommendations:
+            logger.info(f"        → {rec}")
+    logger.info("=" * 70)
+
+
+def _print_upstream(upstream, logger):
+    logger.info("")
+    logger.info("=" * 70)
+    logger.info(" Upstream NASA Availability".center(70))
+    logger.info("=" * 70)
+    for cls, items in sorted(upstream.classifications.items()):
+        logger.info(f"  {cls:<18}: {len(items)} (granule × product)")
+    if upstream.recommendations:
+        logger.info("")
+        logger.info(" Recommended commands ".center(70, '-'))
+        for line in upstream.recommendations:
+            logger.info(f"  {line}")
+    logger.info("=" * 70)
+
+
+if __name__ == '__main__':
+    main()

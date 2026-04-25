@@ -87,6 +87,33 @@ gh3_read_schema /path/to/file.parquet
 gh3_read_schema /path/to/file.h5
 ```
 
+### Database Doctor
+
+```bash
+# Audit DB health (read-only, default = all DB diagnoses)
+gh3_doctor -i /path/to/db
+
+# Subsets / aliases: db (default), soc, all, or comma-separated names
+gh3_doctor -i /db --check backfill,parquet_health
+gh3_doctor -i /db --check all
+
+# Apply safe remedies (no destructive changes; corrupt files are reported only)
+gh3_doctor -i /db --fix
+gh3_doctor -i /db --fix backfill --s3       # backfill from NASA S3 ETL temp
+
+# Decorate report with NASA upstream availability + recommendations
+gh3_doctor -i /db --online                  # adds gh3_download / gh3_build commands
+
+# Machine-readable
+gh3_doctor -i /db --report report.json
+```
+
+Diagnoses: `backfill` (NaN gaps in product columns), `orphans` (leftover .tmp +
+empty dirs), `log_state` (stuck flags + log↔disk drift), `metadata` (partition
+JSON + manifest), `parquet_health` (corrupt files + duplicate shots + schema
+drift), `soc_health` (invalid HDF5 + download log drift). Exit codes: 0 clean,
+1 findings remain, 2 errors during fix.
+
 ### Ancillary Data Tools
 
 ```bash
