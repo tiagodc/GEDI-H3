@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.0] - 2026-04-25
+
+### Added
+- `gh3_doctor`: new CLI tool that audits and (optionally) heals a gedih3 database. Six diagnoses cover NaN-fill backfill, leftover temp/empty-dir cleanup, stuck recovery flags, log↔disk partition reconciliation, partition-meta and dataset-manifest health, parquet corruption / duplicate `shot_number` / cross-partition schema drift, and SOC HDF5 health. `--check` is read-only by default; `--fix` applies safe remedies. `--s3` lets backfill fetch missing source files via NASA S3 ETL temp. `--online` queries NASA CMR and emits concrete `gh3_download` / `gh3_doctor --fix backfill` / `gh3_build` recommendations classified by gap type.
+- `H3BuildLogger` gains an additive per-granule per-product status map (`granule.products`) plus `get_granule_product_status`, `get_product_gaps`, and `mark_granule_product` helpers. Lazy in-memory upgrade for legacy logs; on-disk format only changes after the next `save_log()`. `set_post_build_info` derives per-product status from existing partition meta `columns` — no edits to `gh3builder.py`, `gh3_build.py`, or `gh3_download.py`.
+- New `gedih3.doctor` package houses the runner, registry, shared inspectors, streaming `parquet_fill_columns` (combine_first variant of `parquet_join_columns`) and `parquet_dedup_partition`, the CMR upstream check, and one module per diagnosis.
+
 ## [0.5.5] - 2026-04-24
 
 ### Added
