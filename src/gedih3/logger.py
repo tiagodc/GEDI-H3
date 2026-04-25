@@ -20,6 +20,50 @@ _VALID_STATUSES = (
     'UNKNOWN'
 )
 
+# Per-granule per-product status vocabulary (used by gh3_doctor and lazy upgrade
+# of legacy log entries). Top-level granule 'status' remains the worst per-product
+# value for backwards compatibility with readers that ignore the products map.
+PRODUCT_STATUS_INDEXED = 'INDEXED'
+PRODUCT_STATUS_PARTIAL_NAN = 'PARTIAL_NAN'
+PRODUCT_STATUS_MISSING_COLUMN = 'MISSING_COLUMN'
+PRODUCT_STATUS_MISSING_SOURCE = 'MISSING_SOURCE'
+PRODUCT_STATUS_FAILED = 'FAILED'
+PRODUCT_STATUS_PENDING = 'PENDING'
+
+_VALID_PRODUCT_STATUSES = (
+    PRODUCT_STATUS_INDEXED,
+    PRODUCT_STATUS_PARTIAL_NAN,
+    PRODUCT_STATUS_MISSING_COLUMN,
+    PRODUCT_STATUS_MISSING_SOURCE,
+    PRODUCT_STATUS_FAILED,
+    PRODUCT_STATUS_PENDING,
+)
+
+
+def _products_from_columns(columns, active_products):
+    """Return the subset of ``active_products`` whose suffix appears in ``columns``.
+
+    A product P is considered present if any column ends with ``_<p>`` (the
+    suffix convention used by `_add_variables_to_partition` and `load_h5_merged`).
+    """
+    if not columns or not active_products:
+        return set()
+    cols_lower = [str(c).lower() for c in columns]
+    return {p for p in active_products if any(c.endswith(f"_{p.lower()}") for c in cols_lower)}
+
+
+def _per_product_status_from_observed(active_products, observed_products):
+    """Map active products to INDEXED if observed, else MISSING_COLUMN.
+
+    PARTIAL_NAN is not derived here because it requires a row-level scan;
+    it is populated by gh3_doctor after `_load_filters_from_log`.
+    """
+    return {
+        p: PRODUCT_STATUS_INDEXED if p in observed_products else PRODUCT_STATUS_MISSING_COLUMN
+        for p in active_products
+    }
+
+
 def load_log_data(file_path):
     if os.path.exists(file_path):
         return json_read(file_path)
@@ -347,6 +391,15 @@ class H3BuildLogger:
 
         if 'granules' in self.log_data:
             self.granule_info = self.log_data.get('granules')
+            # Lazy upgrade: legacy entries lacking the `products` map get one
+            # derived from their top-level status, matching pre-doctor semantics
+            # (granule INDEXED ⇒ all then-listed products were INDEXED). The
+            # on-disk file is only rewritten on the next save_log() call.
+            active_products = list(self.product_vars.keys())
+            for g in self.granule_info:
+                if 'products' not in g and active_products:
+                    existing_status = g.get('status', PRODUCT_STATUS_INDEXED)
+                    g['products'] = {p: existing_status for p in active_products}
 
         if 'h3_columns' in self.log_data:
             self.h3_columns = self.log_data.get('h3_columns')
@@ -436,17 +489,22 @@ class H3BuildLogger:
     def get_finished_granules(self):
         """Return skip list when resuming with same filters.
 
-        Only returns successfully completed granules, with the status
-        field stripped for backward compatibility with _filter_granules()
-        dict comparison. Legacy logs without status fields are treated
-        as successful.
+        Only returns successfully completed granules, with the status and
+        products fields stripped for backward compatibility with
+        ``_filter_granules()`` dict comparison (which expects bare
+        ``{'orbit', 'granule', 'track'}`` dicts). Legacy logs without status
+        fields are treated as successful.
         """
+        # Keys not part of the original granule identity. ``products`` was
+        # added by the per-product status extension; both must be stripped so
+        # _filter_granules' dict equality keeps matching legacy entries.
+        _strip = {'status', 'products'}
         if (hasattr(self, 'granule_info')
                 and getattr(self, 'new_product_vars', None) is None
                 and getattr(self, 'new_temporal', None) is None
                 and not self._adding_h3_parts()):
             return [
-                {k: v for k, v in g.items() if k != 'status'}
+                {k: v for k, v in g.items() if k not in _strip}
                 for g in self.granule_info
                 if g.get('status') in ('INDEXED', None)
             ]
@@ -486,10 +544,17 @@ class H3BuildLogger:
         h3_parts = []
         date_min = None
         date_max = None
+        # Per-granule observed product set: union of products whose suffix is
+        # present in the columns of any partition that contains the granule.
+        # Used to derive per-granule per-product status (INDEXED vs MISSING_COLUMN).
+        active_products = set(self.product_vars.keys())
+        gran_observed_products = {}
+
         for f in metadata_files:
             fmeta = json_read(f)
             gran = fmeta.get('granules', [])
             drange = fmeta.get('date_range')
+            cols = fmeta.get('columns', [])
 
             if date_min is None:
                 date_min = drange[0]
@@ -500,9 +565,15 @@ class H3BuildLogger:
             date_max = max(date_max, drange[1])
 
             h3_parts.append(fmeta.get('h3_partition'))
+
+            partition_products = _products_from_columns(cols, active_products)
+
             for g in gran:
                 if g not in indexed_granules:
                     indexed_granules.append(g)
+                key = (g['orbit'], g['granule'], g['track'])
+                gran_observed_products.setdefault(key, set()).update(partition_products)
+
             if self.gedi_version is None:
                 self.gedi_version = fmeta.get('l2a_version')
 
@@ -517,6 +588,9 @@ class H3BuildLogger:
                 key = (g['orbit'], g['granule'], g['track'])
                 if key in indexed_keys:
                     g['status'] = 'INDEXED'
+                    g['products'] = _per_product_status_from_observed(
+                        active_products, gran_observed_products.get(key, set())
+                    )
                 # else: keep existing status (PENDING)
 
             # Add any newly discovered granules not previously tracked
@@ -524,9 +598,25 @@ class H3BuildLogger:
             for g in indexed_granules:
                 key = (g['orbit'], g['granule'], g['track'])
                 if key not in existing_keys:
-                    self.granule_info.append({**g, 'status': 'INDEXED'})
+                    self.granule_info.append({
+                        **g,
+                        'status': 'INDEXED',
+                        'products': _per_product_status_from_observed(
+                            active_products, gran_observed_products.get(key, set())
+                        ),
+                    })
         else:
-            self.granule_info = [{**g, 'status': 'INDEXED'} for g in indexed_granules]
+            self.granule_info = [
+                {
+                    **g,
+                    'status': 'INDEXED',
+                    'products': _per_product_status_from_observed(
+                        active_products,
+                        gran_observed_products.get((g['orbit'], g['granule'], g['track']), set()),
+                    ),
+                }
+                for g in indexed_granules
+            ]
 
         self.granule_info = sorted(self.granule_info, key=lambda g: (g.get('orbit', 0), g.get('granule', 0), g.get('track', 0)))
 
@@ -598,3 +688,94 @@ class H3BuildLogger:
 
     def save_log(self, status):
         json_write(self.to_dict(status), self.log_file, mode='w', rewrite=True)
+
+    def get_granule_product_status(self, gran_key, product):
+        """Return per-product status for a granule, or None if unknown.
+
+        Parameters
+        ----------
+        gran_key : dict or tuple
+            Either ``{'orbit', 'granule', 'track'}`` or ``(orbit, granule, track)``.
+        product : str
+            Product code (e.g. 'L4A').
+        """
+        if not hasattr(self, 'granule_info'):
+            return None
+        if isinstance(gran_key, dict):
+            key = (gran_key['orbit'], gran_key['granule'], gran_key['track'])
+        else:
+            key = tuple(gran_key)
+        for g in self.granule_info:
+            if (g['orbit'], g['granule'], g['track']) == key:
+                return (g.get('products') or {}).get(product)
+        return None
+
+    def get_product_gaps(self, active_products=None, gap_statuses=None):
+        """List granules where any active product is not INDEXED.
+
+        Returns a list of ``(gran_key_dict, [missing_products])`` pairs.
+        Used by gh3_doctor as the fast-path audit (log-only, no parquet scan).
+
+        Parameters
+        ----------
+        active_products : iterable of str, optional
+            Products to check. Defaults to ``self.product_vars.keys()``.
+        gap_statuses : iterable of str, optional
+            Per-product statuses considered as gaps. Defaults to everything except
+            ``INDEXED`` (i.e. PARTIAL_NAN, MISSING_COLUMN, MISSING_SOURCE, FAILED, PENDING).
+        """
+        if not hasattr(self, 'granule_info'):
+            return []
+        if active_products is None:
+            active_products = list(self.product_vars.keys())
+        active_products = list(active_products)
+        if gap_statuses is None:
+            gap_statuses = {
+                PRODUCT_STATUS_PARTIAL_NAN,
+                PRODUCT_STATUS_MISSING_COLUMN,
+                PRODUCT_STATUS_MISSING_SOURCE,
+                PRODUCT_STATUS_FAILED,
+                PRODUCT_STATUS_PENDING,
+            }
+        else:
+            gap_statuses = set(gap_statuses)
+
+        gaps = []
+        for g in self.granule_info:
+            products_map = g.get('products') or {}
+            missing = []
+            for p in active_products:
+                # Unknown for this entry → treat as PENDING so the doctor
+                # inspects rather than silently skipping.
+                status = products_map.get(p, PRODUCT_STATUS_PENDING)
+                if status in gap_statuses:
+                    missing.append(p)
+            if missing:
+                gaps.append(({'orbit': g['orbit'], 'granule': g['granule'], 'track': g['track']}, missing))
+        return gaps
+
+    def mark_granule_product(self, gran_key, product, status):
+        """Set per-product status for a granule (does not auto-save).
+
+        Caller is responsible for invoking ``save_log()`` to persist.
+        Used by gh3_doctor after a fix or verification step.
+        """
+        if status not in _VALID_PRODUCT_STATUSES:
+            raise GediValidationError(
+                f"Invalid per-product status '{status}'. Must be one of {_VALID_PRODUCT_STATUSES}"
+            )
+        if not hasattr(self, 'granule_info'):
+            return False
+        if isinstance(gran_key, dict):
+            key = (gran_key['orbit'], gran_key['granule'], gran_key['track'])
+        else:
+            key = tuple(gran_key)
+        for g in self.granule_info:
+            if (g['orbit'], g['granule'], g['track']) == key:
+                products_map = g.get('products')
+                if products_map is None:
+                    products_map = {}
+                    g['products'] = products_map
+                products_map[product] = status
+                return True
+        return False
