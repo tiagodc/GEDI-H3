@@ -30,9 +30,11 @@ def parquet_fill_columns(
     """Fill NaN values in ``base_file`` from one or more ``patch_files``.
 
     For each column shared by the base and patch:
-      - existing non-NaN values in the base are preserved.
-      - NaN values in the base are replaced where the patch provides a value
-        for the same ``key_col``.
+
+    - existing non-NaN values in the base are preserved.
+    - NaN values in the base are replaced where the patch provides a value
+      for the same ``key_col``.
+
     Columns present only in the patch are appended (left-join).
     Columns present only in the base are unchanged.
 
