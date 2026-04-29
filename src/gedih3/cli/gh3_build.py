@@ -347,6 +347,7 @@ def main():
 
                     logger.info(f"Building from {len(existing_h5)} existing HDF5 files in {soc_source}")
                     logger.info("Note: using only existing data (add --download to fetch missing data)")
+                    logger.info("Validating product variables in existing HDF5 files")
                     _validate_existing_h5(h3_logger.get_product_vars(), soc_source)
 
             # Save log only after validation/download passes — prevents
@@ -357,12 +358,16 @@ def main():
                 # Register granules being submitted for build as PENDING
                 # Only for local download mode (-i); S3 mode has no local SOC directory
                 if soc_source is not None and isinstance(soc_source, str) and os.path.isdir(soc_source):
+                    logger.info("Listing SOC files for granule registration")
                     _soc_for_build = soc_file_tree(soc_source, to_list=True)
                     _build_granules = []
-                    for _soc in _soc_for_build:
-                        _first = list(_soc.values())[0]
-                        _gf = GEDIFile(_first)
-                        _build_granules.append({'orbit': _gf.orbit, 'granule': _gf.orbit_granule, 'track': _gf.track})
+                    from gedih3.cliutils import progress_iter
+                    with progress_iter(_soc_for_build, desc="Parsing granule metadata",
+                                       args=args, unit="gran") as bar:
+                        for _soc in bar:
+                            _first = list(_soc.values())[0]
+                            _gf = GEDIFile(_first)
+                            _build_granules.append({'orbit': _gf.orbit, 'granule': _gf.orbit_granule, 'track': _gf.track})
                     h3_logger.register_pending_granules(_build_granules)
                     h3_logger.save_log('PROCESSING')
 

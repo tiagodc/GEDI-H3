@@ -227,8 +227,34 @@ def validate_soc_files(product_vars: Dict, soc_dir: str = GH3_DEFAULT_SOC_DIR, v
         return False, {"error": "No SOC files found in directory"}
 
     available_products = {k: set() for k in soc_files[0].keys()}
-    delayed_tasks = [_check_soc_file_vars(soc_file, available_products) for soc_file in soc_files]
-    file_results = dask.compute(*delayed_tasks)
+
+    # Use a dask bag (batched) instead of one delayed task per file — at
+    # ~900k files the per-task scheduling overhead is prohibitive and the
+    # caller sees no feedback. tqdm + as_completed renders reliably under
+    # SSH/log-redirected sessions where distributed.progress() is silent.
+    import dask.bag as dbg
+    from functools import partial
+    from .utils import get_dask_client
+
+    bag = dbg.from_sequence(soc_files, partition_size=100).map(
+        partial(check_soc_file_vars, available_products=available_products)
+    )
+
+    client = get_dask_client()
+    if client is not None:
+        from dask.distributed import futures_of, as_completed as dask_as_completed
+        from tqdm import tqdm
+        bag = bag.persist()
+        bag_futures = futures_of(bag)
+        if bag_futures:
+            pbar = tqdm(dask_as_completed(bag_futures), total=len(bag_futures),
+                        desc="Validating SOC files", unit="batch")
+            for _ in pbar:
+                pass
+            pbar.close()
+        file_results = list(bag.compute())
+    else:
+        file_results = list(bag.compute())
 
     for file_products in file_results:
         for prod, vars_list in file_products.items():
