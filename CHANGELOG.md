@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.0] - 2026-04-29
+
+### Added
+- Progress bars for previously-silent CLI long-running loops: `gh3_doctor` partition scans (backfill, parquet_health, metadata, orphans, soc_health), `gh3_update` per-file partition loops, the `gh3_aggregate` time-series window loop, and `gh3builder` parquet metadata finalization. New shared `cliutils.progress_iter()` helper wraps `tqdm` with `logging_redirect_tqdm` so log lines no longer clobber the bar.
+
+### Fixed
+- `gh3_build`: tolerate faulty SOC files and isolate version handling
+- CI: blank lines around bullet list in `parquet_fill_columns` docstring
+
 ## [0.6.0] - 2026-04-25
 
 ### Added
