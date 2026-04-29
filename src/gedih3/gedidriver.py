@@ -26,7 +26,7 @@ from earthaccess.store import EarthAccessFile
 from .config import GEDI_BEAMS, GEDI_MISSION_START, GEDI_START_DATE, GH3_DEFAULT_SOC_DIR, get_default_vars_file, _get_versioned, _GEDI_MIN_VARS
 from .utils import h5_copy_subset, h5_info
 from .logging_config import get_logger
-from .exceptions import GediValidationError, GediProductError, GediVariableError
+from .exceptions import GediValidationError, GediProductError, GediVariableError, GediFileError
 
 logger = get_logger(__name__)
 
@@ -219,8 +219,9 @@ def check_soc_file_vars(soc_file, available_products):
 def _check_soc_file_vars(soc_file, available_products):
     return check_soc_file_vars(soc_file, available_products)
 
-def validate_soc_files(product_vars: Dict, soc_dir: str = GH3_DEFAULT_SOC_DIR):
-    soc_files = soc_file_tree(soc_dir, to_list=True)
+def validate_soc_files(product_vars: Dict, soc_dir: str = GH3_DEFAULT_SOC_DIR, version: Optional[int] = None):
+    glob_kwargs = {'version': version} if version is not None else None
+    soc_files = soc_file_tree(soc_dir, to_list=True, glob_kwargs=glob_kwargs)
 
     if not soc_files:
         return False, {"error": "No SOC files found in directory"}
@@ -824,7 +825,33 @@ def dask_h5_merged(
     dask.dataframe.DataFrame
         Lazy Dask DataFrame for distributed processing
     """
-    _meta = load_h5_merged(prod_files_list[0], product_vars=product_vars, which_beams=GEDI_BEAMS[:1], dropna=dropna, suffix_all=suffix_all).head(0)
+    # Probe files in order to derive the dask metadata schema. A single broken
+    # granule at the head of the list (corrupt HDF5, missing variable inside a
+    # BEAM, etc.) must not abort the whole build — skip it with a warning and
+    # try the next. Per-partition errors at runtime are already swallowed by
+    # the `_load_h5_merged` closure below.
+    _meta = None
+    _skipped = 0
+    for i, _pf in enumerate(prod_files_list):
+        try:
+            _meta = load_h5_merged(
+                _pf, product_vars=product_vars,
+                which_beams=GEDI_BEAMS[:1],
+                dropna=dropna, suffix_all=suffix_all,
+            ).head(0)
+            if i > 0:
+                logger.warning(
+                    f"Skipped {i} broken file(s) while deriving metadata schema; using {_pf} as the schema sample"
+                )
+            break
+        except Exception as e:
+            _skipped += 1
+            logger.warning(f"Skipping broken file for metadata sample: {_pf} ({e})")
+            continue
+    if _meta is None:
+        raise GediFileError(
+            f"Could not derive a metadata schema: all {_skipped} candidate file(s) failed to read"
+        )
 
     def _load_h5_merged(prod_files, **kwargs):
         try:
