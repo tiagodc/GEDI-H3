@@ -20,6 +20,7 @@ from typing import Dict, List
 from ..report import Report, DoctorContext, Severity
 from ..runner import register
 from ..inspect import partition_parquet_files
+from ...cliutils import progress_iter
 
 
 def _open_safely(path):
@@ -57,22 +58,26 @@ def parquet_health_check(ctx: DoctorContext) -> Report:
     findings = []
     schema_by_part: Dict[str, frozenset] = {}
 
-    for d in ctx.partition_dirs:
-        for pq_file in partition_parquet_files(d):
-            err = _open_safely(pq_file)
-            if err:
-                findings.append({'kind': 'corrupt', 'path': pq_file, 'error': err})
-                continue
+    with progress_iter(ctx.partition_dirs,
+                       desc="parquet_health: scanning partitions",
+                       args=getattr(ctx, 'args', None),
+                       unit="part") as bar:
+        for d in bar:
+            for pq_file in partition_parquet_files(d):
+                err = _open_safely(pq_file)
+                if err:
+                    findings.append({'kind': 'corrupt', 'path': pq_file, 'error': err})
+                    continue
 
-            dup = _count_duplicates(pq_file)
-            if dup > 0:
-                findings.append({'kind': 'duplicate_shots', 'path': pq_file, 'duplicates': dup})
-            elif dup == -1:
-                findings.append({'kind': 'unreadable_shot_number', 'path': pq_file})
+                dup = _count_duplicates(pq_file)
+                if dup > 0:
+                    findings.append({'kind': 'duplicate_shots', 'path': pq_file, 'duplicates': dup})
+                elif dup == -1:
+                    findings.append({'kind': 'unreadable_shot_number', 'path': pq_file})
 
-            cols = _partition_columns(pq_file)
-            schema_by_part.setdefault(d, frozenset()).__sizeof__()  # noop
-            schema_by_part[d] = schema_by_part.get(d, frozenset()) | frozenset(cols)
+                cols = _partition_columns(pq_file)
+                schema_by_part.setdefault(d, frozenset()).__sizeof__()  # noop
+                schema_by_part[d] = schema_by_part.get(d, frozenset()) | frozenset(cols)
 
     # Schema drift: find the modal column set and flag partitions that differ.
     if len(schema_by_part) >= 3:
