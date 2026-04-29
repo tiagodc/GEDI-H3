@@ -823,8 +823,10 @@ def h5_is_valid(file):
     import h5py
     try:
         with h5py.File(file, mode='r') as f:
-            _ = list(f.keys())
-    except Exception as e:
+            keys = list(f.keys())
+            if not any(k.upper().startswith('BEAM') for k in keys):
+                return False
+    except Exception:
         return False
     return True
 

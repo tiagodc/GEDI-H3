@@ -240,7 +240,7 @@ def main():
                     expanded = copy.deepcopy(product_vars)
                     gedi_vars_expand(expanded, version=h3_logger.gedi_version)
                     try:
-                        validation = validate_soc_files(expanded, soc_dir)
+                        validation = validate_soc_files(expanded, soc_dir, version=h3_logger.gedi_version)
                     except Exception as val_err:
                         logger.warning(f"Could not validate HDF5 files (corrupt file?): {val_err}")
                         return
@@ -289,7 +289,7 @@ def main():
                             expanded_new = copy.deepcopy(dict(h3_logger.new_product_vars))
                             gedi_vars_expand(expanded_new, version=h3_logger.gedi_version)
                             try:
-                                validation = validate_soc_files(expanded_new, soc_source)
+                                validation = validate_soc_files(expanded_new, soc_source, version=h3_logger.gedi_version)
                                 can_skip = validation.get('can_skip', True) if isinstance(validation, dict) else False
                             except Exception:
                                 can_skip = False

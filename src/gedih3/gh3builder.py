@@ -713,11 +713,21 @@ def _expand_product_vars(
 
     product_vars = gedi_vars_expand(product_vars, version=version)
 
+    def _first_valid_sample(product):
+        # Pick the first file for this product that opens cleanly and has at
+        # least one BEAM group, so wildcard / "all variables" introspection
+        # never trips on a corrupt head-of-list granule.
+        for sf in soc_files:
+            f = sf.get(product)
+            if f and h5_is_valid(f):
+                return f
+        return None
+
     # Expand wildcard patterns (e.g. 'rh_*', 'geolocation/sensitivity_a?')
     # against available HDF5 variables before further processing.
     for k, val in product_vars.items():
         if val is not None and any(any(c in v for c in ('*', '?', '[', ']')) for v in val):
-            file = soc_files[0].get(k)
+            file = _first_valid_sample(k)
             if file:
                 available = gedi_vars_from_h5(file)
                 product_vars[k] = expand_var_wildcards(val, available)
@@ -743,7 +753,11 @@ def _expand_product_vars(
 
     for k, val in product_vars.items():
         if val is None:
-            file = soc_files[0].get(k)
+            file = _first_valid_sample(k)
+            if file is None:
+                raise GediFileError(
+                    f"No valid SOC file found for product {k} to introspect variables"
+                )
             product_vars[k] = gedi_vars_from_h5(file)
 
     return product_vars
@@ -1382,11 +1396,34 @@ def build_h3db(
     if isinstance(soc_source, list):
         # Pre-acquired file list (local or EarthAccessFile)
         logger.info(f"Using {len(soc_source)} pre-acquired source files")
+        if version is not None:
+            before = len(soc_source)
+            def _matches_version(p):
+                try:
+                    pp = p.path if isinstance(p, EarthAccessFile) else p
+                    return GEDIFile(pp).version == version
+                except Exception:
+                    return False
+            soc_source = [p for p in soc_source if _matches_version(p)]
+            dropped = before - len(soc_source)
+            if dropped:
+                logger.warning(f"Dropped {dropped} pre-acquired file(s) not matching version V{version:03d}")
         all_soc_files = soc_file_tree(soc_source, to_list=True)
     elif isinstance(soc_source, str):
         # Local directory mode (also used after S3 download to temp dir)
         if not os.path.exists(soc_source):
             raise GediFileError(f"SOC source directory not found: {soc_source}")
+        # Resolve version BEFORE listing so the glob filter excludes other
+        # versions and soc_file_tree's pivot key (orb_track, no version) cannot
+        # collide same-orbit granules across versions.
+        if version is None:
+            sample = next(iter(glob.glob(os.path.join(soc_source, '**', 'GEDI*.h5'), recursive=True)), None)
+            if sample is not None:
+                try:
+                    version = GEDIFile(sample).version
+                    logger.info(f"Auto-detected GEDI version V{version:03d} from {os.path.basename(sample)}")
+                except Exception:
+                    logger.warning("Could not auto-detect GEDI version from sample file; listing without version filter")
         logger.info("Listing source SOC files")
         glob_kwargs = {'version': version} if version is not None else None
         all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=glob_kwargs)
