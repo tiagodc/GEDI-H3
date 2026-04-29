@@ -204,12 +204,14 @@ def _update_from_database(args, dataset_path, dataset_meta, logger):
         if index_type == 'h3':
             _update_h3_partitions(
                 dataset_path, db_path, data_files, fmt, new_cols,
-                sn_col, query_filter, extra_filter_cols, dataset_meta, logger
+                sn_col, query_filter, extra_filter_cols, dataset_meta,
+                logger, args=args
             )
         elif index_type == 'egi':
             _update_egi_partitions(
                 dataset_path, db_path, data_files, fmt, new_cols,
-                sn_col, query_filter, extra_filter_cols, dataset_meta, logger
+                sn_col, query_filter, extra_filter_cols, dataset_meta,
+                logger, args=args
             )
         else:
             raise ValueError(f"Unsupported index type: {index_type}")
@@ -233,14 +235,15 @@ def _update_from_database(args, dataset_path, dataset_meta, logger):
 
 
 def _update_h3_partitions(dataset_path, db_path, data_files, fmt, new_cols,
-                           sn_col, query_filter, extra_filter_cols, dataset_meta, logger):
+                           sn_col, query_filter, extra_filter_cols, dataset_meta,
+                           logger, args=None):
     """Update H3-partitioned dataset files from source H3 database."""
     import numpy as np
     import pandas as pd
     import geopandas as gpd
 
     import gedih3.gh3driver as gh3
-    from gedih3.cliutils import make_dataset_reader, h3_col_name
+    from gedih3.cliutils import make_dataset_reader, h3_col_name, progress_iter
     from gedih3.utils import smart_exists, smart_join
 
     h3_part = gh3.gh3_read_meta('h3_partition_level', gh3_root_dir=db_path)
@@ -250,42 +253,45 @@ def _update_h3_partitions(dataset_path, db_path, data_files, fmt, new_cols,
     reader = make_dataset_reader(fmt)
     n_updated = 0
 
-    for fpath in data_files:
-        part_id = os.path.splitext(os.path.basename(fpath))[0]
-        h3_dir = smart_join(db_path, f"{h3_part_col}={part_id}")
+    with progress_iter(data_files, desc="Updating H3 partitions",
+                       args=args, unit="part") as bar:
+        for fpath in bar:
+            part_id = os.path.splitext(os.path.basename(fpath))[0]
+            h3_dir = smart_join(db_path, f"{h3_part_col}={part_id}")
 
-        target_df = reader(fpath)
+            target_df = reader(fpath)
 
-        if len(target_df) == 0:
-            continue
+            if len(target_df) == 0:
+                continue
 
-        if smart_exists(h3_dir):
-            source_df = gh3.gh3_load_hex(h3_dir, columns=load_cols)
-            if query_filter:
-                from gedih3.cliutils import safe_query
-                source_df = safe_query(source_df, query_filter)
-                if extra_filter_cols:
-                    source_df = source_df.drop(columns=extra_filter_cols, errors='ignore')
-            target_df = _join_new_columns(target_df, source_df, new_cols, sn_col)
-        else:
-            for c in new_cols:
-                target_df[c] = np.nan
+            if smart_exists(h3_dir):
+                source_df = gh3.gh3_load_hex(h3_dir, columns=load_cols)
+                if query_filter:
+                    from gedih3.cliutils import safe_query
+                    source_df = safe_query(source_df, query_filter)
+                    if extra_filter_cols:
+                        source_df = source_df.drop(columns=extra_filter_cols, errors='ignore')
+                target_df = _join_new_columns(target_df, source_df, new_cols, sn_col)
+            else:
+                for c in new_cols:
+                    target_df[c] = np.nan
 
-        gh3._write_dataframe(target_df, fpath, fmt)
-        n_updated += 1
+            gh3._write_dataframe(target_df, fpath, fmt)
+            n_updated += 1
 
     logger.info(f"  Updated {n_updated}/{len(data_files)} partition files.")
 
 
 def _update_egi_partitions(dataset_path, db_path, data_files, fmt, new_cols,
-                            sn_col, query_filter, extra_filter_cols, dataset_meta, logger):
+                            sn_col, query_filter, extra_filter_cols, dataset_meta,
+                            logger, args=None):
     """Update EGI-partitioned dataset files from source H3 database."""
     import numpy as np
     import pandas as pd
     import geopandas as gpd
 
     import gedih3.gh3driver as gh3
-    from gedih3.cliutils import make_dataset_reader
+    from gedih3.cliutils import make_dataset_reader, progress_iter
     from gedih3.egi.config import egi_col_name
     from gedih3.utils import smart_exists, smart_join
 
@@ -300,37 +306,39 @@ def _update_egi_partitions(dataset_path, db_path, data_files, fmt, new_cols,
     reader = make_dataset_reader(fmt)
     n_updated = 0
 
-    for fpath in data_files:
-        part_id = os.path.splitext(os.path.basename(fpath))[0]
-        h3_list = egi_to_h3.get(part_id, [])
+    with progress_iter(data_files, desc="Updating EGI partitions",
+                       args=args, unit="part") as bar:
+        for fpath in bar:
+            part_id = os.path.splitext(os.path.basename(fpath))[0]
+            h3_list = egi_to_h3.get(part_id, [])
 
-        target_df = reader(fpath)
+            target_df = reader(fpath)
 
-        if len(target_df) == 0:
-            continue
+            if len(target_df) == 0:
+                continue
 
-        source_dfs = []
-        for h3_id in h3_list:
-            h3_dir = smart_join(db_path, f"{h3_part_col}={h3_id}")
-            if smart_exists(h3_dir):
-                df = gh3.gh3_load_hex(h3_dir, columns=load_cols)
-                if len(df) > 0:
-                    source_dfs.append(df)
+            source_dfs = []
+            for h3_id in h3_list:
+                h3_dir = smart_join(db_path, f"{h3_part_col}={h3_id}")
+                if smart_exists(h3_dir):
+                    df = gh3.gh3_load_hex(h3_dir, columns=load_cols)
+                    if len(df) > 0:
+                        source_dfs.append(df)
 
-        if source_dfs:
-            source_df = pd.concat(source_dfs, ignore_index=True)
-            if query_filter:
-                from gedih3.cliutils import safe_query
-                source_df = safe_query(source_df, query_filter)
-                if extra_filter_cols:
-                    source_df = source_df.drop(columns=extra_filter_cols, errors='ignore')
-            target_df = _join_new_columns(target_df, source_df, new_cols, sn_col)
-        else:
-            for c in new_cols:
-                target_df[c] = np.nan
+            if source_dfs:
+                source_df = pd.concat(source_dfs, ignore_index=True)
+                if query_filter:
+                    from gedih3.cliutils import safe_query
+                    source_df = safe_query(source_df, query_filter)
+                    if extra_filter_cols:
+                        source_df = source_df.drop(columns=extra_filter_cols, errors='ignore')
+                target_df = _join_new_columns(target_df, source_df, new_cols, sn_col)
+            else:
+                for c in new_cols:
+                    target_df[c] = np.nan
 
-        gh3._write_dataframe(target_df, fpath, fmt)
-        n_updated += 1
+            gh3._write_dataframe(target_df, fpath, fmt)
+            n_updated += 1
 
     logger.info(f"  Updated {n_updated}/{len(data_files)} partition files.")
 
@@ -425,6 +433,8 @@ def _update_from_merge(args, dataset_path, dataset_meta, logger):
     matched_count = sum(1 for f in target_files
                         if os.path.splitext(os.path.basename(f))[0] in merge_map)
 
+    from gedih3.cliutils import progress_iter
+
     if matched_count == 0 and merge_map:
         # Partition names don't match — fall back to global shot_number join
         logger.info("  Partition names don't match — joining by shot_number across all files")
@@ -432,36 +442,40 @@ def _update_from_merge(args, dataset_path, dataset_meta, logger):
         merge_all = merge_all.drop_duplicates(subset=[merge_sn])
         if merge_sn != sn_col and merge_sn in merge_all.columns:
             merge_all = merge_all.rename(columns={merge_sn: sn_col})
-        for fpath in target_files:
-            target_df = target_reader(fpath)
-            if len(target_df) == 0:
-                continue
-            target_df = _join_new_columns(target_df, merge_all, new_cols, sn_col)
-            gh3._write_dataframe(target_df, fpath, target_fmt)
-            n_updated += 1
-    else:
-        for fpath in target_files:
-            part_id = os.path.splitext(os.path.basename(fpath))[0]
-            target_df = target_reader(fpath)
-
-            if len(target_df) == 0:
-                continue
-
-            merge_file = merge_map.get(part_id)
-
-            if merge_file and smart_exists(merge_file):
-                merge_df = merge_reader(merge_file)
-                # Rename shot_number if different between datasets
-                if merge_sn != sn_col and merge_sn in merge_df.columns:
-                    merge_df = merge_df.rename(columns={merge_sn: sn_col})
-                target_df = _join_new_columns(target_df, merge_df, new_cols, sn_col)
+        with progress_iter(target_files, desc="Merging columns",
+                           args=args, unit="part") as bar:
+            for fpath in bar:
+                target_df = target_reader(fpath)
+                if len(target_df) == 0:
+                    continue
+                target_df = _join_new_columns(target_df, merge_all, new_cols, sn_col)
+                gh3._write_dataframe(target_df, fpath, target_fmt)
                 n_updated += 1
-            else:
-                for c in new_cols:
-                    target_df[c] = np.nan
-                n_no_match += 1
+    else:
+        with progress_iter(target_files, desc="Merging partitions",
+                           args=args, unit="part") as bar:
+            for fpath in bar:
+                part_id = os.path.splitext(os.path.basename(fpath))[0]
+                target_df = target_reader(fpath)
 
-            gh3._write_dataframe(target_df, fpath, target_fmt)
+                if len(target_df) == 0:
+                    continue
+
+                merge_file = merge_map.get(part_id)
+
+                if merge_file and smart_exists(merge_file):
+                    merge_df = merge_reader(merge_file)
+                    # Rename shot_number if different between datasets
+                    if merge_sn != sn_col and merge_sn in merge_df.columns:
+                        merge_df = merge_df.rename(columns={merge_sn: sn_col})
+                    target_df = _join_new_columns(target_df, merge_df, new_cols, sn_col)
+                    n_updated += 1
+                else:
+                    for c in new_cols:
+                        target_df[c] = np.nan
+                    n_no_match += 1
+
+                gh3._write_dataframe(target_df, fpath, target_fmt)
 
     logger.info(f"  Updated {n_updated}/{len(target_files)} files ({n_no_match} with no matching merge partition).")
 

@@ -1522,17 +1522,24 @@ def build_parquet_metadata(gh3_dir):
         pq_metadata.set_file_path(rel_path)
         return pq_metadata
     
-    h3_metas = dbg.from_sequence(h3_files, partition_size=10).map(_pq_meta).compute()
+    meta_task = dbg.from_sequence(h3_files, partition_size=10).map(_pq_meta).persist()
+    progress(meta_task)
+    h3_metas = list(meta_task.compute())
+    del meta_task
     base_schema = pq.read_schema(h3_files[0])
-    
+
     merged_bbox = None
     if b'geo' in base_schema.metadata:
         def _get_box(pq_metadata):
             if b'geo' in pq_metadata.metadata:
                 return json.loads(pq_metadata.metadata[b'geo'])['columns']['geometry']['bbox']
             return None
-        
-        meta_boxes = dbg.from_sequence(h3_metas, partition_size=100).map(_get_box).filter(lambda x: x is not None).compute()
+
+        bbox_task = (dbg.from_sequence(h3_metas, partition_size=100)
+                       .map(_get_box).filter(lambda x: x is not None).persist())
+        progress(bbox_task)
+        meta_boxes = list(bbox_task.compute())
+        del bbox_task
         meta_boxes = np.array(meta_boxes)
         merged_bbox = meta_boxes[:,:2].min(axis=0).tolist() + meta_boxes[:,2:].max(axis=0).tolist()
         del meta_boxes

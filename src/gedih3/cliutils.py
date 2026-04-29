@@ -542,6 +542,44 @@ def print_success(message, logger=None):
 
 
 @contextmanager
+def progress_iter(iterable, *, desc, total=None, args=None, unit='it'):
+    """tqdm wrapper with consistent style + safe logger interleaving.
+
+    Yields a tqdm-wrapped iterator. ``logging_redirect_tqdm`` is used so that
+    ``logger.info`` / ``logger.warning`` calls made from inside the loop body
+    do not clobber the bar.
+
+    Parameters
+    ----------
+    iterable : Iterable
+        The items to iterate over.
+    desc : str
+        Description shown to the left of the bar.
+    total : int, optional
+        Total item count. Inferred via ``len(iterable)`` when possible.
+    args : argparse.Namespace, optional
+        CLI args; used to read ``--quiet`` defensively via
+        ``getattr(args, 'quiet', False)``. Pass ``None`` to always show.
+    unit : str
+        Unit label for the bar (default ``'it'``).
+    """
+    from tqdm import tqdm
+    from tqdm.contrib.logging import logging_redirect_tqdm
+    disable = bool(getattr(args, 'quiet', False)) if args is not None else False
+    if total is None:
+        try:
+            total = len(iterable)
+        except TypeError:
+            total = None
+    with logging_redirect_tqdm():
+        bar = tqdm(iterable, desc=desc, total=total, disable=disable, unit=unit)
+        try:
+            yield bar
+        finally:
+            bar.close()
+
+
+@contextmanager
 def cli_exception_handler(args, logger=None):
     """Standard exception handling context manager for CLI tools.
 

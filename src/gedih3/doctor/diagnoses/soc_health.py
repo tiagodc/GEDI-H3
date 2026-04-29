@@ -17,6 +17,7 @@ import os
 
 from ..report import Report, DoctorContext, Severity
 from ..runner import register
+from ...cliutils import progress_iter
 
 
 def soc_health_check(ctx: DoctorContext) -> Report:
@@ -30,24 +31,30 @@ def soc_health_check(ctx: DoctorContext) -> Report:
 
     from ...utils import h5_is_valid
 
-    # Walk SOC tree for invalid HDF5 files.
-    for f in glob.glob(os.path.join(ctx.soc_dir, '**', 'GEDI*.h5'), recursive=True):
-        try:
-            valid = h5_is_valid(f)
-        except Exception as e:
-            valid = False
-            err = f"{type(e).__name__}: {e}"
-        else:
-            err = None if valid else 'not a valid GEDI HDF5'
-        if not valid:
+    # Walk SOC tree for invalid HDF5 files. Materialize the glob so the
+    # progress bar can show a total.
+    soc_files = glob.glob(os.path.join(ctx.soc_dir, '**', 'GEDI*.h5'), recursive=True)
+    with progress_iter(soc_files,
+                       desc="soc_health: scanning HDF5 files",
+                       args=getattr(ctx, 'args', None),
+                       unit="file") as bar:
+        for f in bar:
             try:
-                size = os.path.getsize(f)
-            except OSError:
-                size = -1
-            findings.append({
-                'kind': 'invalid_h5', 'path': f,
-                'size_bytes': size, 'error': err,
-            })
+                valid = h5_is_valid(f)
+            except Exception as e:
+                valid = False
+                err = f"{type(e).__name__}: {e}"
+            else:
+                err = None if valid else 'not a valid GEDI HDF5'
+            if not valid:
+                try:
+                    size = os.path.getsize(f)
+                except OSError:
+                    size = -1
+                findings.append({
+                    'kind': 'invalid_h5', 'path': f,
+                    'size_bytes': size, 'error': err,
+                })
 
     # Cross-check the download log against disk.
     try:

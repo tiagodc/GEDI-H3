@@ -20,6 +20,7 @@ import time
 
 from ..report import Report, DoctorContext, Severity
 from ..runner import register
+from ...cliutils import progress_iter
 
 
 _TMP_PATTERNS = ('*.tmp', '*.join.tmp', '*.fill.tmp', '*.dedup.tmp')
@@ -62,21 +63,27 @@ def _scan_orphans(roots, age_seconds: float):
     return found_files, found_dirs
 
 
-def _empty_partition_dirs(partition_dirs):
+def _empty_partition_dirs(partition_dirs, args=None):
     empty = []
-    for d in partition_dirs:
-        # A partition is empty if it has no parquet files at any depth.
-        if not glob.glob(os.path.join(d, '**', '*.parquet'), recursive=True):
-            empty.append({'path': d, 'kind': 'empty_partition'})
+    with progress_iter(partition_dirs,
+                       desc="orphans: scanning partitions",
+                       args=args, unit="part") as bar:
+        for d in bar:
+            # A partition is empty if it has no parquet files at any depth.
+            if not glob.glob(os.path.join(d, '**', '*.parquet'), recursive=True):
+                empty.append({'path': d, 'kind': 'empty_partition'})
     return empty
 
 
-def _empty_year_dirs(partition_dirs):
+def _empty_year_dirs(partition_dirs, args=None):
     empty = []
-    for d in partition_dirs:
-        for year_dir in glob.glob(os.path.join(d, '*/')):
-            if os.path.isdir(year_dir) and not glob.glob(os.path.join(year_dir, '*.parquet')):
-                empty.append({'path': year_dir, 'kind': 'empty_year_dir'})
+    with progress_iter(partition_dirs,
+                       desc="orphans: scanning year subdirs",
+                       args=args, unit="part") as bar:
+        for d in bar:
+            for year_dir in glob.glob(os.path.join(d, '*/')):
+                if os.path.isdir(year_dir) and not glob.glob(os.path.join(year_dir, '*.parquet')):
+                    empty.append({'path': year_dir, 'kind': 'empty_year_dir'})
     return empty
 
 
@@ -85,8 +92,9 @@ def orphans_check(ctx: DoctorContext) -> Report:
     age_seconds = age_hours * 3600
 
     files, dirs = _scan_orphans([ctx.h3_dir, ctx.tmp_dir], age_seconds)
-    empties = _empty_partition_dirs(ctx.partition_dirs)
-    empties.extend(_empty_year_dirs(ctx.partition_dirs))
+    args = getattr(ctx, 'args', None)
+    empties = _empty_partition_dirs(ctx.partition_dirs, args=args)
+    empties.extend(_empty_year_dirs(ctx.partition_dirs, args=args))
 
     findings = files + dirs + empties
     summary = f"{len(files)} temp files, {len(dirs)} leftover dirs, {len(empties)} empty partition/year dirs"

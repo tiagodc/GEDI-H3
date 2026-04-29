@@ -30,6 +30,7 @@ from ..inspect import (
     product_columns_in_schema, per_granule_null_counts,
 )
 from ..parquet_ops import parquet_fill_columns
+from ...cliutils import progress_iter
 
 GranuleKey = Tuple[int, int, int]
 
@@ -77,57 +78,61 @@ def backfill_check(ctx: DoctorContext) -> Report:
 
     findings = []
 
-    for part_dir in ctx.partition_dirs:
-        meta = load_partition_meta(part_dir)
-        if meta is None:
-            continue
-        partition_cols = list(meta.get('columns', []))
-        partition_cols_lower = {str(c).lower() for c in partition_cols}
-
-        # 1. MISSING_COLUMN: a product the log expects whose suffix doesn't
-        # appear in this partition's columns. All granules in the partition
-        # are affected.
-        for prod in products:
-            expected = _expected_product_columns(ctx, prod)
-            if not expected:
+    with progress_iter(ctx.partition_dirs,
+                       desc="backfill: scanning partitions",
+                       args=getattr(ctx, 'args', None),
+                       unit="part") as bar:
+        for part_dir in bar:
+            meta = load_partition_meta(part_dir)
+            if meta is None:
                 continue
-            present = any(c.lower() in partition_cols_lower for c in expected)
-            if not present:
-                findings.append({
-                    'kind': 'missing_column',
-                    'partition_dir': part_dir,
-                    'product': prod,
-                    'expected_columns': expected,
-                    'granules': meta.get('granules', []),
-                })
+            partition_cols = list(meta.get('columns', []))
+            partition_cols_lower = {str(c).lower() for c in partition_cols}
 
-        # 2. PARTIAL_NAN: column present but specific granules have NaN.
-        # Build product → present-columns map for this partition.
-        prod_columns = product_columns_in_schema(partition_cols, products)
-        if not prod_columns:
-            continue
-
-        for pq_file in partition_parquet_files(part_dir):
-            try:
-                nulls = per_granule_null_counts(pq_file, prod_columns)
-            except Exception as e:
-                findings.append({
-                    'kind': 'scan_error',
-                    'partition_dir': part_dir,
-                    'parquet_file': pq_file,
-                    'error': f"{type(e).__name__}: {e}",
-                })
-                continue
-            for gran_key, per_prod in nulls.items():
-                for prod, n_nulls in per_prod.items():
+            # 1. MISSING_COLUMN: a product the log expects whose suffix
+            # doesn't appear in this partition's columns. All granules in the
+            # partition are affected.
+            for prod in products:
+                expected = _expected_product_columns(ctx, prod)
+                if not expected:
+                    continue
+                present = any(c.lower() in partition_cols_lower for c in expected)
+                if not present:
                     findings.append({
-                        'kind': 'partial_nan',
+                        'kind': 'missing_column',
+                        'partition_dir': part_dir,
+                        'product': prod,
+                        'expected_columns': expected,
+                        'granules': meta.get('granules', []),
+                    })
+
+            # 2. PARTIAL_NAN: column present but specific granules have NaN.
+            # Build product → present-columns map for this partition.
+            prod_columns = product_columns_in_schema(partition_cols, products)
+            if not prod_columns:
+                continue
+
+            for pq_file in partition_parquet_files(part_dir):
+                try:
+                    nulls = per_granule_null_counts(pq_file, prod_columns)
+                except Exception as e:
+                    findings.append({
+                        'kind': 'scan_error',
                         'partition_dir': part_dir,
                         'parquet_file': pq_file,
-                        'product': prod,
-                        'granule': {'orbit': gran_key[0], 'granule': gran_key[1], 'track': gran_key[2]},
-                        'null_rows': n_nulls,
+                        'error': f"{type(e).__name__}: {e}",
                     })
+                    continue
+                for gran_key, per_prod in nulls.items():
+                    for prod, n_nulls in per_prod.items():
+                        findings.append({
+                            'kind': 'partial_nan',
+                            'partition_dir': part_dir,
+                            'parquet_file': pq_file,
+                            'product': prod,
+                            'granule': {'orbit': gran_key[0], 'granule': gran_key[1], 'track': gran_key[2]},
+                            'null_rows': n_nulls,
+                        })
 
     n_missing = sum(1 for f in findings if f['kind'] == 'missing_column')
     n_partial = sum(1 for f in findings if f['kind'] == 'partial_nan')

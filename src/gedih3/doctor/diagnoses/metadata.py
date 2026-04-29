@@ -17,13 +17,18 @@ import os
 from ..report import Report, DoctorContext, Severity
 from ..runner import register
 from ..inspect import partition_meta_file
+from ...cliutils import progress_iter
 
 
 def _missing_partition_meta(ctx: DoctorContext):
     missing = []
-    for d in ctx.partition_dirs:
-        if partition_meta_file(d) is None:
-            missing.append(d)
+    with progress_iter(ctx.partition_dirs,
+                       desc="metadata: scanning partitions",
+                       args=getattr(ctx, 'args', None),
+                       unit="part") as bar:
+        for d in bar:
+            if partition_meta_file(d) is None:
+                missing.append(d)
     return missing
 
 

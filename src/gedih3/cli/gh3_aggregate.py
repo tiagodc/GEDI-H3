@@ -426,47 +426,54 @@ def main():
                 else:
                     ddf = None  # EGI+database path loads per-window via egi_load + egi_aggregate
 
-                window_count = 0
-                for t0, t1, suffix in generate_time_windows(
+                # Materialize the generator so the progress bar can show a
+                # total — window counts are typically small (dozens at most).
+                from gedih3.cliutils import progress_iter
+                windows = list(generate_time_windows(
                     args.time_start, args.time_end,
                     args.time_interval, args.time_units
-                ):
-                    logger.info(f"── Window: {suffix} ──")
-                    if args.rasterize and args.merge:
-                        window_dir = os.path.join(args.output, f"{suffix}.tif")
-                    else:
-                        window_dir = os.path.join(args.output, suffix)
+                ))
 
-                    if use_egi and is_database:
-                        # Direct EGI loading per window: append temporal filter to query
-                        time_query = build_temporal_query(
-                            start_date=t0.strftime('%Y-%m-%d'),
-                            end_date=t1.strftime('%Y-%m-%d')
-                        )
-                        window_query = f"({query_str}) & ({time_query})" if query_str else time_query
+                window_count = 0
+                with progress_iter(windows, desc="Time-series windows",
+                                   args=args, unit="win") as bar:
+                    for t0, t1, suffix in bar:
+                        logger.info(f"── Window: {suffix} ──")
+                        if args.rasterize and args.merge:
+                            window_dir = os.path.join(args.output, f"{suffix}.tif")
+                        else:
+                            window_dir = os.path.join(args.output, suffix)
 
-                        aggdf, part_col, export_func = _aggregate_data(
-                            None, query_str=window_query, **agg_kwargs
-                        )
-                    else:
-                        # Filter persisted data for this time window
-                        time_query = build_temporal_query(
-                            start_date=t0.strftime('%Y-%m-%d'),
-                            end_date=t1.strftime('%Y-%m-%d')
-                        )
-                        window_ddf = ddf.query(time_query)
+                        if use_egi and is_database:
+                            # Direct EGI loading per window: append temporal filter to query
+                            time_query = build_temporal_query(
+                                start_date=t0.strftime('%Y-%m-%d'),
+                                end_date=t1.strftime('%Y-%m-%d')
+                            )
+                            window_query = f"({query_str}) & ({time_query})" if query_str else time_query
 
-                        # Check if window has data (cheap: just check partition count stays > 0)
-                        # The actual emptiness check happens during aggregation/export
-                        aggdf, part_col, export_func = _aggregate_data(
-                            window_ddf, query_str=None, **agg_kwargs
-                        )
+                            aggdf, part_col, export_func = _aggregate_data(
+                                None, query_str=window_query, **agg_kwargs
+                            )
+                        else:
+                            # Filter persisted data for this time window
+                            time_query = build_temporal_query(
+                                start_date=t0.strftime('%Y-%m-%d'),
+                                end_date=t1.strftime('%Y-%m-%d')
+                            )
+                            window_ddf = ddf.query(time_query)
 
-                    _export_data(
-                        aggdf, export_func=export_func, part_col=part_col,
-                        output_dir=window_dir, **export_kwargs
-                    )
-                    window_count += 1
+                            # Check if window has data (cheap: just check partition count stays > 0)
+                            # The actual emptiness check happens during aggregation/export
+                            aggdf, part_col, export_func = _aggregate_data(
+                                window_ddf, query_str=None, **agg_kwargs
+                            )
+
+                        _export_data(
+                            aggdf, export_func=export_func, part_col=part_col,
+                            output_dir=window_dir, **export_kwargs
+                        )
+                        window_count += 1
 
                 print_success(f"Time-series complete: {window_count} windows exported to {args.output}", logger=logger)
 
