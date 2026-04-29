@@ -812,7 +812,18 @@ def _filter_granules(
           .persist()
     )
 
-    progress(bag_task)
+    # Per-batch tqdm bar over the bag's futures — renders reliably in TTY,
+    # SSH, and log-redirected contexts where distributed.progress() can be
+    # invisible. Mirrors the partition-merge pattern below.
+    from dask.distributed import futures_of, as_completed as dask_as_completed
+    from tqdm import tqdm as tqdm_bar
+    bag_futures = futures_of(bag_task)
+    if bag_futures:
+        pbar = tqdm_bar(dask_as_completed(bag_futures), total=len(bag_futures),
+                        desc="Checking SOC files", unit="batch")
+        for _ in pbar:
+            pass
+        pbar.close()
     soc_files = list(bag_task.compute())
     del bag_task
 
