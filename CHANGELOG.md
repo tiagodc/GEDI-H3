@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.2] - 2026-04-29
+
+### Fixed
+- `gh3_build` startup phases between "using only existing data" and the partition build no longer silent: added "Validating product variables..." and "Listing SOC files..." log lines, swapped the per-file `dask.delayed` validation for a batched dask-bag with a `Validating SOC files: N/M [batch]` tqdm bar, and wrapped the granule-metadata-pivot loop with a `Parsing granule metadata` tqdm bar. Eliminates multi-minute silence on directories with hundreds of thousands of HDF5 files.
+
 ## [0.7.1] - 2026-04-29
 
 ### Fixed
