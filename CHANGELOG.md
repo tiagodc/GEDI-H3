@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.1] - 2026-04-29
+
+### Fixed
+- `gh3_build` SOC-check phase: replace `dask.distributed.progress()` (silent in non-TTY/SSH/log-redirected sessions) with a `tqdm` + `as_completed` bar over the bag's futures, so the "Checking SOC files" stage now shows reliable batch-level progress in every terminal context.
+
 ## [0.7.0] - 2026-04-29
 
 ### Added
