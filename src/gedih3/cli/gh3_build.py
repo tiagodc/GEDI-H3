@@ -240,15 +240,19 @@ def main():
                 os.makedirs(soc_source, exist_ok=True)
                 existing_h5 = glob.glob(os.path.join(soc_source, '**', 'GEDI*.h5'), recursive=True)
                 if args.exclude:
-                    # Same fnmatch filter as soc_file_tree applies later; we
-                    # filter here too so the "Building from N existing HDF5
-                    # files" count reflects the exclusion. The user-visible
-                    # "Excluded N..." log is emitted once by soc_file_tree.
+                    # Single user-facing summary of the exclusion. soc_file_tree
+                    # applies the same fnmatch filter on every later call but
+                    # is silent about it to avoid duplicate log lines.
                     import fnmatch as _fn
+                    before = len(existing_h5)
                     existing_h5 = [
                         p for p in existing_h5
                         if not any(_fn.fnmatch(os.path.basename(p), pat) for pat in args.exclude)
                     ]
+                    if len(existing_h5) < before:
+                        logger.info(
+                            f"Excluded {before - len(existing_h5)} HDF5 files matching {args.exclude}"
+                        )
 
                 def _validate_existing_h5(product_vars, soc_dir):
                     """Validate requested products/variables exist in HDF5 files. Exits on mismatch."""

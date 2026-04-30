@@ -132,9 +132,9 @@ def soc_file_tree(
             file_list = [file_list[i] for i in keep_idx]
             if direct_access:
                 file_struct = [file_struct[i] for i in keep_idx]
-            logger.info(
-                f"Excluded {before - len(file_list)} HDF5 files matching {list(exclude)}"
-            )
+            # Library is silent about exclusions on purpose: soc_file_tree
+            # is called multiple times per build and the CLI emits one
+            # user-facing summary at the existing_h5 filter point.
 
     if not file_list:
         return [] if to_list else {}
