@@ -136,6 +136,9 @@ def soc_file_tree(
                 f"Excluded {before - len(file_list)} HDF5 files matching {list(exclude)}"
             )
 
+    if not file_list:
+        return [] if to_list else {}
+
     file_array = np.array(file_struct) if direct_access else np.array(file_list)
 
     flist = pd.DataFrame({'file_paths': file_list, 'file_links': file_array})
@@ -261,41 +264,25 @@ def validate_soc_files(product_vars: Dict, soc_dir: str = GH3_DEFAULT_SOC_DIR,
     if not soc_files:
         return False, {"error": "No SOC files found in directory"}
 
-    available_products = {k: set() for k in soc_files[0].keys()}
-
-    # Use a dask bag (batched) instead of one delayed task per file — at
-    # ~900k files the per-task scheduling overhead is prohibitive and the
-    # caller sees no feedback. tqdm + as_completed renders reliably under
-    # SSH/log-redirected sessions where distributed.progress() is silent.
-    import dask.bag as dbg
-    from functools import partial
-    from .utils import get_dask_client
-
-    bag = dbg.from_sequence(soc_files, partition_size=100).map(
-        partial(check_soc_file_vars, available_products=available_products)
-    )
-
-    client = get_dask_client()
-    if client is not None:
-        from dask.distributed import futures_of, as_completed as dask_as_completed
-        from tqdm import tqdm
-        bag = bag.persist()
-        bag_futures = futures_of(bag)
-        if bag_futures:
-            pbar = tqdm(dask_as_completed(bag_futures), total=len(bag_futures),
-                        desc="Validating SOC files", unit="batch")
-            for _ in pbar:
-                pass
-            pbar.close()
-        file_results = list(bag.compute())
-    else:
-        file_results = list(bag.compute())
-
-    for file_products in file_results:
-        for prod, vars_list in file_products.items():
-            available_products[prod].update(vars_list)
-
-    available_products = {k: list(v) for k, v in available_products.items()}
+    # The package ships authoritative per-product per-version manifests
+    # (src/gedih3/data/GEDI*_DATASETS_*.txt). NASA release files of the
+    # same product+version always have the same dataset schema, so a
+    # static lookup gives identical answers to (and replaces) the prior
+    # per-file HDF5 metadata scan. Per-partition build errors are still
+    # tolerated by _load_h5_merged below, so this function only has to
+    # catch user-side typos in requested variable names.
+    from .config import get_default_vars_file
+    available_products = {}
+    for prod in soc_files[0].keys():
+        try:
+            with open(get_default_vars_file(prod, version=version)) as f:
+                available_products[prod] = [ln.strip() for ln in f if ln.strip()]
+        except (FileNotFoundError, ValueError) as e:
+            logger.warning(
+                f"validate_soc_files: no static manifest for {prod} v{version}; "
+                f"skipping variable check for this product ({e})"
+            )
+            available_products[prod] = []
 
     validation_report = {
         "available_products": available_products,
