@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.6] - 2026-04-29
+
+### Changed
+- `gh3_build` granule-registration loop ("Parsing granule metadata") now parses orbit / granule / track directly from the basename instead of constructing a `GEDIFile`. The `GEDIFile` constructor calls `os.path.exists` + `os.path.getsize` on every first file to populate `file_size`, which this loop never reads. On a 73k-granule gpfs tree that adds ~12 minutes of network stat I/O for nothing.
+
 ## [0.7.5] - 2026-04-29
 
 ### Fixed
