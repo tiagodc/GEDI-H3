@@ -17,7 +17,6 @@ rhov_rhog_se
 rossg
 rv
 rv_rg_r
-rh100
 rx_range_highestreturn
 selected_rg_algorithm
 selected_l2a_algorithm
