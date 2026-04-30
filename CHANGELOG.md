@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.4] - 2026-04-29
+
+### Changed
+- `validate_soc_files` now reads the per-product per-version variable manifests that already ship in `src/gedih3/data/GEDI*_DATASETS_*.txt` instead of opening every HDF5 file to enumerate datasets. Drops a multi-minute scan to ~8 ms while preserving the typo-catching contract. Removes the dask bag, `futures_of`/`as_completed` plumbing, and `Validating SOC files` tqdm bar that v0.7.2 added.
+
+### Fixed
+- `soc_file_tree` no longer crashes (`AttributeError: Can only use .str accessor with string values!`) when the glob returns zero matches; returns an empty result early.
+
 ## [0.7.3] - 2026-04-29
 
 ### Added
