@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.5] - 2026-04-29
+
+### Fixed
+- `gh3_build` no longer prints the "Excluded N HDF5 files matching ..." log line twice. The message is now emitted once by `soc_file_tree` (the single source of truth across all callers); the CLI keeps the matching filter so the "Building from N existing HDF5 files" count still reflects the exclusion.
+
 ## [0.7.4] - 2026-04-29
 
 ### Changed
