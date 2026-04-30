@@ -387,21 +387,18 @@ def main():
                 if soc_source is not None and isinstance(soc_source, str) and os.path.isdir(soc_source):
                     logger.info("Listing SOC files for granule registration")
                     _soc_for_build = soc_file_tree(soc_source, to_list=True, exclude=args.exclude)
+                    # GEDI filename: GEDInn_L_DATE_O{orbit}_{granule}_T{track}_PPDS_PGE_GEN_V{ver}.h5
+                    # Parse orbit/granule/track from the basename directly — no
+                    # GEDIFile() so we skip the unused os.path.getsize call per
+                    # granule (matters on network filesystems).
                     _build_granules = []
-                    from gedih3.cliutils import progress_iter
-                    with progress_iter(_soc_for_build, desc="Parsing granule metadata",
-                                       args=args, unit="gran") as bar:
-                        for _soc in bar:
-                            # GEDI filename: GEDInn_L_DATE_O{orbit}_{granule}_T{track}_PPDS_PGE_GEN_V{ver}.h5
-                            # We only need orbit/granule/track here, so parse the basename
-                            # directly to skip the os.path.exists + os.path.getsize calls
-                            # that GEDIFile.parse_file does (~12 min on a 73k-granule gpfs tree).
-                            fl = os.path.basename(list(_soc.values())[0]).split('_')
-                            _build_granules.append({
-                                'orbit': int(fl[3][1:]),
-                                'granule': int(fl[4]),
-                                'track': int(fl[5][1:]),
-                            })
+                    for _soc in _soc_for_build:
+                        fl = os.path.basename(list(_soc.values())[0]).split('_')
+                        _build_granules.append({
+                            'orbit': int(fl[3][1:]),
+                            'granule': int(fl[4]),
+                            'track': int(fl[5][1:]),
+                        })
                     h3_logger.register_pending_granules(_build_granules)
                     h3_logger.save_log('PROCESSING')
 
