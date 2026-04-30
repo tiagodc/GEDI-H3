@@ -1300,6 +1300,7 @@ def build_h3db(
     skip_granules: Optional[List[Dict]] = None,
     status_callback: Optional[Callable[[str], None]] = None,
     variable_only_update: bool = False,
+    exclude: Optional[List[str]] = None,
 ) -> Optional[List[str]]:
     """
     Build an H3-indexed GEDI database from local SOC files or S3 download.
@@ -1419,7 +1420,7 @@ def build_h3db(
             dropped = before - len(soc_source)
             if dropped:
                 logger.warning(f"Dropped {dropped} pre-acquired file(s) not matching version V{version:03d}")
-        all_soc_files = soc_file_tree(soc_source, to_list=True)
+        all_soc_files = soc_file_tree(soc_source, to_list=True, exclude=exclude)
     elif isinstance(soc_source, str):
         # Local directory mode (also used after S3 download to temp dir)
         if not os.path.exists(soc_source):
@@ -1437,7 +1438,7 @@ def build_h3db(
                     logger.warning("Could not auto-detect GEDI version from sample file; listing without version filter")
         logger.info("Listing source SOC files")
         glob_kwargs = {'version': version} if version is not None else None
-        all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=glob_kwargs)
+        all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=glob_kwargs, exclude=exclude)
     else:
         raise GediValidationError(f"Invalid soc_source type: {type(soc_source)}")
 
