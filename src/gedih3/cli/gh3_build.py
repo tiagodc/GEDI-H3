@@ -37,6 +37,11 @@ def get_cmd_args():
                    help="download from NASA S3 to temp directory (no persistent local download)")
     p.add_argument("--gedi-version", dest="version", type=int, default=None,
                    help="GEDI data version [default=latest available]")
+    p.add_argument("--exclude", dest="exclude", action='append', default=None,
+                   metavar='PATTERN',
+                   help="exclude files whose basename matches the given fnmatch pattern. "
+                        "Repeat the flag for multiple patterns. "
+                        "Example: --exclude '*_SGS.h5' --exclude '*_BETA.h5'")
 
     # Dask and verbosity
     add_dask_args(p, profile='build')
@@ -215,6 +220,7 @@ def main():
         h3_dir=h3_logger._PARENT_DIR,
         status_callback=h3_logger.save_log,
         tmp_dir=args.tmpdir,
+        exclude=args.exclude,
     )
 
     try:
@@ -233,6 +239,17 @@ def main():
             if soc_source is not None:
                 os.makedirs(soc_source, exist_ok=True)
                 existing_h5 = glob.glob(os.path.join(soc_source, '**', 'GEDI*.h5'), recursive=True)
+                if args.exclude:
+                    import fnmatch as _fn
+                    before = len(existing_h5)
+                    existing_h5 = [
+                        p for p in existing_h5
+                        if not any(_fn.fnmatch(os.path.basename(p), pat) for pat in args.exclude)
+                    ]
+                    if len(existing_h5) < before:
+                        logger.info(
+                            f"Excluded {before - len(existing_h5)} HDF5 files matching {args.exclude}"
+                        )
 
                 def _validate_existing_h5(product_vars, soc_dir):
                     """Validate requested products/variables exist in HDF5 files. Exits on mismatch."""
@@ -240,7 +257,10 @@ def main():
                     expanded = copy.deepcopy(product_vars)
                     gedi_vars_expand(expanded, version=h3_logger.gedi_version)
                     try:
-                        validation = validate_soc_files(expanded, soc_dir, version=h3_logger.gedi_version)
+                        validation = validate_soc_files(
+                            expanded, soc_dir, version=h3_logger.gedi_version,
+                            exclude=args.exclude,
+                        )
                     except Exception as val_err:
                         logger.warning(f"Could not validate HDF5 files (corrupt file?): {val_err}")
                         return
@@ -289,7 +309,11 @@ def main():
                             expanded_new = copy.deepcopy(dict(h3_logger.new_product_vars))
                             gedi_vars_expand(expanded_new, version=h3_logger.gedi_version)
                             try:
-                                validation = validate_soc_files(expanded_new, soc_source, version=h3_logger.gedi_version)
+                                validation = validate_soc_files(
+                                    expanded_new, soc_source,
+                                    version=h3_logger.gedi_version,
+                                    exclude=args.exclude,
+                                )
                                 can_skip = validation.get('can_skip', True) if isinstance(validation, dict) else False
                             except Exception:
                                 can_skip = False
@@ -359,7 +383,7 @@ def main():
                 # Only for local download mode (-i); S3 mode has no local SOC directory
                 if soc_source is not None and isinstance(soc_source, str) and os.path.isdir(soc_source):
                     logger.info("Listing SOC files for granule registration")
-                    _soc_for_build = soc_file_tree(soc_source, to_list=True)
+                    _soc_for_build = soc_file_tree(soc_source, to_list=True, exclude=args.exclude)
                     _build_granules = []
                     from gedih3.cliutils import progress_iter
                     with progress_iter(_soc_for_build, desc="Parsing granule metadata",

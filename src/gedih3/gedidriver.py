@@ -70,7 +70,8 @@ def soc_from_file(file_path: Union[str, Path]) -> str:
 def soc_file_tree(
     file_struct: Union[str, List[str], List[EarthAccessFile]],
     to_list: bool = False,
-    glob_kwargs: Optional[Dict] = None
+    glob_kwargs: Optional[Dict] = None,
+    exclude: Optional[List[str]] = None,
 ) -> Union[Dict[str, Dict[str, str]], List[Dict[str, str]]]:
     """
     Build a structured tree of GEDI SOC files grouped by orbit/track.
@@ -88,6 +89,11 @@ def soc_file_tree(
     glob_kwargs : dict, optional
         Keyword arguments passed to gedi_file_glob() for filtering files
         (e.g., version, orbit).
+    exclude : list of str, optional
+        fnmatch-style patterns matched against each file's basename.
+        Any file whose basename matches any pattern is dropped from the
+        result. Useful to exclude internal/SGS variants (e.g.
+        ``['*_SGS.h5']``) that share the SOC tree with public release files.
 
     Returns
     -------
@@ -101,6 +107,8 @@ def soc_file_tree(
     >>> tree = soc_file_tree('/path/to/soc')
     >>> tree['O12345_01_T00001']
     {'L2A': '/path/to/GEDI02_A_...h5', 'L4A': '/path/to/GEDI04_A_...h5'}
+    >>> # Exclude NASA SGS internal files from discovery
+    >>> tree = soc_file_tree('/path/to/soc', exclude=['*_SGS.h5'])
     """
     direct_access = False
     if isinstance(file_struct, str) and os.path.isdir(file_struct):
@@ -112,6 +120,21 @@ def soc_file_tree(
         file_list = file_struct
     else:
         raise GediValidationError("file_struct must be a directory or a list of file paths (or s3 links)")
+
+    if exclude:
+        import fnmatch
+        before = len(file_list)
+        keep_idx = [
+            i for i, p in enumerate(file_list)
+            if not any(fnmatch.fnmatch(os.path.basename(p), pat) for pat in exclude)
+        ]
+        if len(keep_idx) < before:
+            file_list = [file_list[i] for i in keep_idx]
+            if direct_access:
+                file_struct = [file_struct[i] for i in keep_idx]
+            logger.info(
+                f"Excluded {before - len(file_list)} HDF5 files matching {list(exclude)}"
+            )
 
     file_array = np.array(file_struct) if direct_access else np.array(file_list)
 
@@ -211,7 +234,17 @@ def check_soc_file_vars(soc_file, available_products):
     file_products = {}
     for prod in available_products.keys():
         if prod in soc_file:
-            available_vars = gedi_vars_from_h5(soc_file[prod])
+            try:
+                available_vars = gedi_vars_from_h5(soc_file[prod])
+            except Exception as e:
+                # A single broken granule (truncated download, no BEAM
+                # group, etc.) must not abort the whole validation bag.
+                # _filter_granules will drop the file via h5_is_valid.
+                logger.warning(
+                    f"validate_soc_files: skipping unreadable {prod} file "
+                    f"{soc_file[prod]}: {type(e).__name__}: {e}"
+                )
+                continue
             file_products[prod] = available_vars
     return file_products
 
@@ -219,9 +252,11 @@ def check_soc_file_vars(soc_file, available_products):
 def _check_soc_file_vars(soc_file, available_products):
     return check_soc_file_vars(soc_file, available_products)
 
-def validate_soc_files(product_vars: Dict, soc_dir: str = GH3_DEFAULT_SOC_DIR, version: Optional[int] = None):
+def validate_soc_files(product_vars: Dict, soc_dir: str = GH3_DEFAULT_SOC_DIR,
+                        version: Optional[int] = None,
+                        exclude: Optional[List[str]] = None):
     glob_kwargs = {'version': version} if version is not None else None
-    soc_files = soc_file_tree(soc_dir, to_list=True, glob_kwargs=glob_kwargs)
+    soc_files = soc_file_tree(soc_dir, to_list=True, glob_kwargs=glob_kwargs, exclude=exclude)
 
     if not soc_files:
         return False, {"error": "No SOC files found in directory"}
