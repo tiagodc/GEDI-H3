@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.8] - 2026-04-29
+
+### Removed
+- The `Parsing granule metadata` progress bar in `gh3_build`'s granule-registration loop. After 0.7.6 dropped the per-iteration `os.path.getsize` call, the loop runs at ~800k granules/sec — the bar finished in well under a second on a 91k-granule run, so it no longer earns its keep.
+
 ## [0.7.7] - 2026-04-29
 
 ### Fixed
