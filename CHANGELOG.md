@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.9] - 2026-04-29
+
+### Fixed
+- Removed `rh100` from the V3 L2B default variable list (`GEDI02_B_DATASETS_003.txt`). The dataset was retired in V3 — it is not present anywhere in V3 L2B files, so requesting it via `default` raised `Unable to synchronously open object (object 'rh100' doesn't exist)` and skipped every L2B granule during `gh3_build --gedi-version 3`. Use L2A `rh[100]` or derive from `elev_highestreturn − elev_lowestmode` for V3 canopy-top height.
+
 ## [0.7.8] - 2026-04-29
 
 ### Removed
