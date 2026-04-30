@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.7] - 2026-04-29
+
+### Fixed
+- "Excluded N HDF5 files matching ..." now appears exactly once per `gh3_build` invocation. Previously the line was emitted on every `soc_file_tree` call (validate, granule registration, internal `build_h3db` listing — two to three duplicates per run). The library is now silent about exclusions; the single user-facing summary lives in `gh3_build` next to the "Building from N existing HDF5 files" line.
+
 ## [0.7.6] - 2026-04-29
 
 ### Changed
