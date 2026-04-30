@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.3] - 2026-04-29
+
+### Added
+- `--exclude PATTERN` flag in `gh3_build` (repeatable, fnmatch-style) and matching `exclude=` kwarg on `soc_file_tree`, `validate_soc_files`, and `build_h3db`. Drops files whose basename matches any pattern at the discovery step, so internal/non-release HDF5 variants (e.g. `*_SGS.h5`) can be skipped while keeping the variants you do want (e.g. `*_7algs.h5`). Default behaviour unchanged when the flag is omitted.
+
+### Fixed
+- `validate_soc_files` no longer aborts the whole validation pass on a single corrupt or truncated HDF5 file. The per-file worker (`check_soc_file_vars`) now wraps the HDF5 read in `try/except`, logs a warning naming the file, and returns no products for it instead of raising — mirrors the corruption tolerance applied to `dask_h5_merged` in commit `91bb04f`.
+
 ## [0.7.2] - 2026-04-29
 
 ### Fixed
