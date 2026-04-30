@@ -1,11 +1,12 @@
-"""Tests for SOC file discovery: exclude patterns + per-file tolerance."""
+"""Tests for SOC file discovery: exclude patterns + per-file tolerance + manifest validation."""
 
 import os
 import tempfile
 
 import pytest
 
-from gedih3.gedidriver import soc_file_tree, check_soc_file_vars
+from gedih3.gedidriver import soc_file_tree, check_soc_file_vars, validate_soc_files
+from gedih3.config import get_default_vars_file
 
 
 # Filenames that follow the canonical GEDI release naming convention.
@@ -82,3 +83,68 @@ def test_check_soc_file_vars_tolerates_unreadable_file():
         assert out == {}, "Truncated file must yield an empty product map, not raise"
     finally:
         os.unlink(fpath)
+
+
+# ── validate_soc_files (manifest-based) ────────────────────────────────────
+
+@pytest.fixture
+def soc_tree_two_release_files(tmp_path):
+    """A SOC dir with one empty L2A and one empty L2B release file (V003)."""
+    for n in [
+        'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+        'GEDI02_B_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+    ]:
+        (tmp_path / n).touch()
+    return str(tmp_path)
+
+
+def test_validate_soc_files_uses_static_manifest(soc_tree_two_release_files):
+    """Happy path: variables present in the manifest pass; report.can_skip is True."""
+    report = validate_soc_files(
+        {'L2A': ['rh'], 'L2B': ['cover']},
+        soc_tree_two_release_files, version=3,
+    )
+    assert report['can_skip'] is True
+    assert report['missing_products'] == []
+    assert report['missing_variables'] == {}
+
+    # available_products must reflect the manifest line counts exactly
+    for prod in ('L2A', 'L2B'):
+        with open(get_default_vars_file(prod, version=3)) as f:
+            expected = {ln.strip() for ln in f if ln.strip()}
+        assert set(report['available_products'][prod]) == expected
+
+
+def test_validate_soc_files_detects_typoed_variable(soc_tree_two_release_files):
+    """A typoed variable name lands in missing_variables and trips can_skip."""
+    report = validate_soc_files(
+        {'L2A': ['rh098_typo']},
+        soc_tree_two_release_files, version=3,
+    )
+    assert report['can_skip'] is False
+    assert report['missing_variables'] == {'L2A': ['rh098_typo']}
+    assert 'Missing variables in L2A' in report.get('error_msg', '')
+
+
+def test_validate_soc_files_completes_quickly(soc_tree_two_release_files):
+    """Sanity: manifest lookup must finish in well under a second.
+
+    (The point of this rewrite is that this used to take ~30 min when
+    backed by a per-file HDF5 scan.)
+    """
+    import time
+    t0 = time.time()
+    validate_soc_files(
+        {'L2A': ['rh'], 'L2B': ['cover']},
+        soc_tree_two_release_files, version=3,
+    )
+    elapsed = time.time() - t0
+    assert elapsed < 1.0, f"Manifest validation should be near-instant, took {elapsed:.2f}s"
+
+
+def test_validate_soc_files_empty_directory_returns_error_tuple(tmp_path):
+    """No files in the SOC dir → (False, {error: ...}) early return; no crash."""
+    result = validate_soc_files({'L2A': ['rh']}, str(tmp_path), version=3)
+    assert isinstance(result, tuple)
+    assert result[0] is False
+    assert 'No SOC files found' in result[1]['error']
