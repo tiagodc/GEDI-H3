@@ -1113,7 +1113,7 @@ def _write_partitioned(
     lon_col: str,
     dat_col: str,
     frag_names: Optional[List[str]] = None,
-) -> List[str]:
+) -> bool:
     """
     Write H3-indexed data to partitioned parquet files.
 
@@ -1135,8 +1135,12 @@ def _write_partitioned(
 
     Returns
     -------
-    list of str
-        List of written parquet file paths, or empty list if no data
+    bool
+        True if any partition file was written, False if the tmp tree is
+        empty (e.g. all granules filtered out). The caller only needs an
+        emptiness check; building a full list of written paths via a recursive
+        glob scales as O(n_files) and is unbounded for global builds (millions
+        of fragments × shared filesystem stat latency).
     """
     logger.info("Adding date and geometry columns to H3 database")
 
@@ -1178,8 +1182,16 @@ def _write_partitioned(
         client.cancel(write_task, force=True)
         del write_task, ddf
 
-    tmp_files = glob.glob(os.path.join(tmp_dir, '**', '*.parquet'), recursive=True)
-    return tmp_files
+    # O(1) emptiness check: at least one h3_* leaf dir means stage 1 wrote
+    # something. Avoid recursive glob over the full tmp tree (would walk
+    # millions of fragments on a global build).
+    try:
+        return any(
+            entry.is_dir() and entry.name.startswith('h3_')
+            for entry in os.scandir(tmp_dir)
+        )
+    except FileNotFoundError:
+        return False
 
 
 def _merge_and_finalize(
@@ -1723,9 +1735,9 @@ def build_h3db(
         # conflicting with Dask worker scratch space (dask-worker-space/dirlock)
         # which causes PermissionError on Windows when overwrite=True deletes tmp_dir
         parquet_dir = os.path.join(tmp_dir, 'partitions')
-        tmp_files = _write_partitioned(ddf, parquet_dir, part, lat_col, lon_col, dat_col, frag_names=frag_names)
+        wrote_any = _write_partitioned(ddf, parquet_dir, part, lat_col, lon_col, dat_col, frag_names=frag_names)
 
-        if len(tmp_files) == 0:
+        if not wrote_any:
             logger.info("No new data to process")
             return None
 
