@@ -562,14 +562,22 @@ with open(get_package_data_path('dask-config-massive-build.yaml')) as f:
 # Now spawn the cluster — the config is in dask.config for any new Client/LocalCluster
 ```
 
-Equivalently, pass it to the standalone scheduler / worker CLIs:
+Equivalently, point the standalone `dask scheduler` / `dask worker` CLIs at the file via the `DASK_CONFIG` env var (Dask reads it at import time; `dask` has no `--config-file` flag):
 
 ```bash
-CONFIG=$(python -c "from gedih3.config import get_package_data_path; \
-                    print(get_package_data_path('dask-config-massive-build.yaml'))")
-dask scheduler --config-file "$CONFIG" --host 0.0.0.0 --port 8786
-dask worker   --config-file "$CONFIG" tcp://localhost:8786 \
-              --nworkers 32 --memory-limit 25GB --preload "$PRELOAD"
+export DASK_CONFIG=$(python -c "from gedih3.config import get_package_data_path; \
+                                print(get_package_data_path('dask-config-massive-build.yaml'))")
+dask scheduler --host 0.0.0.0 --port 8786
+dask worker tcp://localhost:8786 --nworkers 32 --memory-limit 25GB --preload "$PRELOAD"
+```
+
+Or copy/symlink the YAML to `~/.config/dask/` so dask auto-loads it for every invocation:
+
+```bash
+mkdir -p ~/.config/dask
+ln -s "$(python -c "from gedih3.config import get_package_data_path; \
+                    print(get_package_data_path('dask-config-massive-build.yaml'))")" \
+      ~/.config/dask/gedih3-massive-build.yaml
 ```
 
 The YAML sets:
