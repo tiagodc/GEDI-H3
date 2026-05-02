@@ -1,0 +1,74 @@
+# Reference Dask config for massive gedih3 builds (global / continental scale).
+#
+# This is a TEMPLATE — gh3_build does not auto-load it. Use one of:
+#
+#   # CLI: pass to scheduler and worker spawn (uses standard dask CLI flag)
+#   dask scheduler --config-file <path>
+#   dask worker tcp://localhost:8786 --config-file <path> ...
+#
+#   # Python: load before constructing the Client
+#   import yaml, dask
+#   from gedih3.config import get_package_data_path
+#   dask.config.update(yaml.safe_load(open(get_package_data_path('dask-config-massive-build.yaml'))))
+#
+# Resolve the bundled file path:
+#   python -c "from gedih3.config import get_package_data_path; \
+#              print(get_package_data_path('dask-config-massive-build.yaml'))"
+#
+# See `docs/user-guide/building-a-database.md` → "Building Massive Databases"
+# for the full runbook (scheduler + workers + verification + recovery).
+
+distributed:
+
+  # ── Worker-side memory thresholds ──────────────────────────────────────
+  # Defaults are 0.60 / 0.70 / 0.80 / 0.95 (target / spill / pause / terminate).
+  # Slightly looser here so steady-state work isn't constantly spilling on
+  # a node that's actually sized correctly. Combine with `lifetime.restart`
+  # below — the rolling restart is what bounds RSS, not the spill threshold.
+  worker:
+    memory:
+      target: 0.70
+      spill: 0.80
+      pause: 0.90
+      terminate: 0.95
+      # Re-classify "recent unmanaged" → "old unmanaged" after this much
+      # idle time. Bump above your typical task wall-clock so the dashboard
+      # doesn't constantly show false-positive recent-unmanaged spikes.
+      recent-to-old-time: "180s"
+
+    # Rolling worker restart — THE single most important knob for multi-day
+    # builds. Each worker dies cleanly after `duration`, scheduler reassigns
+    # its in-flight work, nanny respawns a fresh process. Stagger keeps ~95%
+    # of capacity online at any moment. Bounds RSS regardless of the root
+    # cause of unmanaged-memory growth (PyArrow jemalloc pool, glibc
+    # fragmentation, h5py chunk caches, etc.).
+    lifetime:
+      duration: "4h"
+      stagger: "30m"
+      restart: true
+
+  # ── Pre-spawn environment ──────────────────────────────────────────────
+  # CRITICAL: these MUST be set BEFORE the worker process spawns. Dask's
+  # `distributed.nanny.environ` block sets them AFTER spawn, by which time
+  # libc has already initialized — the override silently no-ops. See
+  # https://github.com/dask/distributed/issues/5279 for the gotcha.
+  #
+  # `MALLOC_TRIM_THRESHOLD_=0` makes glibc release freed pages to the OS
+  # immediately (the Nanny's default of 65536 keeps too much around).
+  # `ARROW_DEFAULT_MEMORY_POOL=system` forces PyArrow to allocate via
+  # glibc instead of jemalloc; combined with MALLOC_TRIM, this means
+  # parquet read/write buffers actually return to the OS after each task.
+  nanny:
+    pre-spawn-environ:
+      MALLOC_TRIM_THRESHOLD_: "0"
+      ARROW_DEFAULT_MEMORY_POOL: "system"
+
+  # ── Admin / quality of life ────────────────────────────────────────────
+  admin:
+    # Suppress the "Sending large graph..." UserWarning. The build's stage 1
+    # legitimately produces graphs >100 MB.
+    large-graph-warning-threshold: "500MB"
+    # Long-running merge tasks can briefly block the event loop during
+    # parquet writer flush. Default 3s would log spurious warnings.
+    tick:
+      limit: "1h"

@@ -396,6 +396,177 @@ gh3_build -r ... -l4a default -s tcp://scheduler-host:8786
 gh3_build -r ... -l4a default -N 4 -M 16
 ```
 
+For multi-day **global or continental builds** (>100K granules, multi-TB outputs), the simple `-N`/`-M` defaults run into Dask's well-documented unmanaged-memory accumulation problem. Skip down to [Building Massive Databases](building-massive-databases) for the full runbook.
+
+---
+
+(building-massive-databases)=
+## Building Massive Databases
+
+This section covers the **edge case** of global / continental builds: tens of thousands of granules, multi-day extraction, multi-TB outputs. For typical regional builds (a country, a study site, a few products) you can ignore everything below — `gh3_build -N ... -M ...` works fine.
+
+### When to use this guide
+
+Use this approach when **any** of the following apply:
+
+- The build will run for more than a few hours.
+- Granule count is in the tens of thousands or higher.
+- A previous build OOM-killed during the merge stage, even though stage 1 had been running cleanly.
+- You're sharing a node with other workloads and need predictable memory behaviour.
+
+For everything else, the inline `gh3_build -N -T -M -P` flags create a fine `LocalCluster`.
+
+### The bottleneck: unmanaged worker memory
+
+Long-running Dask workers accumulate **unmanaged memory** (RSS that exceeds Dask's task-tracked footprint). Three sources, in order of severity for HDF5+parquet workloads:
+
+1. **PyArrow's memory pool**. PyArrow on Linux defaults to **jemalloc**, which holds dirty/muzzy pages in arenas long after the corresponding `pa.Table` is freed. `MALLOC_TRIM_THRESHOLD_=0` does **not** affect jemalloc — that variable only tunes glibc.
+2. **glibc fragmentation**. Pandas, numpy small allocations, h5py chunk caches all go through glibc. Without `MALLOC_TRIM_THRESHOLD_=0` (or with the Nanny's default of 65536), glibc holds freed chunks in the heap top.
+3. **h5py file-handle / chunk caches**. Per-file cache held until `File.close()`. Dask arrays built from open HDF5 datasets keep handles alive across the cluster.
+
+The **only** mitigation that works regardless of root cause is **rolling worker restart**: each worker dies cleanly after a fixed lifetime, the scheduler reassigns its data, the nanny respawns a fresh process. With `lifetime-stagger` set, ~95% of cluster capacity stays online at any moment.
+
+### The external-cluster pattern
+
+Instead of letting `gh3_build` create its own `LocalCluster`, spawn the **scheduler and workers separately** with the right memory tuning, then attach the build via the existing `-s/--dask-scheduler` flag. Three benefits:
+
+1. All memory knobs live at the worker spawn (env vars, lifetime restart, preload). No code changes inside `gh3_build`.
+2. The cluster outlives the build — if the build crashes, the cluster keeps running and you can attach a new `gh3_build` (or recovery script) to it.
+3. The scheduler's dashboard at `:8787` is independent of the build's lifecycle.
+
+`gedih3` ships two assets to support this:
+
+- **`dask-config-massive-build.yaml`** — a reference Dask config with the proven knobs. Load it at scheduler/worker spawn or via `dask.config.update`.
+- **`dask-worker-trim.py`** — a Dask worker preload module that registers a per-task plugin calling `gc.collect()`, `pyarrow.default_memory_pool().release_unused()`, and `libc.malloc_trim(0)` after every task transition.
+
+Both ship inside the package; resolve their paths via `gedih3.config.get_package_data_path`.
+
+### Recipe
+
+Run these in three terminals (or a `tmux` / `screen` session). Adjust paths and worker count to match your node.
+
+**1. Scheduler:**
+
+```bash
+dask scheduler --host 0.0.0.0 --port 8786 --dashboard-address :8787
+```
+
+**2. Workers** (export env vars FIRST in the same shell — they MUST exist before the worker process spawns):
+
+```bash
+export ARROW_DEFAULT_MEMORY_POOL=system
+export MALLOC_TRIM_THRESHOLD_=0
+
+PRELOAD=$(python -c "from gedih3.config import get_package_data_path; \
+                     print(get_package_data_path('dask-worker-trim.py'))")
+
+dask worker tcp://localhost:8786 \
+  --nworkers 32 --nthreads 1 --memory-limit 25GB --nanny \
+  --lifetime 4h --lifetime-stagger 30m --lifetime-restart \
+  --local-directory ./tmp/dask-worker-space \
+  --preload "$PRELOAD"
+```
+
+**3. Build** (attach to the existing scheduler):
+
+```bash
+gh3_build -r region.shp -l2a default -l4a default \
+          -i ../soc/ -o database -t tmp \
+          -s tcp://localhost:8786
+```
+
+### Sizing for your node
+
+`--nworkers × --memory-limit` should total **~85% of node RAM**, leaving headroom for the OS page cache (HDF5 reads benefit hugely from caching). Over-committing is the most common cause of stage-2 OOM kills: workers' soft memory limit is enforced by Dask's spill mechanism, but the kernel OOM killer fires first if total resident memory exceeds physical RAM.
+
+| Node RAM | Recommended | Total | Page cache |
+|----------|-------------|-------|------------|
+| 256 GB   | 16 × 13 GB  | 208 GB | ~48 GB |
+| 512 GB   | 24 × 18 GB  | 432 GB | ~80 GB |
+| 1 TB     | 32 × 25 GB  | 800 GB | ~206 GB |
+| 2 TB     | 48 × 32 GB  | 1536 GB | ~496 GB |
+
+`--lifetime-stagger` is essential at high worker counts — without it all nannies respawn together and briefly double Python+HDF5 memory. 20–30 min works well for 32–48 workers; bump higher if you have more.
+
+### Verifying the cluster
+
+After workers connect, sanity-check that the env vars and preload took effect. Many users discover after running a multi-day job that one of the env vars silently no-op'd:
+
+```python
+from collections import Counter
+import os
+from dask.distributed import Client
+
+c = Client('tcp://localhost:8786')
+print('workers:', len(c.scheduler_info()['workers']))
+
+env = c.run(lambda: {
+    'MALLOC_TRIM_THRESHOLD_': os.environ.get('MALLOC_TRIM_THRESHOLD_'),
+    'ARROW_DEFAULT_MEMORY_POOL': os.environ.get('ARROW_DEFAULT_MEMORY_POOL'),
+})
+print('MALLOC_TRIM_THRESHOLD_:', Counter(v['MALLOC_TRIM_THRESHOLD_'] for v in env.values()))
+print('ARROW pool env:        ', Counter(v['ARROW_DEFAULT_MEMORY_POOL'] for v in env.values()))
+print('arrow pool backend:    ', Counter(c.run(lambda: __import__('pyarrow').default_memory_pool().backend_name).values()))
+
+# Preload registered the per-task trim plugin?
+plugins = c.run(lambda dask_worker=None: list(dask_worker.plugins.keys()))
+print('plugins per worker:    ', Counter(tuple(sorted(v)) for v in plugins.values()))
+```
+
+Every worker should report `'0'`, `'system'`, backend `'system'`, and `gh3-trim` in the plugin list. If any worker reports `None` or backend `'jemalloc'`, your `export` didn't reach the worker spawn — restart the worker terminal and put the `export` lines BEFORE `dask worker`.
+
+### Resuming after a crash
+
+If a build crashes mid-way (OOM, Ctrl-C, node restart), use the recovery script before re-launching `gh3_build`:
+
+```bash
+python -m pip show gedih3 | grep Location   # find the install dir
+cd <install_dir>/../../scripts                # or use the repo path
+
+python gh3_resume_recovery.py -i /path/to/h3_db --workers 48 --dry-run
+# Inspect the summary; if counts look right, run for real:
+python gh3_resume_recovery.py -i /path/to/h3_db --workers 48
+```
+
+What it does (idempotent):
+
+- Scans `database/` partition metadata + `tmp/partitions/` fragments to identify which granules are already extracted.
+- Flips those granules from `PENDING` to `INDEXED` in `gedih3_build_log.json` so the next `gh3_build` skips them.
+- Cleans stale `*.merge.tmp` files in `database/` left by killed merges.
+- Reconciles `tmp/partitions/_merge_progress.txt` against actual finalized partitions.
+- Prints a summary: granules now INDEXED, tmp partitions remaining, stale tmps cleaned.
+
+Refuses to run if any `gh3_build` process is alive — stop the build first.
+
+### Reference: bundled YAML config
+
+The package ships a Dask config template with the same knobs as the recipe above:
+
+```python
+import yaml, dask
+from gedih3.config import get_package_data_path
+
+with open(get_package_data_path('dask-config-massive-build.yaml')) as f:
+    dask.config.update(yaml.safe_load(f))
+# Now spawn the cluster — the config is in dask.config for any new Client/LocalCluster
+```
+
+Equivalently, pass it to the standalone scheduler / worker CLIs:
+
+```bash
+CONFIG=$(python -c "from gedih3.config import get_package_data_path; \
+                    print(get_package_data_path('dask-config-massive-build.yaml'))")
+dask scheduler --config-file "$CONFIG" --host 0.0.0.0 --port 8786
+dask worker   --config-file "$CONFIG" tcp://localhost:8786 \
+              --nworkers 32 --memory-limit 25GB --preload "$PRELOAD"
+```
+
+The YAML sets:
+- Worker memory thresholds (`target/spill/pause/terminate` = 0.70/0.80/0.90/0.95).
+- Rolling worker restart (`lifetime: 4h`, `lifetime-stagger: 30m`, `lifetime-restart: true`).
+- `nanny.pre-spawn-environ` for `MALLOC_TRIM_THRESHOLD_=0` and `ARROW_DEFAULT_MEMORY_POOL=system` (sets them BEFORE worker process spawn — `distributed.nanny.environ` runs after spawn and silently no-ops, [#5279](https://github.com/dask/distributed/issues/5279)).
+- Suppression of long-tick warnings during merge.
+
 ---
 
 ## Verifying the Result

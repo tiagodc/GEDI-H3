@@ -23,6 +23,11 @@ extensions = [
 # sphinx-autoapi: generates API docs without importing the package
 autoapi_dirs = ["../src/gedih3"]
 autoapi_type = "python"
+# Skip the package data dir — it ships .py runtime assets (e.g. the dask
+# worker preload `dask-worker-trim.py`) that aren't part of the public API and
+# whose docstrings legitimately contain trailing-underscore tokens like
+# MALLOC_TRIM_THRESHOLD_ that autoapi mis-parses as RST hyperlink references.
+autoapi_ignore = ["*/data/*"]
 autoapi_options = [
     "members",
     "undoc-members",
