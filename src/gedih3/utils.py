@@ -1054,6 +1054,7 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
     """Stream-merge parquet files into a single output with a bounded memory footprint.
 
     Memory profile (per call):
+
     - Streams via PyArrow scanner with ``batch_size=rows_per_group``; never
       loads the full dataset.
     - Bbox metadata is computed up front via ``geopandas.read_parquet`` only
