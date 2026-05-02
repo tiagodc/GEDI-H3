@@ -2,9 +2,14 @@
 #
 # This is a TEMPLATE — gh3_build does not auto-load it. Use one of:
 #
-#   # CLI: pass to scheduler and worker spawn (uses standard dask CLI flag)
-#   dask scheduler --config-file <path>
-#   dask worker tcp://localhost:8786 --config-file <path> ...
+#   # CLI: point the dask CLI at the file via the DASK_CONFIG env var
+#   # (Dask reads this at import time; there is no --config-file flag.)
+#   export DASK_CONFIG=<path-to-this-file>
+#   dask scheduler ...
+#   dask worker ...
+#
+#   # CLI: alternatively, drop a symlink under ~/.config/dask/ — auto-loaded
+#   ln -s <path-to-this-file> ~/.config/dask/gedih3-massive-build.yaml
 #
 #   # Python: load before constructing the Client
 #   import yaml, dask
