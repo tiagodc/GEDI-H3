@@ -4,22 +4,66 @@
 import argparse
 
 
+def _build_epilog():
+    """Render the help epilog with the live diagnosis registry + alias groups.
+
+    Importing the diagnoses package auto-registers every check, so `--check`
+    options are derived from runtime state and stay in sync as new diagnoses
+    are added (no hardcoded lists to drift).
+    """
+    import gedih3.doctor.diagnoses  # noqa: F401  (auto-register)
+    from gedih3.doctor.runner import get_diagnoses, ALIAS_GROUPS
+
+    diagnoses = get_diagnoses()
+    diag_lines = []
+    for name in sorted(diagnoses):
+        d = diagnoses[name]
+        fixable = ' (fixable)' if d.fix is not None else ''
+        diag_lines.append(f"  {name:<16}{fixable:<11} {d.description}")
+
+    alias_lines = []
+    for group, members in ALIAS_GROUPS.items():
+        if members is None:
+            members_str = '<all registered diagnoses>'
+        else:
+            members_str = ', '.join(members)
+        alias_lines.append(f"  {group:<6} → {members_str}")
+
+    return f"""\
+Available diagnoses (use with --check / --fix):
+{chr(10).join(diag_lines)}
+
+Alias groups:
+{chr(10).join(alias_lines)}
+
+Exit codes:
+  0    no findings (or --fix resolved every finding)
+  1    findings remain after the run
+  2    a check or fix raised an unhandled exception, OR bad CLI args
+
+Examples:
+  gh3_doctor -i /db                        # read-only audit, default 'db' alias
+  gh3_doctor -i /db --check all            # include soc_health too
+  gh3_doctor -i /db --check backfill,parquet_health
+  gh3_doctor -i /db --fix                  # apply safe remedies for all checked
+  gh3_doctor -i /db --fix backfill --s3    # backfill via S3 ETL temp
+  gh3_doctor -i /db --online               # decorate with NASA upstream check
+  gh3_doctor -i /db --report report.json   # machine-readable JSON output
+
+Common knobs:
+  --orphan-age-hours  protects in-progress builds (default 24h: anything younger is ignored)
+  --soc-dir           required for backfill / soc_health if not at default location
+  -s tcp://...        attach to an existing dask cluster (for parallel diagnoses)
+"""
+
+
 def get_cmd_args():
     from gedih3.cliutils import add_dask_args, add_verbosity_args, add_storage_args
 
     p = argparse.ArgumentParser(
         description="Audit and (optionally) heal a gedih3 database",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""\
-Examples:
-  gh3_doctor -i /db                        # read-only audit, all DB diagnoses
-  gh3_doctor -i /db --check db,soc         # explicit subset / aliases
-  gh3_doctor -i /db --check backfill       # one diagnosis
-  gh3_doctor -i /db --fix                  # apply safe remedies
-  gh3_doctor -i /db --fix backfill --s3    # backfill via S3 ETL temp
-  gh3_doctor -i /db --online               # decorate with NASA upstream check
-  gh3_doctor -i /db --report report.json   # machine-readable output
-""",
+        epilog=_build_epilog(),
     )
 
     p.add_argument("-i", "--indir", dest="indir", type=str, default=None,
@@ -30,9 +74,11 @@ Examples:
                    help="temp directory for orphan scans and S3 ETL")
 
     p.add_argument("--check", dest="check", type=str, default=None,
-                   help="comma-separated diagnosis names or aliases (db, soc, all). Default: all DB diagnoses.")
+                   help="comma-separated diagnosis names or aliases (db, soc, all). "
+                        "Default: 'db' alias. See epilog for the full list.")
     p.add_argument("--fix", dest="fix", type=str, nargs='?', const='__ALL__', default=None,
-                   help="apply safe remedies. Optional comma-separated names; default: all checked.")
+                   help="apply safe remedies (only some diagnoses are fixable — see epilog). "
+                        "Optional comma-separated names; bare flag = all checked.")
 
     p.add_argument("-s3", "--s3", dest="s3", action='store_true',
                    help="for backfill, fetch missing source files via NASA S3 ETL temp directory")
