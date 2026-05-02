@@ -98,7 +98,7 @@ packages = ["gedih3", "gedih3.cli", "gedih3.data", "gedih3.egi", "gedih3.raster"
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
-gedih3 = ["data/*.txt", "data/*.json", "data/*.parquet"]
+gedih3 = ["data/*.txt", "data/*.json", "data/*.parquet", "data/*.yaml", "data/*.py"]
 
 [tool.ruff]
 line-length = 120
