@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.1] - 2026-05-02
+
+### Added
+- New "Building Massive Databases" section in `docs/user-guide/building-a-database.md` documenting the external dask scheduler/worker pattern for global / continental builds: when to use it, the unmanaged-memory bottleneck, copy-paste recipes, sizing table by node RAM, cluster verification snippet, recovery procedure, and the bundled YAML config.
+- `src/gedih3/data/dask-config-massive-build.yaml`: reference Dask config (memory thresholds, rolling worker lifetime restart, `nanny.pre-spawn-environ` for `MALLOC_TRIM_THRESHOLD_=0` and `ARROW_DEFAULT_MEMORY_POOL=system`). Not auto-loaded; users opt in via `dask scheduler/worker --config-file …` or `dask.config.update(yaml.safe_load(get_package_data_path(…)))`.
+- `src/gedih3/data/dask-worker-trim.py`: optional dask worker preload module that registers a `WorkerPlugin` calling `gc.collect()`, `pyarrow.default_memory_pool().release_unused()`, and `libc.malloc_trim(0)` after every task transition. Now ships in the wheel (was `scripts/dask_worker_trim.py`); resolvable via `gedih3.config.get_package_data_path('dask-worker-trim.py')`.
+
+### Changed
+- `gh3_doctor --help` epilog now lists every registered diagnosis with its description and fixable status, expands alias groups (`db`, `soc`, `all`) to their concrete members, documents exit codes (0/1/2), and surfaces common knobs (`--orphan-age-hours`, `--soc-dir`, `-s`). Built dynamically from the diagnosis registry so it cannot drift when diagnoses are added.
+- `pyproject.toml` `[tool.setuptools.package-data]` extended to include `data/*.yaml` and `data/*.py` so the new bundled assets ship in the wheel.
+- `docs/conf.py` adds `autoapi_ignore = ['*/data/*']` so autoapi does not RST-parse the preload module's docstring (its trailing-underscore `MALLOC_TRIM_THRESHOLD_` looked like an RST hyperlink reference to docutils).
+- `.gitignore` tightens `dask-*.yaml` to `/dask-*.yaml` so the pattern only matches root-level files, not the new packaged YAML.
+
+### Fixed
+- `parquet_merge_files` docstring: insert blank line between the "Memory profile (per call):" header and the bullet list so docutils does not interpret the colon-terminated header as a definition-list trigger. Resolves the docs CI failure introduced in v0.8.0.
+
+### Removed
+- Repo-root `dask-config.yaml` and `dask-config-aggressive-memory.yaml`. Both were never referenced by any code path; the aggressive variant had typos (`memory.target: 0.10`) that would have paused workers immediately at 10% memory if anyone had tried to use it.
+
 ## [0.8.0] - 2026-05-02
 
 ### Added
