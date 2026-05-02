@@ -85,7 +85,7 @@ def main():
     from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR
     from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success
     from gedih3.utils import get_system_resources
-    from gedih3.gh3builder import build_h3db, download_soc, soc_file_tree
+    from gedih3.gh3builder import build_h3db, download_soc, soc_file_tree, _reconcile_granules_from_disk
     from gedih3.gedidriver import GEDIFile, validate_soc_files, gedi_vars_expand
     from gedih3.logger import H3BuildLogger, SOCDownloadLogger
     from dask.distributed import Client
@@ -400,6 +400,17 @@ def main():
                             'track': int(fl[5][1:]),
                         })
                     h3_logger.register_pending_granules(_build_granules)
+
+                    # Resume reconciliation: scan h3 db AND tmp/partitions for
+                    # granules already represented on disk and flip them to
+                    # INDEXED before stage 1 starts. Without this, a kill
+                    # during stage 2 leaves all granules PENDING and stage 1
+                    # re-extracts everything on the next rerun.
+                    _reconcile_granules_from_disk(
+                        args.output, h3_logger,
+                        tmp_dir=os.path.join(args.tmpdir, 'partitions'),
+                    )
+
                     h3_logger.save_log('PROCESSING')
 
                 h3_files = None

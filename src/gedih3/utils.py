@@ -1049,9 +1049,29 @@ def parquet_schema_add_bbox(schema, bbox):
     new_metadata = {**schema.metadata, b'geo': json.dumps(geo_meta).encode('utf-8')}
     return schema.with_metadata(new_metadata)
     
-def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_group=100_000):
+def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_group=100_000,
+                        bbox_threshold=int(os.environ.get('GH3_MERGE_BBOX_THRESHOLD', 50))):
+    """Stream-merge parquet files into a single output with a bounded memory footprint.
+
+    Memory profile (per call):
+    - Streams via PyArrow scanner with ``batch_size=rows_per_group``; never
+      loads the full dataset.
+    - Bbox metadata is computed up front via ``geopandas.read_parquet`` only
+      when ``len(flist) <= bbox_threshold`` (default 50); for larger merges
+      the bbox is omitted to avoid loading hundreds of MB of geometries. The
+      bbox is an advisory predicate-pushdown hint, not data — its absence
+      does not affect correctness. Override the threshold with the
+      ``GH3_MERGE_BBOX_THRESHOLD`` env var.
+    - The row-group accumulator is flushed *before* appending a batch that
+      would overflow ``rows_per_group``, capping ``acc`` at exactly
+      ``rows_per_group`` rows (previously it could briefly hold ~2x).
+    - Shot-dedup activates only when ``check_shots=True`` (caller-controlled).
+
+    Output is written atomically: ``ofile + '.merge.tmp'`` first, then
+    ``os.replace`` to ``ofile``. A stale ``.merge.tmp`` from a prior crash is
+    cleaned up before the new write.
+    """
     import numpy as np
-    import geopandas as gpd
     import pyarrow as pa
     import pyarrow.parquet as pq
     import pyarrow.dataset as ds
@@ -1062,10 +1082,15 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
     dataset = ds.dataset(flist, format="parquet")
     schema = dataset.schema
 
-    if 'geometry' in schema.names:
-        geodf = gpd.read_parquet(flist, columns=['geometry'])
-        merged_bbox = list(geodf.total_bounds)
-        schema = parquet_schema_add_bbox(schema, bbox=merged_bbox)
+    if 'geometry' in schema.names and len(flist) <= bbox_threshold:
+        try:
+            import geopandas as gpd
+            geodf = gpd.read_parquet(flist, columns=['geometry'])
+            merged_bbox = list(geodf.total_bounds)
+            schema = parquet_schema_add_bbox(schema, bbox=merged_bbox)
+            del geodf
+        except Exception:
+            merged_bbox = None  # bbox is advisory; never fail merge over it
 
     # Atomic write: write to temp file, rename after successful close
     tmp_ofile = ofile + '.merge.tmp'
@@ -1091,12 +1116,15 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
                     batch = batch.filter(pa.array(keep))
                     shots = np.unique(np.concatenate([shots, arr[keep]]))
 
-            acc.append(pa.Table.from_batches([batch], schema=schema))
-            acc_rows += batch.num_rows
-            if acc_rows >= rows_per_group:
+            # Flush BEFORE appending if this batch would overflow the cap, so
+            # acc never holds more than rows_per_group rows at a time.
+            if acc_rows + batch.num_rows > rows_per_group and acc:
                 writer.write_table(pa.concat_tables(acc))
                 acc.clear()
                 acc_rows = 0
+
+            acc.append(pa.Table.from_batches([batch], schema=schema))
+            acc_rows += batch.num_rows
 
         if acc:
             writer.write_table(pa.concat_tables(acc))
