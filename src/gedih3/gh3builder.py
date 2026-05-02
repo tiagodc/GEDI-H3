@@ -640,22 +640,36 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
         no parquet files.
     """
     files = glob.glob(os.path.join(in_dir,'*.parquet'))
-    
+
     if len(files) == 0:
-        return    
-    
+        return
+
     year_dir =  os.path.dirname(in_dir)
     year = os.path.basename(year_dir.rstrip('/'))
-    
+
     h3_dir = os.path.dirname(year_dir)
     h3part = os.path.basename(h3_dir.rstrip('/'))
-    
+
     odir = os.path.join(out_dir, h3part, year)
     os.makedirs(odir, exist_ok=True)
-    
+
     oname = f'{h3part.split('=')[-1]}.{year.split('=')[-1]}.0.parquet'
     out_file = os.path.join(odir, oname)
     h3_file = out_file
+
+    # Disk-canonical skip: if the final parquet exists and is newer than every
+    # source fragment, this merge already completed in a prior run and only
+    # the source-cleanup step was interrupted. Just clean up and return — no
+    # need to re-merge identical data through the dedup path.
+    if not replace and os.path.exists(out_file):
+        try:
+            out_mtime = os.path.getmtime(out_file)
+            if all(os.path.getmtime(f) <= out_mtime for f in files):
+                if rm_src:
+                    shutil.rmtree(in_dir, ignore_errors=True)
+                return h3_file
+        except OSError:
+            pass
 
     if is_temp := (os.path.exists(out_file) and not replace):
         files.insert(0,out_file)
@@ -763,6 +777,150 @@ def _expand_product_vars(
     return product_vars
 
 
+def _granule_id_from_l2a_path(path: str) -> Optional[Tuple[int, int, int]]:
+    """Parse (orbit, granule, track) from a GEDI L2A HDF5 filename.
+
+    Cheap path-only parse that mirrors GEDIFile but skips the os.path.getsize
+    check, which is expensive on shared filesystems. Returns None if the
+    basename doesn't match the GEDI naming convention.
+    """
+    try:
+        fl = os.path.basename(str(path)).split('_')
+        return (int(fl[3][1:]), int(fl[4]), int(fl[5][1:]))
+    except (IndexError, ValueError, AttributeError):
+        return None
+
+
+def _granule_ids_in_fragment(parquet_file: str) -> set:
+    """Read root_file_l2a from a single tmp parquet fragment, return granule IDs.
+
+    Tries column statistics first (no data read needed when min==max, which
+    holds for the common case of one granule per fragment under by_beam=True).
+    Falls back to reading the column. Returns an empty set on read failure.
+    """
+    try:
+        pf = pq.ParquetFile(parquet_file)
+        if 'root_file_l2a' in pf.schema_arrow.names:
+            col_idx = pf.schema_arrow.get_field_index('root_file_l2a')
+            try:
+                stats = pf.metadata.row_group(0).column(col_idx).statistics
+                if stats is not None and stats.has_min_max and stats.min == stats.max:
+                    gid = _granule_id_from_l2a_path(stats.min)
+                    return {gid} if gid is not None else set()
+            except Exception:
+                pass
+            tbl = pq.read_table(parquet_file, columns=['root_file_l2a'])
+            out = set()
+            for path in tbl['root_file_l2a'].to_pylist():
+                if path is None:
+                    continue
+                gid = _granule_id_from_l2a_path(path)
+                if gid is not None:
+                    out.add(gid)
+            return out
+    except Exception:
+        pass
+    return set()
+
+
+def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str] = None) -> int:
+    """Mark granules INDEXED based on what's already on disk.
+
+    Scans the finalized partition metadata under ``h3_dir`` AND the tmp fragment
+    tree under ``tmp_dir`` to identify granules whose data is already present.
+    Flips matching ``H3BuildLogger.granule_info`` entries to ``status='INDEXED'``
+    so the next stage-1 invocation skips them via ``get_finished_granules()``.
+
+    Idempotent. Safe to call before every build. Caller is responsible for
+    persisting the change with ``h3_logger.save_log(...)``.
+
+    Parameters
+    ----------
+    h3_dir : str
+        Final H3 database directory (contains ``h3_*/<year>/*.parquet`` and
+        per-partition ``*.metadata.json`` sidecars).
+    h3_logger : H3BuildLogger
+        Live build-log object whose ``granule_info`` will be mutated in place.
+    tmp_dir : str, optional
+        Temporary partitions directory (typically ``<build_tmp>/partitions``).
+        Skipped if None or non-existent.
+
+    Returns
+    -------
+    int
+        Number of granule entries flipped from non-INDEXED to INDEXED.
+    """
+    if not hasattr(h3_logger, 'granule_info') or not h3_logger.granule_info:
+        return 0
+
+    indexed_ids: set = set()
+
+    meta_files = glob.glob(os.path.join(h3_dir, 'h3_*', f'*{PARTITION_META_FILENAME}'))
+    meta_files += glob.glob(os.path.join(h3_dir, 'h3_*', '*', f'*{PARTITION_META_FILENAME}'))
+    for mf in meta_files:
+        try:
+            for g in (json_read(mf) or {}).get('granules', []):
+                indexed_ids.add((g['orbit'], g['granule'], g['track']))
+        except Exception:
+            continue
+
+    if tmp_dir and os.path.isdir(tmp_dir):
+        logger.info(f"Listing tmp fragments under {tmp_dir}")
+        frag_files = glob.glob(os.path.join(tmp_dir, 'h3_*', 'year=*', '*.parquet'))
+        if frag_files:
+            logger.info(f"Reconciling granule status from {len(frag_files)} tmp fragments")
+            client = None
+            try:
+                client = get_dask_client()
+            except Exception:
+                pass
+            if client is not None and len(frag_files) > 32:
+                from dask.distributed import futures_of, as_completed as dask_as_completed
+                from tqdm import tqdm as tqdm_bar
+                bag = (
+                    dbg.from_sequence(frag_files, partition_size=64)
+                    .map(_granule_ids_in_fragment)
+                    .persist()
+                )
+                bag_futures = futures_of(bag)
+                if bag_futures:
+                    pbar = tqdm_bar(
+                        dask_as_completed(bag_futures), total=len(bag_futures),
+                        desc="Reconcile fragments", unit="batch",
+                    )
+                    for _ in pbar:
+                        pass
+                    pbar.close()
+                for s in bag.compute():
+                    indexed_ids.update(s)
+                del bag
+            else:
+                from tqdm import tqdm as tqdm_bar
+                for f in tqdm_bar(frag_files, desc="Reconcile fragments", unit="file"):
+                    indexed_ids.update(_granule_ids_in_fragment(f))
+
+    if not indexed_ids:
+        return 0
+
+    n_flipped = 0
+    for g in h3_logger.granule_info:
+        key = (g['orbit'], g['granule'], g['track'])
+        if key in indexed_ids and g.get('status') != 'INDEXED':
+            g['status'] = 'INDEXED'
+            n_flipped += 1
+    if n_flipped:
+        logger.info(
+            f"Resume reconciliation: {n_flipped} granules flipped to INDEXED "
+            f"({len(indexed_ids)} unique granules found on disk)"
+        )
+    else:
+        logger.info(
+            f"Resume reconciliation: no new granules to flip "
+            f"({len(indexed_ids)} unique granules already accounted for)"
+        )
+    return n_flipped
+
+
 def _filter_granules(
     prod_soc_files: List[Dict[str, str]],
     product_vars: Dict[str, List[str]],
@@ -839,7 +997,7 @@ def _create_h3_dataframe(
     product_vars: Dict[str, List[str]],
     res: int,
     part: int
-) -> Tuple[dask_geopandas.GeoDataFrame, str, str, str]:
+) -> Tuple[dask_geopandas.GeoDataFrame, str, str, str, List[str]]:
     """
     Create a Dask GeoDataFrame with H3 indexing from SOC files.
 
@@ -857,11 +1015,32 @@ def _create_h3_dataframe(
     Returns
     -------
     tuple
-        (dask_geopandas.GeoDataFrame, lat_col, lon_col, dat_col)
+        (dask_geopandas.GeoDataFrame, lat_col, lon_col, dat_col, frag_names)
+        ``frag_names[i]`` is a stable, content-derived basename for Dask
+        partition ``i``, used as ``name_function`` in ``to_parquet`` so re-runs
+        write to the same path and overwrite in place (no shot duplication).
     """
     logger.info(f"Found {len(soc_files)} new GEDI granules with requested products")
 
     ddf = dask_h5_merged(soc_files, product_vars, shots=None, dropna=True, by_beam=True, suffix_all=True)
+
+    # Build per-partition stable names matching dask_h5_merged's by_beam=True
+    # enumeration: itertools.product(soc_files, GEDI_BEAMS). Each Dask partition
+    # i corresponds to one (granule, beam) tuple. Naming format mirrors
+    # _add_variables_to_partition's orb_track convention.
+    import itertools as _it
+    frag_names: List[str] = []
+    for _soc, _beam in _it.product(soc_files, GEDI_BEAMS):
+        try:
+            _path = next(iter(_soc.values()))
+            _fl = os.path.basename(str(_path)).split('_')
+            _orbit = int(_fl[3][1:])
+            _granule = int(_fl[4])
+            _track = int(_fl[5][1:])
+            frag_names.append(f"O{_orbit:05d}_G{_granule:02d}_T{_track:05d}.{_beam}")
+        except Exception:
+            # Fallback: opaque but deterministic per-partition name.
+            frag_names.append(f"part.{len(frag_names):08d}")
 
     lat_col = 'lat_lowestmode'
     lon_col = 'lon_lowestmode'
@@ -878,7 +1057,7 @@ def _create_h3_dataframe(
 
     ddf = ddf.map_partitions(h3_index_df, res=res, part=part, lat_col=lat_col, lon_col=lon_col)
 
-    return ddf, lat_col, lon_col, dat_col
+    return ddf, lat_col, lon_col, dat_col, frag_names
 
 
 def _apply_spatial_filter(
@@ -932,7 +1111,8 @@ def _write_partitioned(
     part: int,
     lat_col: str,
     lon_col: str,
-    dat_col: str
+    dat_col: str,
+    frag_names: Optional[List[str]] = None,
 ) -> List[str]:
     """
     Write H3-indexed data to partitioned parquet files.
@@ -947,6 +1127,11 @@ def _write_partitioned(
         H3 partition resolution
     lat_col, lon_col, dat_col : str
         Column names for coordinates and datetime
+    frag_names : list of str, optional
+        Stable per-Dask-partition basenames (without ``.parquet`` extension)
+        used as ``name_function`` in ``to_parquet``. When provided, re-runs of
+        the same granule overwrite the same file in place (idempotent resume,
+        no shot duplication). Falls back to dask defaults when None.
 
     Returns
     -------
@@ -961,7 +1146,21 @@ def _write_partitioned(
 
     logger.info(f"Writing partitioned H3 data to temporary directory: {tmp_dir}")
 
-    write_task = ddf.to_parquet(tmp_dir, write_index=True, overwrite=True, compression='zstd', partition_on=[f'h3_{part:02d}', 'year'], compute=False)
+    # overwrite=False preserves any tmp fragments from prior killed runs;
+    # name_function with granule-derived names ensures re-extracted granules
+    # overwrite their own files in place rather than appending duplicates.
+    _to_parquet_kwargs = dict(
+        write_index=True,
+        overwrite=False,
+        compression='zstd',
+        partition_on=[f'h3_{part:02d}', 'year'],
+        compute=False,
+    )
+    if frag_names is not None:
+        # Closure captures frag_names; dask passes the partition index i.
+        _to_parquet_kwargs['name_function'] = lambda i: f"{frag_names[i]}.parquet"
+
+    write_task = ddf.to_parquet(tmp_dir, **_to_parquet_kwargs)
     write_task = write_task.persist(optimize_graph=False)
 
     try:
@@ -1010,6 +1209,20 @@ def _merge_and_finalize(
     tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/*/'))
     os.makedirs(h3_dir, exist_ok=True)
 
+    # Defensive cleanup: a prior killed run can leave .merge.tmp files in the
+    # final database (h3_merge_files writes via .merge.tmp + os.replace; a kill
+    # before the rename leaves the tmp behind). parquet_merge_files clobbers
+    # its own stale tmp on the next merge of the same target, but a global
+    # sweep keeps disk hygiene tight and surfaces the count for debugging.
+    _stale_tmps = glob.glob(os.path.join(h3_dir, 'h3_*', '*', '*.merge.tmp'))
+    for _s in _stale_tmps:
+        try:
+            os.unlink(_s)
+        except OSError:
+            pass
+    if _stale_tmps:
+        logger.info(f"Cleaned {len(_stale_tmps)} stale .merge.tmp files from prior crash")
+
     # Resume support: skip already-merged partitions
     merge_progress_file = os.path.join(tmp_dir, '_merge_progress.txt')
     merged_parts = set()
@@ -1028,16 +1241,38 @@ def _merge_and_finalize(
         from tqdm import tqdm as tqdm_bar
 
         client = get_dask_client()
-        futures = {}
-        for d in remaining_dirs:
-            future = client.submit(h3_merge_files, in_dir=d, out_dir=h3_dir, rm_src=True, replace=False)
-            futures[future] = d
+
+        # Bound in-flight merges to prevent OOM. Without throttling, all
+        # partition merges are submitted at once and dask pipelines them
+        # aggressively — multiple per worker × per-merge transients (geometry
+        # bbox load, row-group buffer) can blow the worker memory cap.
+        try:
+            n_workers = max(1, len(client.scheduler_info().get('workers', {})))
+        except Exception:
+            n_workers = 1
+        max_inflight = int(os.environ.get('GH3_MERGE_MAX_INFLIGHT', n_workers))
+        max_inflight = max(1, max_inflight)
 
         merged_count = 0
         failed_count = 0
-        pbar = tqdm_bar(dask_as_completed(futures.keys()), total=len(remaining_dirs), desc="Merging partitions", unit="part")
-        for future in pbar:
-            d = futures[future]
+        pbar = tqdm_bar(total=len(remaining_dirs), desc="Merging partitions", unit="part")
+
+        pending = list(remaining_dirs)
+        futures: Dict[Any, str] = {}
+
+        def _submit_one():
+            if not pending:
+                return None
+            d = pending.pop()
+            fut = client.submit(h3_merge_files, in_dir=d, out_dir=h3_dir, rm_src=True, replace=False)
+            futures[fut] = d
+            return fut
+
+        primed = [_submit_one() for _ in range(min(max_inflight, len(pending)))]
+        ac = dask_as_completed([f for f in primed if f is not None])
+
+        for future in ac:
+            d = futures.pop(future)
             try:
                 future.result()
                 with open(merge_progress_file, 'a') as f:
@@ -1045,10 +1280,15 @@ def _merge_and_finalize(
                 merged_count += 1
             except Exception as e:
                 failed_count += 1
-                logger.warning(f"Merge failed for {os.path.basename(d)}: {e}")
-            pbar.set_postfix(ok=merged_count, fail=failed_count)
-        pbar.close()
+                logger.warning(f"Merge failed for {os.path.basename(d.rstrip('/'))}: {e}")
+            pbar.update(1)
+            pbar.set_postfix(ok=merged_count, fail=failed_count, inflight=len(futures))
 
+            nxt = _submit_one()
+            if nxt is not None:
+                ac.add(nxt)
+
+        pbar.close()
         del futures
 
         if failed_count > 0:
@@ -1470,7 +1710,7 @@ def build_h3db(
             return None
 
         # Create H3-indexed Dask DataFrame
-        ddf, lat_col, lon_col, dat_col = _create_h3_dataframe(soc_files, product_vars, res, part)
+        ddf, lat_col, lon_col, dat_col, frag_names = _create_h3_dataframe(soc_files, product_vars, res, part)
 
         # Apply spatial and existing-data filters
         os.makedirs(tmp_dir, exist_ok=True)
@@ -1483,7 +1723,7 @@ def build_h3db(
         # conflicting with Dask worker scratch space (dask-worker-space/dirlock)
         # which causes PermissionError on Windows when overwrite=True deletes tmp_dir
         parquet_dir = os.path.join(tmp_dir, 'partitions')
-        tmp_files = _write_partitioned(ddf, parquet_dir, part, lat_col, lon_col, dat_col)
+        tmp_files = _write_partitioned(ddf, parquet_dir, part, lat_col, lon_col, dat_col, frag_names=frag_names)
 
         if len(tmp_files) == 0:
             logger.info("No new data to process")
