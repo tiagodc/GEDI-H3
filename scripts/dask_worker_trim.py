@@ -78,7 +78,13 @@ class TrimPlugin(WorkerPlugin):
                 pass
 
 
-def dask_setup(worker):
-    """Entry point invoked by ``dask worker --preload <this-file>``."""
-    worker.plugin_add(TrimPlugin())
+async def dask_setup(worker):
+    """Entry point invoked by ``dask worker --preload <this-file>``.
+
+    Async because ``Worker.plugin_add`` is a coroutine in modern Dask
+    (≥2024.1). A sync ``dask_setup`` would leave the coroutine unawaited
+    and the plugin would never register (silently — only a RuntimeWarning
+    in the worker log).
+    """
+    await worker.plugin_add(TrimPlugin())
     _log.info("TrimPlugin registered on worker %s", getattr(worker, "address", "?"))
