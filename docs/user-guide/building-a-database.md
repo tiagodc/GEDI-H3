@@ -517,26 +517,37 @@ Every worker should report `'0'`, `'system'`, backend `'system'`, and `gh3-trim`
 
 ### Resuming after a crash
 
-If a build crashes mid-way (OOM, Ctrl-C, node restart), use the recovery script before re-launching `gh3_build`:
+**Just re-run the same `gh3_build` command** (same instructions as the
+"Resuming an interrupted build" section above — it works at any scale).
+Every `gh3_build` start automatically:
+
+- Reconciles granule status from on-disk fragments → stage 1 skips already-extracted granules.
+- Sweeps stale `*.merge.tmp` files in `database/` from killed merges.
+- Picks up stage 2 from `_merge_progress.txt` plus disk state.
+
+No separate recovery step is required. Stage 1 will print
+`Skipped N granules (already indexed, ...)` and stage 2 will print
+`Resuming merge: N partitions already merged`.
+
+The package also ships an **optional** read-only inspection script,
+`scripts/gh3_resume_recovery.py`, useful in two specific cases:
+
+- **Sanity-check before a long rerun.** `--dry-run` prints what `gh3_build`'s
+  auto-reconciliation will conclude (granule counts INDEXED vs PENDING,
+  stale `.merge.tmp` count, finalized-partition count) without committing to
+  a full build. Cheaper than starting a Dask cluster just to look.
+- **Legacy tmp trees built before the granule-named naming convention.**
+  When tmp fragments use the old `part.<i>.parquet` names, the script's
+  basename-dedup makes the on-disk scan ~30× faster than the in-CLI
+  reconciliation that reads every file. Builds started with v0.8.0+ use
+  granule-named fragments and don't benefit from this.
 
 ```bash
-python -m pip show gedih3 | grep Location   # find the install dir
-cd <install_dir>/../../scripts                # or use the repo path
-
-python gh3_resume_recovery.py -i /path/to/h3_db --workers 48 --dry-run
-# Inspect the summary; if counts look right, run for real:
-python gh3_resume_recovery.py -i /path/to/h3_db --workers 48
+# Optional: inspect before relaunching
+python scripts/gh3_resume_recovery.py -i /path/to/h3_db --dry-run
 ```
 
-What it does (idempotent):
-
-- Scans `database/` partition metadata + `tmp/partitions/` fragments to identify which granules are already extracted.
-- Flips those granules from `PENDING` to `INDEXED` in `gedih3_build_log.json` so the next `gh3_build` skips them.
-- Cleans stale `*.merge.tmp` files in `database/` left by killed merges.
-- Reconciles `tmp/partitions/_merge_progress.txt` against actual finalized partitions.
-- Prints a summary: granules now INDEXED, tmp partitions remaining, stale tmps cleaned.
-
-Refuses to run if any `gh3_build` process is alive — stop the build first.
+The script refuses to run if any `gh3_build` process is alive.
 
 ### Reference: bundled YAML config
 
