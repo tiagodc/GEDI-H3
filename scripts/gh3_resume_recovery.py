@@ -93,19 +93,33 @@ def _reconcile_with_pool(h3_dir, h3_logger, tmp_dir, n_workers):
         t1 = _time.time()
         print(f'      → found {len(frag_files)} tmp fragments across {h3_dir_count} h3 dirs in {t1 - t0:.1f}s')
 
-        if frag_files:
+        # Dedupe by basename: with by_beam=True + partition_on=[h3,year], the
+        # same `part.<i>.parquet` index represents the SAME (granule, beam)
+        # source partition replicated across many leaf dirs. Reading one
+        # instance per unique basename is enough to enumerate granules — this
+        # cuts the work by ~30x for typical builds (19.5M files → 587K).
+        unique_files = {}
+        for path in frag_files:
+            bn = os.path.basename(path)
+            if bn not in unique_files:
+                unique_files[bn] = path
+        sample_files = list(unique_files.values())
+        print(f'      → {len(sample_files)} unique partition indices '
+              f'(reading 1 instance per index = {len(sample_files) / len(frag_files):.1%} of total)')
+
+        if sample_files:
             try:
                 from tqdm import tqdm as tqdm_bar
             except ImportError:
                 tqdm_bar = lambda it, **kw: it
 
-            if n_workers > 0 and len(frag_files) > 64:
+            if n_workers > 0 and len(sample_files) > 64:
                 print(f'      processing fragments with multiprocessing pool ({n_workers} workers)...')
                 from multiprocessing import Pool
                 with Pool(n_workers) as pool:
                     for s in tqdm_bar(
-                        pool.imap_unordered(_granule_ids_in_fragment, frag_files, chunksize=128),
-                        total=len(frag_files),
+                        pool.imap_unordered(_granule_ids_in_fragment, sample_files, chunksize=64),
+                        total=len(sample_files),
                         desc='Reconcile fragments',
                         unit='file',
                         smoothing=0.05,
@@ -113,7 +127,7 @@ def _reconcile_with_pool(h3_dir, h3_logger, tmp_dir, n_workers):
                         indexed_ids.update(s)
             else:
                 print(f'      processing fragments sequentially...')
-                for f in tqdm_bar(frag_files, desc='Reconcile fragments', unit='file'):
+                for f in tqdm_bar(sample_files, desc='Reconcile fragments', unit='file'):
                     indexed_ids.update(_granule_ids_in_fragment(f))
 
     if not indexed_ids:
