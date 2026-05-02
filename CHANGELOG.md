@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.0] - 2026-05-02
+
+### Added
+- Resumability for massive multi-day `gh3_build` runs. Granule status is now reconciled from on-disk fragments at every build start (`_reconcile_granules_from_disk`), so a kill at any point during stage 1 or stage 2 no longer triggers full re-extraction on rerun. Stage 1 fragments are written under stable, granule-derived basenames (`O{orbit}_G{granule}_T{track}.{beam}.parquet`) with `overwrite=False`, so re-extracted granules overwrite their own files in place — no shot duplication across reruns. Combined with the existing `_merge_progress.txt` tracker, the build classifies any restart into one of four states (fully done / merge partial / stage-1 partial / fresh) and resumes accordingly.
+- Bounded merge concurrency in `_merge_and_finalize` via sliding-window `as_completed` (default cap = `n_workers`, override with `GH3_MERGE_MAX_INFLIGHT`). Replaces the previous "submit all 9,615 futures upfront" pattern that pipelined too many merges per worker and triggered OOM at large scale.
+- Defensive `.merge.tmp` sweep at the start of every merge stage; cleans up half-written final parquet temp files left by a prior crash.
+- Disk-canonical merge skip in `h3_merge_files`: when the final parquet exists and is newer than every source fragment, skip re-merging entirely (eliminates a class of "merge already done but tracker out of sync" bugs).
+- Streaming-bbox-skip threshold in `parquet_merge_files` (`GH3_MERGE_BBOX_THRESHOLD`, default 50): skip the upfront geometry bbox computation when many fragments are being merged. Bbox is advisory (predicate-pushdown hint) and the upfront `gpd.read_parquet` of all geometries was the dominant per-merge memory transient.
+- Tighter row-group accumulator flush in `parquet_merge_files`: flushes *before* appending an overflowing batch so the accumulator never holds more than `rows_per_group` rows at once (was up to ~2× at flush boundaries).
+- `scripts/gh3_resume_recovery.py`: one-shot, idempotent recovery script with `--dry-run` that reconciles the build log against on-disk state, cleans stale `.merge.tmp` files, and rebuilds `_merge_progress.txt`. Multiprocessing-pool parallel scan with streaming `os.scandir` walk for GPFS friendliness; deduplicates tmp fragments by basename (~30× speedup for old `part.<i>.parquet` builds).
+- `scripts/dask_worker_trim.py`: optional dask worker preload module that registers a `WorkerPlugin` calling `gc.collect()`, `pyarrow.default_memory_pool().release_unused()`, and `libc.malloc_trim(0)` after every task transition. Bounds unmanaged worker memory growth on multi-day jobs.
+- 8 new tests in `tests/test_resume_reconcile.py` covering tmp+database reconciliation, idempotency, corrupt-fragment skip, sequential fallback, and the granule-id parser.
+
+### Fixed
+- `dask_worker_trim.py`: `dask_setup` is now `async` and awaits `Worker.plugin_add` (the API became a coroutine in modern dask distributed). The previous sync version silently no-op'd, leaving the plugin unregistered.
+- `gh3_resume_recovery.py`: dedupe tmp fragments by basename before the parquet metadata read. With `by_beam=True` + `partition_on=[h3, year]`, the same `part.<i>.parquet` index represents the same `(granule, beam)` source partition replicated across many leaf dirs — reading every instance scaled at ~300 files/sec on GPFS for a 17h ETA. Dedup cuts the work to ~587K unique reads instead of 19.5M.
+
+### Changed
+- `_write_partitioned` return type is now `bool` (was `List[str]`). The trailing recursive `glob.glob(tmp_dir/**/*.parquet)` walked millions of fragments on global builds just so the caller could check `len() == 0`. Replaced with a single `os.scandir` iteration that returns `True` on the first `h3_*` leaf dir found. Function is private; the only caller (`build_h3db`) was already discarding the list contents.
+
 ## [0.7.9] - 2026-04-29
 
 ### Fixed
