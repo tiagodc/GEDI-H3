@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.2] - 2026-05-03
+
+### Fixed
+- `dask-config-massive-build.yaml`: dropped the `worker.lifetime` block (4h rolling restart with 20-30m stagger). On a real continental build the AMM key handoff during graceful retirement saturated survivor event loops, heartbeats timed out, the scheduler force-removed retiring workers, and ~21k tasks were marked for recompute as >40% of the cluster died in ~15 minutes. With `MALLOC_TRIM_THRESHOLD_=0`, `ARROW_DEFAULT_MEMORY_POOL=system`, and the per-task gh3-trim preload already in place, RSS is bounded at the source — rolling restart was solving a problem that no longer exists.
+- `dask-config-massive-build.yaml`: tightened `admin.tick.limit` from `1h` to `120s` so multi-minute event-loop stalls remain visible in logs (they were the key diagnostic in the retirement-cascade incident).
+- `docs/user-guide/building-a-database.md`: rewrote the "unmanaged worker memory" section to recommend the env-vars-plus-preload mitigation as the primary fix instead of rolling restart; removed `--lifetime`/`--lifetime-stagger`/`--lifetime-restart` from the worker recipe; updated the bundled-YAML feature list; strengthened the sizing guidance with an explicit warning that 64 × 25 GB on a 1 TB node is 1.6× over-committed (kernel OOM-kills before Dask's `terminate: 0.95` fires) and that `--memory-limit` should be lowered when raising `--nworkers`.
+- `docs/user-guide/building-a-database.md`: replaced incorrect `dask --config-file` example with `DASK_CONFIG` env var (the dask CLI has no `--config-file` flag).
+
 ## [0.8.1] - 2026-05-02
 
 ### Added
