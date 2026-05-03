@@ -194,6 +194,144 @@ class TestReconcileScalability:
         assert n_flipped == 2
 
 
+class TestReconcileShortCircuits:
+    """Optimisations that avoid the disk scan when the result is predictable."""
+
+    def test_skips_disk_scan_when_log_has_no_pending(self, tmp_dir, monkeypatch):
+        """If every granule in the log is already INDEXED, do not glob the tmp tree."""
+        from gedih3.gh3builder import _reconcile_granules_from_disk
+        from gedih3.logger import H3BuildLogger
+        import gedih3.gh3builder as gh
+
+        h3_dir = os.path.join(tmp_dir, 'database')
+        tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
+        os.makedirs(h3_dir)
+
+        make_build_log(
+            h3_dir, status='PARTITIONING', h3_partition_ids=[],
+            granules=[
+                {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED'},
+                {'orbit': 2, 'granule': 2, 'track': 2, 'status': 'INDEXED'},
+            ],
+        )
+        h3_logger = H3BuildLogger(product_vars=None, dir=h3_dir)
+
+        # Sentinel that fails if anyone walks tmp_partitions / h3_dir for files.
+        called = {'n': 0}
+        real_glob = gh.glob.glob
+
+        def _spy(pattern, *a, **kw):
+            called['n'] += 1
+            return real_glob(pattern, *a, **kw)
+
+        monkeypatch.setattr(gh.glob, 'glob', _spy)
+
+        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions)
+        assert n_flipped == 0
+        assert called['n'] == 0, "early-out should skip every glob in the function body"
+
+
+class TestReconcileCache:
+    """Persistent cache: a second reconcile with unchanged disk state must not
+    re-read parquet metadata."""
+
+    def test_cache_hit_skips_parquet_reads(self, tmp_dir, monkeypatch):
+        from gedih3.gh3builder import _reconcile_granules_from_disk, _RECONCILE_CACHE_FILENAME
+        import gedih3.gh3builder as gh
+
+        h3_dir = os.path.join(tmp_dir, 'database')
+        tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
+        os.makedirs(h3_dir)
+
+        granules = [(60, 1, 1), (61, 2, 2)]
+        for orb, gran, trk in granules:
+            _write_tmp_fragment(
+                tmp_partitions, '830001fffffffff', '2020',
+                f'/soc/{_gedi_basename(orb, gran, trk)}',
+                basename=f'O{orb:05d}_G{gran:02d}_T{trk:05d}.BEAM0000.parquet',
+            )
+
+        # First run: warm the cache.
+        h3_logger1 = _logger_with_pending(h3_dir, granules)
+        first = _reconcile_granules_from_disk(h3_dir, h3_logger1, tmp_dir=tmp_partitions)
+        assert first == 2
+
+        cache_path = os.path.join(tmp_partitions, _RECONCILE_CACHE_FILENAME)
+        assert os.path.isfile(cache_path), "cache file should be written after a successful scan"
+
+        # Second run: a fresh logger with the same PENDING entries. The disk
+        # scan helper must NOT be called because the cached fingerprint matches.
+        called = {'n': 0}
+        real_helper = gh._granule_ids_in_fragment
+
+        def _spy(*a, **kw):
+            called['n'] += 1
+            return real_helper(*a, **kw)
+
+        monkeypatch.setattr(gh, '_granule_ids_in_fragment', _spy)
+        # also intercept the batch helper used in the dask path
+        monkeypatch.setattr(gh, '_granule_ids_in_fragments', lambda fs: (_ for _ in ()).throw(
+            AssertionError("batch helper invoked despite cache hit")))
+
+        h3_logger2 = _logger_with_pending(h3_dir, granules)
+        second = _reconcile_granules_from_disk(h3_dir, h3_logger2, tmp_dir=tmp_partitions)
+        assert second == 2
+        assert called['n'] == 0, "cache hit must skip per-fragment parquet reads"
+
+    def test_cache_invalidated_when_fragment_added(self, tmp_dir, monkeypatch):
+        from gedih3.gh3builder import _reconcile_granules_from_disk, _RECONCILE_CACHE_FILENAME
+
+        h3_dir = os.path.join(tmp_dir, 'database')
+        tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
+        os.makedirs(h3_dir)
+
+        # First run with one fragment, warming the cache.
+        _write_tmp_fragment(
+            tmp_partitions, '830001fffffffff', '2020',
+            f'/soc/{_gedi_basename(70, 1, 1)}',
+            basename='O00070_G01_T00001.BEAM0000.parquet',
+        )
+        h3_logger1 = _logger_with_pending(h3_dir, [(70, 1, 1), (71, 2, 2)])
+        assert _reconcile_granules_from_disk(h3_dir, h3_logger1, tmp_dir=tmp_partitions) == 1
+
+        # Add a second fragment between runs — fingerprint must invalidate.
+        _write_tmp_fragment(
+            tmp_partitions, '830001fffffffff', '2020',
+            f'/soc/{_gedi_basename(71, 2, 2)}',
+            basename='O00071_G02_T00002.BEAM0000.parquet',
+        )
+
+        h3_logger2 = _logger_with_pending(h3_dir, [(70, 1, 1), (71, 2, 2)])
+        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger2, tmp_dir=tmp_partitions)
+        # Both granules must now be flipped — the new fragment was discovered.
+        assert n_flipped == 2
+
+    def test_corrupt_cache_falls_back_to_scan(self, tmp_dir):
+        from gedih3.gh3builder import _reconcile_granules_from_disk, _RECONCILE_CACHE_FILENAME
+
+        h3_dir = os.path.join(tmp_dir, 'database')
+        tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
+        os.makedirs(h3_dir)
+
+        _write_tmp_fragment(
+            tmp_partitions, '830001fffffffff', '2020',
+            f'/soc/{_gedi_basename(80, 1, 1)}',
+        )
+        # Pre-place a malformed cache file.
+        os.makedirs(tmp_partitions, exist_ok=True)
+        with open(os.path.join(tmp_partitions, _RECONCILE_CACHE_FILENAME), 'w') as f:
+            f.write('{not valid json')
+
+        h3_logger = _logger_with_pending(h3_dir, [(80, 1, 1)])
+        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions)
+        assert n_flipped == 1
+        # Cache should now be repaired with a valid payload.
+        cache_path = os.path.join(tmp_partitions, _RECONCILE_CACHE_FILENAME)
+        with open(cache_path) as f:
+            payload = json.load(f)
+        assert 'key' in payload and 'indexed_ids' in payload
+
+
 class TestGranuleIdParse:
     def test_parses_standard_filename(self):
         from gedih3.gh3builder import _granule_id_from_l2a_path

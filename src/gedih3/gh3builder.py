@@ -836,6 +836,30 @@ def _granule_ids_in_fragments(parquet_files: List[str]) -> set:
     return out
 
 
+_RECONCILE_CACHE_FILENAME = '_reconcile_cache.json'
+
+
+def _reconcile_cache_fingerprint(frag_files: List[str]) -> dict:
+    """Cheap fingerprint of the fragment-listing inputs.
+
+    A new fragment changes ``count``; an overwritten fragment changes
+    ``max_mtime``. Sufficient as a cache-invalidation signal without
+    re-reading parquet metadata. Only ``stat()`` calls — much cheaper
+    than the per-fragment parquet open the cache exists to skip.
+    """
+    if not frag_files:
+        return {'count': 0, 'max_mtime': 0.0}
+    max_mt = 0.0
+    for f in frag_files:
+        try:
+            mt = os.stat(f).st_mtime
+            if mt > max_mt:
+                max_mt = mt
+        except OSError:
+            continue
+    return {'count': len(frag_files), 'max_mtime': max_mt}
+
+
 def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str] = None) -> int:
     """Mark granules INDEXED based on what's already on disk.
 
@@ -866,6 +890,17 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
     if not hasattr(h3_logger, 'granule_info') or not h3_logger.granule_info:
         return 0
 
+    # Short-circuit: if every granule is already INDEXED in the log, the disk
+    # scan cannot flip anything. Save the I/O. (The flip pass at the end is
+    # the only thing that uses indexed_ids, and it only flips entries whose
+    # current status != 'INDEXED'.)
+    if not any(g.get('status') != 'INDEXED' for g in h3_logger.granule_info):
+        logger.info(
+            "Resume reconciliation: build log shows no pending granules, "
+            "skipping disk scan"
+        )
+        return 0
+
     indexed_ids: set = set()
 
     meta_files = glob.glob(os.path.join(h3_dir, 'h3_*', f'*{PARTITION_META_FILENAME}'))
@@ -881,49 +916,93 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
         logger.info(f"Listing tmp fragments under {tmp_dir}")
         frag_files = glob.glob(os.path.join(tmp_dir, 'h3_*', 'year=*', '*.parquet'))
         if frag_files:
-            logger.info(f"Reconciling granule status from {len(frag_files)} tmp fragments")
-            client = None
-            try:
-                client = get_dask_client()
-            except Exception:
-                pass
-            if client is not None and len(frag_files) > 32:
-                from dask.distributed import as_completed as dask_as_completed
-                from tqdm import tqdm as tqdm_bar
-                # Streaming map+as_completed instead of bag.persist()+bag.compute().
-                # Each batch becomes one task whose result (a small set of granule
-                # IDs) is consumed and released immediately, so the cluster never
-                # accumulates a large key inventory. Big batches (4096) amortize
-                # Dask per-task overhead, since _granule_ids_in_fragment is a
-                # ~ms-scale parquet-metadata read on the fast path. Both choices
-                # together prevent the long-idle, GIL-stall worker-TTL kill
-                # cascade that previous (partition_size=64, persist+compute)
-                # versions exhibited on multi-million-fragment continental builds.
-                BATCH_SIZE = 4096
-                batches = [
-                    frag_files[i:i + BATCH_SIZE]
-                    for i in range(0, len(frag_files), BATCH_SIZE)
-                ]
-                futures = client.map(
-                    _granule_ids_in_fragments, batches, pure=False,
-                )
-                pbar = tqdm_bar(
-                    total=len(futures),
-                    desc="Reconcile fragments", unit="batch",
-                )
+            cache_path = os.path.join(tmp_dir, _RECONCILE_CACHE_FILENAME)
+            cache_key = _reconcile_cache_fingerprint(frag_files)
+            cached_frag_ids: Optional[set] = None
+            if os.path.isfile(cache_path):
                 try:
-                    for fut in dask_as_completed(futures):
-                        try:
-                            indexed_ids.update(fut.result())
-                        finally:
-                            fut.release()
-                        pbar.update(1)
-                finally:
-                    pbar.close()
+                    cached = json_read(cache_path) or {}
+                    if cached.get('key') == cache_key:
+                        cached_frag_ids = {
+                            tuple(t) for t in cached.get('indexed_ids', [])
+                        }
+                except Exception:
+                    cached_frag_ids = None
+
+            if cached_frag_ids is not None:
+                logger.info(
+                    f"Resume reconciliation: disk fingerprint unchanged, "
+                    f"reusing {len(cached_frag_ids)} granule IDs from "
+                    f"{cache_path} (skipping {len(frag_files)} fragment reads)"
+                )
+                indexed_ids.update(cached_frag_ids)
             else:
-                from tqdm import tqdm as tqdm_bar
-                for f in tqdm_bar(frag_files, desc="Reconcile fragments", unit="file"):
-                    indexed_ids.update(_granule_ids_in_fragment(f))
+                logger.info(
+                    f"Reconciling granule status from {len(frag_files)} tmp fragments"
+                )
+                frag_ids: set = set()
+                client = None
+                try:
+                    client = get_dask_client()
+                except Exception:
+                    pass
+                if client is not None and len(frag_files) > 32:
+                    from dask.distributed import as_completed as dask_as_completed
+                    from tqdm import tqdm as tqdm_bar
+                    # Streaming map+as_completed instead of bag.persist()+bag.compute().
+                    # Each batch becomes one task whose result (a small set of granule
+                    # IDs) is consumed and released immediately, so the cluster never
+                    # accumulates a large key inventory. Big batches (4096) amortize
+                    # Dask per-task overhead, since _granule_ids_in_fragment is a
+                    # ~ms-scale parquet-metadata read on the fast path. Both choices
+                    # together prevent the long-idle, GIL-stall worker-TTL kill
+                    # cascade that previous (partition_size=64, persist+compute)
+                    # versions exhibited on multi-million-fragment continental builds.
+                    BATCH_SIZE = 4096
+                    batches = [
+                        frag_files[i:i + BATCH_SIZE]
+                        for i in range(0, len(frag_files), BATCH_SIZE)
+                    ]
+                    futures = client.map(
+                        _granule_ids_in_fragments, batches, pure=False,
+                    )
+                    pbar = tqdm_bar(
+                        total=len(futures),
+                        desc="Reconcile fragments", unit="batch",
+                    )
+                    try:
+                        for fut in dask_as_completed(futures):
+                            try:
+                                frag_ids.update(fut.result())
+                            finally:
+                                fut.release()
+                            pbar.update(1)
+                    finally:
+                        pbar.close()
+                else:
+                    from tqdm import tqdm as tqdm_bar
+                    for f in tqdm_bar(frag_files, desc="Reconcile fragments", unit="file"):
+                        frag_ids.update(_granule_ids_in_fragment(f))
+
+                indexed_ids.update(frag_ids)
+                # Persist the fragment-derived IDs only. Pass A (metadata JSONs
+                # under h3_dir) is cheap and always re-runs; caching it would
+                # add no measurable benefit and would also tie cache validity
+                # to a second fingerprint, increasing miss rate.
+                try:
+                    json_write(
+                        {
+                            'key': cache_key,
+                            'indexed_ids': [list(t) for t in frag_ids],
+                        },
+                        cache_path,
+                        rewrite=True,
+                    )
+                except Exception:
+                    logger.debug(
+                        f"Failed to save reconcile cache at {cache_path}",
+                        exc_info=True,
+                    )
 
     if not indexed_ids:
         return 0
