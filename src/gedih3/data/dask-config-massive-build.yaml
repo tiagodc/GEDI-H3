@@ -28,8 +28,10 @@ distributed:
   # ── Worker-side memory thresholds ──────────────────────────────────────
   # Defaults are 0.60 / 0.70 / 0.80 / 0.95 (target / spill / pause / terminate).
   # Slightly looser here so steady-state work isn't constantly spilling on
-  # a node that's actually sized correctly. Combine with `lifetime.restart`
-  # below — the rolling restart is what bounds RSS, not the spill threshold.
+  # a node that's actually sized correctly. The `nanny.pre-spawn-environ`
+  # block below is what actually bounds RSS by returning freed pages to
+  # the OS — these thresholds just keep transient task working-sets in
+  # memory instead of thrashing to spill disk.
   worker:
     memory:
       target: 0.70
@@ -39,18 +41,24 @@ distributed:
       # Re-classify "recent unmanaged" → "old unmanaged" after this much
       # idle time. Bump above your typical task wall-clock so the dashboard
       # doesn't constantly show false-positive recent-unmanaged spikes.
+      # Keep this honest — `unmanaged old` is the canary that tells you
+      # whether you're actually leaking memory.
       recent-to-old-time: "180s"
 
-    # Rolling worker restart — THE single most important knob for multi-day
-    # builds. Each worker dies cleanly after `duration`, scheduler reassigns
-    # its in-flight work, nanny respawns a fresh process. Stagger keeps ~95%
-    # of capacity online at any moment. Bounds RSS regardless of the root
-    # cause of unmanaged-memory growth (PyArrow jemalloc pool, glibc
-    # fragmentation, h5py chunk caches, etc.).
-    lifetime:
-      duration: "4h"
-      stagger: "30m"
-      restart: true
+    # NO `lifetime` block on purpose.
+    #
+    # Earlier versions of this file enabled a 4h rolling restart with 20-30m
+    # stagger as belt-and-suspenders against unmanaged-memory growth. In the
+    # 2026-05-02 continental build that strategy caused a catastrophic
+    # cascade: ~21k tasks marked for recompute and >40% of workers lost in
+    # ~15 minutes. The mechanism — AMM key handoff during retirement
+    # saturating survivor event loops, heartbeat timeouts, force-removal,
+    # cascading recompute. With the pre-spawn-environ block below, RSS does
+    # not actually grow over multi-day builds, so the rolling restart was
+    # solving a problem that no longer exists. Watch `unmanaged old` on the
+    # dashboard during your run; if it climbs past ~30% of memory_limit
+    # over many hours, only THEN consider lifetime back, and use a stagger
+    # >> typical-handoff-time (60-90m) to avoid the cascade.
 
   # ── Pre-spawn environment ──────────────────────────────────────────────
   # CRITICAL: these MUST be set BEFORE the worker process spawns. Dask's
@@ -63,6 +71,8 @@ distributed:
   # `ARROW_DEFAULT_MEMORY_POOL=system` forces PyArrow to allocate via
   # glibc instead of jemalloc; combined with MALLOC_TRIM, this means
   # parquet read/write buffers actually return to the OS after each task.
+  # Together these are what eliminates the unmanaged-memory growth that
+  # used to motivate a rolling restart.
   nanny:
     pre-spawn-environ:
       MALLOC_TRIM_THRESHOLD_: "0"
@@ -73,7 +83,11 @@ distributed:
     # Suppress the "Sending large graph..." UserWarning. The build's stage 1
     # legitimately produces graphs >100 MB.
     large-graph-warning-threshold: "500MB"
-    # Long-running merge tasks can briefly block the event loop during
-    # parquet writer flush. Default 3s would log spurious warnings.
+    # Suppress event-loop-tick warnings shorter than this. Parquet writer
+    # flushes can briefly block the loop for ~10-30s, and the default 3s
+    # threshold floods the log with false positives. Don't push this much
+    # higher: multi-minute stalls are a genuine canary for GIL-saturation
+    # under load (this is how we diagnosed the 2026-05-02 retirement
+    # cascade — the 71s/60s "unresponsive" warnings were the signal).
     tick:
-      limit: "1h"
+      limit: "120s"

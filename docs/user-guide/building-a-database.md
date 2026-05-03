@@ -424,13 +424,19 @@ Long-running Dask workers accumulate **unmanaged memory** (RSS that exceeds Dask
 2. **glibc fragmentation**. Pandas, numpy small allocations, h5py chunk caches all go through glibc. Without `MALLOC_TRIM_THRESHOLD_=0` (or with the Nanny's default of 65536), glibc holds freed chunks in the heap top.
 3. **h5py file-handle / chunk caches**. Per-file cache held until `File.close()`. Dask arrays built from open HDF5 datasets keep handles alive across the cluster.
 
-The **only** mitigation that works regardless of root cause is **rolling worker restart**: each worker dies cleanly after a fixed lifetime, the scheduler reassigns its data, the nanny respawns a fresh process. With `lifetime-stagger` set, ~95% of cluster capacity stays online at any moment.
+The mitigation that addresses these at the source is **two pre-spawn environment variables** plus a **per-task trim preload**:
+
+- `ARROW_DEFAULT_MEMORY_POOL=system` switches PyArrow off jemalloc onto the system allocator (glibc on Linux), so freed buffers can actually be released.
+- `MALLOC_TRIM_THRESHOLD_=0` makes glibc return freed pages to the OS immediately instead of pooling them in the heap top.
+- The bundled `dask-worker-trim.py` preload calls `gc.collect()` + `pyarrow.default_memory_pool().release_unused()` + `libc.malloc_trim(0)` after every task, ensuring the OS actually sees the freed memory.
+
+Together, these keep RSS bounded at the source over multi-day builds. **Rolling worker restart (`--lifetime`/`--lifetime-restart`) is no longer recommended** — earlier versions of this guide used it as belt-and-suspenders insurance, but the Active-Memory-Manager handoff during retirement can saturate survivor event loops on heavily-loaded clusters and trigger a cascading recompute storm. With the env vars and preload above, you don't need it. The "unmanaged old" gauge on the dashboard is the canary; if you ever see it climbing past ~30% of `--memory-limit` over many hours, only then consider lifetime — and pick a stagger much wider than your typical AMM handoff time (60–90 min) to avoid the cascade.
 
 ### The external-cluster pattern
 
 Instead of letting `gh3_build` create its own `LocalCluster`, spawn the **scheduler and workers separately** with the right memory tuning, then attach the build via the existing `-s/--dask-scheduler` flag. Three benefits:
 
-1. All memory knobs live at the worker spawn (env vars, lifetime restart, preload). No code changes inside `gh3_build`.
+1. All memory knobs live at the worker spawn (env vars, preload). No code changes inside `gh3_build`.
 2. The cluster outlives the build — if the build crashes, the cluster keeps running and you can attach a new `gh3_build` (or recovery script) to it.
 3. The scheduler's dashboard at `:8787` is independent of the build's lifecycle.
 
@@ -462,7 +468,6 @@ PRELOAD=$(python -c "from gedih3.config import get_package_data_path; \
 
 dask worker tcp://localhost:8786 \
   --nworkers 32 --nthreads 1 --memory-limit 25GB --nanny \
-  --lifetime 4h --lifetime-stagger 30m --lifetime-restart \
   --local-directory ./tmp/dask-worker-space \
   --preload "$PRELOAD"
 ```
@@ -477,7 +482,7 @@ gh3_build -r region.shp -l2a default -l4a default \
 
 ### Sizing for your node
 
-`--nworkers × --memory-limit` should total **~85% of node RAM**, leaving headroom for the OS page cache (HDF5 reads benefit hugely from caching). Over-committing is the most common cause of stage-2 OOM kills: workers' soft memory limit is enforced by Dask's spill mechanism, but the kernel OOM killer fires first if total resident memory exceeds physical RAM.
+`--nworkers × --memory-limit` should total **~85% of node RAM**, leaving headroom for the OS page cache (HDF5 reads benefit hugely from caching). Over-committing is the most common cause of stage-2 OOM kills: workers' soft memory limit is enforced by Dask's spill mechanism, but the kernel OOM killer fires first if total resident memory exceeds physical RAM. **Sticking under 85% is non-negotiable** — once you cross the line, no Dask threshold can save you because the kernel acts before Dask's `terminate: 0.95` does.
 
 | Node RAM | Recommended | Total | Page cache |
 |----------|-------------|-------|------------|
@@ -486,7 +491,7 @@ gh3_build -r region.shp -l2a default -l4a default \
 | 1 TB     | 32 × 25 GB  | 800 GB | ~206 GB |
 | 2 TB     | 48 × 32 GB  | 1536 GB | ~496 GB |
 
-`--lifetime-stagger` is essential at high worker counts — without it all nannies respawn together and briefly double Python+HDF5 memory. 20–30 min works well for 32–48 workers; bump higher if you have more.
+If you want more parallelism than the table suggests (e.g., 64 workers on a 1 TB node), **lower `--memory-limit` proportionally** so the total still fits. 64 × 14 GB = 896 GB on a 1 TB node is safe; 64 × 25 GB = 1600 GB is not (1.6× over-committed → kernel OOM-kills before Dask reacts).
 
 ### Verifying the cluster
 
@@ -581,10 +586,11 @@ ln -s "$(python -c "from gedih3.config import get_package_data_path; \
 ```
 
 The YAML sets:
-- Worker memory thresholds (`target/spill/pause/terminate` = 0.70/0.80/0.90/0.95).
-- Rolling worker restart (`lifetime: 4h`, `lifetime-stagger: 30m`, `lifetime-restart: true`).
+- Worker memory thresholds (`target/spill/pause/terminate` = 0.70/0.80/0.90/0.95) — looser than defaults so transient task working-sets stay in RAM instead of thrashing to spill disk.
+- `recent-to-old-time: 180s` so the dashboard's "unmanaged old" gauge isn't tripped by normal long-running tasks (keeps the leak canary honest).
 - `nanny.pre-spawn-environ` for `MALLOC_TRIM_THRESHOLD_=0` and `ARROW_DEFAULT_MEMORY_POOL=system` (sets them BEFORE worker process spawn — `distributed.nanny.environ` runs after spawn and silently no-ops, [#5279](https://github.com/dask/distributed/issues/5279)).
-- Suppression of long-tick warnings during merge.
+- `admin.tick.limit: 120s` to filter routine parquet-flush blips while still surfacing the multi-minute event-loop stalls that signal real GIL trouble.
+- **No `worker.lifetime` block.** Earlier versions enabled rolling restart; see the "unmanaged worker memory" section above for why it's no longer recommended.
 
 ---
 
