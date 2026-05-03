@@ -823,6 +823,19 @@ def _granule_ids_in_fragment(parquet_file: str) -> set:
     return set()
 
 
+def _granule_ids_in_fragments(parquet_files: List[str]) -> set:
+    """Apply ``_granule_ids_in_fragment`` to each file in a batch and union the results.
+
+    Used by ``_reconcile_granules_from_disk`` to amortize Dask per-task overhead
+    over many fast parquet-metadata reads. Errors on individual files are
+    swallowed (consistent with the per-file path).
+    """
+    out: set = set()
+    for f in parquet_files:
+        out.update(_granule_ids_in_fragment(f))
+    return out
+
+
 def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str] = None) -> int:
     """Mark granules INDEXED based on what's already on disk.
 
@@ -875,25 +888,38 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
             except Exception:
                 pass
             if client is not None and len(frag_files) > 32:
-                from dask.distributed import futures_of, as_completed as dask_as_completed
+                from dask.distributed import as_completed as dask_as_completed
                 from tqdm import tqdm as tqdm_bar
-                bag = (
-                    dbg.from_sequence(frag_files, partition_size=64)
-                    .map(_granule_ids_in_fragment)
-                    .persist()
+                # Streaming map+as_completed instead of bag.persist()+bag.compute().
+                # Each batch becomes one task whose result (a small set of granule
+                # IDs) is consumed and released immediately, so the cluster never
+                # accumulates a large key inventory. Big batches (4096) amortize
+                # Dask per-task overhead, since _granule_ids_in_fragment is a
+                # ~ms-scale parquet-metadata read on the fast path. Both choices
+                # together prevent the long-idle, GIL-stall worker-TTL kill
+                # cascade that previous (partition_size=64, persist+compute)
+                # versions exhibited on multi-million-fragment continental builds.
+                BATCH_SIZE = 4096
+                batches = [
+                    frag_files[i:i + BATCH_SIZE]
+                    for i in range(0, len(frag_files), BATCH_SIZE)
+                ]
+                futures = client.map(
+                    _granule_ids_in_fragments, batches, pure=False,
                 )
-                bag_futures = futures_of(bag)
-                if bag_futures:
-                    pbar = tqdm_bar(
-                        dask_as_completed(bag_futures), total=len(bag_futures),
-                        desc="Reconcile fragments", unit="batch",
-                    )
-                    for _ in pbar:
-                        pass
+                pbar = tqdm_bar(
+                    total=len(futures),
+                    desc="Reconcile fragments", unit="batch",
+                )
+                try:
+                    for fut in dask_as_completed(futures):
+                        try:
+                            indexed_ids.update(fut.result())
+                        finally:
+                            fut.release()
+                        pbar.update(1)
+                finally:
                     pbar.close()
-                for s in bag.compute():
-                    indexed_ids.update(s)
-                del bag
             else:
                 from tqdm import tqdm as tqdm_bar
                 for f in tqdm_bar(frag_files, desc="Reconcile fragments", unit="file"):
