@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.3] - 2026-05-03
+
+### Fixed
+- `_reconcile_granules_from_disk` (gh3builder.py): on multi-million-fragment continental builds the previous implementation submitted ~one task per 64 files via `dask.bag.from_sequence(..., partition_size=64).map(...).persist()`, then collected via `bag.compute()`. With ~19 M fragments this produced ~300 k cluster keys held in worker memory for hours, ~5 k keys per worker. With the cluster otherwise idle waiting on the reconcile, individual workers occasionally locked the GIL during gc / arrow-pool-release / malloc_trim long enough to miss heartbeats; the scheduler force-restarted them after 5–10 min and queued ~5 k tasks for recompute per kill. Three such kills observed in a 2 h window made the reconcile non-converging on continental scale, blocking all subsequent build progress. Replaced the bag pattern with `client.map(_granule_ids_in_fragments, batches, pure=False)` over 4096-file batches plus a streaming `as_completed` consumer that updates the driver-side `indexed_ids` set and immediately releases each future. Cluster-side memory is now bounded to ~64 in-flight result keys regardless of input size, recompute exposure per worker drops from ~5 k tasks to ~75, and per-task overhead is amortized over a much larger work unit. Behavior, return value, and the in-process fallback path (`client is None or len(frag_files) <= 32`) are unchanged.
+
 ## [0.8.2] - 2026-05-03
 
 ### Fixed
