@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.4] - 2026-05-03
+
+### Added
+- `_reconcile_granules_from_disk`: persistent fragment-fingerprint cache at `<tmp_dir>/_reconcile_cache.json`. After a successful disk scan, the function records `(frag_count, max_mtime)` together with the derived granule-ID set; on the next reconcile, if the fingerprint matches, the cached IDs are reused and the per-fragment parquet metadata reads are skipped entirely. Most relaunches of the same build (most common case during multi-day debugging) now finish reconcile in milliseconds. Pass A (the cheap metadata JSON walk under `h3_dir`) still re-runs every time, so finalized-partition changes are always reflected. A corrupt cache file is detected, ignored, and replaced on the next successful scan.
+
+### Changed
+- `_reconcile_granules_from_disk`: short-circuit when the build log already shows every granule as `INDEXED`. Returns 0 immediately without touching disk. Eliminates wasted work for builds that have completed stage 1 cleanly but are being relaunched (e.g. for a stage-2 retry).
+
 ## [0.8.3] - 2026-05-03
 
 ### Fixed
