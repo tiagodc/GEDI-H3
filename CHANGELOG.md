@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.5] - 2026-05-03
+
+### Changed
+- `_reconcile_granules_from_disk` (gh3builder.py): the listing and fingerprint passes are now distributed across the Dask cluster instead of running serially on the driver. Previously the function did `glob.glob(tmp_dir/h3_*/year=*/*.parquet)` (single-threaded driver-side, walks ~46 M GPFS metadata entries at ~50 µs each on a continental build → 50–70 min wall-clock) followed by `_reconcile_cache_fingerprint(frag_files)` which serially `os.stat()`-ed each of the same files (another 30–60 min). On a real continental build this combined for ~90 min of pure driver-side I/O before any cluster work could even start, with 64 workers sitting idle the entire time.
+- New `_list_h3_partition(h3_dir)` helper: walks one h3_* tmp partition via `os.scandir` + `DirEntry.stat`, returns `(count, max_mtime)`. No parquet metadata reads. Used for cache validation only.
+- New `_process_h3_partition(h3_dir)` helper: walks one h3_* tmp partition end-to-end on the worker (list + fingerprint + parquet metadata reads) and returns `(count, max_mtime, granule_id_set)`. The fragment path list never crosses the network — only the small derived result tuple comes back to the driver. Replaces the previous `_granule_ids_in_fragments` batch helper, which is removed.
+- `_reconcile_granules_from_disk` now drives both passes via a unified `client.map(...) + as_completed` loop with a serial fallback when no Dask client is available. Wall-clock for a continental-scale reconcile drops from ~90 min (50 min glob + 30–60 min fingerprint) to ~10–15 min (single distributed pass), with a near-instant cache-hit path on subsequent relaunches.
+- Cache key shape unchanged (`{count, max_mtime}`), so caches written by 0.8.4 remain comparable; only the function that *computes* the key has changed.
+
 ## [0.8.4] - 2026-05-03
 
 ### Added
