@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.7] - 2026-05-03
+
+### Fixed
+- `_RECONCILE_FRAGMENT_THREADS` default lowered from 16 to 4 in response to a real continental run that drove host load average to ~800 and overwhelmed the shared GPFS metadata server. The 0.8.6 default was chosen from a single-process microbenchmark that saturated at ~8 threads in *one* Python process; the multiplicative effect across 64 cluster workers (16 × 64 = 1024 concurrent metadata requests) was not properly accounted for. At N=4 the cluster-wide concurrency is 256 — still ~4× faster than serial per-file reads on cold GPFS, but well within what the metadata server handles cleanly. Now also tunable per-deployment via the `GH3_RECONCILE_FRAGMENT_THREADS` environment variable (read at module import time on the worker, so set it before launching `dask worker`).
+
 ## [0.8.6] - 2026-05-03
 
 ### Changed
