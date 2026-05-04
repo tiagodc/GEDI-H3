@@ -823,7 +823,7 @@ def _granule_ids_in_fragment(parquet_file: str) -> set:
     return set()
 
 
-_RECONCILE_FRAGMENT_THREADS = 16
+_RECONCILE_FRAGMENT_THREADS = int(os.environ.get('GH3_RECONCILE_FRAGMENT_THREADS', '4'))
 
 
 def _process_h3_partition(h3_dir: str, n_threads: int = _RECONCILE_FRAGMENT_THREADS) -> set:
@@ -832,12 +832,20 @@ def _process_h3_partition(h3_dir: str, n_threads: int = _RECONCILE_FRAGMENT_THRE
 
     This is the worker-side body of the resume reconcile, run as one Dask
     task per ``h3_*`` tmp partition. Listing is via ``os.scandir`` (cheap);
-    the per-fragment parquet metadata reads — which are GPFS-bound at
-    ~90 ms cold sequential — are parallelized via a ``ThreadPoolExecutor``.
+    the per-fragment parquet metadata reads — GPFS-bound at ~90 ms cold
+    sequential per file — are parallelized via a ``ThreadPoolExecutor``.
     Threads release the GIL during file I/O, so a small pool inside each
-    worker gets a ~15× per-task speedup over serial reads (measured on the
-    target dataset). The path list is consumed locally on the worker, so
-    only the small set of granule-ID triples crosses the network.
+    worker gets ~10–15× per-task speedup over serial reads (measured on
+    the target dataset).
+
+    The pool size is intentionally conservative: with 64 cluster workers
+    each spawning N threads, the *system-wide* concurrent GPFS metadata
+    request count is 64×N. At N=16 a real continental run drove host
+    load average to ~800 and overwhelmed the shared metadata server;
+    at N=4 the cluster-wide concurrency is 256 — still ~4× faster than
+    serial per-file reads, but well within what GPFS handles cleanly.
+    Tunable via the ``GH3_RECONCILE_FRAGMENT_THREADS`` env var if your
+    deployment can sustain more.
     """
     paths: list = []
     try:
