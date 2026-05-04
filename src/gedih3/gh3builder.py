@@ -823,41 +823,80 @@ def _granule_ids_in_fragment(parquet_file: str) -> set:
     return set()
 
 
-def _granule_ids_in_fragments(parquet_files: List[str]) -> set:
-    """Apply ``_granule_ids_in_fragment`` to each file in a batch and union the results.
-
-    Used by ``_reconcile_granules_from_disk`` to amortize Dask per-task overhead
-    over many fast parquet-metadata reads. Errors on individual files are
-    swallowed (consistent with the per-file path).
-    """
-    out: set = set()
-    for f in parquet_files:
-        out.update(_granule_ids_in_fragment(f))
-    return out
-
-
 _RECONCILE_CACHE_FILENAME = '_reconcile_cache.json'
 
 
-def _reconcile_cache_fingerprint(frag_files: List[str]) -> dict:
-    """Cheap fingerprint of the fragment-listing inputs.
+def _list_h3_partition(h3_dir: str) -> Tuple[int, float]:
+    """List ``h3_dir/year=*/*.parquet`` and return ``(count, max_mtime)``.
 
-    A new fragment changes ``count``; an overwritten fragment changes
-    ``max_mtime``. Sufficient as a cache-invalidation signal without
-    re-reading parquet metadata. Only ``stat()`` calls — much cheaper
-    than the per-fragment parquet open the cache exists to skip.
+    Worker-side helper for the parallel reconcile-listing pass. Uses
+    ``os.scandir`` and ``DirEntry.stat`` to avoid the path-join + stat
+    double work of ``glob.glob`` + ``os.stat``. Does NOT read parquet
+    metadata — only the lightweight count + mtime fingerprint needed to
+    decide whether the reconcile cache is still valid.
     """
-    if not frag_files:
-        return {'count': 0, 'max_mtime': 0.0}
+    count = 0
     max_mt = 0.0
-    for f in frag_files:
-        try:
-            mt = os.stat(f).st_mtime
-            if mt > max_mt:
-                max_mt = mt
-        except OSError:
-            continue
-    return {'count': len(frag_files), 'max_mtime': max_mt}
+    try:
+        for ye in os.scandir(h3_dir):
+            if not (ye.is_dir(follow_symlinks=False) and ye.name.startswith('year=')):
+                continue
+            try:
+                for fe in os.scandir(ye.path):
+                    if not (fe.is_file(follow_symlinks=False) and fe.name.endswith('.parquet')):
+                        continue
+                    count += 1
+                    try:
+                        mt = fe.stat(follow_symlinks=False).st_mtime
+                        if mt > max_mt:
+                            max_mt = mt
+                    except OSError:
+                        continue
+            except OSError:
+                continue
+    except OSError:
+        pass
+    return count, max_mt
+
+
+def _process_h3_partition(h3_dir: str) -> Tuple[int, float, set]:
+    """Walk ``h3_dir/year=*/*.parquet`` end-to-end on the worker.
+
+    Returns ``(count, max_mtime, granule_ids)`` for the partition. Combines
+    the listing, the per-file mtime fingerprint, AND the per-fragment
+    granule-ID extraction into a single pass — the path list is consumed
+    locally on the worker so only the small derived results (one count, one
+    float, one set of (orbit, granule, track) tuples) cross the network.
+
+    Replaces the previous three-step pipeline (driver-side ``glob.glob`` →
+    driver-side serial fingerprint → cluster parquet-metadata reads). On a
+    multi-million-fragment continental build this collapses ~90 minutes of
+    serial driver-side I/O into a single ~10–15 min distributed pass.
+    """
+    granule_ids: set = set()
+    count = 0
+    max_mt = 0.0
+    try:
+        for ye in os.scandir(h3_dir):
+            if not (ye.is_dir(follow_symlinks=False) and ye.name.startswith('year=')):
+                continue
+            try:
+                for fe in os.scandir(ye.path):
+                    if not (fe.is_file(follow_symlinks=False) and fe.name.endswith('.parquet')):
+                        continue
+                    count += 1
+                    try:
+                        mt = fe.stat(follow_symlinks=False).st_mtime
+                        if mt > max_mt:
+                            max_mt = mt
+                    except OSError:
+                        pass
+                    granule_ids.update(_granule_ids_in_fragment(fe.path))
+            except OSError:
+                continue
+    except OSError:
+        pass
+    return count, max_mt, granule_ids
 
 
 def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str] = None) -> int:
@@ -913,13 +952,85 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
             continue
 
     if tmp_dir and os.path.isdir(tmp_dir):
-        logger.info(f"Listing tmp fragments under {tmp_dir}")
-        frag_files = glob.glob(os.path.join(tmp_dir, 'h3_*', 'year=*', '*.parquet'))
-        if frag_files:
+        # Cheap top-level scan: just the h3_* dir names, no recursion. Even
+        # for a continental build this is one driver-side os.scandir over
+        # ~10 k entries — sub-second.
+        try:
+            h3_dirs = sorted(
+                e.path for e in os.scandir(tmp_dir)
+                if e.is_dir(follow_symlinks=False) and e.name.startswith('h3_')
+            )
+        except OSError:
+            h3_dirs = []
+        if h3_dirs:
+            logger.info(
+                f"Found {len(h3_dirs)} h3_* tmp partitions under {tmp_dir}"
+            )
             cache_path = os.path.join(tmp_dir, _RECONCILE_CACHE_FILENAME)
-            cache_key = _reconcile_cache_fingerprint(frag_files)
+            client = None
+            try:
+                client = get_dask_client()
+            except Exception:
+                pass
+
+            from tqdm import tqdm as tqdm_bar
+            if client is not None:
+                from dask.distributed import as_completed as dask_as_completed
+
+            def _iter_h3_op(fn, desc):
+                """Apply ``fn(h3_dir)`` to each h3_* tmp partition.
+
+                Parallel via ``client.map`` + ``as_completed`` when a Dask
+                client is available, otherwise a plain serial loop. Yields
+                each partition's result (or ``None`` if the worker raised).
+                Per-future ``release()`` keeps the cluster's result-key
+                inventory bounded to the in-flight set, so the long-idle
+                GIL-stall worker-TTL cascade that earlier (persist+compute
+                or driver-glob) versions exhibited is structurally
+                impossible.
+                """
+                if client is not None:
+                    futures = client.map(fn, h3_dirs, pure=False)
+                    pbar = tqdm_bar(total=len(futures), desc=desc, unit="dir")
+                    try:
+                        for fut in dask_as_completed(futures):
+                            try:
+                                yield fut.result()
+                            except Exception:
+                                yield None
+                            finally:
+                                fut.release()
+                            pbar.update(1)
+                    finally:
+                        pbar.close()
+                else:
+                    for d in tqdm_bar(h3_dirs, desc=desc, unit="dir"):
+                        try:
+                            yield fn(d)
+                        except Exception:
+                            yield None
+
+            # ── Pass A: list + fingerprint, no parquet reads ────────────
+            # Only run if a cache file exists to validate against; without
+            # one, Pass A would be wasted work since Pass B computes the
+            # fingerprint as a byproduct of the full reconcile.
             cached_frag_ids: Optional[set] = None
             if os.path.isfile(cache_path):
+                logger.info(
+                    f"Validating reconcile cache against {len(h3_dirs)} "
+                    f"partitions (listing pass)"
+                )
+                total_count = 0
+                global_max_mt = 0.0
+                for r in _iter_h3_op(_list_h3_partition, "Listing partitions"):
+                    if r is None:
+                        continue
+                    cnt, mt = r
+                    total_count += cnt
+                    if mt > global_max_mt:
+                        global_max_mt = mt
+                cache_key = {'count': total_count, 'max_mtime': global_max_mt}
+
                 try:
                     cached = json_read(cache_path) or {}
                     if cached.get('key') == cache_key:
@@ -933,66 +1044,40 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
                 logger.info(
                     f"Resume reconciliation: disk fingerprint unchanged, "
                     f"reusing {len(cached_frag_ids)} granule IDs from "
-                    f"{cache_path} (skipping {len(frag_files)} fragment reads)"
+                    f"{cache_path} (skipping parquet reads)"
                 )
                 indexed_ids.update(cached_frag_ids)
             else:
+                # ── Pass B: full reconcile ──────────────────────────────
+                # Each h3_* dir is processed end-to-end in one task: walk
+                # year=*/*.parquet via os.scandir, stat each file (free
+                # fingerprint update), read parquet metadata for
+                # granule-ID extraction. The fragment path list never
+                # leaves the worker — only the small derived
+                # (count, max_mtime, set-of-triples) tuple comes back.
+                # Memory-bounded by design: ≤ in-flight tasks × small
+                # result, regardless of input size.
                 logger.info(
-                    f"Reconciling granule status from {len(frag_files)} tmp fragments"
+                    f"Reconciling granule status from {len(h3_dirs)} h3_* "
+                    f"tmp partitions"
                 )
                 frag_ids: set = set()
-                client = None
-                try:
-                    client = get_dask_client()
-                except Exception:
-                    pass
-                if client is not None and len(frag_files) > 32:
-                    from dask.distributed import as_completed as dask_as_completed
-                    from tqdm import tqdm as tqdm_bar
-                    # Streaming map+as_completed instead of bag.persist()+bag.compute().
-                    # Each batch becomes one task whose result (a small set of granule
-                    # IDs) is consumed and released immediately, so the cluster never
-                    # accumulates a large key inventory. Big batches (4096) amortize
-                    # Dask per-task overhead, since _granule_ids_in_fragment is a
-                    # ~ms-scale parquet-metadata read on the fast path. Both choices
-                    # together prevent the long-idle, GIL-stall worker-TTL kill
-                    # cascade that previous (partition_size=64, persist+compute)
-                    # versions exhibited on multi-million-fragment continental builds.
-                    BATCH_SIZE = 4096
-                    batches = [
-                        frag_files[i:i + BATCH_SIZE]
-                        for i in range(0, len(frag_files), BATCH_SIZE)
-                    ]
-                    futures = client.map(
-                        _granule_ids_in_fragments, batches, pure=False,
-                    )
-                    pbar = tqdm_bar(
-                        total=len(futures),
-                        desc="Reconcile fragments", unit="batch",
-                    )
-                    try:
-                        for fut in dask_as_completed(futures):
-                            try:
-                                frag_ids.update(fut.result())
-                            finally:
-                                fut.release()
-                            pbar.update(1)
-                    finally:
-                        pbar.close()
-                else:
-                    from tqdm import tqdm as tqdm_bar
-                    for f in tqdm_bar(frag_files, desc="Reconcile fragments", unit="file"):
-                        frag_ids.update(_granule_ids_in_fragment(f))
+                fresh_count = 0
+                fresh_max_mt = 0.0
+                for r in _iter_h3_op(_process_h3_partition, "Reconcile partitions"):
+                    if r is None:
+                        continue
+                    cnt, mt, ids = r
+                    fresh_count += cnt
+                    if mt > fresh_max_mt:
+                        fresh_max_mt = mt
+                    frag_ids.update(ids)
 
                 indexed_ids.update(frag_ids)
-                # Persist the fragment-derived IDs only. Pass A (metadata JSONs
-                # under h3_dir) is cheap and always re-runs; caching it would
-                # add no measurable benefit and would also tie cache validity
-                # to a second fingerprint, increasing miss rate.
                 try:
                     json_write(
                         {
-                            'key': cache_key,
+                            'key': {'count': fresh_count, 'max_mtime': fresh_max_mt},
                             'indexed_ids': [list(t) for t in frag_ids],
                         },
                         cache_path,
