@@ -823,50 +823,57 @@ def _granule_ids_in_fragment(parquet_file: str) -> set:
     return set()
 
 
-_RECONCILE_FRAGMENT_THREADS = int(os.environ.get('GH3_RECONCILE_FRAGMENT_THREADS', '4'))
+# Match fragment basenames written by stage 1 (v0.8.0+):
+#   ``O{orbit:05d}_G{granule:02d}_T{track:05d}.{beam}.parquet``
+# (see _create_h3_dataframe). When the filename matches, the granule ID
+# is recoverable without any parquet I/O at all — just string parsing on
+# the worker, microseconds per file.
+_FRAGMENT_BASENAME_RE = re.compile(r'^O(\d+)_G(\d+)_T(\d+)\.[A-Za-z0-9_]+\.parquet$')
 
 
-def _process_h3_partition(h3_dir: str, n_threads: int = _RECONCILE_FRAGMENT_THREADS) -> set:
+def _process_h3_partition(h3_dir: str) -> set:
     """Return the set of (orbit, granule, track) granule IDs represented
     under ``h3_dir/year=*/*.parquet``.
 
-    This is the worker-side body of the resume reconcile, run as one Dask
-    task per ``h3_*`` tmp partition. Listing is via ``os.scandir`` (cheap);
-    the per-fragment parquet metadata reads — GPFS-bound at ~90 ms cold
-    sequential per file — are parallelized via a ``ThreadPoolExecutor``.
-    Threads release the GIL during file I/O, so a small pool inside each
-    worker gets ~10–15× per-task speedup over serial reads (measured on
-    the target dataset).
+    Worker-side body of the resume reconcile, run as one Dask task per
+    ``h3_*`` tmp partition. All cluster parallelism comes from
+    ``client.map`` over h3 partitions — there is intentionally no
+    thread/process pool inside the task itself: every worker spawning N
+    threads multiplies cluster-wide concurrency by N×nworkers, and on a
+    shared GPFS that overwhelms the metadata server long before per-task
+    throughput catches up.
 
-    The pool size is intentionally conservative: with 64 cluster workers
-    each spawning N threads, the *system-wide* concurrent GPFS metadata
-    request count is 64×N. At N=16 a real continental run drove host
-    load average to ~800 and overwhelmed the shared metadata server;
-    at N=4 the cluster-wide concurrency is 256 — still ~4× faster than
-    serial per-file reads, but well within what GPFS handles cleanly.
-    Tunable via the ``GH3_RECONCILE_FRAGMENT_THREADS`` env var if your
-    deployment can sustain more.
+    Fast path: if the fragment basename matches the v0.8.0+ naming
+    convention ``O{orbit}_G{granule}_T{track}.{beam}.parquet``, the
+    granule ID is parsed from the filename — no parquet I/O. This is
+    microseconds per file.
+
+    Fallback: legacy ``part.NNN.parquet`` names lack granule info in the
+    filename, so we read parquet column statistics
+    (``_granule_ids_in_fragment``) — ~90 ms cold per file on GPFS, and
+    GPFS-metadata-server-bound regardless of cluster parallelism.
     """
-    paths: list = []
+    granule_ids: set = set()
+    fallback_paths: list = []
     try:
         for ye in os.scandir(h3_dir):
             if not (ye.is_dir(follow_symlinks=False) and ye.name.startswith('year=')):
                 continue
             try:
                 for fe in os.scandir(ye.path):
-                    if fe.is_file(follow_symlinks=False) and fe.name.endswith('.parquet'):
-                        paths.append(fe.path)
+                    if not (fe.is_file(follow_symlinks=False) and fe.name.endswith('.parquet')):
+                        continue
+                    m = _FRAGMENT_BASENAME_RE.match(fe.name)
+                    if m is not None:
+                        granule_ids.add((int(m.group(1)), int(m.group(2)), int(m.group(3))))
+                    else:
+                        fallback_paths.append(fe.path)
             except OSError:
                 continue
     except OSError:
-        return set()
-    if not paths:
-        return set()
-    granule_ids: set = set()
-    from concurrent.futures import ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=n_threads) as ex:
-        for s in ex.map(_granule_ids_in_fragment, paths):
-            granule_ids.update(s)
+        return granule_ids
+    for p in fallback_paths:
+        granule_ids.update(_granule_ids_in_fragment(p))
     return granule_ids
 
 
