@@ -259,24 +259,30 @@ class TestReconcileCache:
         cache_path = os.path.join(tmp_partitions, _RECONCILE_CACHE_FILENAME)
         assert os.path.isfile(cache_path), "cache file should be written after a successful scan"
 
-        # Second run: a fresh logger with the same PENDING entries. The disk
-        # scan helper must NOT be called because the cached fingerprint matches.
-        called = {'n': 0}
-        real_helper = gh._granule_ids_in_fragment
+        # Second run: a fresh logger with the same PENDING entries. On a
+        # cache hit Pass A (listing) runs but Pass B (parquet metadata
+        # reads) must be skipped. Spy on _process_h3_partition (the Pass B
+        # worker) to assert it isn't invoked.
+        called = {'process': 0, 'list': 0}
+        real_process = gh._process_h3_partition
+        real_list = gh._list_h3_partition
 
-        def _spy(*a, **kw):
-            called['n'] += 1
-            return real_helper(*a, **kw)
+        def _process_spy(d):
+            called['process'] += 1
+            return real_process(d)
 
-        monkeypatch.setattr(gh, '_granule_ids_in_fragment', _spy)
-        # also intercept the batch helper used in the dask path
-        monkeypatch.setattr(gh, '_granule_ids_in_fragments', lambda fs: (_ for _ in ()).throw(
-            AssertionError("batch helper invoked despite cache hit")))
+        def _list_spy(d):
+            called['list'] += 1
+            return real_list(d)
+
+        monkeypatch.setattr(gh, '_process_h3_partition', _process_spy)
+        monkeypatch.setattr(gh, '_list_h3_partition', _list_spy)
 
         h3_logger2 = _logger_with_pending(h3_dir, granules)
         second = _reconcile_granules_from_disk(h3_dir, h3_logger2, tmp_dir=tmp_partitions)
         assert second == 2
-        assert called['n'] == 0, "cache hit must skip per-fragment parquet reads"
+        assert called['process'] == 0, "cache hit must skip Pass B (parquet reads)"
+        assert called['list'] >= 1, "cache hit still requires Pass A listing for fingerprint"
 
     def test_cache_invalidated_when_fragment_added(self, tmp_dir, monkeypatch):
         from gedih3.gh3builder import _reconcile_granules_from_disk, _RECONCILE_CACHE_FILENAME
