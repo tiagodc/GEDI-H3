@@ -234,11 +234,14 @@ class TestReconcileShortCircuits:
 class TestProcessH3Partition:
     """Direct unit test of the per-partition worker helper."""
 
-    def test_returns_unique_granule_ids_via_threadpool(self, tmp_dir):
+    def test_filename_fast_path(self, tmp_dir, monkeypatch):
+        """v0.8.0+ filenames let us skip parquet I/O entirely — granule
+        IDs come from the basename. Verify by spying on
+        _granule_ids_in_fragment to assert it isn't called."""
         from gedih3.gh3builder import _process_h3_partition
+        import gedih3.gh3builder as gh
 
         partition_dir = os.path.join(tmp_dir, 'h3_03=830001fffffffff')
-        # Three fragments in two different years; two share a granule.
         for year, (orb, gran, trk), beam in [
             ('2020', (200, 1, 5), 'BEAM0000'),
             ('2020', (200, 1, 5), 'BEAM0001'),
@@ -253,12 +256,39 @@ class TestProcessH3Partition:
             })
             pq.write_table(tab, path)
 
+        called = {'n': 0}
+        real = gh._granule_ids_in_fragment
+        monkeypatch.setattr(gh, '_granule_ids_in_fragment',
+                            lambda p: (called.__setitem__('n', called['n'] + 1) or real(p)))
+
         ids = _process_h3_partition(partition_dir)
         assert ids == {(200, 1, 5), (201, 2, 6)}
+        assert called['n'] == 0, "fast-path filenames must not trigger parquet metadata reads"
+
+    def test_legacy_filename_fallback(self, tmp_dir):
+        """Legacy 'part.NNN.parquet' fragments must fall through to the
+        parquet-metadata-read path and still recover the right granule IDs."""
+        from gedih3.gh3builder import _process_h3_partition
+
+        partition_dir = os.path.join(tmp_dir, 'h3_03=830002fffffffff')
+        for year, (orb, gran, trk), part_idx in [
+            ('2020', (300, 1, 5), 1),
+            ('2020', (301, 2, 6), 2),
+        ]:
+            year_dir = os.path.join(partition_dir, f'year={year}')
+            os.makedirs(year_dir, exist_ok=True)
+            path = os.path.join(year_dir, f'part.{part_idx}.parquet')
+            tab = pa.table({
+                'shot_number': pa.array(np.arange(5, dtype=np.uint64)),
+                'root_file_l2a': pa.array([f'/soc/{_gedi_basename(orb, gran, trk)}'] * 5),
+            })
+            pq.write_table(tab, path)
+
+        ids = _process_h3_partition(partition_dir)
+        assert ids == {(300, 1, 5), (301, 2, 6)}
 
     def test_returns_empty_set_for_missing_dir(self, tmp_dir):
         from gedih3.gh3builder import _process_h3_partition
-        # Nonexistent directory must not raise.
         assert _process_h3_partition(os.path.join(tmp_dir, 'does_not_exist')) == set()
 
 
