@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.6] - 2026-05-03
+
+### Changed
+- `_reconcile_granules_from_disk` (gh3builder.py): final-form simplification. After ground-truth measurement on the target dataset (90 ms cold/serial parquet metadata read on GPFS, 5 ms with `ThreadPoolExecutor(16)` inside one Python process), the prior 0.8.5 architecture (one Dask task per `h3_*` partition, serial parquet reads inside) was projected by extrapolation to take ~7.7 h best-case and ~39 h observed on a real continental run. Adding a thread pool inside each task drops per-task wall-clock by ~15× on real partitions (266→1.4 s, 3911→27 s, 4789→28 s). Estimated total reconcile time on a 19.8 M-fragment continental build now: 30–90 min, down from 39+ h.
+- `_process_h3_partition(h3_dir, n_threads=16)`: now runs a `ThreadPoolExecutor` over the per-fragment parquet metadata reads. `os.stat` results are no longer collected (the file-mtime fingerprint that fed the cache is no longer used). Returns just the granule-ID set. The path list is consumed locally on the worker; only the small set crosses the network.
+
+### Removed
+- `_RECONCILE_CACHE_FILENAME` constant + persistent fragment-fingerprint cache (added in 0.8.4) and the two-pass list-then-process design (0.8.5). The cache fingerprint required a serial `os.stat()` over every fragment on the driver — itself a multi-tens-of-minutes operation on the target dataset, which made the cache net-negative on the very builds that motivated its existence. With the new threaded reconcile finishing in 30–90 min end-to-end, the cache savings on relaunch (~30–60 min) no longer justify the ~50 lines of cache I/O + 2nd worker function (`_list_h3_partition`) + 3 test cases for hit/miss/corrupt + the first-run-pays-fingerprint footgun. Reconcile is now a single Pass B with no validation pass and no cache.
+- `_list_h3_partition` helper (0.8.5): only existed to feed the now-removed cache validation pass.
+- `_iter_h3_op` closure (0.8.5): inlined back into the reconcile body now that there's a single pass.
+
+### Postmortem
+- The 0.8.3–0.8.5 sequence was directionally right (move work off the driver, parallelize across the cluster, stream futures through `as_completed`) but the per-task wall-clock estimates that drove the design were 90× off because the cost of `pq.ParquetFile(...).metadata.row_group(0).column(idx).statistics` on cold GPFS was never measured. Without that ground truth, optimizations that were supposed to make reconcile feasible (cache, two-pass listing, per-batch `client.map` granularity) instead piled abstractions on top of a per-task body that was still serial-blocking on file-open round-trips. The fix was to measure first (see `tests/test_resume_reconcile.py::TestProcessH3Partition` for the regression coverage), then add the single optimization that the measurement justified — a thread pool inside each worker — and rip out the speculative cache layer that was adding code without paying for itself.
+
 ## [0.8.5] - 2026-05-03
 
 ### Changed
