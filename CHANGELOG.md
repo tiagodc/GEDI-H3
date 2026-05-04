@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.8] - 2026-05-03
+
+### Removed
+- `_RECONCILE_FRAGMENT_THREADS` env var and the in-process `ThreadPoolExecutor` inside `_process_h3_partition` (added in 0.8.6 / 0.8.7). On a real continental run on shared GPFS, every worker spawning N threads multiplied cluster-wide concurrent metadata requests by `nworkers × N`, overwhelming the metadata server before per-task throughput could catch up — at N=16 host load avg hit ~800, at N=4 it stayed at ~270 with throughput of ~4 tasks/min (worse than the unthreaded 0.8.5). Lesson: on a shared metadata-server-limited filesystem, all reconcile parallelism must come from `client.map` over h3 partitions; thread pools inside Dask tasks do not help and actively hurt by saturating GPFS in ways the dask scheduler can't see.
+
+### Added
+- Filename fast-path in `_process_h3_partition`: when a fragment basename matches the v0.8.0+ convention `O{orbit:05d}_G{granule:02d}_T{track:05d}.{beam}.parquet` (written by `_create_h3_dataframe` since v0.8.0), the granule ID is parsed from the basename — microseconds per file, no parquet I/O, no GPFS metadata round-trip. Falls back to the existing parquet-column-statistics read for legacy `part.NNN.parquet` names. After this change, reconcile on a fully v0.8.0+ tmp tree is essentially free regardless of fragment count.
+
 ## [0.8.7] - 2026-05-03
 
 ### Fixed
