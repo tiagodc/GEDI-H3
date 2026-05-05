@@ -1363,36 +1363,23 @@ def _merge_and_finalize(
 
         client = get_dask_client()
 
-        # Bound in-flight merges to prevent OOM. Without throttling, all
-        # partition merges are submitted at once and dask pipelines them
-        # aggressively — multiple per worker × per-merge transients (geometry
-        # bbox load, row-group buffer) can blow the worker memory cap.
-        try:
-            n_workers = max(1, len(client.scheduler_info().get('workers', {})))
-        except Exception:
-            n_workers = 1
-        max_inflight = int(os.environ.get('GH3_MERGE_MAX_INFLIGHT', n_workers))
-        max_inflight = max(1, max_inflight)
+        # Submit every remaining merge to the scheduler at once and let dask
+        # distribute work across all available workers. No driver-side
+        # throttling: scaling decisions belong to the scheduler.
+        futures_list = client.map(
+            h3_merge_files,
+            remaining_dirs,
+            out_dir=h3_dir,
+            rm_src=True,
+            replace=False,
+        )
+        futures: Dict[Any, str] = dict(zip(futures_list, remaining_dirs))
 
         merged_count = 0
         failed_count = 0
         pbar = tqdm_bar(total=len(remaining_dirs), desc="Merging partitions", unit="part")
 
-        pending = list(remaining_dirs)
-        futures: Dict[Any, str] = {}
-
-        def _submit_one():
-            if not pending:
-                return None
-            d = pending.pop()
-            fut = client.submit(h3_merge_files, in_dir=d, out_dir=h3_dir, rm_src=True, replace=False)
-            futures[fut] = d
-            return fut
-
-        primed = [_submit_one() for _ in range(min(max_inflight, len(pending)))]
-        ac = dask_as_completed([f for f in primed if f is not None])
-
-        for future in ac:
+        for future in dask_as_completed(futures_list):
             d = futures.pop(future)
             try:
                 future.result()
@@ -1402,12 +1389,10 @@ def _merge_and_finalize(
             except Exception as e:
                 failed_count += 1
                 logger.warning(f"Merge failed for {os.path.basename(d.rstrip('/'))}: {e}")
+            finally:
+                future.release()
             pbar.update(1)
-            pbar.set_postfix(ok=merged_count, fail=failed_count, inflight=len(futures))
-
-            nxt = _submit_one()
-            if nxt is not None:
-                ac.add(nxt)
+            pbar.set_postfix(ok=merged_count, fail=failed_count)
 
         pbar.close()
         del futures
