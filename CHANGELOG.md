@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.13] - 2026-05-05
+
+### Fixed
+- **Dask dashboard merge progress bar fills monotonically.** Removed the per-completion `future.release()` in `_merge_and_finalize`'s `as_completed` loop. Releasing finished futures told the scheduler to drop the task records, which made the dashboard's task panel drain (both numerator and denominator shrinking together) instead of filling. Without `release()`, the scheduler retains finished task records for the duration of the merge phase (~tens of MB total), and the dashboard shows `X done / 47k total` filling as expected. Terminal tqdm bar behavior is unchanged.
+
 ## [0.8.12] - 2026-05-05
 
 ### Changed
