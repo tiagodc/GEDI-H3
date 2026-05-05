@@ -1072,46 +1072,54 @@ def _bbox_from_geo_metadata(parquet_path):
     return None
 
 
-def _streaming_bbox_from_dataset(flist, batch_size=100_000):
+def _streaming_bbox(flist, batch_size=100_000):
     """Compute the union bbox by streaming the geometry column only.
 
     Used as a fallback when one or more inputs lack a footer-level bbox.
     Bounded memory: O(batch_size); decodes WKB to shapely geometries via
     the vectorized ``shapely.from_wkb`` and reduces with ``shapely.bounds``.
+
+    Iterates per-file via ``pq.ParquetFile`` instead of constructing a
+    ``ds.dataset`` over ``flist`` — the dataset constructor would re-read
+    every file's footer for schema unification (already paid by the
+    caller's bbox/footer pass), and per-file iteration is sufficient when
+    fragments share an identical column schema (true by construction in
+    gh3_build).
     """
-    import pyarrow.dataset as ds
+    import pyarrow.parquet as pq
     import shapely
     import numpy as np
 
-    dataset = ds.dataset(flist, format="parquet")
-    if 'geometry' not in dataset.schema.names:
+    if not flist:
         return None
 
     minx = miny = float('inf')
     maxx = maxy = float('-inf')
     seen = False
-    scanner = dataset.scanner(columns=['geometry'], batch_size=batch_size, use_threads=False)
-    for batch in scanner.to_batches():
-        if batch.num_rows == 0:
+    for f in flist:
+        pf = pq.ParquetFile(f)
+        if 'geometry' not in pf.schema_arrow.names:
             continue
-        wkb_arr = batch['geometry'].to_numpy(zero_copy_only=False)
-        geoms = shapely.from_wkb(wkb_arr)
-        bounds = shapely.bounds(geoms)  # (N, 4): minx, miny, maxx, maxy
-        if bounds.size == 0:
-            continue
-        bx_min = bounds[:, 0]
-        by_min = bounds[:, 1]
-        bx_max = bounds[:, 2]
-        by_max = bounds[:, 3]
-        # Filter NaN/inf rows that empty/invalid geometries can produce.
-        valid = np.isfinite(bx_min) & np.isfinite(by_min) & np.isfinite(bx_max) & np.isfinite(by_max)
-        if not valid.any():
-            continue
-        seen = True
-        minx = min(minx, float(bx_min[valid].min()))
-        miny = min(miny, float(by_min[valid].min()))
-        maxx = max(maxx, float(bx_max[valid].max()))
-        maxy = max(maxy, float(by_max[valid].max()))
+        for batch in pf.iter_batches(batch_size=batch_size, columns=['geometry']):
+            if batch.num_rows == 0:
+                continue
+            wkb_arr = batch['geometry'].to_numpy(zero_copy_only=False)
+            geoms = shapely.from_wkb(wkb_arr)
+            bounds = shapely.bounds(geoms)  # (N, 4): minx, miny, maxx, maxy
+            if bounds.size == 0:
+                continue
+            bx_min = bounds[:, 0]
+            by_min = bounds[:, 1]
+            bx_max = bounds[:, 2]
+            by_max = bounds[:, 3]
+            valid = np.isfinite(bx_min) & np.isfinite(by_min) & np.isfinite(bx_max) & np.isfinite(by_max)
+            if not valid.any():
+                continue
+            seen = True
+            minx = min(minx, float(bx_min[valid].min()))
+            miny = min(miny, float(by_min[valid].min()))
+            maxx = max(maxx, float(bx_max[valid].max()))
+            maxy = max(maxy, float(by_max[valid].max()))
 
     return [minx, miny, maxx, maxy] if seen else None
 
@@ -1160,7 +1168,7 @@ def parquet_backfill_bbox(path):
             "rebuilding the full GeoParquet structure (re-merge from source)."
         )
 
-    bbox = _streaming_bbox_from_dataset([path])
+    bbox = _streaming_bbox([path])
     if bbox is None:
         raise ValueError(f"{path} has a geometry column but no decodable geometries; "
                          "cannot compute bbox.")
@@ -1171,10 +1179,10 @@ def parquet_backfill_bbox(path):
     if os.path.exists(tmp_path):
         os.unlink(tmp_path)
     try:
-        dataset = ds.dataset([path], format='parquet')
         writer = pq.ParquetWriter(tmp_path, new_schema, compression='zstd')
         try:
-            for batch in dataset.scanner(batch_size=100_000, use_threads=False).to_batches():
+            pf = pq.ParquetFile(path)
+            for batch in pf.iter_batches(batch_size=100_000):
                 writer.write_table(pa.Table.from_batches([batch], schema=new_schema))
         finally:
             writer.close()
@@ -1201,7 +1209,7 @@ def _merged_bbox(flist):
     missing = [f for bbox, f in per_file if bbox is None]
     bboxes = [bbox for bbox, _ in per_file if bbox is not None]
     if missing:
-        fb = _streaming_bbox_from_dataset(missing)
+        fb = _streaming_bbox(missing)
         if fb is not None:
             bboxes.append(fb)
     if not bboxes:
@@ -1237,12 +1245,15 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
     import numpy as np
     import pyarrow as pa
     import pyarrow.parquet as pq
-    import pyarrow.dataset as ds
 
     shots = None
 
-    dataset = ds.dataset(flist, format="parquet")
-    schema = dataset.schema
+    # Schema is taken from the first file. Fragments in a partition-year
+    # share an identical column schema by construction (all written by one
+    # dask_geopandas.to_parquet call), so we deliberately skip the
+    # ds.dataset(flist) constructor — it would re-read every fragment's
+    # footer for schema unification (~25–30 s on 400 fragments over GPFS).
+    schema = pq.read_schema(flist[0])
 
     if 'geometry' in schema.names:
         merged_bbox = _merged_bbox(flist)
@@ -1260,28 +1271,29 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
         acc = []
         acc_rows = 0
 
-        scanner = dataset.scanner(batch_size=rows_per_group, use_threads=False)
-        for batch in scanner.to_batches():
-            if check_shots and "shot_number" in batch.schema.names:
-                arr = batch["shot_number"].to_numpy().astype(np.uint64)
-                if shots is None:
-                    shots = np.unique(arr)
-                else:
-                    keep = ~np.isin(arr, shots, assume_unique=True)
-                    if not keep.any():
-                        continue
-                    batch = batch.filter(pa.array(keep))
-                    shots = np.unique(np.concatenate([shots, arr[keep]]))
+        for f in flist:
+            pf = pq.ParquetFile(f)
+            for batch in pf.iter_batches(batch_size=rows_per_group):
+                if check_shots and "shot_number" in batch.schema.names:
+                    arr = batch["shot_number"].to_numpy().astype(np.uint64)
+                    if shots is None:
+                        shots = np.unique(arr)
+                    else:
+                        keep = ~np.isin(arr, shots, assume_unique=True)
+                        if not keep.any():
+                            continue
+                        batch = batch.filter(pa.array(keep))
+                        shots = np.unique(np.concatenate([shots, arr[keep]]))
 
-            # Flush BEFORE appending if this batch would overflow the cap, so
-            # acc never holds more than rows_per_group rows at a time.
-            if acc_rows + batch.num_rows > rows_per_group and acc:
-                writer.write_table(pa.concat_tables(acc))
-                acc.clear()
-                acc_rows = 0
+                # Flush BEFORE appending if this batch would overflow the cap,
+                # so acc never holds more than rows_per_group rows at a time.
+                if acc_rows + batch.num_rows > rows_per_group and acc:
+                    writer.write_table(pa.concat_tables(acc))
+                    acc.clear()
+                    acc_rows = 0
 
-            acc.append(pa.Table.from_batches([batch], schema=schema))
-            acc_rows += batch.num_rows
+                acc.append(pa.Table.from_batches([batch], schema=schema))
+                acc_rows += batch.num_rows
 
         if acc:
             writer.write_table(pa.concat_tables(acc))
