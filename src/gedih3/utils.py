@@ -1116,6 +1116,76 @@ def _streaming_bbox_from_dataset(flist, batch_size=100_000):
     return [minx, miny, maxx, maxy] if seen else None
 
 
+def parquet_backfill_bbox(path):
+    """Rewrite a single parquet file in place so its GeoParquet ``geo`` metadata
+    declares a valid ``columns.<primary>.bbox``.
+
+    Returns
+    -------
+    str
+        ``'ok'`` if the file already has a valid bbox (no-op),
+        ``'rewritten'`` if a bbox was computed and the file was rewritten,
+        ``'no_geometry'`` if the file has no ``geometry`` column.
+
+    Raises
+    ------
+    ValueError
+        If the file lacks a ``geo`` schema metadata key (cannot be backfilled
+        without re-merging from source — caller should flag for a full rebuild).
+
+    Notes
+    -----
+    Atomic: writes to ``<path>.bbox.tmp`` then ``os.replace``. A stale tmp from
+    a prior crash is removed before each rewrite. Memory is bounded by the
+    streaming scanner (``batch_size=100_000``), same profile as
+    ``parquet_merge_files``.
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    import pyarrow.dataset as ds
+
+    existing_bbox = _bbox_from_geo_metadata(path)
+    if existing_bbox is not None and len(existing_bbox) == 4 and all(
+        isinstance(v, (int, float)) and v == v and v not in (float('inf'), float('-inf'))
+        for v in existing_bbox
+    ):
+        return 'ok'
+
+    schema = pq.read_schema(path)
+    if 'geometry' not in schema.names:
+        return 'no_geometry'
+    if not schema.metadata or b'geo' not in schema.metadata:
+        raise ValueError(
+            f"{path} has no 'geo' schema metadata; cannot backfill bbox without "
+            "rebuilding the full GeoParquet structure (re-merge from source)."
+        )
+
+    bbox = _streaming_bbox_from_dataset([path])
+    if bbox is None:
+        raise ValueError(f"{path} has a geometry column but no decodable geometries; "
+                         "cannot compute bbox.")
+
+    new_schema = parquet_schema_add_bbox(schema, bbox)
+
+    tmp_path = path + '.bbox.tmp'
+    if os.path.exists(tmp_path):
+        os.unlink(tmp_path)
+    try:
+        dataset = ds.dataset([path], format='parquet')
+        writer = pq.ParquetWriter(tmp_path, new_schema, compression='zstd')
+        try:
+            for batch in dataset.scanner(batch_size=100_000, use_threads=False).to_batches():
+                writer.write_table(pa.Table.from_batches([batch], schema=new_schema))
+        finally:
+            writer.close()
+        os.replace(tmp_path, path)
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
+    return 'rewritten'
+
+
 def _merged_bbox(flist):
     """Union bbox over all input parquets, preferring footer metadata.
 
