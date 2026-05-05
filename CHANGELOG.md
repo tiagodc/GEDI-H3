@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.9] - 2026-05-05
+
+### Added
+- **Resume shortcut for merge-only resumes.** When a previous run finished the extract phase and was killed during merge, gh3_build now skips the (often very expensive) reconcile + extract pipeline and jumps straight to `_merge_and_finalize`. Detection is two-layered: (L1, canonical) the on-disk build-log status is `MERGING` — set by `build_h3db` immediately before merge starts; (L2, fallback for builds started before this code shipped) `<tmp>/partitions/_merge_progress.txt` exists with at least one merged-partition entry — non-empty progress file proves merge already started, which proves extract finished. The shortcut helper `_detect_merge_resume_signal(h3_logger, parquet_dir)` is exposed for testing. Contract: between crash and resume, the SOC tree is treated as frozen on this path; new HDF5s added between runs require finishing the current build first. PENDING entries left in `granule_info` after a merge-resume are corrected on the next non-shortcut run (or by `gh3_doctor`).
+
+### Changed
+- `_merge_and_finalize` now skips empty tmp partition dirs (`h3_*/year=*/` with no `*.parquet` content) instead of attempting a zero-fragment merge. A previous run can leave such scaffolding behind after `rm_src=True` drained an already-merged partition. Logged as a count.
+- `h3_merge_files` now validates that the existing destination parquet is readable before treating it as input for a delta-merge or short-circuiting via the disk-canonical "newer than sources" skip. A corrupt destination (e.g. left over from a crash mid-write) is now detected via a header check (`pq.ParquetFile(...).metadata`); the corrupt file is logged at WARNING level, discarded, and the tmp fragments are merged fresh into a `.merge.tmp` then atomically renamed to overwrite the bad dest. Previously a corrupt dest aborted the entire merge phase.
+- `gh3_doctor`'s `log_state` diagnosis now detects **granule status drift**: non-`INDEXED` entries in `granule_info` whose `(orbit, granule, track)` triple is already present in a finalized partition's metadata JSON. This is the expected side effect of the merge-only resume shortcut, which skips reconcile and leaves stale `PENDING` statuses behind. Fix path flips drifted entries to `INDEXED` and persists the log (preserving the current top-level status, e.g. `COMPLETED`).
+
+### Tests
+- New `tests/test_merge_resume.py`: unit coverage for `_detect_merge_resume_signal` (L1, L2, both present, no signal), empty tmp dir skip in `_merge_and_finalize` (small integration with a 2-worker LocalCluster), and corrupt-dest fallback in `h3_merge_files`.
+- New test `test_log_state_detects_and_fixes_granule_status_drift` covering the new doctor diagnosis.
+
 ## [0.8.8] - 2026-05-03
 
 ### Removed
