@@ -653,6 +653,20 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     odir = os.path.join(out_dir, h3part, year)
     os.makedirs(odir, exist_ok=True)
 
+    # Per-partition stale tmp cleanup: a prior crash between .merge.tmp write
+    # and os.replace leaves orphaned <out_file>.tmp / .merge.tmp here. Scoping
+    # this to odir keeps the cost O(1) per merge (one listdir on the partition's
+    # own dir) rather than O(N_partitions) globbed on the driver.
+    try:
+        for _name in os.listdir(odir):
+            if _name.endswith('.merge.tmp') or _name.endswith('.parquet.tmp'):
+                try:
+                    os.unlink(os.path.join(odir, _name))
+                except OSError:
+                    pass
+    except OSError:
+        pass
+
     oname = f'{h3part.split('=')[-1]}.{year.split('=')[-1]}.0.parquet'
     out_file = os.path.join(odir, oname)
     h3_file = out_file
@@ -1314,35 +1328,21 @@ def _merge_and_finalize(
     """
     logger.info(f"Merging H3 partitions into final database path: {h3_dir}")
 
-    # List candidate tmp partitions, filtering out empty dirs (a previous run
-    # can leave behind h3_*/year=*/ scaffolding with no parquet content if it
-    # was killed mid-write or after rm_src=True drained an already-merged
-    # partition; either way nothing to merge — skip without raising).
-    _candidate_dirs = glob.glob(os.path.join(tmp_dir, '*/*/'))
-    tmp_h3_dirs = []
-    _empty_skipped = 0
-    for _d in _candidate_dirs:
-        if any(name.endswith('.parquet') for name in os.listdir(_d)):
-            tmp_h3_dirs.append(_d)
-        else:
-            _empty_skipped += 1
-    if _empty_skipped:
-        logger.info(f"Skipped {_empty_skipped} empty tmp partition dirs")
+    # List candidate tmp partitions. Empty dirs (h3_*/year=*/ with no parquet
+    # content — left behind by a kill mid-write or by rm_src=True draining an
+    # already-merged partition) are short-circuited on the worker by the
+    # `if len(files) == 0: return` path in h3_merge_files; we deliberately do
+    # NOT filter them on the driver, because per-dir os.listdir over thousands
+    # of partitions on shared GPFS is a serial pre-merge bottleneck (~21 min
+    # idle on a 9.7k-partition continental build) that delays first-task submit.
+    tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/*/'))
     os.makedirs(h3_dir, exist_ok=True)
 
-    # Defensive cleanup: a prior killed run can leave .merge.tmp files in the
-    # final database (h3_merge_files writes via .merge.tmp + os.replace; a kill
-    # before the rename leaves the tmp behind). parquet_merge_files clobbers
-    # its own stale tmp on the next merge of the same target, but a global
-    # sweep keeps disk hygiene tight and surfaces the count for debugging.
-    _stale_tmps = glob.glob(os.path.join(h3_dir, 'h3_*', '*', '*.merge.tmp'))
-    for _s in _stale_tmps:
-        try:
-            os.unlink(_s)
-        except OSError:
-            pass
-    if _stale_tmps:
-        logger.info(f"Cleaned {len(_stale_tmps)} stale .merge.tmp files from prior crash")
+    # Stale .merge.tmp cleanup is delegated to h3_merge_files (worker-side,
+    # scoped to the single partition's odir). The previous global sweep
+    # `glob(h3_dir/h3_*/*/*.merge.tmp)` walked the entire final database from
+    # the driver — another serial GPFS pass that scaled with DB size for no
+    # benefit (parquet_merge_files already overwrites its own stale tmp).
 
     # Resume support: skip already-merged partitions
     merge_progress_file = os.path.join(tmp_dir, '_merge_progress.txt')
