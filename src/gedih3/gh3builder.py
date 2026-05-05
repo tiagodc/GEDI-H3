@@ -1410,6 +1410,11 @@ def _merge_and_finalize(
         failed_count = 0
         pbar = tqdm_bar(total=len(remaining_dirs), desc="Merging partitions", unit="part")
 
+        # Do NOT call future.release() per completion — keeping the futures
+        # alive (via futures_list) makes the scheduler retain finished task
+        # records, so the dashboard progress bar fills monotonically (X done
+        # / 47k total) instead of draining as tasks are released. Memory cost
+        # is ~tens of MB on the scheduler for the entire merge phase.
         for future in dask_as_completed(futures_list):
             d = futures.pop(future)
             try:
@@ -1420,13 +1425,11 @@ def _merge_and_finalize(
             except Exception as e:
                 failed_count += 1
                 logger.warning(f"Merge failed for {os.path.basename(d.rstrip('/'))}: {e}")
-            finally:
-                future.release()
             pbar.update(1)
             pbar.set_postfix(ok=merged_count, fail=failed_count)
 
         pbar.close()
-        del futures
+        del futures, futures_list
 
         if failed_count > 0:
             logger.error(f"{failed_count} partition merges failed. Re-run to retry.")
