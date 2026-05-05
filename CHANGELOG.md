@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.11] - 2026-05-05
+
+### Removed
+- **Driver-side inflight throttle on the merge phase.** `_merge_and_finalize` no longer reads `n_workers` from `client.scheduler_info().get('workers')` and uses it as a static `max_inflight` cap with a manual `priming + 1-for-1 refill` loop. That counter was unreliable — `scheduler_info()` returns a subset of the cluster (5 vs the 48 actually connected, observed via `c.processing()`) — so `max_inflight` got pinned at the under-counted value at startup and never grew, throttling throughput to a fraction of cluster capacity for the entire merge phase. Also removes the `GH3_MERGE_MAX_INFLIGHT` env knob it gated.
+- The companion `_submit_one()` helper, the `pending` deque, and the `inflight=` postfix on the progress bar.
+
+### Changed
+- `_merge_and_finalize` now submits every remaining merge to the scheduler at once via `client.map(h3_merge_files, remaining_dirs, ...)` and consumes results via `as_completed`. Work distribution is delegated to the dask scheduler, which sees the full worker set.
+
 ## [0.8.10] - 2026-05-05
 
 ### Fixed
