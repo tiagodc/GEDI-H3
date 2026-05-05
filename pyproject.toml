@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gedih3"
-version = "0.8.12"
+version = "0.8.13"
 description = "Access, index, and analyze NASA GEDI LiDAR data with H3 hexagonal spatial indexing and Dask-distributed processing"
 readme = "README.md"
 authors = [
