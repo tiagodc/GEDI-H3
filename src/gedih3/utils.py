@@ -1043,26 +1043,118 @@ def parquet_append_columns(df, f: str, tmp_suffix:str = '.col.tmp'):
 
 def parquet_schema_add_bbox(schema, bbox):
     if bbox is None:
-        return schema    
+        return schema
     geo_meta = json.loads(schema.metadata[b'geo'])
     geo_meta['columns']['geometry']['bbox'] = bbox
     new_metadata = {**schema.metadata, b'geo': json.dumps(geo_meta).encode('utf-8')}
     return schema.with_metadata(new_metadata)
-    
-def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_group=100_000,
-                        bbox_threshold=int(os.environ.get('GH3_MERGE_BBOX_THRESHOLD', 50))):
+
+
+def _bbox_from_geo_metadata(parquet_path):
+    """Read the GeoParquet ``columns.<primary>.bbox`` from a parquet footer.
+
+    Returns the 4-float bbox if the file's ``geo`` metadata declares one;
+    None otherwise (no data scan, no geometry decode).
+    """
+    import pyarrow.parquet as pq
+    try:
+        meta = pq.read_metadata(parquet_path).metadata or {}
+        raw = meta.get(b'geo')
+        if not raw:
+            return None
+        geo = json.loads(raw)
+        primary = geo.get('primary_column', 'geometry')
+        bbox = geo.get('columns', {}).get(primary, {}).get('bbox')
+        if bbox and len(bbox) == 4:
+            return [float(v) for v in bbox]
+    except Exception:
+        return None
+    return None
+
+
+def _streaming_bbox_from_dataset(flist, batch_size=100_000):
+    """Compute the union bbox by streaming the geometry column only.
+
+    Used as a fallback when one or more inputs lack a footer-level bbox.
+    Bounded memory: O(batch_size); decodes WKB to shapely geometries via
+    the vectorized ``shapely.from_wkb`` and reduces with ``shapely.bounds``.
+    """
+    import pyarrow.dataset as ds
+    import shapely
+    import numpy as np
+
+    dataset = ds.dataset(flist, format="parquet")
+    if 'geometry' not in dataset.schema.names:
+        return None
+
+    minx = miny = float('inf')
+    maxx = maxy = float('-inf')
+    seen = False
+    scanner = dataset.scanner(columns=['geometry'], batch_size=batch_size, use_threads=False)
+    for batch in scanner.to_batches():
+        if batch.num_rows == 0:
+            continue
+        wkb_arr = batch['geometry'].to_numpy(zero_copy_only=False)
+        geoms = shapely.from_wkb(wkb_arr)
+        bounds = shapely.bounds(geoms)  # (N, 4): minx, miny, maxx, maxy
+        if bounds.size == 0:
+            continue
+        bx_min = bounds[:, 0]
+        by_min = bounds[:, 1]
+        bx_max = bounds[:, 2]
+        by_max = bounds[:, 3]
+        # Filter NaN/inf rows that empty/invalid geometries can produce.
+        valid = np.isfinite(bx_min) & np.isfinite(by_min) & np.isfinite(bx_max) & np.isfinite(by_max)
+        if not valid.any():
+            continue
+        seen = True
+        minx = min(minx, float(bx_min[valid].min()))
+        miny = min(miny, float(by_min[valid].min()))
+        maxx = max(maxx, float(bx_max[valid].max()))
+        maxy = max(maxy, float(by_max[valid].max()))
+
+    return [minx, miny, maxx, maxy] if seen else None
+
+
+def _merged_bbox(flist):
+    """Union bbox over all input parquets, preferring footer metadata.
+
+    Fast path: every input declares a GeoParquet bbox in its footer
+    metadata — the merged bbox is the elementwise (min, min, max, max)
+    union, no data is read. Slow path: any input is missing its
+    footer-level bbox, fall back to streaming the geometry column over
+    just the missing files.
+    """
+    if not flist:
+        return None
+    per_file = [(_bbox_from_geo_metadata(f), f) for f in flist]
+    missing = [f for bbox, f in per_file if bbox is None]
+    bboxes = [bbox for bbox, _ in per_file if bbox is not None]
+    if missing:
+        fb = _streaming_bbox_from_dataset(missing)
+        if fb is not None:
+            bboxes.append(fb)
+    if not bboxes:
+        return None
+    minx = min(b[0] for b in bboxes)
+    miny = min(b[1] for b in bboxes)
+    maxx = max(b[2] for b in bboxes)
+    maxy = max(b[3] for b in bboxes)
+    return [minx, miny, maxx, maxy]
+
+def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_group=100_000):
     """Stream-merge parquet files into a single output with a bounded memory footprint.
 
     Memory profile (per call):
 
     - Streams via PyArrow scanner with ``batch_size=rows_per_group``; never
       loads the full dataset.
-    - Bbox metadata is computed up front via ``geopandas.read_parquet`` only
-      when ``len(flist) <= bbox_threshold`` (default 50); for larger merges
-      the bbox is omitted to avoid loading hundreds of MB of geometries. The
-      bbox is an advisory predicate-pushdown hint, not data — its absence
-      does not affect correctness. Override the threshold with the
-      ``GH3_MERGE_BBOX_THRESHOLD`` env var.
+    - Bbox metadata is **always** embedded for files with a ``geometry``
+      column. Fast path: union the footer-level GeoParquet bboxes from each
+      input (no data scan). Fallback: stream just the geometry column for
+      inputs that lack footer bbox, decoding WKB in batches via shapely
+      (bounded memory, no geometry materialization). Required for the
+      output to be a spec-valid GeoParquet.
     - The row-group accumulator is flushed *before* appending a batch that
       would overflow ``rows_per_group``, capping ``acc`` at exactly
       ``rows_per_group`` rows (previously it could briefly hold ~2x).
@@ -1078,20 +1170,14 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
     import pyarrow.dataset as ds
 
     shots = None
-    merged_bbox = None
 
     dataset = ds.dataset(flist, format="parquet")
     schema = dataset.schema
 
-    if 'geometry' in schema.names and len(flist) <= bbox_threshold:
-        try:
-            import geopandas as gpd
-            geodf = gpd.read_parquet(flist, columns=['geometry'])
-            merged_bbox = list(geodf.total_bounds)
+    if 'geometry' in schema.names:
+        merged_bbox = _merged_bbox(flist)
+        if merged_bbox is not None:
             schema = parquet_schema_add_bbox(schema, bbox=merged_bbox)
-            del geodf
-        except Exception:
-            merged_bbox = None  # bbox is advisory; never fail merge over it
 
     # Atomic write: write to temp file, rename after successful close
     tmp_ofile = ofile + '.merge.tmp'
