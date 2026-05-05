@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.12] - 2026-05-05
+
+### Changed
+- **Parallelize tmp partition listing in `_merge_and_finalize`.** Replaced the driver-side `glob.glob('h3_*/year=*/')` (a serial two-level walk costing ~50k GPFS readdirs sequentially on a continental build) with `os.scandir` on the outer `h3_*` level + `client.map(_list_year_subdirs, h3_dirs)` on the inner `year=*` level. Cumulative readdir latency that previously delayed the first task submit by minutes is now distributed across all workers. Falls back to in-process scan when no client is available (preserves behavior for unit tests / non-Dask invocations).
+
 ## [0.8.11] - 2026-05-05
 
 ### Removed
