@@ -75,6 +75,34 @@ def _has_new_local_granules(soc_source, h3_logger):
     return False
 
 
+def _detect_merge_resume_signal(h3_logger, parquet_dir):
+    """Return a human-readable signal name if the resume should skip extract
+    and go straight to merge, else return None.
+
+    L1 (canonical): the on-disk log says ``status == 'MERGING'``. This is set
+    by ``build_h3db`` immediately before the merge phase, so seeing it on
+    resume proves the previous run finished extract.
+
+    L2 (fallback for older builds): ``<parquet_dir>/_merge_progress.txt``
+    exists with ≥1 non-empty line. A non-empty merge-progress file proves
+    that merge already started, which in turn proves extract finished.
+
+    The two signals are independent — either is sufficient.
+    """
+    import os
+    if getattr(h3_logger, 'previous_status', None) == 'MERGING':
+        return 'log status MERGING'
+    progress_file = os.path.join(parquet_dir, '_merge_progress.txt')
+    if os.path.isfile(progress_file):
+        try:
+            with open(progress_file, 'r') as fh:
+                if any(line.strip() for line in fh):
+                    return 'merge progress file present'
+        except OSError:
+            pass
+    return None
+
+
 def main():
     args = get_cmd_args()
 
@@ -85,7 +113,7 @@ def main():
     from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR
     from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success
     from gedih3.utils import get_system_resources
-    from gedih3.gh3builder import build_h3db, download_soc, soc_file_tree, _reconcile_granules_from_disk
+    from gedih3.gh3builder import build_h3db, download_soc, soc_file_tree, _reconcile_granules_from_disk, _merge_and_finalize
     from gedih3.gedidriver import GEDIFile, validate_soc_files, gedi_vars_expand
     from gedih3.logger import H3BuildLogger, SOCDownloadLogger
     from dask.distributed import Client
@@ -376,6 +404,48 @@ def main():
                     logger.info("Note: using only existing data (add --download to fetch missing data)")
                     logger.info("Validating product variables in existing HDF5 files")
                     _validate_existing_h5(h3_logger.get_product_vars(), soc_source)
+
+            # ── Resume shortcut: skip reconcile + extract on merge-resume ──
+            # If a previous run finished extract and was killed during merge,
+            # the on-disk log status is 'MERGING' and we have nothing to
+            # re-extract. Calling _merge_and_finalize directly (which is
+            # itself resume-aware via _merge_progress.txt + atomic .merge.tmp
+            # rename) is sufficient.
+            #
+            # Detection (see _detect_merge_resume_signal):
+            #   L1 (canonical): h3_logger.previous_status == 'MERGING'.
+            #   L2 (fallback for builds started before this code shipped):
+            #     <tmp>/partitions/_merge_progress.txt exists with ≥1 entry.
+            #
+            # Contract: between crash and resume, the SOC tree is treated as
+            # frozen. Adding new HDF5s mid-cycle is unsupported on this path —
+            # finish the current build first, then run a separate gh3_build
+            # to incorporate new granules. (The shortcut also leaves PENDING
+            # entries in granule_info that the next non-shortcut run cleans
+            # up; gh3_doctor can flag/fix this if needed.)
+            _parquet_dir = os.path.join(args.tmpdir, 'partitions')
+            _merge_signal = _detect_merge_resume_signal(h3_logger, _parquet_dir)
+            if _merge_signal:
+                logger.info(
+                    f"Resume shortcut: {_merge_signal} — skipping register/"
+                    f"reconcile/extract, running merge only"
+                )
+                h3_logger.save_log('MERGING')
+                try:
+                    h3_files = _merge_and_finalize(_parquet_dir, args.output)
+                except Exception as _e:
+                    h3_logger.save_log('FAILED')
+                    logger.error(f"Merge-resume failed: {_e}")
+                    raise
+                h3_logger.set_post_build_info()
+                h3_logger.log_data.pop('_pending_variable_update', None)
+                h3_logger.save_log('COMPLETED')
+                _n = len(h3_files) if h3_files else 0
+                print_success(
+                    f"{_n} files exported to {args.output} (merge-only resume)",
+                    logger=logger,
+                )
+                return
 
             # Save log only after validation/download passes — prevents
             # writing unverified products (e.g. L4C) when data is missing

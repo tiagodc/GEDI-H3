@@ -660,24 +660,45 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     # Disk-canonical skip: if the final parquet exists and is newer than every
     # source fragment, this merge already completed in a prior run and only
     # the source-cleanup step was interrupted. Just clean up and return — no
-    # need to re-merge identical data through the dedup path.
+    # need to re-merge identical data through the dedup path. Validate that
+    # the dest is actually a readable parquet first; a corrupt newer-than-
+    # source dest must NOT short-circuit (we'd return a broken partition).
     if not replace and os.path.exists(out_file):
         try:
             out_mtime = os.path.getmtime(out_file)
             if all(os.path.getmtime(f) <= out_mtime for f in files):
-                if rm_src:
-                    shutil.rmtree(in_dir, ignore_errors=True)
-                return h3_file
+                try:
+                    pq.ParquetFile(out_file).metadata  # readability check
+                    if rm_src:
+                        shutil.rmtree(in_dir, ignore_errors=True)
+                    return h3_file
+                except Exception:
+                    # Corrupt dest — fall through to the merge path, which
+                    # detects the same corruption below and overwrites it.
+                    pass
         except OSError:
             pass
 
     if is_temp := (os.path.exists(out_file) and not replace):
-        files.insert(0,out_file)
-        files = list(set(files))
-        out_file += '.tmp'
-    
+        # Validate the existing dest is readable before adding it to flist.
+        # A prior crash mid-write can leave a corrupt parquet here; trying to
+        # merge through it would raise and abort the whole merge phase.
+        # Treat corruption as "no usable dest" — merge only the fragments and
+        # overwrite the bad dest atomically via .merge.tmp + os.replace.
+        try:
+            pq.ParquetFile(out_file).metadata  # cheap header check
+            files.insert(0, out_file)
+            files = list(set(files))
+            out_file += '.tmp'
+        except Exception as e:
+            logger.warning(
+                f"Existing partition {h3_file} is unreadable ({e!r}); "
+                f"discarding it and merging tmp fragments fresh"
+            )
+            is_temp = False  # treat as no dest, full overwrite
+
     parquet_merge_files(out_file, files, check_shots=is_temp, rm_src=rm_src)
-    
+
     if is_temp:
         os.replace(out_file, h3_file)
     if rm_src:
@@ -1293,7 +1314,20 @@ def _merge_and_finalize(
     """
     logger.info(f"Merging H3 partitions into final database path: {h3_dir}")
 
-    tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/*/'))
+    # List candidate tmp partitions, filtering out empty dirs (a previous run
+    # can leave behind h3_*/year=*/ scaffolding with no parquet content if it
+    # was killed mid-write or after rm_src=True drained an already-merged
+    # partition; either way nothing to merge — skip without raising).
+    _candidate_dirs = glob.glob(os.path.join(tmp_dir, '*/*/'))
+    tmp_h3_dirs = []
+    _empty_skipped = 0
+    for _d in _candidate_dirs:
+        if any(name.endswith('.parquet') for name in os.listdir(_d)):
+            tmp_h3_dirs.append(_d)
+        else:
+            _empty_skipped += 1
+    if _empty_skipped:
+        logger.info(f"Skipped {_empty_skipped} empty tmp partition dirs")
     os.makedirs(h3_dir, exist_ok=True)
 
     # Defensive cleanup: a prior killed run can leave .merge.tmp files in the
