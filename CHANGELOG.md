@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.16] - 2026-05-05
+
+### Changed
+- **Drop `ds.dataset(flist)` from the merge hot path.** `parquet_merge_files` no longer constructs a pyarrow dataset over the input fragments — that constructor reads every fragment's footer to build a unified schema, which on a continental partition-year (~400 fragments on shared GPFS) cost ~25–30 s of redundant I/O per merge. Replaced with: schema from `pq.read_schema(flist[0])` (single footer), and a per-file `pq.ParquetFile(f).iter_batches(...)` loop instead of `dataset.scanner(...).to_batches()`. The implicit assumption — fragments in a partition-year share an identical column schema — is true by construction in gh3_build (all fragments come from one `dask_geopandas.to_parquet` call).
+- Renamed `_streaming_bbox_from_dataset` → `_streaming_bbox`. Same semantics, but iterates per-file via `pq.ParquetFile.iter_batches(columns=['geometry'])` instead of `ds.dataset(flist).scanner(...)`. Avoids the same redundant footer-scan in the slow-path bbox fallback.
+- `parquet_backfill_bbox` (single-file rewrite) likewise dropped the `ds.dataset([path])` wrapper for direct `pq.ParquetFile` iteration.
+
 ## [0.8.15] - 2026-05-05
 
 ### Added
