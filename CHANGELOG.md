@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.10] - 2026-05-05
+
+### Fixed
+- **Pre-merge driver-side scan bottleneck.** `_merge_and_finalize` no longer filters empty tmp partition dirs on the driver via per-dir `os.listdir`, and no longer globs the entire final database for stale `.merge.tmp` files. On a continental build (~9.7k tmp partitions × N years on shared GPFS) those two driver-side serial scans took >40 min to complete with the cluster 100% idle — no work was submitted until the scans finished. Empty-dir handling is now delegated to the worker (the existing `if len(files) == 0: return` short-circuit in `h3_merge_files`), and stale-tmp cleanup is scoped to the per-partition `odir` inside `h3_merge_files` (one `listdir` per merge instead of a global glob). First-task submit is now bounded by the single `glob('h3_*/year=*/')` call.
+
 ## [0.8.9] - 2026-05-05
 
 ### Added
