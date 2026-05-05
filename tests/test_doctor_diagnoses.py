@@ -187,6 +187,42 @@ def test_log_state_clears_pending_flag(tmp_dir):
     assert '_pending_variable_update' not in ctx.h3_logger.log_data
 
 
+def test_log_state_detects_and_fixes_granule_status_drift(tmp_dir):
+    """After a merge-only resume, granule_info can hold stale PENDING entries
+    even though the data is in finalized partition metadata. log_state must
+    detect this drift and (in fix mode) flip those entries to INDEXED."""
+    # Partition with two granules in its metadata.
+    granules_in_partition = [
+        {'orbit': 100, 'granule': 1, 'track': 50},
+        {'orbit': 101, 'granule': 2, 'track': 51},
+    ]
+    _make_partition(tmp_dir, granules=granules_in_partition)
+
+    # Build log: granule (100,1,50) is INDEXED but (101,2,51) is stuck PENDING
+    # — the simulated post-merge-resume state.
+    log_granules = [
+        {'orbit': 100, 'granule': 1, 'track': 50, 'status': 'INDEXED'},
+        {'orbit': 101, 'granule': 2, 'track': 51, 'status': 'PENDING'},
+    ]
+    _make_build_log(tmp_dir, granules=log_granules)
+
+    ctx = _ctx(tmp_dir)
+    reports = run_diagnoses(ctx, ['log_state'], mode='check')
+    drift = [f for f in reports[0].findings if f['kind'] == 'granule_status_drift']
+    assert len(drift) == 1
+    assert (drift[0]['orbit'], drift[0]['granule'], drift[0]['track']) == (101, 2, 51)
+
+    run_diagnoses(ctx, ['log_state'], mode='fix')
+
+    # Re-read the log fresh from disk to confirm persistence.
+    from gedih3.logger import H3BuildLogger
+    fresh = H3BuildLogger(product_vars=None, dir=tmp_dir)
+    statuses = {(g['orbit'], g['granule'], g['track']): g['status']
+                for g in fresh.granule_info}
+    assert statuses[(100, 1, 50)] == 'INDEXED'
+    assert statuses[(101, 2, 51)] == 'INDEXED'  # was PENDING, now flipped
+
+
 # --- parquet_health ---------------------------------------------------------
 
 def test_parquet_health_detects_and_fixes_duplicates(tmp_dir):
