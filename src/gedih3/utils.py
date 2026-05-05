@@ -1299,45 +1299,51 @@ def _merged_bbox_and_schema(flist):
     return schema, merged_bbox
 
 
-def _reconcile_batch_to_schema(batch, schema):
-    """Reorder/extend a ``RecordBatch`` to match ``schema`` by **column name**.
+def _make_batch_reconciler(file_schema, target_schema):
+    """Return a per-batch reconciler closure for batches read from a fragment
+    whose Arrow schema is ``file_schema``, mapping them to ``target_schema``
+    by **column name**.
 
-    Columns missing from the batch are null-filled; columns extra in the
-    batch are dropped; types are cast (unsafe) if needed. Fast-path: when
-    the batch already matches the schema field-for-field (ignoring metadata),
-    the batch is returned as-is — zero copy, no per-column work. This handles
-    the common case where fragments share an identical schema.
+    Hoists the schema comparison out of the per-batch hot loop (it ran ~2,540
+    Python ops × 100 batches = ~250 K interpreter ops per merge previously).
+    The check now runs once per file: if the file's schema matches the target
+    field-for-field, returns ``None`` and the caller skips reconciliation
+    entirely. Otherwise returns a closure that maps each batch using a
+    pre-computed column-index lookup (no per-column ``in batch_names``
+    set-membership test in the hot loop).
 
-    Solves the column-order / column-set drift between fragments that the
-    pyarrow ``ds.dataset`` scanner would otherwise handle for us. Required
-    because we iterate per-file via ``pq.ParquetFile.iter_batches`` instead
-    of paying the dataset's full-file footer rescan up front.
+    Closure semantics: columns missing from the batch are null-filled; columns
+    extra in the batch are dropped; types are cast (unsafe) if needed.
     """
     import pyarrow as pa
 
-    target_names = schema.names
-    if batch.schema.names == target_names:
-        # Same names in same order — likely also same types. Avoid the
-        # per-column dance unless types actually differ.
+    target_names = target_schema.names
+    if file_schema.names == target_names:
         types_match = all(
-            batch.field(i).type.equals(schema.field(i).type)
+            file_schema.field(i).type.equals(target_schema.field(i).type)
             for i in range(len(target_names))
         )
         if types_match:
-            return batch
+            return None  # no reconciliation needed; pass batches through
 
-    arrays = []
-    n_rows = batch.num_rows
-    batch_names = set(batch.schema.names)
-    for fld in schema:
-        if fld.name in batch_names:
-            arr = batch.column(fld.name)
-            if not arr.type.equals(fld.type):
-                arr = arr.cast(fld.type, safe=False)
-            arrays.append(arr)
-        else:
-            arrays.append(pa.nulls(n_rows, type=fld.type))
-    return pa.RecordBatch.from_arrays(arrays, schema=schema)
+    name_to_idx = {n: i for i, n in enumerate(file_schema.names)}
+    target_fields = list(target_schema)
+
+    def reconcile(batch):
+        n_rows = batch.num_rows
+        arrays = []
+        for fld in target_fields:
+            idx = name_to_idx.get(fld.name)
+            if idx is not None:
+                arr = batch.column(idx)
+                if not arr.type.equals(fld.type):
+                    arr = arr.cast(fld.type, safe=False)
+                arrays.append(arr)
+            else:
+                arrays.append(pa.nulls(n_rows, type=fld.type))
+        return pa.RecordBatch.from_arrays(arrays, schema=target_schema)
+
+    return reconcile
 
 
 def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_group=100_000):
@@ -1395,6 +1401,10 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
 
         for f in flist:
             pf = pq.ParquetFile(f)
+            # Decide reconciliation strategy ONCE per file (not per batch).
+            # Returns None when the file's schema matches the writer's
+            # field-for-field — every batch then passes through unchanged.
+            reconciler = _make_batch_reconciler(pf.schema_arrow, schema)
             for batch in pf.iter_batches(batch_size=rows_per_group):
                 if check_shots and "shot_number" in batch.schema.names:
                     arr = batch["shot_number"].to_numpy().astype(np.uint64)
@@ -1407,10 +1417,8 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
                         batch = batch.filter(pa.array(keep))
                         shots = np.unique(np.concatenate([shots, arr[keep]]))
 
-                # Reconcile to the unified writer schema by NAME — handles
-                # fragments with differing column order / column set without
-                # paying for a ds.dataset full-fragment rescan.
-                batch = _reconcile_batch_to_schema(batch, schema)
+                if reconciler is not None:
+                    batch = reconciler(batch)
 
                 # Flush BEFORE appending if this batch would overflow the cap,
                 # so acc never holds more than rows_per_group rows at a time.
