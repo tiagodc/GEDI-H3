@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.18] - 2026-05-05
+
+### Changed
+- **Per-file batch reconciler factory.** Replaced the per-batch `_reconcile_batch_to_schema(batch, schema)` call with `_make_batch_reconciler(file_schema, target_schema)`, called once per file at the top of the per-file iteration loop. The schema-comparison loop (~2,540 Python ops over ~1,270 columns) ran on every batch in v0.8.17 — ~250 K interpreter ops per merge wasted on the fast path where every batch from a given file has the same schema. The factory now does that work once per file: returns `None` when the file's schema matches the writer's field-for-field (every batch passes through unchanged, true zero-copy), or returns a closure with a pre-computed `name → column-index` mapping that handles drift in O(num_columns) per batch via direct integer lookup instead of `name in batch_names` set-membership checks.
+
 ## [0.8.17] - 2026-05-05
 
 ### Fixed
