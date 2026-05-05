@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.17] - 2026-05-05
+
+### Fixed
+- **`parquet_merge_files` schema-mismatch crash on continental builds.** v0.8.16 dropped the `ds.dataset(flist)` schema unification on the assumption that fragments in a partition-year share an identical column schema. False in practice — `dask_geopandas.to_parquet` produces fragments whose columns can appear in different ORDER (verified on 201 random partition-years: 12 had column-order drift, 0 had column-set drift). With per-file iteration and a positional `pa.Table.from_batches([batch], schema=schema)`, the order mismatch raised `ArrowInvalid('Schema at index 0 was different…')` mid-merge. ~37% of tested partitions failed before the build was halted.
+
+### Changed
+- **One footer pass per merge.** Replaced two passes (`ds.dataset()` schema unification + `_merged_bbox()` bbox extraction) with a single helper `_merged_bbox_and_schema(flist)` that reads each fragment's footer once and returns `(unified_schema, merged_bbox)` together. The unified schema is a column-name union (each name appears once, type from the first file that declares it). Net cost: same as v0.8.16 (one footer per file), but correct.
+- New helper `_reconcile_batch_to_schema(batch, schema)` reorders each batch's columns to match the writer schema by NAME — null-fills missing columns, drops extras, casts types. Fast path: when the batch already matches field-for-field, returns it unchanged (zero-copy). Solves both column-order drift (the common case observed in the wild) and column-set drift (defensive coverage).
+- Per-file streaming via `pq.ParquetFile.iter_batches()` is preserved — `ds.dataset()` is no longer constructed in the merge hot path.
+
 ## [0.8.16] - 2026-05-05
 
 ### Changed
