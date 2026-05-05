@@ -292,3 +292,93 @@ def test_backfill_clean_when_all_indexed(tmp_dir):
     reports = run_diagnoses(ctx, ['backfill'], mode='check')
     # No NaN, all columns present → no findings
     assert not reports[0].has_findings
+
+
+# --- geoparquet_bbox -------------------------------------------------------
+
+def _make_geoparquet_partition(h3_dir, h3_part='8c2a', year=2020,
+                               n_shots=10, drop_bbox=False):
+    """Write a partition parquet via geopandas (real GeoParquet metadata).
+    If drop_bbox is True, rewrite the file with the 'bbox' field stripped
+    from columns.geometry, simulating a pre-v0.8.14 merge.
+    """
+    import json
+    import geopandas as gpd
+    from shapely.geometry import Point
+
+    part_dir = os.path.join(h3_dir, f'h3_03={h3_part}')
+    year_dir = os.path.join(part_dir, f'year={year}')
+    os.makedirs(year_dir, exist_ok=True)
+    pq_file = os.path.join(year_dir, f'{h3_part}.{year}.parquet')
+
+    np.random.seed(hash((h3_part, year)) & 0xFFFFFFFF)
+    lons = np.random.uniform(-1, 1, n_shots)
+    lats = np.random.uniform(-1, 1, n_shots)
+    gdf = gpd.GeoDataFrame({
+        'shot_number': np.arange(1, n_shots + 1, dtype=np.uint64),
+        'agbd_l4a': np.random.uniform(0, 100, n_shots),
+        'datetime': pd.to_datetime(['2020-06-01'] * n_shots),
+        'geometry': [Point(x, y) for x, y in zip(lons, lats)],
+    }, crs='EPSG:4326')
+    gdf.to_parquet(pq_file)
+
+    if drop_bbox:
+        # Strip bbox from geo metadata. Use ParquetFile.read() (not pq.read_table)
+        # to avoid pyarrow inferring h3_03=/year= as partition columns from the path.
+        pf = pq.ParquetFile(pq_file)
+        tbl = pf.read()
+        schema = tbl.schema
+        meta = dict(schema.metadata or {})
+        geo = json.loads(meta[b'geo'])
+        primary = geo.get('primary_column', 'geometry')
+        if 'bbox' in geo['columns'][primary]:
+            del geo['columns'][primary]['bbox']
+        meta[b'geo'] = json.dumps(geo).encode('utf-8')
+        new_schema = schema.with_metadata(meta)
+        tbl = tbl.replace_schema_metadata(meta)
+        tmp = pq_file + '.tmp'
+        pq.write_table(tbl, tmp, compression='zstd')
+        os.replace(tmp, pq_file)
+
+    return part_dir, pq_file
+
+
+def test_geoparquet_bbox_passes_when_bbox_present(tmp_dir):
+    _make_geoparquet_partition(tmp_dir, drop_bbox=False)
+    _make_build_log(tmp_dir)
+    ctx = _ctx(tmp_dir)
+    reports = run_diagnoses(ctx, ['geoparquet_bbox'], mode='check')
+    assert reports[0].severity == Severity.INFO
+    assert not reports[0].has_findings
+
+
+def test_geoparquet_bbox_detects_and_backfills_missing_bbox(tmp_dir):
+    _make_geoparquet_partition(tmp_dir, drop_bbox=True)
+    _make_build_log(tmp_dir)
+
+    # Detect
+    ctx = _ctx(tmp_dir)
+    check_reports = run_diagnoses(ctx, ['geoparquet_bbox'], mode='check')
+    assert check_reports[0].severity == Severity.WARN
+    kinds = {f['kind'] for f in check_reports[0].findings}
+    assert 'missing_bbox' in kinds
+
+    # Fix
+    ctx = _ctx(tmp_dir)
+    fix_reports = run_diagnoses(ctx, ['geoparquet_bbox'], mode='fix')
+    assert fix_reports[0].severity == Severity.INFO
+    actions = [f.get('action') for f in fix_reports[0].findings]
+    assert 'bbox_backfilled' in actions
+
+    # Re-check: clean
+    ctx = _ctx(tmp_dir)
+    recheck = run_diagnoses(ctx, ['geoparquet_bbox'], mode='check')
+    assert not recheck[0].has_findings
+
+    # Verify the bbox is sensible (within the synthetic data extent [-1, 1])
+    from gedih3.utils import _bbox_from_geo_metadata
+    pq_file = os.path.join(tmp_dir, 'h3_03=8c2a', 'year=2020', '8c2a.2020.parquet')
+    bbox = _bbox_from_geo_metadata(pq_file)
+    assert bbox is not None
+    assert -1.0 <= bbox[0] <= bbox[2] <= 1.0
+    assert -1.0 <= bbox[1] <= bbox[3] <= 1.0

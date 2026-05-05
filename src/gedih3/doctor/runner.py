@@ -27,7 +27,7 @@ _REGISTRY: Dict[str, Diagnosis] = {}
 # Group aliases users can pass to --check/--fix. Resolved at dispatch time
 # against whatever diagnoses have registered.
 ALIAS_GROUPS = {
-    'db': ['backfill', 'orphans', 'log_state', 'metadata', 'parquet_health'],
+    'db': ['backfill', 'orphans', 'log_state', 'metadata', 'parquet_health', 'geoparquet_bbox'],
     'soc': ['soc_health'],
     'all': None,                         # special: all registered diagnoses
 }
