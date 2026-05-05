@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.14] - 2026-05-05
+
+### Changed
+- **`parquet_merge_files` now always embeds a valid GeoParquet bbox.** Removed the `bbox_threshold` knob and the `GH3_MERGE_BBOX_THRESHOLD` env var. Every merged partition with a `geometry` column now writes a spec-valid GeoParquet `columns.geometry.bbox` in its footer, so downstream readers (geopandas, gh3_load, dask_geopandas) get correct predicate pushdown and the file passes geoparquet validation. Memory cost is bounded:
+  - **Fast path** — every input fragment already has a footer-level GeoParquet bbox (true for fragments written by `dask_geopandas.to_parquet`, which is always the case in gh3_build): bbox is the elementwise union of those, no data is read.
+  - **Slow path** — any input lacks a footer bbox: stream just the geometry column for those files in batches, decode WKB via vectorized `shapely.from_wkb` + `shapely.bounds`, reduce online. Bounded by `batch_size=100_000` (≈10–20 MB per batch), no full geometry materialization.
+- New helpers in `utils.py`: `_bbox_from_geo_metadata(path)` (footer read) and `_streaming_bbox_from_dataset(flist)` (slow-path fallback). Both are used internally by `_merged_bbox(flist)`.
+
 ## [0.8.13] - 2026-05-05
 
 ### Fixed
