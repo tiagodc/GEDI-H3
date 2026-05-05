@@ -1202,6 +1202,10 @@ def _merged_bbox(flist):
     union, no data is read. Slow path: any input is missing its
     footer-level bbox, fall back to streaming the geometry column over
     just the missing files.
+
+    Used by ``parquet_backfill_bbox`` (single-file) and tests. The merge
+    hot path uses ``_merged_bbox_and_schema`` instead, which folds this
+    work into the schema-unification footer pass.
     """
     if not flist:
         return None
@@ -1220,19 +1224,141 @@ def _merged_bbox(flist):
     maxy = max(b[3] for b in bboxes)
     return [minx, miny, maxx, maxy]
 
+
+def _merged_bbox_and_schema(flist):
+    """One footer pass per input. Returns ``(unified_schema, merged_bbox)``.
+
+    The unified schema is a **column-name union**: each name appears once,
+    type taken from the first file that declares it. Schema-level metadata
+    (notably the GeoParquet ``geo`` key) is taken from the first file with
+    metadata. Returned as a single ``pa.Schema`` ready for ``ParquetWriter``.
+
+    The merged bbox is the elementwise union of footer-level GeoParquet
+    bboxes (fast path); if any fragment lacks one, the geometry column is
+    streamed for those files only via :func:`_streaming_bbox`.
+
+    Folds two passes (``ds.dataset(flist)`` schema unification + a separate
+    bbox extraction) into one. Cost: one ``pq.read_metadata`` per file —
+    cheaper than ``ds.dataset`` (which also opens each footer but does
+    additional work) and unlocks per-file streaming on the hot merge path.
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    if not flist:
+        return None, None
+
+    seen: Dict[str, "pa.Field"] = {}
+    schema_metadata = None
+    bboxes = []
+    streaming_needed = []
+
+    for f in flist:
+        try:
+            meta_obj = pq.read_metadata(f)
+            sch = meta_obj.schema.to_arrow_schema()
+        except Exception:
+            continue
+        if schema_metadata is None and sch.metadata:
+            schema_metadata = dict(sch.metadata)
+        for fld in sch:
+            if fld.name not in seen:
+                seen[fld.name] = fld
+        md = sch.metadata or {}
+        raw = md.get(b'geo')
+        bbox = None
+        if raw:
+            try:
+                geo = json.loads(raw)
+                primary = geo.get('primary_column', 'geometry')
+                b = geo.get('columns', {}).get(primary, {}).get('bbox')
+                if b and len(b) == 4:
+                    bbox = [float(v) for v in b]
+            except Exception:
+                pass
+        if bbox is not None:
+            bboxes.append(bbox)
+        elif 'geometry' in sch.names:
+            streaming_needed.append(f)
+
+    if streaming_needed:
+        fb = _streaming_bbox(streaming_needed)
+        if fb is not None:
+            bboxes.append(fb)
+
+    schema = pa.schema(list(seen.values()), metadata=schema_metadata)
+    if bboxes:
+        merged_bbox = [
+            min(b[0] for b in bboxes),
+            min(b[1] for b in bboxes),
+            max(b[2] for b in bboxes),
+            max(b[3] for b in bboxes),
+        ]
+    else:
+        merged_bbox = None
+    return schema, merged_bbox
+
+
+def _reconcile_batch_to_schema(batch, schema):
+    """Reorder/extend a ``RecordBatch`` to match ``schema`` by **column name**.
+
+    Columns missing from the batch are null-filled; columns extra in the
+    batch are dropped; types are cast (unsafe) if needed. Fast-path: when
+    the batch already matches the schema field-for-field (ignoring metadata),
+    the batch is returned as-is — zero copy, no per-column work. This handles
+    the common case where fragments share an identical schema.
+
+    Solves the column-order / column-set drift between fragments that the
+    pyarrow ``ds.dataset`` scanner would otherwise handle for us. Required
+    because we iterate per-file via ``pq.ParquetFile.iter_batches`` instead
+    of paying the dataset's full-file footer rescan up front.
+    """
+    import pyarrow as pa
+
+    target_names = schema.names
+    if batch.schema.names == target_names:
+        # Same names in same order — likely also same types. Avoid the
+        # per-column dance unless types actually differ.
+        types_match = all(
+            batch.field(i).type.equals(schema.field(i).type)
+            for i in range(len(target_names))
+        )
+        if types_match:
+            return batch
+
+    arrays = []
+    n_rows = batch.num_rows
+    batch_names = set(batch.schema.names)
+    for fld in schema:
+        if fld.name in batch_names:
+            arr = batch.column(fld.name)
+            if not arr.type.equals(fld.type):
+                arr = arr.cast(fld.type, safe=False)
+            arrays.append(arr)
+        else:
+            arrays.append(pa.nulls(n_rows, type=fld.type))
+    return pa.RecordBatch.from_arrays(arrays, schema=schema)
+
+
 def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_group=100_000):
     """Stream-merge parquet files into a single output with a bounded memory footprint.
 
     Memory profile (per call):
 
-    - Streams via PyArrow scanner with ``batch_size=rows_per_group``; never
-      loads the full dataset.
+    - Streams via per-file ``pq.ParquetFile.iter_batches`` with
+      ``batch_size=rows_per_group``; never loads the full dataset.
+    - Schema and bbox are computed in a single per-file footer pass via
+      :func:`_merged_bbox_and_schema`. The unified schema is a column-name
+      union — fragments with column-order or column-set drift are
+      reconciled per batch by :func:`_reconcile_batch_to_schema` (zero-copy
+      fast path when the batch already matches; null-fill / cast / drop
+      otherwise). This replaces the older ``ds.dataset(flist).scanner(...)``
+      flow which paid a separate footer rescan for schema unification.
     - Bbox metadata is **always** embedded for files with a ``geometry``
-      column. Fast path: union the footer-level GeoParquet bboxes from each
-      input (no data scan). Fallback: stream just the geometry column for
-      inputs that lack footer bbox, decoding WKB in batches via shapely
-      (bounded memory, no geometry materialization). Required for the
-      output to be a spec-valid GeoParquet.
+      column. Fast path: union footer-level GeoParquet bboxes (no data
+      read). Fallback: stream just the geometry column for inputs that lack
+      footer bbox, decoding WKB in batches via shapely (bounded memory).
+      Required for the output to be a spec-valid GeoParquet.
     - The row-group accumulator is flushed *before* appending a batch that
       would overflow ``rows_per_group``, capping ``acc`` at exactly
       ``rows_per_group`` rows (previously it could briefly hold ~2x).
@@ -1248,17 +1374,13 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
 
     shots = None
 
-    # Schema is taken from the first file. Fragments in a partition-year
-    # share an identical column schema by construction (all written by one
-    # dask_geopandas.to_parquet call), so we deliberately skip the
-    # ds.dataset(flist) constructor — it would re-read every fragment's
-    # footer for schema unification (~25–30 s on 400 fragments over GPFS).
-    schema = pq.read_schema(flist[0])
+    # One footer pass: unified schema (column-name union) + merged bbox.
+    schema, merged_bbox = _merged_bbox_and_schema(flist)
+    if schema is None:
+        return  # empty flist
 
-    if 'geometry' in schema.names:
-        merged_bbox = _merged_bbox(flist)
-        if merged_bbox is not None:
-            schema = parquet_schema_add_bbox(schema, bbox=merged_bbox)
+    if 'geometry' in schema.names and merged_bbox is not None:
+        schema = parquet_schema_add_bbox(schema, bbox=merged_bbox)
 
     # Atomic write: write to temp file, rename after successful close
     tmp_ofile = ofile + '.merge.tmp'
@@ -1284,6 +1406,11 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
                             continue
                         batch = batch.filter(pa.array(keep))
                         shots = np.unique(np.concatenate([shots, arr[keep]]))
+
+                # Reconcile to the unified writer schema by NAME — handles
+                # fragments with differing column order / column set without
+                # paying for a ds.dataset full-fragment rescan.
+                batch = _reconcile_batch_to_schema(batch, schema)
 
                 # Flush BEFORE appending if this batch would overflow the cap,
                 # so acc never holds more than rows_per_group rows at a time.
