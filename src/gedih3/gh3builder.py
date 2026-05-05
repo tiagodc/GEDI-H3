@@ -866,6 +866,27 @@ def _granule_ids_in_fragment(parquet_file: str) -> set:
 _FRAGMENT_BASENAME_RE = re.compile(r'^O(\d+)_G(\d+)_T(\d+)\.[A-Za-z0-9_]+\.parquet$')
 
 
+def _list_year_subdirs(h3_dir: str) -> List[str]:
+    """Return ``<h3_dir>/year=*/`` paths (with trailing separator).
+
+    Worker-side body of the merge-phase tmp partition listing. Called once
+    per ``h3_*`` dir via ``client.map`` so the cumulative readdir latency
+    on shared GPFS is parallelized across all workers instead of being
+    paid serially on the driver. ``os.scandir`` is preferred over
+    ``glob``/``listdir`` because its DirEntry caches the directory bit
+    from the parent readdir — no extra ``stat()`` round-trip per child.
+    """
+    out: List[str] = []
+    try:
+        with os.scandir(h3_dir) as it:
+            for e in it:
+                if e.name.startswith('year=') and e.is_dir(follow_symlinks=False):
+                    out.append(e.path + os.sep)
+    except OSError:
+        pass
+    return out
+
+
 def _process_h3_partition(h3_dir: str) -> set:
     """Return the set of (orbit, granule, track) granule IDs represented
     under ``h3_dir/year=*/*.parquet``.
@@ -1328,14 +1349,26 @@ def _merge_and_finalize(
     """
     logger.info(f"Merging H3 partitions into final database path: {h3_dir}")
 
-    # List candidate tmp partitions. Empty dirs (h3_*/year=*/ with no parquet
-    # content — left behind by a kill mid-write or by rm_src=True draining an
-    # already-merged partition) are short-circuited on the worker by the
-    # `if len(files) == 0: return` path in h3_merge_files; we deliberately do
-    # NOT filter them on the driver, because per-dir os.listdir over thousands
-    # of partitions on shared GPFS is a serial pre-merge bottleneck (~21 min
-    # idle on a 9.7k-partition continental build) that delays first-task submit.
-    tmp_h3_dirs = glob.glob(os.path.join(tmp_dir, '*/*/'))
+    # List candidate tmp partitions. Two-level walk:
+    #   1. Driver-side os.scandir of <tmp_dir> for h3_* — one readdir, fast.
+    #   2. Per-h3 year=*/ listing fanned out across all workers via
+    #      client.map(_list_year_subdirs); cumulative readdir latency on
+    #      shared GPFS is parallelized instead of paid serially on the driver.
+    # Empty year dirs are NOT filtered here — h3_merge_files short-circuits
+    # on no-input via `if len(files) == 0: return`.
+    client = get_dask_client()
+    try:
+        h3_part_dirs = sorted(
+            e.path for e in os.scandir(tmp_dir)
+            if e.is_dir(follow_symlinks=False) and e.name.startswith('h3_')
+        )
+    except OSError:
+        h3_part_dirs = []
+    if h3_part_dirs and client is not None:
+        year_lists = client.gather(client.map(_list_year_subdirs, h3_part_dirs, pure=False))
+        tmp_h3_dirs = [p for sub in year_lists for p in sub]
+    else:
+        tmp_h3_dirs = [p for d in h3_part_dirs for p in _list_year_subdirs(d)]
     os.makedirs(h3_dir, exist_ok=True)
 
     # Stale .merge.tmp cleanup is delegated to h3_merge_files (worker-side,
@@ -1360,8 +1393,6 @@ def _merge_and_finalize(
     else:
         from dask.distributed import as_completed as dask_as_completed
         from tqdm import tqdm as tqdm_bar
-
-        client = get_dask_client()
 
         # Submit every remaining merge to the scheduler at once and let dask
         # distribute work across all available workers. No driver-side
