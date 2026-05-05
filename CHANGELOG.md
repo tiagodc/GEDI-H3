@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.15] - 2026-05-05
+
+### Added
+- **`gh3_doctor` diagnosis `geoparquet_bbox`** — detects partition parquets whose GeoParquet `geo` schema metadata is missing or has no usable `columns.<primary>.bbox`, and backfills the bbox in place. Native pyarrow validation (no new runtime deps); evaluated against `geoparquet-pydantic`, GDAL `validate_geoparquet.py`, and `geoparquet-io` and chose to keep the check focused on the spec field that actually breaks predicate pushdown rather than pulling in a heavier validator.
+- **`utils.parquet_backfill_bbox(path)`** — rewrites a single parquet file in place to add/refresh its bbox metadata. Atomic via `<path>.bbox.tmp` + `os.replace`. Idempotent: returns `'ok'` for files that already have a valid bbox, `'rewritten'` for files actually modified, `'no_geometry'` for non-spatial sidecars. Raises `ValueError` if the file lacks the entire `geo` metadata key (would need a full re-merge from source — not in-place fixable).
+- Findings the new diagnosis can produce:
+  - `missing_geo` (no `geo` schema metadata) — reported only, recommends full re-merge.
+  - `missing_bbox` (`geo` exists, no bbox field) — auto-fixed by backfill.
+  - `invalid_bbox` (bbox present but malformed/non-finite) — auto-fixed by backfill.
+  - `no_geometry` (no `geometry` column) — reported only.
+  - `unreadable` (parquet schema unreadable) — reported only.
+- Wired into the `db` alias group, so `gh3_doctor -i /db --check db` and `gh3_doctor -i /db --fix db` pick it up automatically.
+- New tests `test_geoparquet_bbox_passes_when_bbox_present` and `test_geoparquet_bbox_detects_and_backfills_missing_bbox` covering both the green-path and detect+fix+re-check round-trip.
+
 ## [0.8.14] - 2026-05-05
 
 ### Changed
