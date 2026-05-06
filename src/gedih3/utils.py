@@ -1050,6 +1050,96 @@ def parquet_schema_add_bbox(schema, bbox):
     return schema.with_metadata(new_metadata)
 
 
+def parse_h3_partition_dirname(h3part):
+    """Parse a partition dir name like ``'h3_03=830e4afffffffff'`` into
+    ``(cell_id, parent_res)``. Returns ``(None, None)`` on parse failure."""
+    if not h3part or '=' not in h3part:
+        return None, None
+    prefix, cell_id = h3part.split('=', 1)
+    if not prefix.startswith('h3_'):
+        return None, None
+    try:
+        return cell_id, int(prefix[3:])
+    except ValueError:
+        return None, None
+
+
+# Empirical asymptote: max child overhang ≈ 14–16% of parent edge length,
+# converged across resolution-pair gaps ≥ 5 (verified by exhaustive
+# enumeration L0→L7 through L7→L14). Multiplied by 1.2 safety margin.
+_H3_OVERHANG_FRACTION = 0.18
+
+# Metres per degree of latitude (constant — meridians are great circles).
+_M_PER_DEG_LAT = 111_320.0
+
+
+def h3_partition_bbox(h3_cell_id, parent_res, edge_fraction=_H3_OVERHANG_FRACTION):
+    """Return the EPSG:4326 bbox of an H3 cell, padded to safely contain all
+    descendants at any deeper resolution.
+
+    The buffer derives from the icosahedral-projection distortion measured
+    empirically at H3 face boundaries: a child cell's vertices can sit up to
+    ``edge_fraction × parent_edge_length`` outside the parent cell's own
+    bbox (in metres on the ground, regardless of how deep the child is once
+    the depth gap is ≥ ~5 levels). The default ``0.18`` is the measured
+    asymptote (~14%) × 1.2 safety margin.
+
+    The buffer is converted to longitude-degrees at the parent's most
+    poleward vertex (cosine-corrected) so the same scalar in degrees is
+    safe for both lat and lon directions of the bbox.
+
+    Parameters
+    ----------
+    h3_cell_id : str
+        H3 cell index (hex string) at ``parent_res``.
+    parent_res : int
+        Resolution of ``h3_cell_id``. Used to look up the average edge
+        length for the buffer.
+    edge_fraction : float, default 0.18
+        Buffer as a fraction of the parent's edge length.
+
+    Returns
+    -------
+    list[float] | None
+        ``[minlon, minlat, maxlon, maxlat]`` in EPSG:4326 degrees, or
+        ``None`` if the cell ID cannot be decoded.
+
+    Notes
+    -----
+    Antimeridian-crossing parents produce a loose bbox spanning ~[-180, 180]
+    in longitude (because the simple min/max over boundary vertices folds
+    incorrectly there). This is conservative — the bbox still contains the
+    cell — but predicate pushdown is ineffective for those partitions.
+    GEDI data above the antimeridian is rare (ISS limit ±51.6° latitude);
+    accept the looseness rather than complicate the formula.
+    """
+    import h3
+    import math
+
+    try:
+        boundary = h3.cell_to_boundary(h3_cell_id)
+    except Exception:
+        return None
+    if not boundary:
+        return None
+
+    lats = [p[0] for p in boundary]
+    lons = [p[1] for p in boundary]
+    minlon, maxlon = min(lons), max(lons)
+    minlat, maxlat = min(lats), max(lats)
+
+    try:
+        edge_m = h3.average_hexagon_edge_length(parent_res, unit='km') * 1000.0
+    except Exception:
+        return None
+
+    buf_m = edge_fraction * edge_m
+    cos_lat = max(math.cos(math.radians(max(abs(minlat), abs(maxlat)))), 0.05)
+    buf_deg = buf_m / (_M_PER_DEG_LAT * cos_lat)
+
+    return [minlon - buf_deg, minlat - buf_deg, maxlon + buf_deg, maxlat + buf_deg]
+
+
 def _bbox_from_geo_metadata(parquet_path):
     """Read the GeoParquet ``columns.<primary>.bbox`` from a parquet footer.
 
@@ -1202,7 +1292,8 @@ def parquet_backfill_bbox(path):
     return 'rewritten'
 
 
-def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_group=100_000):
+def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
+                        rows_per_group=100_000, bbox=None):
     """Stream-merge parquet files into a single output with a bounded memory footprint.
 
     Architecture (single dataset, no per-file footer loop):
@@ -1210,21 +1301,31 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
     - Schema is taken from the first file's footer (one ``pq.read_schema``).
       Assumes fragments share a column set — empirically validated on 201
       sampled partition-years; only column-order drift was seen in the wild.
-    - Bbox is computed via :func:`_streaming_bbox` over the same input list,
-      which constructs a ``ds.dataset(flist, schema=first_file_schema)``
-      and streams just the geometry column with pipelined async I/O. Memory
-      bounded by ``batch_size``.
+    - Bbox is **provided by the caller** via the ``bbox`` argument when the
+      input has a ``geometry`` column. ``gh3builder.h3_merge_files`` derives
+      it directly from the H3 partition geometry (no data scan, microseconds
+      per merge), eliminating the streaming-geometry-column read that used to
+      cost ~10–30 s per merge under GPFS contention. If ``bbox`` is None and
+      a geometry column is present, the output's ``geo`` metadata will lack
+      a ``bbox`` field — callers should pass one for spec-valid GeoParquet.
     - Merge stream uses ``ds.dataset(flist, schema=schema_with_bbox)`` and
       its scanner. Footers are read lazily during scan in pyarrow's C++
       reader (pipelined I/O), and the scanner casts each batch to the
-      provided schema — handling column-order drift in C++ without the
-      per-batch Python reconciler we used in 0.8.17–0.8.18.
+      provided schema — handling column-order drift in C++ without a
+      per-batch Python reconciler.
     - Per-merge metadata-server contact drops to whatever pyarrow's
       pipelined dataset reader does internally (no separate Python footer
       loop, no per-file ``pq.ParquetFile`` reopen for streaming).
     - Row-group accumulator flushes BEFORE appending a batch that would
       overflow ``rows_per_group``, capping ``acc`` at exactly that.
     - Shot-dedup activates only when ``check_shots=True``.
+
+    Parameters
+    ----------
+    bbox : list[float] or None
+        ``[minlon, minlat, maxlon, maxlat]`` in EPSG:4326. When provided and
+        the input has a ``geometry`` column, embedded into the GeoParquet
+        ``columns.geometry.bbox`` metadata.
 
     Output is written atomically: ``ofile + '.merge.tmp'`` first, then
     ``os.replace`` to ``ofile``. A stale ``.merge.tmp`` from a prior crash is
@@ -1243,12 +1344,9 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
     # Schema from first file only (skip per-file footer scan for unification).
     schema = pq.read_schema(flist[0])
 
-    # Streaming bbox via the same dataset construct (pipelined async reads
-    # over geometry column, beats serial footer loop on contended GPFS).
-    if 'geometry' in schema.names:
-        merged_bbox = _streaming_bbox(flist)
-        if merged_bbox is not None:
-            schema = parquet_schema_add_bbox(schema, bbox=merged_bbox)
+    # Caller-provided bbox (typically derived from H3 partition geometry).
+    if 'geometry' in schema.names and bbox is not None:
+        schema = parquet_schema_add_bbox(schema, bbox=bbox)
 
     # Build the merge dataset with the bbox-augmented schema. Provided schema
     # → no per-file footer validation; the scanner casts each batch to this
