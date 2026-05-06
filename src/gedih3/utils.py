@@ -1292,73 +1292,29 @@ def parquet_backfill_bbox(path):
     return 'rewritten'
 
 
-def _make_batch_reconciler(file_schema, target_schema):
-    """Per-file reconciler factory: maps batches from ``file_schema`` to
-    ``target_schema`` by **column NAME**.
-
-    Returns ``None`` when the file's schema matches the target field-for-field
-    (caller can pass batches through unchanged — zero-copy). Otherwise returns
-    a closure with a pre-computed name → column-index lookup. Missing columns
-    are null-filled, extra columns are dropped, types are cast (unsafe).
-
-    Used in the per-file iter merge path to handle column-order drift between
-    fragments without paying for a ``ds.dataset`` schema-unification scan.
-    """
-    import pyarrow as pa
-
-    target_names = target_schema.names
-    if file_schema.names == target_names:
-        types_match = all(
-            file_schema.field(i).type.equals(target_schema.field(i).type)
-            for i in range(len(target_names))
-        )
-        if types_match:
-            return None  # no reconciliation needed
-
-    name_to_idx = {n: i for i, n in enumerate(file_schema.names)}
-    target_fields = list(target_schema)
-
-    def reconcile(batch):
-        n_rows = batch.num_rows
-        arrays = []
-        for fld in target_fields:
-            idx = name_to_idx.get(fld.name)
-            if idx is not None:
-                arr = batch.column(idx)
-                if not arr.type.equals(fld.type):
-                    arr = arr.cast(fld.type, safe=False)
-                arrays.append(arr)
-            else:
-                arrays.append(pa.nulls(n_rows, type=fld.type))
-        return pa.RecordBatch.from_arrays(arrays, schema=target_schema)
-
-    return reconcile
-
-
 def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
                         rows_per_group=100_000, bbox=None):
     """Stream-merge parquet files into a single output with a bounded memory footprint.
 
-    Architecture (per-file iteration, no dataset scanner):
+    Architecture (per-file iteration, native column projection):
 
     - Schema is taken from the first file's footer (one ``pq.read_schema``).
       Each input fragment is opened sequentially via ``pq.ParquetFile`` and
-      drained via ``iter_batches(batch_size=rows_per_group)``. When the file
-      goes out of scope, all its IO state (footer, decompression buffers,
-      file handle) is released — deterministic per-file lifecycle.
-    - This replaces the older ``ds.dataset(flist).scanner(...).to_batches()``
-      flow, which retained metadata for all fragments through the scan and
-      held async I/O / IO-thread buffers that pyarrow's memory pool's
-      ``release_unused()`` couldn't reach. On a 1,270-column GEDI partition
-      that hidden retention reached ~13 GB per worker; per-file iter caps
-      it to one fragment's footprint at a time.
+      drained via ``iter_batches(batch_size=rows_per_group, columns=schema.names)``.
+      The ``columns=...`` argument has pyarrow's C++ reader **read columns in the
+      target order** — no Python-side reordering, no per-batch reconciler,
+      and any extras the file might have are dropped at read time (less I/O).
+      When the file goes out of scope, its IO state is released —
+      deterministic per-file lifecycle.
+    - **Invariant assumed by design**: all input fragments share an identical
+      column set and dtypes (true in gh3_build because all fragments come
+      from the same ``dask_geopandas.to_parquet`` call). A fragment with a
+      missing target column will raise from pyarrow — that's the right
+      behavior; it surfaces a serious data invariant violation rather than
+      silently null-filling.
     - Bbox is **provided by the caller** via the ``bbox`` argument when the
       input has a ``geometry`` column. ``gh3builder.h3_merge_files`` derives
       it directly from the H3 partition geometry (no data scan).
-    - Column-order drift between fragments is handled per-file by
-      :func:`_make_batch_reconciler` — fast-path returns ``None`` when the
-      file already matches the writer schema (every batch passes through
-      zero-copy), slow-path reorders/null-fills via a precomputed index map.
     - Row-group accumulator flushes BEFORE appending a batch that would
       overflow ``rows_per_group``.
     - Shot-dedup activates only when ``check_shots=True``.
@@ -1398,6 +1354,7 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
 
     # Schema from first file only (skip per-file footer scan for unification).
     schema = pq.read_schema(flist[0])
+    target_names = list(schema.names)
 
     # Caller-provided bbox (typically derived from H3 partition geometry).
     if 'geometry' in schema.names and bbox is not None:
@@ -1429,13 +1386,13 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
         acc_rows = 0
 
         # Per-file iteration: open one fragment, drain it, drop it, repeat.
-        # Each ParquetFile's IO state is released when it goes out of scope —
-        # bounds in-flight memory to ~one fragment's worth at any moment.
+        # `columns=target_names` makes pyarrow's C++ reader read columns in
+        # target order — no Python reorder per batch, and any extras the file
+        # might have are dropped at read time (less I/O). Each ParquetFile's
+        # IO state is released when it goes out of scope.
         for f in flist:
             pf = pq.ParquetFile(f)
-            # Decide reconciliation strategy ONCE per file (not per batch).
-            reconciler = _make_batch_reconciler(pf.schema_arrow, schema)
-            for batch in pf.iter_batches(batch_size=rows_per_group):
+            for batch in pf.iter_batches(batch_size=rows_per_group, columns=target_names):
                 if check_shots and has_shot_number:
                     arr = batch["shot_number"].to_numpy().astype(np.uint64)
                     if shots is None:
@@ -1446,9 +1403,6 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
                             continue
                         batch = batch.filter(pa.array(keep))
                         shots = np.unique(np.concatenate([shots, arr[keep]]))
-
-                if reconciler is not None:
-                    batch = reconciler(batch)
 
                 # Flush BEFORE appending if this batch would overflow the cap,
                 # so acc never holds more than rows_per_group rows at a time.
@@ -1477,7 +1431,7 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
 
             # Drop the ParquetFile reference now that we're done with it,
             # so its IO state can be released before opening the next fragment.
-            del pf, reconciler
+            del pf
 
         if acc:
             writer.write_table(pa.concat_tables(acc))
