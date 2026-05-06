@@ -402,18 +402,21 @@ def h3_part_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_co
     del df    
     return files
 
-def h3_write_metadata(h3_file):
+def h3_write_metadata(h3_file, stats=None):
     """
     Write a sidecar metadata JSON file for an H3 partition parquet file.
-
-    Reads shot_number, root_file_l2a, and datetime from the parquet file to
-    compute summary statistics (shot count, shot range, date range, granule
-    identifiers) and writes them alongside the parquet file.
 
     Parameters
     ----------
     h3_file : str
         Path to the H3 partition parquet file.
+    stats : dict, optional
+        Pre-computed stats from ``parquet_merge_files``'s streaming pass:
+        ``{'shot_count', 'shot_min', 'shot_max', 'dt_min', 'dt_max',
+        'root_files'}``. When provided, skips the ~1.5-2 GB ``pd.read_parquet``
+        re-read of the just-written merged file. When ``None`` or any field is
+        ``None``, falls back to reading the columns from disk (slower, more
+        memory).
 
     Returns
     -------
@@ -422,18 +425,41 @@ def h3_write_metadata(h3_file):
     """
     meta_file = h3_file.replace('.parquet', PARTITION_META_FILENAME)
     h3_part, year = os.path.basename(h3_file).split('.')[:2]
-    
-    df = pd.read_parquet(h3_file, engine='pyarrow', columns=['shot_number','root_file_l2a','datetime'])
 
     cols = read_parquet_schema(h3_file)
-    gedi_files = [GEDIFile(f) for f in df['root_file_l2a'].unique()]
-    shot_range = (int(df['shot_number'].min()), int(df['shot_number'].max()))
-    date_range = (df['datetime'].min().strftime('%Y-%m-%d'), df['datetime'].max().strftime('%Y-%m-%d'))
 
-    granule_identifiers = [{'orbit':gf.orbit, 'granule':gf.orbit_granule, 'track':gf.track} for gf in gedi_files]
+    # Fast path: caller provided streaming stats — no data re-read.
+    can_skip_read = (
+        stats is not None
+        and stats.get('root_files')
+        and stats.get('shot_min') is not None
+        and stats.get('dt_min') is not None
+    )
+
+    if can_skip_read:
+        gedi_files = [GEDIFile(f) for f in stats['root_files']]
+        shot_range = (int(stats['shot_min']), int(stats['shot_max']))
+        # dt_min / dt_max may be pandas/datetime/numpy types; pandas-parse
+        # to ensure consistent strftime formatting.
+        dt_min = pd.Timestamp(stats['dt_min'])
+        dt_max = pd.Timestamp(stats['dt_max'])
+        date_range = (dt_min.strftime('%Y-%m-%d'), dt_max.strftime('%Y-%m-%d'))
+        shot_count = stats['shot_count']
+    else:
+        df = pd.read_parquet(h3_file, engine='pyarrow',
+                             columns=['shot_number', 'root_file_l2a', 'datetime'])
+        gedi_files = [GEDIFile(f) for f in df['root_file_l2a'].unique()]
+        shot_range = (int(df['shot_number'].min()), int(df['shot_number'].max()))
+        date_range = (df['datetime'].min().strftime('%Y-%m-%d'),
+                      df['datetime'].max().strftime('%Y-%m-%d'))
+        shot_count = len(df)
+
+    granule_identifiers = [{'orbit': gf.orbit, 'granule': gf.orbit_granule,
+                            'track': gf.track} for gf in gedi_files]
     l2a_version = gedi_files[0].version
 
-    h3_polygon = gpd.GeoDataFrame(geometry=[fix_h3_geometry(h3_part)], crs=4326, index=[h3_part])
+    h3_polygon = gpd.GeoDataFrame(geometry=[fix_h3_geometry(h3_part)],
+                                  crs=4326, index=[h3_part])
 
     meta = {
         'last_modified': now(),
@@ -441,13 +467,13 @@ def h3_write_metadata(h3_file):
         'h3_partition': h3_part,
         'h3_geometry': to_geojson(h3_polygon),
         'year': int(year),
-        'shot_count': len(df),
+        'shot_count': shot_count,
         'shot_range': shot_range,
         'date_range': date_range,
         'granules': granule_identifiers,
         'columns': cols['column'].tolist()
     }
-    
+
     json_write(meta, meta_file, rewrite=True)
     return meta_file
 
@@ -717,14 +743,19 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     cell_id, parent_res = parse_h3_partition_dirname(h3part)
     bbox = h3_partition_bbox(cell_id, parent_res) if cell_id is not None else None
 
-    parquet_merge_files(out_file, files, check_shots=is_temp, rm_src=rm_src, bbox=bbox)
+    # Capture streaming stats from the merge so h3_write_metadata doesn't
+    # have to re-read the just-written file (saves ~1.5-2 GB peak memory
+    # per dense partition + the GPFS read-back I/O).
+    stats = parquet_merge_files(
+        out_file, files, check_shots=is_temp, rm_src=rm_src, bbox=bbox,
+    )
 
     if is_temp:
         os.replace(out_file, h3_file)
     if rm_src:
         shutil.rmtree(in_dir, ignore_errors=True)
 
-    meta_file = h3_write_metadata(h3_file)
+    meta_file = h3_write_metadata(h3_file, stats=stats)
     return h3_file
 
 @dask.delayed
