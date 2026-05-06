@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.25] - 2026-05-06
+
+### Fixed
+- **Coalesce per-file column-chunk reads via `pre_buffer=True`.** `pq.ParquetFile(f)` defaults to `pre_buffer=False` for direct use — that means each of a fragment's ~1,270 column chunks is read as a separate seek+read on the underlying filesystem. On cold shared GPFS at ~10–50 ms per scattered read, that's 12–60 s of pure I/O latency per fragment. `ds.dataset()`'s scanner sets `pre_buffer=True` internally, which is why the dataset path was so much faster — coalesces all column chunks of a row group into a few large sequential reads (~50–100 MB buffered), then decompresses in memory. Per-fragment cost drops 10–30×. Memory remains bounded — `pre_buffer` only caches the current row group's compressed bytes.
+
+### Performance
+- Expected merge throughput recovery: most of the v0.8.20 dataset speed restored, while keeping the v0.8.24 per-file iter memory footprint (~1 GB worker plateau).
+
 ## [0.8.24] - 2026-05-06
 
 ### Removed
