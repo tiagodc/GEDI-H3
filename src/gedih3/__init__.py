@@ -15,7 +15,7 @@ Examples
 >>> gedih3.raster.h3_to_raster(agg_gdf)
 """
 
-__version__ = "0.8.20"
+__version__ = "0.8.21"
 __author__ = "Tiago de Conto"
 __email__ = "tiagodc@umd.edu"
 

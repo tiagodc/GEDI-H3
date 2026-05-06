@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.21] - 2026-05-06
+
+### Changed
+- **`h3_write_metadata` no longer re-reads the merged file.** The end-of-merge step previously did `pd.read_parquet(h3_file, columns=['shot_number','root_file_l2a','datetime'])`, which materialized ~1.5–2 GB peak per dense partition (3 cols × ~30M rows for tropical h3_03 cells) and produced a redundant GPFS read of the just-written file. Now the four needed quantities (shot count, shot min/max, datetime min/max, set of unique granule filenames) are accumulated **online** during `parquet_merge_files`'s batch loop using `pyarrow.compute.min/max/unique` — zero allocation per batch beyond a small set of unique strings (~10–100 KB even for the worst-case partition). `parquet_merge_files` returns a stats dict; `h3_merge_files` passes it to `h3_write_metadata` via a new optional `stats=` argument.
+- `h3_write_metadata(h3_file, stats=None)` falls back to the old `pd.read_parquet` path when stats are not provided or any required field is missing — preserves backward compatibility for any caller that still uses the read-back form (no current callers do).
+
+### Performance
+- Per-merge peak memory drops by **~1.5–2 GB** for dense partitions (depends on shot count). High-water-mark RSS on long-lived workers stops climbing to that ceiling.
+- Per-merge GPFS I/O: eliminates the read-back of three full columns of the merged file (~hundreds of MB). On contended GPFS this also reduces metadata-server pressure since the final-file footer/data reads are gone.
+
+### Tests
+- 70 tests still pass. Test fixtures use parquets without `shot_number`/`root_file_l2a`/`datetime` columns; `parquet_merge_files` now returns a stats dict where those fields are `None`, callers ignore the return value, no behavior change.
+- Added smoke test verifying the fast path (stats-from-merge) and the read-back path produce **identical metadata** (l2a_version, h3_partition, year, shot_count, shot_range, date_range, granules).
+
 ## [0.8.20] - 2026-05-06
 
 ### Changed
