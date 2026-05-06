@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.22] - 2026-05-06
+
+### Fixed
+- **Cap pyarrow scanner readahead** in `parquet_merge_files`. PyArrow's dataset scanner defaults to `batch_readahead=16` and `fragment_readahead=4` — that's up to **64 batches in flight at any moment** (pre-decoded async even with `use_threads=False`). On a 1,270-column GEDI partition with `batch_size=100k`, that's ~15 GB of transient prefetch buffer per scan, which became the worker high-water-mark RSS observed by the user. Set both to `1` (one batch + one fragment header in flight at a time). New optional kwargs `batch_readahead` and `fragment_readahead` exposed for tuning.
+
+### Changed
+- **Lower default `rows_per_group` from 100,000 to 50,000.** Halves the per-flush `acc` accumulator transient (1,270 cols × 50k rows ≈ 250 MB instead of 500 MB+), and halves the `pa.concat_tables(acc)` peak. Trade: 2× more row groups in output, marginally less compression efficiency, slightly less granular predicate pushdown — invisible for our bulk-read patterns.
+- **Explicit cleanup at the end of `parquet_merge_files`**: `del scanner, dataset, writer, acc` and `pyarrow.default_memory_pool().release_unused()` before returning. Ensures heavy refs are dropped and pool memory is returned to the OS before the caller (`h3_merge_files`) does any further work — belt-and-suspenders alongside the trim-plugin's per-task hook.
+
+### Performance
+- Per-merge peak transient memory should drop from ~15 GB to ~1 GB — both because the prefetch buffer is now ~1 batch instead of 64, and because each batch is half the size. Worker high-water-mark RSS should plateau at a much lower ceiling.
+
 ## [0.8.21] - 2026-05-06
 
 ### Changed
