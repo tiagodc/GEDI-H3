@@ -1293,7 +1293,8 @@ def parquet_backfill_bbox(path):
 
 
 def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
-                        rows_per_group=100_000, bbox=None):
+                        rows_per_group=50_000, bbox=None,
+                        batch_readahead=1, fragment_readahead=1):
     """Stream-merge parquet files into a single output with a bounded memory footprint.
 
     Architecture (single dataset, no per-file footer loop):
@@ -1322,10 +1323,22 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
 
     Parameters
     ----------
+    rows_per_group : int, default 50_000
+        Output row-group size and scanner batch size. Lowered from 100k in
+        v0.8.21 → 50k in v0.8.22 to halve the per-flush ``acc`` accumulator
+        peak (1270-col GEDI batches are ~250 MB per 50k-row batch).
     bbox : list[float] or None
         ``[minlon, minlat, maxlon, maxlat]`` in EPSG:4326. When provided and
         the input has a ``geometry`` column, embedded into the GeoParquet
         ``columns.geometry.bbox`` metadata.
+    batch_readahead : int, default 1
+        How many batches the scanner pre-decodes ahead. PyArrow's default is
+        16 — at our column count and batch size that's ~4 GB of in-flight
+        prefetch buffer alone. Capped at 1 to bound peak transient memory.
+    fragment_readahead : int, default 1
+        How many input files the scanner reads ahead. PyArrow's default is
+        4. Combined with ``batch_readahead=16`` that's up to 64 batches in
+        flight = ~15 GB transient on a 1270-col partition. Capped at 1.
 
     Returns
     -------
@@ -1392,7 +1405,18 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
         acc = []
         acc_rows = 0
 
-        scanner = dataset.scanner(batch_size=rows_per_group, use_threads=False)
+        # Cap pyarrow's readahead. Defaults are batch_readahead=16 and
+        # fragment_readahead=4 — that's up to 64 batches in flight at any
+        # moment (pre-decoded async even with use_threads=False), which on
+        # a 1270-col GEDI partition with batch_size=50k is ~15 GB transient
+        # of prefetch buffer per scan. Setting both to 1 caps in-flight to
+        # ~one batch + one fragment header at a time.
+        scanner = dataset.scanner(
+            batch_size=rows_per_group,
+            use_threads=False,
+            batch_readahead=batch_readahead,
+            fragment_readahead=fragment_readahead,
+        )
         for batch in scanner.to_batches():
             if check_shots and has_shot_number:
                 arr = batch["shot_number"].to_numpy().astype(np.uint64)
@@ -1446,6 +1470,20 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
         for f in flist:
             if os.path.exists(f) and f != ofile:
                 os.unlink(f)
+
+    # Explicit cleanup before return: drop heavy refs and ask pyarrow to
+    # return unused pool memory to the OS. The trim plugin runs on Dask
+    # task transition (after this function returns) but doing it here
+    # ensures the merged file's transient buffers are released BEFORE
+    # the caller (h3_merge_files) does any further work.
+    try:
+        del scanner, dataset, writer, acc
+    except NameError:
+        pass
+    try:
+        pa.default_memory_pool().release_unused()
+    except Exception:
+        pass
 
     return stats
 
