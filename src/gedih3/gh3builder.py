@@ -14,7 +14,7 @@ from earthaccess.store import EarthAccessFile
 from dask.distributed import progress
 
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME, _get_versioned, _GEDI_L2A_ESSENTIALS, _PRODUCT_QUALITY_FLAGS
-from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, parquet_schema_add_bbox, generate_manifest, check_nan_only_columns
+from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, parquet_schema_add_bbox, generate_manifest, check_nan_only_columns, h3_partition_bbox, parse_h3_partition_dirname
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
 from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_subset, validate_soc_files, load_h5, expand_var_wildcards
 from .daac import gedi_download
@@ -711,7 +711,13 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
             )
             is_temp = False  # treat as no dest, full overwrite
 
-    parquet_merge_files(out_file, files, check_shots=is_temp, rm_src=rm_src)
+    # Derive bbox from the H3 partition geometry directly (no data scan).
+    # Buffered enough to safely contain all level-N children at any depth
+    # via the empirical icosahedral-distortion factor in h3_partition_bbox.
+    cell_id, parent_res = parse_h3_partition_dirname(h3part)
+    bbox = h3_partition_bbox(cell_id, parent_res) if cell_id is not None else None
+
+    parquet_merge_files(out_file, files, check_shots=is_temp, rm_src=rm_src, bbox=bbox)
 
     if is_temp:
         os.replace(out_file, h3_file)
