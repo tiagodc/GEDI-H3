@@ -1072,54 +1072,62 @@ def _bbox_from_geo_metadata(parquet_path):
     return None
 
 
-def _streaming_bbox(flist, batch_size=100_000):
+def _streaming_bbox(flist, batch_size=1_000_000):
     """Compute the union bbox by streaming the geometry column only.
 
-    Used as a fallback when one or more inputs lack a footer-level bbox.
-    Bounded memory: O(batch_size); decodes WKB to shapely geometries via
-    the vectorized ``shapely.from_wkb`` and reduces with ``shapely.bounds``.
+    Single code path for all bbox computation: constructs a pyarrow dataset
+    with the first file's schema (so per-file footer scanning is skipped at
+    construction — footers are read lazily during scan with pipelined async
+    I/O), then accumulates ``shapely.bounds`` over batches of the geometry
+    column. Memory bounded by ``batch_size``.
 
-    Iterates per-file via ``pq.ParquetFile`` instead of constructing a
-    ``ds.dataset`` over ``flist`` — the dataset constructor would re-read
-    every file's footer for schema unification (already paid by the
-    caller's bbox/footer pass), and per-file iteration is sufficient when
-    fragments share an identical column schema (true by construction in
-    gh3_build).
+    Replaces the older "fast path: footer-bbox union; slow path: streaming"
+    split. On a contended GPFS the dataset's pipelined reads beat a serial
+    Python footer loop (fewer metadata-server round-trips per worker even
+    though more total bytes are read), and we lose the per-file ``geo``
+    metadata footer-read entirely from the merge hot path.
     """
     import pyarrow.parquet as pq
+    import pyarrow.dataset as ds
     import shapely
     import numpy as np
 
     if not flist:
         return None
 
+    try:
+        schema = pq.read_schema(flist[0])
+    except Exception:
+        return None
+    if 'geometry' not in schema.names:
+        return None
+
+    dataset = ds.dataset(flist, format='parquet', schema=schema)
+
     minx = miny = float('inf')
     maxx = maxy = float('-inf')
     seen = False
-    for f in flist:
-        pf = pq.ParquetFile(f)
-        if 'geometry' not in pf.schema_arrow.names:
+    scanner = dataset.scanner(columns=['geometry'], batch_size=batch_size)
+    for batch in scanner.to_batches():
+        if batch.num_rows == 0:
             continue
-        for batch in pf.iter_batches(batch_size=batch_size, columns=['geometry']):
-            if batch.num_rows == 0:
-                continue
-            wkb_arr = batch['geometry'].to_numpy(zero_copy_only=False)
-            geoms = shapely.from_wkb(wkb_arr)
-            bounds = shapely.bounds(geoms)  # (N, 4): minx, miny, maxx, maxy
-            if bounds.size == 0:
-                continue
-            bx_min = bounds[:, 0]
-            by_min = bounds[:, 1]
-            bx_max = bounds[:, 2]
-            by_max = bounds[:, 3]
-            valid = np.isfinite(bx_min) & np.isfinite(by_min) & np.isfinite(bx_max) & np.isfinite(by_max)
-            if not valid.any():
-                continue
-            seen = True
-            minx = min(minx, float(bx_min[valid].min()))
-            miny = min(miny, float(by_min[valid].min()))
-            maxx = max(maxx, float(bx_max[valid].max()))
-            maxy = max(maxy, float(by_max[valid].max()))
+        wkb_arr = batch['geometry'].to_numpy(zero_copy_only=False)
+        geoms = shapely.from_wkb(wkb_arr)
+        bounds = shapely.bounds(geoms)  # (N, 4): minx, miny, maxx, maxy
+        if bounds.size == 0:
+            continue
+        bx_min = bounds[:, 0]
+        by_min = bounds[:, 1]
+        bx_max = bounds[:, 2]
+        by_max = bounds[:, 3]
+        valid = np.isfinite(bx_min) & np.isfinite(by_min) & np.isfinite(bx_max) & np.isfinite(by_max)
+        if not valid.any():
+            continue
+        seen = True
+        minx = min(minx, float(bx_min[valid].min()))
+        miny = min(miny, float(by_min[valid].min()))
+        maxx = max(maxx, float(bx_max[valid].max()))
+        maxy = max(maxy, float(by_max[valid].max()))
 
     return [minx, miny, maxx, maxy] if seen else None
 
@@ -1194,181 +1202,29 @@ def parquet_backfill_bbox(path):
     return 'rewritten'
 
 
-def _merged_bbox(flist):
-    """Union bbox over all input parquets, preferring footer metadata.
-
-    Fast path: every input declares a GeoParquet bbox in its footer
-    metadata — the merged bbox is the elementwise (min, min, max, max)
-    union, no data is read. Slow path: any input is missing its
-    footer-level bbox, fall back to streaming the geometry column over
-    just the missing files.
-
-    Used by ``parquet_backfill_bbox`` (single-file) and tests. The merge
-    hot path uses ``_merged_bbox_and_schema`` instead, which folds this
-    work into the schema-unification footer pass.
-    """
-    if not flist:
-        return None
-    per_file = [(_bbox_from_geo_metadata(f), f) for f in flist]
-    missing = [f for bbox, f in per_file if bbox is None]
-    bboxes = [bbox for bbox, _ in per_file if bbox is not None]
-    if missing:
-        fb = _streaming_bbox(missing)
-        if fb is not None:
-            bboxes.append(fb)
-    if not bboxes:
-        return None
-    minx = min(b[0] for b in bboxes)
-    miny = min(b[1] for b in bboxes)
-    maxx = max(b[2] for b in bboxes)
-    maxy = max(b[3] for b in bboxes)
-    return [minx, miny, maxx, maxy]
-
-
-def _merged_bbox_and_schema(flist):
-    """One footer pass per input. Returns ``(unified_schema, merged_bbox)``.
-
-    The unified schema is a **column-name union**: each name appears once,
-    type taken from the first file that declares it. Schema-level metadata
-    (notably the GeoParquet ``geo`` key) is taken from the first file with
-    metadata. Returned as a single ``pa.Schema`` ready for ``ParquetWriter``.
-
-    The merged bbox is the elementwise union of footer-level GeoParquet
-    bboxes (fast path); if any fragment lacks one, the geometry column is
-    streamed for those files only via :func:`_streaming_bbox`.
-
-    Folds two passes (``ds.dataset(flist)`` schema unification + a separate
-    bbox extraction) into one. Cost: one ``pq.read_metadata`` per file —
-    cheaper than ``ds.dataset`` (which also opens each footer but does
-    additional work) and unlocks per-file streaming on the hot merge path.
-    """
-    import pyarrow as pa
-    import pyarrow.parquet as pq
-
-    if not flist:
-        return None, None
-
-    seen: Dict[str, "pa.Field"] = {}
-    schema_metadata = None
-    bboxes = []
-    streaming_needed = []
-
-    for f in flist:
-        try:
-            meta_obj = pq.read_metadata(f)
-            sch = meta_obj.schema.to_arrow_schema()
-        except Exception:
-            continue
-        if schema_metadata is None and sch.metadata:
-            schema_metadata = dict(sch.metadata)
-        for fld in sch:
-            if fld.name not in seen:
-                seen[fld.name] = fld
-        md = sch.metadata or {}
-        raw = md.get(b'geo')
-        bbox = None
-        if raw:
-            try:
-                geo = json.loads(raw)
-                primary = geo.get('primary_column', 'geometry')
-                b = geo.get('columns', {}).get(primary, {}).get('bbox')
-                if b and len(b) == 4:
-                    bbox = [float(v) for v in b]
-            except Exception:
-                pass
-        if bbox is not None:
-            bboxes.append(bbox)
-        elif 'geometry' in sch.names:
-            streaming_needed.append(f)
-
-    if streaming_needed:
-        fb = _streaming_bbox(streaming_needed)
-        if fb is not None:
-            bboxes.append(fb)
-
-    schema = pa.schema(list(seen.values()), metadata=schema_metadata)
-    if bboxes:
-        merged_bbox = [
-            min(b[0] for b in bboxes),
-            min(b[1] for b in bboxes),
-            max(b[2] for b in bboxes),
-            max(b[3] for b in bboxes),
-        ]
-    else:
-        merged_bbox = None
-    return schema, merged_bbox
-
-
-def _make_batch_reconciler(file_schema, target_schema):
-    """Return a per-batch reconciler closure for batches read from a fragment
-    whose Arrow schema is ``file_schema``, mapping them to ``target_schema``
-    by **column name**.
-
-    Hoists the schema comparison out of the per-batch hot loop (it ran ~2,540
-    Python ops × 100 batches = ~250 K interpreter ops per merge previously).
-    The check now runs once per file: if the file's schema matches the target
-    field-for-field, returns ``None`` and the caller skips reconciliation
-    entirely. Otherwise returns a closure that maps each batch using a
-    pre-computed column-index lookup (no per-column ``in batch_names``
-    set-membership test in the hot loop).
-
-    Closure semantics: columns missing from the batch are null-filled; columns
-    extra in the batch are dropped; types are cast (unsafe) if needed.
-    """
-    import pyarrow as pa
-
-    target_names = target_schema.names
-    if file_schema.names == target_names:
-        types_match = all(
-            file_schema.field(i).type.equals(target_schema.field(i).type)
-            for i in range(len(target_names))
-        )
-        if types_match:
-            return None  # no reconciliation needed; pass batches through
-
-    name_to_idx = {n: i for i, n in enumerate(file_schema.names)}
-    target_fields = list(target_schema)
-
-    def reconcile(batch):
-        n_rows = batch.num_rows
-        arrays = []
-        for fld in target_fields:
-            idx = name_to_idx.get(fld.name)
-            if idx is not None:
-                arr = batch.column(idx)
-                if not arr.type.equals(fld.type):
-                    arr = arr.cast(fld.type, safe=False)
-                arrays.append(arr)
-            else:
-                arrays.append(pa.nulls(n_rows, type=fld.type))
-        return pa.RecordBatch.from_arrays(arrays, schema=target_schema)
-
-    return reconcile
-
-
 def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_group=100_000):
     """Stream-merge parquet files into a single output with a bounded memory footprint.
 
-    Memory profile (per call):
+    Architecture (single dataset, no per-file footer loop):
 
-    - Streams via per-file ``pq.ParquetFile.iter_batches`` with
-      ``batch_size=rows_per_group``; never loads the full dataset.
-    - Schema and bbox are computed in a single per-file footer pass via
-      :func:`_merged_bbox_and_schema`. The unified schema is a column-name
-      union — fragments with column-order or column-set drift are
-      reconciled per batch by :func:`_reconcile_batch_to_schema` (zero-copy
-      fast path when the batch already matches; null-fill / cast / drop
-      otherwise). This replaces the older ``ds.dataset(flist).scanner(...)``
-      flow which paid a separate footer rescan for schema unification.
-    - Bbox metadata is **always** embedded for files with a ``geometry``
-      column. Fast path: union footer-level GeoParquet bboxes (no data
-      read). Fallback: stream just the geometry column for inputs that lack
-      footer bbox, decoding WKB in batches via shapely (bounded memory).
-      Required for the output to be a spec-valid GeoParquet.
-    - The row-group accumulator is flushed *before* appending a batch that
-      would overflow ``rows_per_group``, capping ``acc`` at exactly
-      ``rows_per_group`` rows (previously it could briefly hold ~2x).
-    - Shot-dedup activates only when ``check_shots=True`` (caller-controlled).
+    - Schema is taken from the first file's footer (one ``pq.read_schema``).
+      Assumes fragments share a column set — empirically validated on 201
+      sampled partition-years; only column-order drift was seen in the wild.
+    - Bbox is computed via :func:`_streaming_bbox` over the same input list,
+      which constructs a ``ds.dataset(flist, schema=first_file_schema)``
+      and streams just the geometry column with pipelined async I/O. Memory
+      bounded by ``batch_size``.
+    - Merge stream uses ``ds.dataset(flist, schema=schema_with_bbox)`` and
+      its scanner. Footers are read lazily during scan in pyarrow's C++
+      reader (pipelined I/O), and the scanner casts each batch to the
+      provided schema — handling column-order drift in C++ without the
+      per-batch Python reconciler we used in 0.8.17–0.8.18.
+    - Per-merge metadata-server contact drops to whatever pyarrow's
+      pipelined dataset reader does internally (no separate Python footer
+      loop, no per-file ``pq.ParquetFile`` reopen for streaming).
+    - Row-group accumulator flushes BEFORE appending a batch that would
+      overflow ``rows_per_group``, capping ``acc`` at exactly that.
+    - Shot-dedup activates only when ``check_shots=True``.
 
     Output is written atomically: ``ofile + '.merge.tmp'`` first, then
     ``os.replace`` to ``ofile``. A stale ``.merge.tmp`` from a prior crash is
@@ -1377,16 +1233,27 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
     import numpy as np
     import pyarrow as pa
     import pyarrow.parquet as pq
+    import pyarrow.dataset as ds
+
+    if not flist:
+        return
 
     shots = None
 
-    # One footer pass: unified schema (column-name union) + merged bbox.
-    schema, merged_bbox = _merged_bbox_and_schema(flist)
-    if schema is None:
-        return  # empty flist
+    # Schema from first file only (skip per-file footer scan for unification).
+    schema = pq.read_schema(flist[0])
 
-    if 'geometry' in schema.names and merged_bbox is not None:
-        schema = parquet_schema_add_bbox(schema, bbox=merged_bbox)
+    # Streaming bbox via the same dataset construct (pipelined async reads
+    # over geometry column, beats serial footer loop on contended GPFS).
+    if 'geometry' in schema.names:
+        merged_bbox = _streaming_bbox(flist)
+        if merged_bbox is not None:
+            schema = parquet_schema_add_bbox(schema, bbox=merged_bbox)
+
+    # Build the merge dataset with the bbox-augmented schema. Provided schema
+    # → no per-file footer validation; the scanner casts each batch to this
+    # schema in C++ during the scan, handling column-order drift transparently.
+    dataset = ds.dataset(flist, format='parquet', schema=schema)
 
     # Atomic write: write to temp file, rename after successful close
     tmp_ofile = ofile + '.merge.tmp'
@@ -1399,36 +1266,28 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_
         acc = []
         acc_rows = 0
 
-        for f in flist:
-            pf = pq.ParquetFile(f)
-            # Decide reconciliation strategy ONCE per file (not per batch).
-            # Returns None when the file's schema matches the writer's
-            # field-for-field — every batch then passes through unchanged.
-            reconciler = _make_batch_reconciler(pf.schema_arrow, schema)
-            for batch in pf.iter_batches(batch_size=rows_per_group):
-                if check_shots and "shot_number" in batch.schema.names:
-                    arr = batch["shot_number"].to_numpy().astype(np.uint64)
-                    if shots is None:
-                        shots = np.unique(arr)
-                    else:
-                        keep = ~np.isin(arr, shots, assume_unique=True)
-                        if not keep.any():
-                            continue
-                        batch = batch.filter(pa.array(keep))
-                        shots = np.unique(np.concatenate([shots, arr[keep]]))
+        scanner = dataset.scanner(batch_size=rows_per_group, use_threads=False)
+        for batch in scanner.to_batches():
+            if check_shots and "shot_number" in batch.schema.names:
+                arr = batch["shot_number"].to_numpy().astype(np.uint64)
+                if shots is None:
+                    shots = np.unique(arr)
+                else:
+                    keep = ~np.isin(arr, shots, assume_unique=True)
+                    if not keep.any():
+                        continue
+                    batch = batch.filter(pa.array(keep))
+                    shots = np.unique(np.concatenate([shots, arr[keep]]))
 
-                if reconciler is not None:
-                    batch = reconciler(batch)
+            # Flush BEFORE appending if this batch would overflow the cap,
+            # so acc never holds more than rows_per_group rows at a time.
+            if acc_rows + batch.num_rows > rows_per_group and acc:
+                writer.write_table(pa.concat_tables(acc))
+                acc.clear()
+                acc_rows = 0
 
-                # Flush BEFORE appending if this batch would overflow the cap,
-                # so acc never holds more than rows_per_group rows at a time.
-                if acc_rows + batch.num_rows > rows_per_group and acc:
-                    writer.write_table(pa.concat_tables(acc))
-                    acc.clear()
-                    acc_rows = 0
-
-                acc.append(pa.Table.from_batches([batch], schema=schema))
-                acc_rows += batch.num_rows
+            acc.append(pa.Table.from_batches([batch], schema=schema))
+            acc_rows += batch.num_rows
 
         if acc:
             writer.write_table(pa.concat_tables(acc))
