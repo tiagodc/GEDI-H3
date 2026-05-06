@@ -1390,8 +1390,17 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
         # target order — no Python reorder per batch, and any extras the file
         # might have are dropped at read time (less I/O). Each ParquetFile's
         # IO state is released when it goes out of scope.
+        #
+        # `pre_buffer=True` is REQUIRED on shared GPFS — pyarrow's default is
+        # False for direct ParquetFile use (only `ds.dataset()` sets it to True
+        # internally). Without it, each column chunk in each row group is read
+        # as a separate seek+read; for our 1,270-column files that's ~1,270
+        # cold-GPFS reads per row group at ~10–50 ms each = 12–60 s/row-group
+        # of pure I/O latency. With pre_buffer=True, all column chunks of a
+        # row group are coalesced into a few large sequential reads (~50–100
+        # MB buffered), then decompressed in memory.
         for f in flist:
-            pf = pq.ParquetFile(f)
+            pf = pq.ParquetFile(f, pre_buffer=True)
             for batch in pf.iter_batches(batch_size=rows_per_group, columns=target_names):
                 if check_shots and has_shot_number:
                     arr = batch["shot_number"].to_numpy().astype(np.uint64)
