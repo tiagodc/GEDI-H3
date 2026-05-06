@@ -1293,7 +1293,7 @@ def parquet_backfill_bbox(path):
 
 
 def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
-                        rows_per_group=50_000, bbox=None,
+                        rows_per_group=100_000, bbox=None,
                         batch_readahead=1, fragment_readahead=1):
     """Stream-merge parquet files into a single output with a bounded memory footprint.
 
