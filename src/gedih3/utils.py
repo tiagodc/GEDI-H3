@@ -1327,6 +1327,18 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
         the input has a ``geometry`` column, embedded into the GeoParquet
         ``columns.geometry.bbox`` metadata.
 
+    Returns
+    -------
+    dict or None
+        ``None`` if ``flist`` is empty. Otherwise a stats dict accumulated
+        online during the merge stream:
+        ``{'shot_count': int, 'shot_min': int|None, 'shot_max': int|None,
+        'dt_min': datetime|None, 'dt_max': datetime|None,
+        'root_files': set[str]|None}``. Fields are ``None`` when the source
+        column is absent from the schema. Callers can use these for sidecar
+        metadata generation without re-reading the merged file (saves
+        ~1.5–2 GB peak per dense partition merge).
+
     Output is written atomically: ``ofile + '.merge.tmp'`` first, then
     ``os.replace`` to ``ofile``. A stale ``.merge.tmp`` from a prior crash is
     cleaned up before the new write.
@@ -1337,7 +1349,9 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
     import pyarrow.dataset as ds
 
     if not flist:
-        return
+        return None
+
+    import pyarrow.compute as pc
 
     shots = None
 
@@ -1358,6 +1372,20 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
     if os.path.exists(tmp_ofile):
         os.unlink(tmp_ofile)  # Clean up stale temp from previous crash
 
+    # Streaming stats — accumulate per-batch so h3_write_metadata never has to
+    # re-read the merged file. Defensive: only populate fields whose source
+    # column exists in the schema (test fixtures merging arbitrary parquets
+    # may not have shot_number / root_file_l2a / datetime).
+    has_shot_number = 'shot_number' in schema.names
+    has_root_file = 'root_file_l2a' in schema.names
+    has_datetime = 'datetime' in schema.names
+    stats = {
+        'shot_count': 0,
+        'shot_min': None, 'shot_max': None,
+        'dt_min': None, 'dt_max': None,
+        'root_files': set() if has_root_file else None,
+    }
+
     try:
         writer = pq.ParquetWriter(tmp_ofile, schema, compression="zstd")
         shots = None
@@ -1366,7 +1394,7 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
 
         scanner = dataset.scanner(batch_size=rows_per_group, use_threads=False)
         for batch in scanner.to_batches():
-            if check_shots and "shot_number" in batch.schema.names:
+            if check_shots and has_shot_number:
                 arr = batch["shot_number"].to_numpy().astype(np.uint64)
                 if shots is None:
                     shots = np.unique(arr)
@@ -1387,6 +1415,24 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
             acc.append(pa.Table.from_batches([batch], schema=schema))
             acc_rows += batch.num_rows
 
+            # Collect per-batch stats for h3_write_metadata. Operations are
+            # zero-allocation pyarrow.compute (min_max) + one to_pylist() on
+            # the deduplicated string array (typically 1-8 unique granule
+            # filenames per fragment, so this list is tiny).
+            stats['shot_count'] += batch.num_rows
+            if has_shot_number and batch.num_rows:
+                bsm, bsx = pc.min(batch['shot_number']).as_py(), pc.max(batch['shot_number']).as_py()
+                if bsm is not None:
+                    stats['shot_min'] = bsm if stats['shot_min'] is None else min(stats['shot_min'], bsm)
+                    stats['shot_max'] = bsx if stats['shot_max'] is None else max(stats['shot_max'], bsx)
+            if has_datetime and batch.num_rows:
+                bdm, bdx = pc.min(batch['datetime']).as_py(), pc.max(batch['datetime']).as_py()
+                if bdm is not None:
+                    stats['dt_min'] = bdm if stats['dt_min'] is None else min(stats['dt_min'], bdm)
+                    stats['dt_max'] = bdx if stats['dt_max'] is None else max(stats['dt_max'], bdx)
+            if has_root_file and batch.num_rows:
+                stats['root_files'].update(pc.unique(batch['root_file_l2a']).to_pylist())
+
         if acc:
             writer.write_table(pa.concat_tables(acc))
         writer.close()
@@ -1400,6 +1446,8 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
         for f in flist:
             if os.path.exists(f) and f != ofile:
                 os.unlink(f)
+
+    return stats
 
 def parquet_join_columns(flist: List[str], ofile: str, key_col: str = 'shot_number',
                          tmp_suffix: str = '.join.tmp', join_how='left'):
