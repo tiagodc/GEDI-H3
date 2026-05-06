@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.20] - 2026-05-06
+
+### Changed
+- **Bbox derived from H3 partition geometry — no data scan during merge.** `parquet_merge_files` now accepts a `bbox` parameter; the streaming-bbox computation that read every fragment's geometry column is gone from the merge hot path. `gh3builder.h3_merge_files` parses the H3 cell ID from the partition directory name and computes a buffered bbox via the new `h3_partition_bbox(cell_id, parent_res)` helper — microseconds per merge, no GPFS reads. On a 400-fragment partition this saves ~10–60 s per merge depending on partition size, and removes a non-trivial chunk of metadata-server pressure under heavy worker concurrency.
+- **Buffer formula based on empirical icosahedral distortion.** Verified by exhaustive enumeration across H3 resolution pairs: max child overhang asymptotes to ~14% of parent edge length, regardless of how deep the children are (once depth gap ≥ 5 levels). Default `edge_fraction=0.18` (14% × 1.2 safety). Buffer applied with cosine correction at the parent's most poleward vertex so the same scalar in degrees is safe for both lat and lon directions.
+
+### Added
+- `utils.h3_partition_bbox(h3_cell_id, parent_res, edge_fraction=0.18)` — public helper returning the EPSG:4326 bbox of an H3 cell padded for safe descendant containment.
+- `utils.parse_h3_partition_dirname('h3_03=830e4afffffffff')` → `('830e4afffffffff', 3)` — parser used by `h3_merge_files` to recover the H3 cell from the partition directory name.
+
+### Trade-off
+- Output bbox is a guaranteed-valid upper bound but not tight. For an `h3_03` partition (~69 km edge) the buffer expands the bbox by ~9% per side. Predicate pushdown still skips non-overlapping queries correctly; queries near a partition's edge may scan the file when actual data doesn't fall in the query region. Cost: one extra parquet scan per false-positive partition.
+- `_streaming_bbox` is preserved for `parquet_backfill_bbox` (the doctor's per-file rewrite path) where the H3 cell is unknown.
+
 ## [0.8.19] - 2026-05-05
 
 ### Changed
