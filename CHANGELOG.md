@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.23] - 2026-05-06
+
+### Changed
+- **Replace `ds.dataset` scanner with explicit per-file iteration in `parquet_merge_files`.** The dataset abstraction retained metadata for all fragments through the scan and held async-I/O / IO-thread buffers that pyarrow's memory pool's `release_unused()` couldn't reach. On a 1,270-column GEDI partition, that hidden retention reached ~13 GB per worker on v0.8.22 (despite `batch_readahead=1, fragment_readahead=1` and `rows_per_group=50k`). New flow:
+  - Open one fragment at a time via `pq.ParquetFile(f)` → drain via `iter_batches(batch_size=rows_per_group)` → drop the file reference (its IO state is released) → next fragment.
+  - Per-file `_make_batch_reconciler(file_schema, target_schema)` handles column-order drift (12/201 partitions in the wild) and column-set drift defensively. Fast-path returns `None` when the file already matches the target schema, every batch passes through zero-copy. Slow-path uses a precomputed name → column-index map to reorder/null-fill in O(num_columns) per batch.
+  - Restore `rows_per_group=100_000` (was 50k in v0.8.22 as a memory mitigation that didn't reach the actual culprit). Better compression and fewer row groups.
+- Drop `batch_readahead` / `fragment_readahead` parameters (no longer applicable — no scanner).
+
+### Performance
+- Per-merge peak transient memory expected to drop from ~13 GB to ~1–2 GB. Worker high-water-mark RSS should plateau at one fragment's footprint instead of the whole dataset's.
+- Throughput trade: synchronous reads vs scanner's async pipelining. On contended GPFS the pipelining wasn't buying us much (we observed 9–10 merges/min with full pipelining, then 2.6/min after capping readahead) — so per-file iter shouldn't significantly underperform.
+
 ## [0.8.22] - 2026-05-06
 
 ### Fixed
