@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.19] - 2026-05-05
+
+### Changed
+- **Single dataset, no Python footer loop in the merge hot path.** `parquet_merge_files` now takes the schema from the first file (one `pq.read_schema`), constructs a single `ds.dataset(flist, schema=...)` (provided schema → no per-file footer scan at construction; pyarrow trusts our schema and reads footers lazily during scan with pipelined async I/O in C++), and uses that dataset's scanner for both bbox computation and the merge stream. Per-merge metadata-server contact drops from ~2N (schema + bbox footer reads) to whatever pyarrow's pipelined reader does internally — a meaningful reduction at high worker counts on shared GPFS where metadata-server contention is the bottleneck.
+- **Bbox via streaming geometry column** (`_streaming_bbox` is now the single bbox path). Constructs the same dataset, runs scanner with `columns=['geometry']`, decodes WKB → bounds via vectorized `shapely.from_wkb` + `shapely.bounds` per batch, accumulates online. Memory bounded by `batch_size=1_000_000` regardless of partition size — safe for 30 M-shot tropical partitions even at 128 concurrent workers.
+- **Column-order drift handled in C++.** The dataset scanner casts each batch to the provided schema during the scan, replacing the per-batch Python reconciler from 0.8.17–0.8.18. Faster (no Python loop per batch) and same correctness on the 12/201 partition-years that had column-order drift in the wild.
+
+### Removed
+- `_merged_bbox(flist)` helper — folded into `_streaming_bbox` (single path).
+- `_merged_bbox_and_schema(flist)` helper — schema is now first-file-only, bbox is streaming-only.
+- `_make_batch_reconciler(file_schema, target_schema)` — superseded by the dataset's C++ cast.
+
 ## [0.8.18] - 2026-05-05
 
 ### Changed
