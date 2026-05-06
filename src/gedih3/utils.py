@@ -1292,65 +1292,95 @@ def parquet_backfill_bbox(path):
     return 'rewritten'
 
 
+def _make_batch_reconciler(file_schema, target_schema):
+    """Per-file reconciler factory: maps batches from ``file_schema`` to
+    ``target_schema`` by **column NAME**.
+
+    Returns ``None`` when the file's schema matches the target field-for-field
+    (caller can pass batches through unchanged — zero-copy). Otherwise returns
+    a closure with a pre-computed name → column-index lookup. Missing columns
+    are null-filled, extra columns are dropped, types are cast (unsafe).
+
+    Used in the per-file iter merge path to handle column-order drift between
+    fragments without paying for a ``ds.dataset`` schema-unification scan.
+    """
+    import pyarrow as pa
+
+    target_names = target_schema.names
+    if file_schema.names == target_names:
+        types_match = all(
+            file_schema.field(i).type.equals(target_schema.field(i).type)
+            for i in range(len(target_names))
+        )
+        if types_match:
+            return None  # no reconciliation needed
+
+    name_to_idx = {n: i for i, n in enumerate(file_schema.names)}
+    target_fields = list(target_schema)
+
+    def reconcile(batch):
+        n_rows = batch.num_rows
+        arrays = []
+        for fld in target_fields:
+            idx = name_to_idx.get(fld.name)
+            if idx is not None:
+                arr = batch.column(idx)
+                if not arr.type.equals(fld.type):
+                    arr = arr.cast(fld.type, safe=False)
+                arrays.append(arr)
+            else:
+                arrays.append(pa.nulls(n_rows, type=fld.type))
+        return pa.RecordBatch.from_arrays(arrays, schema=target_schema)
+
+    return reconcile
+
+
 def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
-                        rows_per_group=100_000, bbox=None,
-                        batch_readahead=1, fragment_readahead=1):
+                        rows_per_group=100_000, bbox=None):
     """Stream-merge parquet files into a single output with a bounded memory footprint.
 
-    Architecture (single dataset, no per-file footer loop):
+    Architecture (per-file iteration, no dataset scanner):
 
     - Schema is taken from the first file's footer (one ``pq.read_schema``).
-      Assumes fragments share a column set — empirically validated on 201
-      sampled partition-years; only column-order drift was seen in the wild.
+      Each input fragment is opened sequentially via ``pq.ParquetFile`` and
+      drained via ``iter_batches(batch_size=rows_per_group)``. When the file
+      goes out of scope, all its IO state (footer, decompression buffers,
+      file handle) is released — deterministic per-file lifecycle.
+    - This replaces the older ``ds.dataset(flist).scanner(...).to_batches()``
+      flow, which retained metadata for all fragments through the scan and
+      held async I/O / IO-thread buffers that pyarrow's memory pool's
+      ``release_unused()`` couldn't reach. On a 1,270-column GEDI partition
+      that hidden retention reached ~13 GB per worker; per-file iter caps
+      it to one fragment's footprint at a time.
     - Bbox is **provided by the caller** via the ``bbox`` argument when the
       input has a ``geometry`` column. ``gh3builder.h3_merge_files`` derives
-      it directly from the H3 partition geometry (no data scan, microseconds
-      per merge), eliminating the streaming-geometry-column read that used to
-      cost ~10–30 s per merge under GPFS contention. If ``bbox`` is None and
-      a geometry column is present, the output's ``geo`` metadata will lack
-      a ``bbox`` field — callers should pass one for spec-valid GeoParquet.
-    - Merge stream uses ``ds.dataset(flist, schema=schema_with_bbox)`` and
-      its scanner. Footers are read lazily during scan in pyarrow's C++
-      reader (pipelined I/O), and the scanner casts each batch to the
-      provided schema — handling column-order drift in C++ without a
-      per-batch Python reconciler.
-    - Per-merge metadata-server contact drops to whatever pyarrow's
-      pipelined dataset reader does internally (no separate Python footer
-      loop, no per-file ``pq.ParquetFile`` reopen for streaming).
+      it directly from the H3 partition geometry (no data scan).
+    - Column-order drift between fragments is handled per-file by
+      :func:`_make_batch_reconciler` — fast-path returns ``None`` when the
+      file already matches the writer schema (every batch passes through
+      zero-copy), slow-path reorders/null-fills via a precomputed index map.
     - Row-group accumulator flushes BEFORE appending a batch that would
-      overflow ``rows_per_group``, capping ``acc`` at exactly that.
+      overflow ``rows_per_group``.
     - Shot-dedup activates only when ``check_shots=True``.
 
     Parameters
     ----------
-    rows_per_group : int, default 50_000
-        Output row-group size and scanner batch size. Lowered from 100k in
-        v0.8.21 → 50k in v0.8.22 to halve the per-flush ``acc`` accumulator
-        peak (1270-col GEDI batches are ~250 MB per 50k-row batch).
+    rows_per_group : int, default 100_000
+        Output row-group size and per-file iter batch size.
     bbox : list[float] or None
         ``[minlon, minlat, maxlon, maxlat]`` in EPSG:4326. When provided and
         the input has a ``geometry`` column, embedded into the GeoParquet
         ``columns.geometry.bbox`` metadata.
-    batch_readahead : int, default 1
-        How many batches the scanner pre-decodes ahead. PyArrow's default is
-        16 — at our column count and batch size that's ~4 GB of in-flight
-        prefetch buffer alone. Capped at 1 to bound peak transient memory.
-    fragment_readahead : int, default 1
-        How many input files the scanner reads ahead. PyArrow's default is
-        4. Combined with ``batch_readahead=16`` that's up to 64 batches in
-        flight = ~15 GB transient on a 1270-col partition. Capped at 1.
 
     Returns
     -------
     dict or None
         ``None`` if ``flist`` is empty. Otherwise a stats dict accumulated
         online during the merge stream:
-        ``{'shot_count': int, 'shot_min': int|None, 'shot_max': int|None,
-        'dt_min': datetime|None, 'dt_max': datetime|None,
-        'root_files': set[str]|None}``. Fields are ``None`` when the source
-        column is absent from the schema. Callers can use these for sidecar
-        metadata generation without re-reading the merged file (saves
-        ~1.5–2 GB peak per dense partition merge).
+        ``{'shot_count', 'shot_min', 'shot_max', 'dt_min', 'dt_max',
+        'root_files'}``. Fields are ``None`` when the source column is
+        absent from the schema. Used by ``h3_write_metadata`` to skip
+        re-reading the merged file.
 
     Output is written atomically: ``ofile + '.merge.tmp'`` first, then
     ``os.replace`` to ``ofile``. A stale ``.merge.tmp`` from a prior crash is
@@ -1359,12 +1389,10 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
     import numpy as np
     import pyarrow as pa
     import pyarrow.parquet as pq
-    import pyarrow.dataset as ds
+    import pyarrow.compute as pc
 
     if not flist:
         return None
-
-    import pyarrow.compute as pc
 
     shots = None
 
@@ -1374,11 +1402,6 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
     # Caller-provided bbox (typically derived from H3 partition geometry).
     if 'geometry' in schema.names and bbox is not None:
         schema = parquet_schema_add_bbox(schema, bbox=bbox)
-
-    # Build the merge dataset with the bbox-augmented schema. Provided schema
-    # → no per-file footer validation; the scanner casts each batch to this
-    # schema in C++ during the scan, handling column-order drift transparently.
-    dataset = ds.dataset(flist, format='parquet', schema=schema)
 
     # Atomic write: write to temp file, rename after successful close
     tmp_ofile = ofile + '.merge.tmp'
@@ -1405,57 +1428,56 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
         acc = []
         acc_rows = 0
 
-        # Cap pyarrow's readahead. Defaults are batch_readahead=16 and
-        # fragment_readahead=4 — that's up to 64 batches in flight at any
-        # moment (pre-decoded async even with use_threads=False), which on
-        # a 1270-col GEDI partition with batch_size=50k is ~15 GB transient
-        # of prefetch buffer per scan. Setting both to 1 caps in-flight to
-        # ~one batch + one fragment header at a time.
-        scanner = dataset.scanner(
-            batch_size=rows_per_group,
-            use_threads=False,
-            batch_readahead=batch_readahead,
-            fragment_readahead=fragment_readahead,
-        )
-        for batch in scanner.to_batches():
-            if check_shots and has_shot_number:
-                arr = batch["shot_number"].to_numpy().astype(np.uint64)
-                if shots is None:
-                    shots = np.unique(arr)
-                else:
-                    keep = ~np.isin(arr, shots, assume_unique=True)
-                    if not keep.any():
-                        continue
-                    batch = batch.filter(pa.array(keep))
-                    shots = np.unique(np.concatenate([shots, arr[keep]]))
+        # Per-file iteration: open one fragment, drain it, drop it, repeat.
+        # Each ParquetFile's IO state is released when it goes out of scope —
+        # bounds in-flight memory to ~one fragment's worth at any moment.
+        for f in flist:
+            pf = pq.ParquetFile(f)
+            # Decide reconciliation strategy ONCE per file (not per batch).
+            reconciler = _make_batch_reconciler(pf.schema_arrow, schema)
+            for batch in pf.iter_batches(batch_size=rows_per_group):
+                if check_shots and has_shot_number:
+                    arr = batch["shot_number"].to_numpy().astype(np.uint64)
+                    if shots is None:
+                        shots = np.unique(arr)
+                    else:
+                        keep = ~np.isin(arr, shots, assume_unique=True)
+                        if not keep.any():
+                            continue
+                        batch = batch.filter(pa.array(keep))
+                        shots = np.unique(np.concatenate([shots, arr[keep]]))
 
-            # Flush BEFORE appending if this batch would overflow the cap,
-            # so acc never holds more than rows_per_group rows at a time.
-            if acc_rows + batch.num_rows > rows_per_group and acc:
-                writer.write_table(pa.concat_tables(acc))
-                acc.clear()
-                acc_rows = 0
+                if reconciler is not None:
+                    batch = reconciler(batch)
 
-            acc.append(pa.Table.from_batches([batch], schema=schema))
-            acc_rows += batch.num_rows
+                # Flush BEFORE appending if this batch would overflow the cap,
+                # so acc never holds more than rows_per_group rows at a time.
+                if acc_rows + batch.num_rows > rows_per_group and acc:
+                    writer.write_table(pa.concat_tables(acc))
+                    acc.clear()
+                    acc_rows = 0
 
-            # Collect per-batch stats for h3_write_metadata. Operations are
-            # zero-allocation pyarrow.compute (min_max) + one to_pylist() on
-            # the deduplicated string array (typically 1-8 unique granule
-            # filenames per fragment, so this list is tiny).
-            stats['shot_count'] += batch.num_rows
-            if has_shot_number and batch.num_rows:
-                bsm, bsx = pc.min(batch['shot_number']).as_py(), pc.max(batch['shot_number']).as_py()
-                if bsm is not None:
-                    stats['shot_min'] = bsm if stats['shot_min'] is None else min(stats['shot_min'], bsm)
-                    stats['shot_max'] = bsx if stats['shot_max'] is None else max(stats['shot_max'], bsx)
-            if has_datetime and batch.num_rows:
-                bdm, bdx = pc.min(batch['datetime']).as_py(), pc.max(batch['datetime']).as_py()
-                if bdm is not None:
-                    stats['dt_min'] = bdm if stats['dt_min'] is None else min(stats['dt_min'], bdm)
-                    stats['dt_max'] = bdx if stats['dt_max'] is None else max(stats['dt_max'], bdx)
-            if has_root_file and batch.num_rows:
-                stats['root_files'].update(pc.unique(batch['root_file_l2a']).to_pylist())
+                acc.append(pa.Table.from_batches([batch], schema=schema))
+                acc_rows += batch.num_rows
+
+                # Collect per-batch stats for h3_write_metadata.
+                stats['shot_count'] += batch.num_rows
+                if has_shot_number and batch.num_rows:
+                    bsm, bsx = pc.min(batch['shot_number']).as_py(), pc.max(batch['shot_number']).as_py()
+                    if bsm is not None:
+                        stats['shot_min'] = bsm if stats['shot_min'] is None else min(stats['shot_min'], bsm)
+                        stats['shot_max'] = bsx if stats['shot_max'] is None else max(stats['shot_max'], bsx)
+                if has_datetime and batch.num_rows:
+                    bdm, bdx = pc.min(batch['datetime']).as_py(), pc.max(batch['datetime']).as_py()
+                    if bdm is not None:
+                        stats['dt_min'] = bdm if stats['dt_min'] is None else min(stats['dt_min'], bdm)
+                        stats['dt_max'] = bdx if stats['dt_max'] is None else max(stats['dt_max'], bdx)
+                if has_root_file and batch.num_rows:
+                    stats['root_files'].update(pc.unique(batch['root_file_l2a']).to_pylist())
+
+            # Drop the ParquetFile reference now that we're done with it,
+            # so its IO state can be released before opening the next fragment.
+            del pf, reconciler
 
         if acc:
             writer.write_table(pa.concat_tables(acc))
@@ -1477,7 +1499,7 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
     # ensures the merged file's transient buffers are released BEFORE
     # the caller (h3_merge_files) does any further work.
     try:
-        del scanner, dataset, writer, acc
+        del writer, acc
     except NameError:
         pass
     try:
