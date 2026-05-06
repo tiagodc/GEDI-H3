@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.24] - 2026-05-06
+
+### Removed
+- `_make_batch_reconciler(file_schema, target_schema)` — no longer needed. By design all gh3_build fragments share an identical column set and dtypes (they all come from one `dask_geopandas.to_parquet` call), so silent null-fill / drop semantics were defensive overkill.
+
+### Changed
+- **Column ordering enforced by pyarrow native projection.** `parquet_merge_files`'s per-file iter loop now passes `columns=target_names` to `pq.ParquetFile.iter_batches()`. PyArrow's C++ reader reads columns in target order and drops any extras at read time. No Python reorder per batch, no per-batch reconciler closure, less I/O when files have extras. A fragment with a missing target column raises from pyarrow — that's the right behavior; it surfaces a serious data invariant violation rather than silently null-filling.
+
+### Performance
+- ~250 K Python interpreter ops per merge eliminated (the old reconciler's per-batch loop on drifted fragments). Modest CPU win; main benefit is code simplicity.
+- Slightly less I/O when files have columns we don't want (target columns only are read).
+
 ## [0.8.23] - 2026-05-06
 
 ### Changed
