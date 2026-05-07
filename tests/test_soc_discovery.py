@@ -148,3 +148,76 @@ def test_validate_soc_files_empty_directory_returns_error_tuple(tmp_path):
     assert isinstance(result, tuple)
     assert result[0] is False
     assert 'No SOC files found' in result[1]['error']
+
+
+# ── gedi_vars_static + SOC manifest sentinel ──────────────────────────────
+
+
+def test_gedi_vars_static_matches_default_vars_file_minus_comments():
+    """The static helper should expose every uncommented variable line in
+    the shipped manifest — and only those (the ``#`` comment lines are
+    filtered because the result is consumed as a literal variable-name
+    list, not a membership-check set)."""
+    from gedih3.gedidriver import gedi_vars_static
+    for prod in ('L2A', 'L2B', 'L4A'):
+        vars_list = gedi_vars_static(prod, version=3)
+        assert vars_list is not None and len(vars_list) > 0
+        with open(get_default_vars_file(prod, version=3)) as f:
+            expected = [ln.strip() for ln in f
+                        if ln.strip() and not ln.startswith('#')]
+        assert vars_list == expected
+
+
+def test_gedi_vars_static_returns_none_for_unknown_version():
+    """No static manifest for an out-of-band version → helper signals the
+    caller (which should fall back to gedi_vars_from_h5)."""
+    from gedih3.gedidriver import gedi_vars_static
+    assert gedi_vars_static('L2A', version=99) is None
+
+
+def test_soc_file_tree_prefers_manifest_when_present(tmp_path):
+    """When ``_soc_manifest.txt`` is present at the SOC root,
+    soc_file_tree must read from it instead of recursive-globbing."""
+    from gedih3.gedidriver import soc_file_tree, write_soc_manifest
+    from gedih3.config import SOC_MANIFEST_FILENAME
+    # Two paired release files (granule with both L2A and L2B)
+    for n in [
+        'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+        'GEDI02_B_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+    ]:
+        (tmp_path / n).touch()
+    n_written = write_soc_manifest(str(tmp_path))
+    assert n_written == 2
+    assert (tmp_path / SOC_MANIFEST_FILENAME).exists()
+
+    # Drop a marker that recursive-glob would still pick up but isn't in
+    # the manifest. If soc_file_tree is reading the manifest, the marker
+    # must not appear in the result.
+    (tmp_path / 'GEDI02_A_2025001000000_O99999_99_T99999_99_999_99_V003.h5').touch()
+    tree = soc_file_tree(str(tmp_path), to_list=True)
+    seen = sorted(os.path.basename(v) for d in tree for v in d.values())
+    assert all('O99999' not in n for n in seen), \
+        "soc_file_tree should read the manifest, not the live SOC tree"
+
+
+def test_soc_file_tree_falls_back_to_glob_without_manifest(tmp_path):
+    """Without a manifest, soc_file_tree must still find files via glob
+    (preserves backward compatibility for SOC trees that predate the
+    manifest sentinel or live on read-only filesystems)."""
+    from gedih3.gedidriver import soc_file_tree
+    for n in [
+        'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+        'GEDI02_B_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+    ]:
+        (tmp_path / n).touch()
+    tree = soc_file_tree(str(tmp_path), to_list=True)
+    assert len(tree) == 1, "Glob fallback must still discover the granule pair"
+
+
+def test_write_soc_manifest_returns_zero_for_empty_dir(tmp_path):
+    """No GEDI files → manifest is not written and count is 0."""
+    from gedih3.gedidriver import write_soc_manifest
+    from gedih3.config import SOC_MANIFEST_FILENAME
+    n = write_soc_manifest(str(tmp_path))
+    assert n == 0
+    assert not (tmp_path / SOC_MANIFEST_FILENAME).exists()
