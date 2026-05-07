@@ -16,7 +16,7 @@ from dask.distributed import progress
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME, _get_versioned, _GEDI_L2A_ESSENTIALS, _PRODUCT_QUALITY_FLAGS
 from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, parquet_schema_add_bbox, generate_manifest, check_nan_only_columns, h3_partition_bbox, parse_h3_partition_dirname
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
-from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_subset, validate_soc_files, load_h5, expand_var_wildcards
+from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_vars_static, gedi_subset, validate_soc_files, load_h5, expand_var_wildcards
 from .daac import gedi_download
 from .logging_config import get_logger
 from .validation import validate_h3_params, validate_product_vars, validate_directory_exists
@@ -185,7 +185,12 @@ def _subset_s3_file(granule, prod, product_vars, odir, file_idx, n_files):
     else:
         vars_for_prod = product_vars.get(prod)
         if vars_for_prod is None:
-            vars_for_prod = gedi_vars_from_h5(s3_file)
+            # NASA release file on S3 → static manifest is canonical and free.
+            # Falls back to remote H5 enumeration if no manifest ships for
+            # this (product, version).
+            vars_for_prod = gedi_vars_static(prod, version=gf.version)
+            if vars_for_prod is None:
+                vars_for_prod = gedi_vars_from_h5(s3_file)
 
     logger.info(f"[{file_idx}/{n_files}] Subsetting {gf.full_name} ({len(vars_for_prod)} vars)")
     try:
@@ -263,16 +268,25 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
         prod_version = version if version is not None else GEDI_PRODUCTS.get(prod.upper(), {}).get('version')
         gass.search_data(product=prod, version=prod_version)
 
-    # Resolve None variables (dump all) by opening one S3 handle to discover schema
+    # Resolve None variables (dump all) from the static per-product manifest;
+    # NASA release files on S3 share the canonical schema, so no remote
+    # HDF5 metadata round-trip is needed. Falls back to opening one S3
+    # handle if no manifest ships for this (product, version).
     for prod, prod_vars in product_vars.items():
         if prod_vars is not None:
             continue
         granules = gass.product_files.get(prod, [])
-        if granules:
-            s3_files = gass.link_s3(product=prod)
-            if s3_files:
-                product_vars[prod] = gedi_vars_from_h5(s3_files[0])
-                logger.info(f"Discovered {len(product_vars[prod])} variables for {prod}")
+        if not granules:
+            continue
+        static_vars = gedi_vars_static(prod, version=version)
+        if static_vars is not None:
+            product_vars[prod] = static_vars
+            logger.info(f"Discovered {len(product_vars[prod])} variables for {prod} (static manifest)")
+            continue
+        s3_files = gass.link_s3(product=prod)
+        if s3_files:
+            product_vars[prod] = gedi_vars_from_h5(s3_files[0])
+            logger.info(f"Discovered {len(product_vars[prod])} variables for {prod} (HDF5 introspection)")
 
     # Build flat task list of (granule, product) from search results
     os.makedirs(odir, exist_ok=True)
