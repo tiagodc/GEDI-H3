@@ -341,6 +341,53 @@ class TestAtomicJsonWrite:
         assert not os.path.exists(path + '.tmp')
 
 
+class TestExportAtomicWrite:
+    """``_write_dataframe`` must not leave partial files on crash; the
+    parquet/feather/csv/txt/h5 paths route through ``AtomicFileWriter``."""
+
+    def test_write_dataframe_parquet_succeeds(self, tmp_dir):
+        from gedih3.gh3driver import _write_dataframe
+        df = pd.DataFrame({'a': [1, 2, 3], 'b': ['x', 'y', 'z']})
+        path = os.path.join(tmp_dir, 'out.parquet')
+        _write_dataframe(df, path, 'parquet')
+        assert os.path.exists(path)
+        assert not os.path.exists(path + '.tmp')
+        loaded = pd.read_parquet(path)
+        assert loaded.equals(df)
+
+    def test_write_dataframe_csv_succeeds(self, tmp_dir):
+        from gedih3.gh3driver import _write_dataframe
+        df = pd.DataFrame({'a': [1, 2, 3]})
+        path = os.path.join(tmp_dir, 'out.csv')
+        _write_dataframe(df, path, 'csv')
+        assert os.path.exists(path)
+        assert not os.path.exists(path + '.tmp')
+
+    def test_write_dataframe_crash_leaves_no_partial_file(self, tmp_dir):
+        """When the underlying writer raises, AtomicFileWriter must wipe
+        the .tmp and leave no file at the final path. This is the
+        guarantee that prevents downstream tools (e.g. gh3_rasterize)
+        from silently consuming a half-written parquet."""
+        from gedih3.gh3driver import _write_dataframe
+
+        class _ExplodingDF:
+            # to_parquet raises mid-call; .empty/.columns are never read here
+            def to_parquet(self, path, compression=None):
+                # Simulate the writer creating the temp file then crashing
+                with open(path, 'wb') as f:
+                    f.write(b'partial header\n')
+                raise OSError("simulated disk-full mid-write")
+
+        path = os.path.join(tmp_dir, 'crash.parquet')
+        with pytest.raises(OSError, match="simulated disk-full"):
+            _write_dataframe(_ExplodingDF(), path, 'parquet')
+        # Both the final path AND the .tmp must be gone
+        assert not os.path.exists(path), \
+            "Crashed write must not leave a partial file at the final path"
+        assert not os.path.exists(path + '.tmp'), \
+            "AtomicFileWriter must clean up the temp file on exception"
+
+
 # ===========================================================================
 # P1: DATA CORRECTNESS TESTS
 # ===========================================================================
