@@ -140,7 +140,30 @@ def main():
 
     setup_storage(args, logger=logger)
 
-    with cli_exception_handler(args, logger=logger):
+    # Attach to a dask cluster when the user passed --scheduler-address
+    # (or the project-standard alias -s) so the parallelized diagnoses
+    # actually dispatch to workers. Without this the doctor's
+    # parallel_map falls back to its serial path because
+    # get_dask_client() returns None. Default invocations (no -s) keep
+    # the existing local serial UX — a quick audit shouldn't need a
+    # cluster, and add_dask_args' --cores default is nonzero so it
+    # cannot be used as the "do you want dask?" signal.
+    from contextlib import nullcontext
+    dask_ctx = nullcontext()
+    use_dask = bool(getattr(args, 'dask_scheduler', None))
+    if use_dask:
+        from dask.distributed import Client
+        dask_kwargs = parse_dask_args(args)
+        logger.info(f"Connecting to dask cluster: {dask_kwargs.get('address')}")
+        dask_ctx = Client(**dask_kwargs)
+
+    with dask_ctx as _client, cli_exception_handler(args, logger=logger):
+        if use_dask and _client is not None:
+            try:
+                logger.info(f"Dask dashboard available at: {_client.dashboard_link}")
+            except Exception:
+                pass
+
         # Load the build log (lazy upgrade applied automatically). If absent,
         # most diagnoses still work — they fall back to filesystem inspection.
         try:
