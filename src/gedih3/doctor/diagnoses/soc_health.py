@@ -8,16 +8,40 @@ Remedies (safe):
   - Mark drifted entries FAILED so the next ``gh3_download --resume`` retries.
   - Invalid HDF5 files are reported only (could be in-progress); deletion is
     not auto-applied (see ``--delete-invalid`` future flag).
+
+Performance pillar (v0.8.x lessons backport):
+  * SOC file enumeration uses :func:`soc_file_tree`, which prefers the
+    ``_soc_manifest.txt`` sentinel over a recursive glob (refreshed by
+    every ``gh3_download`` run). Eliminates the multi-million-file walk
+    over the SOC tree on every doctor invocation.
+  * Per-file ``h5_is_valid`` checks are dispatched in parallel via
+    :func:`gedih3.doctor.parallel.parallel_map` when a dask client is
+    registered.
 """
 
 from __future__ import annotations
 
-import glob
 import os
 
 from ..report import Report, DoctorContext, Severity
 from ..runner import register
-from ...cliutils import progress_iter
+from ..parallel import parallel_map
+
+
+def _check_h5_file(path: str) -> dict:
+    """Worker: validate one HDF5; return {'valid': bool, 'size': int, 'err': str|None}."""
+    from ...utils import h5_is_valid
+    try:
+        valid = h5_is_valid(path)
+        err = None if valid else 'not a valid GEDI HDF5'
+    except Exception as e:
+        valid = False
+        err = f"{type(e).__name__}: {e}"
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        size = -1
+    return {'valid': valid, 'size': size, 'err': err}
 
 
 def soc_health_check(ctx: DoctorContext) -> Report:
@@ -29,32 +53,32 @@ def soc_health_check(ctx: DoctorContext) -> Report:
             summary='no SOC directory configured; skipping',
         )
 
-    from ...utils import h5_is_valid
+    # Use the manifest-aware enumerator landed in the v0.8.x cross-pipeline
+    # lessons round — prefers _soc_manifest.txt over a multi-million-file
+    # recursive glob.
+    from ...gedidriver import soc_file_tree
+    soc_dicts = soc_file_tree(ctx.soc_dir, to_list=True)
+    # Each entry is {product: path}; flatten to a path list.
+    soc_files = sorted({p for d in soc_dicts for p in d.values()})
 
-    # Walk SOC tree for invalid HDF5 files. Materialize the glob so the
-    # progress bar can show a total.
-    soc_files = glob.glob(os.path.join(ctx.soc_dir, '**', 'GEDI*.h5'), recursive=True)
-    with progress_iter(soc_files,
-                       desc="soc_health: scanning HDF5 files",
-                       args=getattr(ctx, 'args', None),
-                       unit="file") as bar:
-        for f in bar:
-            try:
-                valid = h5_is_valid(f)
-            except Exception as e:
-                valid = False
-                err = f"{type(e).__name__}: {e}"
-            else:
-                err = None if valid else 'not a valid GEDI HDF5'
-            if not valid:
-                try:
-                    size = os.path.getsize(f)
-                except OSError:
-                    size = -1
-                findings.append({
-                    'kind': 'invalid_h5', 'path': f,
-                    'size_bytes': size, 'error': err,
-                })
+    for f, result in parallel_map(
+        soc_files,
+        _check_h5_file,
+        args=getattr(ctx, 'args', None),
+        desc='soc_health: scanning HDF5 files',
+        unit='file',
+    ):
+        if isinstance(result, Exception):
+            findings.append({
+                'kind': 'invalid_h5', 'path': f, 'size_bytes': -1,
+                'error': f"{type(result).__name__}: {result}",
+            })
+            continue
+        if not result['valid']:
+            findings.append({
+                'kind': 'invalid_h5', 'path': f,
+                'size_bytes': result['size'], 'error': result['err'],
+            })
 
     # Cross-check the download log against disk.
     try:
