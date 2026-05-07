@@ -485,7 +485,12 @@ def h3_write_metadata(h3_file, stats=None):
         'shot_range': shot_range,
         'date_range': date_range,
         'granules': granule_identifiers,
-        'columns': cols['column'].tolist()
+        'columns': cols['column'].tolist(),
+        # Per-column pyarrow dtype string (e.g. 'int64', 'double',
+        # 'binary', 'timestamp[ns]'). Aggregated upstream into the
+        # build log's h3_columns_dtypes field so the query path can
+        # build a Dask _meta without sampling a parquet file.
+        'column_dtypes': dict(zip(cols['column'].tolist(), cols['dtype'].tolist())),
     }
 
     json_write(meta, meta_file, rewrite=True)
@@ -2094,6 +2099,15 @@ def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> 
     merged_cols = sorted(list(cols_1 | cols_2))
     if merged_cols:
         merged_log['h3_columns'] = merged_cols
+
+    # Merge h3_columns_dtypes (post-merge invariant: identical schema
+    # across partitions, so the two logs should agree on overlapping
+    # columns; later log wins on conflict, matching merge_build_logs'
+    # general "log2 augments log1" semantics).
+    dtypes_1 = log1.get('h3_columns_dtypes') or {}
+    dtypes_2 = log2.get('h3_columns_dtypes') or {}
+    if dtypes_1 or dtypes_2:
+        merged_log['h3_columns_dtypes'] = {**dtypes_1, **dtypes_2}
     
     # Merge h3_partition_ids (deduplicate and sort)
     parts_1 = set(log1.get('h3_partition_ids', []))
