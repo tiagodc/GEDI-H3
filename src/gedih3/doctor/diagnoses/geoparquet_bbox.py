@@ -38,55 +38,75 @@ from ...utils import parquet_backfill_bbox
 
 
 def _classify(path: str) -> Optional[str]:
-    """Return a finding kind, or None if the file's bbox is OK."""
+    """Return a finding kind, or None if the file's bbox is OK.
+
+    Memory: footer-only ``pq.read_schema`` (no data buffers) plus a
+    JSON parse of the small ``geo`` metadata block. Constant ~KB
+    per file — independent of file size or column count.
+    """
     import pyarrow.parquet as pq
+    schema = None
     try:
         schema = pq.read_schema(path)
     except Exception:
         return 'unreadable'
 
-    if 'geometry' not in schema.names:
-        return 'no_geometry'
-
-    md = schema.metadata or {}
-    raw = md.get(b'geo')
-    if not raw:
-        return 'missing_geo'
-
     try:
-        geo = json.loads(raw)
-    except Exception:
-        return 'missing_geo'
+        if 'geometry' not in schema.names:
+            return 'no_geometry'
 
-    primary = geo.get('primary_column', 'geometry')
-    col = geo.get('columns', {}).get(primary, {})
-    bbox = col.get('bbox')
-    if bbox is None:
-        return 'missing_bbox'
-    if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
-        return 'invalid_bbox'
-    try:
-        if not all(math.isfinite(float(v)) for v in bbox):
+        md = schema.metadata or {}
+        raw = md.get(b'geo')
+        if not raw:
+            return 'missing_geo'
+
+        try:
+            geo = json.loads(raw)
+        except Exception:
+            return 'missing_geo'
+
+        primary = geo.get('primary_column', 'geometry')
+        col = geo.get('columns', {}).get(primary, {})
+        bbox = col.get('bbox')
+        if bbox is None:
+            return 'missing_bbox'
+        if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
             return 'invalid_bbox'
-    except (TypeError, ValueError):
-        return 'invalid_bbox'
-    return None
+        try:
+            if not all(math.isfinite(float(v)) for v in bbox):
+                return 'invalid_bbox'
+        except (TypeError, ValueError):
+            return 'invalid_bbox'
+        return None
+    finally:
+        # Drop the schema reference promptly so its metadata buffers
+        # don't accumulate across the per-partition scan.
+        del schema
 
 
 def _scan_partition_bbox(partition_dir: str) -> dict:
     """Worker: classify every parquet under one partition.
 
     Returns ``{'findings': [...], 'n_ok': int}`` so the driver can
-    aggregate counts without holding the per-OK paths.
+    aggregate counts without holding the per-OK paths. Drains the
+    pyarrow allocator at the end so worker RSS plateaus instead of
+    accumulating across tasks.
     """
     findings = []
     n_ok = 0
-    for f in partition_parquet_files(partition_dir):
-        kind = _classify(f)
-        if kind is None:
-            n_ok += 1
-        else:
-            findings.append({'kind': kind, 'path': f})
+    try:
+        for f in partition_parquet_files(partition_dir):
+            kind = _classify(f)
+            if kind is None:
+                n_ok += 1
+            else:
+                findings.append({'kind': kind, 'path': f})
+    finally:
+        try:
+            import pyarrow as pa
+            pa.default_memory_pool().release_unused()
+        except Exception:
+            pass
     return {'findings': findings, 'n_ok': n_ok}
 
 

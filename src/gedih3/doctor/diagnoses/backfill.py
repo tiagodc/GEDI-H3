@@ -216,6 +216,24 @@ def _build_soc_tree(soc_source):
     return {}
 
 
+# Per-worker-process soc_tree cache. Each dask worker is a separate
+# Python process so this dict is private to that process; subsequent
+# tasks on the same worker reuse the prebuilt tree instead of re-walking
+# the SOC manifest. With the v0.8.x SOC manifest sentinel the rebuild
+# is fast (manifest + fnmatch) but still nontrivial on a continental tree.
+_soc_tree_cache: Dict[str, dict] = {}
+
+
+def _get_soc_tree(soc_source: str) -> dict:
+    """Process-local cache of ``soc_file_tree`` for a given source path."""
+    cached = _soc_tree_cache.get(soc_source)
+    if cached is not None:
+        return cached
+    tree = _build_soc_tree(soc_source)
+    _soc_tree_cache[soc_source] = tree
+    return tree
+
+
 def _read_patch_for_partition(
     affected_granules_by_product: Dict[str, List[GranuleKey]],
     soc_tree: dict,
@@ -227,43 +245,112 @@ def _read_patch_for_partition(
     source files were available. Takes ``vars_per_product`` directly
     (no DoctorContext) so the function is picklable for use as a dask
     worker payload.
+
+    Memory pillar (v0.8.x lessons applied):
+      * Each per-granule HDF5 frame is **streamed straight into a
+        single ``pq.ParquetWriter``** — never accumulated in a
+        ``frames=[]`` list and concatenated. The previous
+        ``pd.concat(frames).drop_duplicates().to_parquet()`` loaded every
+        affected granule × every requested column into memory at once
+        (multi-GB on partitions affecting many granules).
+      * Cross-granule ``shot_number`` deduplication uses an int64 set as
+        an "already-emitted" gate so a duplicate shot from a later
+        granule is dropped at write time. The set is bounded to the
+        unique shots already written (which equals patch row count, not
+        column-times-row product) — same lower bound the build pipeline
+        accepts in ``parquet_dedup_partition``.
+      * Frame buffers are released between granules (``del df``) and the
+        arrow allocator is drained at writer close.
     """
-    import pandas as pd
+    import pyarrow as pa
+    import pyarrow.parquet as pq
     from ...gedidriver import load_h5
-
-    frames = []
-    for prod, granules in affected_granules_by_product.items():
-        var_list = vars_per_product.get(prod) or []
-        if not var_list:
-            continue
-        cols_to_read = ['shot_number'] + [v for v in var_list if v != 'shot_number']
-        suffix = f"_{prod.lower()}"
-        for orbit, gran, track in granules:
-            orb_track = f"O{orbit:05d}_{gran:02d}_T{track:05d}"
-            soc_files = soc_tree.get(orb_track)
-            if not soc_files or prod not in soc_files:
-                continue
-            try:
-                df = load_h5(soc_files[prod], columns=cols_to_read, include_source=False, dropna=False)
-            except Exception:
-                continue
-            if df is None or df.empty:
-                continue
-            df = df.rename(columns=lambda x: x if x == 'shot_number' or str(x).endswith(suffix) else f"{x}{suffix}")
-            if df.index.name == 'shot_number':
-                df = df.reset_index()
-            frames.append(df)
-
-    if not frames:
-        return None
-
-    merged = pd.concat(frames, ignore_index=True, sort=False)
-    merged = merged.drop_duplicates(subset='shot_number', keep='first')
 
     tmp = tempfile.NamedTemporaryFile(suffix='.parquet', delete=False)
     tmp.close()
-    merged.to_parquet(tmp.name, engine='pyarrow', index=False)
-    return tmp.name
+    out_path = tmp.name
+
+    writer: Optional[pq.ParquetWriter] = None
+    seen_shots: set = set()
+    schema_pa = None
+    columns_order: Optional[List[str]] = None
+    n_written = 0
+
+    try:
+        for prod, granules in affected_granules_by_product.items():
+            var_list = vars_per_product.get(prod) or []
+            if not var_list:
+                continue
+            cols_to_read = ['shot_number'] + [v for v in var_list if v != 'shot_number']
+            suffix = f"_{prod.lower()}"
+            for orbit, gran, track in granules:
+                orb_track = f"O{orbit:05d}_{gran:02d}_T{track:05d}"
+                soc_files = soc_tree.get(orb_track)
+                if not soc_files or prod not in soc_files:
+                    continue
+                try:
+                    df = load_h5(soc_files[prod], columns=cols_to_read,
+                                 include_source=False, dropna=False)
+                except Exception:
+                    continue
+                if df is None or df.empty:
+                    continue
+
+                df = df.rename(columns=lambda x: x if x == 'shot_number' or str(x).endswith(suffix) else f"{x}{suffix}")
+                if df.index.name == 'shot_number':
+                    df = df.reset_index()
+
+                # Drop already-emitted shot_numbers from prior granules.
+                if seen_shots:
+                    keep_mask = ~df['shot_number'].isin(seen_shots)
+                    if not keep_mask.any():
+                        del df
+                        continue
+                    df = df.loc[keep_mask]
+                seen_shots.update(df['shot_number'].to_numpy().tolist())
+
+                if writer is None:
+                    # Lock the schema on the first non-empty frame so
+                    # subsequent frames are projected/coerced into it.
+                    columns_order = list(df.columns)
+                    table = pa.Table.from_pandas(df, preserve_index=False)
+                    schema_pa = table.schema
+                    writer = pq.ParquetWriter(out_path, schema_pa, compression='zstd')
+                    writer.write_table(table)
+                    n_written += table.num_rows
+                    del table, df
+                else:
+                    # Project to the locked schema; columns missing from
+                    # this frame become null, extras are dropped (the
+                    # patch represents the union of source vars).
+                    for c in columns_order:
+                        if c not in df.columns:
+                            df[c] = None
+                    df = df[columns_order]
+                    table = pa.Table.from_pandas(df, schema=schema_pa, preserve_index=False)
+                    writer.write_table(table)
+                    n_written += table.num_rows
+                    del table, df
+    finally:
+        if writer is not None:
+            try:
+                writer.close()
+            except Exception:
+                pass
+            del writer
+        try:
+            pa.default_memory_pool().release_unused()
+        except Exception:
+            pass
+
+    if n_written == 0:
+        try:
+            os.unlink(out_path)
+        except OSError:
+            pass
+        return None
+
+    return out_path
 
 
 def _heal_partition(
@@ -286,7 +373,9 @@ def _heal_partition(
     not_available: list = []
     error_actions: list = []
 
-    soc_tree = _build_soc_tree(soc_source)
+    # Process-local soc_tree cache (v0.8.x lesson: don't redo work
+    # the structure of the data already answers).
+    soc_tree = _get_soc_tree(soc_source)
     patch = None
     try:
         patch = _read_patch_for_partition(
@@ -327,6 +416,14 @@ def _heal_partition(
                 os.unlink(patch)
             except OSError:
                 pass
+        # Drain transient arrow buffers before yielding the worker slot
+        # to the next task — same pattern parquet_merge_files uses on
+        # the build side (utils.py:1469).
+        try:
+            import pyarrow as pa
+            pa.default_memory_pool().release_unused()
+        except Exception:
+            pass
 
     return {'healed': healed, 'not_available': not_available, 'error_actions': error_actions}
 

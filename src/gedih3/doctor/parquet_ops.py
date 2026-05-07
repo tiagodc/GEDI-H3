@@ -71,7 +71,9 @@ def parquet_fill_columns(
     if ofile is None:
         ofile = base_file
 
-    base_pf = pq.ParquetFile(base_file)
+    # pre_buffer=True coalesces per-row-group column-chunk reads on
+    # shared GPFS — same lesson as parquet_merge_files (commit e8a966b).
+    base_pf = pq.ParquetFile(base_file, pre_buffer=True)
     base_schema = base_pf.schema_arrow
     base_cols = list(base_schema.names)
     base_col_set = set(base_cols)
@@ -149,6 +151,13 @@ def parquet_fill_columns(
             writer.write_table(pa.Table.from_pandas(batch, schema=combined_schema))
 
     base_pf.close()
+    del base_pf
+    # Drain pyarrow's allocator now so the temp buffers don't drag into
+    # the next worker task. Mirrors parquet_merge_files (utils.py:1469).
+    try:
+        pa.default_memory_pool().release_unused()
+    except Exception:
+        pass
     try:
         os.replace(temp_ofile, ofile)
     except OSError:
@@ -193,7 +202,7 @@ def parquet_dedup_partition(
     if keep not in ('first', 'last'):
         raise ValueError(f"keep must be 'first' or 'last', got {keep!r}")
 
-    pf = pq.ParquetFile(pq_file)
+    pf = pq.ParquetFile(pq_file, pre_buffer=True)
     schema = pf.schema_arrow
 
     if keep == 'last':
@@ -256,6 +265,11 @@ def parquet_dedup_partition(
             # kept_rows == 0: write nothing for this row group
 
     pf.close()
+    del pf
+    try:
+        pa.default_memory_pool().release_unused()
+    except Exception:
+        pass
     try:
         os.replace(temp_ofile, pq_file)
     except OSError:

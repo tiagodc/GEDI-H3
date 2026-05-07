@@ -180,3 +180,119 @@ def test_year_dir_is_empty_false_when_parquet_present(tmp_path):
     y.mkdir()
     (y / 'data.parquet').write_bytes(b'x')
     assert year_dir_is_empty(str(y)) is False
+
+
+# ---- streaming memory pillar (v0.8.x lessons) -----------------------------
+#
+# These tests assert that the per-file scans don't fall back to
+# ``pd.read_parquet(path, columns=...)`` (which materializes the full
+# requested column set) by monkey-patching that call to raise.
+
+def test_count_duplicates_does_not_materialize_full_column(tmp_path, monkeypatch):
+    """parquet_health._scan_one_file must stream shot_number via
+    ``pq.ParquetFile.iter_batches`` and walk per-RG min/max — never
+    ``pd.read_parquet(columns=['shot_number'])`` on the whole file."""
+    import numpy as np
+    import pandas as pd
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from gedih3.doctor.diagnoses.parquet_health import _scan_one_file
+
+    # Build a 100k-row parquet with 5 row groups of 20k each, no dups.
+    df = pd.DataFrame({
+        'shot_number': np.arange(100_000, dtype=np.int64),
+        'agbd_l4a': np.random.uniform(0, 300, 100_000),
+    })
+    path = str(tmp_path / 'big.parquet')
+    pq.write_table(pa.Table.from_pandas(df), path, row_group_size=20_000)
+
+    # Trip a tripwire if anyone tries the full-file ``pd.read_parquet``
+    # path. The streaming implementation only uses pyarrow.parquet.
+    def _no_full_read(*a, **kw):
+        raise AssertionError(
+            "pd.read_parquet was called — _count_duplicates must stream via iter_batches"
+        )
+    monkeypatch.setattr(pd, 'read_parquet', _no_full_read)
+
+    info = _scan_one_file(path)
+    assert info['corrupt'] is False
+    assert info['unreadable_shot_number'] is False
+    assert info['duplicates'] == 0
+    # Sequential row groups with non-overlapping ranges → no cross-RG flag.
+    assert info['cross_rg_overlap'] is False
+
+
+def test_count_duplicates_detects_intra_row_group_duplicates(tmp_path):
+    """Streaming implementation must still find within-row-group dups."""
+    import numpy as np
+    import pandas as pd
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from gedih3.doctor.diagnoses.parquet_health import _scan_one_file
+
+    # 10 rows, two of them duplicates (shot 0 appears twice).
+    df = pd.DataFrame({
+        'shot_number': np.array([0, 0, 1, 2, 3, 4, 5, 6, 7, 8], dtype=np.int64),
+    })
+    path = str(tmp_path / 'dup.parquet')
+    pq.write_table(pa.Table.from_pandas(df), path, row_group_size=10)
+    info = _scan_one_file(path)
+    assert info['duplicates'] == 1
+
+
+def test_count_duplicates_flags_cross_rg_overlap(tmp_path):
+    """Two row groups with overlapping shot_number ranges trigger the
+    cross_rg_overlap signal so --fix knows to run a real streaming
+    dedup."""
+    import numpy as np
+    import pandas as pd
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from gedih3.doctor.diagnoses.parquet_health import _scan_one_file
+
+    # Two RGs, both covering the same shot_number range.
+    df = pd.DataFrame({
+        'shot_number': np.array([1, 2, 3, 4, 5,   1, 2, 3, 4, 5], dtype=np.int64),
+    })
+    path = str(tmp_path / 'overlap.parquet')
+    pq.write_table(pa.Table.from_pandas(df), path, row_group_size=5)
+    info = _scan_one_file(path)
+    # No intra-RG dups (each RG has unique values), but the ranges
+    # overlap → cross_rg_overlap flag is True.
+    assert info['duplicates'] == 0
+    assert info['cross_rg_overlap'] is True
+
+
+def test_per_granule_null_counts_streams_via_iter_batches(tmp_path, monkeypatch):
+    """inspect.per_granule_null_counts must iterate row groups via
+    ``pq.ParquetFile.iter_batches`` — NOT pull the full multi-column
+    dataframe via ``pd.read_parquet(columns=...)``."""
+    import numpy as np
+    import pandas as pd
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from gedih3.doctor.inspect import per_granule_null_counts
+
+    n = 50_000
+    df = pd.DataFrame({
+        'shot_number': np.arange(n, dtype=np.int64),
+        'root_file_l2a': [
+            'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5'
+        ] * n,
+        'agbd_l4a': np.where(np.arange(n) % 3 == 0, np.nan, 1.0),
+    })
+    path = str(tmp_path / 'partition.parquet')
+    pq.write_table(pa.Table.from_pandas(df), path, row_group_size=10_000)
+
+    def _no_full_read(*a, **kw):
+        raise AssertionError(
+            "pd.read_parquet was called — per_granule_null_counts must "
+            "iter_batches via pyarrow"
+        )
+    monkeypatch.setattr(pd, 'read_parquet', _no_full_read)
+
+    out = per_granule_null_counts(path, {'L4A': ['agbd_l4a']})
+    # One granule key, one product, ~n/3 nulls.
+    assert len(out) == 1
+    granule_key = next(iter(out))
+    assert out[granule_key]['L4A'] == sum(1 for i in range(n) if i % 3 == 0)

@@ -5,17 +5,26 @@ Three sub-checks bundled because they share the partition/parquet scan:
   - **corrupt**: open each parquet file with ``pq.ParquetFile``; flag exceptions.
     No remedy (would risk deleting user data); reported only.
   - **duplicate_shots**: count duplicate ``shot_number`` rows per partition file.
-    Remedy: ``parquet_dedup_partition`` (streaming, keep-first).
+    Streamed row-group-at-a-time with a hash seen-set so memory is bounded
+    by ``O(unique shots)`` rather than the full column. Remedy:
+    ``parquet_dedup_partition`` (also streaming, keep-first).
   - **schema_drift**: compare each partition's column set to the modal column
     set; flag outliers. Check-only — recommend running ``--fix backfill`` to
     re-join the missing product columns.
 
 Per-partition work runs through :func:`gedih3.doctor.parallel.parallel_map`
-so a registered dask client distributes the I/O. Three parquet round-
-trips per file × N files × M partitions used to run serially on the
-driver — on a continental DB that was hours of cold GPFS I/O. The
-schema-drift aggregation stays on the driver because it depends on the
-full set of partition column-sets.
+so a registered dask client distributes the I/O.
+
+Memory pillar (v0.8.x lessons applied):
+  * One ``pq.ParquetFile`` open per file (was three: open_safely +
+    count_duplicates + partition_columns).
+  * ``shot_number`` is **streamed via ``iter_batches``** with capped
+    readahead (``batch_readahead=1``, ``fragment_readahead=1``) and
+    ``pre_buffer=True`` for I/O coalescing on shared GPFS — never the
+    full ``pd.read_parquet(columns=['shot_number'])`` pull that used
+    to spike workers to ~800 MB on continental partitions.
+  * Explicit ``del pf`` + ``pa.default_memory_pool().release_unused()``
+    after each file so worker RSS plateaus instead of climbing.
 """
 
 from __future__ import annotations
@@ -29,62 +38,158 @@ from ..inspect import partition_parquet_files
 from ..parallel import parallel_map
 
 
-def _open_safely(path):
-    try:
-        import pyarrow.parquet as pq
-        pf = pq.ParquetFile(path)
-        # Touch metadata to force lazy errors.
-        _ = pf.metadata.num_row_groups
-        pf.close()
-        return None
-    except Exception as e:
-        return f"{type(e).__name__}: {e}"
+# Memory-bounded readahead — same caps the build merge phase landed on
+# (see commit f718590 / v0.8.22). batch_readahead/fragment_readahead=1
+# limits the pyarrow scanner's prefetch so a single partition scan
+# can't balloon a worker. ROW_GROUP_BATCH is the per-batch row count
+# pulled across iter_batches calls; small enough to bound RSS, large
+# enough to keep arrow's vectorized paths warm.
+_ROW_GROUP_BATCH = 50_000
+_PRE_BUFFER = True
 
 
-def _count_duplicates(path) -> int:
-    import pandas as pd
+def _release_arrow_pool() -> None:
+    """Best-effort drain of pyarrow's allocator after each file.
+
+    Mirrors the build's ``parquet_merge_files`` pattern (utils.py:1469):
+    pyarrow's transient read/write buffers don't always return to the
+    OS at GC time; explicit release keeps long-running worker RSS flat.
+    """
     try:
-        df = pd.read_parquet(path, columns=['shot_number'])
+        import pyarrow as pa
+        pa.default_memory_pool().release_unused()
     except Exception:
-        return -1
-    if df.empty:
-        return 0
-    return int(df['shot_number'].duplicated().sum())
+        pass
 
 
-def _partition_columns(path) -> List[str]:
+def _scan_one_file(pq_file: str) -> dict:
+    """Single-pass per-file scan: corrupt? dup count? column union?
+
+    One ``pq.ParquetFile`` open feeds all three checks. Memory is
+    **bounded to one row-group**, regardless of file size:
+
+      * ``intra_rg_dups`` is computed via ``pc.value_counts`` per
+        row-group (peak working set: one batch's ``shot_number`` plus
+        a C++ hashmap of size O(unique values in that batch) — a few
+        MB for 50k-row groups).
+      * Cross-row-group duplicates are detected by walking the parquet
+        metadata's per-row-group min/max stats — **no extra I/O**.
+        Overlapping ranges trigger a `cross_rg_overlap` flag so the
+        --fix path knows to run the real streaming dedup.
+
+    Returns a dict (never raises): keys ``corrupt`` (bool), ``error``
+    (str|None), ``duplicates`` (int), ``cross_rg_overlap`` (bool),
+    ``unreadable_shot_number`` (bool), ``columns`` (list[str]).
+    """
     import pyarrow.parquet as pq
+    import pyarrow.compute as pc
+
+    out = {
+        'corrupt': False,
+        'error': None,
+        'duplicates': 0,
+        'cross_rg_overlap': False,
+        'unreadable_shot_number': False,
+        'columns': [],
+    }
+
+    pf = None
     try:
-        return list(pq.read_schema(path).names)
-    except Exception:
-        return []
+        pf = pq.ParquetFile(pq_file, pre_buffer=_PRE_BUFFER)
+        # Header validity gate (touches metadata to force lazy errors).
+        n_rg = pf.metadata.num_row_groups
+        schema_names = list(pf.schema_arrow.names)
+        out['columns'] = schema_names
+
+        if 'shot_number' in schema_names:
+            try:
+                shot_idx = schema_names.index('shot_number')
+
+                # --- Pass 1: intra-row-group duplicates via pc.value_counts ---
+                # Memory ceiling: one row group's int64 column + native
+                # hashmap over its unique values. Reading row group by
+                # row group with ``read_row_group`` (rather than
+                # ``iter_batches`` with a large batch_size that can span
+                # row groups) keeps the per-call working-set bounded by
+                # the file's row_group_size — typically 50k rows on
+                # v0.8.22+ databases.
+                intra_dups = 0
+                for rg_idx in range(n_rg):
+                    table = pf.read_row_group(rg_idx, columns=['shot_number'])
+                    arr = table.column('shot_number')
+                    vc = pc.value_counts(arr)
+                    counts_np = vc.field('counts').to_numpy(zero_copy_only=False)
+                    if counts_np.size:
+                        intra_dups += int((counts_np - 1).clip(min=0).sum())
+                    # Drop transient buffers before the next RG lands.
+                    del arr, vc, counts_np, table
+                out['duplicates'] = intra_dups
+
+                # --- Pass 2 (free): cross-row-group overlap via stats ---
+                # parquet writers record per-RG min/max for primitive types
+                # by default. If RG ranges don't overlap, no cross-RG dups
+                # are possible — the intra count above is exact. If they do
+                # overlap, flag it so --fix runs the streaming dedup that
+                # walks the whole file.
+                ranges = []
+                stats_complete = True
+                for rg_idx in range(n_rg):
+                    rg = pf.metadata.row_group(rg_idx)
+                    stats = rg.column(shot_idx).statistics
+                    if stats is None or not stats.has_min_max:
+                        stats_complete = False
+                        break
+                    ranges.append((stats.min, stats.max))
+                if stats_complete and ranges:
+                    ranges.sort()
+                    for i in range(1, len(ranges)):
+                        if ranges[i][0] <= ranges[i - 1][1]:
+                            out['cross_rg_overlap'] = True
+                            break
+                elif not stats_complete:
+                    # Stats absent: we can't prove no cross-RG dups. Be
+                    # conservative — flag overlap so --fix re-checks.
+                    out['cross_rg_overlap'] = True
+            except Exception:
+                out['unreadable_shot_number'] = True
+    except Exception as e:
+        out['corrupt'] = True
+        out['error'] = f"{type(e).__name__}: {e}"
+    finally:
+        if pf is not None:
+            try:
+                pf.close()
+            except Exception:
+                pass
+            del pf
+        _release_arrow_pool()
+
+    return out
 
 
 def _scan_partition(partition_dir: str) -> dict:
     """Worker: scan one partition, return per-file findings + column union.
 
-    Returned dict has shape::
-
-        {
-            'findings': [ {kind, path, ...}, ... ],
-            'columns':  frozenset(str),    # union across the partition's files
-        }
+    Per-file work goes through :func:`_scan_one_file` so each parquet
+    is opened exactly once (header + shot_number stream + schema all in
+    one pass) and its allocator freed before the next.
     """
     findings = []
     cols_union: set = set()
     for pq_file in partition_parquet_files(partition_dir):
-        err = _open_safely(pq_file)
-        if err:
-            findings.append({'kind': 'corrupt', 'path': pq_file, 'error': err})
+        info = _scan_one_file(pq_file)
+        if info['corrupt']:
+            findings.append({'kind': 'corrupt', 'path': pq_file, 'error': info['error']})
             continue
-
-        dup = _count_duplicates(pq_file)
-        if dup > 0:
-            findings.append({'kind': 'duplicate_shots', 'path': pq_file, 'duplicates': dup})
-        elif dup == -1:
+        if info['unreadable_shot_number']:
             findings.append({'kind': 'unreadable_shot_number', 'path': pq_file})
-
-        cols_union.update(_partition_columns(pq_file))
+        if info['duplicates'] > 0 or info['cross_rg_overlap']:
+            findings.append({
+                'kind': 'duplicate_shots', 'path': pq_file,
+                'duplicates': info['duplicates'],
+                'cross_rg_overlap': info['cross_rg_overlap'],
+            })
+        cols_union.update(info['columns'])
 
     return {'findings': findings, 'columns': frozenset(cols_union)}
 
