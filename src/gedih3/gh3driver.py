@@ -471,6 +471,86 @@ def _restore_storage_on_worker(storage_cfg):
             _storage_options[protocol] = opts
 
 
+# Pyarrow type strings stored by ``read_parquet_schema`` are mostly
+# pandas-compatible as-is (``int64``, ``float32``, ``bool``, ``uint8``,
+# …). The few names that differ between pyarrow and pandas dtype
+# vocabularies map here; everything outside this table either round-
+# trips directly or signals "fall back to a real parquet sample" via
+# ``_meta_from_dtype_dict`` returning ``None``.
+_PA_TO_PANDAS_DTYPE = {
+    'double': 'float64',
+    'float': 'float32',
+    'halffloat': 'float16',
+    'string': 'object',
+    'large_string': 'object',
+    'binary': 'object',
+    'large_binary': 'object',
+}
+
+
+def _pa_dtype_to_pandas(s):
+    """Translate a pyarrow dtype string into a pandas-compatible dtype.
+
+    Returns ``None`` for types we cannot safely round-trip (list/struct/
+    map/dictionary/extension), which signals the caller to fall back to
+    sampling an actual parquet file.
+    """
+    s = (s or '').strip()
+    if not s:
+        return None
+    if s in _PA_TO_PANDAS_DTYPE:
+        return _PA_TO_PANDAS_DTYPE[s]
+    if s.startswith('timestamp'):
+        # timestamp[ns], timestamp[us, tz=UTC], etc. → pandas datetime64[ns]
+        return 'datetime64[ns]'
+    if s.startswith('date'):
+        return 'datetime64[ns]'
+    if s.startswith(('list', 'struct', 'map', 'dictionary', 'extension')):
+        return None
+    # int*/uint*/bool/decimal128/… are accepted by pandas as-is
+    return s
+
+
+def _meta_from_dtype_dict(col_dtypes, *, columns=None, part_col=None):
+    """Construct an empty (Geo)DataFrame matching what
+    :func:`gh3_load_hex` would return — built entirely from the cached
+    ``h3_columns_dtypes`` build-log field, no parquet I/O.
+
+    Returns ``None`` when the cache is missing/empty or contains a
+    dtype the translator can't round-trip; callers must fall back to
+    ``gh3_load_hex(h3_dirs[0], …)`` in that case.
+    """
+    if not col_dtypes:
+        return None
+
+    if columns is None:
+        keep = list(col_dtypes.keys())
+    else:
+        keep = [c for c in columns if c in col_dtypes]
+
+    series = {}
+    for c in keep:
+        pd_dtype = _pa_dtype_to_pandas(col_dtypes[c])
+        if pd_dtype is None:
+            return None
+        try:
+            series[c] = pd.Series([], dtype=pd_dtype)
+        except (TypeError, ValueError):
+            return None
+
+    df = pd.DataFrame(series)
+
+    # gh3_load_hex appends part_col post-read from the directory name;
+    # include it here so from_map's meta matches the per-partition return.
+    if part_col and part_col not in df.columns:
+        df[part_col] = pd.Series([], dtype='object')
+
+    if 'geometry' in df.columns:
+        df = gpd.GeoDataFrame(df, geometry='geometry', crs=4326)
+
+    return df
+
+
 def gh3_load_hex(d, part_col=None, _storage_cfg=None, **kwargs):
     _restore_storage_on_worker(_storage_cfg)
     files = smart_glob(smart_join(d, '**/*.parquet'), recursive=True)
@@ -546,7 +626,17 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
             from .utils import _storage_options
             fm_filter['_storage_cfg'] = dict(_storage_options)
 
-        _meta = gh3_load_hex(h3_dirs[0], part_col=h3_part_col, **fm_filter)
+        # Prefer the cached schema (zero parquet I/O) — falls back to
+        # opening h3_dirs[0] when h3_columns_dtypes is missing (legacy
+        # DB) or contains a dtype the translator can't round-trip.
+        col_dtypes = gh3_read_meta("h3_columns_dtypes", gh3_root_dir=gh3_dir)
+        _meta = _meta_from_dtype_dict(
+            col_dtypes,
+            columns=fm_filter.get('columns'),
+            part_col=h3_part_col,
+        )
+        if _meta is None:
+            _meta = gh3_load_hex(h3_dirs[0], part_col=h3_part_col, **fm_filter)
         ddf = dask.dataframe.from_map(gh3_load_hex, h3_dirs, part_col=h3_part_col, **fm_filter, meta=_meta)
         if 'geometry' in ddf.columns:
             ddf = dask_geopandas.from_dask_dataframe(ddf, geometry='geometry')
