@@ -47,6 +47,7 @@ BUILD_LOG_FILENAME = 'gedih3_build_log.json'
 DATASET_META_FILENAME = 'gedih3_dataset.json'
 PARTITION_META_FILENAME = '.metadata.json'
 MANIFEST_FILENAME = '_manifest.txt'
+SOC_MANIFEST_FILENAME = '_soc_manifest.txt'
 
 def configure_environment(mkdirs=False):
     global GH3_DEFAULT_DOWNLOAD_DIR
