@@ -420,6 +420,9 @@ class H3BuildLogger:
         if 'h3_columns' in self.log_data:
             self.h3_columns = self.log_data.get('h3_columns')
 
+        if 'h3_columns_dtypes' in self.log_data:
+            self.h3_columns_dtypes = dict(self.log_data.get('h3_columns_dtypes') or {})
+
         if 'h3_partition_ids' in self.log_data:
             self.h3_partition_ids = self.log_data.get('h3_partition_ids')
 
@@ -595,6 +598,11 @@ class H3BuildLogger:
 
         self.date_range = (date_min, date_max)
         self.h3_columns = sorted(fmeta.get('columns', []))
+        # Schema dtypes piggyback on the same post-merge invariant the
+        # column-name aggregation already relies on (all partitions
+        # share an identical schema after merge); pick from the last
+        # fmeta. Empty dict when partition metadata predates this field.
+        self.h3_columns_dtypes = dict(fmeta.get('column_dtypes', {}))
         self.h3_partition_ids = sorted(h3_parts)
 
         # Merge with existing tracked granules (preserve PENDING for unindexed)
@@ -675,6 +683,9 @@ class H3BuildLogger:
 
         if hasattr(self, 'h3_columns'):
             log_dict['h3_columns'] = self.h3_columns
+
+        if getattr(self, 'h3_columns_dtypes', None):
+            log_dict['h3_columns_dtypes'] = self.h3_columns_dtypes
 
         if hasattr(self, 'h3_partition_ids'):
             log_dict['h3_partition_ids'] = self.h3_partition_ids
