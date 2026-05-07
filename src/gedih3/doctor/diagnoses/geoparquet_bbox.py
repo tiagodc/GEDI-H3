@@ -32,6 +32,7 @@ from typing import Optional
 from ..report import Report, DoctorContext, Severity
 from ..runner import register
 from ..inspect import partition_parquet_files
+from ..parallel import parallel_map
 from ...cliutils import progress_iter
 from ...utils import parquet_backfill_bbox
 
@@ -72,20 +73,42 @@ def _classify(path: str) -> Optional[str]:
     return None
 
 
+def _scan_partition_bbox(partition_dir: str) -> dict:
+    """Worker: classify every parquet under one partition.
+
+    Returns ``{'findings': [...], 'n_ok': int}`` so the driver can
+    aggregate counts without holding the per-OK paths.
+    """
+    findings = []
+    n_ok = 0
+    for f in partition_parquet_files(partition_dir):
+        kind = _classify(f)
+        if kind is None:
+            n_ok += 1
+        else:
+            findings.append({'kind': kind, 'path': f})
+    return {'findings': findings, 'n_ok': n_ok}
+
+
 def geoparquet_bbox_check(ctx: DoctorContext) -> Report:
     findings = []
     n_ok = 0
-    with progress_iter(ctx.partition_dirs,
-                       desc="geoparquet_bbox: scanning partitions",
-                       args=getattr(ctx, 'args', None),
-                       unit="part") as bar:
-        for d in bar:
-            for f in partition_parquet_files(d):
-                kind = _classify(f)
-                if kind is None:
-                    n_ok += 1
-                else:
-                    findings.append({'kind': kind, 'path': f})
+    for part_dir, result in parallel_map(
+        ctx.partition_dirs,
+        _scan_partition_bbox,
+        args=getattr(ctx, 'args', None),
+        desc='geoparquet_bbox: scanning partitions',
+        unit='part',
+    ):
+        if isinstance(result, Exception):
+            findings.append({
+                'kind': 'unreadable',
+                'path': part_dir,
+                'error': f"{type(result).__name__}: {result}",
+            })
+            continue
+        findings.extend(result['findings'])
+        n_ok += result['n_ok']
 
     n_missing_geo = sum(1 for x in findings if x['kind'] == 'missing_geo')
     n_missing_bbox = sum(1 for x in findings if x['kind'] == 'missing_bbox')

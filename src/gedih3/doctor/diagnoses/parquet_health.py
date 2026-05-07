@@ -9,18 +9,24 @@ Three sub-checks bundled because they share the partition/parquet scan:
   - **schema_drift**: compare each partition's column set to the modal column
     set; flag outliers. Check-only — recommend running ``--fix backfill`` to
     re-join the missing product columns.
+
+Per-partition work runs through :func:`gedih3.doctor.parallel.parallel_map`
+so a registered dask client distributes the I/O. Three parquet round-
+trips per file × N files × M partitions used to run serially on the
+driver — on a continental DB that was hours of cold GPFS I/O. The
+schema-drift aggregation stays on the driver because it depends on the
+full set of partition column-sets.
 """
 
 from __future__ import annotations
 
-import os
 from collections import Counter
 from typing import Dict, List
 
 from ..report import Report, DoctorContext, Severity
 from ..runner import register
 from ..inspect import partition_parquet_files
-from ...cliutils import progress_iter
+from ..parallel import parallel_map
 
 
 def _open_safely(path):
@@ -54,30 +60,55 @@ def _partition_columns(path) -> List[str]:
         return []
 
 
-def parquet_health_check(ctx: DoctorContext) -> Report:
+def _scan_partition(partition_dir: str) -> dict:
+    """Worker: scan one partition, return per-file findings + column union.
+
+    Returned dict has shape::
+
+        {
+            'findings': [ {kind, path, ...}, ... ],
+            'columns':  frozenset(str),    # union across the partition's files
+        }
+    """
     findings = []
+    cols_union: set = set()
+    for pq_file in partition_parquet_files(partition_dir):
+        err = _open_safely(pq_file)
+        if err:
+            findings.append({'kind': 'corrupt', 'path': pq_file, 'error': err})
+            continue
+
+        dup = _count_duplicates(pq_file)
+        if dup > 0:
+            findings.append({'kind': 'duplicate_shots', 'path': pq_file, 'duplicates': dup})
+        elif dup == -1:
+            findings.append({'kind': 'unreadable_shot_number', 'path': pq_file})
+
+        cols_union.update(_partition_columns(pq_file))
+
+    return {'findings': findings, 'columns': frozenset(cols_union)}
+
+
+def parquet_health_check(ctx: DoctorContext) -> Report:
+    findings: List[dict] = []
     schema_by_part: Dict[str, frozenset] = {}
 
-    with progress_iter(ctx.partition_dirs,
-                       desc="parquet_health: scanning partitions",
-                       args=getattr(ctx, 'args', None),
-                       unit="part") as bar:
-        for d in bar:
-            for pq_file in partition_parquet_files(d):
-                err = _open_safely(pq_file)
-                if err:
-                    findings.append({'kind': 'corrupt', 'path': pq_file, 'error': err})
-                    continue
-
-                dup = _count_duplicates(pq_file)
-                if dup > 0:
-                    findings.append({'kind': 'duplicate_shots', 'path': pq_file, 'duplicates': dup})
-                elif dup == -1:
-                    findings.append({'kind': 'unreadable_shot_number', 'path': pq_file})
-
-                cols = _partition_columns(pq_file)
-                schema_by_part.setdefault(d, frozenset()).__sizeof__()  # noop
-                schema_by_part[d] = schema_by_part.get(d, frozenset()) | frozenset(cols)
+    for part_dir, result in parallel_map(
+        ctx.partition_dirs,
+        _scan_partition,
+        args=getattr(ctx, 'args', None),
+        desc='parquet_health: scanning partitions',
+        unit='part',
+    ):
+        if isinstance(result, Exception):
+            findings.append({
+                'kind': 'scan_error',
+                'partition_dir': part_dir,
+                'error': f"{type(result).__name__}: {result}",
+            })
+            continue
+        findings.extend(result['findings'])
+        schema_by_part[part_dir] = result['columns']
 
     # Schema drift: find the modal column set and flag partitions that differ.
     if len(schema_by_part) >= 3:
@@ -97,8 +128,9 @@ def parquet_health_check(ctx: DoctorContext) -> Report:
     n_corrupt = sum(1 for f in findings if f['kind'] == 'corrupt')
     n_dup = sum(1 for f in findings if f['kind'] == 'duplicate_shots')
     n_drift = sum(1 for f in findings if f['kind'] == 'schema_drift')
+    n_scan_err = sum(1 for f in findings if f['kind'] == 'scan_error')
 
-    if n_corrupt:
+    if n_corrupt or n_scan_err:
         severity = Severity.ERROR
     elif findings:
         severity = Severity.WARN
@@ -106,6 +138,8 @@ def parquet_health_check(ctx: DoctorContext) -> Report:
         severity = Severity.INFO
 
     summary = f"{n_corrupt} corrupt, {n_dup} files with duplicates, {n_drift} schema-drift partitions"
+    if n_scan_err:
+        summary += f", {n_scan_err} partitions errored during scan"
 
     recommendations = []
     if n_drift:
@@ -136,7 +170,7 @@ def parquet_health_fix(ctx: DoctorContext, report: Report) -> Report:
                 fixed.append({**f, 'action': 'deduplicated', 'dropped': dropped})
             except Exception as e:
                 fixed.append({**f, 'fix_error': f"{type(e).__name__}: {e}"})
-        elif kind in ('corrupt', 'schema_drift', 'unreadable_shot_number'):
+        elif kind in ('corrupt', 'schema_drift', 'unreadable_shot_number', 'scan_error'):
             # Preserve as-is — no auto-fix.
             fixed.append({**f, 'action': 'reported_only'})
         else:
