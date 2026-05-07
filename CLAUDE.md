@@ -12,6 +12,19 @@
 
 ---
 
+## Software Design Priorities
+
+Every change in this codebase is evaluated against four non-negotiable pillars. They were articulated explicitly during the v0.8.x continental-build hardening (Apr–May 2026) and now apply uniformly across build, download, and query tools.
+
+1. **Scalability — high CPU, low driver bottleneck.** Push work to workers; never serialize through the driver. No driver-side O(N) GPFS scans (use a manifest sentinel or `client.map` listing instead). No driver-side inflight throttle — let the dask scheduler distribute. Stream `as_completed` instead of `bag.persist + compute` for long-running phases.
+2. **Low-memory plateau — use as much CPU as possible with as little RAM as possible.** Per-task `gc.collect()` + Arrow pool release + glibc `malloc_trim` (`data/dask-worker-trim.py`). Cap pyarrow scanner readahead (`batch_readahead=1`, `fragment_readahead=1`). `pre_buffer=True` for I/O coalescing on shared GPFS. Per-file iter (not `ds.dataset` scanner) for merges. Per-worker memory must plateau, not climb, regardless of build duration.
+3. **Atomic & resumable I/O — safety as a first-class concern.** Every output write goes through `AtomicFileWriter` (`.tmp` + `os.replace`, cleanup on exception). Tolerate corrupt destinations / inputs and re-merge or skip+log instead of failing the whole job. Resume via append-only progress files + stable filename conventions (granule ID embedded in fragment basename) and HDF5/parquet header validity checks (`h5_is_valid`).
+4. **A-priori knowledge over runtime detection — knowing how the data should look, or its bounds, a priori saves real I/O.** Use shipped per-product variable manifests (`gedi_vars_static`), sidecar metadata (`gh3_read_meta` for `h3_columns` / `h3_columns_dtypes` / `h3_partition_level` / `h3_partition_ids`), and H3/EGI cell math (`h3_partition_bbox`) instead of reading HDF5 headers, scanning columns, or computing bounds when the answer is knowable for free.
+
+When in doubt, ask: *"Am I doing work the structure of the data already answers?"* If yes, replace the work with a lookup.
+
+---
+
 ## Project Overview
 
 **gedih3** is a Python library for accessing NASA's GEDI (Global Ecosystem Dynamics Investigation) satellite LiDAR data with H3 and EGI spatial indexing. It handles downloading GEDI products from NASA's DAACs, building spatially-indexed parquet databases for efficient queries, extracting/aggregating data, and producing raster outputs. It's core function relies on generating analysis rady data with minimal user expertise required on both GEDI data and programming skills. 
@@ -164,13 +177,19 @@ gh3_from_polygon -i landcover.gpkg -x lc_ --dropna -d /path/to/databaset -o outp
 - **H3 partitioning**: Data partitioned by H3 cells (configurable via `-h3p` for partition, `-h3r` for index; levels stored in metadata)
 - **EGI alignment**: Square pixels aligned to EASE-Grid 2.0 (EPSG:6933) for L4B compatibility
 - **Direct EGI loading (no shuffle)**: `egi_load()` pre-computes EGI↔H3 intersection and reads tiles directly — no `set_index()` shuffle needed
-- **Parquet + JSON metadata**: Each H3 partition has a `.parquet` file; database root has `gedih3_build_log.json`
+- **Parquet + JSON metadata**: Each H3 partition has a `.parquet` file; database root has `gedih3_build_log.json` (carries `h3_columns`, `h3_columns_dtypes`, `h3_partition_level`, `h3_partition_ids`)
+- **Database manifest sentinel** (`_manifest.txt`): one relative path per line at the database root; `smart_glob` reads it before falling back to a recursive walk. Keeps `gh3_load()` cheap on million-partition databases over HTTP/S3/GPFS.
+- **SOC manifest sentinel** (`_soc_manifest.txt`): the download-side parallel of `_manifest.txt`. `soc_file_tree` reads it before falling back to `glob.glob('**/*.h5')`; refreshed by `SOCDownloadLogger.set_post_download_info` after every download. Replaces minutes of GPFS metadata-server walk on every resume.
 - **Unified `source=` API**: `gh3_load()` and `egi_load()` accept `source=` as the primary path parameter
 - **Variable expansion**: CLI accepts `default`, `minimal`, `*`, or explicit variable lists/files
+- **Static product variable manifests**: `data/GEDI*_DATASETS_*.txt` ship the canonical variable list per `(product, version)`. `gedi_vars_static(product, version)` is the cached, free lookup; prefer it over `gedi_vars_from_h5` whenever the file under inspection is a NASA release file. Files that may have been previously subset (compact HDF5 from S3 ETL) still need `gedi_vars_from_h5` — the static manifest would over-count them.
+- **Cached H3 schema dtypes** (`h3_columns_dtypes` in the build log): `gh3_load()` builds its Dask `_meta` from the cache (zero parquet I/O) and falls back to sampling `h3_dirs[0]` only when the field is missing (legacy DBs).
 - **Spatial filtering**: Supports vector files, bounding boxes, or ISO3 country codes
 - **S3 ETL mode**: `gh3_build --s3` / `gh3_download --s3` stream from NASA S3 without persistent local download
 - **Retry logic**: Network operations use exponential backoff (3 attempts, 1-60s wait)
-- **Atomic writes**: File operations use `AtomicFileWriter` for transaction safety
+- **Atomic writes everywhere**: file operations route through `AtomicFileWriter` (`utils.py`). Build merges, JSON metadata writes, and extract/aggregate single-file outputs (`_write_dataframe`, `_write_egi_file` for parquet/feather/csv/txt/h5) all use `.tmp` + `os.replace`. Geo-vector formats (geojson/gpkg/shp) bypass the wrap because they depend on file-extension driver inference and shapefile emits multiple sidecars.
+- **HDF5 validity gate**: `h5_is_valid(path)` (cheap header open) is the resume-safety check on downloads — a truncated `.h5` left by a SIGKILL must not be silently consumed by the build phase.
+- **Worker memory hygiene**: `data/dask-worker-trim.py` preload (per-task `gc.collect` + Arrow pool release + glibc `malloc_trim`) is applied externally via `dask worker --preload …` or `DASK_CONFIG=…/dask-config-massive-build.yaml`. Treat as production setup, not a per-tool concern.
 - **Structured exceptions**: Catch specific `GediError` subclasses for targeted error handling
 - **DRY CLI utilities**: Shared argument builders and setup functions in `cliutils.py`
 - **Ancillary data fusion**: External raster sampling (`imgutils.py`) and vector spatial join (`vecutils.py`) at shot level with worker-level caching
@@ -199,6 +218,13 @@ from gedih3.cliutils import (
 - **`from_map=True`** (default in `gh3_load()`): bypasses `_metadata` file, loads partitions directly via `dask.dataframe.from_map()` — critical for databases with thousands of partitions.
 - **`map_partitions` aggregation**: `gh3_aggregate` / `egi_aggregate` avoid shuffling by processing each partition independently.
 - **EGI coordinate priority**: uses `geometry` column (Point) first, falls back to product-suffixed coordinate columns (e.g., `lon_lowestmode_l2a`).
+- **`_manifest.txt` / `_soc_manifest.txt` sentinels**: short-circuit recursive globs over multi-million-file H3 databases and SOC trees on every resume / load. O(N) → O(1) on the GPFS metadata server.
+- **`gedi_vars_static` cache**: replaces a remote HDF5 metadata round-trip (~50 ms hot, more cold) with a free local lookup of the per-product manifest shipped in `data/`. Hot path on S3 ETL.
+- **`h3_columns_dtypes` cache**: `gh3_load()` builds its Dask `_meta` from the build-log dtypes dict, eliminating the ~50 ms – 1 s parquet sample read previously paid by every load — compounds across chained query tools (extract → aggregate → rasterize).
+- **Per-file pyarrow iter for merges**: `parquet_merge_files` opens one file at a time with `pre_buffer=True` and capped scanner readahead instead of `ds.dataset` over the whole partition. Keeps per-merge memory bounded (~1 GB plateau on continental-scale builds, vs. >15 GB before v0.8.22).
+- **Streaming stats during merge**: `parquet_merge_files` captures shot/date stats inline so `h3_write_metadata` can skip a 1.5–2 GB post-merge re-read.
+- **H3 partition bbox from cell math**: `h3_partition_bbox()` derives the bounding box from the H3 cell ID (no geometry-column scan).
+- **Granule ID from fragment basename**: build merge reconciles via regex on `O{orbit}_G{granule}_T{track}.{beam}.parquet` instead of opening parquet files.
 
 ## EGI Resolution Levels
 
@@ -253,3 +279,24 @@ Four specialized sub-agents in `.claude/agents/`:
 | `testing-qa` | Test coverage, validation, benchmarking, **DRY/redundancy audits** |
 
 Use `testing-qa` to audit for duplicate code before adding new utilities. Check `cliutils.py`, `utils.py`, `validation.py` first.
+
+## Reusable utilities (DRY anchors)
+
+Before writing new helper code, check whether one of these covers your case. Every change shipped recently has reused these rather than inventing new abstractions:
+
+| Helper | Module | Purpose |
+|---|---|---|
+| `AtomicFileWriter` | `utils.py` | Context-managed `.tmp` + `os.replace` with cleanup-on-exception. Use for *every* output write that should not leave partial files on crash. |
+| `generate_manifest` / `_read_manifest` | `utils.py` | Maintain / read the `_manifest.txt` sentinel for any directory of files. |
+| `smart_glob` | `utils.py` | Manifest-aware glob; falls back to filesystem walk. Use anywhere the code currently does `glob.glob(..., recursive=True)`. |
+| `smart_open` / `smart_join` / `smart_exists` / `smart_isdir` | `utils.py` | Local + remote (HTTP/S3) path-agnostic I/O primitives. |
+| `parquet_merge_files` | `utils.py` | Streaming per-file merge with bounded memory, GeoParquet bbox, and inline stats capture. |
+| `parquet_schema_add_bbox` | `utils.py` | Embed GeoParquet `bbox` metadata into a finalized parquet (used when the writer doesn't auto-embed, e.g. raw pyarrow merge paths). |
+| `read_parquet_schema` | `utils.py` | Footer-only schema read, returns DataFrame of `column` + `dtype`. |
+| `h5_is_valid` | `utils.py` | Cheap HDF5 header open; the canonical "is this file readable" check on resume. |
+| `h3_partition_bbox` | `utils.py` | H3 cell bbox from the cell ID — no geometry scan. |
+| `gh3_read_meta(var)` | `gh3driver.py` | Read fields from the build-log sidecar (`h3_columns`, `h3_columns_dtypes`, `h3_partition_level`, `h3_partition_ids`). Use this before reaching for a parquet open. |
+| `gedi_vars_static(product, version)` | `gedidriver.py` | Cached per-product variable list from shipped manifests in `data/`. Prefer over `gedi_vars_from_h5` for NASA release files. |
+| `gedi_vars_from_h5` | `gedidriver.py` | HDF5 BEAM-tree walk. Use *only* when the file may have been previously subset (compact HDF5 from S3 ETL or `gedi_subset`); otherwise use `gedi_vars_static`. |
+| `_meta_from_dtype_dict` | `gh3driver.py` | Build a Dask `_meta` (Geo)DataFrame from cached dtypes — no parquet I/O. Falls back to `None` on complex types. |
+| `dask-worker-trim.py` preload | `data/` (external) | Per-task `gc.collect` + Arrow pool release + `malloc_trim`. Wire via `dask worker --preload` or `DASK_CONFIG`, not from CLIs. |
