@@ -6,7 +6,7 @@ from .config import GEDI_PRODUCTS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_SOC_DIR
 from .exceptions import GediValidationError
 from .utils import now, json_read, json_write, read_vector_file, to_geojson, from_geojson, parse_spatial, merge_spatial, parse_temporal, get_package_version
 from .h3utils import intersect_h3_geometries
-from .gedidriver import GEDIFile, gedi_vars_expand, soc_file_tree, check_soc_file_vars, validate_soc_files
+from .gedidriver import GEDIFile, gedi_vars_expand, soc_file_tree, check_soc_file_vars, validate_soc_files, write_soc_manifest
 from .gh3driver import gh3_list_files
 
 _VALID_STATUSES = (
@@ -223,7 +223,23 @@ class SOCDownloadLogger:
                 break
 
     def set_post_download_info(self):
-        """Scan SOC directory and record downloaded granules."""
+        """Scan SOC directory and record downloaded granules.
+
+        Refreshes ``_soc_manifest.txt`` first so subsequent
+        ``soc_file_tree`` calls (here and on the next resume) skip the
+        recursive glob over the SOC tree. This is the same pattern the
+        H3 database uses via ``MANIFEST_FILENAME``.
+        """
+        try:
+            n_files = write_soc_manifest(self._PARENT_DIR)
+        except OSError:
+            # Manifest is an optimization, not a correctness gate; if the
+            # SOC root is read-only or transiently unavailable the
+            # downstream glob fallback still produces correct results.
+            n_files = 0
+        # Total HDF5 file count for callers that used to recursive-glob
+        # the SOC tree just to print a summary line.
+        self.n_files = n_files
         soc_files = soc_file_tree(self._PARENT_DIR, to_list=True)
         granule_info = []
         for soc in soc_files:
