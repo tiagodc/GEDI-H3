@@ -219,19 +219,21 @@ def _build_soc_tree(soc_source):
 def _read_patch_for_partition(
     affected_granules_by_product: Dict[str, List[GranuleKey]],
     soc_tree: dict,
-    ctx: DoctorContext,
+    vars_per_product: Dict[str, List[str]],
 ) -> Optional[str]:
     """Build a single patch parquet containing [shot_number] + product cols.
 
     Returns the path to a temp parquet (caller must delete) or None when no
-    source files were available.
+    source files were available. Takes ``vars_per_product`` directly
+    (no DoctorContext) so the function is picklable for use as a dask
+    worker payload.
     """
     import pandas as pd
     from ...gedidriver import load_h5
 
     frames = []
     for prod, granules in affected_granules_by_product.items():
-        var_list = _vars_for_product(ctx, prod)
+        var_list = vars_per_product.get(prod) or []
         if not var_list:
             continue
         cols_to_read = ['shot_number'] + [v for v in var_list if v != 'shot_number']
@@ -262,6 +264,71 @@ def _read_patch_for_partition(
     tmp.close()
     merged.to_parquet(tmp.name, engine='pyarrow', index=False)
     return tmp.name
+
+
+def _heal_partition(
+    item: Tuple[str, Dict[str, List[GranuleKey]]],
+    *,
+    soc_source: str,
+    vars_per_product: Dict[str, List[str]],
+) -> Dict[str, list]:
+    """Worker: read source HDF5 patch, apply parquet_fill_columns to every
+    parquet under one partition, return healed/unavailable/error finding lists.
+
+    ``item`` carries the per-partition payload as a tuple
+    ``(partition_dir, affected_granules_by_product)`` so each dask task
+    serializes only its own work — no whole-database broadcast dict.
+    Self-contained — no DoctorContext serialization. The build-log
+    INDEXED marking stays on the driver because it mutates shared state.
+    """
+    partition_dir, affected_granules_by_product = item
+    healed: list = []
+    not_available: list = []
+    error_actions: list = []
+
+    soc_tree = _build_soc_tree(soc_source)
+    patch = None
+    try:
+        patch = _read_patch_for_partition(
+            affected_granules_by_product, soc_tree, vars_per_product,
+        )
+        if patch is None:
+            for prod, grans in affected_granules_by_product.items():
+                for g in grans:
+                    not_available.append({
+                        'partition_dir': partition_dir, 'product': prod,
+                        'granule': {'orbit': g[0], 'granule': g[1], 'track': g[2]},
+                        'reason': 'source_not_in_soc_tree',
+                    })
+            return {'healed': healed, 'not_available': not_available, 'error_actions': error_actions}
+
+        had_error = False
+        for pq_file in partition_parquet_files(partition_dir):
+            try:
+                parquet_fill_columns(pq_file, [patch])
+            except Exception as e:
+                had_error = True
+                error_actions.append({
+                    'partition_dir': partition_dir, 'parquet_file': pq_file,
+                    'fix_error': f"{type(e).__name__}: {e}",
+                })
+
+        if not had_error:
+            for prod, grans in affected_granules_by_product.items():
+                for g in grans:
+                    healed.append({
+                        'partition_dir': partition_dir, 'product': prod,
+                        'granule': {'orbit': g[0], 'granule': g[1], 'track': g[2]},
+                        'action': 'filled',
+                    })
+    finally:
+        if patch and os.path.exists(patch):
+            try:
+                os.unlink(patch)
+            except OSError:
+                pass
+
+    return {'healed': healed, 'not_available': not_available, 'error_actions': error_actions}
 
 
 def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
@@ -338,52 +405,54 @@ def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
             for g in f.get('granules', []):
                 by_partition.setdefault(part, {}).setdefault(prod, set()).add((g['orbit'], g['granule'], g['track']))
 
-    healed = []
-    not_available = []
-    error_actions = []
+    healed: list = []
+    not_available: list = []
+    error_actions: list = []
+
+    # Pre-compute the per-product variable lists once on the driver and
+    # broadcast them to every worker — the only ctx coupling that used
+    # to block parallelization. ctx.h3_logger.product_vars is small
+    # (dozens of strings) so direct broadcast is fine.
+    products_in_use = sorted({p for prod_grans in by_partition.values() for p in prod_grans})
+    vars_per_product = {p: _vars_for_product(ctx, p) for p in products_in_use}
+
+    # Pack each partition's payload into the work item itself so dask
+    # serializes only the slice each task needs — no whole-database
+    # broadcast dict. ``_heal_partition`` unpacks the tuple worker-side.
+    items = [
+        (part_dir, {prod: list(grans) for prod, grans in prod_grans.items()})
+        for part_dir, prod_grans in by_partition.items()
+    ]
 
     try:
-        for part_dir, prod_grans in by_partition.items():
-            affected_granules_by_product = {p: list(s) for p, s in prod_grans.items()}
-            patch = None
-            try:
-                patch = _read_patch_for_partition(affected_granules_by_product, soc_tree, ctx)
-                if patch is None:
-                    for prod, grans in affected_granules_by_product.items():
-                        for g in grans:
-                            not_available.append({
-                                'partition_dir': part_dir, 'product': prod,
-                                'granule': {'orbit': g[0], 'granule': g[1], 'track': g[2]},
-                                'reason': 'source_not_in_soc_tree',
-                            })
-                    continue
+        from ..parallel import parallel_map
+        for item, result in parallel_map(
+            items,
+            _heal_partition,
+            args=getattr(ctx, 'args', None),
+            desc='backfill: healing partitions',
+            unit='part',
+            soc_source=soc_source,
+            vars_per_product=vars_per_product,
+        ):
+            part_dir = item[0] if item is not None else '<unknown>'
+            if isinstance(result, Exception):
+                error_actions.append({
+                    'partition_dir': part_dir,
+                    'fix_error': f"{type(result).__name__}: {result}",
+                })
+                continue
+            healed.extend(result['healed'])
+            not_available.extend(result['not_available'])
+            error_actions.extend(result['error_actions'])
 
-                for pq_file in partition_parquet_files(part_dir):
-                    try:
-                        parquet_fill_columns(pq_file, [patch])
-                    except Exception as e:
-                        error_actions.append({
-                            'partition_dir': part_dir, 'parquet_file': pq_file,
-                            'fix_error': f"{type(e).__name__}: {e}",
-                        })
-                        continue
-
-                # Mark per-granule per-product status as INDEXED on success.
-                if ctx.h3_logger is not None:
-                    for prod, grans in affected_granules_by_product.items():
-                        for g in grans:
-                            ctx.h3_logger.mark_granule_product(
-                                {'orbit': g[0], 'granule': g[1], 'track': g[2]},
-                                prod, 'INDEXED',
-                            )
-                            healed.append({
-                                'partition_dir': part_dir, 'product': prod,
-                                'granule': {'orbit': g[0], 'granule': g[1], 'track': g[2]},
-                                'action': 'filled',
-                            })
-            finally:
-                if patch and os.path.exists(patch):
-                    os.unlink(patch)
+        # Build-log INDEXED marking stays on the driver — it mutates
+        # shared state (the in-memory log) that the workers don't have.
+        if ctx.h3_logger is not None:
+            for h in healed:
+                ctx.h3_logger.mark_granule_product(
+                    h['granule'], h['product'], 'INDEXED',
+                )
     finally:
         if s3_tmp_dir and os.path.exists(s3_tmp_dir):
             shutil.rmtree(s3_tmp_dir, ignore_errors=True)
