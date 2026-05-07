@@ -184,6 +184,7 @@ gh3_from_polygon -i landcover.gpkg -x lc_ --dropna -d /path/to/databaset -o outp
 - **Variable expansion**: CLI accepts `default`, `minimal`, `*`, or explicit variable lists/files
 - **Static product variable manifests**: `data/GEDI*_DATASETS_*.txt` ship the canonical variable list per `(product, version)`. `gedi_vars_static(product, version)` is the cached, free lookup; prefer it over `gedi_vars_from_h5` whenever the file under inspection is a NASA release file. Files that may have been previously subset (compact HDF5 from S3 ETL) still need `gedi_vars_from_h5` — the static manifest would over-count them.
 - **Cached H3 schema dtypes** (`h3_columns_dtypes` in the build log): `gh3_load()` builds its Dask `_meta` from the cache (zero parquet I/O) and falls back to sampling `h3_dirs[0]` only when the field is missing (legacy DBs).
+- **Distributed doctor diagnoses**: every diagnosis that scans every partition (`parquet_health`, `backfill`, `geoparquet_bbox`, `metadata`, `orphans`, `soc_health`) ships per-partition work to dask workers via `gedih3.doctor.parallel.parallel_map` when a client is registered, and falls back to a serial `progress_iter` loop otherwise. O(1) emptiness checks (`partition_is_empty`, `year_dir_is_empty`) replace the legacy recursive globs.
 - **Spatial filtering**: Supports vector files, bounding boxes, or ISO3 country codes
 - **S3 ETL mode**: `gh3_build --s3` / `gh3_download --s3` stream from NASA S3 without persistent local download
 - **Retry logic**: Network operations use exponential backoff (3 attempts, 1-60s wait)
@@ -299,4 +300,6 @@ Before writing new helper code, check whether one of these covers your case. Eve
 | `gedi_vars_static(product, version)` | `gedidriver.py` | Cached per-product variable list from shipped manifests in `data/`. Prefer over `gedi_vars_from_h5` for NASA release files. |
 | `gedi_vars_from_h5` | `gedidriver.py` | HDF5 BEAM-tree walk. Use *only* when the file may have been previously subset (compact HDF5 from S3 ETL or `gedi_subset`); otherwise use `gedi_vars_static`. |
 | `_meta_from_dtype_dict` | `gh3driver.py` | Build a Dask `_meta` (Geo)DataFrame from cached dtypes — no parquet I/O. Falls back to `None` on complex types. |
+| `parallel_map` | `doctor/parallel.py` | Map a per-item worker fn across a list with auto dask-or-serial dispatch + `as_completed` streaming. The doctor's standard parallelism primitive — use it instead of writing new `client.map` glue. |
+| `partition_is_empty` / `list_year_dirs` / `year_dir_is_empty` | `doctor/parallel.py` | O(1) `os.scandir`-based checks that replace `glob.glob('**/*.parquet', recursive=True)`. |
 | `dask-worker-trim.py` preload | `data/` (external) | Per-task `gc.collect` + Arrow pool release + `malloc_trim`. Wire via `dask worker --preload` or `DASK_CONFIG`, not from CLIs. |

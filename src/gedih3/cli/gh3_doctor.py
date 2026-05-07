@@ -219,12 +219,16 @@ def main():
             _print_upstream(ctx.upstream, logger)
 
         if args.report:
+            from gedih3.utils import AtomicFileWriter
             payload = {
                 'reports': [r.to_dict() for r in reports_to_emit],
                 'upstream': ctx.upstream.to_dict() if ctx.upstream is not None else None,
             }
-            with open(args.report, 'w') as f:
-                json.dump(payload, f, indent=2, default=str)
+            # Atomic write so an interrupted run leaves no half-written
+            # report file at the user's target path.
+            with AtomicFileWriter(args.report) as tmp:
+                with open(tmp, 'w') as f:
+                    json.dump(payload, f, indent=2, default=str)
             logger.info(f"Wrote report: {args.report}")
 
         worst = _worst_severity(reports_to_emit)
