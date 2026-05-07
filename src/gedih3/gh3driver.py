@@ -10,7 +10,7 @@ from .config import GH3_DEFAULT_H3_DIR, configure_environment, BUILD_LOG_FILENAM
 from .utils import (json_read, json_write, now, get_package_version, is_parquet,
                      smart_glob, smart_exists, smart_isdir, is_remote_path,
                      smart_open, generate_manifest, check_nan_only_columns,
-                     smart_join)
+                     smart_join, AtomicFileWriter)
 from .h3utils import intersect_h3_geometries, fix_h3_geometry
 from .cliutils import find_coordinate_column, get_aggregatable_columns
 from .exceptions import (GediValidationError, GediDatabaseNotFoundError, GediProcessingError,
@@ -856,25 +856,35 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None,
 
 
 def _write_dataframe(df, opath, fmt):
-    """Write a DataFrame to file in the specified format."""
-    if is_parquet(opath):
-        # Use compression for parquet
-        df.to_parquet(opath, compression='zstd')
-    elif fmt == 'feather':
-        df.to_feather(opath)
-    elif fmt in ('geojson', 'gpkg', 'shp'):
-        if isinstance(df, gpd.GeoDataFrame):
-            df.to_file(opath)
-        else:
+    """Write a DataFrame to file in the specified format.
+
+    Single-file formats (parquet/feather/csv/txt/h5) write through
+    :class:`AtomicFileWriter` so a worker SIGKILL or disk-full mid-write
+    does not leave a partial file at the final path. The
+    geopandas-backed formats (geojson/gpkg/shp) bypass the atomic wrap
+    because :meth:`GeoDataFrame.to_file` infers the OGR driver from the
+    file extension and shapefile in particular emits multiple sidecars
+    that a single tmp+rename cannot cover.
+    """
+    if fmt in ('geojson', 'gpkg', 'shp'):
+        if not isinstance(df, gpd.GeoDataFrame):
             raise GediProcessingError(f"Cannot export non-GeoDataFrame to {fmt}")
-    elif fmt == 'txt':
-        df.to_csv(opath, sep='\t')
-    elif fmt == 'csv':
-        df.to_csv(opath)
-    elif fmt in ('h5', 'hdf5'):
-        df.to_hdf(opath, key='GEDI', mode='w')
-    else:
-        raise GediProcessingError(f"Unsupported export format: {fmt}")
+        df.to_file(opath)
+        return
+
+    with AtomicFileWriter(opath) as tmp:
+        if is_parquet(opath):
+            df.to_parquet(tmp, compression='zstd')
+        elif fmt == 'feather':
+            df.to_feather(tmp)
+        elif fmt == 'txt':
+            df.to_csv(tmp, sep='\t')
+        elif fmt == 'csv':
+            df.to_csv(tmp)
+        elif fmt in ('h5', 'hdf5'):
+            df.to_hdf(tmp, key='GEDI', mode='w')
+        else:
+            raise GediProcessingError(f"Unsupported export format: {fmt}")
 
 
 # ============================================================================
@@ -2446,27 +2456,35 @@ def _write_egi_file(df, opath, fmt):
         return ''
 
     try:
-        # Handle raster export
+        # Handle raster export (rasterio writer handles its own atomicity)
         if fmt in ('tif', 'tiff', 'geotiff'):
             raster = egi.geodf_to_raster(df)
             egi.export_raster(raster, opath)
             return opath
 
-        # Handle vector/tabular export
-        if is_parquet(opath):
-            df.to_parquet(opath)
-        elif fmt == 'feather':
-            df.to_feather(opath)
-        elif fmt in ('geojson', 'gpkg', 'shp'):
+        # Geo-vector formats infer the OGR driver from the file extension
+        # and shp emits multiple sidecars — bypass the atomic wrapper for
+        # those, like ``_write_dataframe`` does.
+        if fmt in ('geojson', 'gpkg', 'shp'):
             df.to_file(opath)
-        elif fmt == 'txt':
-            df.to_csv(opath, sep='\t')
-        elif fmt == 'csv':
-            df.to_csv(opath)
-        elif fmt in ('h5', 'hdf5'):
-            df.to_hdf(opath, key='GEDI', mode='w')
-        else:
-            raise GediProcessingError(f"Unsupported export format: {fmt}")
+            return opath
+
+        # Single-file formats: write through AtomicFileWriter so a worker
+        # SIGKILL or disk-full mid-write does not leave a partial file at
+        # the final path.
+        with AtomicFileWriter(opath) as tmp:
+            if is_parquet(opath):
+                df.to_parquet(tmp)
+            elif fmt == 'feather':
+                df.to_feather(tmp)
+            elif fmt == 'txt':
+                df.to_csv(tmp, sep='\t')
+            elif fmt == 'csv':
+                df.to_csv(tmp)
+            elif fmt in ('h5', 'hdf5'):
+                df.to_hdf(tmp, key='GEDI', mode='w')
+            else:
+                raise GediProcessingError(f"Unsupported export format: {fmt}")
 
         return opath
 
