@@ -15,6 +15,14 @@ Remedies (safe):
   - Repopulate ``h3_partition_ids`` from disk via ``set_post_build_info``.
   - Disk-missing partitions are reported only (manual intervention).
   - Granule status drift: flip stale entries to ``INDEXED`` and save log.
+
+Performance pillar (v0.8.x cross-pipeline lessons):
+  * Granule-triple discovery is fanned out via
+    :func:`gedih3.doctor.parallel.parallel_map` — one task per
+    partition reads its few meta JSONs and returns the triples
+    found. Without this, the default ``--check db`` audit on a
+    continental-scale (10k+ partitions) database stalls for minutes
+    in two driver-side recursive globs over h3_*/.
 """
 
 from __future__ import annotations
@@ -26,18 +34,26 @@ import os
 from ...config import PARTITION_META_FILENAME
 from ..report import Report, DoctorContext, Severity
 from ..runner import register
+from ..parallel import parallel_map
 
 
-def _indexed_granule_triples_on_disk(h3_dir: str) -> set:
-    """Return the set of ``(orbit, granule, track)`` granule IDs found in any
-    finalized partition's metadata JSON under ``h3_dir``. Cheap, no parquet
-    reads — same logic as Pass A of ``_reconcile_granules_from_disk``.
+def _granule_triples_in_partition(partition_dir: str) -> set:
+    """Worker: read every partition meta JSON under one partition dir
+    and return the union of ``(orbit, granule, track)`` tuples.
+
+    Looks at both shapes of meta:
+      * top-level (``h3_03=<cell>/<meta>.json``)
+      * year-level (``h3_03=<cell>/year=YYYY/<meta>.json``)
+
+    Per-task work is tiny (a couple of small JSON reads) but driver-
+    side aggregation across 10k+ partitions takes minutes serially —
+    distributing the reads to dask workers takes the wall time down
+    to seconds + scheduler overhead. Self-contained so the function
+    is picklable for ``parallel_map``.
     """
     triples: set = set()
-    if not h3_dir or not os.path.isdir(h3_dir):
-        return triples
-    meta_files = glob.glob(os.path.join(h3_dir, 'h3_*', f'*{PARTITION_META_FILENAME}'))
-    meta_files += glob.glob(os.path.join(h3_dir, 'h3_*', '*', f'*{PARTITION_META_FILENAME}'))
+    meta_files = glob.glob(os.path.join(partition_dir, f'*{PARTITION_META_FILENAME}'))
+    meta_files += glob.glob(os.path.join(partition_dir, '*', f'*{PARTITION_META_FILENAME}'))
     for mf in meta_files:
         try:
             with open(mf, 'r') as fh:
@@ -91,7 +107,29 @@ def log_state_check(ctx: DoctorContext) -> Report:
     granule_info = getattr(log, 'granule_info', None) or []
     drift_triples = []
     if granule_info:
-        on_disk = _indexed_granule_triples_on_disk(ctx.h3_dir)
+        # Fan the per-partition meta scan out via parallel_map. The
+        # prior driver-side ``glob.glob('h3_*/...', recursive=True)``
+        # took minutes on continental databases (10k+ partitions × a
+        # couple of small JSONs each); distributing the reads brings
+        # wall time down to seconds + scheduler overhead. With no
+        # dask client registered, parallel_map falls back to a serial
+        # loop driven by ``progress_iter`` — same UX as the old code,
+        # only the implementation is parallelism-aware.
+        on_disk: set = set()
+        for _, result in parallel_map(
+            ctx.partition_dirs,
+            _granule_triples_in_partition,
+            args=getattr(ctx, 'args', None),
+            desc='log_state: scanning partition meta',
+            unit='part',
+        ):
+            if isinstance(result, Exception):
+                # Single-partition failures must not abort the audit;
+                # the original driver-side loop also swallowed per-file
+                # exceptions inside the inner ``try``. Match that
+                # contract.
+                continue
+            on_disk.update(result)
         for g in granule_info:
             if g.get('status') == 'INDEXED':
                 continue
