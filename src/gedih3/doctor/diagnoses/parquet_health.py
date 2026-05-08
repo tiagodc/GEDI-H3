@@ -5,9 +5,14 @@ Three sub-checks bundled because they share the partition/parquet scan:
   - **corrupt**: open each parquet file with ``pq.ParquetFile``; flag exceptions.
     No remedy (would risk deleting user data); reported only.
   - **duplicate_shots**: count duplicate ``shot_number`` rows per partition file.
-    Streamed row-group-at-a-time with a hash seen-set so memory is bounded
-    by ``O(unique shots)`` rather than the full column. Remedy:
-    ``parquet_dedup_partition`` (also streaming, keep-first).
+    Streamed row-group-at-a-time via ``pq.ParquetFile.iter_batches`` with
+    capped readahead, then a single global ``pc.value_counts`` for the
+    exact count — required because GEDI partitions interleave
+    shot_numbers across row groups (each row group comes from a
+    different granule). Memory scales with the file's ``shot_number``
+    column size (8 B/row × N rows) plus the value_counts hashmap;
+    typically <50 MB on production partitions. Remedy:
+    ``parquet_dedup_partition`` (streaming, keep-first).
   - **schema_drift**: compare each partition's column set to the modal column
     set; flag outliers. Check-only — recommend running ``--fix backfill`` to
     re-join the missing product columns.
@@ -65,21 +70,29 @@ def _release_arrow_pool() -> None:
 def _scan_one_file(pq_file: str) -> dict:
     """Single-pass per-file scan: corrupt? dup count? column union?
 
-    One ``pq.ParquetFile`` open feeds all three checks. Memory is
-    **bounded to one row-group**, regardless of file size:
+    One ``pq.ParquetFile`` open feeds all three checks. The duplicate
+    counter walks ``shot_number`` via ``iter_batches`` with capped
+    readahead (so per-batch I/O is bounded), accumulates each batch's
+    column slice into a chunked array, and runs ``pc.value_counts``
+    once globally — that's the only correct way to count duplicates
+    that span row groups, since GEDI partitions interleave shot_number
+    ranges across row groups by design (each row group comes from a
+    different granule).
 
-      * ``intra_rg_dups`` is computed via ``pc.value_counts`` per
-        row-group (peak working set: one batch's ``shot_number`` plus
-        a C++ hashmap of size O(unique values in that batch) — a few
-        MB for 50k-row groups).
-      * Cross-row-group duplicates are detected by walking the parquet
-        metadata's per-row-group min/max stats — **no extra I/O**.
-        Overlapping ranges trigger a `cross_rg_overlap` flag so the
-        --fix path knows to run the real streaming dedup.
+    Memory scales with the file's ``shot_number`` column size (8 B/row,
+    typically <50 MB on production partitions) plus the value_counts
+    hashmap. Capped pyarrow readahead (``pre_buffer=True``,
+    ``batch_readahead=1``, ``fragment_readahead=1``) keeps transient
+    I/O bounded regardless of file size; the ``del column, chunks``
+    + ``release_unused`` returns the working set to the OS before the
+    next file. An earlier per-RG ``cross_rg_overlap`` proxy was dropped
+    in commit ``814db7d`` because GEDI partitions normally have
+    overlapping shot_number ranges across row groups, producing 100%
+    false positives.
 
     Returns a dict (never raises): keys ``corrupt`` (bool), ``error``
-    (str|None), ``duplicates`` (int), ``cross_rg_overlap`` (bool),
-    ``unreadable_shot_number`` (bool), ``columns`` (list[str]).
+    (str|None), ``duplicates`` (int), ``unreadable_shot_number`` (bool),
+    ``columns`` (list[str]).
     """
     import pyarrow as pa
     import pyarrow.parquet as pq

@@ -45,6 +45,7 @@ def parallel_map(
     args=None,
     desc: str = '',
     unit: str = 'item',
+    batch_size: int = 0,
     **broadcast,
 ) -> Iterator[Tuple[Any, Any]]:
     """Map ``fn`` across ``items`` with optional dask parallelism.
@@ -72,6 +73,15 @@ def parallel_map(
         the serial fallback.
     desc, unit : str
         Progress bar text (serial path) and dispatch log prefix.
+    batch_size : int, optional
+        When >0, group items into batches of this size and dispatch one
+        dask task per batch (each task internally iterates its slice).
+        Use this when ``len(items)`` is in the hundreds-of-thousands —
+        ``client.map`` builds a task graph proportional to ``len(items)``
+        and submission/scheduler overhead dominates the actual work
+        beyond ~10k tasks. The default (0) preserves one-task-per-item
+        behavior, which is correct for partition-level fan-out where
+        per-item work is heavy and ``len(items)`` is in the thousands.
     **broadcast
         Constant keyword arguments forwarded to every call of ``fn``.
         For client.map this becomes a per-task kwarg; values should be
@@ -98,6 +108,48 @@ def parallel_map(
     # Parallel path
     from dask.distributed import as_completed as dask_as_completed
 
+    if batch_size and batch_size > 0 and len(items) > batch_size:
+        # Batched dispatch — one dask task per chunk. Required when
+        # ``len(items)`` is in the hundreds of thousands, otherwise
+        # task-graph build + scheduler dispatch dominates wall time
+        # and the cluster never gets to do real work. Worker still
+        # yields per-item results (one ``(item, result)`` per input)
+        # so callers see no behavior change.
+        chunks = [items[i:i + batch_size]
+                  for i in range(0, len(items), batch_size)]
+        logger.info(
+            f"{desc}: dispatching {len(chunks)} batches "
+            f"of up to {batch_size} {unit}s "
+            f"({len(items)} total) to dask cluster (progress on dashboard)"
+        )
+        # The chunk worker is constructed at submission time so
+        # ``broadcast`` is captured by closure, not zipped through
+        # ``client.map``'s iterables.
+        futures = client.map(_run_chunk, chunks, fn=fn, broadcast=broadcast)
+
+        log_every = max(1, len(chunks) // 20)
+        n_done_chunks = 0
+        n_done_items = 0
+        for fut in dask_as_completed(futures):
+            try:
+                pairs = fut.result()
+            except Exception as e:
+                # If the chunk dispatch itself failed (pickling, etc.)
+                # we surface a single error pair so the caller sees it.
+                yield None, e
+                pairs = []
+            for it, res in pairs:
+                yield it, res
+                n_done_items += 1
+            n_done_chunks += 1
+            if (n_done_chunks == 1 or n_done_chunks == len(chunks)
+                    or n_done_chunks % log_every == 0):
+                logger.info(
+                    f"{desc}: {n_done_chunks}/{len(chunks)} batches "
+                    f"({n_done_items}/{len(items)} {unit}s) done"
+                )
+        return
+
     logger.info(
         f"{desc}: dispatching {len(items)} tasks to dask cluster "
         f"(progress on dashboard)"
@@ -120,6 +172,24 @@ def parallel_map(
         if n_done == 1 or n_done == len(items) or n_done % log_every == 0:
             logger.info(f"{desc}: {n_done}/{len(items)} partitions done")
         yield item, res
+
+
+def _run_chunk(chunk: List[Any], *, fn: Callable[..., Any],
+               broadcast: dict) -> List[Tuple[Any, Any]]:
+    """Worker entry point for batched dispatch. Returns one
+    ``(item, result)`` pair per chunk member. Per-item exceptions are
+    captured in-band so a single bad input does not poison the batch.
+
+    Defined at module scope so dask can pickle it; callers should not
+    invoke it directly.
+    """
+    out = []
+    for it in chunk:
+        try:
+            out.append((it, fn(it, **broadcast)))
+        except Exception as e:
+            out.append((it, e))
+    return out
 
 
 def partition_is_empty(partition_dir: str) -> bool:
