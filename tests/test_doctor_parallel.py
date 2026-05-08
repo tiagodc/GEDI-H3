@@ -122,6 +122,48 @@ def test_parallel_map_serial_and_parallel_agree(_local_dask_client):
     assert parallel_pairs == serial_pairs
 
 
+# ---- batched dispatch (S1 — soc_health task explosion fix) -----------------
+
+def test_parallel_map_serial_ignores_batch_size():
+    """Serial fallback must not change behavior when batch_size is set."""
+    out = list(parallel_map([1, 2, 3, 4], _double, batch_size=2))
+    assert out == [(1, 2), (2, 4), (3, 6), (4, 8)]
+
+
+def test_parallel_map_batched_returns_full_set(_local_dask_client):
+    """Batched parallel path: every item gets a result; order may differ."""
+    items = list(range(50))
+    results = list(parallel_map(items, _double, batch_size=10))
+    seen = sorted(it for it, _ in results)
+    assert seen == items
+    pairs = {it: r for it, r in results}
+    assert pairs == {i: i * 2 for i in items}
+
+
+def test_parallel_map_batched_preserves_in_band_exceptions(_local_dask_client):
+    """Per-item exceptions surface in the result tuple, not the batch's."""
+    out = list(parallel_map([1, 2, 3, 4], _explode, batch_size=2))
+    assert len(out) == 4
+    for it, res in out:
+        assert isinstance(res, RuntimeError)
+
+
+def test_parallel_map_batched_below_threshold_uses_unbatched(_local_dask_client):
+    """If len(items) <= batch_size, behave like the unbatched path."""
+    items = [10, 20, 30]
+    results = list(parallel_map(items, _double, batch_size=10))
+    pairs = {it: r for it, r in results}
+    assert pairs == {10: 20, 20: 40, 30: 60}
+
+
+def test_parallel_map_batched_with_broadcast_kwargs(_local_dask_client):
+    """Broadcast kwargs flow through the chunk worker via closure."""
+    out = list(parallel_map([1, 2, 3, 4, 5, 6], _add_kw,
+                            batch_size=3, increment=10))
+    pairs = {it: r for it, r in out}
+    assert pairs == {1: 11, 2: 12, 3: 13, 4: 14, 5: 15, 6: 16}
+
+
 # ---- O(1) emptiness primitives --------------------------------------------
 
 def test_partition_is_empty_true_on_empty_dir(tmp_path):

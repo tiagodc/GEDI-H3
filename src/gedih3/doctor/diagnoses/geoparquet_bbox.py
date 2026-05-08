@@ -33,7 +33,6 @@ from ..report import Report, DoctorContext, Severity
 from ..runner import register
 from ..inspect import partition_parquet_files
 from ..parallel import parallel_map
-from ...cliutils import progress_iter
 from ...utils import parquet_backfill_bbox
 
 
@@ -167,8 +166,20 @@ def geoparquet_bbox_check(ctx: DoctorContext) -> Report:
     )
 
 
+def _backfill_one(path: str) -> str:
+    """Worker: rewrite one file's bbox metadata. Picklable."""
+    return parquet_backfill_bbox(path)
+
+
 def geoparquet_bbox_fix(ctx: DoctorContext, report: Report) -> Report:
-    """Rewrite missing/invalid-bbox files via parquet_backfill_bbox."""
+    """Rewrite missing/invalid-bbox files via parquet_backfill_bbox.
+
+    Per-file work is independent (each call rewrites a single
+    parquet's metadata block) so we dispatch through ``parallel_map``
+    when a dask client is registered — same shape as the check path.
+    Without parallelism the fix on a continental DB with thousands of
+    bbox-missing files takes hours of single-threaded I/O.
+    """
     fixable = {'missing_bbox', 'invalid_bbox'}
     fixed = []
     n_rewritten = 0
@@ -176,24 +187,28 @@ def geoparquet_bbox_fix(ctx: DoctorContext, report: Report) -> Report:
     n_errors = 0
 
     targets = [f for f in report.findings if f['kind'] in fixable]
-    with progress_iter(targets,
-                       desc="geoparquet_bbox: backfilling bbox",
-                       args=getattr(ctx, 'args', None),
-                       unit="file") as bar:
-        for f in bar:
-            try:
-                result = parquet_backfill_bbox(f['path'])
-                if result == 'rewritten':
-                    n_rewritten += 1
-                    fixed.append({**f, 'action': 'bbox_backfilled'})
-                elif result == 'ok':
-                    n_already_ok += 1
-                    fixed.append({**f, 'action': 'already_valid'})
-                else:
-                    fixed.append({**f, 'action': result})
-            except Exception as e:
-                n_errors += 1
-                fixed.append({**f, 'fix_error': f"{type(e).__name__}: {e}"})
+    paths = [f['path'] for f in targets]
+    by_path = {f['path']: f for f in targets}
+    for path, result in parallel_map(
+        paths,
+        _backfill_one,
+        args=getattr(ctx, 'args', None),
+        desc='geoparquet_bbox: backfilling bbox',
+        unit='file',
+    ):
+        f = by_path.get(path, {'path': path})
+        if isinstance(result, Exception):
+            n_errors += 1
+            fixed.append({**f, 'fix_error': f"{type(result).__name__}: {result}"})
+            continue
+        if result == 'rewritten':
+            n_rewritten += 1
+            fixed.append({**f, 'action': 'bbox_backfilled'})
+        elif result == 'ok':
+            n_already_ok += 1
+            fixed.append({**f, 'action': 'already_valid'})
+        else:
+            fixed.append({**f, 'action': result})
 
     # Preserve unfixable findings as-is (missing_geo, no_geometry, unreadable)
     for f in report.findings:
