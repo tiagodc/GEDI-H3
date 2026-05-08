@@ -236,11 +236,14 @@ class SOCDownloadLogger:
             # Manifest is an optimization, not a correctness gate; if the
             # SOC root is read-only or transiently unavailable the
             # downstream glob fallback still produces correct results.
-            n_files = 0
-        # Total HDF5 file count for callers that used to recursive-glob
-        # the SOC tree just to print a summary line.
-        self.n_files = n_files
+            # Defer the count to the post-glob fallback below.
+            n_files = None
         soc_files = soc_file_tree(self._PARENT_DIR, to_list=True)
+        if n_files is None:
+            # Manifest write failed; recover the count from the discovery
+            # step so downstream summary lines stay correct.
+            n_files = sum(len(d) for d in soc_files)
+        self.n_files = n_files
         granule_info = []
         for soc in soc_files:
             first_file = list(soc.values())[0]
@@ -568,6 +571,15 @@ class H3BuildLogger:
         # Used to derive per-granule per-product status (INDEXED vs MISSING_COLUMN).
         active_products = set(self.product_vars.keys())
         gran_observed_products = {}
+        # Schema accumulators: track the union of columns observed and
+        # the first non-empty per-column dtype map. Aggregating inside
+        # the loop (rather than reading the last fmeta) survives mixed
+        # builds where some partitions predate ``column_dtypes`` — the
+        # last metadata in glob order may be a legacy partition without
+        # the field, and reading from it would silently zero the cache
+        # for the whole DB.
+        observed_columns: set = set()
+        observed_dtypes: dict = {}
 
         for f in metadata_files:
             fmeta = json_read(f)
@@ -596,13 +608,22 @@ class H3BuildLogger:
             if self.gedi_version is None:
                 self.gedi_version = fmeta.get('l2a_version')
 
+            # Column / dtype aggregation. Post-merge invariant says all
+            # partitions share an identical schema, so this is the
+            # union — partitions that don't carry ``column_dtypes`` (a
+            # newer field) just don't contribute, and partitions that
+            # do are merged-in. We never overwrite an existing dtype:
+            # the first non-empty observation wins to keep behavior
+            # deterministic across re-runs of set_post_build_info.
+            observed_columns.update(cols)
+            cd = fmeta.get('column_dtypes') or {}
+            for col_name, dtype in cd.items():
+                observed_dtypes.setdefault(col_name, dtype)
+
         self.date_range = (date_min, date_max)
-        self.h3_columns = sorted(fmeta.get('columns', []))
-        # Schema dtypes piggyback on the same post-merge invariant the
-        # column-name aggregation already relies on (all partitions
-        # share an identical schema after merge); pick from the last
-        # fmeta. Empty dict when partition metadata predates this field.
-        self.h3_columns_dtypes = dict(fmeta.get('column_dtypes', {}))
+        self.h3_columns = sorted(observed_columns)
+        # Empty dict when every partition metadata predates this field.
+        self.h3_columns_dtypes = dict(observed_dtypes)
         self.h3_partition_ids = sorted(h3_parts)
 
         # Merge with existing tracked granules (preserve PENDING for unindexed)

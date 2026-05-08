@@ -275,6 +275,7 @@ def _read_patch_for_partition(
     schema_pa = None
     columns_order: Optional[List[str]] = None
     n_written = 0
+    raised = False
 
     try:
         for prod, granules in affected_granules_by_product.items():
@@ -331,6 +332,17 @@ def _read_patch_for_partition(
                     writer.write_table(table)
                     n_written += table.num_rows
                     del table, df
+    except Exception:
+        # Anything that escapes the write loop must NOT leak the temp
+        # parquet at ``out_path``. The post-finally ``n_written == 0``
+        # cleanup path below is unreachable on exception (the
+        # ``return`` is past the try/finally), and the caller in
+        # ``_heal_partition`` only knows the path through this
+        # function's return value — when we raise, ``patch`` stays
+        # ``None`` on the caller side and its finally cleanup skips
+        # the unlink.
+        raised = True
+        raise
     finally:
         if writer is not None:
             try:
@@ -342,6 +354,11 @@ def _read_patch_for_partition(
             pa.default_memory_pool().release_unused()
         except Exception:
             pass
+        if raised and os.path.exists(out_path):
+            try:
+                os.unlink(out_path)
+            except OSError:
+                pass
 
     if n_written == 0:
         try:
