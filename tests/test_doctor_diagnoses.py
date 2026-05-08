@@ -356,8 +356,10 @@ def test_backfill_read_patch_unlinks_temp_on_exception(tmp_dir, monkeypatch):
         leaked = after - before
         # Clean up anything we left behind, regardless of pass/fail
         for f in leaked:
-            try: os.unlink(f)
-            except OSError: pass
+            try:
+                os.unlink(f)
+            except OSError:
+                pass
         assert not leaked, (
             f"Temp parquet leaked on exception: {leaked!r}. The "
             "fix in backfill.py must unlink ``out_path`` from an "
