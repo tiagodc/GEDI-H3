@@ -1,11 +1,13 @@
 """Tests for the doctor's distributed work helper (parallel.py).
 
-Verifies that:
-  * The serial fallback (no dask client) works and emits exception
-    objects in-band rather than crashing.
-  * When a dask client is registered, results are produced identically
-    to the serial path (order may differ — completion order vs. input
-    order).
+Verifies the always-parallel contract:
+  * Without a registered Client, ``parallel_map`` raises ``GediError``
+    with a clear "wrap your code in Client(...)" message.
+  * With a registered Client, every item gets a ``(item, result)``
+    tuple in completion order; per-task exceptions are surfaced
+    in-band.
+  * Batched dispatch covers the very-large-input case
+    (``len(items) > batch_size`` ⇒ one task per chunk).
   * The O(1) emptiness primitives (``partition_is_empty``,
     ``year_dir_is_empty``, ``list_year_dirs``) match the legacy
     recursive-glob behavior on the same inputs.
@@ -41,31 +43,24 @@ def _add_kw(x, *, increment=1):
     return x + increment
 
 
-# ---- serial path ------------------------------------------------------------
+# ---- always-parallel contract: requires a registered Client ----------------
 
-def test_parallel_map_serial_basic():
-    """No dask client registered → serial loop, in-order results."""
-    out = list(parallel_map([1, 2, 3], _double))
-    assert out == [(1, 2), (2, 4), (3, 6)]
+def test_parallel_map_raises_when_no_client_registered():
+    """Without a registered dask Client, parallel_map must refuse to
+    run rather than silently fall back to a serial implementation —
+    the always-parallel contract eliminates code-path branching."""
+    from gedih3.exceptions import GediError
+    with pytest.raises(GediError, match='dask.distributed Client'):
+        list(parallel_map([1, 2, 3], _double))
 
 
-def test_parallel_map_serial_empty_input_yields_nothing():
+def test_parallel_map_empty_input_yields_nothing_without_client():
+    """Empty input is a no-op even without a Client — the function
+    short-circuits before checking for the Client. Avoids a
+    pointless cluster requirement when callers iterate over a
+    possibly-empty list."""
     out = list(parallel_map([], _double))
     assert out == []
-
-
-def test_parallel_map_serial_exception_is_in_band():
-    """A worker raising must yield (item, exception) instead of crashing."""
-    out = list(parallel_map([1, 2], _explode))
-    assert len(out) == 2
-    for it, res in out:
-        assert isinstance(res, RuntimeError)
-        assert str(it) in str(res)
-
-
-def test_parallel_map_serial_broadcast_kwargs():
-    out = list(parallel_map([10, 20, 30], _add_kw, increment=5))
-    assert out == [(10, 15), (20, 25), (30, 35)]
 
 
 # ---- parallel path (with a real LocalCluster) ------------------------------
@@ -86,7 +81,7 @@ def _local_dask_client():
     cluster.close()
 
 
-def test_parallel_map_parallel_path_returns_full_set(_local_dask_client):
+def test_parallel_map_returns_full_set(_local_dask_client):
     """With a registered client: every item gets a result; order may differ."""
     items = list(range(8))
     results = list(parallel_map(items, _double))
@@ -98,7 +93,7 @@ def test_parallel_map_parallel_path_returns_full_set(_local_dask_client):
     assert seen_pairs == {i: i * 2 for i in items}
 
 
-def test_parallel_map_parallel_path_exceptions_in_band(_local_dask_client):
+def test_parallel_map_exceptions_in_band(_local_dask_client):
     """Per-task failures surface as exception objects in the result tuples."""
     out = list(parallel_map([1, 2, 3], _explode))
     assert len(out) == 3
@@ -106,29 +101,13 @@ def test_parallel_map_parallel_path_exceptions_in_band(_local_dask_client):
         assert isinstance(res, Exception)
 
 
-def test_parallel_map_parallel_path_broadcast_kwargs(_local_dask_client):
+def test_parallel_map_broadcast_kwargs(_local_dask_client):
     out = list(parallel_map([10, 20, 30], _add_kw, increment=5))
     pairs = {it: r for it, r in out}
     assert pairs == {10: 15, 20: 25, 30: 35}
 
 
-def test_parallel_map_serial_and_parallel_agree(_local_dask_client):
-    """Same inputs + same fn → same set of (item, result) pairs both ways."""
-    items = list(range(20))
-    parallel_pairs = sorted(parallel_map(items, _double))
-    # Build a fresh client-less map by closing the client temporarily
-    _local_dask_client.close()  # forces get_dask_client() back to None
-    serial_pairs = list(parallel_map(items, _double))
-    assert parallel_pairs == serial_pairs
-
-
 # ---- batched dispatch (S1 — soc_health task explosion fix) -----------------
-
-def test_parallel_map_serial_ignores_batch_size():
-    """Serial fallback must not change behavior when batch_size is set."""
-    out = list(parallel_map([1, 2, 3, 4], _double, batch_size=2))
-    assert out == [(1, 2), (2, 4), (3, 6), (4, 8)]
-
 
 def test_parallel_map_batched_returns_full_set(_local_dask_client):
     """Batched parallel path: every item gets a result; order may differ."""

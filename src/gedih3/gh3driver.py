@@ -1153,7 +1153,6 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
     ...               query_filter='quality_flag == 1')
     """
     from .cliutils import is_internal_column
-    from .utils import get_dask_client
 
     os.makedirs(output, exist_ok=True)
 
@@ -1205,18 +1204,19 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
             export_func, **export_kwargs, meta=pd.Series(dtype=str)
         )
 
-        # Try to use distributed progress if available
-        client = get_dask_client()
-        if client is not None:
-            from dask.distributed import progress
-            write_task = write_task.persist()
-            if show_progress:
-                progress(write_task)
-            # Always compute after persist/progress to raise any task failures.
-            # progress() shows a bar but does not propagate exceptions from failed tasks.
-            write_task.compute()
-        else:
-            write_task.compute()
+        # Always-parallel compute. ``persist`` materializes the task
+        # graph on the registered Client; ``progress`` wires the
+        # dashboard bar; the final ``compute`` propagates per-task
+        # exceptions (``progress`` alone would swallow them). gedih3
+        # CLI tools always create a Client at startup, so a registered
+        # one is the project contract; library callers that haven't
+        # done so will see the dask SyncCluster fall-through, which is
+        # also a single code path.
+        from dask.distributed import progress
+        write_task = write_task.persist()
+        if show_progress:
+            progress(write_task)
+        write_task.compute()
 
         ofiles = smart_glob(smart_join(output, f'*.{fmt}'))
 

@@ -20,7 +20,7 @@ from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_me
 from .daac import gedi_download
 from .logging_config import get_logger
 from .validation import validate_h3_params, validate_product_vars, validate_directory_exists
-from .exceptions import H3ValidationError, GediValidationError, GediFileError, GediMergeError
+from .exceptions import H3ValidationError, GediValidationError, GediFileError, GediMergeError, GediError
 
 logger = get_logger(__name__)
 
@@ -299,56 +299,40 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
     if n_files == 0:
         raise GediFileError("No GEDI files found on S3 for the given parameters")
 
-    # Dispatch to Dask workers (true multiprocessing, GIL-free)
-    # Falls back to ProcessPoolExecutor when no Dask cluster is available
+    # Always-parallel dispatch to Dask workers (true multiprocessing,
+    # GIL-free). gedih3 CLIs (gh3_build, gh3_doctor, …) all create a
+    # Client at startup, so this assertion fires only for direct
+    # library/notebook callers — which can wrap in ``with Client(...)``.
     client = get_dask_client()
+    if client is None:
+        raise GediError(
+            "s3_etl_subset requires a registered dask.distributed Client. "
+            "CLI tools create one at startup; library callers must wrap "
+            "in `with dask.distributed.Client(...) as client: ...`."
+        )
 
     completed_count = 0
     failed = 0
+    n_workers = sum(client.nthreads().values())
+    logger.info(f"Subsetting {n_files} files from S3 with Dask ({n_workers} workers)")
 
-    if client is not None:
-        n_workers = sum(client.nthreads().values())
-        logger.info(f"Subsetting {n_files} files from S3 with Dask ({n_workers} workers)")
+    client.run(_init_earthaccess_worker)
 
-        client.run(_init_earthaccess_worker)
+    futures = [
+        client.submit(
+            _subset_s3_file, granule, prod, product_vars,
+            odir, idx + 1, n_files, pure=False,
+        )
+        for idx, (granule, prod) in enumerate(tasks)
+    ]
 
-        futures = [
-            client.submit(
-                _subset_s3_file, granule, prod, product_vars,
-                odir, idx + 1, n_files, pure=False,
-            )
-            for idx, (granule, prod) in enumerate(tasks)
-        ]
-
-        from distributed import as_completed as dask_as_completed
-        for future, result in dask_as_completed(futures, with_results=True):
-            completed_count += 1
-            if result is None:
-                failed += 1
-            if completed_count % 10 == 0 or completed_count == n_files:
-                logger.info(f"S3 ETL progress: {completed_count}/{n_files} files ({failed} failed)")
-    else:
-        # Fallback: ProcessPoolExecutor (no Dask cluster available)
-        from concurrent.futures import ProcessPoolExecutor, as_completed
-
-        n_workers = min(5, n_files)
-        logger.info(f"Subsetting {n_files} files from S3 with {n_workers} processes (no Dask cluster)")
-
-        with ProcessPoolExecutor(max_workers=n_workers) as pool:
-            future_map = {
-                pool.submit(
-                    _subset_s3_file, granule, prod, product_vars,
-                    odir, idx + 1, n_files,
-                ): idx
-                for idx, (granule, prod) in enumerate(tasks)
-            }
-            for future in as_completed(future_map):
-                result = future.result()
-                completed_count += 1
-                if result is None:
-                    failed += 1
-                if completed_count % 10 == 0 or completed_count == n_files:
-                    logger.info(f"S3 ETL progress: {completed_count}/{n_files} files ({failed} failed)")
+    from distributed import as_completed as dask_as_completed
+    for future, result in dask_as_completed(futures, with_results=True):
+        completed_count += 1
+        if result is None:
+            failed += 1
+        if completed_count % 10 == 0 or completed_count == n_files:
+            logger.info(f"S3 ETL progress: {completed_count}/{n_files} files ({failed} failed)")
 
     if failed > 0:
         logger.warning(f"S3 ETL completed with {failed}/{n_files} failures")
