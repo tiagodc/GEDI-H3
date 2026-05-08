@@ -32,6 +32,7 @@ from ..inspect import (
 from ..parallel import parallel_map
 from ..parquet_ops import parquet_fill_columns
 from ...cliutils import progress_iter
+from ...utils import release_arrow_pool
 
 GranuleKey = Tuple[int, int, int]
 
@@ -350,10 +351,7 @@ def _read_patch_for_partition(
             except Exception:
                 pass
             del writer
-        try:
-            pa.default_memory_pool().release_unused()
-        except Exception:
-            pass
+        release_arrow_pool()
         if raised and os.path.exists(out_path):
             try:
                 os.unlink(out_path)
@@ -435,12 +433,8 @@ def _heal_partition(
                 pass
         # Drain transient arrow buffers before yielding the worker slot
         # to the next task — same pattern parquet_merge_files uses on
-        # the build side (utils.py:1469).
-        try:
-            import pyarrow as pa
-            pa.default_memory_pool().release_unused()
-        except Exception:
-            pass
+        # the build side.
+        release_arrow_pool()
 
     return {'healed': healed, 'not_available': not_available, 'error_actions': error_actions}
 

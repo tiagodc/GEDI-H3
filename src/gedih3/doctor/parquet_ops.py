@@ -19,6 +19,8 @@ from __future__ import annotations
 import os
 from typing import List, Optional
 
+from ..utils import release_arrow_pool
+
 
 def parquet_fill_columns(
     base_file: str,
@@ -153,11 +155,8 @@ def parquet_fill_columns(
     base_pf.close()
     del base_pf
     # Drain pyarrow's allocator now so the temp buffers don't drag into
-    # the next worker task. Mirrors parquet_merge_files (utils.py:1469).
-    try:
-        pa.default_memory_pool().release_unused()
-    except Exception:
-        pass
+    # the next worker task. Mirrors parquet_merge_files (utils.py).
+    release_arrow_pool()
     try:
         os.replace(temp_ofile, ofile)
     except OSError:
@@ -266,10 +265,7 @@ def parquet_dedup_partition(
 
     pf.close()
     del pf
-    try:
-        pa.default_memory_pool().release_unused()
-    except Exception:
-        pass
+    release_arrow_pool()
     try:
         os.replace(temp_ofile, pq_file)
     except OSError:

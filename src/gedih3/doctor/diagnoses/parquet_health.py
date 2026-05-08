@@ -41,6 +41,7 @@ from ..report import Report, DoctorContext, Severity
 from ..runner import register
 from ..inspect import partition_parquet_files
 from ..parallel import parallel_map
+from ...utils import release_arrow_pool
 
 
 # Memory-bounded readahead — same caps the build merge phase landed on
@@ -51,20 +52,6 @@ from ..parallel import parallel_map
 # enough to keep arrow's vectorized paths warm.
 _ROW_GROUP_BATCH = 50_000
 _PRE_BUFFER = True
-
-
-def _release_arrow_pool() -> None:
-    """Best-effort drain of pyarrow's allocator after each file.
-
-    Mirrors the build's ``parquet_merge_files`` pattern (utils.py:1469):
-    pyarrow's transient read/write buffers don't always return to the
-    OS at GC time; explicit release keeps long-running worker RSS flat.
-    """
-    try:
-        import pyarrow as pa
-        pa.default_memory_pool().release_unused()
-    except Exception:
-        pass
 
 
 def _scan_one_file(pq_file: str) -> dict:
@@ -164,7 +151,7 @@ def _scan_one_file(pq_file: str) -> dict:
             except Exception:
                 pass
             del pf
-        _release_arrow_pool()
+        release_arrow_pool()
 
     return out
 

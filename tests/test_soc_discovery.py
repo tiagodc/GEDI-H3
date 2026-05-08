@@ -237,3 +237,54 @@ def test_write_soc_manifest_returns_zero_for_empty_dir(tmp_path):
     n = write_soc_manifest(str(tmp_path))
     assert n == 0
     assert not (tmp_path / SOC_MANIFEST_FILENAME).exists()
+
+
+def test_write_soc_manifest_writes_atomically(tmp_path):
+    """The SOC manifest write must be atomic (.tmp + os.replace) so a
+    SIGKILL between truncate and final write never leaves a partial
+    or empty manifest at the final path. Now that
+    ``write_soc_manifest`` delegates to the shared
+    ``utils.generate_manifest`` (which uses AtomicFileWriter), the
+    contract is shared with the H3 manifest path."""
+    from gedih3.gedidriver import write_soc_manifest
+    from gedih3.config import SOC_MANIFEST_FILENAME
+    for n in [
+        'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+        'GEDI02_B_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+    ]:
+        (tmp_path / n).touch()
+    n = write_soc_manifest(str(tmp_path))
+    assert n == 2
+    manifest = tmp_path / SOC_MANIFEST_FILENAME
+    assert manifest.exists()
+    # No leftover .tmp sibling
+    assert not (tmp_path / (SOC_MANIFEST_FILENAME + '.tmp')).exists()
+    # Manifest content has both granule files
+    lines = manifest.read_text().strip().split('\n')
+    assert len(lines) == 2
+
+
+def test_read_manifest_supports_filename_kwarg(tmp_path):
+    """The shared ``utils._read_manifest`` accepts a custom filename so
+    the SOC manifest path uses the same primitive as the H3 manifest.
+    Verifies the cache key is also keyed on (root, filename) so
+    different manifests at the same root don't collide."""
+    from gedih3 import utils as u
+    from gedih3.config import MANIFEST_FILENAME, SOC_MANIFEST_FILENAME
+
+    h3_manifest = tmp_path / MANIFEST_FILENAME
+    soc_manifest = tmp_path / SOC_MANIFEST_FILENAME
+    h3_manifest.write_text("h3_03=8c2a/2020/data.parquet\n")
+    soc_manifest.write_text("2019/108/GEDI02_A_test.h5\n")
+
+    # Clear any cached entries for this tmp path before testing
+    u._manifest_cache.clear()
+
+    h3_lines = u._read_manifest(str(tmp_path))  # default = MANIFEST_FILENAME
+    soc_lines = u._read_manifest(str(tmp_path),
+                                 manifest_filename=SOC_MANIFEST_FILENAME)
+    assert h3_lines == ['h3_03=8c2a/2020/data.parquet']
+    assert soc_lines == ['2019/108/GEDI02_A_test.h5']
+    # Both cached separately
+    assert (str(tmp_path), MANIFEST_FILENAME) in u._manifest_cache
+    assert (str(tmp_path), SOC_MANIFEST_FILENAME) in u._manifest_cache
