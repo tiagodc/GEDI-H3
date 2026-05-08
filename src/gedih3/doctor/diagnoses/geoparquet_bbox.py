@@ -33,7 +33,7 @@ from ..report import Report, DoctorContext, Severity
 from ..runner import register
 from ..inspect import partition_parquet_files
 from ..parallel import parallel_map
-from ...utils import parquet_backfill_bbox
+from ...utils import parquet_backfill_bbox, release_arrow_pool
 
 
 def _classify(path: str) -> Optional[str]:
@@ -101,11 +101,7 @@ def _scan_partition_bbox(partition_dir: str) -> dict:
             else:
                 findings.append({'kind': kind, 'path': f})
     finally:
-        try:
-            import pyarrow as pa
-            pa.default_memory_pool().release_unused()
-        except Exception:
-            pass
+        release_arrow_pool()
     return {'findings': findings, 'n_ok': n_ok}
 
 

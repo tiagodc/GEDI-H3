@@ -24,7 +24,7 @@ import dask.dataframe
 from earthaccess.store import EarthAccessFile
 
 from .config import GEDI_BEAMS, GEDI_MISSION_START, GEDI_START_DATE, GH3_DEFAULT_SOC_DIR, SOC_MANIFEST_FILENAME, get_default_vars_file, _get_versioned, _GEDI_MIN_VARS
-from .utils import h5_copy_subset, h5_info
+from .utils import h5_copy_subset, h5_info, _read_manifest, generate_manifest
 from .logging_config import get_logger
 from .exceptions import GediValidationError, GediProductError, GediVariableError, GediFileError
 
@@ -76,13 +76,14 @@ def _read_soc_manifest(soc_dir: str) -> Optional[List[str]]:
     """Read ``_soc_manifest.txt`` from a SOC root and return absolute paths.
 
     Returns ``None`` when the manifest does not exist; callers should fall
-    back to the recursive glob.
+    back to the recursive glob. Thin wrapper around the shared
+    :func:`gedih3.utils._read_manifest` (cached, manifest-name aware) —
+    the SOC manifest stores relative paths just like the H3 database
+    manifest, so the only SOC-specific behavior is filling in the
+    sentinel filename and joining results back to absolute paths.
     """
-    manifest_path = _soc_manifest_path(soc_dir)
-    try:
-        with open(manifest_path, 'r') as f:
-            rels = [ln.strip() for ln in f if ln.strip()]
-    except (FileNotFoundError, OSError):
+    rels = _read_manifest(soc_dir, manifest_filename=SOC_MANIFEST_FILENAME)
+    if rels is None:
         return None
     root = soc_dir.rstrip('/')
     return [os.path.join(root, rel) for rel in rels]
@@ -93,23 +94,22 @@ def write_soc_manifest(soc_dir: str) -> int:
 
     Cheaper than letting every consumer re-walk the SOC tree on every
     invocation. Returns the number of files written to the manifest (0
-    when *soc_dir* is missing / empty).
+    when *soc_dir* is missing / empty). Thin wrapper around the shared
+    :func:`gedih3.utils.generate_manifest`, which handles the atomic
+    ``.tmp`` + ``os.replace`` write and the manifest-cache invalidation.
     """
     if not os.path.isdir(soc_dir):
         return 0
-    files = sorted(glob.glob(os.path.join(soc_dir, '**', 'GEDI*.h5'), recursive=True))
+    # Empty-dir contract preserved: generate_manifest writes an empty
+    # file when no matches; the prior SOC implementation early-returned
+    # without writing. Match that contract by checking up front.
+    files = sorted(glob.glob(os.path.join(soc_dir, '**', 'GEDI*.h5'),
+                             recursive=True))
     if not files:
         return 0
-    root = soc_dir.rstrip('/') + '/'
-    rels = [os.path.relpath(f, root).replace(os.sep, '/') for f in files]
-    manifest_path = _soc_manifest_path(soc_dir)
-    tmp = manifest_path + '.tmp'
-    with open(tmp, 'w') as f:
-        f.write('\n'.join(rels))
-        if rels:
-            f.write('\n')
-    os.replace(tmp, manifest_path)
-    return len(rels)
+    generate_manifest(soc_dir, pattern='**/GEDI*.h5',
+                      manifest_filename=SOC_MANIFEST_FILENAME)
+    return len(files)
 
 
 def soc_file_tree(

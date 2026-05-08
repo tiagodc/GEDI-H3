@@ -11,7 +11,7 @@ import os
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from ..config import PARTITION_META_FILENAME
-from ..utils import json_read
+from ..utils import json_read, release_arrow_pool
 
 GranuleKey = Tuple[int, int, int]   # (orbit, orbit_granule, track)
 
@@ -163,11 +163,7 @@ def per_granule_null_counts(
             except Exception:
                 pass
             del pf
-        try:
-            import pyarrow as pa
-            pa.default_memory_pool().release_unused()
-        except Exception:
-            pass
+        release_arrow_pool()
 
     return out
 

@@ -1,4 +1,4 @@
-import os, re, glob, json, h5py, h3
+import os, re, glob, h5py, h3
 import shutil
 import numpy as np
 import pandas as pd
@@ -14,7 +14,7 @@ from earthaccess.store import EarthAccessFile
 from dask.distributed import progress
 
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME, _get_versioned, _GEDI_L2A_ESSENTIALS, _PRODUCT_QUALITY_FLAGS
-from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, parquet_schema_add_bbox, generate_manifest, check_nan_only_columns, h3_partition_bbox, parse_h3_partition_dirname
+from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, generate_manifest, check_nan_only_columns, h3_partition_bbox, parse_h3_partition_dirname
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
 from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_vars_static, gedi_subset, validate_soc_files, load_h5, expand_var_wildcards
 from .daac import gedi_download
@@ -1937,68 +1937,6 @@ def build_h3db(
         if _s3_tmp_dir is not None and os.path.exists(_s3_tmp_dir):
             logger.debug(f"Cleaning up S3 temp directory: {_s3_tmp_dir}")
             shutil.rmtree(_s3_tmp_dir, ignore_errors=True)
-
-def build_parquet_metadata(gh3_dir):
-    """
-    Build ``_metadata`` and ``_common_metadata`` files for an H3 database.
-
-    Scans all parquet files in the database, collects their row-group
-    metadata, computes a merged bounding box from per-file geo metadata,
-    and writes the consolidated PyArrow metadata files used by Dask and
-    other tools for efficient partition discovery.
-
-    Parameters
-    ----------
-    gh3_dir : str
-        Root directory of the H3 parquet database.
-
-    Returns
-    -------
-    None
-        Writes ``_metadata`` and ``_common_metadata`` files to ``gh3_dir``.
-        Returns early with no output if the directory contains no parquet
-        files.
-    """
-    h3_files = glob.glob(os.path.join(gh3_dir,'**','*.parquet'), recursive=True)
-    
-    if len(h3_files) == 0:
-        return    
-    
-    def _pq_meta(h3_file):
-        pq_metadata = pq.read_metadata(h3_file)
-        rel_path = os.path.relpath(h3_file, gh3_dir)
-        pq_metadata.set_file_path(rel_path)
-        return pq_metadata
-    
-    meta_task = dbg.from_sequence(h3_files, partition_size=10).map(_pq_meta).persist()
-    progress(meta_task)
-    h3_metas = list(meta_task.compute())
-    del meta_task
-    base_schema = pq.read_schema(h3_files[0])
-
-    merged_bbox = None
-    if b'geo' in base_schema.metadata:
-        def _get_box(pq_metadata):
-            if b'geo' in pq_metadata.metadata:
-                return json.loads(pq_metadata.metadata[b'geo'])['columns']['geometry']['bbox']
-            return None
-
-        bbox_task = (dbg.from_sequence(h3_metas, partition_size=100)
-                       .map(_get_box).filter(lambda x: x is not None).persist())
-        progress(bbox_task)
-        meta_boxes = list(bbox_task.compute())
-        del bbox_task
-        meta_boxes = np.array(meta_boxes)
-        merged_bbox = meta_boxes[:,:2].min(axis=0).tolist() + meta_boxes[:,2:].max(axis=0).tolist()
-        del meta_boxes
-    
-    base_schema = parquet_schema_add_bbox(base_schema, bbox=merged_bbox)
-    pq.write_metadata(schema=base_schema, where=os.path.join(gh3_dir, '_metadata'))
-    
-    cmeta = pq.ParquetDataset(h3_files)
-    cmeta_schema = parquet_schema_add_bbox(cmeta.schema, bbox=merged_bbox)
-    pq.write_metadata(schema=cmeta_schema, where=os.path.join(gh3_dir, '_common_metadata'))
-
 
 def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> dict:
     """
