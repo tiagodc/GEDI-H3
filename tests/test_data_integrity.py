@@ -448,6 +448,38 @@ class TestH3ColumnsDtypesCache:
         assert _meta_from_dtype_dict({}) is None
         assert _meta_from_dtype_dict({'x': 'list<int64>'}) is None
 
+    def test_meta_from_dtype_dict_falls_back_when_shot_number_missing(self):
+        """``shot_number`` is whitelisted as the universal GEDI shot
+        identifier — every extraction / aggregation / audit pipeline
+        depends on it. If the cached dtype map doesn't carry it (legacy
+        partition meta, partial cache), we MUST refuse to build a meta
+        from the cache and force the caller through the sampling
+        fallback (which always reads it from a real partition).
+        Otherwise downstream tools see a shot_number-less dask graph
+        and silently break."""
+        from gedih3.gh3driver import _meta_from_dtype_dict
+        # Cache lacks shot_number; caller asked for it.
+        cache = {'agbd_l4a': 'double'}
+        meta = _meta_from_dtype_dict(
+            cache, columns=['shot_number', 'agbd_l4a'], part_col='h3_03',
+        )
+        assert meta is None, \
+            "must return None when shot_number is requested but not cached"
+        # If shot_number isn't requested, no requirement to cache it.
+        meta = _meta_from_dtype_dict(
+            cache, columns=['agbd_l4a'], part_col='h3_03',
+        )
+        assert meta is not None
+        # When the cache DOES carry shot_number under an aliased name
+        # (e.g. 'shot_number_l2a' on a multi-product DB), the helper
+        # accepts it.
+        cache2 = {'shot_number_l2a': 'uint64', 'agbd_l4a': 'double'}
+        meta2 = _meta_from_dtype_dict(
+            cache2, columns=['shot_number_l2a', 'agbd_l4a'], part_col='h3_03',
+        )
+        assert meta2 is not None
+        assert 'shot_number_l2a' in meta2.columns
+
     def test_h3_write_metadata_records_column_dtypes(self, tmp_dir):
         """Per-partition .metadata.json must carry both ``columns``
         (legacy field) and the new ``column_dtypes`` map so the build
@@ -534,6 +566,113 @@ class TestH3ColumnsDtypesCache:
         result = ddf.compute()
         assert len(result) > 0
         assert 'shot_number' in result.columns
+
+    def test_set_post_download_info_recovers_n_files_when_manifest_write_fails(
+            self, tmp_dir, monkeypatch):
+        """When ``write_soc_manifest`` raises (read-only SOC dir,
+        transient FS error), ``set_post_download_info`` must still
+        report the correct number of files via the glob fallback —
+        not zero, which would silently break downstream summary
+        printing and any callers that use ``self.n_files`` to gate
+        further work."""
+        from gedih3.logger import SOCDownloadLogger
+
+        soc_dir = os.path.join(tmp_dir, 'soc_readonly')
+        os.makedirs(soc_dir, exist_ok=True)
+        # Drop two paired files (one orbit/track has L2A+L2B).
+        for n in [
+            'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+            'GEDI02_B_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+        ]:
+            with open(os.path.join(soc_dir, n), 'wb') as f:
+                f.write(b'x')
+
+        # Simulate a write_soc_manifest failure by monkey-patching it
+        # in the logger's import namespace.
+        def boom(_):
+            raise OSError("simulated read-only SOC dir")
+        monkeypatch.setattr('gedih3.logger.write_soc_manifest', boom)
+
+        log = SOCDownloadLogger(product_vars={'L2A': ['rh']}, dir=soc_dir)
+        log.set_post_download_info()
+
+        # Even though the manifest write failed, soc_file_tree's glob
+        # fallback discovered the paired granule, and n_files reflects
+        # the actually-discovered count.
+        assert log.n_files >= 1, (
+            f"n_files must be derived from soc_file_tree when manifest "
+            f"write fails; got {log.n_files} (expected >=1 from a "
+            f"populated SOC dir). The bug zeroed n_files unconditionally."
+        )
+
+    def test_set_post_build_info_aggregates_dtypes_across_partitions(self, tmp_dir):
+        """When some partition metas predate ``column_dtypes``,
+        ``set_post_build_info`` must still capture the dtype map from
+        the partitions that DO carry it — not zero the cache because
+        the last partition in glob order happens to be legacy."""
+        import json as _json
+        from gedih3.logger import H3BuildLogger
+        from gedih3.config import (
+            BUILD_LOG_FILENAME, PARTITION_META_FILENAME,
+        )
+
+        db_dir = os.path.join(tmp_dir, 'mixed_db')
+        os.makedirs(db_dir, exist_ok=True)
+
+        # Build two partition meta files. One has column_dtypes; the
+        # other (a legacy partition) does not. Their glob order is
+        # alphabetic, so we name the LEGACY one last to specifically
+        # exercise the bug — without the fix, the loop's last fmeta
+        # would be the legacy one and the dtype cache would be {}.
+        modern_meta = {
+            'h3_partition': '83184bfffffffff',
+            'granules': [{'orbit': 1, 'granule': 1, 'track': 1}],
+            'date_range': ['2020-01-01', '2020-01-31'],
+            'columns': ['shot_number', 'agbd_l4a'],
+            'column_dtypes': {'shot_number': 'uint64', 'agbd_l4a': 'double'},
+            'l2a_version': 3,
+        }
+        legacy_meta = {
+            'h3_partition': '83184cfffffffff',
+            'granules': [{'orbit': 2, 'granule': 1, 'track': 2}],
+            'date_range': ['2020-02-01', '2020-02-28'],
+            'columns': ['shot_number', 'agbd_l4a'],
+            # NO column_dtypes — predates the field
+            'l2a_version': 3,
+        }
+        # Filenames sort: 'a_modern' < 'z_legacy' so legacy is the
+        # LAST fmeta the loop sees.
+        for stem, m in (('a_modern', modern_meta), ('z_legacy', legacy_meta)):
+            pdir = os.path.join(db_dir, f'h3_03={m["h3_partition"]}')
+            os.makedirs(pdir, exist_ok=True)
+            mf = os.path.join(pdir, f'{stem}{PARTITION_META_FILENAME}')
+            with open(mf, 'w') as f:
+                _json.dump(m, f)
+
+        # Seed a build log so H3BuildLogger has product_vars.
+        log_path = os.path.join(db_dir, BUILD_LOG_FILENAME)
+        with open(log_path, 'w') as f:
+            _json.dump({
+                'gedi_version': 3,
+                'h3_resolution_level': 12,
+                'h3_partition_level': 3,
+                'products': {'L4A': {'variables': ['agbd']}},
+            }, f)
+
+        log = H3BuildLogger(product_vars=None, dir=db_dir, version=3)
+        log.set_post_build_info()
+
+        # Dtypes must be captured from the modern partition, not zeroed
+        # because the legacy one was iterated last.
+        assert log.h3_columns_dtypes == {
+            'shot_number': 'uint64', 'agbd_l4a': 'double',
+        }, (
+            "h3_columns_dtypes must aggregate across partitions; "
+            f"got {log.h3_columns_dtypes!r}"
+        )
+        # Columns must be the union of both partitions' columns
+        # (here they match, but the union path is what matters).
+        assert set(log.h3_columns) == {'shot_number', 'agbd_l4a'}
 
 
 # ===========================================================================

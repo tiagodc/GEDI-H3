@@ -177,7 +177,15 @@ def test_gedi_vars_static_returns_none_for_unknown_version():
 
 def test_soc_file_tree_prefers_manifest_when_present(tmp_path):
     """When ``_soc_manifest.txt`` is present at the SOC root,
-    soc_file_tree must read from it instead of recursive-globbing."""
+    soc_file_tree must read from it instead of recursive-globbing.
+
+    Crucially the marker must be a *paired* (L2A + L2B) granule so
+    that the live recursive-glob path would survive the
+    ``pivot_table().dropna()`` step inside ``soc_file_tree`` —
+    otherwise an L2A-only marker is silently dropped on either
+    code path, and the test passes vacuously without proving that
+    the manifest is actually preferred.
+    """
     from gedih3.gedidriver import soc_file_tree, write_soc_manifest
     from gedih3.config import SOC_MANIFEST_FILENAME
     # Two paired release files (granule with both L2A and L2B)
@@ -190,14 +198,22 @@ def test_soc_file_tree_prefers_manifest_when_present(tmp_path):
     assert n_written == 2
     assert (tmp_path / SOC_MANIFEST_FILENAME).exists()
 
-    # Drop a marker that recursive-glob would still pick up but isn't in
-    # the manifest. If soc_file_tree is reading the manifest, the marker
-    # must not appear in the result.
-    (tmp_path / 'GEDI02_A_2025001000000_O99999_99_T99999_99_999_99_V003.h5').touch()
+    # Drop a paired marker that the live recursive glob would discover
+    # AND that survives the pivot+dropna() inside soc_file_tree (both
+    # L2A and L2B for the same orbit/track). The manifest does NOT list
+    # it, so if soc_file_tree reads the manifest it must not appear.
+    for n in [
+        'GEDI02_A_2025001000000_O99999_99_T99999_99_999_99_V003.h5',
+        'GEDI02_B_2025001000000_O99999_99_T99999_99_999_99_V003.h5',
+    ]:
+        (tmp_path / n).touch()
     tree = soc_file_tree(str(tmp_path), to_list=True)
     seen = sorted(os.path.basename(v) for d in tree for v in d.values())
     assert all('O99999' not in n for n in seen), \
         "soc_file_tree should read the manifest, not the live SOC tree"
+    # Sanity: the manifest-listed pair IS visible.
+    assert any('O01956' in n for n in seen), \
+        "manifest-listed granule must still be discovered"
 
 
 def test_soc_file_tree_falls_back_to_glob_without_manifest(tmp_path):

@@ -516,9 +516,22 @@ def _meta_from_dtype_dict(col_dtypes, *, columns=None, part_col=None):
     :func:`gh3_load_hex` would return — built entirely from the cached
     ``h3_columns_dtypes`` build-log field, no parquet I/O.
 
-    Returns ``None`` when the cache is missing/empty or contains a
-    dtype the translator can't round-trip; callers must fall back to
-    ``gh3_load_hex(h3_dirs[0], …)`` in that case.
+    Returns ``None`` when the cache is missing/empty, contains a dtype
+    the translator can't round-trip, or fails to cover a critical
+    column the caller has explicitly requested — callers must fall
+    back to ``gh3_load_hex(h3_dirs[0], …)`` in any of those cases.
+
+    "Critical column" coverage check:
+      * ``shot_number`` is the universal GEDI shot identifier; every
+        extraction / aggregation / audit pipeline relies on it. If the
+        caller requested a column starting with ``shot_number`` but
+        the cached dtype map doesn't carry it (legacy partition
+        metadata, partial cache merge, etc.), we refuse to build the
+        meta and force the caller through the sampling fallback —
+        which DOES read it from a real partition. Building a
+        shot_number-less meta from the cache would silently mis-shape
+        the Dask graph for a downstream tool that's expecting it, so
+        a fallback (one parquet sample read) is the safer trade.
     """
     if not col_dtypes:
         return None
@@ -526,6 +539,15 @@ def _meta_from_dtype_dict(col_dtypes, *, columns=None, part_col=None):
     if columns is None:
         keep = list(col_dtypes.keys())
     else:
+        # If shot_number was requested but the cache lacks it, drop
+        # to the sampling path. shot_number is whitelisted as a
+        # required identifier across every gedih3 pipeline; a
+        # mis-typed or missing shot_number in the dask _meta would
+        # silently break downstream joins/audits.
+        requested_sn = [c for c in columns if str(c).startswith('shot_number')]
+        cached_sn = [c for c in col_dtypes if str(c).startswith('shot_number')]
+        if requested_sn and not cached_sn:
+            return None
         keep = [c for c in columns if c in col_dtypes]
 
     series = {}

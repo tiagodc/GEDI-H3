@@ -44,6 +44,27 @@ def _check_h5_file(path: str) -> dict:
     return {'valid': valid, 'size': size, 'err': err}
 
 
+def _enumerate_soc_files(soc_dir: str) -> list:
+    """Return every ``GEDI*.h5`` path under *soc_dir*.
+
+    Prefers the ``_soc_manifest.txt`` sentinel (O(1) on the GPFS
+    metadata server) and falls back to a recursive glob on absence.
+    Critically, this returns the *full* file list — unlike
+    :func:`soc_file_tree(..., to_list=True)`, which pivots by orbit/
+    track and ``dropna()``s rows where any product is absent, silently
+    excluding partial-download granules from downstream scans.
+    """
+    import glob
+    from ...gedidriver import _read_soc_manifest
+    manifest = _read_soc_manifest(soc_dir)
+    if manifest is not None:
+        return sorted(p for p in manifest
+                      if os.path.basename(p).startswith('GEDI')
+                      and p.endswith('.h5'))
+    return sorted(glob.glob(os.path.join(soc_dir, '**', 'GEDI*.h5'),
+                            recursive=True))
+
+
 def soc_health_check(ctx: DoctorContext) -> Report:
     findings = []
 
@@ -53,20 +74,21 @@ def soc_health_check(ctx: DoctorContext) -> Report:
             summary='no SOC directory configured; skipping',
         )
 
-    # Use the manifest-aware enumerator landed in the v0.8.x cross-pipeline
-    # lessons round — prefers _soc_manifest.txt over a multi-million-file
-    # recursive glob.
-    from ...gedidriver import soc_file_tree
-    soc_dicts = soc_file_tree(ctx.soc_dir, to_list=True)
-    # Each entry is {product: path}; flatten to a path list.
-    soc_files = sorted({p for d in soc_dicts for p in d.values()})
+    soc_files = _enumerate_soc_files(ctx.soc_dir)
 
+    # Per-file ``h5_is_valid`` is sub-second on a healthy file, so a
+    # continental SOC tree (millions of files) would dispatch millions
+    # of one-task-per-file dask futures — task-graph build and
+    # scheduler overhead would dominate, and the cluster would barely
+    # touch real work. Batch into chunks of 1000 so we ship at most a
+    # few thousand tasks even on the largest trees.
     for f, result in parallel_map(
         soc_files,
         _check_h5_file,
         args=getattr(ctx, 'args', None),
         desc='soc_health: scanning HDF5 files',
         unit='file',
+        batch_size=1000,
     ):
         if isinstance(result, Exception):
             findings.append({
