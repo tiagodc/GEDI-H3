@@ -218,8 +218,6 @@ def test_count_duplicates_does_not_materialize_full_column(tmp_path, monkeypatch
     assert info['corrupt'] is False
     assert info['unreadable_shot_number'] is False
     assert info['duplicates'] == 0
-    # Sequential row groups with non-overlapping ranges → no cross-RG flag.
-    assert info['cross_rg_overlap'] is False
 
 
 def test_count_duplicates_detects_intra_row_group_duplicates(tmp_path):
@@ -240,27 +238,56 @@ def test_count_duplicates_detects_intra_row_group_duplicates(tmp_path):
     assert info['duplicates'] == 1
 
 
-def test_count_duplicates_flags_cross_rg_overlap(tmp_path):
-    """Two row groups with overlapping shot_number ranges trigger the
-    cross_rg_overlap signal so --fix knows to run a real streaming
-    dedup."""
+def test_count_duplicates_detects_cross_row_group_duplicates(tmp_path):
+    """Cross-row-group duplicates are real bugs and must be counted
+    exactly. Earlier we used per-RG min/max overlap as a proxy, but
+    overlap is the *normal* post-merge state of GEDI partitions (whose
+    row groups come from different granules with interleaving
+    shot_numbers) — so the proxy produced false positives on every
+    correctly-built partition. The fix is exact global value_counts."""
     import numpy as np
     import pandas as pd
     import pyarrow as pa
     import pyarrow.parquet as pq
     from gedih3.doctor.diagnoses.parquet_health import _scan_one_file
 
-    # Two RGs, both covering the same shot_number range.
+    # Two RGs, both covering the same range, with REAL duplicates: each
+    # of {1,2,3,4,5} appears in both groups.
     df = pd.DataFrame({
-        'shot_number': np.array([1, 2, 3, 4, 5,   1, 2, 3, 4, 5], dtype=np.int64),
+        'shot_number': np.array([1, 2, 3, 4, 5, 1, 2, 3, 4, 5], dtype=np.int64),
     })
-    path = str(tmp_path / 'overlap.parquet')
+    path = str(tmp_path / 'real_dups.parquet')
     pq.write_table(pa.Table.from_pandas(df), path, row_group_size=5)
     info = _scan_one_file(path)
-    # No intra-RG dups (each RG has unique values), but the ranges
-    # overlap → cross_rg_overlap flag is True.
+    assert info['duplicates'] == 5
+
+
+def test_count_duplicates_no_false_positive_on_overlapping_ranges(tmp_path):
+    """Regression test: a cleanly-merged partition whose row groups
+    cover overlapping shot_number ranges (because they come from
+    different granules) but contain NO actual duplicates must NOT be
+    flagged as having duplicates. Earlier the cross_rg_overlap proxy
+    fired here, producing 44k false positives on a real continental
+    database."""
+    import numpy as np
+    import pandas as pd
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from gedih3.doctor.diagnoses.parquet_health import _scan_one_file
+
+    # Two RGs, ranges overlap (1..10 vs 5..15), but every shot_number
+    # is globally unique.
+    df = pd.DataFrame({
+        'shot_number': np.array(
+            [1, 2, 3, 4, 6, 7, 8, 9, 11, 12,
+             5, 10, 13, 14, 15, 16, 17, 18, 19, 20],
+            dtype=np.int64,
+        ),
+    })
+    path = str(tmp_path / 'overlap_no_dups.parquet')
+    pq.write_table(pa.Table.from_pandas(df), path, row_group_size=10)
+    info = _scan_one_file(path)
     assert info['duplicates'] == 0
-    assert info['cross_rg_overlap'] is True
 
 
 def test_per_granule_null_counts_streams_via_iter_batches(tmp_path, monkeypatch):

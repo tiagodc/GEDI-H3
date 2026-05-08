@@ -81,6 +81,7 @@ def _scan_one_file(pq_file: str) -> dict:
     (str|None), ``duplicates`` (int), ``cross_rg_overlap`` (bool),
     ``unreadable_shot_number`` (bool), ``columns`` (list[str]).
     """
+    import pyarrow as pa
     import pyarrow.parquet as pq
     import pyarrow.compute as pc
 
@@ -88,7 +89,6 @@ def _scan_one_file(pq_file: str) -> dict:
         'corrupt': False,
         'error': None,
         'duplicates': 0,
-        'cross_rg_overlap': False,
         'unreadable_shot_number': False,
         'columns': [],
     }
@@ -97,59 +97,48 @@ def _scan_one_file(pq_file: str) -> dict:
     try:
         pf = pq.ParquetFile(pq_file, pre_buffer=_PRE_BUFFER)
         # Header validity gate (touches metadata to force lazy errors).
-        n_rg = pf.metadata.num_row_groups
+        _ = pf.metadata.num_row_groups
         schema_names = list(pf.schema_arrow.names)
         out['columns'] = schema_names
 
         if 'shot_number' in schema_names:
             try:
-                shot_idx = schema_names.index('shot_number')
-
-                # --- Pass 1: intra-row-group duplicates via pc.value_counts ---
-                # Memory ceiling: one row group's int64 column + native
-                # hashmap over its unique values. Reading row group by
-                # row group with ``read_row_group`` (rather than
-                # ``iter_batches`` with a large batch_size that can span
-                # row groups) keeps the per-call working-set bounded by
-                # the file's row_group_size — typically 50k rows on
-                # v0.8.22+ databases.
-                intra_dups = 0
-                for rg_idx in range(n_rg):
-                    table = pf.read_row_group(rg_idx, columns=['shot_number'])
-                    arr = table.column('shot_number')
-                    vc = pc.value_counts(arr)
+                # Exact global duplicate count via streaming iter_batches +
+                # a single ``pc.value_counts`` over the chunked column.
+                #
+                # Cross-row-group dups are the realistic case here: a
+                # partition's row groups come from different granules
+                # whose shot_numbers can interleave (overlapping min/max
+                # is the normal post-merge state, NOT a defect signal).
+                # An exact global count is the only correct signal.
+                #
+                # Memory: chunked_array holds references to each batch's
+                # int64 column (~8 B/row of the file's shot_number), and
+                # ``pc.value_counts`` builds a native C++ hashmap of size
+                # O(unique shot_numbers). For typical GEDI partitions
+                # (~100k rows) this is well under 5 MB total. For
+                # pathological 10M+-row files it scales linearly with
+                # row count, but readahead is capped via pre_buffer + the
+                # 50k batch_size, so peak transient I/O is bounded
+                # regardless.
+                chunks = []
+                for batch in pf.iter_batches(
+                    batch_size=_ROW_GROUP_BATCH,
+                    columns=['shot_number'],
+                    use_threads=False,
+                ):
+                    chunks.append(batch.column('shot_number'))
+                    del batch
+                if chunks:
+                    if len(chunks) == 1:
+                        column = chunks[0]
+                    else:
+                        column = pa.chunked_array(chunks)
+                    vc = pc.value_counts(column)
                     counts_np = vc.field('counts').to_numpy(zero_copy_only=False)
                     if counts_np.size:
-                        intra_dups += int((counts_np - 1).clip(min=0).sum())
-                    # Drop transient buffers before the next RG lands.
-                    del arr, vc, counts_np, table
-                out['duplicates'] = intra_dups
-
-                # --- Pass 2 (free): cross-row-group overlap via stats ---
-                # parquet writers record per-RG min/max for primitive types
-                # by default. If RG ranges don't overlap, no cross-RG dups
-                # are possible — the intra count above is exact. If they do
-                # overlap, flag it so --fix runs the streaming dedup that
-                # walks the whole file.
-                ranges = []
-                stats_complete = True
-                for rg_idx in range(n_rg):
-                    rg = pf.metadata.row_group(rg_idx)
-                    stats = rg.column(shot_idx).statistics
-                    if stats is None or not stats.has_min_max:
-                        stats_complete = False
-                        break
-                    ranges.append((stats.min, stats.max))
-                if stats_complete and ranges:
-                    ranges.sort()
-                    for i in range(1, len(ranges)):
-                        if ranges[i][0] <= ranges[i - 1][1]:
-                            out['cross_rg_overlap'] = True
-                            break
-                elif not stats_complete:
-                    # Stats absent: we can't prove no cross-RG dups. Be
-                    # conservative — flag overlap so --fix re-checks.
-                    out['cross_rg_overlap'] = True
+                        out['duplicates'] = int((counts_np - 1).clip(min=0).sum())
+                    del vc, counts_np, column, chunks
             except Exception:
                 out['unreadable_shot_number'] = True
     except Exception as e:
@@ -183,11 +172,10 @@ def _scan_partition(partition_dir: str) -> dict:
             continue
         if info['unreadable_shot_number']:
             findings.append({'kind': 'unreadable_shot_number', 'path': pq_file})
-        if info['duplicates'] > 0 or info['cross_rg_overlap']:
+        if info['duplicates'] > 0:
             findings.append({
                 'kind': 'duplicate_shots', 'path': pq_file,
                 'duplicates': info['duplicates'],
-                'cross_rg_overlap': info['cross_rg_overlap'],
             })
         cols_union.update(info['columns'])
 
