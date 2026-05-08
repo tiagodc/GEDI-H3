@@ -7,10 +7,13 @@ pattern that was eradicated from the merge phase). On a continental-
 scale database that meant hours of cold GPFS I/O blocking the CLI.
 
 This module provides one primitive — :func:`parallel_map` — that ships
-per-partition work to a dask cluster when one is registered, and falls
-back to a serial loop with a ``progress_iter`` bar when not. Diagnoses
-import this and pass a *picklable, side-effect-free* worker function
-plus the broadcast kwargs the worker needs.
+per-partition work to a dask cluster. The contract is **always
+parallel**: a registered :class:`~dask.distributed.Client` is required.
+Every gedih3 CLI tool (``gh3_doctor``, ``gh3_extract``, ``gh3_aggregate``,
+``gh3_build``, …) creates one at startup, so callers from the CLI never
+hit the missing-client case. Library / notebook users must establish a
+Client themselves — single code path means no quietly-different-
+behavior on small inputs.
 
 Design rules (mirrors the build pipeline's merge-phase contract):
   * **Workers receive only what they need.** No ``DoctorContext`` (it
@@ -24,14 +27,17 @@ Design rules (mirrors the build pipeline's merge-phase contract):
   * **Driver-side aggregation is cheap and incremental.** The caller
     extends a flat ``findings`` list as results arrive — no large
     materialized intermediates.
+  * **Always parallel.** No serial fallback. Eliminates the
+    code-path branching that used to mean "this fn behaves
+    differently when nobody set up dask."
 """
 
 from __future__ import annotations
 
 import os
-from typing import Any, Callable, Iterable, Iterator, List, Tuple
+from typing import Any, Callable, Iterator, List, Tuple
 
-from ..cliutils import progress_iter
+from ..exceptions import GediError
 from ..logging_config import get_logger
 from ..utils import get_dask_client
 
@@ -48,19 +54,17 @@ def parallel_map(
     batch_size: int = 0,
     **broadcast,
 ) -> Iterator[Tuple[Any, Any]]:
-    """Map ``fn`` across ``items`` with optional dask parallelism.
+    """Map ``fn`` across ``items`` on a dask cluster.
 
     Yields ``(item, result)`` tuples in completion order. When ``fn``
     raises on a worker, ``result`` is the exception instance — callers
     decide how to surface it (turn into a finding, log, or re-raise).
 
-    Parallelism is automatic:
-      * If a dask :class:`~dask.distributed.Client` is registered (via
-        ``get_dask_client()``), work is dispatched via ``client.map`` and
-        results streamed via ``as_completed``. Progress is visible on
-        the dask dashboard; the CLI logs a periodic counter line.
-      * Otherwise, runs serially with the same ``progress_iter`` bar
-        the rest of the doctor uses.
+    Requires a dask :class:`~dask.distributed.Client` to be registered
+    (via :func:`get_dask_client`). The gedih3 CLI tools create one at
+    startup; library / notebook users must wrap their call site in
+    ``with Client(...) as client: ...``. Raises
+    :class:`gedih3.exceptions.GediError` when no client is registered.
 
     Parameters
     ----------
@@ -69,10 +73,13 @@ def parallel_map(
     fn : callable
         Top-level (picklable) function. Signature: ``fn(item, **broadcast)``.
     args : argparse.Namespace, optional
-        Forwarded to ``progress_iter`` for ``--no-progress`` honoring on
-        the serial fallback.
+        Reserved for future use (kept for API compatibility with
+        callers that pass it; not currently consumed because the
+        always-parallel path doesn't need a tqdm progress bar — the
+        dask dashboard is the live view).
     desc, unit : str
-        Progress bar text (serial path) and dispatch log prefix.
+        Dispatch log prefix and unit name (used in the periodic
+        ``N/M done`` counter line).
     batch_size : int, optional
         When >0, group items into batches of this size and dispatch one
         dask task per batch (each task internally iterates its slice).
@@ -89,23 +96,20 @@ def parallel_map(
         them to each task. Large structures should be ``client.scatter``
         in advance by the caller.
     """
+    del args  # accepted for API stability; not used in always-parallel path
     items = list(items)
     if not items:
         return
 
     client = get_dask_client()
     if client is None:
-        # Serial fallback — preserves the original UX on machines
-        # without a registered dask cluster.
-        with progress_iter(items, desc=desc, args=args, unit=unit) as bar:
-            for it in bar:
-                try:
-                    yield it, fn(it, **broadcast)
-                except Exception as e:
-                    yield it, e
-        return
+        raise GediError(
+            "parallel_map requires a registered dask.distributed Client. "
+            "CLI tools (gh3_doctor, gh3_extract, gh3_aggregate, …) create "
+            "one automatically; library / notebook callers must wrap their "
+            "code in `with dask.distributed.Client(...) as client: ...`."
+        )
 
-    # Parallel path
     from dask.distributed import as_completed as dask_as_completed
 
     if batch_size and batch_size > 0 and len(items) > batch_size:

@@ -120,6 +120,26 @@ def _ctx(h3_dir, soc_dir=None, args=None):
     )
 
 
+@pytest.fixture(scope='module', autouse=True)
+def _module_dask_client():
+    """Always-parallel contract: every diagnosis dispatches through
+    ``parallel_map``, which requires a registered dask Client. The
+    CLI tools spin one up at startup; for tests we register a tiny
+    in-process LocalCluster once per module so the diagnoses run
+    end-to-end without each test paying the cluster-startup cost."""
+    from dask.distributed import LocalCluster, Client
+    cluster = LocalCluster(
+        n_workers=2, threads_per_worker=1,
+        processes=False,
+        dashboard_address=None,
+        silence_logs='ERROR',
+    )
+    client = Client(cluster)
+    yield client
+    client.close()
+    cluster.close()
+
+
 # --- metadata ---------------------------------------------------------------
 
 def _delete_partition_level_meta(part_dir):

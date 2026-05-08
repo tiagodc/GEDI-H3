@@ -140,29 +140,30 @@ def main():
 
     setup_storage(args, logger=logger)
 
-    # Attach to a dask cluster when the user passed --scheduler-address
-    # (or the project-standard alias -s) so the parallelized diagnoses
-    # actually dispatch to workers. Without this the doctor's
-    # parallel_map falls back to its serial path because
-    # get_dask_client() returns None. Default invocations (no -s) keep
-    # the existing local serial UX — a quick audit shouldn't need a
-    # cluster, and add_dask_args' --cores default is nonzero so it
-    # cannot be used as the "do you want dask?" signal.
-    from contextlib import nullcontext
-    dask_ctx = nullcontext()
-    use_dask = bool(getattr(args, 'dask_scheduler', None))
-    if use_dask:
-        from dask.distributed import Client
-        dask_kwargs = parse_dask_args(args)
-        logger.info(f"Connecting to dask cluster: {dask_kwargs.get('address')}")
-        dask_ctx = Client(**dask_kwargs)
+    # Always create a dask Client so every diagnosis dispatches through
+    # the same code path. ``parse_dask_args`` returns the address of a
+    # remote scheduler when ``--scheduler-address`` is given, otherwise
+    # the kwargs (n_workers / threads / memory) for a transient
+    # LocalCluster. The doctor's ``parallel_map`` primitive assumes a
+    # Client is registered — keeping CLI startup uniform with every
+    # other gedih3 tool (gh3_extract, gh3_aggregate, gh3_build, …)
+    # eliminates the dual-path "serial fallback" that used to ship
+    # whenever a user invoked the doctor without ``-s``.
+    from dask.distributed import Client
+    dask_kwargs = parse_dask_args(args)
+    if dask_kwargs.get('address'):
+        logger.info(f"Connecting to dask cluster: {dask_kwargs['address']}")
+    else:
+        logger.info(
+            f"Spinning up local dask cluster ({args.cores} workers, "
+            f"{args.threads} threads/worker)"
+        )
 
-    with dask_ctx as _client, cli_exception_handler(args, logger=logger):
-        if use_dask and _client is not None:
-            try:
-                logger.info(f"Dask dashboard available at: {_client.dashboard_link}")
-            except Exception:
-                pass
+    with Client(**dask_kwargs) as _client, cli_exception_handler(args, logger=logger):
+        try:
+            logger.info(f"Dask dashboard available at: {_client.dashboard_link}")
+        except Exception:
+            pass
 
         # Load the build log (lazy upgrade applied automatically). If absent,
         # most diagnoses still work — they fall back to filesystem inspection.
