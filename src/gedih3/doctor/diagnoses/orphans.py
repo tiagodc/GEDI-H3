@@ -9,6 +9,18 @@ Detects:
 
 A finding is only flagged when the file/dir's mtime is older than
 ``--orphan-age-hours`` (default 24h) so an in-progress build isn't disturbed.
+
+Performance pillar (v0.8.x lessons backport):
+  * The temp-file/leftover-dir scan over the database root is pushed
+    to workers via :func:`gedih3.doctor.parallel.parallel_map` — one
+    task per ``h3_*`` partition. Mirrors the build merge phase's
+    ``_list_year_subdirs`` pattern (gh3builder.py:906-924) which
+    eliminated the same driver-side recursive walk on continental builds.
+  * Empty-partition / empty-year-dir checks are O(1) ``os.scandir``
+    instead of ``glob.glob('**/*.parquet', recursive=True)`` (matches
+    the build pipeline's emptiness check at gh3builder.py:1356-1362).
+  * The temp directory's scan stays driver-side because it's narrow
+    and not nested as deeply as the database tree.
 """
 
 from __future__ import annotations
@@ -17,87 +29,152 @@ import glob
 import os
 import shutil
 import time
+from typing import List
 
 from ..report import Report, DoctorContext, Severity
 from ..runner import register
-from ...cliutils import progress_iter
+from ..parallel import parallel_map, partition_is_empty, list_year_dirs, year_dir_is_empty
 
 
 _TMP_PATTERNS = ('*.tmp', '*.join.tmp', '*.fill.tmp', '*.dedup.tmp')
 _LEFTOVER_DIRS = ('_s3_download', 'dask-worker-space')
 
 
-def _scan_orphans(roots, age_seconds: float):
+def _scan_partition_orphans(partition_dir: str, age_seconds: float) -> List[dict]:
+    """Worker: list orphan temp files / leftover dirs under one partition.
+
+    Uses local recursive globs *bounded to the partition subtree*; there's
+    no driver-side aggregation, and the scope is small enough that one
+    glob per partition per pattern is fine. The point is the parallel
+    fan-out across partitions, not eliminating recursion within one.
+    """
     now = time.time()
-    found_files = []
-    found_dirs = []
+    found: List[dict] = []
 
-    seen_files = set()
-    seen_dirs = set()
-    for root in roots:
-        if not root or not os.path.isdir(root):
-            continue
-        for pat in _TMP_PATTERNS:
-            for f in glob.glob(os.path.join(root, '**', pat), recursive=True):
-                if f in seen_files:
-                    continue
-                seen_files.add(f)
-                try:
-                    age = now - os.path.getmtime(f)
-                except OSError:
-                    continue
-                if age >= age_seconds:
-                    found_files.append({'path': f, 'age_seconds': int(age), 'kind': 'temp_file'})
-        for leftover in _LEFTOVER_DIRS:
-            for d in glob.glob(os.path.join(root, '**', leftover), recursive=True):
-                if d in seen_dirs:
-                    continue
-                seen_dirs.add(d)
-                try:
-                    age = now - os.path.getmtime(d)
-                except OSError:
-                    continue
-                if age >= age_seconds:
-                    found_dirs.append({'path': d, 'age_seconds': int(age), 'kind': 'leftover_dir'})
+    for pat in _TMP_PATTERNS:
+        for f in glob.glob(os.path.join(partition_dir, '**', pat), recursive=True):
+            try:
+                age = now - os.path.getmtime(f)
+            except OSError:
+                continue
+            if age >= age_seconds:
+                found.append({'path': f, 'age_seconds': int(age), 'kind': 'temp_file'})
 
-    return found_files, found_dirs
+    for leftover in _LEFTOVER_DIRS:
+        for d in glob.glob(os.path.join(partition_dir, '**', leftover), recursive=True):
+            try:
+                age = now - os.path.getmtime(d)
+            except OSError:
+                continue
+            if age >= age_seconds:
+                found.append({'path': d, 'age_seconds': int(age), 'kind': 'leftover_dir'})
+
+    return found
 
 
-def _empty_partition_dirs(partition_dirs, args=None):
-    empty = []
-    with progress_iter(partition_dirs,
-                       desc="orphans: scanning partitions",
-                       args=args, unit="part") as bar:
-        for d in bar:
-            # A partition is empty if it has no parquet files at any depth.
-            if not glob.glob(os.path.join(d, '**', '*.parquet'), recursive=True):
-                empty.append({'path': d, 'kind': 'empty_partition'})
-    return empty
+def _scan_root_orphans(root: str, age_seconds: float) -> List[dict]:
+    """Driver-side scan for narrow auxiliary roots (typically the tmp_dir).
+
+    Only used for paths *outside* the partition tree (e.g. the user's
+    configured tmp directory). The h3_dir's per-partition scan runs
+    through :func:`parallel_map` instead, which keeps the metadata-server
+    load distributed.
+    """
+    if not root or not os.path.isdir(root):
+        return []
+    now = time.time()
+    seen: set = set()
+    found: List[dict] = []
+
+    for pat in _TMP_PATTERNS:
+        for f in glob.glob(os.path.join(root, '**', pat), recursive=True):
+            if f in seen:
+                continue
+            seen.add(f)
+            try:
+                age = now - os.path.getmtime(f)
+            except OSError:
+                continue
+            if age >= age_seconds:
+                found.append({'path': f, 'age_seconds': int(age), 'kind': 'temp_file'})
+
+    for leftover in _LEFTOVER_DIRS:
+        for d in glob.glob(os.path.join(root, '**', leftover), recursive=True):
+            if d in seen:
+                continue
+            seen.add(d)
+            try:
+                age = now - os.path.getmtime(d)
+            except OSError:
+                continue
+            if age >= age_seconds:
+                found.append({'path': d, 'age_seconds': int(age), 'kind': 'leftover_dir'})
+
+    return found
 
 
-def _empty_year_dirs(partition_dirs, args=None):
-    empty = []
-    with progress_iter(partition_dirs,
-                       desc="orphans: scanning year subdirs",
-                       args=args, unit="part") as bar:
-        for d in bar:
-            for year_dir in glob.glob(os.path.join(d, '*/')):
-                if os.path.isdir(year_dir) and not glob.glob(os.path.join(year_dir, '*.parquet')):
-                    empty.append({'path': year_dir, 'kind': 'empty_year_dir'})
-    return empty
+def _empty_check_partition(partition_dir: str) -> List[dict]:
+    """Worker: O(1) emptiness checks for one partition + its year subdirs."""
+    findings: List[dict] = []
+    if partition_is_empty(partition_dir):
+        findings.append({'path': partition_dir, 'kind': 'empty_partition'})
+        # If the partition itself is empty there are no year subdirs to enumerate.
+        return findings
+    for year_dir in list_year_dirs(partition_dir):
+        if year_dir_is_empty(year_dir):
+            findings.append({'path': year_dir, 'kind': 'empty_year_dir'})
+    return findings
 
 
 def orphans_check(ctx: DoctorContext) -> Report:
     age_hours = getattr(ctx.args, 'orphan_age_hours', 24.0)
     age_seconds = age_hours * 3600
-
-    files, dirs = _scan_orphans([ctx.h3_dir, ctx.tmp_dir], age_seconds)
     args = getattr(ctx, 'args', None)
-    empties = _empty_partition_dirs(ctx.partition_dirs, args=args)
-    empties.extend(_empty_year_dirs(ctx.partition_dirs, args=args))
 
-    findings = files + dirs + empties
-    summary = f"{len(files)} temp files, {len(dirs)} leftover dirs, {len(empties)} empty partition/year dirs"
+    findings: List[dict] = []
+    seen_paths: set = set()
+
+    def _add(items):
+        for it in items:
+            p = it.get('path')
+            if p in seen_paths:
+                continue
+            seen_paths.add(p)
+            findings.append(it)
+
+    # Partition-scoped tmp/leftover scan in parallel.
+    for _, result in parallel_map(
+        ctx.partition_dirs,
+        _scan_partition_orphans,
+        args=args,
+        desc='orphans: scanning partitions for tmp+leftovers',
+        unit='part',
+        age_seconds=age_seconds,
+    ):
+        if isinstance(result, Exception):
+            continue
+        _add(result)
+
+    # Auxiliary tmp_dir (narrow, driver-side scan is fine).
+    _add(_scan_root_orphans(ctx.tmp_dir, age_seconds))
+
+    # Empty-partition / empty-year-dir checks (O(1) per partition; in parallel).
+    for _, result in parallel_map(
+        ctx.partition_dirs,
+        _empty_check_partition,
+        args=args,
+        desc='orphans: scanning partitions for emptiness',
+        unit='part',
+    ):
+        if isinstance(result, Exception):
+            continue
+        _add(result)
+
+    n_files = sum(1 for f in findings if f['kind'] == 'temp_file')
+    n_dirs = sum(1 for f in findings if f['kind'] == 'leftover_dir')
+    n_empty = sum(1 for f in findings if f['kind'] in ('empty_partition', 'empty_year_dir'))
+
+    summary = f"{n_files} temp files, {n_dirs} leftover dirs, {n_empty} empty partition/year dirs"
     severity = Severity.INFO if not findings else Severity.WARN
     return Report(name='orphans', severity=severity, findings=findings, summary=summary)
 

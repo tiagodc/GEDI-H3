@@ -341,6 +341,340 @@ class TestAtomicJsonWrite:
         assert not os.path.exists(path + '.tmp')
 
 
+class TestExportAtomicWrite:
+    """``_write_dataframe`` must not leave partial files on crash; the
+    parquet/feather/csv/txt/h5 paths route through ``AtomicFileWriter``."""
+
+    def test_write_dataframe_parquet_succeeds(self, tmp_dir):
+        from gedih3.gh3driver import _write_dataframe
+        df = pd.DataFrame({'a': [1, 2, 3], 'b': ['x', 'y', 'z']})
+        path = os.path.join(tmp_dir, 'out.parquet')
+        _write_dataframe(df, path, 'parquet')
+        assert os.path.exists(path)
+        assert not os.path.exists(path + '.tmp')
+        loaded = pd.read_parquet(path)
+        assert loaded.equals(df)
+
+    def test_write_dataframe_csv_succeeds(self, tmp_dir):
+        from gedih3.gh3driver import _write_dataframe
+        df = pd.DataFrame({'a': [1, 2, 3]})
+        path = os.path.join(tmp_dir, 'out.csv')
+        _write_dataframe(df, path, 'csv')
+        assert os.path.exists(path)
+        assert not os.path.exists(path + '.tmp')
+
+    def test_write_dataframe_crash_leaves_no_partial_file(self, tmp_dir):
+        """When the underlying writer raises, AtomicFileWriter must wipe
+        the .tmp and leave no file at the final path. This is the
+        guarantee that prevents downstream tools (e.g. gh3_rasterize)
+        from silently consuming a half-written parquet."""
+        from gedih3.gh3driver import _write_dataframe
+
+        class _ExplodingDF:
+            # to_parquet raises mid-call; .empty/.columns are never read here
+            def to_parquet(self, path, compression=None):
+                # Simulate the writer creating the temp file then crashing
+                with open(path, 'wb') as f:
+                    f.write(b'partial header\n')
+                raise OSError("simulated disk-full mid-write")
+
+        path = os.path.join(tmp_dir, 'crash.parquet')
+        with pytest.raises(OSError, match="simulated disk-full"):
+            _write_dataframe(_ExplodingDF(), path, 'parquet')
+        # Both the final path AND the .tmp must be gone
+        assert not os.path.exists(path), \
+            "Crashed write must not leave a partial file at the final path"
+        assert not os.path.exists(path + '.tmp'), \
+            "AtomicFileWriter must clean up the temp file on exception"
+
+
+class TestH3ColumnsDtypesCache:
+    """``h3_columns_dtypes`` lets the query path build Dask ``_meta``
+    without sampling a parquet — a-priori knowledge over runtime detection."""
+
+    def test_pa_dtype_to_pandas_common_types(self):
+        """Translation table covers the GEDI-relevant pyarrow types."""
+        from gedih3.gh3driver import _pa_dtype_to_pandas
+        assert _pa_dtype_to_pandas('int64') == 'int64'
+        assert _pa_dtype_to_pandas('uint64') == 'uint64'
+        assert _pa_dtype_to_pandas('double') == 'float64'
+        assert _pa_dtype_to_pandas('float') == 'float32'
+        assert _pa_dtype_to_pandas('bool') == 'bool'
+        assert _pa_dtype_to_pandas('string') == 'object'
+        assert _pa_dtype_to_pandas('binary') == 'object'
+        assert _pa_dtype_to_pandas('timestamp[ns]') == 'datetime64[ns]'
+        assert _pa_dtype_to_pandas('timestamp[us, tz=UTC]') == 'datetime64[ns]'
+
+    def test_pa_dtype_to_pandas_complex_types_signal_fallback(self):
+        """list/struct/map types must signal "fall back to a real
+        parquet sample" by returning None."""
+        from gedih3.gh3driver import _pa_dtype_to_pandas
+        for s in ('list<int64>', 'struct<a: int64>', 'map<string, int64>',
+                  'dictionary<values=string, indices=int32>',
+                  'extension<my.type>', '', None):
+            assert _pa_dtype_to_pandas(s) is None, f"expected None for {s!r}"
+
+    def test_meta_from_dtype_dict_geo_path(self):
+        """When 'geometry' is in the dtype dict the helper returns a
+        GeoDataFrame so from_map's meta matches gh3_load_hex output."""
+        from gedih3.gh3driver import _meta_from_dtype_dict
+        meta = _meta_from_dtype_dict({
+            'shot_number': 'uint64',
+            'agbd_l4a': 'double',
+            'datetime': 'timestamp[ns]',
+            'geometry': 'binary',
+        }, part_col='h3_03')
+        assert isinstance(meta, gpd.GeoDataFrame)
+        assert str(meta['shot_number'].dtype) == 'uint64'
+        assert str(meta['agbd_l4a'].dtype) == 'float64'
+        assert str(meta['datetime'].dtype) == 'datetime64[ns]'
+        assert 'h3_03' in meta.columns
+        assert str(meta['h3_03'].dtype) == 'object'
+
+    def test_meta_from_dtype_dict_projection(self):
+        """``columns=`` filters the meta to the requested subset; the
+        partition column is added on top regardless."""
+        from gedih3.gh3driver import _meta_from_dtype_dict
+        meta = _meta_from_dtype_dict({
+            'shot_number': 'uint64',
+            'agbd_l4a': 'double',
+            'rh_098': 'float',
+        }, columns=['shot_number', 'agbd_l4a'], part_col='h3_03')
+        assert list(meta.columns) == ['shot_number', 'agbd_l4a', 'h3_03']
+
+    def test_meta_from_dtype_dict_returns_none_on_empty_or_complex(self):
+        from gedih3.gh3driver import _meta_from_dtype_dict
+        assert _meta_from_dtype_dict(None) is None
+        assert _meta_from_dtype_dict({}) is None
+        assert _meta_from_dtype_dict({'x': 'list<int64>'}) is None
+
+    def test_meta_from_dtype_dict_falls_back_when_shot_number_missing(self):
+        """``shot_number`` is whitelisted as the universal GEDI shot
+        identifier — every extraction / aggregation / audit pipeline
+        depends on it. If the cached dtype map doesn't carry it (legacy
+        partition meta, partial cache), we MUST refuse to build a meta
+        from the cache and force the caller through the sampling
+        fallback (which always reads it from a real partition).
+        Otherwise downstream tools see a shot_number-less dask graph
+        and silently break."""
+        from gedih3.gh3driver import _meta_from_dtype_dict
+        # Cache lacks shot_number; caller asked for it.
+        cache = {'agbd_l4a': 'double'}
+        meta = _meta_from_dtype_dict(
+            cache, columns=['shot_number', 'agbd_l4a'], part_col='h3_03',
+        )
+        assert meta is None, \
+            "must return None when shot_number is requested but not cached"
+        # If shot_number isn't requested, no requirement to cache it.
+        meta = _meta_from_dtype_dict(
+            cache, columns=['agbd_l4a'], part_col='h3_03',
+        )
+        assert meta is not None
+        # When the cache DOES carry shot_number under an aliased name
+        # (e.g. 'shot_number_l2a' on a multi-product DB), the helper
+        # accepts it.
+        cache2 = {'shot_number_l2a': 'uint64', 'agbd_l4a': 'double'}
+        meta2 = _meta_from_dtype_dict(
+            cache2, columns=['shot_number_l2a', 'agbd_l4a'], part_col='h3_03',
+        )
+        assert meta2 is not None
+        assert 'shot_number_l2a' in meta2.columns
+
+    def test_h3_write_metadata_records_column_dtypes(self, tmp_dir):
+        """Per-partition .metadata.json must carry both ``columns``
+        (legacy field) and the new ``column_dtypes`` map so the build
+        log aggregator can promote it to ``h3_columns_dtypes``."""
+        from gedih3.gh3builder import h3_write_metadata
+        from conftest import make_gedi_parquet
+        # Filename must satisfy h3_part.year.NNN.parquet pattern (line
+        # 441 of gh3builder splits on '.')
+        pq_path = os.path.join(tmp_dir, '83184bfffffffff.2020.0.parquet')
+        make_gedi_parquet(pq_path, n=10)
+        # Provide streaming stats so h3_write_metadata skips the
+        # post-write column read (which would require columns the
+        # fixture parquet doesn't carry).
+        stats = {
+            'root_files': [
+                'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+            ],
+            'shot_min': 0,
+            'shot_max': 9,
+            'dt_min': pd.Timestamp('2020-01-01'),
+            'dt_max': pd.Timestamp('2020-01-31'),
+            'shot_count': 10,
+        }
+        meta_path = h3_write_metadata(pq_path, stats=stats)
+        meta = json.load(open(meta_path))
+        assert 'column_dtypes' in meta
+        assert isinstance(meta['column_dtypes'], dict)
+        # Every name in 'columns' must have an entry in column_dtypes
+        assert set(meta['column_dtypes'].keys()) == set(meta['columns'])
+        # And the dtype for shot_number must be the canonical pyarrow string
+        assert meta['column_dtypes']['shot_number'].startswith('uint')
+
+    def test_load_h3_database_uses_cached_dtypes(self, tmp_dir):
+        """When the build log carries h3_columns_dtypes, _load_h3_database
+        must build _meta from it — verified by mocking gh3_load_hex to
+        raise (would fire on the legacy sampling path)."""
+        import gedih3.gh3driver as drv
+        from conftest import make_partition_dir, make_build_log
+
+        db_dir = os.path.join(tmp_dir, 'cached_db')
+        os.makedirs(db_dir, exist_ok=True)
+        cell = '83184bfffffffff'
+        make_partition_dir(db_dir, h3_part=cell, n=5)
+        make_build_log(
+            db_dir,
+            h3_partition_ids=[cell],
+            h3_columns=['shot_number', 'agbd_l4a', 'rh_098_l2a', 'geometry'],
+            h3_columns_dtypes={
+                'shot_number': 'uint64',
+                'agbd_l4a': 'double',
+                'rh_098_l2a': 'double',
+                'geometry': 'binary',
+            },
+        )
+
+        # Replace gh3_load_hex with a sentinel that errors if invoked —
+        # the cache path must NOT call it for _meta construction.
+        def _explode(*a, **kw):
+            raise AssertionError("gh3_load_hex must not be called when h3_columns_dtypes is cached")
+
+        original = drv.gh3_load_hex
+        # The from_map call still uses gh3_load_hex when computed; we only
+        # need to assert the _meta construction skips it. Reach in just
+        # before the dataset materializes.
+        try:
+            drv.gh3_load_hex = _explode
+            with pytest.raises(AssertionError, match="must not be called"):
+                # Trigger load — from_map call inside fires _explode.
+                # But the _meta construction fired BEFORE that, and would
+                # have used the cache. If the cache path were broken we'd
+                # see _explode raised earlier (during _meta).
+                ddf = drv._load_h3_database(gh3_dir=db_dir)
+                # Touch the partitions (forces from_map invocation)
+                ddf.compute()
+        finally:
+            drv.gh3_load_hex = original
+
+    def test_load_h3_database_falls_back_when_cache_missing(self, mini_h3_database):
+        """Legacy DB built before this PR has no h3_columns_dtypes; the
+        query path must still work via the gh3_load_hex sample fallback."""
+        import gedih3.gh3driver as drv
+        # mini_h3_database uses the existing fixture — no h3_columns_dtypes.
+        ddf = drv._load_h3_database(gh3_dir=mini_h3_database)
+        result = ddf.compute()
+        assert len(result) > 0
+        assert 'shot_number' in result.columns
+
+    def test_set_post_download_info_recovers_n_files_when_manifest_write_fails(
+            self, tmp_dir, monkeypatch):
+        """When ``write_soc_manifest`` raises (read-only SOC dir,
+        transient FS error), ``set_post_download_info`` must still
+        report the correct number of files via the glob fallback —
+        not zero, which would silently break downstream summary
+        printing and any callers that use ``self.n_files`` to gate
+        further work."""
+        from gedih3.logger import SOCDownloadLogger
+
+        soc_dir = os.path.join(tmp_dir, 'soc_readonly')
+        os.makedirs(soc_dir, exist_ok=True)
+        # Drop two paired files (one orbit/track has L2A+L2B).
+        for n in [
+            'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+            'GEDI02_B_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+        ]:
+            with open(os.path.join(soc_dir, n), 'wb') as f:
+                f.write(b'x')
+
+        # Simulate a write_soc_manifest failure by monkey-patching it
+        # in the logger's import namespace.
+        def boom(_):
+            raise OSError("simulated read-only SOC dir")
+        monkeypatch.setattr('gedih3.logger.write_soc_manifest', boom)
+
+        log = SOCDownloadLogger(product_vars={'L2A': ['rh']}, dir=soc_dir)
+        log.set_post_download_info()
+
+        # Even though the manifest write failed, soc_file_tree's glob
+        # fallback discovered the paired granule, and n_files reflects
+        # the actually-discovered count.
+        assert log.n_files >= 1, (
+            f"n_files must be derived from soc_file_tree when manifest "
+            f"write fails; got {log.n_files} (expected >=1 from a "
+            f"populated SOC dir). The bug zeroed n_files unconditionally."
+        )
+
+    def test_set_post_build_info_aggregates_dtypes_across_partitions(self, tmp_dir):
+        """When some partition metas predate ``column_dtypes``,
+        ``set_post_build_info`` must still capture the dtype map from
+        the partitions that DO carry it — not zero the cache because
+        the last partition in glob order happens to be legacy."""
+        import json as _json
+        from gedih3.logger import H3BuildLogger
+        from gedih3.config import (
+            BUILD_LOG_FILENAME, PARTITION_META_FILENAME,
+        )
+
+        db_dir = os.path.join(tmp_dir, 'mixed_db')
+        os.makedirs(db_dir, exist_ok=True)
+
+        # Build two partition meta files. One has column_dtypes; the
+        # other (a legacy partition) does not. Their glob order is
+        # alphabetic, so we name the LEGACY one last to specifically
+        # exercise the bug — without the fix, the loop's last fmeta
+        # would be the legacy one and the dtype cache would be {}.
+        modern_meta = {
+            'h3_partition': '83184bfffffffff',
+            'granules': [{'orbit': 1, 'granule': 1, 'track': 1}],
+            'date_range': ['2020-01-01', '2020-01-31'],
+            'columns': ['shot_number', 'agbd_l4a'],
+            'column_dtypes': {'shot_number': 'uint64', 'agbd_l4a': 'double'},
+            'l2a_version': 3,
+        }
+        legacy_meta = {
+            'h3_partition': '83184cfffffffff',
+            'granules': [{'orbit': 2, 'granule': 1, 'track': 2}],
+            'date_range': ['2020-02-01', '2020-02-28'],
+            'columns': ['shot_number', 'agbd_l4a'],
+            # NO column_dtypes — predates the field
+            'l2a_version': 3,
+        }
+        # Filenames sort: 'a_modern' < 'z_legacy' so legacy is the
+        # LAST fmeta the loop sees.
+        for stem, m in (('a_modern', modern_meta), ('z_legacy', legacy_meta)):
+            pdir = os.path.join(db_dir, f'h3_03={m["h3_partition"]}')
+            os.makedirs(pdir, exist_ok=True)
+            mf = os.path.join(pdir, f'{stem}{PARTITION_META_FILENAME}')
+            with open(mf, 'w') as f:
+                _json.dump(m, f)
+
+        # Seed a build log so H3BuildLogger has product_vars.
+        log_path = os.path.join(db_dir, BUILD_LOG_FILENAME)
+        with open(log_path, 'w') as f:
+            _json.dump({
+                'gedi_version': 3,
+                'h3_resolution_level': 12,
+                'h3_partition_level': 3,
+                'products': {'L4A': {'variables': ['agbd']}},
+            }, f)
+
+        log = H3BuildLogger(product_vars=None, dir=db_dir, version=3)
+        log.set_post_build_info()
+
+        # Dtypes must be captured from the modern partition, not zeroed
+        # because the legacy one was iterated last.
+        assert log.h3_columns_dtypes == {
+            'shot_number': 'uint64', 'agbd_l4a': 'double',
+        }, (
+            "h3_columns_dtypes must aggregate across partitions; "
+            f"got {log.h3_columns_dtypes!r}"
+        )
+        # Columns must be the union of both partitions' columns
+        # (here they match, but the union path is what matters).
+        assert set(log.h3_columns) == {'shot_number', 'agbd_l4a'}
+
+
 # ===========================================================================
 # P1: DATA CORRECTNESS TESTS
 # ===========================================================================

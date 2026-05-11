@@ -143,6 +143,7 @@ def make_build_log(log_dir, status='COMPLETED', products=None,
                    granules=None, gedi_version=2, h3_resolution=12,
                    h3_partition=3, spatial=None, temporal=None,
                    h3_partition_ids=None, h3_columns=None,
+                   h3_columns_dtypes=None,
                    date_range=None, pending_var_update=None):
     """Create a synthetic build log file.
 
@@ -180,6 +181,8 @@ def make_build_log(log_dir, status='COMPLETED', products=None,
     }
     if pending_var_update:
         log['_pending_variable_update'] = pending_var_update
+    if h3_columns_dtypes is not None:
+        log['h3_columns_dtypes'] = h3_columns_dtypes
 
     log_path = os.path.join(log_dir, 'gedih3_build_log.json')
     os.makedirs(log_dir, exist_ok=True)

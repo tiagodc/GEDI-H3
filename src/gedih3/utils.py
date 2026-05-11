@@ -183,7 +183,7 @@ def smart_isdir(path):
 # A _manifest.txt file (one relative path per line) at the database root
 # eliminates expensive directory crawling for smart_glob, especially over HTTP.
 
-_manifest_cache = {}  # keyed by root_path → list of relative paths
+_manifest_cache = {}  # keyed by (root_path, manifest_filename) → list of relative paths
 
 
 def _extract_glob_root(pattern):
@@ -261,13 +261,17 @@ def _glob_to_regex(pattern):
     return re.compile('^' + regex + '$')
 
 
-def _read_manifest(root_path):
+def _read_manifest(root_path, manifest_filename=None):
     """Read manifest file from a database root, with caching.
 
     Parameters
     ----------
     root_path : str
         Database root directory (local or remote).
+    manifest_filename : str, optional
+        Name of the manifest sentinel file. Defaults to the H3 database
+        manifest (``MANIFEST_FILENAME``). Pass ``SOC_MANIFEST_FILENAME``
+        to read the SOC tree's parallel sentinel.
 
     Returns
     -------
@@ -276,37 +280,54 @@ def _read_manifest(root_path):
     """
     from .config import MANIFEST_FILENAME
 
-    if root_path in _manifest_cache:
-        return _manifest_cache[root_path]
+    if manifest_filename is None:
+        manifest_filename = MANIFEST_FILENAME
 
-    manifest_path = smart_join(root_path.rstrip('/'), MANIFEST_FILENAME)
+    cache_key = (root_path, manifest_filename)
+    if cache_key in _manifest_cache:
+        return _manifest_cache[cache_key]
+
+    manifest_path = smart_join(root_path.rstrip('/'), manifest_filename)
 
     try:
         with smart_open(manifest_path, 'r') as f:
             lines = [line.strip() for line in f if line.strip()]
-        _manifest_cache[root_path] = lines
+        _manifest_cache[cache_key] = lines
         return lines
     except (FileNotFoundError, OSError):
-        _manifest_cache[root_path] = None
+        _manifest_cache[cache_key] = None
         return None
 
 
-def generate_manifest(root_path, pattern='**/*.parquet'):
-    """Generate a _manifest.txt file listing all data files under root_path.
+def generate_manifest(root_path, pattern='**/*.parquet', manifest_filename=None):
+    """Atomically write a manifest file listing all matching files.
 
     Parameters
     ----------
     root_path : str
         Database root directory (must be local).
     pattern : str
-        Glob pattern relative to root_path (default: ``**/*.parquet``).
+        Glob pattern relative to ``root_path`` (default: ``**/*.parquet``,
+        which matches the H3 partition layout). Pass ``**/GEDI*.h5`` for
+        the SOC tree.
+    manifest_filename : str, optional
+        Name of the manifest sentinel file. Defaults to the H3 database
+        manifest (``MANIFEST_FILENAME``). Pass ``SOC_MANIFEST_FILENAME``
+        for the SOC parallel.
 
     Returns
     -------
     str
-        Path to the written manifest file.
+        Path to the written manifest file. The write is atomic
+        (``.tmp`` + ``os.replace``) so an interrupted run never leaves
+        a partial manifest at the final path — important when the
+        manifest is also a resume-correctness signal for the next
+        invocation.
     """
     from .config import MANIFEST_FILENAME
+
+    if manifest_filename is None:
+        manifest_filename = MANIFEST_FILENAME
 
     if is_remote_path(root_path):
         raise ValueError("generate_manifest() only works on local paths")
@@ -315,13 +336,23 @@ def generate_manifest(root_path, pattern='**/*.parquet'):
     files = sorted(_glob_mod.glob(os.path.join(root, pattern), recursive=True))
     rel_paths = [os.path.relpath(f, root).replace(os.sep, '/') for f in files]
 
-    manifest_path = os.path.join(root, MANIFEST_FILENAME)
-    with open(manifest_path, 'w') as f:
-        f.write('\n'.join(rel_paths))
-        if rel_paths:
-            f.write('\n')
+    manifest_path = os.path.join(root, manifest_filename)
+    # Atomic write: a SIGKILL between the truncate and the final flush
+    # would otherwise leave an empty (or worse, half-written) manifest
+    # at the final path, and the next caller would silently treat the
+    # database / SOC tree as empty.
+    with AtomicFileWriter(manifest_path) as tmp:
+        with open(tmp, 'w') as f:
+            f.write('\n'.join(rel_paths))
+            if rel_paths:
+                f.write('\n')
 
-    # Invalidate cache for this root
+    # Invalidate cache for this root × manifest filename combo. Older
+    # callers passed only root_path so we also pop the legacy single-key
+    # form (transitional safety net for downstream consumers we don't
+    # control).
+    _manifest_cache.pop((root, manifest_filename), None)
+    _manifest_cache.pop((root.rstrip('/'), manifest_filename), None)
     _manifest_cache.pop(root, None)
     _manifest_cache.pop(root.rstrip('/'), None)
 
@@ -830,6 +861,28 @@ def h5_is_valid(file):
         return False
     return True
 
+
+def release_arrow_pool() -> None:
+    """Best-effort drain of pyarrow's allocator.
+
+    pyarrow's transient read/write buffers do not always return to the
+    OS at GC time, which causes long-running worker RSS to climb across
+    successive parquet operations on shared GPFS. Calling
+    ``pa.default_memory_pool().release_unused()`` after each per-file
+    or per-task scope keeps the plateau flat. The pool API may also
+    raise on unusual installations; we swallow exceptions because the
+    drain is an optimization, not a correctness gate.
+
+    This helper is the single source of truth for the pattern that
+    used to be inlined in 6+ doctor / build call sites and was easy
+    to forget at a new site.
+    """
+    try:
+        import pyarrow as pa
+        pa.default_memory_pool().release_unused()
+    except Exception:
+        pass
+
 def h5_traverse(h5_file, root=None):
     import h5py
     def h5py_dataset_iterator(g, prefix=''):
@@ -965,45 +1018,6 @@ def from_geojson(geojson):
     if isinstance(geojson, str):
         geojson = json.loads(geojson)
     return gpd.GeoDataFrame.from_features(geojson, crs=4326)
-
-def read_as_geojson(geofile: str, box_only: bool = False) -> Dict:
-    import geopandas as gpd
-    from shapely.geometry import box
-    roi = read_vector_file(geofile, crs=4326)
-    if box_only:
-        roi = gpd.GeoDataFrame(geometry=[box(*roi.total_bounds)], columns=['geometry'], crs=roi.crs)
-    geojson = to_geojson(roi)
-    return geojson
-
-def parquet_append_rows(df, f: str, id_col: str = 'shot_number', tmp_suffix: str = '.row.tmp'):
-    import pandas as pd
-    import pyarrow as pa
-    import pyarrow.parquet as pq
-    parquet_file = pq.ParquetFile(f)
-
-    if id_col:
-        idx = parquet_file.read([id_col]).to_pandas().values.flatten()
-        df = df[~df[id_col].isin(idx)]
-
-    if df.empty:
-        return
-
-    new_table = pa.Table.from_pandas(df)
-
-    temp_f = f + tmp_suffix
-    with pq.ParquetWriter(temp_f, parquet_file.schema.to_arrow_schema(), compression='zstd') as writer:
-        for batch in parquet_file.iter_batches():
-            writer.write_batch(batch)
-        writer.write_table(new_table)
-
-    # Close file handle before atomic replace (required on Windows)
-    parquet_file.close()
-    try:
-        os.replace(temp_f, f)
-    except OSError:
-        if os.path.exists(temp_f):
-            os.unlink(temp_f)
-        raise
 
 def parquet_append_columns(df, f: str, tmp_suffix:str = '.col.tmp'):
     import pandas as pd
@@ -1732,147 +1746,3 @@ class AtomicFileWriter:
         return False  # Don't suppress exceptions
 
 
-def safe_file_replace(src: str, dst: str, backup: bool = False) -> str:
-    """
-    Atomically replace a file with rollback on failure.
-
-    Parameters
-    ----------
-    src : str
-        Source file path
-    dst : str
-        Destination file path
-    backup : bool
-        If True, keep backup of original destination file
-
-    Returns
-    -------
-    str
-        Destination file path on success
-
-    Raises
-    ------
-    FileNotFoundError
-        If source file doesn't exist
-    OSError
-        If file operation fails
-    """
-    if not os.path.exists(src):
-        raise GediFileError(f"Source file not found: {src}")
-
-    backup_path = dst + '.bak'
-
-    try:
-        if backup and os.path.exists(dst):
-            if os.path.exists(backup_path):
-                os.unlink(backup_path)
-            os.rename(dst, backup_path)
-
-        os.replace(src, dst)
-        return dst
-
-    except Exception as e:
-        # Attempt rollback
-        if backup and os.path.exists(backup_path) and not os.path.exists(dst):
-            os.rename(backup_path, dst)
-        raise
-
-
-def safe_directory_write(
-    write_func,
-    target_dir: str,
-    suffix: str = '.tmp',
-    cleanup_on_failure: bool = True
-):
-    """
-    Safely write to a directory with cleanup on failure.
-
-    Parameters
-    ----------
-    write_func : callable
-        Function that takes a directory path and writes files to it
-    target_dir : str
-        Target directory path
-    suffix : str
-        Suffix for temporary directory
-    cleanup_on_failure : bool
-        If True, remove partial writes on failure
-
-    Returns
-    -------
-    str
-        Target directory path on success
-
-    Examples
-    --------
-    >>> def write_partitions(dir_path):
-    ...     for i, df in enumerate(partitions):
-    ...         df.to_parquet(os.path.join(dir_path, f'part_{i}.parquet'))
-    ...
-    >>> safe_directory_write(write_partitions, '/path/to/output/')
-    """
-    import shutil
-
-    temp_dir = target_dir.rstrip('/') + suffix
-    os.makedirs(temp_dir, exist_ok=True)
-
-    try:
-        write_func(temp_dir)
-
-        # Success - replace target directory
-        if os.path.exists(target_dir):
-            shutil.rmtree(target_dir)
-        os.rename(temp_dir, target_dir)
-        return target_dir
-
-    except Exception:
-        if cleanup_on_failure and os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir, ignore_errors=True)
-        raise
-
-
-def verify_file_integrity(file_path: str, file_type: str = None) -> bool:
-    """
-    Verify that a file is readable and not corrupted.
-
-    Parameters
-    ----------
-    file_path : str
-        Path to file to verify
-    file_type : str, optional
-        File type hint ('h5', 'parquet', 'json'). Auto-detected if not provided.
-
-    Returns
-    -------
-    bool
-        True if file is valid, False otherwise
-    """
-    if not os.path.exists(file_path):
-        return False
-
-    if file_type is None:
-        ext = os.path.splitext(file_path)[1].lower()
-        file_type = {
-            '.h5': 'h5',
-            '.hdf5': 'h5',
-            '.parquet': 'parquet',
-            '.parq': 'parquet',
-            '.pq': 'parquet',
-            '.json': 'json',
-        }.get(ext)
-
-    try:
-        if file_type == 'h5':
-            return h5_is_valid(file_path)
-        elif file_type == 'parquet':
-            import pyarrow.parquet as pq
-            pq.read_metadata(file_path)
-            return True
-        elif file_type == 'json':
-            json_read(file_path)
-            return True
-        else:
-            # Generic check - just ensure file is non-empty
-            return os.path.getsize(file_path) > 0
-    except Exception:
-        return False

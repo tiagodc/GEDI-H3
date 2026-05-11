@@ -12,7 +12,7 @@ from dask.distributed import progress
 
 # Import configuration variables
 from .config import GH3_DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS
-from .utils import get_dask_client, read_vector_file, geo_to_umm, parse_temporal
+from .utils import get_dask_client, read_vector_file, geo_to_umm, parse_temporal, h5_is_valid
 from .gedidriver import GEDIFile, gedi_subset, gedi_vars_expand, gedi_vars_from_h5
 from .exceptions import (
     GediDownloadError,
@@ -554,8 +554,11 @@ def download_granule(
 
     logger.debug(f"download_granule: {expected_filename}, subset_vars={'None' if subset_vars is None else f'{len(subset_vars)} vars'}")
 
-    # Check for existing file if resume mode
-    if resume and os.path.exists(expected_path):
+    # Check for existing file if resume mode. Use h5_is_valid (cheap HDF5
+    # header open) instead of os.path.exists so a SIGKILL/network drop
+    # mid-write that left a truncated .h5 on disk gets re-downloaded
+    # instead of being silently consumed by the build phase.
+    if resume and h5_is_valid(expected_path):
         if subset_vars is not None:
             try:
                 existing_vars = set(gedi_vars_from_h5(expected_path))
@@ -573,13 +576,15 @@ def download_granule(
                 logger.warning(f"Could not read existing file {expected_filename}, re-downloading: {e}")
                 os.unlink(expected_path)
         else:
-            try:
-                _ = gedi_vars_from_h5(expected_path)
-                logger.debug(f"Skipping {expected_filename} (already exists)")
-                return expected_path
-            except Exception as e:
-                logger.warning(f"Could not verify existing file {expected_filename}, re-downloading: {e}")
-                os.unlink(expected_path)
+            # h5_is_valid above is the validity gate; no need for a second
+            # full HDF5 enumeration just to discard the result.
+            logger.debug(f"Skipping {expected_filename} (already exists)")
+            return expected_path
+    elif resume and os.path.exists(expected_path):
+        # File exists but failed the h5_is_valid header check — treat as
+        # truncated/corrupt and re-download fresh.
+        logger.warning(f"Existing {expected_filename} is unreadable, re-downloading")
+        os.unlink(expected_path)
 
     # Download with retry
     try:

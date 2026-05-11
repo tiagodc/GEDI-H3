@@ -32,60 +32,98 @@ from typing import Optional
 from ..report import Report, DoctorContext, Severity
 from ..runner import register
 from ..inspect import partition_parquet_files
-from ...cliutils import progress_iter
-from ...utils import parquet_backfill_bbox
+from ..parallel import parallel_map
+from ...utils import parquet_backfill_bbox, release_arrow_pool
 
 
 def _classify(path: str) -> Optional[str]:
-    """Return a finding kind, or None if the file's bbox is OK."""
+    """Return a finding kind, or None if the file's bbox is OK.
+
+    Memory: footer-only ``pq.read_schema`` (no data buffers) plus a
+    JSON parse of the small ``geo`` metadata block. Constant ~KB
+    per file — independent of file size or column count.
+    """
     import pyarrow.parquet as pq
+    schema = None
     try:
         schema = pq.read_schema(path)
     except Exception:
         return 'unreadable'
 
-    if 'geometry' not in schema.names:
-        return 'no_geometry'
-
-    md = schema.metadata or {}
-    raw = md.get(b'geo')
-    if not raw:
-        return 'missing_geo'
-
     try:
-        geo = json.loads(raw)
-    except Exception:
-        return 'missing_geo'
+        if 'geometry' not in schema.names:
+            return 'no_geometry'
 
-    primary = geo.get('primary_column', 'geometry')
-    col = geo.get('columns', {}).get(primary, {})
-    bbox = col.get('bbox')
-    if bbox is None:
-        return 'missing_bbox'
-    if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
-        return 'invalid_bbox'
-    try:
-        if not all(math.isfinite(float(v)) for v in bbox):
+        md = schema.metadata or {}
+        raw = md.get(b'geo')
+        if not raw:
+            return 'missing_geo'
+
+        try:
+            geo = json.loads(raw)
+        except Exception:
+            return 'missing_geo'
+
+        primary = geo.get('primary_column', 'geometry')
+        col = geo.get('columns', {}).get(primary, {})
+        bbox = col.get('bbox')
+        if bbox is None:
+            return 'missing_bbox'
+        if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
             return 'invalid_bbox'
-    except (TypeError, ValueError):
-        return 'invalid_bbox'
-    return None
+        try:
+            if not all(math.isfinite(float(v)) for v in bbox):
+                return 'invalid_bbox'
+        except (TypeError, ValueError):
+            return 'invalid_bbox'
+        return None
+    finally:
+        # Drop the schema reference promptly so its metadata buffers
+        # don't accumulate across the per-partition scan.
+        del schema
+
+
+def _scan_partition_bbox(partition_dir: str) -> dict:
+    """Worker: classify every parquet under one partition.
+
+    Returns ``{'findings': [...], 'n_ok': int}`` so the driver can
+    aggregate counts without holding the per-OK paths. Drains the
+    pyarrow allocator at the end so worker RSS plateaus instead of
+    accumulating across tasks.
+    """
+    findings = []
+    n_ok = 0
+    try:
+        for f in partition_parquet_files(partition_dir):
+            kind = _classify(f)
+            if kind is None:
+                n_ok += 1
+            else:
+                findings.append({'kind': kind, 'path': f})
+    finally:
+        release_arrow_pool()
+    return {'findings': findings, 'n_ok': n_ok}
 
 
 def geoparquet_bbox_check(ctx: DoctorContext) -> Report:
     findings = []
     n_ok = 0
-    with progress_iter(ctx.partition_dirs,
-                       desc="geoparquet_bbox: scanning partitions",
-                       args=getattr(ctx, 'args', None),
-                       unit="part") as bar:
-        for d in bar:
-            for f in partition_parquet_files(d):
-                kind = _classify(f)
-                if kind is None:
-                    n_ok += 1
-                else:
-                    findings.append({'kind': kind, 'path': f})
+    for part_dir, result in parallel_map(
+        ctx.partition_dirs,
+        _scan_partition_bbox,
+        args=getattr(ctx, 'args', None),
+        desc='geoparquet_bbox: scanning partitions',
+        unit='part',
+    ):
+        if isinstance(result, Exception):
+            findings.append({
+                'kind': 'unreadable',
+                'path': part_dir,
+                'error': f"{type(result).__name__}: {result}",
+            })
+            continue
+        findings.extend(result['findings'])
+        n_ok += result['n_ok']
 
     n_missing_geo = sum(1 for x in findings if x['kind'] == 'missing_geo')
     n_missing_bbox = sum(1 for x in findings if x['kind'] == 'missing_bbox')
@@ -124,8 +162,20 @@ def geoparquet_bbox_check(ctx: DoctorContext) -> Report:
     )
 
 
+def _backfill_one(path: str) -> str:
+    """Worker: rewrite one file's bbox metadata. Picklable."""
+    return parquet_backfill_bbox(path)
+
+
 def geoparquet_bbox_fix(ctx: DoctorContext, report: Report) -> Report:
-    """Rewrite missing/invalid-bbox files via parquet_backfill_bbox."""
+    """Rewrite missing/invalid-bbox files via parquet_backfill_bbox.
+
+    Per-file work is independent (each call rewrites a single
+    parquet's metadata block) so we dispatch through ``parallel_map``
+    when a dask client is registered — same shape as the check path.
+    Without parallelism the fix on a continental DB with thousands of
+    bbox-missing files takes hours of single-threaded I/O.
+    """
     fixable = {'missing_bbox', 'invalid_bbox'}
     fixed = []
     n_rewritten = 0
@@ -133,24 +183,28 @@ def geoparquet_bbox_fix(ctx: DoctorContext, report: Report) -> Report:
     n_errors = 0
 
     targets = [f for f in report.findings if f['kind'] in fixable]
-    with progress_iter(targets,
-                       desc="geoparquet_bbox: backfilling bbox",
-                       args=getattr(ctx, 'args', None),
-                       unit="file") as bar:
-        for f in bar:
-            try:
-                result = parquet_backfill_bbox(f['path'])
-                if result == 'rewritten':
-                    n_rewritten += 1
-                    fixed.append({**f, 'action': 'bbox_backfilled'})
-                elif result == 'ok':
-                    n_already_ok += 1
-                    fixed.append({**f, 'action': 'already_valid'})
-                else:
-                    fixed.append({**f, 'action': result})
-            except Exception as e:
-                n_errors += 1
-                fixed.append({**f, 'fix_error': f"{type(e).__name__}: {e}"})
+    paths = [f['path'] for f in targets]
+    by_path = {f['path']: f for f in targets}
+    for path, result in parallel_map(
+        paths,
+        _backfill_one,
+        args=getattr(ctx, 'args', None),
+        desc='geoparquet_bbox: backfilling bbox',
+        unit='file',
+    ):
+        f = by_path.get(path, {'path': path})
+        if isinstance(result, Exception):
+            n_errors += 1
+            fixed.append({**f, 'fix_error': f"{type(result).__name__}: {result}"})
+            continue
+        if result == 'rewritten':
+            n_rewritten += 1
+            fixed.append({**f, 'action': 'bbox_backfilled'})
+        elif result == 'ok':
+            n_already_ok += 1
+            fixed.append({**f, 'action': 'already_valid'})
+        else:
+            fixed.append({**f, 'action': result})
 
     # Preserve unfixable findings as-is (missing_geo, no_geometry, unreadable)
     for f in report.findings:

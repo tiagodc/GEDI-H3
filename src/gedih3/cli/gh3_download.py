@@ -123,8 +123,10 @@ def main():
                 soc_logger.set_post_download_info()
                 soc_logger.save_log('COMPLETED')
 
-                import glob
-                n_files = len(glob.glob(os.path.join(args.output, '**', 'GEDI*.h5'), recursive=True))
+                # set_post_download_info already walked the SOC tree (and
+                # refreshed _soc_manifest.txt); read the count it cached
+                # instead of crawling GPFS a second time.
+                n_files = getattr(soc_logger, 'n_files', 0)
                 print_success(f"{n_files} files downloaded to {args.output} ({source_label})", logger=logger)
 
             except Exception as e:

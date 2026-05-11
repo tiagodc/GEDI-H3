@@ -120,6 +120,26 @@ def _ctx(h3_dir, soc_dir=None, args=None):
     )
 
 
+@pytest.fixture(scope='module', autouse=True)
+def _module_dask_client():
+    """Always-parallel contract: every diagnosis dispatches through
+    ``parallel_map``, which requires a registered dask Client. The
+    CLI tools spin one up at startup; for tests we register a tiny
+    in-process LocalCluster once per module so the diagnoses run
+    end-to-end without each test paying the cluster-startup cost."""
+    from dask.distributed import LocalCluster, Client
+    cluster = LocalCluster(
+        n_workers=2, threads_per_worker=1,
+        processes=False,
+        dashboard_address=None,
+        silence_logs='ERROR',
+    )
+    client = Client(cluster)
+    yield client
+    client.close()
+    cluster.close()
+
+
 # --- metadata ---------------------------------------------------------------
 
 def _delete_partition_level_meta(part_dir):
@@ -294,6 +314,80 @@ def test_backfill_clean_when_all_indexed(tmp_dir):
     assert not reports[0].has_findings
 
 
+def test_backfill_read_patch_unlinks_temp_on_exception(tmp_dir, monkeypatch):
+    """Regression test: ``_read_patch_for_partition`` opens a
+    tempfile + ParquetWriter. If the loop body raises (e.g.
+    ``writer.write_table`` fails mid-write), the temp file at
+    ``out_path`` MUST be unlinked before the exception propagates.
+    Otherwise the caller (``_heal_partition``) sees a None ``patch``
+    and its finally cleanup skips the unlink — leaking temp parquets
+    once per failed partition fix on a continental backfill run."""
+    import glob as _glob
+    import tempfile
+    import pandas as pd
+    import pyarrow.parquet as pq
+    from gedih3.doctor.diagnoses import backfill as bf
+
+    # Mock load_h5 to return distinct shot_numbers per granule so the
+    # ``seen_shots`` dedup gate doesn't short-circuit the second
+    # iteration before the writer is exercised.
+    def fake_load_h5(soc_file, columns=None, include_source=False, dropna=False):
+        # Use the file path's hash to pick a non-overlapping shot range
+        base = abs(hash(str(soc_file))) % 10_000
+        return pd.DataFrame({
+            'shot_number': [base + 1, base + 2, base + 3],
+            'agbd': [1.0, 2.0, 3.0],
+        })
+    monkeypatch.setattr('gedih3.gedidriver.load_h5', fake_load_h5)
+
+    # Patch the ParquetWriter inside backfill's import context so that
+    # the SECOND ``write_table`` call (i.e. mid-write, after the temp
+    # parquet has been opened) raises. This drives the function down
+    # the exception path while ``out_path`` already exists on disk.
+    real_writer = pq.ParquetWriter
+    state = {'count': 0}
+
+    class _FaultyWriter(real_writer):
+        def write_table(self, table, **kwargs):
+            state['count'] += 1
+            if state['count'] >= 2:
+                raise RuntimeError('simulated writer failure mid-write')
+            return super().write_table(table, **kwargs)
+
+    # ``pq`` is imported inside ``_read_patch_for_partition``; patch
+    # the symbol on ``pyarrow.parquet`` itself so the runtime import
+    # resolves to our faulty subclass.
+    monkeypatch.setattr(pq, 'ParquetWriter', _FaultyWriter)
+
+    tmpdir = tempfile.gettempdir()
+    before = set(_glob.glob(os.path.join(tmpdir, 'tmp*.parquet')))
+    try:
+        # Trigger the bug: two granules; second granule's write raises.
+        soc_tree = {
+            'O00001_01_T00001': {'L4A': '/fake/file1.h5'},
+            'O00002_01_T00002': {'L4A': '/fake/file2.h5'},
+        }
+        affected = {'L4A': [(1, 1, 1), (2, 1, 2)]}
+        vars_per_product = {'L4A': ['agbd']}
+        with pytest.raises(Exception):
+            bf._read_patch_for_partition(affected, soc_tree, vars_per_product)
+    finally:
+        after = set(_glob.glob(os.path.join(tmpdir, 'tmp*.parquet')))
+        leaked = after - before
+        # Clean up anything we left behind, regardless of pass/fail
+        for f in leaked:
+            try:
+                os.unlink(f)
+            except OSError:
+                pass
+        assert not leaked, (
+            f"Temp parquet leaked on exception: {leaked!r}. The "
+            "fix in backfill.py must unlink ``out_path`` from an "
+            "explicit except: branch — the post-finally ``n_written "
+            "== 0`` cleanup is unreachable when the body raises."
+        )
+
+
 # --- geoparquet_bbox -------------------------------------------------------
 
 def _make_geoparquet_partition(h3_dir, h3_part='8c2a', year=2020,
@@ -382,3 +476,74 @@ def test_geoparquet_bbox_detects_and_backfills_missing_bbox(tmp_dir):
     assert bbox is not None
     assert -1.0 <= bbox[0] <= bbox[2] <= 1.0
     assert -1.0 <= bbox[1] <= bbox[3] <= 1.0
+
+
+# --- soc_health -------------------------------------------------------------
+
+def test_soc_health_enumerates_files_from_partial_product_orbits(tmp_dir):
+    """Regression test for the pivot+dropna() bug — soc_health used to
+    enumerate via ``soc_file_tree(..., to_list=True)`` which silently
+    drops orbit/tracks missing one product. The fix uses a manifest-
+    aware glob so EVERY GEDI*.h5 under the SOC tree is enumerated for
+    HDF5 validity checking, regardless of which product subset is
+    present per orbit/track. (Continuation of v0.8.x lesson #4: don't
+    let pivot-shape constraints lose data.)"""
+    from gedih3.doctor.diagnoses.soc_health import _enumerate_soc_files
+
+    soc_dir = os.path.join(tmp_dir, 'soc')
+    os.makedirs(soc_dir, exist_ok=True)
+    files = [
+        # complete trio: O01956 has L2A + L2B + L4A
+        'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+        'GEDI02_B_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+        'GEDI04_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+        # partial: O01957 has only L2A + L2B (missing L4A) — this is
+        # the exact case soc_file_tree's pivot+dropna() would drop.
+        'GEDI02_A_2019108002012_O01957_03_T03910_02_003_01_V003.h5',
+        'GEDI02_B_2019108002012_O01957_03_T03910_02_003_01_V003.h5',
+    ]
+    for n in files:
+        with open(os.path.join(soc_dir, n), 'wb') as f:
+            f.write(b'not a real h5')
+
+    enumerated = sorted(os.path.basename(p)
+                        for p in _enumerate_soc_files(soc_dir))
+    assert enumerated == sorted(files), (
+        "soc_health must enumerate EVERY GEDI*.h5 file regardless of "
+        "per-orbit-track product completeness — the pivot+dropna() in "
+        "soc_file_tree silently dropped partial-download granules."
+    )
+
+
+def test_soc_health_enumeration_prefers_manifest(tmp_dir):
+    """When ``_soc_manifest.txt`` is present, the soc_health
+    enumerator must read from it (the O(1)-on-the-metadata-server
+    path) rather than recursive-globbing."""
+    from gedih3.doctor.diagnoses.soc_health import _enumerate_soc_files
+    from gedih3.gedidriver import write_soc_manifest
+
+    soc_dir = os.path.join(tmp_dir, 'soc_manifest')
+    os.makedirs(soc_dir, exist_ok=True)
+    listed_files = [
+        'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+        'GEDI02_B_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+    ]
+    for n in listed_files:
+        with open(os.path.join(soc_dir, n), 'wb') as f:
+            f.write(b'x')
+    n_written = write_soc_manifest(soc_dir)
+    assert n_written == 2
+
+    # Drop a file NOT in the manifest. If the enumerator reads the
+    # manifest it must NOT appear; if it falls back to recursive glob
+    # it would.
+    extra = 'GEDI02_A_2025001000000_O99999_99_T99999_99_999_99_V003.h5'
+    with open(os.path.join(soc_dir, extra), 'wb') as f:
+        f.write(b'x')
+
+    enumerated = sorted(os.path.basename(p)
+                        for p in _enumerate_soc_files(soc_dir))
+    assert extra not in enumerated, (
+        "Manifest must be preferred over the live recursive glob"
+    )
+    assert sorted(listed_files) == enumerated
