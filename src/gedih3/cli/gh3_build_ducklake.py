@@ -122,7 +122,7 @@ def main():
         for file in tqdm.tqdm(files, desc="Loading parquet files", disable=args.quiet):
             # fmt: off
             if file.exists():
-                con.execute(f"CALL ducklake_add_data_files('gedi_dl', 'data', '{file.as_posix()}', ignore_extra_columns => true);")
+                con.execute(f"CALL ducklake_add_data_files('gedi_dl', 'data', '{file.absolute()}', ignore_extra_columns => true);")
             # fmt: on
 
         ducklake_dest = database / "gedi.ducklake"
