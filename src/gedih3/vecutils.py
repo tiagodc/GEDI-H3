@@ -1,4 +1,9 @@
 #! python
+
+# Copyright (C) 2025, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu
+
 """
 Vector Polygon Spatial Join at GEDI Shot Locations
 
@@ -7,9 +12,6 @@ boundaries) to GEDI shot locations based on spatial containment.
 
 Supports shapefiles, GeoPackages, GeoJSON, and GeoParquet. Works with both
 H3 databases and simplified datasets from gh3_extract.
-
-Author: Tiago de Conto
-Package: gedih3
 """
 
 import os

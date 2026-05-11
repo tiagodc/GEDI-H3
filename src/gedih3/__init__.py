@@ -1,3 +1,7 @@
+# Copyright (C) 2025, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu
+
 """
 gedih3: GEDI Data Access and H3 Indexing Library
 
@@ -16,8 +20,9 @@ Examples
 """
 
 __version__ = "0.9.0"
-__author__ = "Tiago de Conto"
+__author__ = "Tiago de Conto and Amelia Grace Holcomb"
 __email__ = "tiagodc@umd.edu"
+__copyright__ = "(C) 2025, University of Maryland. All Rights Reserved."
 
 # --- Config & environment ---------------------------------------------------
 from .config import (
@@ -111,6 +116,7 @@ __all__ = [
     "__version__",
     "__author__",
     "__email__",
+    "__copyright__",
     # config
     "GEDI_PRODUCTS",
     "GEDI_BEAMS",

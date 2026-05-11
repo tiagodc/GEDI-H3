@@ -1,14 +1,15 @@
 #! python
 
+# Copyright (C) 2025, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu
+
 """
 GEDI Vector Polygon Join Tool
 
 Spatially join polygon attributes (e.g., ecoregion names, administrative
 boundaries, land cover classes) to GEDI shot locations from an H3 database
 or simplified dataset.
-
-Author: Tiago de Conto
-Package: gedih3
 """
 
 import os

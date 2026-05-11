@@ -13,6 +13,10 @@ authors:
     given-names: "Tiago"
     email: "tiagodc@umd.edu"
     affiliation: "University of Maryland"
+  - family-names: "Holcomb"
+    given-names: "Amelia Grace"
+    email: "ameliah@umd.edu"
+    affiliation: "University of Maryland"
 keywords:
   - gedi
   - lidar

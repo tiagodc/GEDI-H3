@@ -8,7 +8,8 @@ version = "0.9.0"
 description = "Access, index, and analyze NASA GEDI LiDAR data with H3 hexagonal spatial indexing and Dask-distributed processing"
 readme = "README.md"
 authors = [
-    {name = "Tiago de Conto", email = "tiagodc@umd.edu"}
+    {name = "Tiago de Conto", email = "tiagodc@umd.edu"},
+    {name = "Amelia Grace Holcomb", email = "ameliah@umd.edu"}
 ]
 license = "LicenseRef-UMD-Source-Available-NonCommercial-1.0"
 requires-python = ">=3.12"

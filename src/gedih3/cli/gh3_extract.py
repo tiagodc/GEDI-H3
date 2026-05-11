@@ -1,13 +1,14 @@
 #! python
 
+# Copyright (C) 2025, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu
+
 """
 GEDI H3/EGI Data Extraction Tool
 
 Extract and filter GEDI shots from H3-indexed parquet database with spatial,
 temporal, and quality filters. Supports H3 or EGI output indexing/partitioning.
-
-Author: Tiago de Conto
-Package: gedih3
 """
 
 import os

@@ -1,14 +1,15 @@
 #! python
 
+# Copyright (C) 2025, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu
+
 """
 GEDI Raster Sampling Tool
 
 Sample raster pixel values at GEDI shot locations from an H3 database or
 simplified dataset. Supports single files, VRT mosaics, and tile directories.
 Optional moving-window statistics (sum, mean, median, mode).
-
-Author: Tiago de Conto
-Package: gedih3
 """
 
 import os
