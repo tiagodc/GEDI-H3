@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.9.0] - 2026-05-11
+
+### Added
+- `parallel_map` helper in `doctor/parallel.py` — auto dask-or-serial work distribution; standard parallelism primitive for distributed diagnoses.
+- A-priori `gedi_vars_static(product, version)` cached lookup from shipped per-product variable manifests in `data/`.
+- SOC manifest sentinel (`_soc_manifest.txt`) — download-side parallel of `_manifest.txt`, refreshed after every download.
+- `h3_columns_dtypes` cached in build log; `gh3_load()` builds Dask `_meta` from cache with zero parquet I/O.
+- Software Design Priorities and reusable utility (DRY anchors) documentation in CLAUDE.md.
+
+### Changed
+- Distributed doctor diagnoses: `parquet_health`, `backfill`, `geoparquet_bbox`, `metadata`, `orphans`, `soc_health`, `log_state` all ship per-partition work to dask workers; O(1) `os.scandir` emptiness checks replace recursive globs.
+- Always-parallel execution paths in doctor, builder, and driver — dropped dual-path branching.
+- Batched dispatch + parallel bbox-fix in doctor for bounded memory and improved throughput.
+- Per-task memory hygiene applied throughout doctor (v0.8.x build-pipeline patterns).
+- Atomic writes for `_write_dataframe` and `_write_egi_file` in export pipeline.
+
+### Fixed
+- Download resume uses `h5_is_valid` to detect truncated `.h5` files left by SIGKILL.
+- Atomic `--report` write in doctor.
+- Wire `--scheduler-address` into a `Client` in doctor — the missing piece for parallelism.
+- Drop the `cross_rg_overlap` proxy diagnosis (100% false positives).
+- Five user-visible bugs from PR #10 review across doctor, logger, and query.
+- Packaging: include `gedih3.doctor` and `gedih3.doctor.diagnoses` subpackages.
+- Ruff E701 in temp-leak test (expand inline try/except).
+
+### Removed
+- Dead helpers in `utils.py` and `doctor`; consolidated SOC manifest handling and DRY-ed arrow-pool drain.
+
 ## [0.8.25] - 2026-05-06
 
 ### Fixed
