@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+
+# Copyright (C) 2025, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at otc@umd.edu
+
 """
 Inspect schema of parquet, feather, geopackage, HDF5 files, or H3 databases.
 
@@ -6,9 +11,6 @@ Read and display column names and data types from output datasets,
 useful for understanding extracted data structure. Supports single
 files, dataset directories, and H3 databases (auto-detects format).
 When no path is given, reads from the default H3 database.
-
-Author: Tiago de Conto
-Package: gedih3
 """
 
 import argparse

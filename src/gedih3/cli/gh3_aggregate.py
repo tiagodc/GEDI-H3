@@ -1,14 +1,15 @@
 #! python
 
+# Copyright (C) 2025, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at otc@umd.edu
+
 """
 GEDI H3/EGI Data Aggregation Tool
 
 Aggregate GEDI shots from H3-indexed parquet database to coarser spatial
 resolutions. Supports H3 hexagonal aggregation or EGI (EASE Grid Index)
 square pixel aggregation for GEDI L4B compatibility.
-
-Author: Tiago de Conto
-Package: gedih3
 """
 
 import os

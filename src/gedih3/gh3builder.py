@@ -1,3 +1,7 @@
+# Copyright (C) 2025, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at otc@umd.edu
+
 import os, re, glob, h5py, h3
 import shutil
 import numpy as np

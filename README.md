@@ -320,6 +320,10 @@ See `pyproject.toml` for the full dependency list.
 
 ---
 
-## License
+## Copyright and License
 
-This project is licensed under the [MIT License](LICENSE).
+Copyright (C) 2025, University of Maryland. All Rights Reserved.
+
+Authors: Tiago de Conto, Amelia Grace Holcomb (University of Maryland).
+
+This software is distributed under the terms in the [LICENSE](LICENSE) file. For commercial licensing inquiries, please contact the University of Maryland's UM Ventures office at [otc@umd.edu](mailto:otc@umd.edu).

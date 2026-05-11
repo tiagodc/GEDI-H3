@@ -1,4 +1,9 @@
 #! python
+
+# Copyright (C) 2025, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at otc@umd.edu
+
 """
 Raster Image Sampling at GEDI Shot Locations
 
@@ -7,9 +12,6 @@ optional moving-window statistics (sum, mean, median, mode).
 
 Supports single raster files, VRT mosaics, and tile directories (auto-mosaicked
 via VRT). Works with both H3 databases and simplified datasets from gh3_extract.
-
-Author: Tiago de Conto
-Package: gedih3
 """
 
 import os

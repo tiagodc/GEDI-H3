@@ -1,4 +1,9 @@
 #! python
+
+# Copyright (C) 2025, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at otc@umd.edu
+
 """
 GEDI H3/EGI Rasterization Tool
 
@@ -12,9 +17,6 @@ is used to approximate hexagonal data on a regular grid.
 IMPORTANT: This tool does NOT perform aggregation. To aggregate raw GEDI
 shots to coarser resolutions before rasterization, use gh3_aggregate first
 (optionally with the --rasterize flag to do both in one step).
-
-Author: Tiago de Conto
-Package: gedih3
 """
 
 import os

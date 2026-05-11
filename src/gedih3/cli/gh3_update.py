@@ -1,5 +1,9 @@
 #! python
 
+# Copyright (C) 2025, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at otc@umd.edu
+
 """
 GEDI Dataset Update Tool
 
@@ -10,9 +14,6 @@ Mode 1: Add columns from the source H3 database via shot_number join.
 Mode 2: Merge columns from another simplified dataset via shot_number join.
 
 Both modes modify the target dataset in place.
-
-Author: Tiago de Conto
-Package: gedih3
 """
 
 import os

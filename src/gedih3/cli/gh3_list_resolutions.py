@@ -1,13 +1,15 @@
 #!/usr/bin/env python
+
+# Copyright (C) 2025, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at otc@umd.edu
+
 """
 Display H3 hexagon or EGI (EASE Grid Index) resolution levels and their characteristics.
 
 Shows average edge length, area, and number of cells for each H3 resolution,
 or pixel size and description for each EGI level, helping users choose
 appropriate resolution and partition levels.
-
-Author: Tiago de Conto
-Package: gedih3
 """
 
 import argparse
