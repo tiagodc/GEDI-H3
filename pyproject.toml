@@ -94,7 +94,15 @@ test = [
 ]
 
 [tool.setuptools]
-packages = ["gedih3", "gedih3.cli", "gedih3.data", "gedih3.egi", "gedih3.raster"]
+packages = [
+    "gedih3",
+    "gedih3.cli",
+    "gedih3.data",
+    "gedih3.doctor",
+    "gedih3.doctor.diagnoses",
+    "gedih3.egi",
+    "gedih3.raster",
+]
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]

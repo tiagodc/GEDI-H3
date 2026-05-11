@@ -140,7 +140,31 @@ def main():
 
     setup_storage(args, logger=logger)
 
-    with cli_exception_handler(args, logger=logger):
+    # Always create a dask Client so every diagnosis dispatches through
+    # the same code path. ``parse_dask_args`` returns the address of a
+    # remote scheduler when ``--scheduler-address`` is given, otherwise
+    # the kwargs (n_workers / threads / memory) for a transient
+    # LocalCluster. The doctor's ``parallel_map`` primitive assumes a
+    # Client is registered — keeping CLI startup uniform with every
+    # other gedih3 tool (gh3_extract, gh3_aggregate, gh3_build, …)
+    # eliminates the dual-path "serial fallback" that used to ship
+    # whenever a user invoked the doctor without ``-s``.
+    from dask.distributed import Client
+    dask_kwargs = parse_dask_args(args)
+    if dask_kwargs.get('address'):
+        logger.info(f"Connecting to dask cluster: {dask_kwargs['address']}")
+    else:
+        logger.info(
+            f"Spinning up local dask cluster ({args.cores} workers, "
+            f"{args.threads} threads/worker)"
+        )
+
+    with Client(**dask_kwargs) as _client, cli_exception_handler(args, logger=logger):
+        try:
+            logger.info(f"Dask dashboard available at: {_client.dashboard_link}")
+        except Exception:
+            pass
+
         # Load the build log (lazy upgrade applied automatically). If absent,
         # most diagnoses still work — they fall back to filesystem inspection.
         try:
@@ -219,12 +243,16 @@ def main():
             _print_upstream(ctx.upstream, logger)
 
         if args.report:
+            from gedih3.utils import AtomicFileWriter
             payload = {
                 'reports': [r.to_dict() for r in reports_to_emit],
                 'upstream': ctx.upstream.to_dict() if ctx.upstream is not None else None,
             }
-            with open(args.report, 'w') as f:
-                json.dump(payload, f, indent=2, default=str)
+            # Atomic write so an interrupted run leaves no half-written
+            # report file at the user's target path.
+            with AtomicFileWriter(args.report) as tmp:
+                with open(tmp, 'w') as f:
+                    json.dump(payload, f, indent=2, default=str)
             logger.info(f"Wrote report: {args.report}")
 
         worst = _worst_severity(reports_to_emit)

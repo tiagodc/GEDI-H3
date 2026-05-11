@@ -11,7 +11,7 @@ import os
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from ..config import PARTITION_META_FILENAME
-from ..utils import json_read
+from ..utils import json_read, release_arrow_pool
 
 GranuleKey = Tuple[int, int, int]   # (orbit, orbit_granule, track)
 
@@ -65,6 +65,21 @@ def per_granule_null_counts(
     identifiers stored in partition metadata exactly, avoiding any shot_number
     decoding ambiguity.
 
+    Memory pillar (v0.8.x lessons applied):
+      * **Streamed row-group at a time** via ``pq.ParquetFile.iter_batches``
+        with ``pre_buffer=True`` and a small ``batch_size`` — not the full
+        ``pd.read_parquet(columns=cols_to_read)`` that used to materialize
+        every product column × millions of rows in one shot (multiple GB
+        per file on continental partitions).
+      * Each batch's null counts are aggregated into a small accumulator
+        dict (``O(num_granules × num_products)``) and the batch is dropped
+        before the next is read — so worker RSS is bounded by one batch
+        regardless of file size.
+      * Native arrow null counting + ``groupby`` on a per-batch
+        DataFrame; no full-file ``isnull().any(axis=1)`` allocation.
+      * ``pa.default_memory_pool().release_unused()`` at end so the
+        worker doesn't drag transient buffers into the next task.
+
     Parameters
     ----------
     parquet_file : str
@@ -81,7 +96,7 @@ def per_granule_null_counts(
         ``{(orbit, orbit_granule, track): {product_code: null_count}}``. Only
         granule × product combos with at least one null are returned.
     """
-    import pandas as pd
+    import pyarrow.parquet as pq
     from ..gedidriver import GEDIFile
 
     cols_to_read = ['shot_number', 'root_file_l2a']
@@ -89,32 +104,66 @@ def per_granule_null_counts(
         cols_to_read.extend(cols)
     cols_to_read = list(dict.fromkeys(cols_to_read))
 
-    df = pd.read_parquet(parquet_file, columns=cols_to_read)
-    if df.empty:
-        return {}
-
-    if 'root_file_l2a' not in df.columns:
-        return {}
-
     if granule_lookup is None:
         granule_lookup = {}
     out: Dict[GranuleKey, Dict[str, int]] = {}
 
-    for prod, cols in product_columns.items():
-        present_cols = [c for c in cols if c in df.columns]
-        if not present_cols:
-            continue
-        null_mask = df[present_cols].isnull().any(axis=1)
-        if not null_mask.any():
-            continue
-        nulls_by_file = df.loc[null_mask].groupby('root_file_l2a').size()
-        for fname, count in nulls_by_file.items():
-            key = granule_lookup.get(fname)
-            if key is None:
-                gf = GEDIFile(fname)
-                key = (gf.orbit, gf.orbit_granule, gf.track)
-                granule_lookup[fname] = key
-            out.setdefault(key, {})[prod] = int(count)
+    pf = None
+    try:
+        pf = pq.ParquetFile(parquet_file, pre_buffer=True)
+        schema_names = set(pf.schema_arrow.names)
+        if 'root_file_l2a' not in schema_names:
+            return {}
+
+        # Drop columns the file doesn't carry (bare-DB partitions for
+        # products that haven't been merged in yet).
+        cols_actually_present = [c for c in cols_to_read if c in schema_names]
+        if 'root_file_l2a' not in cols_actually_present:
+            return {}
+
+        # Per-product list of columns that exist in this file. Computed
+        # once before the iter_batches loop.
+        present_per_product = {
+            prod: [c for c in cols if c in schema_names]
+            for prod, cols in product_columns.items()
+        }
+        present_per_product = {p: cs for p, cs in present_per_product.items() if cs}
+        if not present_per_product:
+            return {}
+
+        for batch in pf.iter_batches(
+            batch_size=50_000,
+            columns=cols_actually_present,
+            use_threads=False,
+        ):
+            # Convert to pandas only for the per-batch groupby — the
+            # whole-file equivalent was the memory hog.
+            df = batch.to_pandas()
+            if df.empty:
+                del df, batch
+                continue
+            for prod, present_cols in present_per_product.items():
+                null_mask = df[present_cols].isnull().any(axis=1)
+                if not null_mask.any():
+                    continue
+                nulls_by_file = df.loc[null_mask].groupby('root_file_l2a').size()
+                for fname, count in nulls_by_file.items():
+                    key = granule_lookup.get(fname)
+                    if key is None:
+                        gf = GEDIFile(fname)
+                        key = (gf.orbit, gf.orbit_granule, gf.track)
+                        granule_lookup[fname] = key
+                    cur = out.setdefault(key, {})
+                    cur[prod] = cur.get(prod, 0) + int(count)
+            del df, batch
+    finally:
+        if pf is not None:
+            try:
+                pf.close()
+            except Exception:
+                pass
+            del pf
+        release_arrow_pool()
 
     return out
 

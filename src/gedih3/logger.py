@@ -6,7 +6,7 @@ from .config import GEDI_PRODUCTS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_SOC_DIR
 from .exceptions import GediValidationError
 from .utils import now, json_read, json_write, read_vector_file, to_geojson, from_geojson, parse_spatial, merge_spatial, parse_temporal, get_package_version
 from .h3utils import intersect_h3_geometries
-from .gedidriver import GEDIFile, gedi_vars_expand, soc_file_tree, check_soc_file_vars, validate_soc_files
+from .gedidriver import GEDIFile, gedi_vars_expand, soc_file_tree, check_soc_file_vars, validate_soc_files, write_soc_manifest
 from .gh3driver import gh3_list_files
 
 _VALID_STATUSES = (
@@ -223,8 +223,27 @@ class SOCDownloadLogger:
                 break
 
     def set_post_download_info(self):
-        """Scan SOC directory and record downloaded granules."""
+        """Scan SOC directory and record downloaded granules.
+
+        Refreshes ``_soc_manifest.txt`` first so subsequent
+        ``soc_file_tree`` calls (here and on the next resume) skip the
+        recursive glob over the SOC tree. This is the same pattern the
+        H3 database uses via ``MANIFEST_FILENAME``.
+        """
+        try:
+            n_files = write_soc_manifest(self._PARENT_DIR)
+        except OSError:
+            # Manifest is an optimization, not a correctness gate; if the
+            # SOC root is read-only or transiently unavailable the
+            # downstream glob fallback still produces correct results.
+            # Defer the count to the post-glob fallback below.
+            n_files = None
         soc_files = soc_file_tree(self._PARENT_DIR, to_list=True)
+        if n_files is None:
+            # Manifest write failed; recover the count from the discovery
+            # step so downstream summary lines stay correct.
+            n_files = sum(len(d) for d in soc_files)
+        self.n_files = n_files
         granule_info = []
         for soc in soc_files:
             first_file = list(soc.values())[0]
@@ -404,6 +423,9 @@ class H3BuildLogger:
         if 'h3_columns' in self.log_data:
             self.h3_columns = self.log_data.get('h3_columns')
 
+        if 'h3_columns_dtypes' in self.log_data:
+            self.h3_columns_dtypes = dict(self.log_data.get('h3_columns_dtypes') or {})
+
         if 'h3_partition_ids' in self.log_data:
             self.h3_partition_ids = self.log_data.get('h3_partition_ids')
 
@@ -549,6 +571,15 @@ class H3BuildLogger:
         # Used to derive per-granule per-product status (INDEXED vs MISSING_COLUMN).
         active_products = set(self.product_vars.keys())
         gran_observed_products = {}
+        # Schema accumulators: track the union of columns observed and
+        # the first non-empty per-column dtype map. Aggregating inside
+        # the loop (rather than reading the last fmeta) survives mixed
+        # builds where some partitions predate ``column_dtypes`` — the
+        # last metadata in glob order may be a legacy partition without
+        # the field, and reading from it would silently zero the cache
+        # for the whole DB.
+        observed_columns: set = set()
+        observed_dtypes: dict = {}
 
         for f in metadata_files:
             fmeta = json_read(f)
@@ -577,8 +608,22 @@ class H3BuildLogger:
             if self.gedi_version is None:
                 self.gedi_version = fmeta.get('l2a_version')
 
+            # Column / dtype aggregation. Post-merge invariant says all
+            # partitions share an identical schema, so this is the
+            # union — partitions that don't carry ``column_dtypes`` (a
+            # newer field) just don't contribute, and partitions that
+            # do are merged-in. We never overwrite an existing dtype:
+            # the first non-empty observation wins to keep behavior
+            # deterministic across re-runs of set_post_build_info.
+            observed_columns.update(cols)
+            cd = fmeta.get('column_dtypes') or {}
+            for col_name, dtype in cd.items():
+                observed_dtypes.setdefault(col_name, dtype)
+
         self.date_range = (date_min, date_max)
-        self.h3_columns = sorted(fmeta.get('columns', []))
+        self.h3_columns = sorted(observed_columns)
+        # Empty dict when every partition metadata predates this field.
+        self.h3_columns_dtypes = dict(observed_dtypes)
         self.h3_partition_ids = sorted(h3_parts)
 
         # Merge with existing tracked granules (preserve PENDING for unindexed)
@@ -659,6 +704,9 @@ class H3BuildLogger:
 
         if hasattr(self, 'h3_columns'):
             log_dict['h3_columns'] = self.h3_columns
+
+        if getattr(self, 'h3_columns_dtypes', None):
+            log_dict['h3_columns_dtypes'] = self.h3_columns_dtypes
 
         if hasattr(self, 'h3_partition_ids'):
             log_dict['h3_partition_ids'] = self.h3_partition_ids

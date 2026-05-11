@@ -1,4 +1,4 @@
-import os, re, glob, json, h5py, h3
+import os, re, glob, h5py, h3
 import shutil
 import numpy as np
 import pandas as pd
@@ -14,13 +14,13 @@ from earthaccess.store import EarthAccessFile
 from dask.distributed import progress
 
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME, _get_versioned, _GEDI_L2A_ESSENTIALS, _PRODUCT_QUALITY_FLAGS
-from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, parquet_schema_add_bbox, generate_manifest, check_nan_only_columns, h3_partition_bbox, parse_h3_partition_dirname
+from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, generate_manifest, check_nan_only_columns, h3_partition_bbox, parse_h3_partition_dirname
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
-from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_subset, validate_soc_files, load_h5, expand_var_wildcards
+from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_vars_static, gedi_subset, validate_soc_files, load_h5, expand_var_wildcards
 from .daac import gedi_download
 from .logging_config import get_logger
 from .validation import validate_h3_params, validate_product_vars, validate_directory_exists
-from .exceptions import H3ValidationError, GediValidationError, GediFileError, GediMergeError
+from .exceptions import H3ValidationError, GediValidationError, GediFileError, GediMergeError, GediError
 
 logger = get_logger(__name__)
 
@@ -185,7 +185,12 @@ def _subset_s3_file(granule, prod, product_vars, odir, file_idx, n_files):
     else:
         vars_for_prod = product_vars.get(prod)
         if vars_for_prod is None:
-            vars_for_prod = gedi_vars_from_h5(s3_file)
+            # NASA release file on S3 → static manifest is canonical and free.
+            # Falls back to remote H5 enumeration if no manifest ships for
+            # this (product, version).
+            vars_for_prod = gedi_vars_static(prod, version=gf.version)
+            if vars_for_prod is None:
+                vars_for_prod = gedi_vars_from_h5(s3_file)
 
     logger.info(f"[{file_idx}/{n_files}] Subsetting {gf.full_name} ({len(vars_for_prod)} vars)")
     try:
@@ -263,16 +268,25 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
         prod_version = version if version is not None else GEDI_PRODUCTS.get(prod.upper(), {}).get('version')
         gass.search_data(product=prod, version=prod_version)
 
-    # Resolve None variables (dump all) by opening one S3 handle to discover schema
+    # Resolve None variables (dump all) from the static per-product manifest;
+    # NASA release files on S3 share the canonical schema, so no remote
+    # HDF5 metadata round-trip is needed. Falls back to opening one S3
+    # handle if no manifest ships for this (product, version).
     for prod, prod_vars in product_vars.items():
         if prod_vars is not None:
             continue
         granules = gass.product_files.get(prod, [])
-        if granules:
-            s3_files = gass.link_s3(product=prod)
-            if s3_files:
-                product_vars[prod] = gedi_vars_from_h5(s3_files[0])
-                logger.info(f"Discovered {len(product_vars[prod])} variables for {prod}")
+        if not granules:
+            continue
+        static_vars = gedi_vars_static(prod, version=version)
+        if static_vars is not None:
+            product_vars[prod] = static_vars
+            logger.info(f"Discovered {len(product_vars[prod])} variables for {prod} (static manifest)")
+            continue
+        s3_files = gass.link_s3(product=prod)
+        if s3_files:
+            product_vars[prod] = gedi_vars_from_h5(s3_files[0])
+            logger.info(f"Discovered {len(product_vars[prod])} variables for {prod} (HDF5 introspection)")
 
     # Build flat task list of (granule, product) from search results
     os.makedirs(odir, exist_ok=True)
@@ -285,56 +299,40 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
     if n_files == 0:
         raise GediFileError("No GEDI files found on S3 for the given parameters")
 
-    # Dispatch to Dask workers (true multiprocessing, GIL-free)
-    # Falls back to ProcessPoolExecutor when no Dask cluster is available
+    # Always-parallel dispatch to Dask workers (true multiprocessing,
+    # GIL-free). gedih3 CLIs (gh3_build, gh3_doctor, …) all create a
+    # Client at startup, so this assertion fires only for direct
+    # library/notebook callers — which can wrap in ``with Client(...)``.
     client = get_dask_client()
+    if client is None:
+        raise GediError(
+            "s3_etl_subset requires a registered dask.distributed Client. "
+            "CLI tools create one at startup; library callers must wrap "
+            "in `with dask.distributed.Client(...) as client: ...`."
+        )
 
     completed_count = 0
     failed = 0
+    n_workers = sum(client.nthreads().values())
+    logger.info(f"Subsetting {n_files} files from S3 with Dask ({n_workers} workers)")
 
-    if client is not None:
-        n_workers = sum(client.nthreads().values())
-        logger.info(f"Subsetting {n_files} files from S3 with Dask ({n_workers} workers)")
+    client.run(_init_earthaccess_worker)
 
-        client.run(_init_earthaccess_worker)
+    futures = [
+        client.submit(
+            _subset_s3_file, granule, prod, product_vars,
+            odir, idx + 1, n_files, pure=False,
+        )
+        for idx, (granule, prod) in enumerate(tasks)
+    ]
 
-        futures = [
-            client.submit(
-                _subset_s3_file, granule, prod, product_vars,
-                odir, idx + 1, n_files, pure=False,
-            )
-            for idx, (granule, prod) in enumerate(tasks)
-        ]
-
-        from distributed import as_completed as dask_as_completed
-        for future, result in dask_as_completed(futures, with_results=True):
-            completed_count += 1
-            if result is None:
-                failed += 1
-            if completed_count % 10 == 0 or completed_count == n_files:
-                logger.info(f"S3 ETL progress: {completed_count}/{n_files} files ({failed} failed)")
-    else:
-        # Fallback: ProcessPoolExecutor (no Dask cluster available)
-        from concurrent.futures import ProcessPoolExecutor, as_completed
-
-        n_workers = min(5, n_files)
-        logger.info(f"Subsetting {n_files} files from S3 with {n_workers} processes (no Dask cluster)")
-
-        with ProcessPoolExecutor(max_workers=n_workers) as pool:
-            future_map = {
-                pool.submit(
-                    _subset_s3_file, granule, prod, product_vars,
-                    odir, idx + 1, n_files,
-                ): idx
-                for idx, (granule, prod) in enumerate(tasks)
-            }
-            for future in as_completed(future_map):
-                result = future.result()
-                completed_count += 1
-                if result is None:
-                    failed += 1
-                if completed_count % 10 == 0 or completed_count == n_files:
-                    logger.info(f"S3 ETL progress: {completed_count}/{n_files} files ({failed} failed)")
+    from distributed import as_completed as dask_as_completed
+    for future, result in dask_as_completed(futures, with_results=True):
+        completed_count += 1
+        if result is None:
+            failed += 1
+        if completed_count % 10 == 0 or completed_count == n_files:
+            logger.info(f"S3 ETL progress: {completed_count}/{n_files} files ({failed} failed)")
 
     if failed > 0:
         logger.warning(f"S3 ETL completed with {failed}/{n_files} failures")
@@ -471,7 +469,12 @@ def h3_write_metadata(h3_file, stats=None):
         'shot_range': shot_range,
         'date_range': date_range,
         'granules': granule_identifiers,
-        'columns': cols['column'].tolist()
+        'columns': cols['column'].tolist(),
+        # Per-column pyarrow dtype string (e.g. 'int64', 'double',
+        # 'binary', 'timestamp[ns]'). Aggregated upstream into the
+        # build log's h3_columns_dtypes field so the query path can
+        # build a Dask _meta without sampling a parquet file.
+        'column_dtypes': dict(zip(cols['column'].tolist(), cols['dtype'].tolist())),
     }
 
     json_write(meta, meta_file, rewrite=True)
@@ -1919,68 +1922,6 @@ def build_h3db(
             logger.debug(f"Cleaning up S3 temp directory: {_s3_tmp_dir}")
             shutil.rmtree(_s3_tmp_dir, ignore_errors=True)
 
-def build_parquet_metadata(gh3_dir):
-    """
-    Build ``_metadata`` and ``_common_metadata`` files for an H3 database.
-
-    Scans all parquet files in the database, collects their row-group
-    metadata, computes a merged bounding box from per-file geo metadata,
-    and writes the consolidated PyArrow metadata files used by Dask and
-    other tools for efficient partition discovery.
-
-    Parameters
-    ----------
-    gh3_dir : str
-        Root directory of the H3 parquet database.
-
-    Returns
-    -------
-    None
-        Writes ``_metadata`` and ``_common_metadata`` files to ``gh3_dir``.
-        Returns early with no output if the directory contains no parquet
-        files.
-    """
-    h3_files = glob.glob(os.path.join(gh3_dir,'**','*.parquet'), recursive=True)
-    
-    if len(h3_files) == 0:
-        return    
-    
-    def _pq_meta(h3_file):
-        pq_metadata = pq.read_metadata(h3_file)
-        rel_path = os.path.relpath(h3_file, gh3_dir)
-        pq_metadata.set_file_path(rel_path)
-        return pq_metadata
-    
-    meta_task = dbg.from_sequence(h3_files, partition_size=10).map(_pq_meta).persist()
-    progress(meta_task)
-    h3_metas = list(meta_task.compute())
-    del meta_task
-    base_schema = pq.read_schema(h3_files[0])
-
-    merged_bbox = None
-    if b'geo' in base_schema.metadata:
-        def _get_box(pq_metadata):
-            if b'geo' in pq_metadata.metadata:
-                return json.loads(pq_metadata.metadata[b'geo'])['columns']['geometry']['bbox']
-            return None
-
-        bbox_task = (dbg.from_sequence(h3_metas, partition_size=100)
-                       .map(_get_box).filter(lambda x: x is not None).persist())
-        progress(bbox_task)
-        meta_boxes = list(bbox_task.compute())
-        del bbox_task
-        meta_boxes = np.array(meta_boxes)
-        merged_bbox = meta_boxes[:,:2].min(axis=0).tolist() + meta_boxes[:,2:].max(axis=0).tolist()
-        del meta_boxes
-    
-    base_schema = parquet_schema_add_bbox(base_schema, bbox=merged_bbox)
-    pq.write_metadata(schema=base_schema, where=os.path.join(gh3_dir, '_metadata'))
-    
-    cmeta = pq.ParquetDataset(h3_files)
-    cmeta_schema = parquet_schema_add_bbox(cmeta.schema, bbox=merged_bbox)
-    pq.write_metadata(schema=cmeta_schema, where=os.path.join(gh3_dir, '_common_metadata'))
-
-
 def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> dict:
     """
     Merge two build log files from separate databases.
@@ -2080,6 +2021,15 @@ def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> 
     merged_cols = sorted(list(cols_1 | cols_2))
     if merged_cols:
         merged_log['h3_columns'] = merged_cols
+
+    # Merge h3_columns_dtypes (post-merge invariant: identical schema
+    # across partitions, so the two logs should agree on overlapping
+    # columns; later log wins on conflict, matching merge_build_logs'
+    # general "log2 augments log1" semantics).
+    dtypes_1 = log1.get('h3_columns_dtypes') or {}
+    dtypes_2 = log2.get('h3_columns_dtypes') or {}
+    if dtypes_1 or dtypes_2:
+        merged_log['h3_columns_dtypes'] = {**dtypes_1, **dtypes_2}
     
     # Merge h3_partition_ids (deduplicate and sort)
     parts_1 = set(log1.get('h3_partition_ids', []))
