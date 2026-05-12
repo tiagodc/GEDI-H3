@@ -9,6 +9,24 @@ from gedih3.gedidriver import soc_file_tree, check_soc_file_vars, validate_soc_f
 from gedih3.config import get_default_vars_file
 
 
+# ``soc_file_tree``'s no-manifest fallback now uses ``walk_soc_parallel``
+# (per the R2 + always-parallel refactor), which requires a registered
+# dask Client. Module-scope autouse fixture so every test in this file
+# has one without needing to declare it individually. The cluster is
+# tiny + threaded to stay cheap.
+@pytest.fixture(scope='module', autouse=True)
+def _module_dask_client():
+    from dask.distributed import LocalCluster, Client
+    cluster = LocalCluster(
+        n_workers=2, threads_per_worker=1,
+        processes=False, dashboard_address=None, silence_logs='ERROR',
+    )
+    client = Client(cluster)
+    yield client
+    client.close()
+    cluster.close()
+
+
 # Filenames that follow the canonical GEDI release naming convention.
 _RELEASE_NAMES = [
     'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5',

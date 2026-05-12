@@ -295,21 +295,22 @@ def main():
             # Validate/download SOC data when using local directory mode
             if soc_source is not None:
                 os.makedirs(soc_source, exist_ok=True)
-                existing_h5 = glob.glob(os.path.join(soc_source, '**', 'GEDI*.h5'), recursive=True)
+                # Parallel year/doy walk on the dask cluster — the serial
+                # recursive glob the prior implementation used was the
+                # dominant cost of `gh3_build` resume on multi-million-
+                # file SOC trees. ``walk_soc_parallel`` pushes the doy-
+                # level scandir to workers and applies the exclude filter
+                # locally so we never ship excluded paths back to the
+                # driver.
+                from gedih3.parallel import walk_soc_parallel
+                existing_h5 = walk_soc_parallel(
+                    soc_source, pattern='GEDI*.h5', exclude=args.exclude,
+                )
                 if args.exclude:
-                    # Single user-facing summary of the exclusion. soc_file_tree
-                    # applies the same fnmatch filter on every later call but
-                    # is silent about it to avoid duplicate log lines.
-                    import fnmatch as _fn
-                    before = len(existing_h5)
-                    existing_h5 = [
-                        p for p in existing_h5
-                        if not any(_fn.fnmatch(os.path.basename(p), pat) for pat in args.exclude)
-                    ]
-                    if len(existing_h5) < before:
-                        logger.info(
-                            f"Excluded {before - len(existing_h5)} HDF5 files matching {args.exclude}"
-                        )
+                    logger.info(
+                        f"Listed {len(existing_h5)} HDF5 files in {soc_source} "
+                        f"(exclude filters: {args.exclude})"
+                    )
 
                 def _validate_existing_h5(product_vars, soc_dir):
                     """Validate requested products/variables exist in HDF5 files. Exits on mismatch.
@@ -458,6 +459,17 @@ def main():
                     logger.info("Note: using only existing data (add --download to fetch missing data)")
                     logger.info("Validating product variables in existing HDF5 files")
                     _validate_existing_h5(h3_logger.get_product_vars(), soc_source)
+
+                    # Opportunistic SOC manifest refresh: we have the
+                    # file list in memory from the parallel walk above,
+                    # so persisting the sentinel is free. Closes the
+                    # "tree populated externally (NASA delivery, manual
+                    # rsync) and gh3_download was never run" gap that
+                    # left every consumer paying the recursive walk.
+                    from gedih3.gedidriver import write_soc_manifest
+                    n_written = write_soc_manifest(soc_source, files=existing_h5)
+                    if n_written:
+                        logger.info(f"SOC manifest refreshed ({n_written} files)")
 
             # ── Resume shortcut: skip reconcile + extract on merge-resume ──
             # If a previous run finished extract and was killed during merge,

@@ -212,6 +212,26 @@ def orphans_fix(ctx: DoctorContext, report: Report) -> Report:
     if removed_partitions:
         ctx.partition_dirs = [d for d in ctx.partition_dirs if d.rstrip('/').rstrip(os.sep) not in removed_partitions]
 
+    # R2 producer-driven refresh: if any partition dirs or files were
+    # removed, regenerate the H3 manifest so future consumers don't
+    # see ghost entries pointing at deleted paths.
+    removed_anything = any(
+        x.get('action') in ('deleted', 'removed') for x in fixed
+    )
+    if removed_anything:
+        from ...utils import generate_manifest
+        try:
+            generate_manifest(ctx.h3_dir, tree_shape='h3db')
+        except Exception as e:
+            # Non-fatal: log but don't fail the fix report. The smoke
+            # check at next consumer entry will surface the stale state
+            # loudly.
+            from ...logging_config import get_logger
+            get_logger(__name__).warning(
+                f"orphans_fix: manifest regeneration failed: "
+                f"{type(e).__name__}: {e}"
+            )
+
     return report
 
 

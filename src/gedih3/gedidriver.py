@@ -93,26 +93,39 @@ def _read_soc_manifest(soc_dir: str) -> Optional[List[str]]:
     return [os.path.join(root, rel) for rel in rels]
 
 
-def write_soc_manifest(soc_dir: str) -> int:
+def write_soc_manifest(soc_dir: str, files=None) -> int:
     """(Re)generate the SOC manifest sentinel by walking *soc_dir* once.
 
-    Cheaper than letting every consumer re-walk the SOC tree on every
-    invocation. Returns the number of files written to the manifest (0
-    when *soc_dir* is missing / empty). Thin wrapper around the shared
-    :func:`gedih3.utils.generate_manifest`, which handles the atomic
-    ``.tmp`` + ``os.replace`` write and the manifest-cache invalidation.
+    Producer-driven refresh (R2): every code path that mutates a SOC
+    tree (`gh3_download`, `gh3_build --download`, `s3_etl_subset`,
+    `gh3_build -i` exit, `gh3_doctor --fix soc_health`) calls this on
+    exit. Cheaper than letting every consumer re-walk the tree.
+
+    Walks the SOC tree in parallel via
+    :func:`gedih3.parallel.walk_soc_parallel` (year/doy fan-out on the
+    registered dask Client). Returns the number of files written to
+    the manifest (0 when *soc_dir* is missing / empty).
+
+    Parameters
+    ----------
+    soc_dir
+        SOC root directory.
+    files : list[str], optional
+        Pre-computed absolute file list to use instead of walking. When
+        the caller has already enumerated the tree (e.g.
+        `cli/gh3_build.py` after its existing-h5 listing), passing the
+        list here avoids the redundant parallel walk.
     """
     if not os.path.isdir(soc_dir):
         return 0
-    # Empty-dir contract preserved: generate_manifest writes an empty
-    # file when no matches; the prior SOC implementation early-returned
-    # without writing. Match that contract by checking up front.
-    files = sorted(glob.glob(os.path.join(soc_dir, '**', 'GEDI*.h5'),
-                             recursive=True))
+    if files is None:
+        from .parallel import walk_soc_parallel
+        files = walk_soc_parallel(soc_dir, pattern='GEDI*.h5')
     if not files:
         return 0
-    generate_manifest(soc_dir, pattern='**/GEDI*.h5',
-                      manifest_filename=SOC_MANIFEST_FILENAME)
+    generate_manifest(soc_dir, pattern='GEDI*.h5',
+                      manifest_filename=SOC_MANIFEST_FILENAME,
+                      tree_shape='soc', files=files)
     return len(files)
 
 
@@ -175,7 +188,13 @@ def soc_file_tree(
                 if fnmatch.fnmatch(os.path.basename(p), glob_pattern)
             ]
         else:
-            file_list = glob.glob(os.path.join(file_struct, '**', glob_pattern), recursive=True)
+            # No manifest — fall back to a parallel year/doy walk. The
+            # serial recursive glob the prior implementation used was the
+            # dominant cost of `gh3_build` resume on multi-million-file
+            # SOC trees (5–15 min on cold GPFS). The parallel walk uses
+            # the same dask Client every CLI tool already establishes.
+            from .parallel import walk_soc_parallel
+            file_list = walk_soc_parallel(file_struct, pattern=glob_pattern)
     elif (direct_access := isinstance(file_struct[0], EarthAccessFile)):
         file_list = [i.path for i in file_struct]
     elif isinstance(file_struct[0], str):

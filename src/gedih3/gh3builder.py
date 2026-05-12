@@ -341,6 +341,15 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
     if failed > 0:
         logger.warning(f"S3 ETL completed with {failed}/{n_files} failures")
 
+    # R2 producer-driven refresh: s3_etl_subset writes HDF5s to the SOC
+    # tree, so it must persist the manifest before returning. Without
+    # this, the next consumer (gh3_build, gh3_doctor) re-pays the
+    # multi-million-file recursive glob on cold GPFS.
+    from .gedidriver import write_soc_manifest
+    n_manifest = write_soc_manifest(odir)
+    if n_manifest:
+        logger.info(f"SOC manifest refreshed ({n_manifest} files)")
+
     return odir
 
 
@@ -1501,7 +1510,7 @@ def _merge_and_finalize(
 
     # Generate manifest for accelerated file listing
     logger.info("Generating file manifest")
-    generate_manifest(h3_dir)
+    generate_manifest(h3_dir, tree_shape='h3db')
 
     return h3_files
 
@@ -1706,7 +1715,7 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     logger.info(f"Updated {len(updated_files)}/{len(h3_subdirs)} partitions with new variables")
 
     # Regenerate manifest
-    generate_manifest(h3_dir)
+    generate_manifest(h3_dir, tree_shape='h3db')
 
     return updated_files if updated_files else None
 
