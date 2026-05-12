@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.9.2] - 2026-05-12
+
+### Added
+- New `gedih3.parallel` module: `parallel_map` (promoted from `doctor/parallel.py` with lazy `get_dask_client` import to break the utils ↔ parallel cycle), three parallel walker primitives (`walk_soc_parallel` year/doy, `walk_h3db_parallel` per `h3_NN=*` partition, `walk_flat_parallel` single dir), and `check_manifest_freshness` constant-time mtime smoke test. All walkers are always-parallel; fail-loud on any worker exception so a partial manifest is never written.
+- `generate_manifest` now accepts `tree_shape='h3db'|'soc'|'flat'` and an optional pre-computed `files=` list; `write_soc_manifest` also accepts `files=` so `gh3_build -i` can persist the manifest from its in-memory listing at zero extra cost.
+
+### Changed
+- Manifest writers now use the dask cluster — driver-side serial recursive globs over multi-million-file SOC/H3 trees are replaced by per-leaf parallel scans. Cold-GPFS resume walks drop from minutes to ~5-15s.
+- `soc_file_tree` no-manifest fallback uses `walk_soc_parallel`; the `cli/gh3_build.py` `existing_h5` listing on resume uses it too.
+- Producer-driven manifest invariant (R2) enforced across the package: every code path that mutates the SOC or H3 tree refreshes the corresponding manifest at exit. New refresh sites: `s3_etl_subset`, `gh3_build -i` (opportunistic), `gh3_doctor --fix orphans` after removal. `_read_manifest` now performs a constant-time mtime smoke test against the root dir and logs a loud ERROR pointing at the relevant `gh3_doctor --fix` remedy when a producer crashed or files were dropped in externally.
+- `doctor/parallel.py` is now a thin shim re-exporting `parallel_map` from `gedih3.parallel`; its doctor-internal scandir helpers stay in place.
+
 ## [0.9.1] - 2026-05-12
 
 ### Changed
