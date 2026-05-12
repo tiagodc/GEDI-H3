@@ -1,4 +1,4 @@
-# Copyright (C) 2025, University of Maryland. All Rights Reserved.
+# Copyright (C) 2026, University of Maryland. All Rights Reserved.
 # Authors: Tiago de Conto, Amelia Grace Holcomb
 # For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu
 
@@ -22,7 +22,7 @@ Examples
 __version__ = "0.9.0"
 __author__ = "Tiago de Conto and Amelia Grace Holcomb"
 __email__ = "tiagodc@umd.edu"
-__copyright__ = "(C) 2025, University of Maryland. All Rights Reserved."
+__copyright__ = "(C) 2026, University of Maryland. All Rights Reserved."
 
 # --- Config & environment ---------------------------------------------------
 from .config import (

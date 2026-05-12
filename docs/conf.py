@@ -3,7 +3,7 @@ import sys
 
 # -- Project information -----------------------------------------------------
 project = "gedih3"
-copyright = "2025, University of Maryland. All Rights Reserved"
+copyright = "2026, University of Maryland. All Rights Reserved"
 author = "Tiago de Conto and Amelia Grace Holcomb"
 release = "0.9.0"
 
