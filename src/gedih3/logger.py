@@ -354,6 +354,21 @@ class H3BuildLogger:
         if dir is not None:
             self._PARENT_DIR = dir
 
+        # Capture which products were requested via the `default` keyword
+        # before expansion replaces it with the literal manifest list. This
+        # is the bit the resume-path validator gate needs in `gh3_build.py`:
+        # only the static manifest in `src/gedih3/data/GEDI0*_DATASETS_*.txt`
+        # is the contract for a `default` request; any other shape (explicit
+        # list, file path, `*`/`all`, or unmodified resume) treats the build
+        # log as authoritative and skips manifest consultation entirely.
+        # Runtime-only — never persisted to disk.
+        self.default_products = {
+            prod for prod, v in (product_vars or {}).items()
+            if isinstance(v, list) and any(
+                isinstance(s, str) and s in ('default', 'def') for s in v
+            )
+        }
+
         if product_vars:
             product_vars = gedi_vars_expand(product_vars, version=version)
 

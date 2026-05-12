@@ -352,30 +352,35 @@ def _check_soc_file_vars(soc_file, available_products):
 def validate_soc_files(product_vars: Dict, soc_dir: str = GH3_DEFAULT_SOC_DIR,
                         version: Optional[int] = None,
                         exclude: Optional[List[str]] = None):
+    """Validate ``product_vars`` against the shipped static manifests.
+
+    Only authoritative for **canonical NASA release files** validated against
+    the per-product manifest in ``src/gedih3/data/GEDI*_DATASETS_*.txt`` —
+    that is, for the fresh-build ``default`` request (Regime A) or for a
+    resume where the user explicitly re-requests ``default`` for a product
+    (Regime C). On all other resume paths the build log is the contract,
+    and ``gh3_build.py`` bypasses this check entirely. Callers are
+    responsible for filtering ``product_vars`` to only the products they
+    actually want to validate against the static manifest — passing the
+    full union of existing + new vars on a resume will produce false
+    negatives whenever the shipped manifest has drifted relative to the
+    list saved in the build log.
+    """
     glob_kwargs = {'version': version} if version is not None else None
     soc_files = soc_file_tree(soc_dir, to_list=True, glob_kwargs=glob_kwargs, exclude=exclude)
 
     if not soc_files:
         return False, {"error": "No SOC files found in directory"}
 
-    # The package ships authoritative per-product per-version manifests
-    # (src/gedih3/data/GEDI*_DATASETS_*.txt). NASA release files of the
-    # same product+version always have the same dataset schema, so a
-    # static lookup gives identical answers to (and replaces) the prior
-    # per-file HDF5 metadata scan. Per-partition build errors are still
-    # tolerated by _load_h5_merged below, so this function only has to
-    # catch user-side typos in requested variable names. Note: this
-    # validation set intentionally retains commented-out `#` lines from
-    # the manifest — they never match real user requests but document
-    # algorithm-variant variables a user *could* request. The
-    # ``gedi_vars_static`` helper, by contrast, filters them because its
-    # result is consumed as a literal variable-name list.
     from .config import get_default_vars_file
     available_products = {}
     for prod in soc_files[0].keys():
         try:
             with open(get_default_vars_file(prod, version=version)) as f:
-                available_products[prod] = [ln.strip() for ln in f if ln.strip()]
+                available_products[prod] = [
+                    ln.strip() for ln in f
+                    if ln.strip() and not ln.startswith('#')
+                ]
         except (FileNotFoundError, ValueError) as e:
             logger.warning(
                 f"validate_soc_files: no static manifest for {prod} v{version}; "

@@ -108,10 +108,14 @@ def test_validate_soc_files_uses_static_manifest(soc_tree_two_release_files):
     assert report['missing_products'] == []
     assert report['missing_variables'] == {}
 
-    # available_products must reflect the manifest line counts exactly
+    # available_products must reflect the uncommented manifest line counts
+    # exactly: ``validate_soc_files`` strips ``#``-prefixed lines (the
+    # commented entries are documentation, not a membership set — keeping
+    # them would silently fail set-comparison against literal user requests).
     for prod in ('L2A', 'L2B'):
         with open(get_default_vars_file(prod, version=3)) as f:
-            expected = {ln.strip() for ln in f if ln.strip()}
+            expected = {ln.strip() for ln in f
+                        if ln.strip() and not ln.startswith('#')}
         assert set(report['available_products'][prod]) == expected
 
 
@@ -262,6 +266,233 @@ def test_write_soc_manifest_writes_atomically(tmp_path):
     # Manifest content has both granule files
     lines = manifest.read_text().strip().split('\n')
     assert len(lines) == 2
+
+
+# ── Regime-aware validator gating (H3BuildLogger.default_products) ────────
+#
+# These tests exist to ensure the regime gate in gh3_build.py never
+# regresses to the v0.9.0 behavior of validating a literal expanded
+# variable list from the build log against the currently-shipped static
+# manifest. The bug: a database built when the manifest was broader,
+# resumed after the manifest was slimmed, reported every drifted variable
+# as "missing" even though the actual HDF5 files contained it.
+#
+# Contract under test:
+#   - default_products captures *only* products requested via the literal
+#     "default"/"def" keyword, before gedi_vars_expand replaces the
+#     keyword with the expanded list.
+#   - The keyword does not leak into the persisted log (the log always
+#     records the post-expansion literal list).
+#   - validate_soc_files strips ``#``-prefixed manifest lines, so a
+#     commented-out entry is treated as absent — preventing the original
+#     bug class from re-emerging if a future caller forgets the regime gate.
+
+
+def test_default_products_captured_for_default_keyword(tmp_path):
+    """H3BuildLogger captures products whose value was the literal
+    ``default``/``def`` keyword. Captured *before* gedi_vars_expand
+    runs — otherwise the keyword is already replaced by an expanded list
+    and the bit is lost."""
+    from gedih3.logger import H3BuildLogger
+    logger = H3BuildLogger(
+        product_vars={'L2A': ['default'], 'L4A': ['def']},
+        dir=str(tmp_path), version=3,
+    )
+    assert logger.default_products == {'L2A', 'L4A'}
+    # After init, product_vars must be the expanded literal list — the
+    # keyword is gone.
+    for prod in ('L2A', 'L4A'):
+        assert 'default' not in logger.product_vars[prod]
+        assert 'def' not in logger.product_vars[prod]
+        assert len(logger.product_vars[prod]) > 1
+
+
+def test_default_products_empty_for_explicit_list(tmp_path):
+    """Explicit variable lists do not set default_products — the gate
+    must distinguish ``-l2a default`` from ``-l2a rh agbd ...`` so that
+    Regime D (explicit-list resume) bypasses manifest consultation."""
+    from gedih3.logger import H3BuildLogger
+    logger = H3BuildLogger(
+        product_vars={'L2A': ['rh', 'sensitivity']},
+        dir=str(tmp_path), version=3,
+    )
+    assert logger.default_products == set()
+
+
+def test_default_products_empty_for_no_product_vars(tmp_path):
+    """A bare resume (no CLI product args) leaves default_products empty
+    and the validator gate evaluates to false — Regimes B and C with
+    granules-only update bypass manifest consultation."""
+    from gedih3.logger import H3BuildLogger
+    logger = H3BuildLogger(product_vars=None, dir=str(tmp_path), version=3)
+    assert logger.default_products == set()
+
+
+def test_default_products_not_persisted_to_log(tmp_path):
+    """default_products is a runtime-only flag — never written to the
+    build log. The persisted log stores the resolved literal list so
+    Regime B resumes work without re-consulting the manifest."""
+    import json
+    from gedih3.logger import H3BuildLogger
+    h3_logger = H3BuildLogger(
+        product_vars={'L2A': ['default']},
+        dir=str(tmp_path), version=3,
+    )
+    h3_logger.save_log('PROCESSING')
+    log_path = tmp_path / 'gedih3_build_log.json'
+    on_disk = json.loads(log_path.read_text())
+    assert 'default_products' not in on_disk
+    assert 'default' not in str(on_disk.get('products', {}))
+
+
+def test_manifest_check_scope_regime_a_fresh_build_with_default(tmp_path):
+    """Regime A: fresh build with ``default`` for some product → scope
+    includes that product."""
+    from gedih3.logger import H3BuildLogger
+    from gedih3.cli.gh3_build import manifest_check_scope
+    h3_logger = H3BuildLogger(
+        product_vars={'L2A': ['default'], 'L4A': ['rh']},
+        dir=str(tmp_path), version=3,
+    )
+    scope = manifest_check_scope(h3_logger, h3_logger.product_vars)
+    assert set(scope) == {'L2A'}, "Only the default-requested product is in scope"
+
+
+def test_manifest_check_scope_regime_b_granules_only_resume(tmp_path):
+    """Regime B: resume with no schema change → empty scope (log is
+    authoritative; manifest must NOT be consulted)."""
+    from gedih3.logger import H3BuildLogger
+    from gedih3.cli.gh3_build import manifest_check_scope
+    # Seed an existing build log
+    seed = H3BuildLogger(
+        product_vars={'L2A': ['default']},
+        dir=str(tmp_path), version=3,
+    )
+    seed.save_log('COMPLETED')
+    # Resume with no CLI product args (granules-only update)
+    h3_logger = H3BuildLogger(product_vars=None, dir=str(tmp_path), version=3)
+    assert h3_logger.updating
+    assert h3_logger.new_product_vars is None
+    scope = manifest_check_scope(h3_logger, h3_logger.product_vars)
+    assert scope == {}, "Granules-only resume must skip manifest validation"
+
+
+def test_manifest_check_scope_regime_d_explicit_list_resume(tmp_path):
+    """Regime D: resume with an explicit non-default var list added →
+    empty scope (the user typed literal names; manifest is not the
+    contract)."""
+    from gedih3.logger import H3BuildLogger
+    from gedih3.cli.gh3_build import manifest_check_scope
+    seed = H3BuildLogger(
+        product_vars={'L2A': ['rh']},
+        dir=str(tmp_path), version=3,
+    )
+    seed.save_log('COMPLETED')
+    # Resume with explicit-list expansion
+    h3_logger = H3BuildLogger(
+        product_vars={'L2A': ['rh', 'sensitivity']},
+        dir=str(tmp_path), version=3,
+    )
+    assert h3_logger.updating
+    assert h3_logger.new_product_vars is not None  # there IS a delta
+    assert h3_logger.default_products == set()  # but not via default
+    scope = manifest_check_scope(h3_logger, h3_logger.product_vars)
+    assert scope == {}, "Explicit-list resume must skip manifest validation"
+
+
+def test_manifest_check_scope_regime_c_default_reexpansion(tmp_path):
+    """Regime C: resume where the user re-requests ``default`` for a
+    product → scope is exactly that product. This is the only resume
+    case where the manifest is the contract."""
+    from gedih3.logger import H3BuildLogger
+    from gedih3.cli.gh3_build import manifest_check_scope
+    # Seed a DB whose L2A var list is a strict subset of `default`
+    seed = H3BuildLogger(
+        product_vars={'L2A': ['rh']},
+        dir=str(tmp_path), version=3,
+    )
+    seed.save_log('COMPLETED')
+    # User re-requests `default` for L2A
+    h3_logger = H3BuildLogger(
+        product_vars={'L2A': ['default']},
+        dir=str(tmp_path), version=3,
+    )
+    assert h3_logger.default_products == {'L2A'}
+    assert h3_logger.new_product_vars is not None
+    assert 'L2A' in h3_logger.new_product_vars
+    scope = manifest_check_scope(h3_logger, h3_logger.product_vars)
+    assert set(scope) == {'L2A'}
+
+
+def test_manifest_check_scope_resume_with_drifted_log_var(tmp_path):
+    """The original bug: log records a var that the current static
+    manifest does not list. On a granules-only resume the gate must
+    refuse to call the validator at all — the log is authoritative.
+    """
+    from gedih3.logger import H3BuildLogger
+    from gedih3.cli.gh3_build import manifest_check_scope
+    # Seed a DB whose log contains a variable that does NOT exist in the
+    # current shipped v3 manifest (simulates manifest drift between
+    # package versions).
+    seed = H3BuildLogger(
+        product_vars={'L2A': ['rh', 'this_var_is_not_in_manifest_anymore']},
+        dir=str(tmp_path), version=3,
+    )
+    seed.save_log('COMPLETED')
+    # User resumes with no product args (typical "build new granules" run).
+    h3_logger = H3BuildLogger(product_vars=None, dir=str(tmp_path), version=3)
+    assert h3_logger.updating
+    assert 'this_var_is_not_in_manifest_anymore' in h3_logger.product_vars['L2A']
+    scope = manifest_check_scope(h3_logger, h3_logger.product_vars)
+    assert scope == {}, (
+        "Resume with drifted log var must bypass the static-manifest "
+        "validator; otherwise it would falsely flag the var as missing."
+    )
+
+
+@pytest.fixture
+def soc_tree_two_v2_release_files(tmp_path):
+    """V002-named release fixture for tests that need to read the v2
+    static manifest (which retains commented ``_a10`` algorithm
+    variants — the exact case that triggered the original bug)."""
+    for n in [
+        'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V002.h5',
+        'GEDI02_B_2019108002012_O01956_03_T03909_02_003_01_V002.h5',
+    ]:
+        (tmp_path / n).touch()
+    return str(tmp_path)
+
+
+def test_validate_soc_files_strips_commented_manifest_lines(soc_tree_two_v2_release_files):
+    """Regression for the bug that motivated the regime-gating refactor.
+
+    A variable that is *commented out* (``#``-prefixed) in the shipped
+    manifest must be treated as absent — not as present-with-comment-
+    marker — so that a literal user request that happens to match the
+    commented text never silently set-mismatches against the available
+    set. The manifest had previously kept ``# foo`` in the available
+    set; a request for ``foo`` would then be flagged as missing because
+    ``'foo' != '# foo'``.
+    """
+    # Find a commented variable for L2A v2. The v2 manifest commentifies
+    # `_a10` algorithm variants — the exact entries that triggered the
+    # original false-negative on the user's resume case.
+    with open(get_default_vars_file('L2A', version=2)) as f:
+        commented = [ln.strip().lstrip('# ').strip() for ln in f
+                     if ln.strip().startswith('#')]
+    if not commented:
+        pytest.skip("L2A v2 manifest has no commented entries to test against")
+    commented_var = commented[0]
+    report = validate_soc_files(
+        {'L2A': [commented_var]},
+        soc_tree_two_v2_release_files, version=2,
+    )
+    # The variable is commented in the manifest → treated as absent →
+    # flagged in missing_variables. (This is the *correct* behavior for
+    # the validator in isolation; the regime gate in gh3_build.py
+    # decides whether to call the validator at all.)
+    assert report['can_skip'] is False
+    assert commented_var in report['missing_variables'].get('L2A', [])
 
 
 def test_read_manifest_supports_filename_kwarg(tmp_path):
