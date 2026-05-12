@@ -54,15 +54,18 @@ def _enumerate_soc_files(soc_dir: str) -> list:
     track and ``dropna()``s rows where any product is absent, silently
     excluding partial-download granules from downstream scans.
     """
-    import glob
     from ...gedidriver import _read_soc_manifest
     manifest = _read_soc_manifest(soc_dir)
     if manifest is not None:
         return sorted(p for p in manifest
                       if os.path.basename(p).startswith('GEDI')
                       and p.endswith('.h5'))
-    return sorted(glob.glob(os.path.join(soc_dir, '**', 'GEDI*.h5'),
-                            recursive=True))
+    # No manifest — fall back to a parallel year/doy walk. Serial
+    # recursive globs over multi-million-file SOC trees were the
+    # dominant pre-doctor cost; the parallel walker uses the dask
+    # Client already established by the doctor CLI.
+    from ...parallel import walk_soc_parallel
+    return walk_soc_parallel(soc_dir, pattern='GEDI*.h5')
 
 
 def soc_health_check(ctx: DoctorContext) -> Report:

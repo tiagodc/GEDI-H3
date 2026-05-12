@@ -571,11 +571,12 @@ class TestH3ColumnsDtypesCache:
             self, tmp_dir, monkeypatch):
         """When ``write_soc_manifest`` raises (read-only SOC dir,
         transient FS error), ``set_post_download_info`` must still
-        report the correct number of files via the glob fallback —
-        not zero, which would silently break downstream summary
-        printing and any callers that use ``self.n_files`` to gate
-        further work."""
+        report the correct number of files via the soc_file_tree
+        fallback — not zero, which would silently break downstream
+        summary printing and any callers that use ``self.n_files``
+        to gate further work."""
         from gedih3.logger import SOCDownloadLogger
+        from dask.distributed import LocalCluster, Client
 
         soc_dir = os.path.join(tmp_dir, 'soc_readonly')
         os.makedirs(soc_dir, exist_ok=True)
@@ -593,8 +594,21 @@ class TestH3ColumnsDtypesCache:
             raise OSError("simulated read-only SOC dir")
         monkeypatch.setattr('gedih3.logger.write_soc_manifest', boom)
 
-        log = SOCDownloadLogger(product_vars={'L2A': ['rh']}, dir=soc_dir)
-        log.set_post_download_info()
+        # soc_file_tree's no-manifest fallback now uses walk_soc_parallel
+        # (R2 always-parallel refactor) which requires a registered dask
+        # Client. Create a tiny in-process one for the duration of the
+        # test — same primitive every CLI tool establishes at startup.
+        cluster = LocalCluster(
+            n_workers=2, threads_per_worker=1,
+            processes=False, dashboard_address=None, silence_logs='ERROR',
+        )
+        client = Client(cluster)
+        try:
+            log = SOCDownloadLogger(product_vars={'L2A': ['rh']}, dir=soc_dir)
+            log.set_post_download_info()
+        finally:
+            client.close()
+            cluster.close()
 
         # Even though the manifest write failed, soc_file_tree's glob
         # fallback discovered the paired granule, and n_files reflects

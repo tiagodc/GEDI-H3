@@ -178,9 +178,12 @@ def gh3_write_dataset_meta(opath, index_type='h3', index_level=None, columns=Non
     meta_path = smart_join(opath, DATASET_META_FILENAME)
     json_write(meta, meta_path, rewrite=True)
 
-    # Generate manifest for accelerated file listing
+    # Generate manifest for accelerated file listing. The extract /
+    # aggregate output is a flat directory of parquet files (not an H3
+    # partition tree), so pass tree_shape='flat' to avoid scanning for
+    # h3_NN=* partition dirs that don't exist.
     if not is_remote_path(opath):
-        generate_manifest(opath)
+        generate_manifest(opath, pattern='*.parquet', tree_shape='flat')
 
     return meta_path
 

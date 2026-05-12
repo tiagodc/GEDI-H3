@@ -117,7 +117,7 @@ def metadata_fix(ctx: DoctorContext, report: Report) -> Report:
                 h3_merge_metadata(f['partition_dir'])
                 fixed.append({'partition_dir': f['partition_dir'], 'action': 'regenerated_meta'})
             elif kind in ('manifest_missing', 'manifest_stale'):
-                generate_manifest(ctx.h3_dir)
+                generate_manifest(ctx.h3_dir, tree_shape='h3db')
                 fixed.append({'path': f.get('path'), 'action': f"regenerated_{kind}"})
         except Exception as e:
             fixed.append({**f, 'fix_error': f"{type(e).__name__}: {e}"})

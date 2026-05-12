@@ -268,6 +268,17 @@ def _glob_to_regex(pattern):
 def _read_manifest(root_path, manifest_filename=None):
     """Read manifest file from a database root, with caching.
 
+    Manifest freshness smoke check (R2 + producer-crash guard): for
+    local roots, the manifest's mtime is compared against the root
+    directory's mtime. When the root was touched after the manifest
+    was last written (typical signature: a producer crashed before
+    refreshing the manifest, OR files were dropped in externally),
+    a loud ERROR is logged directing the user to the appropriate
+    ``gh3_doctor --fix`` remedy. The manifest is still returned —
+    this never auto-refreshes (consumers trust the manifest under R2)
+    and never raises (a stale manifest is still better than the
+    fall-back recursive walk). Two ``stat`` calls.
+
     Parameters
     ----------
     root_path : str
@@ -282,7 +293,7 @@ def _read_manifest(root_path, manifest_filename=None):
     list of str or None
         List of relative file paths, or None if no manifest exists.
     """
-    from .config import MANIFEST_FILENAME
+    from .config import MANIFEST_FILENAME, SOC_MANIFEST_FILENAME
 
     if manifest_filename is None:
         manifest_filename = MANIFEST_FILENAME
@@ -297,13 +308,37 @@ def _read_manifest(root_path, manifest_filename=None):
         with smart_open(manifest_path, 'r') as f:
             lines = [line.strip() for line in f if line.strip()]
         _manifest_cache[cache_key] = lines
-        return lines
     except (FileNotFoundError, OSError):
         _manifest_cache[cache_key] = None
         return None
 
+    # Freshness smoke check — local paths only; remote roots (S3/HTTP)
+    # have no cheap mtime semantics and rely on the producer's atomic
+    # publish.
+    if not is_remote_path(root_path):
+        if manifest_filename == SOC_MANIFEST_FILENAME:
+            remedy = (
+                "the SOC tree was modified after the last producer refresh. "
+                "Run `gh3_doctor -i <soc_dir> --check soc_health --fix` to "
+                "regenerate the manifest."
+            )
+        else:
+            remedy = (
+                "the H3 database was modified after the last producer "
+                "refresh. Run `gh3_doctor -i <db_dir> --check metadata "
+                "--fix` to regenerate the manifest."
+            )
+        from .parallel import check_manifest_freshness
+        check_manifest_freshness(
+            manifest_path, root_path.rstrip('/'),
+            raise_on_stale=False, remedy=remedy,
+        )
 
-def generate_manifest(root_path, pattern='**/*.parquet', manifest_filename=None):
+    return lines
+
+
+def generate_manifest(root_path, pattern='**/*.parquet', manifest_filename=None,
+                      tree_shape='h3db', files=None):
     """Atomically write a manifest file listing all matching files.
 
     Parameters
@@ -311,13 +346,27 @@ def generate_manifest(root_path, pattern='**/*.parquet', manifest_filename=None)
     root_path : str
         Database root directory (must be local).
     pattern : str
-        Glob pattern relative to ``root_path`` (default: ``**/*.parquet``,
-        which matches the H3 partition layout). Pass ``**/GEDI*.h5`` for
-        the SOC tree.
+        Glob pattern matched at each leaf — meaning depends on
+        ``tree_shape``. For ``'h3db'`` it is matched recursively under
+        each ``h3_NN=*`` partition; for ``'soc'`` it is matched at
+        each ``year/doy/`` leaf; for ``'flat'`` it is matched at the
+        single ``root_path``. The default ``**/*.parquet`` is the H3
+        layout for backwards compatibility.
     manifest_filename : str, optional
         Name of the manifest sentinel file. Defaults to the H3 database
         manifest (``MANIFEST_FILENAME``). Pass ``SOC_MANIFEST_FILENAME``
         for the SOC parallel.
+    tree_shape : {'h3db', 'soc', 'flat'}
+        Tree topology to walk. Dispatches to the matching walker in
+        :mod:`gedih3.parallel`. The walker requires a registered dask
+        Client at call time — there is **no serial fallback** (matches
+        the package-wide always-parallel contract).
+    files : list[str], optional
+        Pre-computed absolute file list to use instead of walking. When
+        the caller already has the file list in memory (e.g.
+        ``cli/gh3_build.py`` after its existing-h5 listing), passing
+        them here avoids a redundant walk. The list must contain
+        absolute paths under ``root_path``.
 
     Returns
     -------
@@ -337,7 +386,25 @@ def generate_manifest(root_path, pattern='**/*.parquet', manifest_filename=None)
         raise ValueError("generate_manifest() only works on local paths")
 
     root = root_path.rstrip('/') + '/'
-    files = sorted(_glob_mod.glob(os.path.join(root, pattern), recursive=True))
+    if files is None:
+        # Lazy import — utils <-> parallel cycle is broken by the lazy
+        # ``get_dask_client`` import inside parallel_map; this lazy
+        # import keeps the walker module out of the import graph until
+        # someone actually calls it.
+        from .parallel import (walk_h3db_parallel, walk_soc_parallel,
+                               walk_flat_parallel)
+        if tree_shape == 'h3db':
+            files = walk_h3db_parallel(root, pattern=os.path.basename(pattern))
+        elif tree_shape == 'soc':
+            files = walk_soc_parallel(root, pattern=os.path.basename(pattern))
+        elif tree_shape == 'flat':
+            files = walk_flat_parallel(root, pattern=os.path.basename(pattern))
+        else:
+            raise ValueError(
+                f"generate_manifest: unknown tree_shape {tree_shape!r}; "
+                f"expected 'h3db', 'soc', or 'flat'"
+            )
+    files = sorted(files)
     rel_paths = [os.path.relpath(f, root).replace(os.sep, '/') for f in files]
 
     manifest_path = os.path.join(root, manifest_filename)
