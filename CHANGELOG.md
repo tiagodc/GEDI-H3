@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.9.1] - 2026-05-12
+
+### Changed
+- Attribute copyright to University of Maryland; bump year to 2026.
+
+### Fixed
+- `gh3_build` resume no longer validates the build log's expanded variable list against the currently-shipped static manifest. The log is the authoritative source on resume; the static manifest is consulted only for fresh builds with `default` or for resumes where the user explicitly re-requests `default` for a product (regime-aware gating via new `manifest_check_scope` helper). Resumes against databases built under broader earlier manifests now succeed.
+- `validate_soc_files` strips `#`-prefixed manifest lines so commented-out entries cannot silently set-mismatch against literal user requests.
+
 ## [0.9.0] - 2026-05-11
 
 ### Added
