@@ -240,14 +240,15 @@ def rasterize_and_export_partitions(
             meta=pd.Series(dtype=str)
         )
 
-        if show_progress:
-            try:
-                paths = paths.persist()
-                dask_progress(paths)
-            except (ValueError, ImportError):
-                pass  # No distributed client — skip progress bar
-
-        result = paths.compute().tolist()
+        # Driver-side gather instead of .compute() — the optimizer's
+        # RepartitionToFewer collapse step wedges on tunneled meshes past
+        # ~1500 partitions in dask >= 2025.2.
+        from ..utils import dask_safe_collect
+        try:
+            result = list(dask_safe_collect(paths, show_progress=show_progress))
+        except (ValueError, ImportError):
+            # No distributed client — fall back to legacy compute.
+            result = paths.compute().tolist()
     else:
         # Regular GeoDataFrame
         raster = rasterize_func(gdf, columns=columns, **rasterize_kwargs)
@@ -326,14 +327,14 @@ def merge_and_export_rasters(
             meta=pd.Series(dtype=object)
         )
 
-        if show_progress:
-            try:
-                raster_parts = raster_parts.persist()
-                dask_progress(raster_parts)
-            except (ValueError, ImportError):
-                pass  # No distributed client — skip progress bar
-
-        rasters = raster_parts.compute()
+        # Driver-side gather instead of .compute() — see dask_safe_collect
+        # docstring; the optimizer's RepartitionToFewer collapse wedges on
+        # tunneled meshes past ~1500 partitions in dask >= 2025.2.
+        from ..utils import dask_safe_collect
+        try:
+            rasters = dask_safe_collect(raster_parts, show_progress=show_progress)
+        except (ValueError, ImportError):
+            rasters = raster_parts.compute()
 
         # Filter valid rasters - handle both Series results and direct Dataset results
         valid_rasters = []

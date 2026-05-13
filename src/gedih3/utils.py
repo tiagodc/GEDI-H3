@@ -1737,6 +1737,73 @@ def get_dask_client():
         return None
 
 
+def dask_safe_wait(persisted, show_progress=False):
+    """Wait for a persisted Dask collection to finish and re-raise the first
+    worker exception. Side-effect-only equivalent of ``.compute()`` with no
+    driver-side collect.
+
+    Why this exists: dask >= 2025.2 always inserts a ``RepartitionToFewer(1)``
+    optimization step inside ``.compute()`` on a multi-partition collection,
+    which collapses all partitions onto a single worker before delivering to
+    the driver. That fan-in deterministically wedges on tunneled multi-node
+    clusters past ~1500 partitions. Workloads that only need side effects
+    (e.g. per-partition file writes) don't need to collect anything — they
+    just need to wait for completion and surface task exceptions. This helper
+    does exactly that, without going through ``.compute()``.
+
+    Follows the same persist + futures_of + error-result pattern already used
+    in ``gh3builder._create_h3_dataframe`` (proven in production builds).
+    """
+    from dask.distributed import progress, wait, futures_of
+    if show_progress:
+        progress(persisted)
+    else:
+        wait(persisted)
+    errors = [f for f in futures_of(persisted) if f.status == 'error']
+    if errors:
+        errors[0].result()  # re-raises the original worker exception
+
+
+def dask_safe_collect(collection, show_progress=False):
+    """Persist a Dask DataFrame/Series on the cluster, then gather each
+    partition independently to the driver and concatenate locally. Returns
+    a single pandas/geopandas DataFrame or Series (or list for a Bag).
+
+    Same motivation as :func:`dask_safe_wait`: bypasses the optimizer's
+    ``RepartitionToFewer(1)`` collapse step inside ``.compute()`` by walking
+    ``to_delayed()`` and gathering through the well-tested scheduler↔client
+    comm path. Each partition becomes one outbound future, so a single
+    unreachable peer fails only its own fetch instead of wedging the whole
+    job.
+
+    When no distributed client is registered, falls back to a plain
+    ``.compute()`` (synchronous scheduler — no fan-in, no wedge possible).
+    """
+    from dask.distributed import progress, wait
+    import pandas as pd
+    client = get_dask_client()
+    if client is None:
+        return collection.compute()
+
+    persisted = collection.persist()
+    if show_progress:
+        progress(persisted)
+    else:
+        wait(persisted)
+
+    parts = client.gather(client.compute(persisted.to_delayed()))
+    if not parts:
+        return collection.compute()
+    sample = parts[0]
+    # pandas / geopandas DataFrame or Series
+    if isinstance(sample, (pd.DataFrame, pd.Series)) or hasattr(sample, 'geometry'):
+        return pd.concat(parts)
+    # Bag partitions are lists
+    if isinstance(sample, list):
+        return [item for part in parts for item in part]
+    return list(parts)
+
+
 # =============================================================================
 # Transaction Safety for File Operations
 # =============================================================================
