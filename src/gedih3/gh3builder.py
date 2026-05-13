@@ -1866,31 +1866,35 @@ def _write_partitioned_streaming(
             f"found on disk; matching tasks will be skipped at submission time."
         )
 
-    # ── Inline broadcast values into submit_kwargs ─────────────────────
-    # Earlier iterations used client.scatter(broadcast=True), which is the
-    # textbook way to ship values to all workers once. Two production
-    # incidents made it the wrong call here:
-    #   1. scatter(value, broadcast=True) treats iterable values (list,
-    #      dict, pyarrow.Schema) as batches to scatter element-wise,
-    #      creating thousands of stray scheduler-side futures.
-    #   2. Even after wrapping in [value], broadcast=True hung indefinitely
-    #      on this 242-worker SSH-tunneled cluster — the scatter call
-    #      blocked waiting for every worker to ACK the broadcast, and
-    #      sporadic worker comm latencies under the tunnels meant the ACK
-    #      never came back from at least one peer.
+    # ── Bake broadcast values into a functools.partial ──────────────────
+    # Iteration history on this driver's broadcast-kwarg handling:
+    #   1. scatter(value, broadcast=True) — scattered iterables element-wise,
+    #      created thousands of stray futures.
+    #   2. scatter([value], broadcast=True)[0] — fixed cardinality but
+    #      broadcast=True hung waiting for every SSH-tunneled worker ACK.
+    #   3. client.map(fn, tasks, **kwargs) inlining — dask treats certain
+    #      kwarg names as scheduler TaskState keys (a kwarg named
+    #      "spatial_h3_tiles" became <TaskState 'spatial_h3_tiles'
+    #      processing> stuck-in-processing); workers then crashed on
+    #      AssertionError when trying to resolve the dependency.
     #
-    # Final decision: drop scatter altogether for these kwargs. Inline
-    # them in the task graph. With the rolling-window inflight cap of
-    # ~``inflight_target`` (default 2000) live futures, the scheduler-side
-    # serialization cost is bounded:
+    # Final approach: bake all broadcast kwargs into a ``functools.partial``
+    # closure around the worker function. ``client.map(partial_fn, tasks)``
+    # then sees a single callable + the per-task iterable — dask cannot
+    # introspect or split the partial's captured kwargs, so there is no
+    # opportunity to misinterpret them as scheduler tasks or scatter them
+    # element-wise.
     #
-    #     spatial_h3_tiles ≈ 200 KB pickled  ×  2000 inflight
-    #                      ≈ 400 MB live in the scheduler at any moment
-    #
-    # Comfortable for a 1 TB-RAM hub. Completed task graph entries get
-    # released as ``fut.release()`` runs in the as_completed loop, so the
-    # peak doesn't grow with total task count.
-    submit_kwargs = dict(
+    # Memory accounting:
+    #   * The partial is pickled ONCE into the Blockwise layer (one ~210 KB
+    #     blob covering spatial_h3_tiles + product_vars + the pyarrow
+    #     schema), and per-task entries are tiny refs into that layer.
+    #   * Total scheduler-side graph footprint for a 532k-task build:
+    #     ~530 MB — negligible on a 1 TB hub. Drains as fut.release()
+    #     runs per completion below.
+    import functools as _functools
+    worker_fn = _functools.partial(
+        _write_one_granule_beam,
         product_vars=product_vars,
         res=res, part=part,
         tmp_dir=tmp_dir, h3_dir=h3_dir,
@@ -1900,7 +1904,7 @@ def _write_partitioned_streaming(
         schema=canonical_schema,
     )
     logger.info(
-        f"Driver: scatter step skipped (inlining broadcast kwargs into task graph). "
+        f"Driver: kwargs baked into partial (no scatter, no separate TaskStates). "
         f"spatial_h3_tiles={len(spatial_h3_tiles) if spatial_h3_tiles else 0} cells, "
         f"product_vars={len(product_vars)} products, "
         f"schema cols={len(canonical_schema.names) if canonical_schema is not None else 0}."
@@ -1955,11 +1959,8 @@ def _write_partitioned_streaming(
     #     entry in the graph) so the explosion does not apply.
     #
     # Memory drains as ``fut.release()`` runs per completion below.
-    logger.info(f"Driver: submitting {total} tasks via client.map...")
-    all_futures = client.map(
-        _write_one_granule_beam, tasks,
-        pure=False, **submit_kwargs,
-    )
+    logger.info(f"Driver: submitting {total} tasks via client.map (partial-wrapped fn)...")
+    all_futures = client.map(worker_fn, tasks, pure=False)
     logger.info(
         f"Driver: submission complete — {len(all_futures)} futures in graph. "
         f"Scheduler will distribute across all live workers."
