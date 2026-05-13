@@ -407,5 +407,11 @@ def check_manifest_freshness(
         msg += f" Remedy: {remedy}"
     if raise_on_stale:
         raise GediError(msg)
-    logger.error(msg)
+    # WARNING, not ERROR — the check is a heuristic on directory mtime, not a
+    # content check. A create+delete of a short-lived temp file (e.g. atomic
+    # writes from an unrelated tool earlier) bumps the dir mtime without
+    # invalidating the manifest contents, so this fires routinely on
+    # perfectly correct manifests. Downstream code still uses the manifest;
+    # this is advisory.
+    logger.warning(msg)
     return False
