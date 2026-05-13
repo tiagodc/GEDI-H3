@@ -1930,43 +1930,42 @@ def _write_partitioned_streaming(
 
     logger.info(
         f"Streaming write: {len(soc_files)} granules × {len(GEDI_BEAMS)} beams = "
-        f"{total} tasks (inflight_target={inflight_target}, "
-        f"skipped_by_resume={len(completed_frags)})"
+        f"{total} tasks (skipped_by_resume={len(completed_frags)})"
     )
 
-    # ── Rolling-window submission ─────────────────────────────────────
-    # Maintain ~inflight_target futures in flight at any moment via
-    # as_completed.add on each completion. Eliminates the strict-batch
-    # straggler-idle problem — workers stay busy until the task stream
-    # is exhausted.
-    tasks_iter = iter(tasks)
+    # ── Submit the entire batch via client.map ─────────────────────────
+    # client.map(fn, iterable, **kwargs) builds a Blockwise graph layer
+    # where the function + kwargs live ONCE in the scheduler's graph
+    # (one ~210 KB blob covering spatial_h3_tiles + product_vars + the
+    # canonical pyarrow schema), and per-task entries are tiny refs into
+    # that layer. Total scheduler-side footprint for the full 534k-task
+    # build: ~535 MB — negligible on a 1 TB hub.
+    #
+    # Why this beats the prior rolling-window submit-then-as_completed-add
+    # pattern:
+    #   * Dashboard sees the full 534k-task scope from the start →
+    #     real progress visualization instead of a fake 100-task window.
+    #   * Worker saturation is dask-managed (via the scheduler's queue),
+    #     so every worker is busy as long as tasks remain — no manual
+    #     inflight knob to mis-tune.
+    #   * The "scheduler-side serialization explosion" concern from
+    #     Agent 3 #D.2 was specific to ``for t in tasks: client.submit(
+    #     fn, t, **kwargs)`` which serializes kwargs once per submit
+    #     call. ``client.map`` shares kwargs across the batch (single
+    #     entry in the graph) so the explosion does not apply.
+    #
+    # Memory drains as ``fut.release()`` runs per completion below.
+    logger.info(f"Driver: submitting {total} tasks via client.map...")
+    all_futures = client.map(
+        _write_one_granule_beam, tasks,
+        pure=False, **submit_kwargs,
+    )
+    logger.info(
+        f"Driver: submission complete — {len(all_futures)} futures in graph. "
+        f"Scheduler will distribute across all live workers."
+    )
 
-    def _submit_next() -> Optional[Any]:
-        try:
-            t = next(tasks_iter)
-        except StopIteration:
-            return None
-        return client.submit(_write_one_granule_beam, t, pure=False, **submit_kwargs)
-
-    # Prime the inflight window. We log progress every ~10% so a stall in
-    # this synchronous priming loop is observable from the build log
-    # (instead of silently sleeping in futex_wait_queue).
-    prime_target = min(inflight_target, total)
-    prime_step = max(1, prime_target // 10)
-    logger.info(f"Driver: priming inflight window ({prime_target} tasks)...")
-    initial_futures = []
-    for i in range(inflight_target):
-        fut = _submit_next()
-        if fut is None:
-            break
-        initial_futures.append(fut)
-        if (i + 1) % prime_step == 0:
-            logger.info(f"Driver: primed {i + 1}/{prime_target} initial futures")
-    logger.info(f"Driver: priming complete — {len(initial_futures)} futures submitted")
-    if not initial_futures:
-        return False
-
-    ac = dask_as_completed(initial_futures)
+    ac = dask_as_completed(all_futures)
 
     pbar = tqdm_bar(total=total, desc="Stage1 partition writes", unit="task")
     n_ok = n_fail = n_leaves = 0
@@ -2005,10 +2004,6 @@ def _write_partitioned_streaming(
                     f"leaves={n_leaves}"
                 )
                 next_log_t = now + log_every_seconds
-            # Top up the rolling window with one new task.
-            new_fut = _submit_next()
-            if new_fut is not None:
-                ac.add(new_fut)
     finally:
         pbar.close()
 
