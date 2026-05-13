@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.9.5] - 2026-05-13
+
+### Added
+- Streaming partition writer (`_write_partitioned_streaming`) — replaces the legacy `ddf.to_parquet(...).persist()` path with a `client.map`-based submission that releases per-task results as they complete via `as_completed` + `fut.release()`. Eliminates the to-parquet-barrier-induced worker memory accumulation (~75 MiB/min observed on continental builds) and surfaces real task-graph progress on the dask dashboard.
+- Per-(granule × beam) completion sentinels under `tmp/partitions/_complete/<frag>.done`. Workers emit a sentinel only after every leaf parquet is atomically committed; reconcile then trusts sentinels as proof of completeness, closing the silent data-loss path where a worker killed mid-task could otherwise leave fragments that look "fully on disk" to the legacy heuristic.
+- Sentinel-authoritative resume mode: `_reconcile_granules_from_disk` switches between sentinel-aware and legacy-fragment heuristics based on `_complete/` presence, with a one-time migration that emits sentinels for fully-complete granules from a pre-streaming tmp tree.
+- `GH3_WRITE_STREAMING` env var (default on) to toggle between streaming and legacy paths; `GH3_WRITE_STREAMING_BATCH` reserved for future inflight tuning.
+- Driver-side progress logging (`Driver: ...` markers + 60-second `Streaming write: X/N done` periodic log) so any pre-flight stall is observable from `gh3_build.log`.
+
+### Fixed
+- `H3BuildLogger._adding_h3_parts()` no longer short-circuits the resume skip filter when `h3_partition_ids` is missing on the log (the killed-mid-first-write case) — the guard now checks `new_spatial` first, so a same-spatial resume correctly honors the INDEXED granules the reconcile just flipped.
+- `_reconcile_granules_from_disk` now requires full beam coverage before flipping a granule INDEXED. Fragment-presence alone (the prior heuristic) could not distinguish a fully-extracted granule from one whose worker was killed mid-write → silently dropped beams' shots on the next resume.
+- Streaming driver's `client.scatter` deadlock: wrap-in-singleton-list pattern then drop scatter entirely. Three iterations:
+  - `scatter(value, broadcast=True)` on iterable values (list, dict, pyarrow.Schema) scattered element-wise, creating ~41k stray futures and freezing the scheduler.
+  - Wrapped `scatter([value], broadcast=True)[0]` fixed the cardinality but `broadcast=True` hung waiting for every SSH-tunneled worker to ACK the broadcast — driver blocked in `futex_wait_queue` for 10+ minutes.
+  - Final fix: inline broadcast kwargs into the task graph via `client.map(fn, tasks, **shared_kwargs)` — kwargs deduped across the batch (one ~210 KB blob in the scheduler graph), per-task entries are tiny refs. No scatter, no hang.
+
 ## [0.9.4] - 2026-05-13
 
 ### Changed
