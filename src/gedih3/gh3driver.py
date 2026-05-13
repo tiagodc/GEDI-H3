@@ -1162,7 +1162,16 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
     """
     from .cliutils import is_internal_column
 
-    os.makedirs(output, exist_ok=True)
+    # When merge=True the output is a single file path (gh3_export_part runs
+    # with is_file_path=True); only its parent dir should be created. The
+    # legacy unconditional makedirs(output) would turn that file path into a
+    # directory and the subsequent AtomicFileWriter would fail with
+    # "Is a directory" on the os.replace.
+    if merge:
+        parent = os.path.dirname(os.path.abspath(output)) or '.'
+        os.makedirs(parent, exist_ok=True)
+    else:
+        os.makedirs(output, exist_ok=True)
 
     # Auto-detect spatial index parameters
     index_type, part_col, index_level, group_by_partition = _detect_export_params(ddf)
