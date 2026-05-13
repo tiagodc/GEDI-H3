@@ -1249,8 +1249,14 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
     if not ofiles:
         raise GediProcessingError("No output files were created.")
 
-    # Write dataset metadata
-    if write_metadata:
+    # Write dataset metadata.
+    # Skip in merge mode: the output is a single self-contained file, not a
+    # multi-file dataset directory. gh3_write_dataset_meta would try to drop
+    # `gedih3_dataset.json` *inside* the output path (treating it as a dir)
+    # and the downstream tools that consume the sidecar all look for it
+    # inside a directory anyway, so a sibling file wouldn't be picked up.
+    # The user explicitly chose -m for portability; no sidecar to manage.
+    if write_metadata and not merge:
         columns = list(ddf.columns)
         # Forward h3_partition_level to metadata (it's a named param, not in **metadata_kwargs)
         if h3_partition_level is not None:
