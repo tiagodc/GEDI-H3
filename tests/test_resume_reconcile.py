@@ -54,6 +54,19 @@ def _logger_with_pending(h3_dir, granules):
     return H3BuildLogger(product_vars=None, dir=h3_dir)
 
 
+def _write_all_beams(parent, h3_part, year, orbit, granule, track):
+    """Helper: write one fragment per GEDI beam for a granule (simulates a
+    fully-extracted granule). Matches the post-v0.8.0 naming convention so
+    ``_FRAGMENT_BASENAME_RE`` parses both granule and beam."""
+    from gedih3.config import GEDI_BEAMS
+    for beam in GEDI_BEAMS:
+        _write_tmp_fragment(
+            parent, h3_part=h3_part, year=year,
+            granule_path=f'/soc/{_gedi_basename(orbit, granule, track)}',
+            basename=f'O{orbit:05d}_G{granule:02d}_T{track:05d}.{beam}.parquet',
+        )
+
+
 class TestReconcileFromTmpFragments:
     def test_flips_pending_to_indexed_from_tmp(self, tmp_dir):
         from gedih3.gh3builder import _reconcile_granules_from_disk
@@ -64,12 +77,10 @@ class TestReconcileFromTmpFragments:
 
         granules = [(99, 1, 5), (100, 2, 6), (101, 3, 7)]
 
+        # Write the full 8-beam set for the first two granules — the third
+        # has nothing on disk and must remain PENDING.
         for orb, gran, trk in granules[:2]:
-            _write_tmp_fragment(
-                tmp_partitions, h3_part='830001fffffffff', year='2020',
-                granule_path=f'/soc/{_gedi_basename(orb, gran, trk)}',
-                basename=f'O{orb:05d}_G{gran:02d}_T{trk:05d}.BEAM0000.parquet',
-            )
+            _write_all_beams(tmp_partitions, '830001fffffffff', '2020', orb, gran, trk)
 
         h3_logger = _logger_with_pending(h3_dir, granules)
 
@@ -122,7 +133,8 @@ class TestReconcileFromTmpFragments:
         tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
         os.makedirs(h3_dir)
 
-        # Good fragment for granule (10,1,1)
+        # Good fragment for granule (10,1,1) — legacy ``part.0.parquet``
+        # name, so reconcile flips via the _LEGACY_BEAM_SENTINEL path.
         _write_tmp_fragment(
             tmp_partitions, '830001fffffffff', '2020',
             f'/soc/{_gedi_basename(10, 1, 1)}',
@@ -141,6 +153,123 @@ class TestReconcileFromTmpFragments:
                     for g in h3_logger.granule_info}
         assert statuses[(10, 1, 1)] == 'INDEXED'
         assert statuses[(20, 2, 2)] == 'PENDING'  # corrupt → skipped
+
+
+class TestPartialGranuleSafety:
+    """Regression coverage: a granule with only some beams on disk must NOT
+    be flipped INDEXED. Without per-beam tracking the reconcile would mark
+    it complete and the missing beams' shots would be silently dropped on
+    the next stage-1 run (skip filter excludes the granule)."""
+
+    def test_partial_beam_set_not_flipped(self, tmp_dir):
+        """3 of 8 beams written → granule stays PENDING for re-extraction."""
+        from gedih3.gh3builder import _reconcile_granules_from_disk
+        from gedih3.config import GEDI_BEAMS
+
+        h3_dir = os.path.join(tmp_dir, 'database')
+        tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
+        os.makedirs(h3_dir)
+
+        orb, gran, trk = 42, 7, 13
+        for beam in GEDI_BEAMS[:3]:  # only 3 of 8 beams
+            _write_tmp_fragment(
+                tmp_partitions, '830001fffffffff', '2020',
+                f'/soc/{_gedi_basename(orb, gran, trk)}',
+                basename=f'O{orb:05d}_G{gran:02d}_T{trk:05d}.{beam}.parquet',
+            )
+
+        h3_logger = _logger_with_pending(h3_dir, [(orb, gran, trk)])
+        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions)
+
+        assert n_flipped == 0
+        assert h3_logger.granule_info[0]['status'] == 'PENDING', (
+            "Partial granule incorrectly flipped to INDEXED — missing beams' "
+            "shots would be silently dropped on the next stage-1 run."
+        )
+
+    def test_partial_then_complete_recovery(self, tmp_dir):
+        """After re-extraction fills in the missing beams, the next reconcile
+        pass flips the granule. This is the resume-after-resume happy path."""
+        from gedih3.gh3builder import _reconcile_granules_from_disk
+        from gedih3.config import GEDI_BEAMS
+
+        h3_dir = os.path.join(tmp_dir, 'database')
+        tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
+        os.makedirs(h3_dir)
+
+        orb, gran, trk = 42, 7, 13
+        h3_logger = _logger_with_pending(h3_dir, [(orb, gran, trk)])
+
+        # First pass: only some beams present → no flip.
+        for beam in GEDI_BEAMS[:3]:
+            _write_tmp_fragment(
+                tmp_partitions, '830001fffffffff', '2020',
+                f'/soc/{_gedi_basename(orb, gran, trk)}',
+                basename=f'O{orb:05d}_G{gran:02d}_T{trk:05d}.{beam}.parquet',
+            )
+        assert _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions) == 0
+        assert h3_logger.granule_info[0]['status'] == 'PENDING'
+
+        # Second pass: remaining beams arrive → flip happens.
+        for beam in GEDI_BEAMS[3:]:
+            _write_tmp_fragment(
+                tmp_partitions, '830001fffffffff', '2020',
+                f'/soc/{_gedi_basename(orb, gran, trk)}',
+                basename=f'O{orb:05d}_G{gran:02d}_T{trk:05d}.{beam}.parquet',
+            )
+        assert _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions) == 1
+        assert h3_logger.granule_info[0]['status'] == 'INDEXED'
+
+    def test_complete_beam_set_across_multiple_h3_dirs(self, tmp_dir):
+        """Realistic case: one granule's beams span several h3 partitions.
+        Reconcile must aggregate beam sets across all h3_* dirs, not check
+        completeness per-h3-dir."""
+        from gedih3.gh3builder import _reconcile_granules_from_disk
+        from gedih3.config import GEDI_BEAMS
+
+        h3_dir = os.path.join(tmp_dir, 'database')
+        tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
+        os.makedirs(h3_dir)
+
+        orb, gran, trk = 99, 9, 99
+        # Split the 8 beams across 3 different h3 partition dirs to confirm
+        # the reconcile aggregates correctly.
+        h3_parts = ['830001fffffffff', '830002fffffffff', '830003fffffffff']
+        for i, beam in enumerate(GEDI_BEAMS):
+            _write_tmp_fragment(
+                tmp_partitions, h3_parts[i % 3], '2020',
+                f'/soc/{_gedi_basename(orb, gran, trk)}',
+                basename=f'O{orb:05d}_G{gran:02d}_T{trk:05d}.{beam}.parquet',
+            )
+
+        h3_logger = _logger_with_pending(h3_dir, [(orb, gran, trk)])
+        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions)
+        assert n_flipped == 1
+        assert h3_logger.granule_info[0]['status'] == 'INDEXED'
+
+    def test_finalized_partition_metadata_flips_without_beam_check(self, tmp_dir):
+        """Granules listed in a finalized partition's ``.metadata.json`` are
+        merged-and-complete by construction, so the beam-coverage check is
+        bypassed for them (Pass A in _reconcile_granules_from_disk)."""
+        from gedih3.gh3builder import _reconcile_granules_from_disk
+        from gedih3.config import PARTITION_META_FILENAME
+
+        h3_dir = os.path.join(tmp_dir, 'database')
+        os.makedirs(h3_dir)
+
+        # Write a synthetic finalized metadata JSON naming granule (5,5,5).
+        orb, gran, trk = 5, 5, 5
+        part_dir = os.path.join(h3_dir, 'h3_03=830001fffffffff')
+        os.makedirs(part_dir)
+        meta_path = os.path.join(part_dir, f'h3_03=830001fffffffff{PARTITION_META_FILENAME}')
+        with open(meta_path, 'w') as f:
+            json.dump({'granules': [{'orbit': orb, 'granule': gran, 'track': trk}]}, f)
+
+        h3_logger = _logger_with_pending(h3_dir, [(orb, gran, trk)])
+        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger)
+
+        assert n_flipped == 1
+        assert h3_logger.granule_info[0]['status'] == 'INDEXED'
 
 
 class TestReconcileFromDatabase:
@@ -182,12 +311,11 @@ class TestReconcileScalability:
         tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
         os.makedirs(h3_dir)
         granules = [(101, 1, 7), (102, 2, 8)]
+        # Write the full GEDI_BEAMS set per granule so the reconcile sees
+        # them as complete (otherwise the partial-beam guard keeps them
+        # PENDING — see TestPartialGranuleSafety).
         for orb, gran, trk in granules:
-            _write_tmp_fragment(
-                tmp_partitions, '830001fffffffff', '2020',
-                f'/soc/{_gedi_basename(orb, gran, trk)}',
-                basename=f'O{orb:05d}_G{gran:02d}_T{trk:05d}.BEAM0000.parquet',
-            )
+            _write_all_beams(tmp_partitions, '830001fffffffff', '2020', orb, gran, trk)
 
         h3_logger = _logger_with_pending(h3_dir, granules)
         n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions)
@@ -261,14 +389,22 @@ class TestProcessH3Partition:
         monkeypatch.setattr(gh, '_granule_ids_in_fragment',
                             lambda p: (called.__setitem__('n', called['n'] + 1) or real(p)))
 
-        ids = _process_h3_partition(partition_dir)
-        assert ids == {(200, 1, 5), (201, 2, 6)}
+        # New contract: returns ``{(orbit,granule,track): set(beams)}`` so
+        # the reconcile can detect partial-write granules.
+        result = _process_h3_partition(partition_dir)
+        assert result == {
+            (200, 1, 5): {'BEAM0000', 'BEAM0001'},
+            (201, 2, 6): {'BEAM0000'},
+        }
         assert called['n'] == 0, "fast-path filenames must not trigger parquet metadata reads"
 
     def test_legacy_filename_fallback(self, tmp_dir):
-        """Legacy 'part.NNN.parquet' fragments must fall through to the
-        parquet-metadata-read path and still recover the right granule IDs."""
-        from gedih3.gh3builder import _process_h3_partition
+        """Legacy 'part.NNN.parquet' fragments fall through to the parquet-
+        metadata-read path. Beam isn't recoverable from the filename, so the
+        legacy fallback tags the granule with ``_LEGACY_BEAM_SENTINEL`` —
+        the reconcile then treats those granules as complete (preserving
+        pre-v0.8.0 resume semantics)."""
+        from gedih3.gh3builder import _process_h3_partition, _LEGACY_BEAM_SENTINEL
 
         partition_dir = os.path.join(tmp_dir, 'h3_03=830002fffffffff')
         for year, (orb, gran, trk), part_idx in [
@@ -284,12 +420,15 @@ class TestProcessH3Partition:
             })
             pq.write_table(tab, path)
 
-        ids = _process_h3_partition(partition_dir)
-        assert ids == {(300, 1, 5), (301, 2, 6)}
+        result = _process_h3_partition(partition_dir)
+        assert result == {
+            (300, 1, 5): {_LEGACY_BEAM_SENTINEL},
+            (301, 2, 6): {_LEGACY_BEAM_SENTINEL},
+        }
 
-    def test_returns_empty_set_for_missing_dir(self, tmp_dir):
+    def test_returns_empty_dict_for_missing_dir(self, tmp_dir):
         from gedih3.gh3builder import _process_h3_partition
-        assert _process_h3_partition(os.path.join(tmp_dir, 'does_not_exist')) == set()
+        assert _process_h3_partition(os.path.join(tmp_dir, 'does_not_exist')) == {}
 
 
 class TestGranuleIdParse:

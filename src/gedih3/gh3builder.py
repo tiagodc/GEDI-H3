@@ -913,10 +913,21 @@ def _granule_ids_in_fragment(parquet_file: str) -> set:
 
 # Match fragment basenames written by stage 1 (v0.8.0+):
 #   ``O{orbit:05d}_G{granule:02d}_T{track:05d}.{beam}.parquet``
-# (see _create_h3_dataframe). When the filename matches, the granule ID
-# is recoverable without any parquet I/O at all — just string parsing on
-# the worker, microseconds per file.
-_FRAGMENT_BASENAME_RE = re.compile(r'^O(\d+)_G(\d+)_T(\d+)\.[A-Za-z0-9_]+\.parquet$')
+# (see _create_h3_dataframe). When the filename matches, BOTH the granule
+# ID and the beam are recoverable without any parquet I/O — just string
+# parsing on the worker, microseconds per file. The beam capture is
+# load-bearing for the reconcile's partial-granule detection: without it
+# a granule with a single beam fragment on disk would be marked INDEXED
+# and the remaining 7 beams' shots would be silently dropped on resume.
+_FRAGMENT_BASENAME_RE = re.compile(r'^O(\d+)_G(\d+)_T(\d+)\.([A-Za-z0-9_]+)\.parquet$')
+
+# Sentinel used in the per-granule beam set returned by
+# ``_process_h3_partition`` for legacy fragments whose filename does not
+# encode the beam (pre-v0.8.0 ``part.NNN.parquet``). The reconcile treats
+# the sentinel as "trust this granule is complete" — legacy builds rarely
+# resume and reaching into parquet contents to recover the beam is more
+# I/O than the rare case warrants.
+_LEGACY_BEAM_SENTINEL = '*'
 
 
 def _list_year_subdirs(h3_dir: str) -> List[str]:
@@ -940,9 +951,17 @@ def _list_year_subdirs(h3_dir: str) -> List[str]:
     return out
 
 
-def _process_h3_partition(h3_dir: str) -> set:
-    """Return the set of (orbit, granule, track) granule IDs represented
-    under ``h3_dir/year=*/*.parquet``.
+def _process_h3_partition(h3_dir: str) -> Dict[Tuple[int, int, int], set]:
+    """Return ``{(orbit, granule, track): set(beam_str, ...)}`` for granules
+    represented under ``h3_dir/year=*/*.parquet``.
+
+    The beam set is what makes this partial-resume safe. A granule with
+    only some of its beams on disk (e.g. one (granule × beam) task finished
+    writing, the others were still pending when the build was killed)
+    would otherwise be indistinguishable from a fully-extracted granule.
+    The reconcile aggregates beam sets across all h3_* partitions and
+    only flips INDEXED when every expected beam is present — without that,
+    the missing beams' shots are silently dropped on the next stage-1 run.
 
     Worker-side body of the resume reconcile, run as one Dask task per
     ``h3_*`` tmp partition. All cluster parallelism comes from
@@ -953,16 +972,16 @@ def _process_h3_partition(h3_dir: str) -> set:
     throughput catches up.
 
     Fast path: if the fragment basename matches the v0.8.0+ naming
-    convention ``O{orbit}_G{granule}_T{track}.{beam}.parquet``, the
-    granule ID is parsed from the filename — no parquet I/O. This is
+    convention ``O{orbit}_G{granule}_T{track}.{beam}.parquet``, both
+    granule ID and beam are parsed from the filename — no parquet I/O,
     microseconds per file.
 
-    Fallback: legacy ``part.NNN.parquet`` names lack granule info in the
-    filename, so we read parquet column statistics
-    (``_granule_ids_in_fragment``) — ~90 ms cold per file on GPFS, and
-    GPFS-metadata-server-bound regardless of cluster parallelism.
+    Fallback: legacy ``part.NNN.parquet`` names lack beam info, so we
+    read parquet column statistics (``_granule_ids_in_fragment``) — ~90
+    ms cold per file on GPFS — and tag the granule with
+    ``_LEGACY_BEAM_SENTINEL`` so the reconcile treats it as complete.
     """
-    granule_ids: set = set()
+    out: Dict[Tuple[int, int, int], set] = {}
     fallback_paths: list = []
     try:
         for ye in os.scandir(h3_dir):
@@ -974,16 +993,18 @@ def _process_h3_partition(h3_dir: str) -> set:
                         continue
                     m = _FRAGMENT_BASENAME_RE.match(fe.name)
                     if m is not None:
-                        granule_ids.add((int(m.group(1)), int(m.group(2)), int(m.group(3))))
+                        key = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                        out.setdefault(key, set()).add(m.group(4))
                     else:
                         fallback_paths.append(fe.path)
             except OSError:
                 continue
     except OSError:
-        return granule_ids
+        return out
     for p in fallback_paths:
-        granule_ids.update(_granule_ids_in_fragment(p))
-    return granule_ids
+        for gid in _granule_ids_in_fragment(p):
+            out.setdefault(gid, set()).add(_LEGACY_BEAM_SENTINEL)
+    return out
 
 
 def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str] = None) -> int:
@@ -1023,9 +1044,20 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
         )
         return 0
 
+    # ``indexed_ids`` holds granules confirmed fully on disk and safe to skip
+    # on the next stage 1 run.
     indexed_ids: set = set()
+    # ``granule_beams`` aggregates beam sets across every h3_* tmp partition
+    # so we can distinguish fully-extracted granules from partial ones that
+    # were killed mid-write. Without this completeness check a granule with
+    # only one beam fragment would be flipped INDEXED and the remaining 7
+    # beams' shots would be silently dropped on resume.
+    granule_beams: Dict[Tuple[int, int, int], set] = {}
 
     # Pass A — finalized partition metadata JSONs (cheap, always run).
+    # Granules named here are inside an h3 partition that has already been
+    # merged and finalized → all their beams' rows are already consolidated
+    # into the final parquet, so they're complete by construction.
     meta_files = glob.glob(os.path.join(h3_dir, 'h3_*', f'*{PARTITION_META_FILENAME}'))
     meta_files += glob.glob(os.path.join(h3_dir, 'h3_*', '*', f'*{PARTITION_META_FILENAME}'))
     for mf in meta_files:
@@ -1056,6 +1088,10 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
             except Exception:
                 pass
 
+            def _merge_partition_data(data: Dict[Tuple[int, int, int], set]) -> None:
+                for gid, beams in data.items():
+                    granule_beams.setdefault(gid, set()).update(beams)
+
             from tqdm import tqdm as tqdm_bar
             if client is not None:
                 from dask.distributed import as_completed as dask_as_completed
@@ -1067,7 +1103,7 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
                 try:
                     for fut in dask_as_completed(futures):
                         try:
-                            indexed_ids.update(fut.result())
+                            _merge_partition_data(fut.result())
                         except Exception:
                             pass
                         finally:
@@ -1079,9 +1115,30 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
                 # In-process fallback for tiny scenarios (no client).
                 for d in tqdm_bar(h3_dirs, desc="Reconcile partitions", unit="dir"):
                     try:
-                        indexed_ids.update(_process_h3_partition(d))
+                        _merge_partition_data(_process_h3_partition(d))
                     except Exception:
                         continue
+
+    # Promote tmp-only granules to INDEXED iff every expected beam is on disk
+    # (or the legacy sentinel says "trust this granule"). Granules whose beam
+    # set is incomplete stay PENDING and get re-extracted on the next run —
+    # the re-extraction is idempotent (stable per-granule filenames overwrite
+    # in place), so no data corruption results.
+    expected_beams = set(GEDI_BEAMS)
+    n_partial = 0
+    for gid, beams in granule_beams.items():
+        if gid in indexed_ids:
+            continue  # already covered by a finalized partition (Pass A)
+        if _LEGACY_BEAM_SENTINEL in beams or expected_beams.issubset(beams):
+            indexed_ids.add(gid)
+        else:
+            n_partial += 1
+
+    if n_partial:
+        logger.info(
+            f"Resume reconciliation: {n_partial} granule(s) found with partial "
+            f"beam coverage on disk; leaving non-INDEXED for re-extraction"
+        )
 
     if not indexed_ids:
         return 0
