@@ -104,14 +104,16 @@ class TestStreamingHelpers:
 
     def test_streaming_enabled_env_var(self, monkeypatch):
         from gedih3.gh3builder import _streaming_enabled
-        for val in ('1', 'true', 'on', 'yes', 'TRUE', 'On'):
+        # Streaming is the v0.9.5+ default. Affirmative values and unset
+        # both yield True; explicit opt-out values yield False.
+        for val in ('1', 'true', 'on', 'yes', 'TRUE', 'On', ''):
             monkeypatch.setenv('GH3_WRITE_STREAMING', val)
             assert _streaming_enabled() is True
-        for val in ('0', 'false', 'off', 'no', ''):
+        for val in ('0', 'false', 'off', 'no', 'FALSE'):
             monkeypatch.setenv('GH3_WRITE_STREAMING', val)
             assert _streaming_enabled() is False
         monkeypatch.delenv('GH3_WRITE_STREAMING', raising=False)
-        assert _streaming_enabled() is False
+        assert _streaming_enabled() is True
 
     def test_streaming_batch_size_default_and_override(self, monkeypatch):
         from gedih3.gh3builder import _streaming_batch_size
@@ -413,7 +415,15 @@ class TestReconcileSentinelMode:
 # ===========================================================================
 
 class TestStreamingDispatch:
-    def test_streaming_enabled_returns_false_by_default(self, monkeypatch):
+    def test_streaming_enabled_returns_true_by_default(self, monkeypatch):
+        """v0.9.5 cutover: streaming is the default partition-write path."""
         from gedih3.gh3builder import _streaming_enabled
         monkeypatch.delenv('GH3_WRITE_STREAMING', raising=False)
+        assert _streaming_enabled() is True
+
+    def test_streaming_can_be_disabled_for_legacy_fallback(self, monkeypatch):
+        """Operators can opt back into the legacy ddf.to_parquet path
+        during the v0.9.x deprecation cycle for diagnostic comparison."""
+        from gedih3.gh3builder import _streaming_enabled
+        monkeypatch.setenv('GH3_WRITE_STREAMING', '0')
         assert _streaming_enabled() is False

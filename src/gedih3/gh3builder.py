@@ -1708,13 +1708,15 @@ def _write_one_granule_beam(
 def _streaming_enabled() -> bool:
     """Whether the partition-write phase should use the streaming path.
 
-    Toggled via ``GH3_WRITE_STREAMING={1,true,on,yes}``. Default is the
-    legacy ``ddf.to_parquet`` path during rollout (v1) so operators opt
-    in. Once soaked, this default should flip and the legacy body can be
-    removed.
+    Streaming is the default since the v0.9.5 cutover. Set
+    ``GH3_WRITE_STREAMING={0,false,off,no}`` to opt back into the legacy
+    ``ddf.to_parquet`` path (kept for one release cycle as a diagnostic
+    fallback; will be removed in v0.10.0).
     """
     val = os.environ.get('GH3_WRITE_STREAMING', '').strip().lower()
-    return val in ('1', 'true', 'on', 'yes')
+    if val in ('0', 'false', 'off', 'no'):
+        return False
+    return True
 
 
 def _streaming_batch_size() -> int:
