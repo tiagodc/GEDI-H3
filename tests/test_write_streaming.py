@@ -630,7 +630,7 @@ class TestStreamingEndToEnd:
         # REGRESSION GUARD #2: each driver-pre-flight step must log its
         # progress so future stalls are observable from the build log.
         expected_markers = [
-            'Driver: scatter step skipped',
+            'Driver: kwargs baked into partial',
             'Driver: building task list',
             'Driver: submitting',           # client.map call
             'Driver: submission complete',  # all futures registered with scheduler
@@ -651,7 +651,13 @@ class TestStreamingEndToEnd:
             f"its own Future)"
         )
 
-        # All 3 granules × 8 beams = 24 sentinels expected.
+        # REGRESSION GUARD #3: every submitted task must produce a sentinel
+        # AND parquet leaves. Catches the "every task fails with
+        # AssertionError(<TaskState 'spatial_h3_tiles' processing>)" bug
+        # where dask treated the kwarg name as a scheduler task key — the
+        # workers crashed before any I/O, sentinels never emitted, parquet
+        # leaves never written. The functools.partial wrap keeps dask from
+        # introspecting the kwargs into separate TaskStates.
         sentinels = _scan_complete_sentinels(tmp_partitions)
         expected = {
             f'O{orb:05d}_G{gran:02d}_T{trk:05d}.{beam}'
@@ -659,7 +665,8 @@ class TestStreamingEndToEnd:
             for beam in GEDI_BEAMS
         }
         assert sentinels == expected, (
-            f"sentinel set mismatch.\n"
+            f"sentinel set mismatch — possible kwarg-as-TaskState bug "
+            f"(workers crashed before any write).\n"
             f"  missing: {expected - sentinels}\n"
             f"  extra:   {sentinels - expected}"
         )
