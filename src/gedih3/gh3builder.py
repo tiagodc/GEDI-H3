@@ -1843,18 +1843,27 @@ def _write_partitioned_streaming(
     completed_frags = _scan_complete_sentinels(tmp_dir)
     if completed_frags:
         logger.info(
-            f"Streaming resume: {len(completed_frags)} (granule × beam) tasks "
-            f"already complete on disk (sentinel found); skipping their re-submission"
+            f"Streaming resume: {len(completed_frags)} (granule × beam) sentinel(s) "
+            f"found on disk; matching tasks will be skipped at submission time."
         )
 
     # ── Scatter broadcast values ───────────────────────────────────────
     # client.map / submit normally inline kwargs into the task graph,
     # which for spatial_h3_tiles × 584k tasks would be hundreds of GB of
-    # scheduler-side serialization (Agent 3 review #D.2). client.scatter
-    # with broadcast=True ships each value once per worker.
-    schema_fut = client.scatter(canonical_schema, broadcast=True)
-    product_vars_fut = client.scatter(product_vars, broadcast=True)
-    spatial_fut = (client.scatter(spatial_h3_tiles, broadcast=True)
+    # scheduler-side serialization. client.scatter with broadcast=True
+    # ships each value once per worker.
+    #
+    # CRITICAL: ``client.scatter(value, ...)`` on an iterable value (list,
+    # dict, set, pyarrow.Schema — anything with __iter__) scatters EACH
+    # ELEMENT as its own Future and returns an iterable of Futures, not a
+    # single Future. For a 41k-element spatial_h3_tiles list this creates
+    # 41k scheduler-side string tasks and deadlocks the driver while it
+    # broadcasts each to every worker. The wrap-in-singleton-list +
+    # ``[0]`` indexing pattern forces dask to treat the value as a single
+    # opaque object → one Future, broadcast once.
+    schema_fut = client.scatter([canonical_schema], broadcast=True)[0]
+    product_vars_fut = client.scatter([product_vars], broadcast=True)[0]
+    spatial_fut = (client.scatter([spatial_h3_tiles], broadcast=True)[0]
                    if spatial_h3_tiles is not None else None)
 
     submit_kwargs = dict(
