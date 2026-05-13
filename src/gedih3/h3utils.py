@@ -54,12 +54,25 @@ def intersect_h3_geometries(spatial, res=3, h3_ids=None):
     return h3_geo.index[h3_intersects].unique().tolist()
 
 def h3_index_df(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode'):
+    import warnings
+    import pandas as pd
     import h3pandas
-    df = df.dropna(subset=[lat_col, lon_col])
-    df = df.reset_index()
-    df = df.h3.geo_to_h3(res, lat_col=lat_col, lng_col=lon_col, set_index=True)
-    df = df.h3.h3_to_parent(part)
-    return df.copy()
+    # h3pandas's geo_to_h3 / h3_to_parent call frame.assign() internally,
+    # which on wide GEDI frames (~30+ columns) triggers pandas's fragmentation
+    # heuristic and emits a PerformanceWarning on every per-task call. The
+    # final df.copy() below defragments the result so the warning is purely
+    # cosmetic; suppress it to keep worker logs clean.
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            'ignore',
+            message='DataFrame is highly fragmented',
+            category=pd.errors.PerformanceWarning,
+        )
+        df = df.dropna(subset=[lat_col, lon_col])
+        df = df.reset_index()
+        df = df.h3.geo_to_h3(res, lat_col=lat_col, lng_col=lon_col, set_index=True)
+        df = df.h3.h3_to_parent(part)
+        return df.copy()
 
 
 def h3_parts_to_gdf(h3_ids, crs=4326):

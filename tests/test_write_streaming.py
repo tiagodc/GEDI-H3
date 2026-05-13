@@ -427,3 +427,268 @@ class TestStreamingDispatch:
         from gedih3.gh3builder import _streaming_enabled
         monkeypatch.setenv('GH3_WRITE_STREAMING', '0')
         assert _streaming_enabled() is False
+
+
+# ===========================================================================
+# 5. End-to-end integration with a real LocalCluster
+# ===========================================================================
+#
+# These tests catch driver-level bugs that the unit tests (which mocked
+# load_h5_merged and called the worker function directly) cannot:
+#   - client.scatter element-wise vs as-a-whole behavior on iterables.
+#   - submit_kwargs Future resolution against the running scheduler.
+#   - End-to-end flow load_h5_merged → h3_index → groupby → write →
+#     sentinel against a real dask LocalCluster.
+#
+# Synthetic GEDI-like HDF5 fixtures are generated via h5py; the format is
+# minimal but sufficient for load_h5_merged (which reads /BEAM<N>/<var>
+# datasets and joins on shot_number).
+
+def _write_synthetic_gedi_h5(path, beams, orbit, granule, track, n_shots=20,
+                              lat_range=(0.0, 0.5), lon_range=(-50.5, -50.0)):
+    """Minimal GEDI-like HDF5 with the variables load_h5_merged consumes
+    (shot_number, lat_lowestmode, lon_lowestmode, delta_time, rh_098, agbd).
+    Lat/lon span ~0.5° so the H3 indexing puts shots into a handful of
+    cells (small fan-out keeps the test parquet leaf count manageable)."""
+    import h5py
+    seed = (orbit * 1000) + (granule * 100) + track
+    rng = np.random.default_rng(seed)
+    with h5py.File(path, 'w') as f:
+        for beam in beams:
+            grp = f.create_group(beam)
+            base_shot = (int(beam[-4:], base=2) << 32) | (orbit & 0xFFFFFFFF)
+            shots = (np.arange(n_shots, dtype=np.uint64) + base_shot).astype('uint64')
+            grp.create_dataset('shot_number', data=shots)
+            grp.create_dataset('lat_lowestmode', data=rng.uniform(*lat_range, n_shots))
+            grp.create_dataset('lon_lowestmode', data=rng.uniform(*lon_range, n_shots))
+            grp.create_dataset('delta_time', data=rng.uniform(1e9, 1.1e9, n_shots))
+            grp.create_dataset('rh_098', data=rng.uniform(0, 50, n_shots))
+            grp.create_dataset('agbd', data=rng.uniform(0, 300, n_shots))
+
+
+def _gedi_filename(product, orbit, granule, track, version='V002'):
+    """Construct a GEDI-canonical basename so GEDIFile + _granule_beam_frag_name
+    can parse it."""
+    return (
+        f"GEDI{product}_2020001000000_O{orbit:05d}_{granule:02d}_"
+        f"T{track:05d}_02_003_02_{version}.h5"
+    )
+
+
+@pytest.fixture
+def _streaming_cluster_client():
+    """In-process LocalCluster for end-to-end tests. ``processes=False``
+    keeps it cheap (threads share imports) and lets module-level monkey-
+    patches reach the workers when needed."""
+    from dask.distributed import LocalCluster, Client
+    cluster = LocalCluster(
+        n_workers=2, threads_per_worker=1,
+        processes=False,
+        dashboard_address=None,
+        silence_logs='ERROR',
+    )
+    client = Client(cluster)
+    yield client
+    client.close()
+    cluster.close()
+
+
+class TestStreamingEndToEnd:
+    """Real LocalCluster integration tests. These exercise the streaming
+    driver end-to-end against synthetic HDF5 data — would have caught
+    the original client.scatter element-wise-vs-singleton bug that the
+    unit tests missed."""
+
+    def _build_synthetic_soc(self, tmp_dir, granules, beams=None):
+        """Write synthetic L2A + L4A HDF5 pairs per granule and return the
+        soc_files structure ``_write_partitioned_streaming`` expects."""
+        from gedih3.config import GEDI_BEAMS
+        if beams is None:
+            beams = GEDI_BEAMS
+        soc_dir = os.path.join(tmp_dir, 'soc')
+        os.makedirs(soc_dir, exist_ok=True)
+        soc_files = []
+        for orb, gran, trk in granules:
+            l2a_path = os.path.join(soc_dir, _gedi_filename('02_A', orb, gran, trk))
+            l4a_path = os.path.join(soc_dir, _gedi_filename('04_A', orb, gran, trk))
+            _write_synthetic_gedi_h5(l2a_path, beams, orb, gran, trk)
+            _write_synthetic_gedi_h5(l4a_path, beams, orb, gran, trk)
+            soc_files.append({'L2A': l2a_path, 'L4A': l4a_path})
+        return soc_files
+
+    def test_streaming_driver_completes_end_to_end(self, tmp_dir, _streaming_cluster_client, monkeypatch):
+        """Smoke test: 3 granules × all 8 beams → 24 (granule × beam) tasks
+        through the full streaming driver. Must complete within 90s, emit
+        the right sentinels, and write the right parquet leaves.
+
+        Additionally, spies on every client.scatter call inside the driver
+        and asserts each one received a wrapped (single-element list) input
+        and returned a single Future — the direct regression check for the
+        original deadlock-on-large-iterables bug. Small synthetic inputs
+        wouldn't otherwise trip the deadlock fingerprint at this scale,
+        but the spied type-check holds regardless of size."""
+        from gedih3.gh3builder import _write_partitioned_streaming, _scan_complete_sentinels
+        from gedih3.gedidriver import dask_h5_merged
+        from gedih3.config import GEDI_BEAMS
+        from dask.distributed import Future
+        import time
+
+        # Spy on the client.scatter calls happening inside the driver.
+        client = _streaming_cluster_client
+        scatter_calls: list = []
+        orig_scatter = client.scatter
+
+        def spy_scatter(data, *args, **kwargs):
+            result = orig_scatter(data, *args, **kwargs)
+            scatter_calls.append({'data': data, 'kwargs': kwargs, 'result': result})
+            return result
+
+        monkeypatch.setattr(client, 'scatter', spy_scatter)
+
+        granules = [(101, 1, 201), (102, 1, 202), (103, 1, 203)]
+        soc_files = self._build_synthetic_soc(tmp_dir, granules)
+
+        # Match the post-expansion product_vars a real build sees — L2A
+        # essentials (lat/lon/delta_time + shot_number) must be present
+        # because h3_index_df + add_special_columns depend on them.
+        product_vars = {
+            'L2A': ['shot_number', 'lat_lowestmode', 'lon_lowestmode',
+                    'delta_time', 'rh_098'],
+            'L4A': ['shot_number', 'agbd'],
+        }
+        ddf = dask_h5_merged(
+            soc_files, product_vars,
+            shots=None, dropna=True, by_beam=True, suffix_all=True,
+        )
+        # h3_index_df is applied inline in the worker, but the driver builds
+        # the canonical schema from ddf._meta + add_special_columns. Mirror
+        # the legacy chain at gh3builder.py:_create_h3_dataframe by also
+        # applying h3_index_df to the meta so the schema sees the post-
+        # h3-index column set.
+        from gedih3.h3utils import h3_index_df
+        ddf = ddf.map_partitions(
+            h3_index_df, res=12, part=3,
+            lat_col='lat_lowestmode_l2a', lon_col='lon_lowestmode_l2a',
+        )
+
+        tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
+        h3_dir = os.path.join(tmp_dir, 'database')
+        os.makedirs(h3_dir)
+
+        # Provide a real spatial filter so the driver exercises the
+        # spatial_h3_tiles scatter path (the one that deadlocked
+        # in production). The bbox bounds the synthetic lat/lon range.
+        spatial_bbox = [-51.0, -0.5, -49.5, 1.0]  # W, S, E, N
+
+        t0 = time.monotonic()
+        wrote_any = _write_partitioned_streaming(
+            ddf, soc_files, product_vars,
+            res=12, part=3,
+            tmp_dir=tmp_partitions, h3_dir=h3_dir,
+            spatial=spatial_bbox,
+            lat_col='lat_lowestmode_l2a',
+            lon_col='lon_lowestmode_l2a',
+            dat_col='delta_time_l2a',
+            inflight_target=8,
+        )
+        elapsed = time.monotonic() - t0
+
+        # SCATTER REGRESSION GUARD — every scatter call inside the driver
+        # must have wrapped its value in a singleton list and returned a
+        # single Future. Catches the element-wise scatter deadlock bug
+        # regardless of the iterable's size.
+        assert len(scatter_calls) >= 3, (
+            f"expected at least 3 scatter calls (schema, product_vars, "
+            f"spatial_h3_tiles), got {len(scatter_calls)}"
+        )
+        for i, call in enumerate(scatter_calls):
+            data = call['data']
+            result = call['result']
+            assert isinstance(data, list) and len(data) == 1, (
+                f"scatter call #{i}: input must be a singleton list "
+                f"(got type={type(data).__name__}, len={len(data) if hasattr(data, '__len__') else 'N/A'}). "
+                f"Without the [value] wrap, dask scatters iterable elements "
+                f"separately and creates one Future per element, deadlocking "
+                f"the driver on large lists (the spatial_h3_tiles case)."
+            )
+            # The driver indexes [0] to extract the single future, so the
+            # raw scatter return is a list-of-one-future. Either is fine for
+            # the regression check as long as input was wrapped.
+            assert isinstance(result, list) and len(result) == 1 and isinstance(result[0], Future), (
+                f"scatter call #{i}: wrapped scatter should return a "
+                f"one-Future list (got type={type(result).__name__})"
+            )
+
+        assert wrote_any, "driver returned False — no fragments written"
+        assert elapsed < 90, (
+            f"driver took {elapsed:.1f}s, expected <90s — likely deadlocked "
+            f"(scatter bug fingerprint: each iterable element scattered as "
+            f"its own Future)"
+        )
+
+        # All 3 granules × 8 beams = 24 sentinels expected.
+        sentinels = _scan_complete_sentinels(tmp_partitions)
+        expected = {
+            f'O{orb:05d}_G{gran:02d}_T{trk:05d}.{beam}'
+            for orb, gran, trk in granules
+            for beam in GEDI_BEAMS
+        }
+        assert sentinels == expected, (
+            f"sentinel set mismatch.\n"
+            f"  missing: {expected - sentinels}\n"
+            f"  extra:   {sentinels - expected}"
+        )
+
+        # At least one parquet leaf per (granule × beam × non-empty h3 cell).
+        leaves = []
+        for h3_entry in os.scandir(tmp_partitions):
+            if not (h3_entry.is_dir() and h3_entry.name.startswith('h3_')):
+                continue
+            for ye in os.scandir(h3_entry.path):
+                if ye.name.startswith('year='):
+                    for fe in os.scandir(ye.path):
+                        if fe.name.endswith('.parquet'):
+                            leaves.append(fe.path)
+        assert len(leaves) >= 24, (
+            f"expected at least 24 parquet leaves (one per granule × beam), "
+            f"got {len(leaves)}"
+        )
+
+        # Per-leaf files must be readable and non-empty.
+        for path in leaves[:5]:  # spot-check 5 to keep the test fast
+            tbl = pq.read_table(path)
+            assert tbl.num_rows > 0, f"leaf {path} has 0 rows"
+            assert 'shot_number_l2a' in tbl.column_names or 'shot_number' in tbl.column_names
+
+    def test_scatter_returns_single_future_per_iterable(self, _streaming_cluster_client):
+        """Direct regression check: confirm the scatter calls in the
+        driver produce SINGLE Futures, not lists-of-Futures, for iterable
+        kwargs (list, dict, pyarrow.Schema). This is the precise bug
+        signature the original implementation hit."""
+        from dask.distributed import Future
+        client = _streaming_cluster_client
+
+        # The list-of-strings case (spatial_h3_tiles).
+        spatial = ['830001fffffffff', '830002fffffffff', '830003fffffffff']
+        fut = client.scatter([spatial], broadcast=True)[0]
+        assert isinstance(fut, Future), (
+            f"expected single Future, got {type(fut).__name__}"
+        )
+        resolved = fut.result()
+        assert resolved == spatial, "scattered value did not round-trip"
+
+        # The dict case (product_vars).
+        pv = {'L2A': ['rh_098', 'shot_number'], 'L4A': ['agbd']}
+        fut = client.scatter([pv], broadcast=True)[0]
+        assert isinstance(fut, Future)
+        assert fut.result() == pv
+
+        # Sanity: the legacy/buggy call WOULD return a list-of-Futures here.
+        # Verify the contrast so future readers see why the wrap matters.
+        buggy_futs = client.scatter(spatial, broadcast=True)
+        assert not isinstance(buggy_futs, Future)
+        assert len(buggy_futs) == len(spatial), (
+            f"non-wrapped scatter on a list returns one Future per element "
+            f"(got {len(buggy_futs)} for a {len(spatial)}-elem list) — "
+            f"that's the bug the wrap-in-singleton-list pattern fixes."
+        )
