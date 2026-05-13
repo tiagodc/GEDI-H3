@@ -14,7 +14,8 @@ from .config import GH3_DEFAULT_H3_DIR, configure_environment, BUILD_LOG_FILENAM
 from .utils import (json_read, json_write, now, get_package_version, is_parquet,
                      smart_glob, smart_exists, smart_isdir, is_remote_path,
                      smart_open, generate_manifest, check_nan_only_columns,
-                     smart_join, AtomicFileWriter)
+                     smart_join, AtomicFileWriter,
+                     dask_safe_wait, dask_safe_collect)
 from .h3utils import intersect_h3_geometries, fix_h3_geometry
 from .cliutils import find_coordinate_column, get_aggregatable_columns
 from .exceptions import (GediValidationError, GediDatabaseNotFoundError, GediProcessingError,
@@ -771,7 +772,7 @@ def gh3_load(source=None, *, columns=None, region=None, query=None,
                             lazy=True, filters=filters)
 
     if not lazy:
-        return ddf.compute()
+        return dask_safe_collect(ddf)
     return ddf
 
 def gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, add_geometry=True, repartition=False, partition_level=None, **kwargs):
@@ -1191,7 +1192,9 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
 
     # Export data
     if merge:
-        result_df = ddf.compute()
+        # Driver-side concat instead of the optimizer's cluster-side collapse
+        # (RepartitionToFewer(1) wedges on tunneled meshes past ~1500 parts).
+        result_df = dask_safe_collect(ddf, show_progress=show_progress)
         opath = export_func(result_df, odir=output, fmt=fmt, is_file_path=True)
         ofiles = [opath] if opath else []
     else:
@@ -1211,19 +1214,14 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
             export_func, **export_kwargs, meta=pd.Series(dtype=str)
         )
 
-        # Always-parallel compute. ``persist`` materializes the task
-        # graph on the registered Client; ``progress`` wires the
-        # dashboard bar; the final ``compute`` propagates per-task
-        # exceptions (``progress`` alone would swallow them). gedih3
-        # CLI tools always create a Client at startup, so a registered
-        # one is the project contract; library callers that haven't
-        # done so will see the dask SyncCluster fall-through, which is
-        # also a single code path.
-        from dask.distributed import progress
+        # Wait for the per-partition writes (side effect only) and propagate
+        # any worker exceptions, without going through ``.compute()`` — that
+        # would trigger the optimizer's RepartitionToFewer step which wedges
+        # on tunneled multi-node clusters past ~1500 partitions in dask
+        # >= 2025.2. dask_safe_wait persists + waits + checks futures_of
+        # for errors; same semantics, no fan-in collect step.
         write_task = write_task.persist()
-        if show_progress:
-            progress(write_task)
-        write_task.compute()
+        dask_safe_wait(write_task, show_progress=show_progress)
 
         ofiles = smart_glob(smart_join(output, f'*.{fmt}'))
 
@@ -1760,7 +1758,7 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
         ddf = _load_dataset(path, columns=columns, query=query, region=region, lazy=True)
 
     if not lazy:
-        return ddf.compute()
+        return dask_safe_collect(ddf)
     return ddf
 
 
