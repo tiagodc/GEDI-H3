@@ -1719,19 +1719,29 @@ def _streaming_enabled() -> bool:
     return True
 
 
-def _streaming_batch_size() -> int:
+def _streaming_batch_size(n_workers: Optional[int] = None) -> int:
     """Rolling-window inflight target for the streaming driver.
 
-    Tunable via ``GH3_WRITE_STREAMING_BATCH`` env. The driver maintains
-    roughly this many in-flight (granule × beam) tasks at any moment via
-    ``as_completed.add`` top-up. Default ``2000`` ≈ 7 tasks per worker
-    on a 274-worker cluster — enough I/O overlap without scheduler-side
-    memory pile-up.
+    Defaults to ``max(n_workers * 2, 100)`` when ``n_workers`` is known —
+    just enough buffering above the 1-task-per-worker minimum to absorb
+    task-time variance without hiding stragglers. A 2000-inflight default
+    (an earlier design) was 8× overkill on this cluster: most queued tasks
+    would sit invisible behind the rolling-window's release-as-completed
+    loop, defeating the visibility goal.
+
+    Override via ``GH3_WRITE_STREAMING_BATCH`` env. ``n_workers=None``
+    falls back to a static ``500`` (~2× the gsapp cluster's typical
+    capacity) when the driver hasn't connected to the scheduler yet.
     """
-    try:
-        return max(1, int(os.environ.get('GH3_WRITE_STREAMING_BATCH', '2000')))
-    except ValueError:
-        return 2000
+    val = os.environ.get('GH3_WRITE_STREAMING_BATCH')
+    if val is not None:
+        try:
+            return max(1, int(val))
+        except ValueError:
+            pass
+    if n_workers and n_workers > 0:
+        return max(n_workers * 2, 100)
+    return 500
 
 
 def _write_partitioned_streaming(
@@ -1784,11 +1794,9 @@ def _write_partitioned_streaming(
         default (``GH3_WRITE_STREAMING_BATCH``).
     """
     import itertools as _it
+    import time as _time
     from dask.distributed import as_completed as dask_as_completed
     from tqdm import tqdm as tqdm_bar
-
-    if inflight_target is None:
-        inflight_target = _streaming_batch_size()
 
     client = get_dask_client()
     if client is None:
@@ -1796,6 +1804,17 @@ def _write_partitioned_streaming(
             "_write_partitioned_streaming requires a registered dask "
             "Client (wrap your call in `with Client(...): ...`)."
         )
+
+    # Inflight-target sizing: tied to the live worker count so the rolling
+    # window stays just-large-enough to keep workers busy without hiding
+    # stragglers in a deep queue. Caller can override (e.g. for the
+    # LocalCluster-based regression test which runs with 2 workers).
+    if inflight_target is None:
+        try:
+            n_workers_live = len(client.scheduler_info().get('workers', {})) or None
+        except Exception:
+            n_workers_live = None
+        inflight_target = _streaming_batch_size(n_workers=n_workers_live)
 
     logger.info(f"Writing partitioned H3 data (streaming) to: {tmp_dir}")
     os.makedirs(tmp_dir, exist_ok=True)
@@ -1847,38 +1866,50 @@ def _write_partitioned_streaming(
             f"found on disk; matching tasks will be skipped at submission time."
         )
 
-    # ── Scatter broadcast values ───────────────────────────────────────
-    # client.map / submit normally inline kwargs into the task graph,
-    # which for spatial_h3_tiles × 584k tasks would be hundreds of GB of
-    # scheduler-side serialization. client.scatter with broadcast=True
-    # ships each value once per worker.
+    # ── Inline broadcast values into submit_kwargs ─────────────────────
+    # Earlier iterations used client.scatter(broadcast=True), which is the
+    # textbook way to ship values to all workers once. Two production
+    # incidents made it the wrong call here:
+    #   1. scatter(value, broadcast=True) treats iterable values (list,
+    #      dict, pyarrow.Schema) as batches to scatter element-wise,
+    #      creating thousands of stray scheduler-side futures.
+    #   2. Even after wrapping in [value], broadcast=True hung indefinitely
+    #      on this 242-worker SSH-tunneled cluster — the scatter call
+    #      blocked waiting for every worker to ACK the broadcast, and
+    #      sporadic worker comm latencies under the tunnels meant the ACK
+    #      never came back from at least one peer.
     #
-    # CRITICAL: ``client.scatter(value, ...)`` on an iterable value (list,
-    # dict, set, pyarrow.Schema — anything with __iter__) scatters EACH
-    # ELEMENT as its own Future and returns an iterable of Futures, not a
-    # single Future. For a 41k-element spatial_h3_tiles list this creates
-    # 41k scheduler-side string tasks and deadlocks the driver while it
-    # broadcasts each to every worker. The wrap-in-singleton-list +
-    # ``[0]`` indexing pattern forces dask to treat the value as a single
-    # opaque object → one Future, broadcast once.
-    schema_fut = client.scatter([canonical_schema], broadcast=True)[0]
-    product_vars_fut = client.scatter([product_vars], broadcast=True)[0]
-    spatial_fut = (client.scatter([spatial_h3_tiles], broadcast=True)[0]
-                   if spatial_h3_tiles is not None else None)
-
+    # Final decision: drop scatter altogether for these kwargs. Inline
+    # them in the task graph. With the rolling-window inflight cap of
+    # ~``inflight_target`` (default 2000) live futures, the scheduler-side
+    # serialization cost is bounded:
+    #
+    #     spatial_h3_tiles ≈ 200 KB pickled  ×  2000 inflight
+    #                      ≈ 400 MB live in the scheduler at any moment
+    #
+    # Comfortable for a 1 TB-RAM hub. Completed task graph entries get
+    # released as ``fut.release()`` runs in the as_completed loop, so the
+    # peak doesn't grow with total task count.
     submit_kwargs = dict(
-        product_vars=product_vars_fut,
+        product_vars=product_vars,
         res=res, part=part,
         tmp_dir=tmp_dir, h3_dir=h3_dir,
         lat_col=lat_col, lon_col=lon_col, dat_col=dat_col,
-        spatial_h3_tiles=spatial_fut,
+        spatial_h3_tiles=spatial_h3_tiles,
         skip_check_enabled=skip_check_enabled,
-        schema=schema_fut,
+        schema=canonical_schema,
+    )
+    logger.info(
+        f"Driver: scatter step skipped (inlining broadcast kwargs into task graph). "
+        f"spatial_h3_tiles={len(spatial_h3_tiles) if spatial_h3_tiles else 0} cells, "
+        f"product_vars={len(product_vars)} products, "
+        f"schema cols={len(canonical_schema.names) if canonical_schema is not None else 0}."
     )
 
     # ── Build task stream ─────────────────────────────────────────────
     # Generator over (soc_dict, beam, frag_name). Skips tasks whose
     # sentinel is already on disk (resume fast-path).
+    logger.info("Driver: building task list...")
     def _task_stream():
         for soc, beam in _it.product(soc_files, GEDI_BEAMS):
             frag_name = _granule_beam_frag_name(soc, beam)
@@ -1906,8 +1937,8 @@ def _write_partitioned_streaming(
     # ── Rolling-window submission ─────────────────────────────────────
     # Maintain ~inflight_target futures in flight at any moment via
     # as_completed.add on each completion. Eliminates the strict-batch
-    # straggler-idle problem (Agent 3 review #F.3) — workers stay busy
-    # until the task stream is exhausted.
+    # straggler-idle problem — workers stay busy until the task stream
+    # is exhausted.
     tasks_iter = iter(tasks)
 
     def _submit_next() -> Optional[Any]:
@@ -1917,13 +1948,21 @@ def _write_partitioned_streaming(
             return None
         return client.submit(_write_one_granule_beam, t, pure=False, **submit_kwargs)
 
-    # Prime the inflight window.
+    # Prime the inflight window. We log progress every ~10% so a stall in
+    # this synchronous priming loop is observable from the build log
+    # (instead of silently sleeping in futex_wait_queue).
+    prime_target = min(inflight_target, total)
+    prime_step = max(1, prime_target // 10)
+    logger.info(f"Driver: priming inflight window ({prime_target} tasks)...")
     initial_futures = []
-    for _ in range(inflight_target):
+    for i in range(inflight_target):
         fut = _submit_next()
         if fut is None:
             break
         initial_futures.append(fut)
+        if (i + 1) % prime_step == 0:
+            logger.info(f"Driver: primed {i + 1}/{prime_target} initial futures")
+    logger.info(f"Driver: priming complete — {len(initial_futures)} futures submitted")
     if not initial_futures:
         return False
 
@@ -1931,6 +1970,13 @@ def _write_partitioned_streaming(
 
     pbar = tqdm_bar(total=total, desc="Stage1 partition writes", unit="task")
     n_ok = n_fail = n_leaves = 0
+    # Periodic-progress logger: tqdm carriage-returns over its own line and
+    # doesn't go to the log file legibly; we emit a real INFO log every
+    # ``log_every_seconds`` so an operator (or the monitor loop) can see
+    # liveness in gh3_build.log even when tqdm is silent. The interval is
+    # generous (60s) to avoid log spam — for visibility, not for tracing.
+    log_every_seconds = 60
+    next_log_t = _time.monotonic() + log_every_seconds
     try:
         for fut in ac:
             try:
@@ -1950,6 +1996,15 @@ def _write_partitioned_streaming(
                 fut.release()
             pbar.update(1)
             pbar.set_postfix(ok=n_ok, fail=n_fail, leaves=n_leaves)
+            now = _time.monotonic()
+            if now >= next_log_t:
+                done = n_ok + n_fail
+                logger.info(
+                    f"Streaming write: {done}/{total} done "
+                    f"({100*done/total:.1f}%) — ok={n_ok} fail={n_fail} "
+                    f"leaves={n_leaves}"
+                )
+                next_log_t = now + log_every_seconds
             # Top up the rolling window with one new task.
             new_fut = _submit_next()
             if new_fut is not None:
