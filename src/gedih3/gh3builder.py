@@ -18,9 +18,9 @@ from earthaccess.store import EarthAccessFile
 from dask.distributed import progress
 
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME, _get_versioned, _GEDI_L2A_ESSENTIALS, _PRODUCT_QUALITY_FLAGS
-from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, generate_manifest, check_nan_only_columns, h3_partition_bbox, parse_h3_partition_dirname
+from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, read_parquet_schema, h5_is_valid, get_dask_client, generate_manifest, check_nan_only_columns, h3_partition_bbox, parse_h3_partition_dirname, AtomicFileWriter
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
-from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_vars_static, gedi_subset, validate_soc_files, load_h5, expand_var_wildcards
+from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_vars_static, gedi_subset, validate_soc_files, load_h5, load_h5_merged, expand_var_wildcards
 from .daac import gedi_download
 from .logging_config import get_logger
 from .validation import validate_h3_params, validate_product_vars, validate_directory_exists
@@ -930,6 +930,132 @@ _FRAGMENT_BASENAME_RE = re.compile(r'^O(\d+)_G(\d+)_T(\d+)\.([A-Za-z0-9_]+)\.par
 _LEGACY_BEAM_SENTINEL = '*'
 
 
+# ---------------------------------------------------------------------------
+# Streaming partition-write shared helpers
+# ---------------------------------------------------------------------------
+#
+# The streaming writer (_write_partitioned_streaming) emits one of these
+# completion sentinels per successful (granule × beam) task, after every
+# leaf parquet for that task has been atomically committed via
+# AtomicFileWriter. The reconcile then trusts the sentinel as proof that
+# the (granule × beam) is fully on disk — eliminating the legacy
+# "any-beam-fragment-equals-complete-granule" data-loss path (Agent 3
+# adversarial review #E.1).
+_COMPLETE_SENTINEL_DIRNAME = '_complete'
+
+
+def _granule_beam_frag_name(soc_dict: Dict[str, str], beam: str) -> Optional[str]:
+    """Stable basename (without ``.parquet``) for one (granule, beam) tuple.
+
+    Matches ``_FRAGMENT_BASENAME_RE`` exactly so the reconcile, merge, and
+    legacy ``to_parquet(name_function=...)`` paths all see identical
+    fragment paths. Returns ``None`` when the source HDF5 filename cannot
+    be parsed (matches the legacy fallback at the prior inline builder
+    site — caller falls back to dask-default naming, which in the
+    streaming path means we just skip the (granule × beam) since opaque
+    names would not round-trip through the reconcile cleanly).
+    """
+    try:
+        path = next(iter(soc_dict.values()))
+        fl = os.path.basename(str(path)).split('_')
+        orbit = int(fl[3][1:])
+        granule = int(fl[4])
+        track = int(fl[5][1:])
+        return f"O{orbit:05d}_G{granule:02d}_T{track:05d}.{beam}"
+    except Exception:
+        return None
+
+
+def _complete_sentinel_path(tmp_dir: str, frag_name: str) -> str:
+    """Path of the per-(granule × beam) completion sentinel.
+
+    Lives under ``tmp_dir/_complete/`` (one directory, all sentinels) so
+    the reconcile can enumerate completions via a single ``os.scandir``
+    on the sentinel dir instead of a recursive walk of the partition
+    tree. ``frag_name`` matches ``_FRAGMENT_BASENAME_RE`` (no ``.parquet``
+    suffix) so the sentinel basename uniquely identifies the task.
+    """
+    return os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME, f'{frag_name}.done')
+
+
+def _emit_complete_sentinel(tmp_dir: str, frag_name: str) -> None:
+    """Touch the completion sentinel for one (granule × beam). Idempotent.
+
+    Atomic via ``open(... 'x')`` semantics — concurrent emitters on shared
+    GPFS race-create the same file; only one wins, the others observe
+    ``FileExistsError`` and treat it as "already done". No need for
+    AtomicFileWriter here: the file is zero-byte (its existence is the
+    signal); a partial write cannot leave a half-emitted sentinel.
+    """
+    path = _complete_sentinel_path(tmp_dir, frag_name)
+    parent = os.path.dirname(path)
+    os.makedirs(parent, exist_ok=True)
+    try:
+        with open(path, 'x'):
+            pass
+    except FileExistsError:
+        pass
+
+
+def _scan_complete_sentinels(tmp_dir: str) -> set:
+    """Return the set of frag_names with an emitted completion sentinel.
+
+    One ``os.scandir`` over ``tmp_dir/_complete/``; O(n_completed_tasks)
+    rather than O(n_fragments). Empty set if the sentinel dir doesn't
+    exist yet (fresh build or pre-migration legacy tmp tree).
+    """
+    sentinel_dir = os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME)
+    out: set = set()
+    try:
+        with os.scandir(sentinel_dir) as it:
+            for e in it:
+                if e.is_file(follow_symlinks=False) and e.name.endswith('.done'):
+                    out.add(e.name[:-len('.done')])
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
+    return out
+
+
+def _canonical_write_schema(meta_df, part: int) -> Any:
+    """Build the canonical pyarrow schema for streaming per-leaf writes.
+
+    Mirrors dask's ``_meta_nonempty → pyarrow_schema_dispatch`` chain used
+    by ``dd.to_parquet``. Building schema once on the driver and passing
+    it to every per-leaf write enforces column-order and nullable-dtype
+    parity across all fragments — without this guard, per-leaf
+    schema-inference from data would produce subtle divergences (e.g.
+    ``Int64`` nullable vs ``int64``, datetime tz) that break
+    parquet_merge_files's schema union at the merge phase.
+
+    Parameters
+    ----------
+    meta_df : pandas / geopandas DataFrame
+        Empty frame with the canonical column set, dtypes, and index name
+        that every per-leaf write should match. Should already include
+        ``geometry`` + ``datetime`` + ``year`` (post-add_special_columns,
+        post year-assign) and the partition columns (we drop them here).
+    part : int
+        Partition resolution; drives the ``h3_{part:02d}`` partition
+        column name to drop from the body schema.
+
+    Returns
+    -------
+    pyarrow.Schema
+        Schema with partition columns removed. For GeoDataFrame input the
+        schema carries the GeoParquet ``geo`` metadata so per-leaf cast
+        preserves the geometry encoding contract.
+    """
+    drop_cols = [f'h3_{part:02d}', 'year']
+    body = meta_df.drop(columns=drop_cols, errors='ignore').head(0)
+    if isinstance(body, gpd.GeoDataFrame):
+        from geopandas.io.arrow import _geopandas_to_arrow
+        return _geopandas_to_arrow(body, index=True).schema
+    import pyarrow as pa
+    return pa.Schema.from_pandas(body, preserve_index=True)
+
+
 def _list_year_subdirs(h3_dir: str) -> List[str]:
     """Return ``<h3_dir>/year=*/`` paths (with trailing separator).
 
@@ -1119,21 +1245,95 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
                     except Exception:
                         continue
 
-    # Promote tmp-only granules to INDEXED iff every expected beam is on disk
-    # (or the legacy sentinel says "trust this granule"). Granules whose beam
-    # set is incomplete stay PENDING and get re-extracted on the next run —
-    # the re-extraction is idempotent (stable per-granule filenames overwrite
-    # in place), so no data corruption results.
+    # Pass C — scan streaming completion sentinels under tmp_dir/_complete/.
+    # Each sentinel proves one (granule × beam) task ran to completion under
+    # the streaming writer (all leaves committed atomically + sentinel
+    # emitted as the final step). Sentinels are the authoritative
+    # completeness signal going forward.
+    sentinel_beams: Dict[Tuple[int, int, int], set] = {}
+    sentinel_dir_exists = False
+    if tmp_dir and os.path.isdir(tmp_dir):
+        sentinel_dir_exists = os.path.isdir(
+            os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME)
+        )
+        if sentinel_dir_exists:
+            for frag_name in _scan_complete_sentinels(tmp_dir):
+                m = _FRAGMENT_BASENAME_RE.match(f'{frag_name}.parquet')
+                if m is None:
+                    continue
+                gid = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                sentinel_beams.setdefault(gid, set()).add(m.group(4))
+
+    # Decide reconcile mode.
+    #
+    # sentinel_mode=True  → the streaming writer has run at least once on
+    # this tmp tree, so sentinels are the authoritative completeness signal.
+    # Fragment-presence alone (Pass B) is NO LONGER sufficient because the
+    # streaming writer may have written some leaves of a (granule × beam)
+    # before being killed mid-task — only the sentinel proves all leaves
+    # were committed.
+    #
+    # sentinel_mode=False → tmp tree predates the streaming writer (built
+    # by the legacy ddf.to_parquet path). Fall back to the pre-existing
+    # fragment-presence heuristic and EMIT sentinels for any granule we
+    # flip INDEXED — that bridges the legacy tree into the sentinel model
+    # so subsequent resumes are sentinel-aware.
+    sentinel_mode = sentinel_dir_exists
+
     expected_beams = set(GEDI_BEAMS)
     n_partial = 0
-    for gid, beams in granule_beams.items():
-        if gid in indexed_ids:
-            continue  # already covered by a finalized partition (Pass A)
-        if _LEGACY_BEAM_SENTINEL in beams or expected_beams.issubset(beams):
-            indexed_ids.add(gid)
-        else:
-            n_partial += 1
+    n_migrated_sentinels = 0
+    migration_emit_pairs: List[Tuple[str, str]] = []  # (frag_name, beam) — for clarity in logs
 
+    if sentinel_mode:
+        # AUTHORITATIVE PATH: granules complete only when every expected
+        # beam has its sentinel emitted. Fragment-presence in granule_beams
+        # is ignored for completeness; we still report partials based on it
+        # as a diagnostic.
+        for gid, beams in sentinel_beams.items():
+            if gid in indexed_ids:
+                continue
+            if expected_beams.issubset(beams):
+                indexed_ids.add(gid)
+            else:
+                n_partial += 1
+        # Also surface fragment-on-disk-but-no-sentinel granules as partial
+        # in the diagnostic count (they will be re-extracted on next run).
+        for gid in granule_beams:
+            if gid in indexed_ids:
+                continue
+            if gid not in sentinel_beams:
+                n_partial += 1
+    else:
+        # LEGACY MIGRATION PATH: use the pre-streaming fragment-presence
+        # heuristic. For every granule flipped INDEXED here, emit sentinels
+        # for each of its beams so subsequent reconciles are sentinel-aware.
+        for gid, beams in granule_beams.items():
+            if gid in indexed_ids:
+                continue
+            if _LEGACY_BEAM_SENTINEL in beams or expected_beams.issubset(beams):
+                indexed_ids.add(gid)
+                # Migration: synthesise a frag_name per beam in `beams` and
+                # emit its sentinel. For the legacy-sentinel case we don't
+                # know the actual beam, so emit for the full GEDI_BEAMS set
+                # (consistent with the legacy "trust this granule" semantics).
+                emit_beams = set(GEDI_BEAMS) if _LEGACY_BEAM_SENTINEL in beams else beams
+                orbit, granule, track = gid
+                for beam in emit_beams:
+                    frag_name = f"O{orbit:05d}_G{granule:02d}_T{track:05d}.{beam}"
+                    if tmp_dir:
+                        _emit_complete_sentinel(tmp_dir, frag_name)
+                    migration_emit_pairs.append((frag_name, beam))
+                    n_migrated_sentinels += 1
+            else:
+                n_partial += 1
+
+    if n_migrated_sentinels:
+        logger.info(
+            f"Resume reconciliation (migration): emitted {n_migrated_sentinels} "
+            f"completion sentinels for legacy tmp fragments; subsequent reconciles "
+            f"will use sentinel-authoritative mode"
+        )
     if n_partial:
         logger.info(
             f"Resume reconciliation: {n_partial} granule(s) found with partial "
@@ -1267,21 +1467,20 @@ def _create_h3_dataframe(
 
     # Build per-partition stable names matching dask_h5_merged's by_beam=True
     # enumeration: itertools.product(soc_files, GEDI_BEAMS). Each Dask partition
-    # i corresponds to one (granule, beam) tuple. Naming format mirrors
-    # _add_variables_to_partition's orb_track convention.
+    # i corresponds to one (granule, beam) tuple. Delegated to the shared
+    # _granule_beam_frag_name helper so the streaming writer
+    # (_write_partitioned_streaming) and the legacy to_parquet path agree on
+    # the same filename convention by construction.
     import itertools as _it
     frag_names: List[str] = []
     for _soc, _beam in _it.product(soc_files, GEDI_BEAMS):
-        try:
-            _path = next(iter(_soc.values()))
-            _fl = os.path.basename(str(_path)).split('_')
-            _orbit = int(_fl[3][1:])
-            _granule = int(_fl[4])
-            _track = int(_fl[5][1:])
-            frag_names.append(f"O{_orbit:05d}_G{_granule:02d}_T{_track:05d}.{_beam}")
-        except Exception:
-            # Fallback: opaque but deterministic per-partition name.
-            frag_names.append(f"part.{len(frag_names):08d}")
+        name = _granule_beam_frag_name(_soc, _beam)
+        if name is None:
+            # Fallback: opaque but deterministic per-partition name. Only
+            # fires when the source HDF5 path can't be parsed (never happens
+            # for NASA-formatted granules). Legacy behaviour preserved.
+            name = f"part.{len(frag_names):08d}"
+        frag_names.append(name)
 
     lat_col = 'lat_lowestmode'
     lon_col = 'lon_lowestmode'
@@ -1344,6 +1543,423 @@ def _apply_spatial_filter(
         ddf = ddf.drop(columns=['_skip'])
 
     return ddf
+
+
+def _write_one_granule_beam(
+    task: Tuple[Dict[str, str], str, str],
+    *,
+    product_vars: Dict[str, List[str]],
+    res: int,
+    part: int,
+    tmp_dir: str,
+    h3_dir: str,
+    lat_col: str,
+    lon_col: str,
+    dat_col: str,
+    spatial_h3_tiles: Optional[List[str]] = None,
+    skip_check_enabled: bool = False,
+    schema: Any = None,
+) -> Dict[str, Any]:
+    """Worker-side body of the streaming partition write.
+
+    Loads ONE (granule × beam) HDF5, applies the same transformation chain
+    the legacy dask graph used (h3_index_df → optional spatial filter →
+    h3_add_skip_column → add_special_columns → year synthesis → groupby on
+    [h3_{part:02d}, year]), writes one parquet leaf per (h3 cell × year)
+    group via AtomicFileWriter + GeoDataFrame.to_parquet, then emits a
+    per-(granule × beam) completion sentinel only AFTER every leaf is
+    committed. The sentinel is what the reconcile trusts as proof that the
+    (granule × beam) is fully on disk — eliminating the legacy
+    "any-beam-fragment-equals-complete-granule" data-loss path on
+    kill-mid-write resume.
+
+    Parameters
+    ----------
+    task : (soc_dict, beam, frag_name)
+        ``soc_dict`` maps product code → HDF5 path for one granule.
+        ``beam`` is one of ``GEDI_BEAMS``. ``frag_name`` matches
+        ``_FRAGMENT_BASENAME_RE`` and is the per-task basename used both
+        for the leaf parquet files and the completion sentinel.
+    product_vars, res, part, lat_col, lon_col, dat_col
+        Identical to the legacy chain's kwargs.
+    tmp_dir, h3_dir
+        Output tmp tree root and existing-h3-db root.
+    spatial_h3_tiles
+        Driver-broadcast list of H3 cell IDs (at resolution ``part``) to
+        keep. ``None`` disables spatial filtering. Replaces the legacy
+        ``ddf[ddf[h3_part_col].isin(h3_tiles)]`` at _apply_spatial_filter.
+    skip_check_enabled
+        When True, runs ``h3_add_skip_column`` to drop rows whose target
+        h3 partition already has finalized data in ``h3_dir``.
+    schema
+        Driver-built pyarrow Schema used for every per-leaf write to
+        force column-order + dtype parity across fragments. Without
+        this, per-leaf schema inference would drift between fragments
+        and break the merge phase's schema union. See
+        ``_canonical_write_schema``.
+
+    Returns
+    -------
+    dict
+        ``{'frag_name': str, 'leaves': int, 'rows': int, 'skipped': bool,
+        'error': Optional[str]}``. ``skipped=True`` covers
+        empty-after-load, empty-after-spatial-filter, and
+        empty-after-skip-check (no sentinel emitted in any of these
+        cases — the (granule × beam) genuinely produced no data).
+    """
+    soc_dict, beam, frag_name = task
+    stats = {'frag_name': frag_name, 'leaves': 0, 'rows': 0, 'skipped': False, 'error': None}
+
+    # 1) Load HDF5 for one (granule, beam) — identical contract to
+    #    dask_h5_merged(by_beam=True)'s inner load_by_beam closure.
+    try:
+        df = load_h5_merged(
+            soc_dict, product_vars=product_vars,
+            which_beams=[beam], shots=None,
+            dropna=True, suffix_all=True,
+        )
+    except Exception as e:
+        # Mirrors the legacy graph's _load_h5_merged exception swallow —
+        # corrupt h5 returns an empty meta upstream rather than failing the
+        # whole job. Streaming surfaces the error in stats for visibility.
+        stats['skipped'] = True
+        stats['error'] = f"load_h5_merged: {type(e).__name__}: {e}"
+        return stats
+    if df is None or df.empty:
+        stats['skipped'] = True
+        return stats
+
+    # 2) H3 index — same call as legacy ddf.map_partitions(h3_index_df, ...).
+    df = h3_index_df(df, res=res, part=part, lat_col=lat_col, lon_col=lon_col)
+    if df.empty:
+        stats['skipped'] = True
+        return stats
+
+    h3_part_col = f'h3_{part:02d}'
+
+    # 3) Spatial filter — replaces _apply_spatial_filter's isin branch.
+    #    Tile set is precomputed driver-side and scattered (constant per build).
+    if spatial_h3_tiles is not None:
+        df = df[df[h3_part_col].isin(spatial_h3_tiles)]
+        if df.empty:
+            stats['skipped'] = True
+            return stats
+
+    # 4) Skip-existing-data filter — replaces _apply_spatial_filter's
+    #    h3_add_skip_column branch. h3_add_skip_column reads from h3_dir
+    #    to detect cells whose finalized data already covers this granule.
+    if skip_check_enabled and 'root_file_l2a' in df.columns:
+        df = h3_add_skip_column(df, h3_dir=h3_dir)
+        df = df[~df['_skip']].drop(columns=['_skip'])
+        if df.empty:
+            stats['skipped'] = True
+            return stats
+
+    # 5) Special columns + year — same calls as legacy.
+    df = add_special_columns(df, lon_col=lon_col, lat_col=lat_col, dat_col=dat_col)
+    df = df.assign(year=df['datetime'].dt.year)
+
+    # 6) Groupby + per-leaf atomic write. observed=True + sort=False mirror
+    #    the legacy partition_on=[h3_part, year] semantics — partition
+    #    columns are stored in directory names, dropped from file body.
+    leaves_written = 0
+    rows_written = 0
+    # Lazy import — only the streaming write path uses this private hook
+    # into geopandas's arrow conversion. Kept identical to what dask's
+    # GeoArrowEngine._pandas_to_arrow_table calls under the hood, so the
+    # streaming output matches the legacy chain byte-for-byte (modulo
+    # row order within identical input).
+    from geopandas.io.arrow import _geopandas_to_arrow
+    for (h3_cell, year), leaf_df in df.groupby([h3_part_col, 'year'], sort=False, observed=True):
+        if leaf_df.empty:
+            continue
+        leaf_dir = os.path.join(tmp_dir,
+                                f'{h3_part_col}={h3_cell}',
+                                f'year={int(year)}')
+        out_path = os.path.join(leaf_dir, f'{frag_name}.parquet')
+        body = leaf_df.drop(columns=[h3_part_col, 'year'])
+        # Convert to pyarrow Table via the geopandas hook (carries the
+        # GeoParquet ``geo`` schema metadata + WKB geometry encoding),
+        # then cast to the canonical driver-built schema to lock down
+        # column order and nullable-dtype tagging across all fragments.
+        table = _geopandas_to_arrow(body, index=True)
+        if schema is not None:
+            table = table.cast(schema)
+        with AtomicFileWriter(out_path) as tmp_path:
+            pq.write_table(table, tmp_path, compression='zstd')
+        leaves_written += 1
+        rows_written += len(body)
+
+    # 7) Completion sentinel — the load-bearing data-loss guard. Emitted
+    #    only AFTER every leaf is committed (AtomicFileWriter.__exit__
+    #    succeeded). If the worker dies between leaves, no sentinel is
+    #    emitted → reconcile leaves the granule non-INDEXED → next resume
+    #    re-extracts the (granule × beam) idempotently.
+    if leaves_written > 0:
+        _emit_complete_sentinel(tmp_dir, frag_name)
+    else:
+        stats['skipped'] = True
+
+    stats['leaves'] = leaves_written
+    stats['rows'] = rows_written
+    return stats
+
+
+def _streaming_enabled() -> bool:
+    """Whether the partition-write phase should use the streaming path.
+
+    Toggled via ``GH3_WRITE_STREAMING={1,true,on,yes}``. Default is the
+    legacy ``ddf.to_parquet`` path during rollout (v1) so operators opt
+    in. Once soaked, this default should flip and the legacy body can be
+    removed.
+    """
+    val = os.environ.get('GH3_WRITE_STREAMING', '').strip().lower()
+    return val in ('1', 'true', 'on', 'yes')
+
+
+def _streaming_batch_size() -> int:
+    """Rolling-window inflight target for the streaming driver.
+
+    Tunable via ``GH3_WRITE_STREAMING_BATCH`` env. The driver maintains
+    roughly this many in-flight (granule × beam) tasks at any moment via
+    ``as_completed.add`` top-up. Default ``2000`` ≈ 7 tasks per worker
+    on a 274-worker cluster — enough I/O overlap without scheduler-side
+    memory pile-up.
+    """
+    try:
+        return max(1, int(os.environ.get('GH3_WRITE_STREAMING_BATCH', '2000')))
+    except ValueError:
+        return 2000
+
+
+def _write_partitioned_streaming(
+    ddf: dask.dataframe.DataFrame,
+    soc_files: List[Dict[str, str]],
+    product_vars: Dict[str, List[str]],
+    res: int,
+    part: int,
+    tmp_dir: str,
+    h3_dir: str,
+    spatial,
+    lat_col: str,
+    lon_col: str,
+    dat_col: str,
+    inflight_target: Optional[int] = None,
+) -> bool:
+    """Streaming replacement for the legacy ``ddf.to_parquet().persist()``.
+
+    Emits one per-(granule × beam) ``client.submit`` task and drains via
+    ``as_completed`` with a rolling inflight window of
+    ``inflight_target`` futures. Each completed future is released
+    immediately, so worker memory plateaus at the per-task working set
+    instead of accumulating across the whole graph the way the to-parquet-
+    barrier-bound legacy path does (see dask/dask#4894, #5159, #8377).
+
+    Correctness contract vs. the legacy path:
+      * Fragment basenames identical (``_granule_beam_frag_name``).
+      * Output schema identical (driver-built canonical pyarrow schema,
+        cast per leaf — matches dask's GeoArrowEngine pipeline).
+      * Hive layout identical (``h3_{part:02d}={cell}/year={year}/``).
+      * Resume-safe: only granules whose worker emitted a ``.done``
+        completion sentinel are recognized as finished by the reconcile.
+
+    Parameters
+    ----------
+    ddf
+        Lazy ddf returned by ``_create_h3_dataframe``. Used here only to
+        derive the canonical write schema from its ``_meta`` (no
+        ``.persist()``; the lazy graph is discarded after the schema
+        probe).
+    soc_files, product_vars, res, part, lat_col, lon_col, dat_col
+        Same inputs as the legacy chain.
+    tmp_dir, h3_dir
+        Output tree root + existing-h3-db root.
+    spatial
+        Same spatial filter input as ``_apply_spatial_filter`` —
+        intersected to a tile list ONCE driver-side and scattered.
+    inflight_target
+        Max in-flight futures at any moment. ``None`` → env-driven
+        default (``GH3_WRITE_STREAMING_BATCH``).
+    """
+    import itertools as _it
+    from dask.distributed import as_completed as dask_as_completed
+    from tqdm import tqdm as tqdm_bar
+
+    if inflight_target is None:
+        inflight_target = _streaming_batch_size()
+
+    client = get_dask_client()
+    if client is None:
+        raise GediError(
+            "_write_partitioned_streaming requires a registered dask "
+            "Client (wrap your call in `with Client(...): ...`)."
+        )
+
+    logger.info(f"Writing partitioned H3 data (streaming) to: {tmp_dir}")
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    # ── Driver-side preflight: build everything that should be broadcast ──
+    # The merge phase's _merge_and_finalize uses the same pattern at
+    # gh3builder.py:_merge_and_finalize for its h3-dir scatter list.
+
+    # 1) Canonical schema — apply the streaming-side transforms to the
+    #    ddf._meta and let _canonical_write_schema produce the pyarrow
+    #    schema we'll cast each leaf to. Locks column order + dtypes.
+    meta = ddf._meta.copy()
+    meta = add_special_columns(meta, lon_col=lon_col, lat_col=lat_col, dat_col=dat_col)
+    if 'datetime' in meta.columns:
+        meta = meta.assign(year=meta['datetime'].dt.year.astype('int32'))
+    canonical_schema = _canonical_write_schema(meta, part=part)
+
+    # 2) Spatial tile set — replaces _apply_spatial_filter's isin branch.
+    spatial_h3_tiles: Optional[List[str]] = None
+    if spatial is not None:
+        tiles = intersect_h3_geometries(spatial, res=part)
+        if len(tiles) > 0:
+            logger.info("Pre-computing spatial H3 tile list (driver-side)")
+            spatial_h3_tiles = list(tiles)
+
+    # 3) Skip-check enablement gate — only fire h3_add_skip_column when
+    #    the destination h3_dir already has an indexed build log AND a
+    #    persisted partition list. Without the persisted list, every
+    #    h3_skip_part call would just stat-storm GPFS for no benefit
+    #    (Agent 3 adversarial review #J.2).
+    build_log_path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
+    skip_check_enabled = False
+    if os.path.exists(build_log_path):
+        try:
+            log = json_read(build_log_path) or {}
+            skip_check_enabled = bool(log.get('h3_partition_ids'))
+        except Exception:
+            skip_check_enabled = False
+    if skip_check_enabled:
+        logger.info("Skip-check enabled (existing finalized partitions detected)")
+
+    # 4) Skip already-completed granule×beam tasks via sentinel scan. A
+    #    resume picks up exactly where the previous run stopped — completed
+    #    tasks are not re-submitted, partial tasks (no sentinel) are.
+    completed_frags = _scan_complete_sentinels(tmp_dir)
+    if completed_frags:
+        logger.info(
+            f"Streaming resume: {len(completed_frags)} (granule × beam) tasks "
+            f"already complete on disk (sentinel found); skipping their re-submission"
+        )
+
+    # ── Scatter broadcast values ───────────────────────────────────────
+    # client.map / submit normally inline kwargs into the task graph,
+    # which for spatial_h3_tiles × 584k tasks would be hundreds of GB of
+    # scheduler-side serialization (Agent 3 review #D.2). client.scatter
+    # with broadcast=True ships each value once per worker.
+    schema_fut = client.scatter(canonical_schema, broadcast=True)
+    product_vars_fut = client.scatter(product_vars, broadcast=True)
+    spatial_fut = (client.scatter(spatial_h3_tiles, broadcast=True)
+                   if spatial_h3_tiles is not None else None)
+
+    submit_kwargs = dict(
+        product_vars=product_vars_fut,
+        res=res, part=part,
+        tmp_dir=tmp_dir, h3_dir=h3_dir,
+        lat_col=lat_col, lon_col=lon_col, dat_col=dat_col,
+        spatial_h3_tiles=spatial_fut,
+        skip_check_enabled=skip_check_enabled,
+        schema=schema_fut,
+    )
+
+    # ── Build task stream ─────────────────────────────────────────────
+    # Generator over (soc_dict, beam, frag_name). Skips tasks whose
+    # sentinel is already on disk (resume fast-path).
+    def _task_stream():
+        for soc, beam in _it.product(soc_files, GEDI_BEAMS):
+            frag_name = _granule_beam_frag_name(soc, beam)
+            if frag_name is None:
+                continue  # opaque soc filename — never happens for NASA granules
+            if frag_name in completed_frags:
+                continue
+            yield (soc, beam, frag_name)
+
+    tasks = list(_task_stream())  # materialize so we know the total
+    total = len(tasks)
+    if total == 0:
+        logger.info("Streaming write: no remaining tasks (all granules already complete)")
+        return any(
+            entry.is_dir() and entry.name.startswith('h3_')
+            for entry in os.scandir(tmp_dir)
+        ) if os.path.isdir(tmp_dir) else False
+
+    logger.info(
+        f"Streaming write: {len(soc_files)} granules × {len(GEDI_BEAMS)} beams = "
+        f"{total} tasks (inflight_target={inflight_target}, "
+        f"skipped_by_resume={len(completed_frags)})"
+    )
+
+    # ── Rolling-window submission ─────────────────────────────────────
+    # Maintain ~inflight_target futures in flight at any moment via
+    # as_completed.add on each completion. Eliminates the strict-batch
+    # straggler-idle problem (Agent 3 review #F.3) — workers stay busy
+    # until the task stream is exhausted.
+    tasks_iter = iter(tasks)
+
+    def _submit_next() -> Optional[Any]:
+        try:
+            t = next(tasks_iter)
+        except StopIteration:
+            return None
+        return client.submit(_write_one_granule_beam, t, pure=False, **submit_kwargs)
+
+    # Prime the inflight window.
+    initial_futures = []
+    for _ in range(inflight_target):
+        fut = _submit_next()
+        if fut is None:
+            break
+        initial_futures.append(fut)
+    if not initial_futures:
+        return False
+
+    ac = dask_as_completed(initial_futures)
+
+    pbar = tqdm_bar(total=total, desc="Stage1 partition writes", unit="task")
+    n_ok = n_fail = n_leaves = 0
+    try:
+        for fut in ac:
+            try:
+                result = fut.result()
+                if result.get('error'):
+                    n_fail += 1
+                    logger.warning(
+                        f"Stage1 task {result.get('frag_name')}: {result['error']}"
+                    )
+                else:
+                    n_ok += 1
+                    n_leaves += result.get('leaves', 0)
+            except Exception as e:
+                n_fail += 1
+                logger.warning(f"Stage1 task raised: {type(e).__name__}: {e}")
+            finally:
+                fut.release()
+            pbar.update(1)
+            pbar.set_postfix(ok=n_ok, fail=n_fail, leaves=n_leaves)
+            # Top up the rolling window with one new task.
+            new_fut = _submit_next()
+            if new_fut is not None:
+                ac.add(new_fut)
+    finally:
+        pbar.close()
+
+    if n_fail:
+        logger.error(
+            f"Streaming write: {n_fail}/{total} tasks failed. Their granules "
+            f"remain non-INDEXED and will be retried on the next resume."
+        )
+
+    # O(1) emptiness check — identical to the legacy _write_partitioned tail.
+    try:
+        return any(
+            entry.is_dir() and entry.name.startswith('h3_')
+            for entry in os.scandir(tmp_dir)
+        )
+    except FileNotFoundError:
+        return False
 
 
 def _write_partitioned(
@@ -1985,7 +2601,21 @@ def build_h3db(
         # conflicting with Dask worker scratch space (dask-worker-space/dirlock)
         # which causes PermissionError on Windows when overwrite=True deletes tmp_dir
         parquet_dir = os.path.join(tmp_dir, 'partitions')
-        wrote_any = _write_partitioned(ddf, parquet_dir, part, lat_col, lon_col, dat_col, frag_names=frag_names)
+        if _streaming_enabled():
+            # Streaming writer: client.map + as_completed with per-task atomic
+            # leaves and per-(granule × beam) completion sentinels. Bounded
+            # worker memory; resume-safe; identical fragment layout to the
+            # legacy path (see _write_partitioned_streaming docstring).
+            wrote_any = _write_partitioned_streaming(
+                ddf, soc_files, product_vars, res, part,
+                parquet_dir, h3_dir, spatial,
+                lat_col, lon_col, dat_col,
+            )
+        else:
+            wrote_any = _write_partitioned(
+                ddf, parquet_dir, part, lat_col, lon_col, dat_col,
+                frag_names=frag_names,
+            )
 
         if not wrote_any:
             logger.info("No new data to process")
