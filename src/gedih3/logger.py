@@ -475,11 +475,20 @@ class H3BuildLogger:
         return self.product_vars
 
     def _adding_h3_parts(self):
-        if not hasattr(self, 'h3_partition_ids'):
-            return True
-        
+        # No expansion requested → not adding partitions, period. This must
+        # be checked BEFORE the h3_partition_ids attribute guard: on a resume
+        # after the first write phase was killed before persisting the
+        # partition list, `h3_partition_ids` is absent on the loaded log even
+        # though we are resuming the same spatial plan. Returning True here
+        # would disable the skip filter in get_finished_granules and cause
+        # the resume to re-process every already-INDEXED granule.
         if self.new_spatial is None:
             return False
+
+        if not hasattr(self, 'h3_partition_ids'):
+            # Expansion requested but we have no recorded partition set to
+            # compare against — treat the entire new set as "added".
+            return True
 
         new_h3_parts = set(intersect_h3_geometries(self.new_spatial, res=self.part))
         existing_parts = set(self.h3_partition_ids)
