@@ -312,28 +312,13 @@ def _read_manifest(root_path, manifest_filename=None):
         _manifest_cache[cache_key] = None
         return None
 
-    # Freshness smoke check — local paths only; remote roots (S3/HTTP)
-    # have no cheap mtime semantics and rely on the producer's atomic
-    # publish.
-    if not is_remote_path(root_path):
-        if manifest_filename == SOC_MANIFEST_FILENAME:
-            remedy = (
-                "the SOC tree was modified after the last producer refresh. "
-                "Run `gh3_doctor -i <soc_dir> --check soc_health --fix` to "
-                "regenerate the manifest."
-            )
-        else:
-            remedy = (
-                "the H3 database was modified after the last producer "
-                "refresh. Run `gh3_doctor -i <db_dir> --check metadata "
-                "--fix` to regenerate the manifest."
-            )
-        from .parallel import check_manifest_freshness
-        check_manifest_freshness(
-            manifest_path, root_path.rstrip('/'),
-            raise_on_stale=False, remedy=remedy,
-        )
-
+    # No consumer-side freshness check here. The mtime heuristic has false
+    # positives (short-lived temp files in the tree bump dir mtime without
+    # invalidating the manifest contents), and downstream tools (aggregate,
+    # extract, doctor read paths) just need a file listing — if the manifest
+    # is incomplete the worst case is they fall back to walking the tree.
+    # Build/doctor contexts that genuinely care can call
+    # parallel.check_manifest_freshness explicitly.
     return lines
 
 
