@@ -1342,6 +1342,11 @@ def _write_partitioned(
         overwrite=False,
         compression='zstd',
         partition_on=[f'h3_{part:02d}', 'year'],
+        # write_metadata_file=False: gh3 maintains its own gedih3_build_log.json
+        # sidecar. Forcing False prevents the global _metadata aggregation task,
+        # which holds every per-partition write output in scheduler memory until
+        # all millions of writes complete (the global-build memory plateau).
+        write_metadata_file=False,
         compute=False,
     )
     if frag_names is not None:
@@ -1349,7 +1354,14 @@ def _write_partitioned(
         _to_parquet_kwargs['name_function'] = lambda i: f"{frag_names[i]}.parquet"
 
     write_task = ddf.to_parquet(tmp_dir, **_to_parquet_kwargs)
-    write_task = write_task.persist(optimize_graph=False)
+    # optimize_graph=True (default) fuses read_h5 → h3_index → add_skip →
+    # add_special_columns → from_dask_dataframe → to_parquet into one task per
+    # input partition. Without fusion the scheduler eagerly produces reads
+    # ahead of writes and tens of thousands of intermediate dataframes pile up
+    # on workers. Fusion does NOT shuffle or reduce partition cardinality; with
+    # partition_on=[...] every input partition still emits its own file in each
+    # leaf hive directory (see dask/dask#8445 + #8487).
+    write_task = write_task.persist()
 
     try:
         progress(write_task)
