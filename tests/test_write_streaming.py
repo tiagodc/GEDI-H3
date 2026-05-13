@@ -115,14 +115,23 @@ class TestStreamingHelpers:
         monkeypatch.delenv('GH3_WRITE_STREAMING', raising=False)
         assert _streaming_enabled() is True
 
-    def test_streaming_batch_size_default_and_override(self, monkeypatch):
+    def test_streaming_batch_size_dynamic_default_and_override(self, monkeypatch):
         from gedih3.gh3builder import _streaming_batch_size
         monkeypatch.delenv('GH3_WRITE_STREAMING_BATCH', raising=False)
-        assert _streaming_batch_size() == 2000
-        monkeypatch.setenv('GH3_WRITE_STREAMING_BATCH', '500')
+        # Without n_workers → static fallback.
         assert _streaming_batch_size() == 500
+        # With n_workers → max(n_workers * 2, 100).
+        assert _streaming_batch_size(n_workers=2) == 100   # below floor
+        assert _streaming_batch_size(n_workers=50) == 100  # at floor
+        assert _streaming_batch_size(n_workers=242) == 484
+        # Env override always wins.
+        monkeypatch.setenv('GH3_WRITE_STREAMING_BATCH', '1000')
+        assert _streaming_batch_size() == 1000
+        assert _streaming_batch_size(n_workers=242) == 1000
+        # Invalid override → fall through to default.
         monkeypatch.setenv('GH3_WRITE_STREAMING_BATCH', 'garbage')
-        assert _streaming_batch_size() == 2000  # falls back on parse failure
+        assert _streaming_batch_size() == 500
+        assert _streaming_batch_size(n_workers=242) == 484
 
 
 # ===========================================================================
@@ -516,34 +525,47 @@ class TestStreamingEndToEnd:
             soc_files.append({'L2A': l2a_path, 'L4A': l4a_path})
         return soc_files
 
-    def test_streaming_driver_completes_end_to_end(self, tmp_dir, _streaming_cluster_client, monkeypatch):
+    def test_streaming_driver_completes_end_to_end(self, tmp_dir, _streaming_cluster_client, monkeypatch, caplog):
         """Smoke test: 3 granules × all 8 beams → 24 (granule × beam) tasks
         through the full streaming driver. Must complete within 90s, emit
         the right sentinels, and write the right parquet leaves.
 
-        Additionally, spies on every client.scatter call inside the driver
-        and asserts each one received a wrapped (single-element list) input
-        and returned a single Future — the direct regression check for the
-        original deadlock-on-large-iterables bug. Small synthetic inputs
-        wouldn't otherwise trip the deadlock fingerprint at this scale,
-        but the spied type-check holds regardless of size."""
+        Two regression guards baked in:
+
+          1. SCATTER-FREE DRIVER. The driver must NOT call ``client.scatter``
+             on the broadcast kwargs — prior iterations hung indefinitely
+             on ``scatter(broadcast=True)`` over an SSH-tunneled cluster
+             when one worker was slow to ACK. We assert by spying on
+             ``client.scatter`` and asserting it's never called for the
+             3 known broadcast values.
+
+          2. DRIVER-PROGRESS MARKERS. The driver must emit ``Driver: ...``
+             log lines around each pre-flight step. A stall in the priming
+             loop or task-list build is then observable from the build
+             log instead of silently sleeping in futex_wait_queue.
+        """
         from gedih3.gh3builder import _write_partitioned_streaming, _scan_complete_sentinels
         from gedih3.gedidriver import dask_h5_merged
         from gedih3.config import GEDI_BEAMS
-        from dask.distributed import Future
+        import logging
         import time
 
-        # Spy on the client.scatter calls happening inside the driver.
+        # Spy on client.scatter so we can assert it was NOT called for the
+        # 3 broadcast kwargs (inlining is the correct pattern for this
+        # cluster topology).
         client = _streaming_cluster_client
         scatter_calls: list = []
         orig_scatter = client.scatter
 
         def spy_scatter(data, *args, **kwargs):
-            result = orig_scatter(data, *args, **kwargs)
-            scatter_calls.append({'data': data, 'kwargs': kwargs, 'result': result})
-            return result
+            scatter_calls.append(data)
+            return orig_scatter(data, *args, **kwargs)
 
         monkeypatch.setattr(client, 'scatter', spy_scatter)
+        # gedih3's root logger has propagate=False so pytest's caplog doesn't
+        # see anything by default. monkeypatch flips it for the test only.
+        monkeypatch.setattr(logging.getLogger('gedih3'), 'propagate', True)
+        caplog.set_level(logging.INFO, logger='gedih3.gh3builder')
 
         granules = [(101, 1, 201), (102, 1, 202), (103, 1, 203)]
         soc_files = self._build_synthetic_soc(tmp_dir, granules)
@@ -593,30 +615,34 @@ class TestStreamingEndToEnd:
         )
         elapsed = time.monotonic() - t0
 
-        # SCATTER REGRESSION GUARD — every scatter call inside the driver
-        # must have wrapped its value in a singleton list and returned a
-        # single Future. Catches the element-wise scatter deadlock bug
-        # regardless of the iterable's size.
-        assert len(scatter_calls) >= 3, (
-            f"expected at least 3 scatter calls (schema, product_vars, "
-            f"spatial_h3_tiles), got {len(scatter_calls)}"
+        # REGRESSION GUARD #1: driver must not call client.scatter for the
+        # 3 broadcast kwargs. Inlining is the correct pattern for SSH-
+        # tunneled clusters where broadcast=True hangs on slow workers.
+        # (We allow scatter calls if/when the driver legitimately needs
+        # them in the future — but none are expected today.)
+        assert len(scatter_calls) == 0, (
+            f"_write_partitioned_streaming called client.scatter {len(scatter_calls)} "
+            f"time(s) — the inlining-instead-of-scatter pattern is intentional. "
+            f"scatter(broadcast=True) hangs on this cluster's worker topology when "
+            f"any worker is slow to ACK the broadcast."
         )
-        for i, call in enumerate(scatter_calls):
-            data = call['data']
-            result = call['result']
-            assert isinstance(data, list) and len(data) == 1, (
-                f"scatter call #{i}: input must be a singleton list "
-                f"(got type={type(data).__name__}, len={len(data) if hasattr(data, '__len__') else 'N/A'}). "
-                f"Without the [value] wrap, dask scatters iterable elements "
-                f"separately and creates one Future per element, deadlocking "
-                f"the driver on large lists (the spatial_h3_tiles case)."
-            )
-            # The driver indexes [0] to extract the single future, so the
-            # raw scatter return is a list-of-one-future. Either is fine for
-            # the regression check as long as input was wrapped.
-            assert isinstance(result, list) and len(result) == 1 and isinstance(result[0], Future), (
-                f"scatter call #{i}: wrapped scatter should return a "
-                f"one-Future list (got type={type(result).__name__})"
+
+        # REGRESSION GUARD #2: each driver-pre-flight step must log its
+        # progress so future stalls are observable from the build log.
+        expected_markers = [
+            'Driver: scatter step skipped',
+            'Driver: building task list',
+            'Driver: priming inflight window',
+            'Driver: priming complete',
+        ]
+        log_text = '\n'.join(record.getMessage() for record in caplog.records)
+        for marker in expected_markers:
+            assert marker in log_text, (
+                f"expected log marker {marker!r} not found in driver output. "
+                f"Without these markers, a driver-side stall (broadcast ACK "
+                f"hang, slow task-list build, slow priming) goes silent and "
+                f"is misdiagnosed as a worker problem. Captured records:\n"
+                f"{log_text[-1500:]}"
             )
 
         assert wrote_any, "driver returned False — no fragments written"
