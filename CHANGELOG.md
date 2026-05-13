@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.9.4] - 2026-05-13
+
+### Changed
+- `gh3builder._write_partitioned` now persists with task fusion enabled (`optimize_graph=True`) and pins `write_metadata_file=False`. Cuts the partition-write memory plateau on continental builds by collapsing the read → transform → write chain into one task per input partition and removing the global `_metadata` aggregation reducer. Output cardinality and hive layout are unchanged (guarded by `tests/test_to_parquet_fusion.py`).
+
 ## [0.9.3] - 2026-05-13
 
 ### Changed
