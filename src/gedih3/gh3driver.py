@@ -912,7 +912,13 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None,
 
     check_nan_only_columns(df, context='Export partition: ')
 
-    os.makedirs(odir, exist_ok=True)
+    # When is_file_path=True (merge mode), `odir` is actually the user's
+    # destination FILE path — creating it as a directory here turns the
+    # final AtomicFileWriter.os.replace() into "Is a directory". The parent
+    # dir is created by AtomicFileWriter.__enter__ anyway, so this is safe
+    # to skip in that case.
+    if not is_file_path:
+        os.makedirs(odir, exist_ok=True)
 
     # Determine actual partition column
     actual_part_col = part_col
@@ -945,7 +951,13 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None,
     # Single file export (no grouping)
     if is_file_path:
         odir = odir.rstrip('/')
-        opath = f"{odir}.{fmt}" if not odir.endswith(fmt) else odir
+        # Append the format extension only if the user didn't already supply
+        # any extension. Respects equivalences like `.h5` for fmt=hdf5 or
+        # `.json` for fmt=geojson without rewriting them to `.h5.hdf5` etc.
+        # User-typed extensions are taken at face value — the writer dispatch
+        # below keys off `fmt`, not the path suffix.
+        ext = os.path.splitext(odir)[1]
+        opath = odir if ext else f"{odir}.{fmt}"
     else:
         # Determine output filename from partition ID
         oname = None
