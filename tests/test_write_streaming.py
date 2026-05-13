@@ -632,15 +632,14 @@ class TestStreamingEndToEnd:
         expected_markers = [
             'Driver: scatter step skipped',
             'Driver: building task list',
-            'Driver: priming inflight window',
-            'Driver: priming complete',
+            'Driver: submitting',           # client.map call
+            'Driver: submission complete',  # all futures registered with scheduler
         ]
         log_text = '\n'.join(record.getMessage() for record in caplog.records)
         for marker in expected_markers:
             assert marker in log_text, (
                 f"expected log marker {marker!r} not found in driver output. "
-                f"Without these markers, a driver-side stall (broadcast ACK "
-                f"hang, slow task-list build, slow priming) goes silent and "
+                f"Without these markers, a driver-side stall goes silent and "
                 f"is misdiagnosed as a worker problem. Captured records:\n"
                 f"{log_text[-1500:]}"
             )
