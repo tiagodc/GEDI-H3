@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.9.3] - 2026-05-13
+
+### Changed
+- `_read_manifest` no longer performs the constant-time mtime freshness check on the consumer side; staleness is now a warning-only condition emitted by producer-side paths, avoiding spurious ERRORs on read-only consumers.
+- Manifest-staleness check downgraded from ERROR to WARNING in `gedih3.parallel`.
+
+### Fixed
+- `gh3_export(merge=True)` no longer creates the output path as a directory; sidecar dataset-meta is skipped during merge.
+- `gh3_export_part` no longer clobbers the output file path via `os.makedirs(odir)` when merging.
+
+### Performance
+- Driver/raster `.compute()` paths bypass the dask optimizer's collect-on-cluster wedge.
+
 ## [0.9.2] - 2026-05-12
 
 ### Added
