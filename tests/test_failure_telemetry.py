@@ -25,6 +25,7 @@ import pytest
 
 from gedih3.utils import _iter_batches_with_path
 from gedih3 import gh3builder
+from gedih3.config import PARTITION_META_FILENAME
 from gedih3.gh3builder import (
     _MERGE_FAILURES_DIRNAME,
     _GRANULE_FAILURES_FILENAME,
@@ -42,6 +43,8 @@ from gedih3.gh3builder import (
     _read_merge_failed_granules,
     apply_merge_failures_to_logger,
     preclean_merge_failures,
+    _scan_partition_meta_granules,
+    _derive_merged_output_paths,
 )
 
 
@@ -741,3 +744,153 @@ class TestMergeFailureEndToEnd:
         # No status regressions.
         statuses = [g['status'] for g in logger.granule_info]
         assert statuses == ['MERGE_FAILED', 'MERGE_FAILED', 'INDEXED']
+
+
+# ---------------------------------------------------------------------------
+# 10. _scan_partition_meta_granules
+# ---------------------------------------------------------------------------
+
+class TestPartitionMetaScanner:
+    """Worker that parses granule IDs from PARTITION_META JSON files under
+    one h3_* partition. Looks in two locations: partition-level meta
+    (``partition_dir/*<meta>``) and year-level meta
+    (``partition_dir/*/*<meta>``). Returns a set of (orbit, granule, track)
+    tuples; empty set on any read / parse failure (non-fatal per-partition
+    semantics)."""
+
+    def _write_year_meta(self, partition_dir, year, granules, *, h3val='abc'):
+        """Write a year-level meta JSON at ``partition_dir/year=Y/{h3val}<meta>``."""
+        year_dir = os.path.join(partition_dir, f'year={year}')
+        os.makedirs(year_dir, exist_ok=True)
+        path = os.path.join(year_dir, f'{h3val}{PARTITION_META_FILENAME}')
+        with open(path, 'w') as f:
+            json.dump({'granules': granules}, f)
+        return path
+
+    def _write_partition_meta(self, partition_dir, granules, *, h3val='abc'):
+        """Write a partition-level meta JSON at ``partition_dir/{h3val}<meta>``."""
+        os.makedirs(partition_dir, exist_ok=True)
+        path = os.path.join(partition_dir, f'{h3val}{PARTITION_META_FILENAME}')
+        with open(path, 'w') as f:
+            json.dump({'granules': granules}, f)
+        return path
+
+    def test_missing_partition_dir_returns_empty(self, tmp_path):
+        out = _scan_partition_meta_granules(str(tmp_path / 'does_not_exist'))
+        assert out == set()
+
+    def test_year_level_meta_with_two_granules(self, tmp_path):
+        partition_dir = str(tmp_path / 'h3_03=abc')
+        self._write_year_meta(
+            partition_dir, 2019,
+            [{'orbit': 1, 'granule': 10, 'track': 100},
+             {'orbit': 2, 'granule': 20, 'track': 200}],
+        )
+        out = _scan_partition_meta_granules(partition_dir)
+        assert out == {(1, 10, 100), (2, 20, 200)}
+
+    def test_merges_partition_and_year_level_metas(self, tmp_path):
+        partition_dir = str(tmp_path / 'h3_03=abc')
+        self._write_partition_meta(
+            partition_dir,
+            [{'orbit': 1, 'granule': 10, 'track': 100}],
+        )
+        self._write_year_meta(
+            partition_dir, 2020,
+            [{'orbit': 2, 'granule': 20, 'track': 200}],
+        )
+        out = _scan_partition_meta_granules(partition_dir)
+        assert out == {(1, 10, 100), (2, 20, 200)}
+
+    def test_malformed_json_does_not_poison_others(self, tmp_path):
+        partition_dir = str(tmp_path / 'h3_03=abc')
+        # Good year-level meta.
+        self._write_year_meta(
+            partition_dir, 2019,
+            [{'orbit': 7, 'granule': 77, 'track': 777}],
+        )
+        # Malformed year-level meta in a sibling year dir.
+        bad_year = os.path.join(partition_dir, 'year=2020')
+        os.makedirs(bad_year, exist_ok=True)
+        with open(os.path.join(bad_year, f'xyz{PARTITION_META_FILENAME}'), 'w') as f:
+            f.write('{not valid json')
+
+        out = _scan_partition_meta_granules(partition_dir)
+        # Good granule survives; malformed file is silently skipped.
+        assert out == {(7, 77, 777)}
+
+    def test_granules_missing_required_keys_dropped(self, tmp_path):
+        partition_dir = str(tmp_path / 'h3_03=abc')
+        self._write_year_meta(
+            partition_dir, 2019,
+            [
+                # Missing 'track'
+                {'orbit': 1, 'granule': 10},
+                # Missing 'orbit'
+                {'granule': 20, 'track': 200},
+                # None entry (TypeError on subscript)
+                None,
+                # Fully valid
+                {'orbit': 3, 'granule': 30, 'track': 300},
+            ],
+        )
+        out = _scan_partition_meta_granules(partition_dir)
+        assert out == {(3, 30, 300)}
+
+
+# ---------------------------------------------------------------------------
+# 11. _derive_merged_output_paths
+# ---------------------------------------------------------------------------
+
+class TestDeriveMergedOutputPaths:
+    """Read a merge-progress text file (one tmp-partition path per line) and
+    derive the deterministic final output path under the h3 database root:
+    ``<tmp>/h3_<p>=X/year=Y`` → ``<h3_dir>/h3_<p>=X/year=Y/X.Y.0.parquet``.
+    Malformed lines / missing file → empty list (no crash)."""
+
+    def test_missing_progress_file_returns_empty(self, tmp_path):
+        out = _derive_merged_output_paths(
+            str(tmp_path / 'no_such_file.txt'), str(tmp_path / 'db')
+        )
+        assert out == []
+
+    def test_standard_line_derives_final_path(self, tmp_path):
+        progress = tmp_path / 'progress.txt'
+        progress.write_text('/tmp/parts/h3_03=ABC/year=2019\n')
+        out = _derive_merged_output_paths(str(progress), '/db')
+        assert out == ['/db/h3_03=ABC/year=2019/ABC.2019.0.parquet']
+
+    def test_trailing_slash_tolerated(self, tmp_path):
+        progress = tmp_path / 'progress.txt'
+        progress.write_text('/tmp/parts/h3_03=ABC/year=2019/\n')
+        out = _derive_merged_output_paths(str(progress), '/db')
+        assert out == ['/db/h3_03=ABC/year=2019/ABC.2019.0.parquet']
+
+    def test_malformed_lines_skipped_others_proceed(self, tmp_path):
+        progress = tmp_path / 'progress.txt'
+        progress.write_text(
+            # Good
+            '/tmp/parts/h3_03=ABC/year=2019\n'
+            # Malformed: no h3_ prefix on the parent
+            '/tmp/parts/notapart/year=2020\n'
+            # Malformed: no '=' in the parent
+            '/tmp/parts/h3_partition/year=2021\n'
+            # Good
+            '/tmp/parts/h3_05=XYZ/year=2022\n'
+        )
+        out = _derive_merged_output_paths(str(progress), '/db')
+        assert out == [
+            '/db/h3_03=ABC/year=2019/ABC.2019.0.parquet',
+            '/db/h3_05=XYZ/year=2022/XYZ.2022.0.parquet',
+        ]
+
+    def test_blank_and_empty_lines_ignored(self, tmp_path):
+        progress = tmp_path / 'progress.txt'
+        progress.write_text(
+            '\n'
+            '   \n'
+            '/tmp/parts/h3_03=ABC/year=2019\n'
+            '\n'
+        )
+        out = _derive_merged_output_paths(str(progress), '/db')
+        assert out == ['/db/h3_03=ABC/year=2019/ABC.2019.0.parquet']

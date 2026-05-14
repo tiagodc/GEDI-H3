@@ -1496,6 +1496,73 @@ def _canonical_write_schema(meta_df, part: int) -> Any:
     return pa.Schema.from_pandas(body, preserve_index=True)
 
 
+def _derive_merged_output_paths(merge_progress_file: str, h3_dir: str) -> List[str]:
+    """Derive absolute output parquet paths from the merge-progress file.
+
+    Pure in-memory transform of the merge-progress lines (one tmp partition
+    dir per line) into the deterministic final paths via the
+    ``h3_merge_files`` naming contract:
+    ``<tmp>/h3_<p>=X/year=Y`` → ``<h3_dir>/h3_<p>=X/year=Y/X.Y.0.parquet``.
+
+    Used by ``_merge_and_finalize`` to (a) write the final database
+    manifest without walking the tree at end-of-merge, and (b) refresh
+    the manifest incrementally during long merge phases so consumers
+    reading mid-build see partial-but-fresh state. Zero GPFS metadata ops.
+    """
+    out: List[str] = []
+    if not os.path.exists(merge_progress_file):
+        return out
+    try:
+        with open(merge_progress_file, 'r') as f:
+            for line in f:
+                tmp_p = line.strip()
+                if not tmp_p:
+                    continue
+                year_bn = os.path.basename(tmp_p.rstrip('/'))
+                ydir = os.path.dirname(tmp_p.rstrip('/'))
+                h3part = os.path.basename(ydir.rstrip('/'))
+                if not h3part.startswith('h3_') or '=' not in h3part:
+                    continue
+                h3val = h3part.split('=', 1)[-1]
+                yval = year_bn.split('=', 1)[-1] if '=' in year_bn else year_bn
+                out.append(os.path.join(
+                    h3_dir, h3part, year_bn, f'{h3val}.{yval}.0.parquet'
+                ))
+    except OSError:
+        return []
+    return out
+
+
+def _scan_partition_meta_granules(
+    partition_dir: str,
+    *,
+    meta_filename: str = PARTITION_META_FILENAME,
+) -> set:
+    """Worker: parse granule IDs from every PARTITION_META JSON under one
+    h3_* partition. Module-level so it pickles for dask.
+
+    Looks in two locations:
+    1. ``partition_dir/*<meta>`` — partition-level meta (no year subdir)
+    2. ``partition_dir/*/*<meta>`` — year-level meta (h3_*/year=*/...)
+
+    Returns a set of ``(orbit, granule, track)`` tuples; empty on any read
+    failure (the caller treats per-partition errors as non-fatal, matching
+    the existing reconcile semantics).
+    """
+    out: set = set()
+    for pat in (f'*{meta_filename}', os.path.join('*', f'*{meta_filename}')):
+        for mf in glob.glob(os.path.join(partition_dir, pat)):
+            try:
+                for g in (json_read(mf) or {}).get('granules', []):
+                    try:
+                        out.add((g['orbit'], g['granule'], g['track']))
+                    except (KeyError, TypeError):
+                        continue
+            except Exception:
+                continue
+    return out
+
+
 def _list_year_subdirs(h3_dir: str) -> List[str]:
     """Return ``<h3_dir>/year=*/`` paths (with trailing separator).
 
@@ -1620,18 +1687,67 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
     # beams' shots would be silently dropped on resume.
     granule_beams: Dict[Tuple[int, int, int], set] = {}
 
-    # Pass A — finalized partition metadata JSONs (cheap, always run).
+    # Pass A — finalized partition metadata JSONs.
     # Granules named here are inside an h3 partition that has already been
     # merged and finalized → all their beams' rows are already consolidated
     # into the final parquet, so they're complete by construction.
-    meta_files = glob.glob(os.path.join(h3_dir, 'h3_*', f'*{PARTITION_META_FILENAME}'))
-    meta_files += glob.glob(os.path.join(h3_dir, 'h3_*', '*', f'*{PARTITION_META_FILENAME}'))
-    for mf in meta_files:
+    #
+    # Sourcing the partition list:
+    #   * Prefer the manifest sentinel (one cached read) — at continental
+    #     scale this is the only way to keep Pass A O(N_partitions) instead
+    #     of O(N_finalized_files) (two recursive globs over the entire DB
+    #     tree, which was the dominant resume cost on million-partition
+    #     databases).
+    #   * Fall back to a single ``os.scandir`` on h3_dir for legacy DBs
+    #     without a manifest sentinel — still avoids the recursive globs.
+    #
+    # Dispatch the per-partition meta read across workers when a dask
+    # client is registered; serial loop otherwise (small DB or library /
+    # notebook context with no cluster).
+    partition_dirs_set: set = set()
+    try:
+        from .utils import _read_manifest as _read_db_manifest
+        _mp = _read_db_manifest(h3_dir)
+    except Exception:
+        _mp = None
+    if _mp:
+        for _rel in _mp:
+            _head = _rel.split('/', 1)[0]
+            if _head.startswith('h3_'):
+                partition_dirs_set.add(os.path.join(h3_dir, _head))
+    if not partition_dirs_set:
         try:
-            for g in (json_read(mf) or {}).get('granules', []):
-                indexed_ids.add((g['orbit'], g['granule'], g['track']))
+            for e in os.scandir(h3_dir):
+                if e.is_dir(follow_symlinks=False) and e.name.startswith('h3_'):
+                    partition_dirs_set.add(e.path)
+        except OSError:
+            pass
+    partition_dirs_list = sorted(partition_dirs_set)
+    if partition_dirs_list:
+        client = None
+        try:
+            client = get_dask_client()
         except Exception:
-            continue
+            pass
+        if client is not None and len(partition_dirs_list) > 100:
+            from .parallel import parallel_map
+            for _, _gids in parallel_map(
+                partition_dirs_list,
+                _scan_partition_meta_granules,
+                desc='Reconcile Pass A',
+                unit='part',
+                meta_filename=PARTITION_META_FILENAME,
+            ):
+                if isinstance(_gids, Exception):
+                    continue
+                indexed_ids.update(_gids)
+        else:
+            for _pd in partition_dirs_list:
+                indexed_ids.update(
+                    _scan_partition_meta_granules(
+                        _pd, meta_filename=PARTITION_META_FILENAME,
+                    )
+                )
 
     # Pass B — tmp fragments. One Dask task per h3_* partition, with the
     # parquet metadata reads inside each task parallelized via a thread
@@ -2680,6 +2796,21 @@ def _merge_and_finalize(
         failed_count = 0
         pbar = tqdm_bar(total=len(remaining_dirs), desc="Merging partitions", unit="part")
 
+        # Incremental manifest refresh: at continental scale the merge
+        # phase runs for hours, during which any consumer reading the
+        # database (gh3_load, gh3_extract) would see a stale manifest
+        # sentinel from the last full refresh — including the previous
+        # build, if any. Periodic in-merge refreshes give those consumers
+        # a fresh view of the partially-built DB. Trigger: every
+        # ``manifest_refresh_every`` successful merges. The refresh itself
+        # is O(N_merged_so_far) — pure in-memory derivation from
+        # ``_merge_progress.txt`` + one atomic file write; no tree walk.
+        # Skip in tests / library callers that disable via env var.
+        manifest_refresh_every = max(
+            1, int(os.environ.get('GH3_MANIFEST_REFRESH_EVERY', '1000'))
+        )
+        _next_refresh_at = manifest_refresh_every
+
         # Do NOT call future.release() per completion — keeping the futures
         # alive (via futures_list) makes the scheduler retain finished task
         # records, so the dashboard progress bar fills monotonically (X done
@@ -2692,6 +2823,20 @@ def _merge_and_finalize(
                 with open(merge_progress_file, 'a') as f:
                     f.write(d.rstrip('/') + '\n')
                 merged_count += 1
+                # Incremental manifest refresh — see comment block above
+                # the loop. Bounded by ``manifest_refresh_every`` so the
+                # total cost across a 50k-merge run is ~50 refreshes,
+                # each <1s — negligible against the multi-minute merge.
+                if merged_count >= _next_refresh_at:
+                    try:
+                        _paths = _derive_merged_output_paths(merge_progress_file, h3_dir)
+                        if _paths:
+                            generate_manifest(h3_dir, files=_paths, tree_shape='h3db')
+                    except Exception as _re:
+                        # Manifest refresh is best-effort — never let a
+                        # write failure abort an in-flight merge.
+                        logger.debug(f"Incremental manifest refresh skipped: {_re}")
+                    _next_refresh_at = merged_count + manifest_refresh_every
             except Exception as e:
                 failed_count += 1
                 # Preserve the h3_cell + year in the relative path so the
@@ -2729,7 +2874,17 @@ def _merge_and_finalize(
         if failed_count > 0:
             logger.error(f"{failed_count} partition merges failed. Re-run to retry.")
 
-    h3_files = glob.glob(os.path.join(h3_dir, 'h3_*', '*', '*.parquet'), recursive=False)
+    # Derive h3_files + h3_subdirs from the authoritative _merge_progress.txt
+    # instead of two driver-side GPFS scans (``glob('h3_*/*/*.parquet')`` +
+    # ``glob('h3_*/')``). Zero GPFS metadata ops — pure in-memory derivation
+    # via the deterministic ``h3_merge_files`` naming contract. See
+    # ``_derive_merged_output_paths``.
+    h3_files: List[str] = sorted(
+        _derive_merged_output_paths(merge_progress_file, h3_dir)
+    )
+    h3_subdirs_set: set = {
+        os.path.dirname(os.path.dirname(p)) + '/' for p in h3_files
+    }
 
     # Check a sample of merged files for NaN-only columns
     if h3_files:
@@ -2743,7 +2898,7 @@ def _merge_and_finalize(
 
     logger.info("Compiling H3 metadata files")
 
-    h3_subdirs = glob.glob(os.path.join(h3_dir, 'h3_*/'))
+    h3_subdirs = sorted(h3_subdirs_set)
     meta_tasks = [dh3_merge_metadata(i) for i in h3_subdirs]
     meta_tasks = dask.persist(*meta_tasks, optimize_graph=False)
     progress(meta_tasks)
@@ -2915,7 +3070,16 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     """
     logger.info("Variable-only expansion detected: adding new columns via shot_number join")
 
-    h3_subdirs = glob.glob(os.path.join(h3_dir, 'h3_*/'))
+    # Direct-children scandir (one syscall) instead of glob — cheaper on
+    # large DBs even with the non-recursive pattern. Preserves the trailing
+    # '/' for downstream callers that expected glob's directory marker.
+    try:
+        h3_subdirs = sorted(
+            e.path + '/' for e in os.scandir(h3_dir)
+            if e.is_dir(follow_symlinks=False) and e.name.startswith('h3_')
+        )
+    except OSError:
+        h3_subdirs = []
     if not h3_subdirs:
         logger.info("No existing partitions to update")
         return None
