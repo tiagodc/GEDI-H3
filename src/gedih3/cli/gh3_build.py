@@ -7,6 +7,67 @@
 import argparse
 
 
+def explicit_vars_missing_in_sample(product_vars, default_products, sample_dict):
+    """Return ``{product: [bad_names]}`` for explicit-list products whose
+    requested variables are absent from the sample HDF5.
+
+    Pure function over its inputs — extracted from the gh3_build CLI so the
+    pre-flight typo check can be unit-tested without invoking ``main()``.
+
+    Parameters
+    ----------
+    product_vars : dict
+        Mapping ``{product: list-or-None}``. ``None`` means "everything"
+        (``*``/``all``) and is skipped. ``default``-sourced lists are
+        identified by ``default_products`` and skipped (they are validated
+        against the static manifest instead).
+    default_products : set
+        Products the user requested as ``default`` (skipped — manifest is
+        the contract).
+    sample_dict : dict
+        One ``{product: hdf5_path}`` mapping from
+        :func:`gedidriver.soc_file_tree`. Pass an empty dict to short-circuit.
+
+    Returns
+    -------
+    dict
+        Empty when every explicit-list variable was found (or no explicit
+        lists exist). Otherwise ``{product: [missing_names]}``. Wildcards
+        that match nothing in the sample HDF5 are surfaced as a single
+        ``GediValidationError`` string entry under their product.
+    """
+    from gedih3.gedidriver import gedi_vars_from_h5, expand_var_wildcards
+    from gedih3.exceptions import GediValidationError
+
+    to_introspect = {
+        p: v for p, v in (product_vars or {}).items()
+        if v is not None and p not in (default_products or set())
+    }
+    if not to_introspect or not sample_dict:
+        return {}
+
+    missing = {}
+    for prod, requested in to_introspect.items():
+        if prod not in sample_dict:
+            continue  # downstream gate handles product-presence
+        try:
+            available = gedi_vars_from_h5(sample_dict[prod])
+        except Exception:
+            # Caller surfaces this as a warning; treat as soft skip so a
+            # broken sample file doesn't block an otherwise-valid request.
+            continue
+        try:
+            expanded_names = expand_var_wildcards(requested, available)
+        except GediValidationError as e:
+            missing[prod] = [str(e)]
+            continue
+        avail_set = set(available)
+        bad = [v for v in expanded_names if v not in avail_set]
+        if bad:
+            missing[prod] = bad
+    return missing
+
+
 def manifest_check_scope(h3_logger, product_vars):
     """Return the subset of ``product_vars`` that should be validated
     against the shipped static manifest, per the regime rule:
@@ -315,51 +376,116 @@ def main():
                 def _validate_existing_h5(product_vars, soc_dir):
                     """Validate requested products/variables exist in HDF5 files. Exits on mismatch.
 
-                    Only the subset of ``product_vars`` returned by
-                    ``manifest_check_scope`` is validated against the shipped
-                    static manifest. For all other products the build log is
-                    the contract; the per-granule extract path tolerates
-                    missing source datasets (NaN columns), and ``gh3_doctor
-                    --check backfill`` flags any that arise.
+                    Two stages:
+
+                    1. ``default``-requested products are validated against
+                       the shipped static manifest via :func:`validate_soc_files`.
+                       The manifest is the contract for canonical NASA release
+                       files.
+                    2. Products with an *explicit* variable list (user-supplied
+                       names, a file, or wildcards — anything that is not
+                       ``default`` / ``*`` / ``minimal``) are sanity-checked
+                       against the schema of one sample HDF5 file per product.
+                       Catches typos and unknown names before a multi-hour
+                       build hits a runtime ``KeyError``.
+
+                    A single-file introspection cannot catch NASA-side schema
+                    variance across orbit clusters (a variable present in
+                    99% of granules but absent in a handful); those surface
+                    as Stage1 warnings at build time and are recorded as
+                    non-INDEXED in the build log for retry.
                     """
-                    scoped = manifest_check_scope(h3_logger, product_vars)
-                    if not scoped:
-                        return
                     import copy
-                    expanded = copy.deepcopy(scoped)
-                    gedi_vars_expand(expanded, version=h3_logger.gedi_version)
+
+                    # ── Stage 1: default-products vs shipped manifest ──
+                    scoped = manifest_check_scope(h3_logger, product_vars)
+                    if scoped:
+                        expanded = copy.deepcopy(scoped)
+                        gedi_vars_expand(expanded, version=h3_logger.gedi_version)
+                        try:
+                            validation = validate_soc_files(
+                                expanded, soc_dir, version=h3_logger.gedi_version,
+                                exclude=args.exclude,
+                            )
+                        except Exception as val_err:
+                            logger.warning(f"Could not validate HDF5 files (corrupt file?): {val_err}")
+                            validation = None
+
+                        if validation is not None:
+                            if isinstance(validation, tuple):
+                                can_skip = False
+                                validation = validation[1] if len(validation) > 1 else {}
+                            else:
+                                can_skip = validation.get("can_skip", True)
+
+                            if not can_skip:
+                                msg_parts = ["Requested variables not found in existing HDF5 files:\n"]
+                                if validation.get("missing_products"):
+                                    msg_parts.append(f"  Missing products: {', '.join(validation['missing_products'])}")
+                                if validation.get("missing_variables"):
+                                    for prod, mvars in validation["missing_variables"].items():
+                                        msg_parts.append(f"  Missing variables in {prod}: {', '.join(mvars)}")
+                                if validation.get("error"):
+                                    msg_parts.append(f"  {validation['error']}")
+                                msg_parts.append("")
+                                msg_parts.append("To fix:")
+                                msg_parts.append("  1. Check available variables:  gh3_read_schema /path/to/file.h5")
+                                msg_parts.append("  2. Adjust your -l2a/-l4a/... flags to match available data")
+                                msg_parts.append("  3. Run gh3_download to fetch the required products")
+                                msg_parts.append("  4. Or add --download to auto-fetch before building")
+                                msg_parts.append("  5. Or use --s3 to build directly from NASA S3 (no persistent download)")
+                                logger.error("\n".join(msg_parts))
+                                sys.exit(2)
+
+                    # ── Stage 2: explicit-list products vs sample HDF5 schema ──
+                    has_explicit = any(
+                        v is not None and p not in h3_logger.default_products
+                        for p, v in (product_vars or {}).items()
+                    )
+                    if not has_explicit:
+                        return
+
                     try:
-                        validation = validate_soc_files(
-                            expanded, soc_dir, version=h3_logger.gedi_version,
+                        sample = soc_file_tree(
+                            soc_dir, to_list=True,
+                            glob_kwargs=(
+                                {'version': h3_logger.gedi_version}
+                                if h3_logger.gedi_version is not None else None
+                            ),
                             exclude=args.exclude,
                         )
-                    except Exception as val_err:
-                        logger.warning(f"Could not validate HDF5 files (corrupt file?): {val_err}")
+                    except Exception as e:
+                        logger.warning(
+                            f"Pre-flight var check: could not sample SOC tree "
+                            f"({type(e).__name__}: {e})"
+                        )
                         return
+                    if not sample:
+                        return  # nothing to introspect against
 
-                    if isinstance(validation, tuple):
-                        can_skip = False
-                        validation = validation[1] if len(validation) > 1 else {}
-                    else:
-                        can_skip = validation.get("can_skip", True)
+                    sample_dict = sample[0]
+                    missing = explicit_vars_missing_in_sample(
+                        product_vars, h3_logger.default_products, sample_dict,
+                    )
 
-                    if not can_skip:
-                        msg_parts = ["Requested variables not found in existing HDF5 files:\n"]
-                        if validation.get("missing_products"):
-                            msg_parts.append(f"  Missing products: {', '.join(validation['missing_products'])}")
-                        if validation.get("missing_variables"):
-                            for prod, mvars in validation["missing_variables"].items():
-                                msg_parts.append(f"  Missing variables in {prod}: {', '.join(mvars)}")
-                        if validation.get("error"):
-                            msg_parts.append(f"  {validation['error']}")
-                        msg_parts.append("")
-                        msg_parts.append("To fix:")
-                        msg_parts.append("  1. Check available variables:  gh3_read_schema /path/to/file.h5")
-                        msg_parts.append("  2. Adjust your -l2a/-l4a/... flags to match available data")
-                        msg_parts.append("  3. Run gh3_download to fetch the required products")
-                        msg_parts.append("  4. Or add --download to auto-fetch before building")
-                        msg_parts.append("  5. Or use --s3 to build directly from NASA S3 (no persistent download)")
-                        logger.error("\n".join(msg_parts))
+                    if missing:
+                        msg = [
+                            "Pre-flight variable check failed: requested names "
+                            "are not present in the sample HDF5 files.",
+                            "Fix typos or unknown names and rerun. Nothing was built.",
+                            "",
+                        ]
+                        for prod, bad in missing.items():
+                            preview = bad[:10]
+                            tail = '' if len(bad) <= 10 else f' (+{len(bad) - 10} more)'
+                            msg.append(f"  {prod}: {preview}{tail}")
+                        msg.extend([
+                            "",
+                            "To inspect available variables in a SOC file:",
+                            "  gh3_read_schema /path/to/file.h5",
+                            f"  gh3_read_schema {sample_dict.get(next(iter(missing)), '<file.h5>')}",
+                        ])
+                        logger.error("\n".join(msg))
                         sys.exit(2)
 
                 if args.download:
