@@ -105,11 +105,15 @@ def get_cmd_args():
     p.add_argument("-t1", "--time-end", dest="time_end", type=str, default=None,
                    help="end date [YYYY-MM-DD]")
 
-    # H3 configuration
-    p.add_argument("-h3r", "--h3-resolution", dest="h3_resolution", type=int, default=12,
-                   help="H3 index level [0-15, default=12]")
-    p.add_argument("-h3p", "--h3-partition", dest="h3_partition", type=int, default=3,
-                   help="H3 partition level [0-15, default=3]")
+    # H3 configuration. Default is None (not 12 / 3) so the logger can
+    # distinguish "user-passed" from "fell-back-to-default" — the latter
+    # is silently filled in for new builds (defaults: 12 / 3), the former
+    # is strictly validated against the existing log on resume to refuse
+    # silent layout drift. See H3BuildLogger.__init__.
+    p.add_argument("-h3r", "--h3-resolution", dest="h3_resolution", type=int, default=None,
+                   help="H3 index level [0-15, default=12 on fresh build; ignored on resume — must match existing log]")
+    p.add_argument("-h3p", "--h3-partition", dest="h3_partition", type=int, default=None,
+                   help="H3 partition level [0-15, default=3 on fresh build; ignored on resume — must match existing log]")
 
     # GEDI product variables
     add_product_args(p)

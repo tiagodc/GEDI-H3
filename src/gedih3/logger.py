@@ -383,8 +383,11 @@ class H3BuildLogger:
             self.product_vars = product_vars
             self.spatial = parse_spatial(spatial)
             self.temporal = parse_temporal(temporal)
-            self.res = res
-            self.part = part
+            # Fresh-build fall-back: argparse defaults are now None (so the
+            # resume-mismatch check below can be strict). Apply the package
+            # defaults here when the user didn't specify them.
+            self.res = res if res is not None else 12
+            self.part = part if part is not None else 3
             self.gedi_version = version
             self.new_spatial = None
             self.new_temporal = None
@@ -397,6 +400,26 @@ class H3BuildLogger:
             raise GediValidationError(
                 f"GEDI version mismatch: existing database is version {self.gedi_version}, "
                 f"but version {version} was requested. Different versions require separate databases."
+            )
+        # H3 levels are baked into the database layout (partition
+        # directory names + per-shot index column). Changing them
+        # silently on resume produces an inconsistent DB; refuse to
+        # start, matching the gedi_version pattern above. Only fires
+        # when the user explicitly passed -h3r/-h3p (argparse defaults
+        # are None so a naked resume on a non-default DB is safe).
+        if res is not None and self.res is not None and res != self.res:
+            raise GediValidationError(
+                f"H3 resolution mismatch: existing database has h3_resolution_level={self.res}, "
+                f"but -h3r {res} was requested. The H3 index level is baked into the partition "
+                f"layout — different levels require separate databases. Drop -h3r to resume against "
+                f"the existing level, or build a fresh database in a different output directory."
+            )
+        if part is not None and self.part is not None and part != self.part:
+            raise GediValidationError(
+                f"H3 partition mismatch: existing database has h3_partition_level={self.part}, "
+                f"but -h3p {part} was requested. The H3 partition level is baked into the directory "
+                f"layout — different levels require separate databases. Drop -h3p to resume against "
+                f"the existing level, or build a fresh database in a different output directory."
             )
 
         self.updating = True
