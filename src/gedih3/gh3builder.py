@@ -2,7 +2,7 @@
 # Authors: Tiago de Conto, Amelia Grace Holcomb
 # For commercial licensing inquiries, contact UM Ventures at otc@umd.edu
 
-import os, re, glob, h5py, h3
+import os, re, glob, h5py, h3, json
 import shutil
 import numpy as np
 import pandas as pd
@@ -997,6 +997,188 @@ def _emit_complete_sentinel(tmp_dir: str, frag_name: str) -> None:
         pass
 
 
+# Per-failed-merge sentinel dir, parallel to ``_COMPLETE_SENTINEL_DIRNAME``.
+# Each failed (h3_partition × year) merge writes one file naming the
+# partition and the error so L1 resume + L2 doctor can recover without
+# scanning the tmp tree. Atomic per-failure (no append-to-shared-file
+# torn-line risk that plain ``open('a')`` would have on SIGKILL).
+_MERGE_FAILURES_DIRNAME = '_merge_failures'
+
+
+def _merge_failure_sentinel_name(tmp_dir: str, partition_dir: str) -> str:
+    """Stable filename derived from the partition's path relative to tmp_dir.
+
+    ``tmp/partitions/h3_03=8366c1fffffffff/year=2019`` →
+    ``h3_03=8366c1fffffffff__year=2019.fail`` — readable and unique under
+    the canonical tree layout (no slashes left to escape).
+    """
+    rel = os.path.relpath(partition_dir.rstrip('/'), tmp_dir)
+    return rel.replace('/', '__') + '.fail'
+
+
+def _merge_failure_sentinel_path(tmp_dir: str, partition_dir: str) -> str:
+    return os.path.join(
+        tmp_dir, _MERGE_FAILURES_DIRNAME,
+        _merge_failure_sentinel_name(tmp_dir, partition_dir),
+    )
+
+
+def _emit_merge_failure_sentinel(tmp_dir: str, partition_dir: str, error: BaseException) -> None:
+    """Persist a one-shot record of a failed merge.
+
+    Contents: two lines — the absolute ``partition_dir`` and the formatted
+    exception. ``AtomicFileWriter`` is overkill here since the file is
+    small + single-write + per-failure-unique; ``open(path, 'w')`` is
+    sufficient and the worst case (write interrupted by SIGKILL) just
+    leaves a truncated record that L1 resume re-derives by re-attempting
+    the merge.
+    """
+    path = _merge_failure_sentinel_path(tmp_dir, partition_dir)
+    parent = os.path.dirname(path)
+    os.makedirs(parent, exist_ok=True)
+    body = f"{partition_dir}\n{type(error).__name__}: {error}\n"
+    try:
+        with open(path, 'w') as f:
+            f.write(body)
+    except OSError:
+        # The failure sentinel is a safety net, not a correctness contract;
+        # losing one is non-fatal (next resume re-discovers via re-merge).
+        pass
+
+
+_GRANULE_FAILURES_FILENAME = '_granule_failures.jsonl'
+
+# Pattern: HDF5 "object 'X' doesn't exist" / "Unable to synchronously open
+# object (object 'X' doesn't exist)" — used by ``_classify_load_h5_failure``
+# to recognize the missing-variable case so downstream tooling
+# (``gh3_update --recover-missing-vars``) can offer a precise recipe.
+_MISSING_VAR_RE = re.compile(r"object\s+['\"]([^'\"]+)['\"]\s+doesn'?t\s+exist", re.IGNORECASE)
+
+
+def _classify_load_h5_failure(exc: BaseException, soc_dict: Dict[str, str]) -> Dict[str, Any]:
+    """Structured classification of a Stage1 ``load_h5_merged`` failure.
+
+    Today we only specialize the ``missing_var`` case (NASA-side L2A/L2B/L4A
+    schema variance across orbit clusters — orbits O20752–O20767 of L2A,
+    which lack ``l2a_quality_flag_rel3_a10`` despite the shipped manifest
+    claiming they have it). Other failures get a generic ``other`` kind
+    with the raw exception text — still queryable, just not auto-recoverable.
+
+    Returns a JSON-serializable dict so the driver can append it directly
+    to the per-build ``_granule_failures.jsonl`` sidecar.
+    """
+    msg = str(exc)
+    kind: str = 'other'
+    var: Optional[str] = None
+    product: Optional[str] = None
+    if isinstance(exc, KeyError) or 'KeyError' in type(exc).__name__:
+        m = _MISSING_VAR_RE.search(msg)
+        if m:
+            kind = 'missing_var'
+            var = m.group(1)
+    # Best-effort product inference: which product file does the source path
+    # belong to? soc_dict keys are the product codes (L2A/L2B/L4A); pick the
+    # first one whose path appears in the message, else None.
+    if msg:
+        for prod_code, h5_path in (soc_dict or {}).items():
+            try:
+                if h5_path and os.path.basename(str(h5_path)) in msg:
+                    product = prod_code
+                    break
+            except Exception:
+                continue
+    return {
+        'kind': kind,
+        'var': var,
+        'product': product,
+        'error_type': type(exc).__name__,
+        'error_message': msg,
+    }
+
+
+def _append_granule_failure(tmp_dir: str, frag_name: str, failure: Dict[str, Any]) -> None:
+    """Append one failure record to ``tmp_dir/_granule_failures.jsonl``.
+
+    Single-writer (driver thread) so no concurrency guard needed. Append-only
+    + line-buffered for crash-safety — a SIGKILL between batches loses only
+    the in-flight line. The whole file is folded into the build-log JSON at
+    finalize so post-build consumers (``gh3_update --recover-missing-vars``)
+    can resolve {orbit,granule,track} → failure cause with no log-grep.
+
+    Why JSONL, not full JSON rewrite: rewriting the 97k-granule build log on
+    every failure would be the exact O(N) driver-side I/O Pillar 1 bans.
+    Append-only delta + finalize-time fold gives O(1) per failure on the
+    hot path and O(N_failures) at end-of-build instead of O(N_granules)
+    per failure.
+    """
+    path = os.path.join(tmp_dir, _GRANULE_FAILURES_FILENAME)
+    record = {'frag_name': frag_name, **failure}
+    try:
+        with open(path, 'a') as f:
+            f.write(json.dumps(record) + '\n')
+    except OSError:
+        # Same logic as merge-failure sentinel: this is a safety net, not a
+        # correctness contract — the in-memory ``n_fail`` counter is still
+        # accurate, and the WARN log line still surfaces the error.
+        pass
+
+
+def _read_granule_failures(tmp_dir: str) -> List[Dict[str, Any]]:
+    """Read all recorded granule-failure records. O(N_failures); never
+    iterates partitions. Used by the finalize fold and by gh3_update."""
+    path = os.path.join(tmp_dir, _GRANULE_FAILURES_FILENAME)
+    out: List[Dict[str, Any]] = []
+    if not os.path.isfile(path):
+        return out
+    try:
+        with open(path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    out.append(json.loads(line))
+                except json.JSONDecodeError:
+                    # Tolerate the rare torn last line from a SIGKILL during
+                    # the writer's flush — same principle as parquet_merge
+                    # tolerating corrupt fragments.
+                    continue
+    except OSError:
+        pass
+    return out
+
+
+def _scan_merge_failure_sentinels(tmp_dir: str) -> Dict[str, str]:
+    """Return ``{partition_dir: error_string}`` for every recorded failure.
+
+    O(N_failures) — never iterates healthy partitions. Used by L1 resume
+    and L2 doctor (``tmp_partitions_health``).
+    """
+    out: Dict[str, str] = {}
+    sentinel_dir = os.path.join(tmp_dir, _MERGE_FAILURES_DIRNAME)
+    if not os.path.isdir(sentinel_dir):
+        return out
+    try:
+        entries = list(os.scandir(sentinel_dir))
+    except OSError:
+        return out
+    for entry in entries:
+        if not entry.is_file() or not entry.name.endswith('.fail'):
+            continue
+        try:
+            with open(entry.path, 'r') as f:
+                lines = f.read().splitlines()
+        except OSError:
+            continue
+        if not lines:
+            continue
+        partition_dir = lines[0].strip()
+        err = lines[1].strip() if len(lines) >= 2 else ''
+        if partition_dir:
+            out[partition_dir] = err
+    return out
+
+
 def _scan_complete_sentinels(tmp_dir: str) -> set:
     """Return the set of frag_names with an emitted completion sentinel.
 
@@ -1608,7 +1790,8 @@ def _write_one_granule_beam(
         cases — the (granule × beam) genuinely produced no data).
     """
     soc_dict, beam, frag_name = task
-    stats = {'frag_name': frag_name, 'leaves': 0, 'rows': 0, 'skipped': False, 'error': None}
+    stats = {'frag_name': frag_name, 'leaves': 0, 'rows': 0, 'skipped': False,
+             'error': None, 'failure': None}
 
     # 1) Load HDF5 for one (granule, beam) — identical contract to
     #    dask_h5_merged(by_beam=True)'s inner load_by_beam closure.
@@ -1621,9 +1804,13 @@ def _write_one_granule_beam(
     except Exception as e:
         # Mirrors the legacy graph's _load_h5_merged exception swallow —
         # corrupt h5 returns an empty meta upstream rather than failing the
-        # whole job. Streaming surfaces the error in stats for visibility.
+        # whole job. Streaming surfaces the error in stats for visibility,
+        # plus a structured ``failure`` record so the driver can persist it
+        # for downstream recovery (gh3_update --recover-missing-vars) without
+        # needing to grep the WARN log lines later.
         stats['skipped'] = True
         stats['error'] = f"load_h5_merged: {type(e).__name__}: {e}"
+        stats['failure'] = _classify_load_h5_failure(e, soc_dict)
         return stats
     if df is None or df.empty:
         stats['skipped'] = True
@@ -1970,13 +2157,15 @@ def _write_partitioned_streaming(
 
     pbar = tqdm_bar(total=total, desc="Stage1 partition writes", unit="task")
     n_ok = n_fail = n_leaves = 0
-    # Periodic-progress logger: tqdm carriage-returns over its own line and
-    # doesn't go to the log file legibly; we emit a real INFO log every
-    # ``log_every_seconds`` so an operator (or the monitor loop) can see
-    # liveness in gh3_build.log even when tqdm is silent. The interval is
-    # generous (60s) to avoid log spam — for visibility, not for tracing.
+    # Periodic-progress INFO is opt-in only — tqdm.set_postfix already shows
+    # ok/fail/leaves on the terminal, so emitting the same data to the log
+    # every 60s was operator clutter (~840 lines per 14h continental build).
+    # Set ``GH3_LOG_PROGRESS=1`` to re-enable for detached / tail-followed
+    # log workflows. WARN/ERROR lines (per-failure + end-of-phase summary)
+    # remain unconditional — those are actionable, not progress noise.
+    log_progress = os.environ.get('GH3_LOG_PROGRESS', '').strip().lower() in ('1', 'true', 'yes', 'on')
     log_every_seconds = 60
-    next_log_t = _time.monotonic() + log_every_seconds
+    next_log_t = _time.monotonic() + log_every_seconds if log_progress else float('inf')
     try:
         for fut in ac:
             try:
@@ -1986,6 +2175,14 @@ def _write_partitioned_streaming(
                     logger.warning(
                         f"Stage1 task {result.get('frag_name')}: {result['error']}"
                     )
+                    # Persist a structured failure record (driver-side,
+                    # single-writer, append-only) so the build log's
+                    # per-granule status can be enriched with a precise
+                    # cause at finalize without log-grep. See
+                    # _classify_load_h5_failure + _append_granule_failure.
+                    failure = result.get('failure')
+                    if failure:
+                        _append_granule_failure(tmp_dir, result.get('frag_name'), failure)
                 else:
                     n_ok += 1
                     n_leaves += result.get('leaves', 0)
@@ -1996,15 +2193,16 @@ def _write_partitioned_streaming(
                 fut.release()
             pbar.update(1)
             pbar.set_postfix(ok=n_ok, fail=n_fail, leaves=n_leaves)
-            now = _time.monotonic()
-            if now >= next_log_t:
-                done = n_ok + n_fail
-                logger.info(
-                    f"Streaming write: {done}/{total} done "
-                    f"({100*done/total:.1f}%) — ok={n_ok} fail={n_fail} "
-                    f"leaves={n_leaves}"
-                )
-                next_log_t = now + log_every_seconds
+            if log_progress:
+                now = _time.monotonic()
+                if now >= next_log_t:
+                    done = n_ok + n_fail
+                    logger.info(
+                        f"Streaming write: {done}/{total} done "
+                        f"({100*done/total:.1f}%) — ok={n_ok} fail={n_fail} "
+                        f"leaves={n_leaves}"
+                    )
+                    next_log_t = now + log_every_seconds
     finally:
         pbar.close()
 
@@ -2224,7 +2422,20 @@ def _merge_and_finalize(
                 merged_count += 1
             except Exception as e:
                 failed_count += 1
-                logger.warning(f"Merge failed for {os.path.basename(d.rstrip('/'))}: {e}")
+                # Preserve the h3_cell + year in the relative path so the
+                # operator can locate the failing partition without scanning
+                # the tmp tree. Combined with the [file=<path>] suffix that
+                # parquet_merge_files now attaches inside ``e``, a single
+                # grep on the WARN line gives both the partition and the
+                # exact bad fragment.
+                logger.warning(
+                    f"Merge failed for {os.path.relpath(d, tmp_dir)}: "
+                    f"{type(e).__name__}: {e}"
+                )
+                # Persist an atomic per-failure sentinel so L1 resume +
+                # L2 doctor can recover without re-running the full merge
+                # to rediscover what broke. See _emit_merge_failure_sentinel.
+                _emit_merge_failure_sentinel(tmp_dir, d, e)
             pbar.update(1)
             pbar.set_postfix(ok=merged_count, fail=failed_count)
 

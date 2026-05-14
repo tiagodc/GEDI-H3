@@ -1362,6 +1362,25 @@ def parquet_backfill_bbox(path):
     return 'rewritten'
 
 
+def _iter_batches_with_path(batch_iter, path):
+    """Wrap a pyarrow ``iter_batches`` generator and re-raise any exception
+    with the source file ``path`` appended to the message.
+
+    Why: truncated parquets fail inside ``iter_batches`` (mid-stream), not at
+    ``ParquetFile.__init__``. Without this wrapper the merge driver sees only
+    the Arrow message (e.g. ``Parquet magic bytes not found in footer``) with
+    no file context. With it, every per-fragment error self-identifies.
+    """
+    while True:
+        try:
+            batch = next(batch_iter)
+        except StopIteration:
+            return
+        except Exception as e:
+            raise type(e)(f"{e} [file={path}]").with_traceback(e.__traceback__) from None
+        yield batch
+
+
 def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
                         rows_per_group=100_000, bbox=None):
     """Stream-merge parquet files into a single output with a bounded memory footprint.
@@ -1470,8 +1489,18 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
         # row group are coalesced into a few large sequential reads (~50–100
         # MB buffered), then decompressed in memory.
         for f in flist:
-            pf = pq.ParquetFile(f, pre_buffer=True)
-            for batch in pf.iter_batches(batch_size=rows_per_group, columns=target_names):
+            # Wrap per-fragment open + drain so the failing path is attached
+            # to any exception. Without this, the merge driver at
+            # gh3builder.py:_merge_and_finalize only sees the upstream Arrow
+            # message (e.g. "Parquet file size is 0 bytes") with no file
+            # context, leaving the operator with no cheap way to identify
+            # which fragment to delete + which granules to re-extract.
+            try:
+                pf = pq.ParquetFile(f, pre_buffer=True)
+                batch_iter = pf.iter_batches(batch_size=rows_per_group, columns=target_names)
+            except Exception as e:
+                raise type(e)(f"{e} [file={f}]").with_traceback(e.__traceback__) from None
+            for batch in _iter_batches_with_path(batch_iter, f):
                 if check_shots and has_shot_number:
                     arr = batch["shot_number"].to_numpy().astype(np.uint64)
                     if shots is None:
