@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.0] - 2026-05-14
+
+### Added
+- Pre-flight check for explicit variable typos (`cli/gh3_build.py`). New helper `explicit_vars_missing_in_sample` introspects one sample HDF5 per non-`default` product to verify every requested variable name exists before stage 1 starts. Exits with a clear recipe on miss — catches typos / unknown names / wildcards-matching-nothing before a multi-hour build runs into a runtime `KeyError`.
+- Failure telemetry (`gh3builder.py`): per-merge-failure atomic sentinel under `tmp/partitions/_merge_failures/<h3_cell>__year=Y.fail` and per-granule structured failure records in `tmp/partitions/_granule_failures.jsonl`. Both append-only / crash-safe; no driver-side O(N) JSON rewrite. End-of-build advisory groups Stage 1 failures by `(kind, product, var)` with an actionable recovery recipe per class.
+- Merge-failure recovery loop: bidirectional granule status (`INDEXED → MERGE_FAILED` on known-bad fragment errors), L1 resume pre-clean that unlinks named-bad fragments + `.tmp` siblings, preventative size-check on source fragments before each merge. Granules whose only fragments were 0-byte get re-extracted on the next resume instead of silently dropping their rows.
+- New doctor diagnosis `tmp_partitions_health` — log-driven audit of `tmp/partitions/` post-build forensics (merge_failure sentinels, granule_failures.jsonl summaries, progress↔manifest drift). `--fix` calls `preclean_merge_failures`; refuses to act while a `gh3_build` is live (pgrep + log mtime guard).
+- `gh3_update`: startup WARN when source H3 database has non-INDEXED granules, so downstream simplified-dataset consumers know about the gaps before they propagate.
+- `GH3_LOG_PROGRESS` env var to opt-in to the periodic `Streaming write: N/M done` INFO line for detached / tail-followed log workflows (default off — `tqdm.set_postfix` already shows the same data on the terminal).
+- `GH3_MANIFEST_REFRESH_EVERY` env var (default 1000) — the merge phase now refreshes the database `_manifest.txt` sentinel every N successful merges so consumers reading mid-build see partial-but-fresh state. Each refresh is O(N_merged_so_far) pure in-memory derive + one atomic file write.
+
+### Changed
+- `_merge_and_finalize` post-loop derivation: the two driver-side `glob.glob('h3_*/...')` scans over the finalized DB tree are replaced with pure in-memory derivation from `_merge_progress.txt` via the new `_derive_merged_output_paths` helper. Zero GPFS metadata ops at end-of-merge — saves minutes on continental builds.
+- `_reconcile_granules_from_disk` Pass A: the two driver-side recursive `glob.glob` calls are replaced with manifest-aware partition listing + `parallel_map` across workers (new module-level `_scan_partition_meta_granules`). At continental scale this turns minutes of driver-serial GPFS metadata work into seconds of distributed scans. Falls back to a single `os.scandir` on `h3_dir` for legacy DBs without a manifest sentinel.
+- `_build_add_variables` replaces `glob('h3_dir/h3_*/')` with `os.scandir` (one syscall, same result; cheaper on large DBs).
+- Merge-failure WARN line at `gh3builder.py:2227` now logs `os.path.relpath(d, tmp_dir)` (h3_cell + year) instead of `os.path.basename(d)` (year alone). Combined with the `[file=<path>]` suffix that `parquet_merge_files` now attaches inside the exception, a single grep on the WARN line gives both the partition and the exact bad fragment.
+
+### Fixed
+- `utils.parquet_merge_files` now wraps per-fragment open + `iter_batches` so any exception carries `[file=<path>]`. Truncated-body parquets that fail mid-stream (class C) surface their source path instead of an opaque Arrow message.
+- H3 resolution / partition mismatch on resume now raises `GediValidationError` (mirroring `gedi_version`) instead of silently overriding the user-passed value. CLI argparse defaults for `-h3r` / `-h3p` change from `12 / 3 → None`; canonical defaults applied in the logger on fresh build. Naked resume on a non-default DB is unaffected.
+
 ## [0.9.6] - 2026-05-13
 
 ### Fixed
