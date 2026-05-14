@@ -686,6 +686,37 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     if len(files) == 0:
         return
 
+    # Preventative: drop 0-byte source fragments before they reach
+    # parquet_merge_files (which fails the whole merge on the first bad
+    # file). 0-byte parquets are the dominant SIGKILL-leftover class —
+    # ``AtomicFileWriter`` writes to ``.tmp`` then ``os.replace``s, but a
+    # worker killed between the empty-file creation and any actual data
+    # write leaves a final-named 0-byte parquet. One ``stat`` per source
+    # fragment, effectively free since the file open hits the same
+    # metadata anyway. The worker logs each unlinked fragment so the
+    # operator can correlate with which (granule × beam) is being lost.
+    _filtered = []
+    for f in files:
+        try:
+            if os.path.getsize(f) == 0:
+                logger.warning(
+                    f"h3_merge_files: dropping 0-byte source fragment {f}"
+                )
+                try:
+                    os.unlink(f)
+                except OSError:
+                    pass
+                continue
+        except OSError:
+            # File vanished between glob and stat — race with another
+            # worker's rm_src cleanup. Drop it silently; merge proceeds
+            # with the rest.
+            continue
+        _filtered.append(f)
+    files = _filtered
+    if len(files) == 0:
+        return
+
     year_dir =  os.path.dirname(in_dir)
     year = os.path.basename(year_dir.rstrip('/'))
 
@@ -1047,6 +1078,233 @@ def _emit_merge_failure_sentinel(tmp_dir: str, partition_dir: str, error: BaseEx
 
 
 _GRANULE_FAILURES_FILENAME = '_granule_failures.jsonl'
+
+# Per-build sidecar enumerating granules whose status must be flipped back
+# from INDEXED → MERGE_FAILED because their merged partition broke on a
+# recoverable, known-bad fragment class. Written by ``_merge_and_finalize``
+# during the failure handler; folded into the build-log JSON by the CLI
+# (``apply_merge_failures_to_logger``) after merge returns. Decouples the
+# merge driver from the H3BuildLogger so ``_merge_and_finalize`` keeps a
+# narrow signature ``(tmp_dir, h3_dir)``.
+_MERGE_FAILED_GRANULES_FILENAME = '_merge_failed_granules.jsonl'
+
+# Marker tokens we use to recognize the fragment-corruption classes the
+# resume layer can recover from (delete fragment + re-extract granule).
+# Other exception kinds (disk full on dest, missing schema field, etc.)
+# leave the granule status alone — those are infrastructure issues, not
+# data issues, and flipping them would force pointless re-extraction.
+_RECOVERABLE_FRAGMENT_ERROR_MARKERS = (
+    'Parquet file size is 0 bytes',
+    'Parquet magic bytes not found in footer',
+    'Couldn\'t deserialize thrift',  # truncated footer mid-Thrift
+)
+
+
+def _is_recoverable_fragment_error(exc: BaseException) -> bool:
+    """True when the exception text matches a known partial-write artifact
+    class. See ``_RECOVERABLE_FRAGMENT_ERROR_MARKERS`` for the curated list.
+    """
+    msg = str(exc)
+    return any(marker in msg for marker in _RECOVERABLE_FRAGMENT_ERROR_MARKERS)
+
+
+def _granules_in_partition_dir(partition_dir: str) -> List[Tuple[int, int, int]]:
+    """Parse (orbit, granule, track) tuples from fragment basenames in one
+    h3_*/year=* partition directory. Returns a deduplicated list.
+
+    O(N_fragments_in_dir). Never iterates other partitions.
+    """
+    out: set = set()
+    try:
+        entries = list(os.scandir(partition_dir))
+    except OSError:
+        return []
+    for e in entries:
+        if not e.is_file() or not e.name.endswith('.parquet'):
+            continue
+        m = _FRAGMENT_BASENAME_RE.match(e.name)
+        if m:
+            out.add((int(m.group(1)), int(m.group(2)), int(m.group(3))))
+    return sorted(out)
+
+
+def _emit_merge_failed_granules(tmp_dir: str, partition_dir: str,
+                                 granules: List[Tuple[int, int, int]],
+                                 error: BaseException) -> None:
+    """Append granule-flip-back records to the merge-failed-granules JSONL.
+
+    One record per granule (not per partition) so the CLI fold can drive
+    status updates directly. The whole list for a single failed partition
+    is written in one ``open + write`` to keep the per-failure cost O(1)
+    on the hot path.
+    """
+    if not granules:
+        return
+    path = os.path.join(tmp_dir, _MERGE_FAILED_GRANULES_FILENAME)
+    err_str = f"{type(error).__name__}: {error}"
+    lines = [
+        json.dumps({
+            'orbit': g[0], 'granule': g[1], 'track': g[2],
+            'partition_dir': partition_dir,
+            'error': err_str,
+        })
+        for g in granules
+    ]
+    try:
+        with open(path, 'a') as f:
+            f.write('\n'.join(lines) + '\n')
+    except OSError:
+        # Safety net, not a correctness contract — the next resume's merge
+        # will still re-discover via re-failing the same merge.
+        pass
+
+
+def _read_merge_failed_granules(tmp_dir: str) -> List[Dict[str, Any]]:
+    """Read every recorded granule-flip-back record. O(N_failures)."""
+    path = os.path.join(tmp_dir, _MERGE_FAILED_GRANULES_FILENAME)
+    out: List[Dict[str, Any]] = []
+    if not os.path.isfile(path):
+        return out
+    try:
+        with open(path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    out.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    except OSError:
+        pass
+    return out
+
+
+def preclean_merge_failures(tmp_dir: str) -> Dict[str, int]:
+    """L1 resume pre-clean: act on every recorded ``_merge_failures`` sentinel.
+
+    For each partition the prior run's merge marked failed:
+
+    1. Stat each ``*.parquet`` in the partition — unlink if 0-byte (the
+       canonical class B artifact). Truncated-but-nonzero parquets (class C)
+       are unlinked only when ``pq.ParquetFile`` cannot open them — checked
+       cheaply by opening the footer once. The cost is bounded by the
+       failure list, never the full healthy tree.
+    2. Unlink any co-located ``*.tmp`` / ``*.merge.tmp`` siblings. These
+       survive SIGKILL when ``AtomicFileWriter.__exit__`` never runs and
+       would otherwise pollute future merges.
+    3. Delete the failure sentinel itself so re-running the pre-clean is
+       idempotent (next run only re-acts on freshly-failed merges).
+
+    Returns ``{'partitions_cleaned': N, 'parquets_removed': N, 'tmps_removed': N}``.
+    Companion to ``apply_merge_failures_to_logger`` — calling this without
+    the granule flip-back would unlink fragments and leave their granules
+    marked INDEXED, permanently dropping rows. The CLI runs both together.
+    """
+    out = {'partitions_cleaned': 0, 'parquets_removed': 0, 'tmps_removed': 0}
+    failures = _scan_merge_failure_sentinels(tmp_dir)
+    if not failures:
+        return out
+    for partition_dir, _err in failures.items():
+        if not os.path.isdir(partition_dir):
+            # Partition was deleted between runs (cleanup, manual rm); just
+            # drop the sentinel so it doesn't fire again.
+            try:
+                os.unlink(_merge_failure_sentinel_path(tmp_dir, partition_dir))
+            except OSError:
+                pass
+            continue
+        try:
+            entries = list(os.scandir(partition_dir))
+        except OSError:
+            continue
+        for e in entries:
+            if not e.is_file():
+                continue
+            name = e.name
+            try:
+                size = e.stat().st_size
+            except OSError:
+                continue
+            if name.endswith('.tmp') or name.endswith('.merge.tmp'):
+                # AtomicFileWriter orphan from SIGKILL — always safe to remove.
+                try:
+                    os.unlink(e.path)
+                    out['tmps_removed'] += 1
+                except OSError:
+                    pass
+                continue
+            if not name.endswith('.parquet'):
+                continue
+            should_remove = False
+            if size == 0:
+                should_remove = True
+            else:
+                # Cheap header probe — only opens the footer, not the body.
+                try:
+                    pq.ParquetFile(e.path).metadata
+                except Exception:
+                    should_remove = True
+            if should_remove:
+                try:
+                    os.unlink(e.path)
+                    out['parquets_removed'] += 1
+                except OSError:
+                    pass
+        # Drop the sentinel — the cleanup acted; next merge will re-emit if
+        # it fails again. Keeping it would loop the pre-clean forever.
+        try:
+            os.unlink(_merge_failure_sentinel_path(tmp_dir, partition_dir))
+        except OSError:
+            pass
+        out['partitions_cleaned'] += 1
+    return out
+
+
+def apply_merge_failures_to_logger(h3_logger, tmp_dir: str) -> int:
+    """Fold the merge-failed-granules sidecar into the build-log's
+    granule status (INDEXED → MERGE_FAILED). Returns the count flipped.
+
+    Idempotent: re-applying after a successful resume is a no-op because
+    re-extracted granules have already been flipped back to INDEXED by
+    ``_reconcile_granules_from_disk``. Truncates the sidecar after fold to
+    keep it bounded across resumes.
+
+    Callable from the CLI right after ``_merge_and_finalize`` returns,
+    regardless of which code path invoked merge. Does NOT call
+    ``h3_logger.save_log`` — the caller controls save cadence.
+    """
+    records = _read_merge_failed_granules(tmp_dir)
+    if not records:
+        return 0
+    flipped = 0
+    for rec in records:
+        try:
+            key = {'orbit': int(rec['orbit']),
+                   'granule': int(rec['granule']),
+                   'track': int(rec['track'])}
+        except (KeyError, ValueError, TypeError):
+            continue
+        # Only flip if currently INDEXED. PENDING / other statuses are
+        # already non-skip on resume so no flip is needed; preserves
+        # idempotency across repeated folds.
+        if not hasattr(h3_logger, 'granule_info'):
+            return flipped
+        for g in h3_logger.granule_info:
+            if (g.get('orbit'), g.get('granule'), g.get('track')) == \
+               (key['orbit'], key['granule'], key['track']):
+                if g.get('status') == 'INDEXED':
+                    g['status'] = 'MERGE_FAILED'
+                    flipped += 1
+                break
+    # Truncate the sidecar — next resume re-derives only if a new merge
+    # fails. Leaving stale records would cause an old MERGE_FAILED flip
+    # to keep firing every resume forever.
+    try:
+        os.unlink(os.path.join(tmp_dir, _MERGE_FAILED_GRANULES_FILENAME))
+    except OSError:
+        pass
+    return flipped
 
 # Pattern: HDF5 "object 'X' doesn't exist" / "Unable to synchronously open
 # object (object 'X' doesn't exist)" — used by ``_classify_load_h5_failure``
@@ -2347,6 +2605,20 @@ def _merge_and_finalize(
     """
     logger.info(f"Merging H3 partitions into final database path: {h3_dir}")
 
+    # Pre-clean: act on any _merge_failures sentinels left by a prior run.
+    # Removes the 0-byte / truncated parquets that would otherwise re-fail
+    # this merge for the same partitions. Idempotent + bounded by the
+    # failure-list size (never scans the healthy tree). Paired with the
+    # CLI-side ``apply_merge_failures_to_logger`` fold so the granules in
+    # those partitions are PENDING for Stage 1 to re-extract.
+    _pc = preclean_merge_failures(tmp_dir)
+    if any(_pc.values()):
+        logger.info(
+            f"Merge pre-clean: removed {_pc['parquets_removed']} bad "
+            f"parquets + {_pc['tmps_removed']} .tmp orphans across "
+            f"{_pc['partitions_cleaned']} partition(s)."
+        )
+
     # List candidate tmp partitions. Two-level walk:
     #   1. Driver-side os.scandir of <tmp_dir> for h3_* — one readdir, fast.
     #   2. Per-h3 year=*/ listing fanned out across all workers via
@@ -2436,6 +2708,18 @@ def _merge_and_finalize(
                 # L2 doctor can recover without re-running the full merge
                 # to rediscover what broke. See _emit_merge_failure_sentinel.
                 _emit_merge_failure_sentinel(tmp_dir, d, e)
+                # If the failure is a known-bad-fragment class (0-byte /
+                # truncated parquet), parse the granules whose fragments
+                # live in this partition and record them for the CLI to
+                # flip back from INDEXED → MERGE_FAILED. Without this,
+                # L1 resume pre-clean (Phase 2.2) would unlink the bad
+                # fragment but leave the granule INDEXED, permanently
+                # dropping its rows. Only fires for the curated marker
+                # set; infrastructure errors (disk full, etc.) skip this
+                # and the granule stays INDEXED.
+                if _is_recoverable_fragment_error(e):
+                    grans = _granules_in_partition_dir(d)
+                    _emit_merge_failed_granules(tmp_dir, d, grans, e)
             pbar.update(1)
             pbar.set_postfix(ok=merged_count, fail=failed_count)
 

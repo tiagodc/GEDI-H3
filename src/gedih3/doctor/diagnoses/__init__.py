@@ -12,3 +12,4 @@ from . import parquet_health    # noqa: F401
 from . import geoparquet_bbox   # noqa: F401
 from . import backfill          # noqa: F401
 from . import soc_health        # noqa: F401
+from . import tmp_partitions_health  # noqa: F401

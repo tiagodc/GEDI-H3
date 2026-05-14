@@ -153,6 +153,35 @@ def _update_from_database(args, dataset_path, dataset_meta, logger):
 
     logger.info(f"  Source database: {db_path}")
 
+    # Surface non-INDEXED granules in the source DB. Class A failures from
+    # gh3_build (orbits whose HDF5 lacked a requested variable) leave gaps
+    # that propagate silently into every downstream simplified dataset and
+    # every gh3_update'd version — once the operator knows, they can
+    # either re-run gh3_build with a trimmed var list to recover those
+    # granules, or proceed knowingly. Read the source build log once and
+    # count by status; cheap (single JSON read) and lives entirely in the
+    # data we already opened above for db_path validation.
+    try:
+        with open(build_log_path, 'r') as _blf:
+            _bl = json.load(_blf)
+        _granules = _bl.get('granules') or []
+        if _granules:
+            from collections import Counter
+            _status_counts = Counter(g.get('status', 'UNKNOWN') for g in _granules)
+            _non_indexed = sum(
+                c for s, c in _status_counts.items() if s != 'INDEXED'
+            )
+            if _non_indexed:
+                logger.warning(
+                    f"Source database has {_non_indexed}/{len(_granules)} "
+                    f"non-INDEXED granule(s) — those shots will be ABSENT "
+                    f"from the joined columns. Breakdown: {dict(_status_counts)}. "
+                    f"Run `gh3_build` on the source database to retry; see "
+                    f"its end-of-build advisory for the recovery recipe."
+                )
+    except (OSError, json.JSONDecodeError) as _e:
+        logger.debug(f"Could not enumerate source-db granule status: {_e}")
+
     # Resolve new columns from product args
     # Set safe defaults for attributes collect_columns may access
     for attr, default in [('region', None), ('time_start', None), ('time_end', None),
