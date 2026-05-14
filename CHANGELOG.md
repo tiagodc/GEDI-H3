@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.9.6] - 2026-05-13
+
+### Fixed
+- Streaming driver no longer crashes every task with `AssertionError(<TaskState 'spatial_h3_tiles' processing>)`. `client.map(fn, iter, **kwargs)` was registering each kwarg under a scheduler TaskState named after the kwarg, which workers could never resolve. Fix: wrap all broadcast kwargs into a `functools.partial` closure around the worker function, then call `client.map(partial_fn, tasks, pure=False)` with no extra kwargs — dask sees only a single callable + iterable, the partial's captured kwargs are opaque to the scheduler. Memory dedup preserved (one partial in the Blockwise layer, per-task entries remain tiny refs).
+
 ## [0.9.5] - 2026-05-13
 
 ### Added
