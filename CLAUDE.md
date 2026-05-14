@@ -52,6 +52,12 @@ Configuration via `~/.gedih3.env` or environment variables:
 
 Configuration priority: CLI args > env vars > `~/.gedih3.env` > `config.py` defaults.
 
+**Operator tuning env vars** (build-time only; safe to leave unset):
+- `GH3_WRITE_STREAMING` - default on; toggles streaming partition writer vs legacy ddf.to_parquet path
+- `GH3_LOG_PROGRESS` - default off; re-enables the 60s `Streaming write: N/M done` INFO line in `gh3_build.log` for detached / tail-followed workflows (terminal tqdm postfix is always on)
+- `GH3_MANIFEST_REFRESH_EVERY` - default 1000; how often (in merged partitions) `_merge_and_finalize` re-writes the database `_manifest.txt` so consumers reading mid-merge see fresh state
+- `ARROW_DEFAULT_MEMORY_POOL=system` + `MALLOC_TRIM_THRESHOLD_=0` - per-worker env required for the low-memory plateau (set externally via your cluster launcher, not by gedih3)
+
 ## CLI Tools
 
 Command-line tools are installed as entry points under src/gedih3/cli.
@@ -124,8 +130,12 @@ gh3_doctor -i /db --report report.json
 Diagnoses: `backfill` (NaN gaps in product columns), `orphans` (leftover .tmp +
 empty dirs), `log_state` (stuck flags + log↔disk drift), `metadata` (partition
 JSON + manifest), `parquet_health` (corrupt files + duplicate shots + schema
-drift), `soc_health` (invalid HDF5 + download log drift). Exit codes: 0 clean,
-1 findings remain, 2 errors during fix.
+drift), `soc_health` (invalid HDF5 + download log drift),
+`tmp_partitions_health` (post-build forensics on `tmp/partitions/`:
+`_merge_failures/` sentinels + `_granule_failures.jsonl` summaries +
+progress↔manifest drift; `--fix` calls `preclean_merge_failures` and refuses
+to act while a `gh3_build` is live). Exit codes: 0 clean, 1 findings remain,
+2 errors during fix.
 
 ### Ancillary Data Tools
 
@@ -179,7 +189,7 @@ gh3_from_polygon -i landcover.gpkg -x lc_ --dropna -d /path/to/databaset -o outp
 - **Direct EGI loading (no shuffle)**: `egi_load()` pre-computes EGI↔H3 intersection and reads tiles directly — no `set_index()` shuffle needed
 - **Parquet + JSON metadata**: Each H3 partition has a `.parquet` file; database root has `gedih3_build_log.json` (carries `h3_columns`, `h3_columns_dtypes`, `h3_partition_level`, `h3_partition_ids`)
 - **Database manifest sentinel** (`_manifest.txt`): one relative path per line at the database root; `smart_glob` reads it before falling back to a recursive walk. Keeps `gh3_load()` cheap on million-partition databases over HTTP/S3/GPFS.
-- **R2 manifest invariant** (producer-driven refresh): every code path that mutates a SOC or H3 DB tree refreshes the corresponding manifest before returning — `gh3_download`, `gh3_build --download`, `s3_etl_subset`, `gh3_build -i` (opportunistic write at exit when its in-memory file list is available), `gh3_doctor --fix soc_health`/`--fix orphans`/`--fix metadata`. Consumers trust the manifest blindly; the only consumer-side check is a constant-time `mtime(manifest) >= mtime(root)` smoke test in `_read_manifest` that emits a loud ERROR pointing at the relevant `gh3_doctor --fix` remedy when a producer crashed or an external population (NASA delivery, manual rsync) bypassed the gh3 toolchain.
+- **R2 manifest invariant** (producer-driven refresh): every code path that mutates a SOC or H3 DB tree refreshes the corresponding manifest before returning — `gh3_download`, `gh3_build --download`, `s3_etl_subset`, `gh3_build -i` (opportunistic write at exit when its in-memory file list is available), `gh3_doctor --fix soc_health`/`--fix orphans`/`--fix metadata`. Long merges now also refresh **incrementally** every `GH3_MANIFEST_REFRESH_EVERY` (default 1000) successful merges via `_derive_merged_output_paths(_merge_progress.txt, h3_dir) → generate_manifest(files=…)` — pure in-memory derive + one atomic file write, no tree walk — so consumers reading mid-build see partial-but-fresh state instead of stale data from the previous build. Consumers trust the manifest blindly; the only consumer-side check is a constant-time `mtime(manifest) >= mtime(root)` smoke test in `_read_manifest` that emits a loud ERROR pointing at the relevant `gh3_doctor --fix` remedy when a producer crashed or an external population (NASA delivery, manual rsync) bypassed the gh3 toolchain.
 - **SOC manifest sentinel** (`_soc_manifest.txt`): the download-side parallel of `_manifest.txt`. `soc_file_tree` reads it before falling back to `glob.glob('**/*.h5')`; refreshed by `SOCDownloadLogger.set_post_download_info` after every download. Replaces minutes of GPFS metadata-server walk on every resume.
 - **Unified `source=` API**: `gh3_load()` and `egi_load()` accept `source=` as the primary path parameter
 - **Variable expansion**: CLI accepts `default`, `minimal`, `*`, or explicit variable lists/files
@@ -191,6 +201,11 @@ gh3_from_polygon -i landcover.gpkg -x lc_ --dropna -d /path/to/databaset -o outp
 - **Retry logic**: Network operations use exponential backoff (3 attempts, 1-60s wait)
 - **Atomic writes everywhere**: file operations route through `AtomicFileWriter` (`utils.py`). Build merges, JSON metadata writes, and extract/aggregate single-file outputs (`_write_dataframe`, `_write_egi_file` for parquet/feather/csv/txt/h5) all use `.tmp` + `os.replace`. Geo-vector formats (geojson/gpkg/shp) bypass the wrap because they depend on file-extension driver inference and shapefile emits multiple sidecars.
 - **HDF5 validity gate**: `h5_is_valid(path)` (cheap header open) is the resume-safety check on downloads — a truncated `.h5` left by a SIGKILL must not be silently consumed by the build phase.
+- **Merge-failure recovery loop** (v0.10+): when `_merge_and_finalize` hits a known-bad fragment class (0-byte parquet, missing magic bytes, truncated thrift footer — see `_RECOVERABLE_FRAGMENT_ERROR_MARKERS`), it (a) writes an atomic per-failure sentinel `tmp/partitions/_merge_failures/<h3_cell>__year=Y.fail`, (b) parses the affected granules from fragment basenames via `_FRAGMENT_BASENAME_RE` and appends them to `_merge_failed_granules.jsonl`. On the NEXT resume, `_merge_and_finalize`'s entry-time `preclean_merge_failures` unlinks the named-bad fragments + `.tmp` siblings, the CLI's `apply_merge_failures_to_logger` flips the affected granules `INDEXED → MERGE_FAILED` so Stage 1 re-extracts them. Closes the silent-data-loss path where a worker SIGKILL leaves a 0-byte parquet that the next merge would either fail on or silently produce empty output for.
+- **Stage 1 failure telemetry** (v0.10+): `_write_one_granule_beam`'s `KeyError` catch site sets `stats['failure'] = _classify_load_h5_failure(exc, soc_dict)`, distinguishing `missing_var` (NASA-side schema variance — e.g. orbits O20752–O20767 of L2A lack `l2a_quality_flag_rel3_a10`) from generic `other`. Driver appends each to `tmp/partitions/_granule_failures.jsonl` (single-writer, append-only) so post-build consumers resolve `(orbit,granule,track) → failure cause` without log-grep. End-of-build advisory in `cli/gh3_build.py` groups by `(kind, product, var)` and prints a recovery recipe per class.
+- **H3 levels are immutable across resumes**: `-h3r` / `-h3p` argparse defaults are `None` (not 12 / 3); fresh-build fallbacks live in the logger. `H3BuildLogger.__init__` raises `GediValidationError` if a user-passed `res`/`part` differs from the existing log's value (mirrors the `gedi_version` mismatch check). Naked resume on a non-default DB is safe — the logger loads from the log when the args are `None`.
+- **Merge-failure log line format** (v0.10+): `[WARNING] Merge failed for <h3_cell>/<year>: <ErrorType>: <message> [file=<fragment_path>]`. The `[file=...]` suffix is attached inside `parquet_merge_files` by `_iter_batches_with_path`, which wraps `pq.ParquetFile` open AND `iter_batches` so truncated-body failures (raised mid-stream) also self-identify their source.
+- **Build-log progress messages**: tqdm's `set_postfix` is the canonical liveness indicator during partition-write + merge; the 60-second `Streaming write: N/M done` INFO line is OFF by default (v0.10+). Set `GH3_LOG_PROGRESS=1` to re-enable for detached / tail-followed log workflows. Per-failure WARN + end-of-phase ERROR summary lines remain unconditional — those are actionable, not progress noise.
 - **Worker memory hygiene**: `data/dask-worker-trim.py` preload (per-task `gc.collect` + Arrow pool release + glibc `malloc_trim`) is applied externally via `dask worker --preload …` or `DASK_CONFIG=…/dask-config-massive-build.yaml`. Treat as production setup, not a per-tool concern.
 - **Structured exceptions**: Catch specific `GediError` subclasses for targeted error handling
 - **DRY CLI utilities**: Shared argument builders and setup functions in `cliutils.py`
@@ -227,6 +242,9 @@ from gedih3.cliutils import (
 - **Streaming stats during merge**: `parquet_merge_files` captures shot/date stats inline so `h3_write_metadata` can skip a 1.5–2 GB post-merge re-read.
 - **H3 partition bbox from cell math**: `h3_partition_bbox()` derives the bounding box from the H3 cell ID (no geometry-column scan).
 - **Granule ID from fragment basename**: build merge reconciles via regex on `O{orbit}_G{granule}_T{track}.{beam}.parquet` instead of opening parquet files.
+- **Parallel reconcile Pass A** (v0.10+): `_reconcile_granules_from_disk` Pass A no longer does two driver-side recursive `glob.glob` calls over the finalized DB tree. It sources partition dirs from the `_manifest.txt` sentinel (or `os.scandir(h3_dir)` for legacy DBs), then dispatches per-partition metadata reads across workers via `parallel_map(_scan_partition_meta_granules, …)` when a client is registered. At continental scale this turns minutes of serial GPFS metadata work into seconds.
+- **Post-merge in-memory derivation** (v0.10+): `_merge_and_finalize`'s tail no longer calls `glob.glob('h3_*/*/*.parquet')` or `glob.glob('h3_*/')`. The final `h3_files` + `h3_subdirs` lists come from `_derive_merged_output_paths(_merge_progress.txt, h3_dir)` — pure in-memory transform via the deterministic `h3_merge_files` naming contract (`<tmp>/h3_<p>=X/year=Y` → `<h3_dir>/h3_<p>=X/year=Y/X.Y.0.parquet`). Zero GPFS metadata ops.
+- **Preventative 0-byte source-fragment drop** (v0.10+): `h3_merge_files` stats each `*.parquet` in `in_dir` and unlinks any 0-byte file before passing to `parquet_merge_files`. One `stat` per fragment, effectively free (the file open hits the same metadata). Catches the SIGKILL-leftover class B before it breaks the merge.
 
 ## EGI Resolution Levels
 
@@ -307,3 +325,10 @@ Before writing new helper code, check whether one of these covers your case. Eve
 | `check_manifest_freshness` | `parallel.py` | Constant-time mtime smoke test wired into `_read_manifest`. Logs a loud ERROR (or raises) when the manifest is older than its root dir — the producer-crash / external-population guard for R2. |
 | `partition_is_empty` / `list_year_dirs` / `year_dir_is_empty` | `doctor/parallel.py` | O(1) `os.scandir`-based checks that replace `glob.glob('**/*.parquet', recursive=True)`. |
 | `dask-worker-trim.py` preload | `data/` (external) | Per-task `gc.collect` + Arrow pool release + `malloc_trim`. Wire via `dask worker --preload` or `DASK_CONFIG`, not from CLIs. |
+| `_iter_batches_with_path(batch_iter, path)` | `utils.py` | Wraps a pyarrow `iter_batches` generator and re-raises any exception with `[file=<path>]` appended — so truncated-body parquets that fail mid-stream self-identify. Use whenever you stream-merge per-fragment and need the source path in the error chain. |
+| `_derive_merged_output_paths(merge_progress_file, h3_dir)` | `gh3builder.py` | Pure in-memory transform of `_merge_progress.txt` lines into the deterministic final parquet paths via the `h3_merge_files` naming contract. Use instead of `glob.glob('h3_*/*/*.parquet')` for any post-merge listing — zero GPFS metadata ops. |
+| `_scan_partition_meta_granules(partition_dir, *, meta_filename)` | `gh3builder.py` | Worker-pickleable parser of granule IDs from PARTITION_META JSONs under one h3 partition. The unit dispatched by reconcile Pass A. |
+| `preclean_merge_failures(tmp_dir)` / `apply_merge_failures_to_logger(h3_logger, tmp_dir)` | `gh3builder.py` | The merge-failure recovery loop. Preclean reads `_merge_failures/*.fail` sentinels (and `_merge_failed_granules.jsonl`), unlinks named-bad fragments + `.tmp` siblings, drops the sentinels. Apply flips affected granules `INDEXED → MERGE_FAILED` so Stage 1 re-extracts. Idempotent; both run from `_merge_and_finalize` and `cli/gh3_build.py` finalize. |
+| `_classify_load_h5_failure(exc, soc_dict)` / `_append_granule_failure` / `_read_granule_failures(tmp_dir)` | `gh3builder.py` | Stage 1 failure telemetry. Classifier turns a `KeyError` / generic exception into `{'kind': 'missing_var'|'other', 'var', 'product', …}`. Append-only JSONL sidecar at `tmp/partitions/_granule_failures.jsonl`. Read it post-build for the recovery advisory or downstream forensics. |
+| `_emit_merge_failure_sentinel(tmp_dir, partition_dir, exc)` / `_scan_merge_failure_sentinels(tmp_dir)` | `gh3builder.py` | Atomic per-merge-failure sentinel under `tmp/partitions/_merge_failures/<encoded>.fail`. Mirrors the `_complete/` sentinel pattern — file existence is the signal, no append-to-shared-file torn-line risk. |
+| `explicit_vars_missing_in_sample(product_vars, default_products, sample_dict)` | `cli/gh3_build.py` | Pre-flight typo check. For each product with an explicit (non-`default`) variable list, opens one sample HDF5 via `gedi_vars_from_h5` and reports missing names. Wildcard patterns matching nothing surface as a single error string. Used by `_validate_existing_h5` Stage 2 to exit with code 2 before a multi-hour build hits a runtime `KeyError`. |
