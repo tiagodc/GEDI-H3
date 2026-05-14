@@ -629,6 +629,18 @@ def main():
                     h3_logger.save_log('FAILED')
                     logger.error(f"Merge-resume failed: {_e}")
                     raise
+                # Fold per-failed-merge granule flip-backs into the build
+                # log so the next resume re-extracts the affected granules
+                # instead of treating their (corrupt) parquet as canonical.
+                # Idempotent + truncates the sidecar after fold.
+                from gedih3.gh3builder import apply_merge_failures_to_logger
+                _flipped = apply_merge_failures_to_logger(h3_logger, _parquet_dir)
+                if _flipped:
+                    logger.warning(
+                        f"Flipped {_flipped} granule(s) INDEXED → MERGE_FAILED "
+                        f"after corrupt-fragment merge failures. They will be "
+                        f"re-extracted on the next resume."
+                    )
                 h3_logger.set_post_build_info()
                 h3_logger.log_data.pop('_pending_variable_update', None)
                 h3_logger.save_log('COMPLETED')
@@ -728,6 +740,49 @@ def main():
                     h3_files = (h3_files or []) + (h3_files_s2 or [])
 
                 # ── Finalize ─────────────────────────────────────────────
+                # Fold per-failed-merge granule flip-backs into the build
+                # log so the next resume re-extracts the affected granules
+                # instead of treating their (corrupt) parquet as canonical.
+                # Idempotent + truncates the sidecar after fold. Skipped
+                # silently when no recoverable merge failures occurred.
+                from gedih3.gh3builder import (
+                    apply_merge_failures_to_logger, _read_granule_failures,
+                )
+                _parquet_dir_for_fold = os.path.join(args.tmpdir, 'partitions')
+                _flipped = apply_merge_failures_to_logger(h3_logger, _parquet_dir_for_fold)
+                if _flipped:
+                    logger.warning(
+                        f"Flipped {_flipped} granule(s) INDEXED → MERGE_FAILED "
+                        f"after corrupt-fragment merge failures. They will be "
+                        f"re-extracted on the next resume."
+                    )
+                # Advisory: surface Stage 1 failure classes with actionable
+                # recovery recipes. The granule failure sidecar persisted by
+                # _append_granule_failure carries structured cause records,
+                # which we group here so the operator sees a single summary
+                # with the exact gh3_build command to fix each class.
+                _gran_failures = _read_granule_failures(_parquet_dir_for_fold)
+                if _gran_failures:
+                    from collections import Counter
+                    _by_class = Counter(
+                        (f.get('kind'), f.get('product'), f.get('var'))
+                        for f in _gran_failures
+                    )
+                    logger.warning(
+                        f"{len(_gran_failures)} (granule × beam) task(s) failed "
+                        f"Stage 1. Breakdown:"
+                    )
+                    for (kind, product, var), count in _by_class.most_common():
+                        if kind == 'missing_var':
+                            logger.warning(
+                                f"  {count}x missing_var: {product or '<product>'} "
+                                f"variable '{var or '<var>'}' absent from HDF5. "
+                                f"Recovery: re-run gh3_build with an explicit "
+                                f"-l{(product or 'XX').lower()[1:]} list that omits "
+                                f"'{var}' (and any other listed vars on this line)."
+                            )
+                        else:
+                            logger.warning(f"  {count}x {kind} ({product or 'N/A'})")
                 h3_logger.set_post_build_info()
                 # Clear pending variable update BEFORE saving — ensures the flag
                 # is not persisted to disk after successful completion.
