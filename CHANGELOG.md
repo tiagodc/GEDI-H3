@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.1] - 2026-05-14
+
+### Changed
+- `H3BuildLogger.set_post_build_info` (`logger.py`): the post-merge partition-metadata scan no longer pays an O(N) driver-side `glob.glob('*/*<meta>')` + serial `json_read` loop + O(N²) `if g not in indexed_granules` dedupe. Partition enumeration is now `os.scandir`; per-partition JSON reads dispatch via `parallel_map` across workers (new picklable `_scan_partition_meta_post_build_info`); granule dedupe is set-based. Falls back to a serial in-driver loop when no Dask Client is registered (unit-test path). On a continental-scale build (50k partitions, 50k granules) this drops the post-merge phase from ~51 min to seconds — the final hotspot blocking the "SUCCESS: N files exported" success line.
+- `parallel_map` (`parallel.py`): now renders a `tqdm` bar in both batched and non-batched paths for TTY liveness, matching the streaming-write + merge phases. The 5%-step `N/M done` INFO log lines are gated behind `GH3_LOG_PROGRESS` (default off) — opt-in for detached / tail-followed log workflows. Dask dashboard remains the canonical live cluster view.
+
 ## [0.10.0] - 2026-05-14
 
 ### Added
