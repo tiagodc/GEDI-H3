@@ -119,6 +119,16 @@ def fused_scan_partition(
     diagnosis name — e.g. ``{'orphans': {'age_seconds': 86400},
     'backfill': {'products': [...], 'expected_by_product': {...}}}``.
     """
+    # Force-import the diagnoses package on the worker side. Each
+    # diagnosis module populates ``_SCAN_REGISTRY`` via a
+    # :func:`register_scan` call at import time, but workers receive
+    # this function by pickle-by-reference — they have never imported
+    # the diagnoses submodules, so the worker's ``_SCAN_REGISTRY`` is
+    # empty until we trigger the side-effect imports here. Without this,
+    # every scan returns None and the driver-side fallback fires for
+    # every diagnosis (slow per-diagnosis path).
+    from . import diagnoses  # noqa: F401
+
     scan_kwargs = scan_kwargs or {}
     shared = _build_shared_state(partition_dir, enabled_scans)
     out: Dict[str, Any] = {}
