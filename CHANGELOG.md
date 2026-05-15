@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.5] - 2026-05-15
+
+### Added
+- `gh3_build_ducklake` (`cli/gh3_build_ducklake.py`): new `--batches N` flag (default 16; choices 1/2/4/8/16) splits the bulk `ducklake_add_data_files` CALL by leading hex char of the h3 cell id. Each batch commits its own transaction, so tqdm shows N progress ticks and peak memory is bounded to ~final/N instead of the previous unbounded accumulation (a continental ~50k-partition DB previously hit ~64 GB RSS in a single transaction). `batch_prefixes()` pre-filters empty hex groups via `os.scandir` on the database root, since `ducklake_add_data_files` raises on a glob that matches nothing. `--batches 1` keeps the single-glob path for tiny DBs. The single-threaded parquet_metadata read inside the DuckLake extension ([duckdb/ducklake#404](https://github.com/duckdb/ducklake/issues/404)) is still the dominant cost — this change makes it observable and bounded, not faster per file.
+
+### Fixed
+- `gh3_extract`, `gh3_aggregate`, `gh3_from_img`, `gh3_from_polygon` + new `cliutils.resolve_output_abs`: `args.output` is now absolutized on the driver right after the banner. The four tools dispatch per-partition writes via `map_partitions` and previously passed `args.output` verbatim. With a remote dask scheduler (workers launched from a different CWD than the user's shell — the common case for `tcp://localhost:8786` tunnels), every worker resolved a relative path against its own CWD; the driver-side `os.makedirs(output)` created the empty dir under the user's CWD while workers silently wrote into their scratch directories on cluster nodes. Symptom seen in production: a multi-hour extract reported progress while the user-visible output stayed empty. The new helper logs `Resolved relative output path: X -> Y` so the absolutization is observable; no-op when the path is already absolute or `None`.
+
 ## [0.10.4] - 2026-05-15
 
 ### Changed
