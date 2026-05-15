@@ -13,8 +13,13 @@ treat every partition as ``empty`` / ``missing_meta`` when CWD differs.
 
 from __future__ import annotations
 
+import json
 import os
 
+import numpy as np
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
 # Ensure all diagnoses are registered.
@@ -24,6 +29,7 @@ from gedih3.doctor.inspect import discover_partition_dirs
 from gedih3.doctor.fused import (
     fused_eligible_names, fused_scan_partition, _build_shared_state,
 )
+from gedih3.config import PARTITION_META_FILENAME
 
 
 @pytest.fixture(scope='module', autouse=True)
@@ -59,11 +65,70 @@ def _ctx(h3_dir):
     )
 
 
+def _make_partition(h3_dir, h3_part, year=2020, n_shots=20):
+    """Build one h3_03=<part>/year=<year>/<part>.<year>.parquet plus
+    partition-level + per-year meta files. Self-contained to keep this
+    test module decoupled from sibling test files (CI runs without
+    ``tests`` being importable as a package)."""
+    part_dir = os.path.join(h3_dir, f'h3_03={h3_part}')
+    year_dir = os.path.join(part_dir, f'year={year}')
+    os.makedirs(year_dir, exist_ok=True)
+    pq_file = os.path.join(year_dir, f'{h3_part}.{year}.parquet')
+
+    np.random.seed(hash((h3_part, year)) & 0xFFFFFFFF)
+    granules = [{'orbit': 100, 'granule': 1, 'track': 50}]
+    root_files = [
+        f"GEDI02_A_2020001000000_O{granules[0]['orbit']:05d}_"
+        f"{granules[0]['granule']:02d}_T{granules[0]['track']:05d}_02_003_02_V002.h5"
+    ] * n_shots
+    df = pd.DataFrame({
+        'shot_number': np.arange(1, n_shots + 1, dtype=np.int64),
+        'root_file_l2a': root_files,
+        'datetime': pd.to_datetime(['2020-06-01'] * n_shots),
+        'rh_98_l2a': np.random.uniform(0, 100, n_shots),
+        'agbd_l4a': np.random.uniform(0, 100, n_shots),
+    })
+    pq.write_table(pa.Table.from_pandas(df), pq_file)
+
+    base_meta = {
+        'last_modified': '2020-06-01',
+        'l2a_version': 2,
+        'h3_partition': h3_part,
+        'shot_count': n_shots,
+        'shot_range': [1, n_shots],
+        'date_range': ['2020-06-01', '2020-06-01'],
+        'granules': granules,
+        'columns': list(df.columns),
+    }
+    with open(pq_file.replace('.parquet', PARTITION_META_FILENAME), 'w') as f:
+        json.dump({**base_meta, 'year': year}, f)
+    with open(os.path.join(part_dir, f'{h3_part}{PARTITION_META_FILENAME}'), 'w') as f:
+        json.dump({**base_meta, 'years': [year]}, f)
+
+
+def _make_build_log(h3_dir):
+    log = {
+        'gedi_version': 2,
+        'h3_resolution_level': 12,
+        'h3_partition_level': 3,
+        'status': 'COMPLETED',
+        'spatial_filter': None,
+        'temporal_filter': None,
+        'products': {
+            'L2A': {'variables': ['rh_98'], 'status': 'COMPLETED'},
+            'L4A': {'variables': ['agbd'], 'status': 'COMPLETED'},
+        },
+        'granules': [{'orbit': 100, 'granule': 1, 'track': 50, 'status': 'INDEXED'}],
+        'h3_partition_ids': ['aaaa', 'bbbb'],
+    }
+    with open(os.path.join(h3_dir, 'gedih3_build_log.json'), 'w') as f:
+        json.dump(log, f)
+
+
 def _make_simple_db(tmp_dir):
     """Build a 2-partition synthetic DB so the test exercises the fused
     dispatch path (which requires >=2 partitions to be meaningful) and the
     parquet/meta-aware diagnoses see real files."""
-    from tests.test_doctor_diagnoses import _make_partition, _make_build_log
     _make_partition(tmp_dir, h3_part='aaaa', year=2020)
     _make_partition(tmp_dir, h3_part='bbbb', year=2020)
     _make_build_log(tmp_dir)
