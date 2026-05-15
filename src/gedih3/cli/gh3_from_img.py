@@ -104,7 +104,7 @@ def main():
             setup_logging, print_banner, print_success,
             configure_database_path, parse_region, parse_dask_args,
             h3_col_name, get_dataset_index_info, build_query_string,
-            resolve_output_abs, setup_storage
+            resolve_path_args, setup_storage
         )
         from gedih3.imgutils import (
             resolve_raster_source, get_raster_info, parse_window_specs,
@@ -115,7 +115,7 @@ def main():
         logger = setup_logging(args, __name__)
         setup_storage(args, logger=logger)
         print_banner("GEDI Raster Sampling Tool", logger=logger)
-        resolve_output_abs(args, logger=logger)
+        resolve_path_args(args, ['database', 'output', 'image'], logger=logger)
 
         # Resolve raster source
         logger.info(f"Image source: {args.image}")
