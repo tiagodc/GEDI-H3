@@ -541,23 +541,41 @@ def print_success(message, logger=None):
     out("")
 
 
-def resolve_output_abs(args, logger=None):
-    """Force ``args.output`` to an absolute path on the driver.
+_URL_PREFIXES = (
+    'http://', 'https://', 's3://', 'gs://', 'gcs://',
+    '/vsicurl/', '/vsis3/', '/vsigs/',
+)
 
-    Tools that write outputs from dask workers (``gh3_export``, ``gh3_extract``,
-    ``gh3_aggregate``, ``gh3_from_img``, ``gh3_from_polygon``) pass ``args.output``
-    verbatim into ``map_partitions``. Workers then resolve it against *their own*
-    CWD — which on a remote scheduler is almost never the same as the user's
-    interactive shell. The result is silent: the driver creates an empty output
-    dir under the user's CWD while every worker writes into its scratch dir.
-    Absolutizing on the driver before dispatch closes that footgun.
+
+def resolve_path_args(args, names, logger=None):
+    """Absolutize each path-bearing CLI arg listed in ``names`` on the driver.
+
+    Tools that dispatch work to dask workers (``gh3_extract``, ``gh3_aggregate``,
+    ``gh3_from_img``, ``gh3_from_polygon``) pass paths from ``args`` verbatim
+    into ``map_partitions`` / ``client.map``. Workers then resolve any relative
+    path against *their own* CWD — which on a remote scheduler is almost never
+    the same as the user's interactive shell. The result is silent and brutal:
+    workers write to (or read from) the wrong location with no error surfaced
+    until much later (empty output dir / "FileNotFoundError" mid-aggregation).
+    Absolutizing on the driver before dispatch closes the footgun.
+
+    Skips: ``None`` / empty, already-absolute paths, and URL-style strings
+    (``http://``, ``s3://``, ``/vsicurl/``, ``/vsis3/``, ``gs://``, ``gcs://``,
+    ``/vsigs/``). Callers should *only* pass arg names that are known to be
+    paths — keeps bbox / country-code / query args (``region``, etc.) untouched.
     """
-    if getattr(args, 'output', None) and not os.path.isabs(args.output):
-        abs_path = os.path.abspath(args.output)
+    for name in names:
+        val = getattr(args, name, None)
+        if not isinstance(val, str) or not val:
+            continue
+        if val.startswith(_URL_PREFIXES):
+            continue
+        if os.path.isabs(val):
+            continue
+        abs_path = os.path.abspath(val)
         if logger is not None:
-            logger.info(f"Resolved relative output path: {args.output} -> {abs_path}")
-        args.output = abs_path
-    return getattr(args, 'output', None)
+            logger.info(f"Resolved relative {name} path: {val} -> {abs_path}")
+        setattr(args, name, abs_path)
 
 
 @contextmanager
