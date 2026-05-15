@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.2] - 2026-05-14
+
+### Changed
+- `gh3_doctor` (`doctor/runner.py`, new `doctor/fused.py`): the 5 per-partition h3db-tree diagnoses (`metadata`, `geoparquet_bbox`, `parquet_health`, `orphans`, `backfill`) now fuse into a single per-partition scan when ≥2 of them are requested at `mode='check'`. Each partition's parquet listing + meta JSON is opened once and the shared state is routed to every enabled scan inside one dask task. Cuts driver-side GPFS metadata round-trips and worker-side file opens ~5×. Single-diagnosis check + every `--fix` path stay on the legacy per-diagnosis dispatch. Graceful fallback: a diagnosis whose fused result is empty (e.g. cluster has stale bytecode predating this refactor) auto-redirects to single-diagnosis dispatch with a loud WARNING.
+
+### Fixed
+- `gh3_doctor` CLI: `args.indir`, `args.tmpdir`, `args.soc_dir` are now resolved to absolute paths before partition_dirs reach remote dask workers. Relative `-i database/` used to silently produce 10k false `empty_partition` + `missing_partition_meta` findings because every worker's `os.scandir` raised OSError on the wrong CWD and the doctor helpers swallowed that as "empty / missing".
+- `gh3_doctor` no longer assumes a default `<indir>/.tmp` for the tmp directory; diagnoses that need a tmp tree skip silently when `-t` is not passed. Avoids scanning an unrelated path and producing misleading findings.
+- `metadata` diagnosis: manifest health check switched from `_metadata` (pyarrow's dataset manifest, never produced by gedih3) to `_manifest.txt` (the R2 sentinel the build actually writes). Stops the permanent false "manifest missing" finding on every gedih3 database.
+- `metadata` diagnosis: per-partition exceptions and missing fused result slots are surfaced as `scan_error` findings with the underlying error message, not silently rolled into `missing_partition_meta`. Severity escalates to ERROR when any partition errored.
+
 ## [0.10.1] - 2026-05-14
 
 ### Changed
