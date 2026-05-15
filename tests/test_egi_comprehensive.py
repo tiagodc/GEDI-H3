@@ -147,29 +147,71 @@ def _test_to_parent_consistency(x: float, y: float, fine_level: int = 1, parent_
 
 
 def _test_tile_boundary(tile_y: int, eps: float = 1e-6) -> EGITestResult:
-    """Test consistency at a specific tile boundary."""
+    """Check invariants for ``y`` just below a tile boundary.
+
+    For ``eps`` well above float64 precision at the boundary magnitude, the
+    point lands strictly inside ``tile_y - 1`` at every level. For sub-precision
+    ``eps``, ``y_boundary - eps`` is indistinguishable from ``y_boundary``
+    itself, and direct hashing at different levels may legitimately disagree
+    on which neighbor tile to pick (the float rounding of
+    ``(OUTER_RES - eps) / scale`` depends on ``scale``). The hard invariants —
+    always true — are that (1) hashes have in-range inner indices and (2) the
+    pipeline path ``fine → to_parent(coarse)`` agrees with itself across levels.
+    """
     x = 0
     y_boundary = LIMITS['lat_s'] + tile_y * OUTER_RES
     y = y_boundary - eps
 
     try:
         outer_hash = to_hash(x, y, OUTER_LEVEL)
-        _, _, _, outer_py_o, _, _ = from_hash(outer_hash)
+        _, _, _, outer_py_o, _, outer_pyi = from_hash(outer_hash)
 
-        fine_hash = to_hash(x, y, 6)
-        _, _, _, fine_py_o, _, _ = from_hash(fine_hash)
+        fine_level = 6
+        fine_hash = to_hash(x, y, fine_level)
+        _, _, _, fine_py_o, _, fine_pyi = from_hash(fine_hash)
 
-        expected_tile = tile_y - 1
-
-        if outer_py_o != expected_tile or fine_py_o != expected_tile:
+        # Invariant 1: inner index is in valid range for its level.
+        max_outer_inner = round(OUTER_RES / RESOLUTIONS[OUTER_LEVEL]) - 1
+        max_fine_inner = round(OUTER_RES / RESOLUTIONS[fine_level]) - 1
+        if not (0 <= outer_pyi <= max_outer_inner):
             return EGITestResult(
-                x=x, y=y, level=6, passed=False,
-                error_message=f"Boundary test at tile {tile_y}, eps={eps}: "
-                             f"expected tile {expected_tile}, outer={outer_py_o}, fine={fine_py_o}",
-                expected_py_outer=expected_tile,
-                actual_py_outer=int(fine_py_o)
+                x=x, y=y, level=fine_level, passed=False,
+                error_message=f"Outer-level inner index out of range at tile {tile_y}, eps={eps}: "
+                             f"py_inner={outer_pyi}, max={max_outer_inner}",
             )
-        return EGITestResult(x=x, y=y, level=6, passed=True)
+        if not (0 <= fine_pyi <= max_fine_inner):
+            return EGITestResult(
+                x=x, y=y, level=fine_level, passed=False,
+                error_message=f"Fine-level inner index out of range at tile {tile_y}, eps={eps}: "
+                             f"py_inner={fine_pyi}, max={max_fine_inner}",
+            )
+
+        # Invariant 2: each level picks one of the two boundary neighbors.
+        for label, picked in (("outer", outer_py_o), ("fine", fine_py_o)):
+            if int(picked) not in (tile_y - 1, tile_y):
+                return EGITestResult(
+                    x=x, y=y, level=fine_level, passed=False,
+                    error_message=f"{label} boundary tile out of expected neighbor pair at "
+                                 f"tile {tile_y}, eps={eps}: got {picked}, "
+                                 f"expected one of ({tile_y - 1}, {tile_y})",
+                    expected_py_outer=tile_y - 1,
+                    actual_py_outer=int(picked),
+                )
+
+        # Invariant 3: the production pipeline path (hash at fine + to_parent up
+        # to outer) is internally consistent — it never produces an out-of-range
+        # inner index at any level. This is the property that actually drives
+        # the build/extract output filenames.
+        rolled = to_parent(fine_hash, OUTER_LEVEL)
+        _, _, _, rolled_py_o, _, rolled_pyi = from_hash(rolled)
+        if rolled_pyi != 0:
+            return EGITestResult(
+                x=x, y=y, level=fine_level, passed=False,
+                error_message=f"to_parent(fine, OUTER_LEVEL) produced non-zero inner index at "
+                             f"tile {tile_y}, eps={eps}: py_inner={rolled_pyi}",
+            )
+
+        return EGITestResult(x=x, y=y, level=fine_level, passed=True)
     except Exception as e:
         return EGITestResult(
             x=x, y=y, level=6, passed=False,

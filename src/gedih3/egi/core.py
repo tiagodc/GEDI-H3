@@ -107,34 +107,55 @@ def to_hash(
 
     Notes
     -----
-    This implementation matches the reference easegridindex exactly:
-    - Uses // operator for floor division (outer tile indices)
-    - Uses % operator for modulo (inner tile position)
-    - The modulo naturally constrains values to [0, OUTER_RES) range
+    Outer-tile and inner-pixel indices are derived independently in the float
+    domain — matching the reference easegridindex grid alignment so existing
+    on-disk data stays interpretable — but we then carry any boundary overflow
+    from ``px_inner`` into ``px_outer``. ``OUTER_RES`` (~160143.2 m) is not
+    exactly representable in float64, so for coordinates at or just below a
+    tile boundary, ``x_offset // OUTER_RES`` rounds down to tile N-1 while
+    ``x_offset % OUTER_RES // scale`` returns ``SCALE_FACTOR`` (one past the
+    valid inner range). Left uncorrected, those out-of-range inner indices
+    propagate through ``to_parent`` as spurious non-zero inner indices at
+    coarser levels, producing boundary-shadow cells at every level. The carry
+    folds the overflow back into the proper outer tile so ``px_inner`` is
+    always in ``[0, SCALE_FACTOR)``. Non-boundary inputs are unaffected.
 
     Coordinates must be in EPSG:6933 projection. Do NOT use this function
     with WGS84 coordinates - reproject first.
     """
     validate_level(level)
     scale = RESOLUTIONS[level]
+    scale_factor = round(OUTER_RES / scale)  # integer pixels per outer tile at this level
 
     # Calculate coordinate offsets from grid origin
     x_offset = x - LIMITS['lon_w']
     y_offset = y - LIMITS['lat_s']
 
-    # Calculate outer tile indices using floor division
-    # This matches the reference implementation exactly
-    px_outer = np.uint16(x_offset // OUTER_RES)
-    py_outer = np.uint16(y_offset // OUTER_RES)
+    # Outer-tile and inner-pixel indices, both via the same OUTER_RES grid the
+    # reference easegridindex uses. This preserves backward-compatible cell
+    # alignment for existing data — we only diverge for boundary overflow below.
+    px_outer = (x_offset // OUTER_RES).astype(np.int64) if hasattr(x_offset, 'astype') else np.int64(x_offset // OUTER_RES)
+    py_outer = (y_offset // OUTER_RES).astype(np.int64) if hasattr(y_offset, 'astype') else np.int64(y_offset // OUTER_RES)
+    px_inner = (x_offset % OUTER_RES // scale).astype(np.int64) if hasattr(x_offset, 'astype') else np.int64(x_offset % OUTER_RES // scale)
+    py_inner = (y_offset % OUTER_RES // scale).astype(np.int64) if hasattr(y_offset, 'astype') else np.int64(y_offset % OUTER_RES // scale)
 
-    # Calculate inner pixel indices using modulo + floor division
-    # The modulo gives position within the tile [0, OUTER_RES)
-    # Floor division by scale gives the pixel index
-    # This matches the reference implementation exactly
-    px_inner = np.uint32(x_offset % OUTER_RES // scale)
-    py_inner = np.uint32(y_offset % OUTER_RES // scale)
+    # Boundary overflow carry: at tile boundaries, the independent float ops
+    # leave px_inner == scale_factor (one past valid). Fold that overflow into
+    # the next outer tile so the hash always satisfies 0 <= inner < scale_factor.
+    px_carry = px_inner >= scale_factor
+    py_carry = py_inner >= scale_factor
+    px_outer = np.where(px_carry, px_outer + 1, px_outer)
+    py_outer = np.where(py_carry, py_outer + 1, py_outer)
+    px_inner = np.where(px_carry, 0, px_inner)
+    py_inner = np.where(py_carry, 0, py_inner)
 
-    return hasher(level, px_outer, py_outer, px_inner, py_inner)
+    return hasher(
+        level,
+        np.uint16(px_outer),
+        np.uint16(py_outer),
+        np.uint32(px_inner),
+        np.uint32(py_inner),
+    )
 
 
 def from_hash(
