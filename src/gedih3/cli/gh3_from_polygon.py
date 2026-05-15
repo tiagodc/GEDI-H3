@@ -103,7 +103,7 @@ def main():
             setup_logging, print_banner, print_success,
             configure_database_path, parse_region, parse_dask_args,
             h3_col_name, get_dataset_index_info, build_query_string,
-            setup_storage
+            resolve_output_abs, setup_storage
         )
         from gedih3.vecutils import (
             resolve_vector_source, get_vector_info, load_vector,
@@ -114,6 +114,7 @@ def main():
         logger = setup_logging(args, __name__)
         setup_storage(args, logger=logger)
         print_banner("GEDI Vector Polygon Join Tool", logger=logger)
+        resolve_output_abs(args, logger=logger)
 
         # Resolve vector source
         logger.info(f"Vector source: {args.input}")

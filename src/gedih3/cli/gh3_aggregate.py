@@ -307,13 +307,14 @@ def main():
                                      print_banner, print_success, configure_database_path,
                                      load_data_from_source,
                                      get_dataset_index_info, parse_aggregation,
-                                     setup_storage)
+                                     resolve_output_abs, setup_storage)
 
         # Setup logging and print banner
         logger = setup_logging(args, __name__)
         setup_storage(args, logger=logger)
         title = "GEDI EGI Data Aggregation Tool" if use_egi else "GEDI H3 Data Aggregation Tool"
         print_banner(title, logger=logger)
+        resolve_output_abs(args, logger=logger)
 
         # Configure database path
         configure_database_path(args, logger=logger)

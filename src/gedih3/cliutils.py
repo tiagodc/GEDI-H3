@@ -541,6 +541,25 @@ def print_success(message, logger=None):
     out("")
 
 
+def resolve_output_abs(args, logger=None):
+    """Force ``args.output`` to an absolute path on the driver.
+
+    Tools that write outputs from dask workers (``gh3_export``, ``gh3_extract``,
+    ``gh3_aggregate``, ``gh3_from_img``, ``gh3_from_polygon``) pass ``args.output``
+    verbatim into ``map_partitions``. Workers then resolve it against *their own*
+    CWD — which on a remote scheduler is almost never the same as the user's
+    interactive shell. The result is silent: the driver creates an empty output
+    dir under the user's CWD while every worker writes into its scratch dir.
+    Absolutizing on the driver before dispatch closes that footgun.
+    """
+    if getattr(args, 'output', None) and not os.path.isabs(args.output):
+        abs_path = os.path.abspath(args.output)
+        if logger is not None:
+            logger.info(f"Resolved relative output path: {args.output} -> {abs_path}")
+        args.output = abs_path
+    return getattr(args, 'output', None)
+
+
 @contextmanager
 def progress_iter(iterable, *, desc, total=None, args=None, unit='it'):
     """tqdm wrapper with consistent style + safe logger interleaving.
