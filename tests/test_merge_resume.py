@@ -23,9 +23,12 @@ import pytest
 # ---------------------------------------------------------------------------
 
 class TestDetectMergeResumeSignal:
-    def _logger(self, prev_status):
-        # Minimal stand-in — only previous_status is read.
-        return types.SimpleNamespace(previous_status=prev_status)
+    def _logger(self, prev_status, granule_info=None):
+        # Minimal stand-in — only previous_status and granule_info are read.
+        return types.SimpleNamespace(
+            previous_status=prev_status,
+            granule_info=granule_info or [],
+        )
 
     def test_l1_status_merging(self, tmp_dir):
         from gedih3.cli.gh3_build import _detect_merge_resume_signal
@@ -61,6 +64,47 @@ class TestDetectMergeResumeSignal:
         with open(os.path.join(tmp_dir, '_merge_progress.txt'), 'w') as f:
             f.write('/some/h3/year=2020\n')
         signal = _detect_merge_resume_signal(self._logger('MERGING'), tmp_dir)
+        assert signal == 'log status MERGING'
+
+    def test_merge_failed_veto_blocks_l1(self, tmp_dir):
+        """If any granule has status MERGE_FAILED, the shortcut must be
+        suppressed even when L1 fires — the merge-only path has no way
+        to re-extract them, and looping merge-only against the same
+        corrupt fragments would never converge."""
+        from gedih3.cli.gh3_build import _detect_merge_resume_signal
+        granule_info = [
+            {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED'},
+            {'orbit': 2, 'granule': 1, 'track': 2, 'status': 'MERGE_FAILED'},
+        ]
+        signal = _detect_merge_resume_signal(
+            self._logger('MERGING', granule_info=granule_info), tmp_dir,
+        )
+        assert signal is None
+
+    def test_merge_failed_veto_blocks_l2(self, tmp_dir):
+        """Same veto applies to the progress-file fallback signal."""
+        from gedih3.cli.gh3_build import _detect_merge_resume_signal
+        with open(os.path.join(tmp_dir, '_merge_progress.txt'), 'w') as f:
+            f.write('/some/h3_a/year=2020\n')
+        granule_info = [
+            {'orbit': 5, 'granule': 1, 'track': 9, 'status': 'MERGE_FAILED'},
+        ]
+        signal = _detect_merge_resume_signal(
+            self._logger('PROCESSING', granule_info=granule_info), tmp_dir,
+        )
+        assert signal is None
+
+    def test_no_veto_when_only_indexed(self, tmp_dir):
+        """A log with only INDEXED granules must NOT block the shortcut —
+        nothing needs re-extraction so the merge-only fast path is correct."""
+        from gedih3.cli.gh3_build import _detect_merge_resume_signal
+        granule_info = [
+            {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED'},
+            {'orbit': 2, 'granule': 1, 'track': 2, 'status': 'INDEXED'},
+        ]
+        signal = _detect_merge_resume_signal(
+            self._logger('MERGING', granule_info=granule_info), tmp_dir,
+        )
         assert signal == 'log status MERGING'
 
 

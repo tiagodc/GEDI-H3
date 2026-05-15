@@ -182,8 +182,23 @@ def _detect_merge_resume_signal(h3_logger, parquet_dir):
     that merge already started, which in turn proves extract finished.
 
     The two signals are independent — either is sufficient.
+
+    **Veto: MERGE_FAILED granules.** If the build log contains any granule
+    in ``MERGE_FAILED`` status, the shortcut is suppressed even when L1/L2
+    fire. Those granules' partitions failed merge on a prior run with a
+    corrupt-fragment error — they were flipped to ``MERGE_FAILED`` by
+    ``apply_merge_failures_to_logger`` so that Stage 1 would re-extract
+    them on the next resume. Taking the merge-only shortcut would skip the
+    extract pass and re-attempt the same merge against the same bad
+    fragments, looping forever. The full path's reconcile + extract pass
+    is what closes the loop: it walks ``MERGE_FAILED → INDEXING``,
+    re-writes the fragments from source HDF5, and feeds the merge fresh
+    inputs.
     """
     import os
+    granule_info = getattr(h3_logger, 'granule_info', None) or []
+    if any(g.get('status') == 'MERGE_FAILED' for g in granule_info):
+        return None
     if getattr(h3_logger, 'previous_status', None) == 'MERGING':
         return 'log status MERGING'
     progress_file = os.path.join(parquet_dir, '_merge_progress.txt')
