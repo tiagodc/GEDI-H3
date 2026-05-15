@@ -87,7 +87,7 @@ def main():
         from gedih3.cliutils import (collect_columns, build_query_string, parse_region,
                                      parse_dask_args, setup_logging, print_banner,
                                      print_success, configure_database_path, h3_col_name,
-                                     setup_storage)
+                                     resolve_output_abs, setup_storage)
 
         # Parse EGI levels if specified
         use_egi = args.egi is not None
@@ -101,6 +101,7 @@ def main():
         setup_storage(args, logger=logger)
         title = "GEDI EGI Data Extraction Tool" if use_egi else "GEDI H3 Data Extraction Tool"
         print_banner(title, logger=logger)
+        resolve_output_abs(args, logger=logger)
 
         # Configure database path
         configure_database_path(args, logger=logger)
