@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.6] - 2026-05-15
+
+### Fixed
+- `egi.core.to_hash` (`src/gedih3/egi/core.py`): boundary-shadow cells eliminated at every EGI level. `OUTER_RES` (~160143.203736 m) is not exactly representable in float64, so the two independent ops `x_offset // OUTER_RES` and `x_offset % OUTER_RES // scale` disagreed by one outer tile for coordinates at (or just below) a tile boundary — yielding `px_inner = SCALE_FACTOR` (one past valid range). The out-of-range index propagated through `to_parent` as `SCALE_FACTOR // SCALE_FACTOR = 1`, producing spurious non-zero inner indices at coarser levels. Observed in production: ~9% of L12 partition files in a continental EGI extract were boundary-shadow cells with filenames like `12198027000001000000.parquet` (`px_inner=1`) or `12152080000000000001.parquet` (`py_inner=1`) instead of folding into their proper neighbor. Fix: detect overflow on each axis and carry it into the next outer tile, so the hash always satisfies `0 <= px_inner < SCALE_FACTOR`. Non-boundary inputs unchanged. Verified across all 12 levels (direct `to_hash`) and all fine→coarse `to_parent` rollups (36 combinations): 0 invalid hashes / 100 boundary coords per case. `tests/test_egi_comprehensive.py::_test_tile_boundary` was passing the old behavior by accident (asserted `py_outer == tile_y - 1` at sub-precision eps without checking `py_inner`); rewrote it to assert the actual invariants: inner index in range, outer in {tile_y-1, tile_y}, and the production pipeline path (fine + `to_parent`) always rolls up to a clean coarse hash.
+
+### Changed
+- `gh3_build_ducklake` (`cli/gh3_build_ducklake.py`): reverted the bulk-glob and batched-glob CALL forms from v0.10.4 / v0.10.5. The single bulk `CALL ducklake_add_data_files` and the 16-batch hex-prefix sharding both finished faster on paper (3–5× and amortized similar respectively), but DuckLake's metadata-registration path is single-threaded inside the C++ extension ([duckdb/ducklake#404](https://github.com/duckdb/ducklake/issues/404)) and doesn't yield progress within a CALL. The batched form's 16 tqdm ticks were spaced minutes apart with no per-file feedback in between, indistinguishable from a hung process for most of the run. The per-file CALL + tqdm form visibly ticks ~7 files/s, which is the preferred UX even at >10h total. **Trade-off note:** the `hive_partitioning => true` arg the bulk-form added is also reverted — the per-file CALL never passed it, so newly built ducklakes (and the one already built against the v3 DB) will have NULL `h3_XX` / `year` partition columns. Patchable in one line if/when that matters.
+
 ## [0.10.5] - 2026-05-15
 
 ### Added
