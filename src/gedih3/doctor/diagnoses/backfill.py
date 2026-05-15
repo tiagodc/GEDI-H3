@@ -31,6 +31,7 @@ from ..inspect import (
 )
 from ..parallel import parallel_map
 from ..parquet_ops import parquet_fill_columns
+from ..fused import register_scan
 from ...cliutils import progress_iter
 from ...utils import release_arrow_pool
 
@@ -74,15 +75,23 @@ def _scan_partition_backfill(
     partition_dir: str,
     products: List[str],
     expected_by_product: Dict[str, List[str]],
+    *,
+    shared: Optional[dict] = None,
 ) -> List[dict]:
     """Worker: scan one partition for missing/NaN gaps. Returns finding dicts.
 
     Self-contained — receives only the partition path and the small per-
     product expected-columns map (computed once on the driver and
     broadcast). No DoctorContext serialization.
+
+    Fused-aware: when ``shared`` is provided, reads the cached partition
+    meta dict and parquet listing rather than re-opening / re-globbing.
     """
     findings: List[dict] = []
-    meta = load_partition_meta(partition_dir)
+    if shared is not None and 'meta_dict' in shared:
+        meta = shared['meta_dict']
+    else:
+        meta = load_partition_meta(partition_dir)
     if meta is None:
         return findings
 
@@ -110,7 +119,11 @@ def _scan_partition_backfill(
     if not prod_columns:
         return findings
 
-    for pq_file in partition_parquet_files(partition_dir):
+    if shared is not None and 'parquet_files' in shared:
+        files_iter = shared['parquet_files']
+    else:
+        files_iter = partition_parquet_files(partition_dir)
+    for pq_file in files_iter:
         try:
             nulls = per_granule_null_counts(pq_file, prod_columns)
         except Exception as e:
@@ -135,28 +148,16 @@ def _scan_partition_backfill(
     return findings
 
 
-def backfill_check(ctx: DoctorContext) -> Report:
-    products = _active_products(ctx)
-    if not products:
-        return Report(
-            name='backfill', severity=Severity.INFO,
-            summary='no active products in build log; nothing to backfill',
-        )
+register_scan('backfill', _scan_partition_backfill)
 
-    # Compute the per-product expected-column lists once on the driver
-    # so workers don't need DoctorContext.
-    expected_by_product = {p: _expected_product_columns(ctx, p) for p in products}
 
+def _finalize_backfill_check(
+    ctx: DoctorContext,
+    per_partition: Dict[str, List[dict]],
+) -> Report:
+    """Driver-side aggregation of backfill per-partition findings."""
     findings: List[dict] = []
-    for part_dir, result in parallel_map(
-        ctx.partition_dirs,
-        _scan_partition_backfill,
-        args=getattr(ctx, 'args', None),
-        desc='backfill: scanning partitions',
-        unit='part',
-        products=products,
-        expected_by_product=expected_by_product,
-    ):
+    for part_dir, result in per_partition.items():
         if isinstance(result, Exception):
             findings.append({
                 'kind': 'scan_error',
@@ -192,6 +193,32 @@ def backfill_check(ctx: DoctorContext) -> Report:
         name='backfill', severity=severity,
         findings=findings, summary=summary, recommendations=recommendations,
     )
+
+
+def backfill_check(ctx: DoctorContext) -> Report:
+    products = _active_products(ctx)
+    if not products:
+        return Report(
+            name='backfill', severity=Severity.INFO,
+            summary='no active products in build log; nothing to backfill',
+        )
+
+    # Compute the per-product expected-column lists once on the driver
+    # so workers don't need DoctorContext.
+    expected_by_product = {p: _expected_product_columns(ctx, p) for p in products}
+
+    per_partition: Dict[str, List[dict]] = {}
+    for part_dir, result in parallel_map(
+        ctx.partition_dirs,
+        _scan_partition_backfill,
+        args=getattr(ctx, 'args', None),
+        desc='backfill: scanning partitions',
+        unit='part',
+        products=products,
+        expected_by_product=expected_by_product,
+    ):
+        per_partition[part_dir] = result
+    return _finalize_backfill_check(ctx, per_partition)
 
 
 def _granules_needing_fill(report: Report) -> Set[Tuple[int, int, int, str]]:

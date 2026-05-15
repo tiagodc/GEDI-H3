@@ -33,6 +33,7 @@ from ..report import Report, DoctorContext, Severity
 from ..runner import register
 from ..inspect import partition_parquet_files
 from ..parallel import parallel_map
+from ..fused import register_scan
 from ...utils import parquet_backfill_bbox, release_arrow_pool
 
 
@@ -83,18 +84,29 @@ def _classify(path: str) -> Optional[str]:
         del schema
 
 
-def _scan_partition_bbox(partition_dir: str) -> dict:
+def _scan_partition_bbox(
+    partition_dir: str,
+    *,
+    shared: Optional[dict] = None,
+) -> dict:
     """Worker: classify every parquet under one partition.
 
     Returns ``{'findings': [...], 'n_ok': int}`` so the driver can
     aggregate counts without holding the per-OK paths. Drains the
     pyarrow allocator at the end so worker RSS plateaus instead of
     accumulating across tasks.
+
+    Fused-aware: when ``shared`` is provided, reads the cached parquet
+    listing instead of re-globbing.
     """
+    if shared is not None and 'parquet_files' in shared:
+        files = shared['parquet_files']
+    else:
+        files = partition_parquet_files(partition_dir)
     findings = []
     n_ok = 0
     try:
-        for f in partition_parquet_files(partition_dir):
+        for f in files:
             kind = _classify(f)
             if kind is None:
                 n_ok += 1
@@ -105,16 +117,17 @@ def _scan_partition_bbox(partition_dir: str) -> dict:
     return {'findings': findings, 'n_ok': n_ok}
 
 
-def geoparquet_bbox_check(ctx: DoctorContext) -> Report:
+register_scan('geoparquet_bbox', _scan_partition_bbox)
+
+
+def _finalize_geoparquet_bbox_check(
+    ctx: DoctorContext,
+    per_partition: dict,
+) -> Report:
+    """Driver-side aggregation of geoparquet_bbox per-partition results."""
     findings = []
     n_ok = 0
-    for part_dir, result in parallel_map(
-        ctx.partition_dirs,
-        _scan_partition_bbox,
-        args=getattr(ctx, 'args', None),
-        desc='geoparquet_bbox: scanning partitions',
-        unit='part',
-    ):
+    for part_dir, result in per_partition.items():
         if isinstance(result, Exception):
             findings.append({
                 'kind': 'unreadable',
@@ -160,6 +173,19 @@ def geoparquet_bbox_check(ctx: DoctorContext) -> Report:
         name='geoparquet_bbox', severity=severity,
         findings=findings, summary=summary, recommendations=recommendations,
     )
+
+
+def geoparquet_bbox_check(ctx: DoctorContext) -> Report:
+    per_partition: dict = {}
+    for part_dir, result in parallel_map(
+        ctx.partition_dirs,
+        _scan_partition_bbox,
+        args=getattr(ctx, 'args', None),
+        desc='geoparquet_bbox: scanning partitions',
+        unit='part',
+    ):
+        per_partition[part_dir] = result
+    return _finalize_geoparquet_bbox_check(ctx, per_partition)
 
 
 def _backfill_one(path: str) -> str:
