@@ -64,6 +64,53 @@ def _per_product_status_from_observed(active_products, observed_products):
     }
 
 
+def _scan_partition_meta_post_build_info(partition_dir, *, meta_filename, active_products):
+    """Worker: read PARTITION_META JSONs under one h3_* partition and return
+    the compact aggregate the driver needs to fold into set_post_build_info.
+
+    Module-level so it pickles for dask. Per-file errors are non-fatal — the
+    affected file contributes nothing, matching the legacy serial behavior
+    (any json_read raise would have aborted the whole scan; we instead skip).
+    """
+    out = {
+        'granules': [],
+        'date_min': None,
+        'date_max': None,
+        'h3_partitions': [],
+        'columns': [],
+        'l2a_version': None,
+        'column_dtypes': {},
+        'partition_products': set(),
+    }
+    cols_union: set = set()
+    for mf in glob.glob(os.path.join(partition_dir, f'*{meta_filename}')):
+        try:
+            fmeta = json_read(mf) or {}
+        except Exception:
+            continue
+        gran = fmeta.get('granules', []) or []
+        drange = fmeta.get('date_range')
+        cols = fmeta.get('columns', []) or []
+        if drange:
+            if out['date_min'] is None or drange[0] < out['date_min']:
+                out['date_min'] = drange[0]
+            if out['date_max'] is None or drange[1] > out['date_max']:
+                out['date_max'] = drange[1]
+        h3p = fmeta.get('h3_partition')
+        if h3p is not None:
+            out['h3_partitions'].append(h3p)
+        out['granules'].extend(gran)
+        out['partition_products'].update(_products_from_columns(cols, active_products))
+        if out['l2a_version'] is None and fmeta.get('l2a_version') is not None:
+            out['l2a_version'] = fmeta.get('l2a_version')
+        cols_union.update(cols)
+        cd = fmeta.get('column_dtypes') or {}
+        for col_name, dtype in cd.items():
+            out['column_dtypes'].setdefault(col_name, dtype)
+    out['columns'] = list(cols_union)
+    return out
+
+
 def load_log_data(file_path):
     if os.path.exists(file_path):
         return json_read(file_path)
@@ -604,8 +651,19 @@ class H3BuildLogger:
         return True
 
     def set_post_build_info(self):
-        metadata_files = glob.glob(os.path.join(self._PARENT_DIR, '*', f'*{PARTITION_META_FILENAME}'))
-        if len(metadata_files) == 0:
+        # Enumerate partition dirs via os.scandir — replaces the prior
+        # glob.glob('*/*<meta>') which paid 10k+ GPFS metadata round-trips
+        # in a single driver thread. We then dispatch per-partition JSON
+        # reads in parallel via parallel_map so the scan plateaus at
+        # ~seconds instead of tens of minutes on continental-scale DBs.
+        try:
+            partition_dirs = sorted(
+                e.path for e in os.scandir(self._PARENT_DIR)
+                if e.is_dir(follow_symlinks=False) and e.name.startswith('h3_')
+            )
+        except OSError:
+            return
+        if not partition_dirs:
             return
 
         # Collect indexed granules from partition metadata
@@ -628,44 +686,77 @@ class H3BuildLogger:
         observed_columns: set = set()
         observed_dtypes: dict = {}
 
-        for f in metadata_files:
-            fmeta = json_read(f)
-            gran = fmeta.get('granules', [])
-            drange = fmeta.get('date_range')
-            cols = fmeta.get('columns', [])
-
-            if date_min is None:
-                date_min = drange[0]
-            if date_max is None:
-                date_max = drange[1]
-
-            date_min = min(date_min, drange[0])
-            date_max = max(date_max, drange[1])
-
-            h3_parts.append(fmeta.get('h3_partition'))
-
-            partition_products = _products_from_columns(cols, active_products)
-
-            for g in gran:
-                if g not in indexed_granules:
+        # Stream per-partition results. parallel_map yields (item, result)
+        # pairs as workers finish; we fold them into the aggregates with
+        # identical semantics to the legacy serial loop.
+        def _fold(part_result):
+            nonlocal date_min, date_max
+            if part_result.get('date_min') is not None:
+                if date_min is None or part_result['date_min'] < date_min:
+                    date_min = part_result['date_min']
+            if part_result.get('date_max') is not None:
+                if date_max is None or part_result['date_max'] > date_max:
+                    date_max = part_result['date_max']
+            h3_parts.extend(part_result.get('h3_partitions', []))
+            partition_products = part_result.get('partition_products') or set()
+            seen_keys = set()
+            for g in part_result.get('granules', []):
+                try:
+                    key = (g['orbit'], g['granule'], g['track'])
+                except (KeyError, TypeError):
+                    continue
+                if key not in seen_keys:
                     indexed_granules.append(g)
-                key = (g['orbit'], g['granule'], g['track'])
+                    seen_keys.add(key)
                 gran_observed_products.setdefault(key, set()).update(partition_products)
-
-            if self.gedi_version is None:
-                self.gedi_version = fmeta.get('l2a_version')
-
-            # Column / dtype aggregation. Post-merge invariant says all
-            # partitions share an identical schema, so this is the
-            # union — partitions that don't carry ``column_dtypes`` (a
-            # newer field) just don't contribute, and partitions that
-            # do are merged-in. We never overwrite an existing dtype:
-            # the first non-empty observation wins to keep behavior
-            # deterministic across re-runs of set_post_build_info.
-            observed_columns.update(cols)
-            cd = fmeta.get('column_dtypes') or {}
-            for col_name, dtype in cd.items():
+            if self.gedi_version is None and part_result.get('l2a_version') is not None:
+                self.gedi_version = part_result['l2a_version']
+            observed_columns.update(part_result.get('columns', []))
+            for col_name, dtype in (part_result.get('column_dtypes') or {}).items():
                 observed_dtypes.setdefault(col_name, dtype)
+
+        from .utils import get_dask_client
+        client = None
+        try:
+            client = get_dask_client()
+        except Exception:
+            pass
+        if client is not None and len(partition_dirs) > 100:
+            from .parallel import parallel_map
+            for _, res in parallel_map(
+                partition_dirs,
+                _scan_partition_meta_post_build_info,
+                desc='Scanning partition metadata',
+                unit='part',
+                meta_filename=PARTITION_META_FILENAME,
+                active_products=active_products,
+            ):
+                if isinstance(res, Exception):
+                    continue
+                _fold(res)
+        else:
+            for pd in partition_dirs:
+                _fold(_scan_partition_meta_post_build_info(
+                    pd,
+                    meta_filename=PARTITION_META_FILENAME,
+                    active_products=active_products,
+                ))
+
+        # Deduplicate against any granules that may already have appeared
+        # in a prior in-memory accumulation — the per-partition seen_keys
+        # only dedupes within one partition's result.
+        _seen = set()
+        _deduped = []
+        for g in indexed_granules:
+            try:
+                k = (g['orbit'], g['granule'], g['track'])
+            except (KeyError, TypeError):
+                continue
+            if k in _seen:
+                continue
+            _seen.add(k)
+            _deduped.append(g)
+        indexed_granules = _deduped
 
         self.date_range = (date_min, date_max)
         self.h3_columns = sorted(observed_columns)

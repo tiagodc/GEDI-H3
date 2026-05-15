@@ -108,6 +108,14 @@ def parallel_map(
         )
 
     from dask.distributed import as_completed as dask_as_completed
+    from tqdm import tqdm as tqdm_bar
+
+    # Periodic-progress INFO is opt-in only — tqdm already shows live
+    # progress in the terminal, and the dask dashboard is the canonical
+    # cluster view. Set ``GH3_LOG_PROGRESS=1`` to re-enable the 5%-step
+    # INFO lines for detached / tail-followed log workflows.
+    log_progress = os.environ.get(
+        'GH3_LOG_PROGRESS', '').strip().lower() in ('1', 'true', 'yes', 'on')
 
     if batch_size and batch_size > 0 and len(items) > batch_size:
         chunks = [items[i:i + batch_size]
@@ -122,22 +130,29 @@ def parallel_map(
         log_every = max(1, len(chunks) // 20)
         n_done_chunks = 0
         n_done_items = 0
-        for fut in dask_as_completed(futures):
-            try:
-                pairs = fut.result()
-            except Exception as e:
-                yield None, e
-                pairs = []
-            for it, res in pairs:
-                yield it, res
-                n_done_items += 1
-            n_done_chunks += 1
-            if (n_done_chunks == 1 or n_done_chunks == len(chunks)
-                    or n_done_chunks % log_every == 0):
-                logger.info(
-                    f"{desc}: {n_done_chunks}/{len(chunks)} batches "
-                    f"({n_done_items}/{len(items)} {unit}s) done"
-                )
+        pbar = tqdm_bar(total=len(items), desc=desc or 'parallel_map', unit=unit)
+        try:
+            for fut in dask_as_completed(futures):
+                try:
+                    pairs = fut.result()
+                except Exception as e:
+                    yield None, e
+                    pairs = []
+                for it, res in pairs:
+                    yield it, res
+                    n_done_items += 1
+                    pbar.update(1)
+                n_done_chunks += 1
+                if log_progress and (
+                    n_done_chunks == 1 or n_done_chunks == len(chunks)
+                    or n_done_chunks % log_every == 0
+                ):
+                    logger.info(
+                        f"{desc}: {n_done_chunks}/{len(chunks)} batches "
+                        f"({n_done_items}/{len(items)} {unit}s) done"
+                    )
+        finally:
+            pbar.close()
         return
 
     logger.info(
@@ -149,17 +164,23 @@ def parallel_map(
 
     log_every = max(1, len(items) // 20)
     n_done = 0
-
-    for fut in dask_as_completed(futures):
-        item = fut2item.get(fut)
-        try:
-            res = fut.result()
-        except Exception as e:
-            res = e
-        n_done += 1
-        if n_done == 1 or n_done == len(items) or n_done % log_every == 0:
-            logger.info(f"{desc}: {n_done}/{len(items)} {unit}s done")
-        yield item, res
+    pbar = tqdm_bar(total=len(items), desc=desc or 'parallel_map', unit=unit)
+    try:
+        for fut in dask_as_completed(futures):
+            item = fut2item.get(fut)
+            try:
+                res = fut.result()
+            except Exception as e:
+                res = e
+            n_done += 1
+            pbar.update(1)
+            if log_progress and (
+                n_done == 1 or n_done == len(items) or n_done % log_every == 0
+            ):
+                logger.info(f"{desc}: {n_done}/{len(items)} {unit}s done")
+            yield item, res
+    finally:
+        pbar.close()
 
 
 def _run_chunk(chunk: List[Any], *, fn: Callable[..., Any],
