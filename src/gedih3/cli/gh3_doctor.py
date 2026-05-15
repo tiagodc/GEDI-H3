@@ -136,8 +136,25 @@ def main():
         args.indir = GH3_DEFAULT_H3_DIR
     if args.soc_dir is None:
         args.soc_dir = GH3_DEFAULT_SOC_DIR if os.path.isdir(GH3_DEFAULT_SOC_DIR) else None
-    if args.tmpdir is None:
-        args.tmpdir = os.path.join(args.indir, '.tmp')
+    # No default for tmpdir: the build's tmp directory layout varies
+    # (sometimes under the DB root, sometimes a sibling, sometimes
+    # outside the DB tree entirely). Scanning a guessed path that
+    # doesn't exist produces no findings; scanning an *unrelated* path
+    # is worse (false positives). Diagnoses that need a tmp tree
+    # (``tmp_partitions_health``, the tmp_dir leg of ``orphans``) skip
+    # silently when ``args.tmpdir`` is None.
+
+    # Resolve all input paths to absolute. Per-partition workers serialize
+    # over pickle to remote dask workers, whose CWD differs from the
+    # driver's — a relative path passed in via ``-i database/`` would
+    # fail every ``os.scandir`` on the worker side (silently treated as
+    # an OSError by the doctor helpers) and produce 10k false
+    # ``empty_partition`` + ``missing_partition_meta`` findings.
+    args.indir = os.path.abspath(args.indir)
+    if args.soc_dir is not None:
+        args.soc_dir = os.path.abspath(args.soc_dir)
+    if args.tmpdir is not None:
+        args.tmpdir = os.path.abspath(args.tmpdir)
 
     if not os.path.isdir(args.indir):
         logger.error(f"Database directory not found: {args.indir}")

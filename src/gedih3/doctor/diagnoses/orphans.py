@@ -31,9 +31,12 @@ import shutil
 import time
 from typing import List
 
+from typing import Optional
+
 from ..report import Report, DoctorContext, Severity
 from ..runner import register
 from ..parallel import parallel_map, partition_is_empty, list_year_dirs, year_dir_is_empty
+from ..fused import register_scan
 
 
 _TMP_PATTERNS = ('*.tmp', '*.join.tmp', '*.fill.tmp', '*.dedup.tmp')
@@ -126,11 +129,34 @@ def _empty_check_partition(partition_dir: str) -> List[dict]:
     return findings
 
 
-def orphans_check(ctx: DoctorContext) -> Report:
-    age_hours = getattr(ctx.args, 'orphan_age_hours', 24.0)
-    age_seconds = age_hours * 3600
-    args = getattr(ctx, 'args', None)
+def _scan_partition_orphans_combined(
+    partition_dir: str,
+    *,
+    age_seconds: float,
+    shared: Optional[dict] = None,
+) -> List[dict]:
+    """Fused worker: runs both the tmp/leftover scan and the emptiness
+    check in one task per partition, returning the merged finding list.
 
+    ``shared`` is accepted for fused-dispatch API symmetry but not
+    consumed — orphans' file/dir globs are recursive within the partition
+    subtree and don't overlap with the parquet listing other diagnoses
+    cache.
+    """
+    findings = _scan_partition_orphans(partition_dir, age_seconds)
+    findings.extend(_empty_check_partition(partition_dir))
+    return findings
+
+
+register_scan('orphans', _scan_partition_orphans_combined)
+
+
+def _finalize_orphans_check(
+    ctx: DoctorContext,
+    per_partition: dict,
+    age_seconds: float,
+) -> Report:
+    """Driver-side aggregation: per-partition findings + tmp_dir scan + dedupe."""
     findings: List[dict] = []
     seen_paths: set = set()
 
@@ -142,33 +168,13 @@ def orphans_check(ctx: DoctorContext) -> Report:
             seen_paths.add(p)
             findings.append(it)
 
-    # Partition-scoped tmp/leftover scan in parallel.
-    for _, result in parallel_map(
-        ctx.partition_dirs,
-        _scan_partition_orphans,
-        args=args,
-        desc='orphans: scanning partitions for tmp+leftovers',
-        unit='part',
-        age_seconds=age_seconds,
-    ):
+    for part_dir, result in per_partition.items():
         if isinstance(result, Exception):
             continue
         _add(result)
 
     # Auxiliary tmp_dir (narrow, driver-side scan is fine).
     _add(_scan_root_orphans(ctx.tmp_dir, age_seconds))
-
-    # Empty-partition / empty-year-dir checks (O(1) per partition; in parallel).
-    for _, result in parallel_map(
-        ctx.partition_dirs,
-        _empty_check_partition,
-        args=args,
-        desc='orphans: scanning partitions for emptiness',
-        unit='part',
-    ):
-        if isinstance(result, Exception):
-            continue
-        _add(result)
 
     n_files = sum(1 for f in findings if f['kind'] == 'temp_file')
     n_dirs = sum(1 for f in findings if f['kind'] == 'leftover_dir')
@@ -177,6 +183,25 @@ def orphans_check(ctx: DoctorContext) -> Report:
     summary = f"{n_files} temp files, {n_dirs} leftover dirs, {n_empty} empty partition/year dirs"
     severity = Severity.INFO if not findings else Severity.WARN
     return Report(name='orphans', severity=severity, findings=findings, summary=summary)
+
+
+def orphans_check(ctx: DoctorContext) -> Report:
+    age_hours = getattr(ctx.args, 'orphan_age_hours', 24.0)
+    age_seconds = age_hours * 3600
+    args = getattr(ctx, 'args', None)
+
+    per_partition: dict = {}
+    for part_dir, result in parallel_map(
+        ctx.partition_dirs,
+        _scan_partition_orphans_combined,
+        args=args,
+        desc='orphans: scanning partitions',
+        unit='part',
+        age_seconds=age_seconds,
+    ):
+        per_partition[part_dir] = result
+
+    return _finalize_orphans_check(ctx, per_partition, age_seconds)
 
 
 def orphans_fix(ctx: DoctorContext, report: Report) -> Report:

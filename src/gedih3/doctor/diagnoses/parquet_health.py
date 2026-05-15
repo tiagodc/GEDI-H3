@@ -35,12 +35,13 @@ Memory pillar (v0.8.x lessons applied):
 from __future__ import annotations
 
 from collections import Counter
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from ..report import Report, DoctorContext, Severity
 from ..runner import register
 from ..inspect import partition_parquet_files
 from ..parallel import parallel_map
+from ..fused import register_scan
 from ...utils import release_arrow_pool
 
 
@@ -156,16 +157,27 @@ def _scan_one_file(pq_file: str) -> dict:
     return out
 
 
-def _scan_partition(partition_dir: str) -> dict:
+def _scan_partition(
+    partition_dir: str,
+    *,
+    shared: Optional[dict] = None,
+) -> dict:
     """Worker: scan one partition, return per-file findings + column union.
 
     Per-file work goes through :func:`_scan_one_file` so each parquet
     is opened exactly once (header + shot_number stream + schema all in
     one pass) and its allocator freed before the next.
+
+    Fused-aware: when ``shared`` is provided, reads the cached parquet
+    listing instead of re-globbing.
     """
+    if shared is not None and 'parquet_files' in shared:
+        files = shared['parquet_files']
+    else:
+        files = partition_parquet_files(partition_dir)
     findings = []
     cols_union: set = set()
-    for pq_file in partition_parquet_files(partition_dir):
+    for pq_file in files:
         info = _scan_one_file(pq_file)
         if info['corrupt']:
             findings.append({'kind': 'corrupt', 'path': pq_file, 'error': info['error']})
@@ -182,17 +194,23 @@ def _scan_partition(partition_dir: str) -> dict:
     return {'findings': findings, 'columns': frozenset(cols_union)}
 
 
-def parquet_health_check(ctx: DoctorContext) -> Report:
+register_scan('parquet_health', _scan_partition)
+
+
+def _finalize_parquet_health_check(
+    ctx: DoctorContext,
+    per_partition: Dict[str, dict],
+) -> Report:
+    """Driver-side aggregation of parquet_health per-partition results.
+
+    Computes schema-drift findings post-hoc from the per-partition
+    column unions (requires all partitions seen before the modal
+    schema is known).
+    """
     findings: List[dict] = []
     schema_by_part: Dict[str, frozenset] = {}
 
-    for part_dir, result in parallel_map(
-        ctx.partition_dirs,
-        _scan_partition,
-        args=getattr(ctx, 'args', None),
-        desc='parquet_health: scanning partitions',
-        unit='part',
-    ):
+    for part_dir, result in per_partition.items():
         if isinstance(result, Exception):
             findings.append({
                 'kind': 'scan_error',
@@ -248,6 +266,19 @@ def parquet_health_check(ctx: DoctorContext) -> Report:
         name='parquet_health', severity=severity,
         findings=findings, summary=summary, recommendations=recommendations,
     )
+
+
+def parquet_health_check(ctx: DoctorContext) -> Report:
+    per_partition: Dict[str, dict] = {}
+    for part_dir, result in parallel_map(
+        ctx.partition_dirs,
+        _scan_partition,
+        args=getattr(ctx, 'args', None),
+        desc='parquet_health: scanning partitions',
+        unit='part',
+    ):
+        per_partition[part_dir] = result
+    return _finalize_parquet_health_check(ctx, per_partition)
 
 
 def parquet_health_fix(ctx: DoctorContext, report: Report) -> Report:
