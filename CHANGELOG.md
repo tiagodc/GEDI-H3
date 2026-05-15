@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.3] - 2026-05-15
+
+### Fixed
+- `gh3_build` resume shortcut (`cli/gh3_build.py:_detect_merge_resume_signal`): the merge-only fast path now refuses to fire when **any** granule in the build log is in `MERGE_FAILED` status. Those granules need Stage 1 re-extraction, which only the full reconcile + extract + merge path performs; taking the merge-only shortcut would re-attempt the same merge against the same corrupt fragments and loop forever. The veto runs before the L1/L2 signal checks; legitimate merge-resume cases (all granules INDEXED, status `MERGING` set just before the merge phase) still take the fast path. Reproduced on the continental rebuild: 5 partition-years stuck failing across resumes, each with a 20-min finalize cycle, until the veto routed the next invocation through the full path so Stage 1 could re-write the corrupt fragments.
+- `gh3_doctor` fused per-partition scan (`doctor/fused.py:fused_scan_partition`): force-import `gedih3.doctor.diagnoses` at the top of the worker so the registry is populated on every worker. Without this, workers received `fused_scan_partition` by pickle-reference but never imported the diagnosis submodules; the worker's `_SCAN_REGISTRY` stayed empty, every scan returned `None`, and the driver-side fallback fired for every diagnosis (defeating the fusion refactor's 5x dispatch saving).
+- CI: `tests/test_doctor_fused.py` no longer imports fixtures from `tests.test_doctor_diagnoses`. `tests/` is not a package (no `__init__.py`) so CI's working directory cannot resolve the import. Inlined the two fixture helpers the new module needs.
+
 ## [0.10.2] - 2026-05-14
 
 ### Changed
