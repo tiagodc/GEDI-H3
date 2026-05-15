@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.4] - 2026-05-15
+
+### Changed
+- `gh3_build_ducklake` (`cli/gh3_build_ducklake.py`): the per-file `CALL ducklake_add_data_files` loop is replaced by a single bulk call against a glob pattern (`h3_XX=*/year=*/*.parquet`). DuckDB 1.4 microbenchmark: per-file ~25 ms vs glob ~0.73 ms per file — ~35× speedup at the SQL layer; on a 70k-partition database this is the >10h vs minutes difference. DuckLake's metadata-registration path is still single-threaded internally ([duckdb/ducklake#404](https://github.com/duckdb/ducklake/issues/404)), but the per-CALL Python↔DuckDB round-trip + transaction overhead disappears. Also drops the year-range enumeration + N `file.exists()` stat-call helper; a single glob hit seeds the schema.
+
+### Fixed
+- `gh3_build_ducklake`: the bulk CALL now passes `hive_partitioning => true`, so the `h3_XX` and `year` partition columns are populated from the path. The previous per-file loop did not pass this flag, leaving those columns NULL in the resulting ducklake.
+
 ## [0.10.3] - 2026-05-15
 
 ### Fixed
