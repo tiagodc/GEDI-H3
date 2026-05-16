@@ -1,4 +1,5 @@
-"""Regression tests for the H3 load → metadata cascade bug.
+"""Regression tests for the H3 load → metadata cascade bug + the
+EGI merge-mode `is_file_path=True` makedirs bug.
 
 Bug history: `_meta_from_dtype_dict` produced a meta without a named index,
 which made the lazy ddf's `index.name = None` while each computed partition
@@ -112,3 +113,42 @@ def test_load_dataset_trusts_file_index_over_wrong_sidecar(tmp_path):
     assert p0.index.name == 'h3_12'
     # Original data column survives.
     assert 'rh_098_l2a' in p0.columns
+
+
+def test_egi_export_part_merge_mode_writes_a_file_not_a_dir(tmp_path):
+    """Bug regression: `egi_export_part(..., is_file_path=True)` (the merge-mode
+    entry point from `gh3_export`) used to call `os.makedirs(odir, exist_ok=True)`
+    unconditionally, turning the user's merge file path into a *directory*
+    before `_write_egi_file`'s AtomicFileWriter tried to `os.replace` the
+    `.tmp` file onto it — IsADirectoryError, every merge run aborts after the
+    aggregate is already computed (hours of compute wasted)."""
+    import numpy as np
+    from gedih3.gh3driver import egi_export_part
+    from gedih3.egi.core import to_hash
+
+    output_file = tmp_path / "merged_egi11.parquet"
+
+    # Tiny EGI-indexed grid
+    xs = np.linspace(-1_000_000.0, 1_000_000.0, 10)
+    ys = np.linspace(-1_000_000.0, 1_000_000.0, 10)
+    gx, gy = np.meshgrid(xs, ys)
+    gx, gy = gx.ravel(), gy.ravel()
+    df = pd.DataFrame(
+        {'rh_098_l2a': np.random.uniform(5, 30, len(gx)),
+         'geometry': [Point(x, y) for x, y in zip(gx, gy)],
+         'egi12': to_hash(gx, gy, level=12)},
+        index=pd.Index(to_hash(gx, gy, level=1), name='egi01'),
+    )
+    gdf = gpd.GeoDataFrame(df, geometry='geometry', crs='EPSG:6933')
+
+    result = egi_export_part(gdf, odir=str(output_file), fmt='parquet', is_file_path=True)
+
+    assert os.path.isfile(str(output_file)), (
+        "merge-mode output must be a file, not a directory"
+    )
+    assert not os.path.isdir(str(output_file))
+    # Caller contract: returns the written file path.
+    assert result == str(output_file)
+    # No stale .tmp left behind.
+    leftover = [f for f in os.listdir(tmp_path) if '.tmp' in f]
+    assert leftover == [], f"unexpected .tmp leftover: {leftover}"
