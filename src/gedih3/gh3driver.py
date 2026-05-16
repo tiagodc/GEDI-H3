@@ -1716,10 +1716,22 @@ def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH
     def load_tile(args):
         _restore_storage_on_worker(_scfg)
         egi_id, h3_list, egi_bbox = args
-        return _load_egi_tile_from_h3(
+        df = _load_egi_tile_from_h3(
             egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
             query, index_level, partition_level, set_index=True
         )
+        # Drop boundary spillover that belongs to neighbor tiles. The bbox
+        # clip is inclusive on edges, so shots at the exact L12 boundary
+        # land in BOTH neighbors' loaded data; each shot's true ownership
+        # is the deterministic egi_part_col (computed by egi_dataframe_vectorized
+        # under the carry-fixed to_hash). Without this filter, egi_export_part
+        # splits by partition and writes a tiny "spillover" file to a neighbor's
+        # path. Multiple tasks then race-write to the same canonical filename,
+        # last-writer-wins, and a tile with millions of legitimate shots can end
+        # up with the 1-row spillover output from a neighbor.
+        if len(df) > 0 and egi_part_col in df.columns:
+            df = df[df[egi_part_col].values == np.uint64(egi_id)]
+        return df
 
     # Build metadata from schema (avoids empty sample issue)
     # set_index=True because tile loader sets index (metadata must match)
