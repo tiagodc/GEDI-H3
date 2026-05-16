@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.8] - 2026-05-16
+
+### Fixed
+- `_load_egi_tile_from_h3` (`gh3driver.py`): stream H3 partitions one-at-a-time instead of accumulating all of them in a list and `pd.concat`-ing at the end. Each partition is now read → bbox-clipped → query-filtered → EGI-indexed → spillover-filtered → reduced *before* the next partition is touched, so peak per-task memory is bounded to ~one H3 partition's raw size + the (much smaller) reduced output, independent of `len(h3_list)`. Closes a production OOM class: the ring-1 expansion from v0.10.7 raised typical `h3_list` length from 1–2 to ~7, and the old eager pattern peaked at 7× one partition's working set. Dense tropical L12 tiles consequently crashed under the 20 GB worker memory_limit, triggering `KilledWorker` after dask's 6 retries and aborting the entire run — observed on a global EGI extract that completed only 4,522 of ~6,000 tiles (~16% of shots missing). The spillover filter from v0.10.7 now applies per-partition via a new `tile_egi_id=` kwarg; the post-call filter in `load_tile` is removed (single source of truth). Output bit-identical to the pre-streaming code on the 4°×3° Amazon test region (same 20,617,490 H3 / 20,633,375 EGI shot counts, H3 ⊂ EGI strictly, 0/8 random-box mismatches).
+
 ## [0.10.7] - 2026-05-16
 
 ### Fixed
