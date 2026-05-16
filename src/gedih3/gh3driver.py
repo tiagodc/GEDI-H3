@@ -481,6 +481,130 @@ def _read_parquet_files(files, geo=True, **kwargs):
     return pd.concat(dfs)
 
 
+_BBOX_STRATEGY_CACHE = {}
+
+
+def _pick_bbox_strategy(sample_file):
+    """Inspect ONE parquet file from the H3 db and pick the fastest read-time
+    bbox-filter path supported by its encoding. Result is cached per-db.
+
+    Returns
+    -------
+    (strategy, lat_col, lon_col) where strategy is one of:
+      'point'        — GeoParquet point encoding (gpd.read_parquet(bbox=...) works directly)
+      'coord_filter' — WKB encoding + L2A lat/lon columns present (use parquet
+                       column-stats pushdown via filters=[(lat,...), (lon,...)])
+      'fallback'     — neither available; caller must do full read + geometry.intersects clip
+
+    Both fast paths are EXACT for point geometries: row groups whose stats
+    don't overlap the bbox are pruned before decompression; within surviving
+    row groups every row is evaluated by pyarrow during decode. No post-read
+    clip needed for Point data (boundary-coincident shots are handled by the
+    spillover filter in load_tile, not by clipping).
+
+    The inspection is a single small read of GeoParquet metadata + the schema
+    column list; cached by directory in ``_BBOX_STRATEGY_CACHE`` so subsequent
+    calls within the same process don't repeat it.
+    """
+    import pyarrow.parquet as pq
+    import json
+    import re
+
+    cache_key = os.path.dirname(sample_file)
+    if cache_key in _BBOX_STRATEGY_CACHE:
+        return _BBOX_STRATEGY_CACHE[cache_key]
+
+    encoding = None
+    try:
+        md = pq.read_metadata(sample_file).metadata or {}
+        gm = json.loads(md.get(b'geo', b'{}'))
+        for _, gcol in gm.get('columns', {}).items():
+            encoding = gcol.get('encoding')
+            break
+    except Exception:
+        pass
+
+    if encoding == 'point':
+        result = ('point', None, None)
+        _BBOX_STRATEGY_CACHE[cache_key] = result
+        return result
+
+    # WKB (or unknown geometry encoding): fall back on the canonical L2A
+    # coordinate columns as filter predicates. The build path always carries
+    # `lat_lowestmode` / `lon_lowestmode` (suffixed `_l2a` after product
+    # variable expansion); they are the same lat/lon that the `geometry`
+    # column is constructed from, so filtering on them is identical to
+    # filtering on geometry for Point shots.
+    lat_col = lon_col = None
+    try:
+        schema = pq.read_schema(sample_file)
+        names = [f.name for f in schema]
+        # Prefer L2A-suffixed; fall back to unsuffixed (older builds).
+        for pat in (r'^lat_lowestmode_l2a$', r'^lat_lowestmode$'):
+            for c in names:
+                if re.match(pat, c):
+                    lat_col = c
+                    break
+            if lat_col:
+                break
+        for pat in (r'^lon_lowestmode_l2a$', r'^lon_lowestmode$'):
+            for c in names:
+                if re.match(pat, c):
+                    lon_col = c
+                    break
+            if lon_col:
+                break
+    except Exception:
+        pass
+
+    if lat_col and lon_col:
+        result = ('coord_filter', lat_col, lon_col)
+    else:
+        result = ('fallback', None, None)
+    _BBOX_STRATEGY_CACHE[cache_key] = result
+    return result
+
+
+def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat_col, lon_col):
+    """Single-file bbox-filtered parquet read, routed by `strategy`.
+
+    All three paths return a DataFrame whose rows satisfy the bbox predicate
+    EXACTLY (for Point geometries). The first two prune row groups at the
+    parquet-stats layer so the peak working set is bounded by the
+    bbox-clipped result; the fallback materializes the full column-projected
+    file before clipping in memory.
+    """
+    if strategy == 'point':
+        return gpd.read_parquet(path, bbox=bbox_4326, columns=columns)
+
+    if strategy == 'coord_filter':
+        x0, y0, x1, y1 = bbox_4326
+        filt = [(lon_col, '>=', x0), (lon_col, '<=', x1),
+                (lat_col, '>=', y0), (lat_col, '<=', y1)]
+        # Pyarrow's `filters=` requires the predicate columns to be in the
+        # read column list; append + drop them if the caller didn't ask for
+        # them. The extra column is already on disk in the same row groups
+        # we'd decode anyway, so the I/O cost is negligible.
+        cols = list(columns) if columns else None
+        extras = []
+        if cols is not None:
+            for c in (lat_col, lon_col):
+                if c not in cols:
+                    cols.append(c)
+                    extras.append(c)
+        reader = gpd.read_parquet if geo else pd.read_parquet
+        df = reader(path, columns=cols, filters=filt)
+        if extras and len(df) > 0:
+            df = df.drop(columns=extras)
+        return df
+
+    # 'fallback' — full read + in-memory geometric clip. Last resort.
+    df = gpd.read_parquet(path, columns=columns)
+    if len(df) > 0:
+        df = df[df.geometry.intersects(clip_box)]
+    return df
+
+
 def _restore_storage_on_worker(storage_cfg):
     """Restore storage credentials on Dask worker processes.
 
@@ -1400,7 +1524,8 @@ def _prepare_egi_loading(region, gh3_dir, partition_level=12):
 
 def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
                             query, index_level, partition_level, set_index=True,
-                            tile_egi_id=None):
+                            tile_egi_id=None,
+                            bbox_strategy='fallback', bbox_lat_col=None, bbox_lon_col=None):
     """
     Load data for a single EGI tile from its intersecting H3 partitions.
 
@@ -1467,7 +1592,26 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
     tile_uid = np.uint64(tile_egi_id) if tile_egi_id is not None else None
 
     def _reduce_one_h3(h3_id):
-        """Load a single H3 partition, clip+filter, return reduced df or None."""
+        """Load a single H3 partition, clip+filter, return reduced df or None.
+
+        Inner loop streams year files (one parquet per year) one at a time
+        and applies the full reduction pipeline (bbox clip → query → EGI
+        indexing → spillover filter) before moving on, so the working set
+        is bounded by one year file (~1 GB raw decompressed) instead of
+        the full H3 partition (~5 GB). The reduced per-year chunks are
+        small (clipped to the tile's geographic extent + filtered by
+        partition column = only this tile's rows), so concatenating them
+        at the end stays under a few hundred MB.
+
+        Required because the H3 v3 database files use WKB encoding with a
+        file-level bbox in metadata but no per-row covering-bbox column,
+        which means ``gpd.read_parquet(bbox=...)`` always raises
+        ``ValueError: Specifying 'bbox' not supported for this Parquet
+        file`` and we fall through to a full read every time. Reading
+        all year files together into one pyarrow buffer caused
+        ``KilledWorker`` on dense high-latitude tiles where the orbit
+        turnaround clusters >25M shots into a single L12 cell.
+        """
         h3_path = smart_join(gh3_dir, f"{h3_part_col}={h3_id}")
         parquet_files = smart_glob(smart_join(h3_path, '*.parquet'))
         if not parquet_files:
@@ -1475,41 +1619,47 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
         if not parquet_files:
             return None
 
-        try:
-            # Try bbox-pushdown read (cheap when supported)
-            df = _read_parquet_files(parquet_files, geo=True, bbox=wgs84_bbox, columns=load_cols)
-        except Exception:
-            # Fallback: full read + in-memory clip
-            df = _read_parquet_files(parquet_files, geo=True, columns=load_cols)
-            if len(df) > 0:
-                df = df[df.geometry.intersects(clip_box)]
-        if len(df) == 0:
+        sub_chunks = []
+        for pf in parquet_files:
+            # One year file at a time. Encoding-aware routing: avoids the
+            # try/except cost when we already know bbox-pushdown won't work
+            # on this file's encoding, and uses parquet column-stats pushdown
+            # (via `filters=`) on the lat/lon columns when the geometry is
+            # plain WKB. Final memory bound is ~the bbox-clipped result, not
+            # the full file.
+            year_df = _read_parquet_bbox(
+                pf, bbox_4326=wgs84_bbox, clip_box=clip_box,
+                columns=load_cols, geo=True,
+                strategy=bbox_strategy, lat_col=bbox_lat_col, lon_col=bbox_lon_col,
+            )
+            if len(year_df) == 0:
+                continue
+
+            if query:
+                year_df = year_df.query(query).copy()
+                if len(year_df) == 0:
+                    continue
+
+            # Compute EGI index + partition columns at the smallest possible
+            # working-set size (one year, already bbox-clipped + query-filtered).
+            year_df = egi_mod.egi_dataframe_vectorized(year_df, level=index_level, set_index=False)
+            if partition_level == index_level:
+                year_df[egi_part_col] = year_df[egi_index_col]
+            else:
+                year_df[egi_part_col] = egi_mod.to_parent(year_df[egi_index_col].values, partition_level)
+
+            # Spillover filter per year file (same rationale as the original
+            # per-H3 filter, applied earlier in the pipeline).
+            if tile_uid is not None:
+                year_df = year_df[year_df[egi_part_col].values == tile_uid]
+                if len(year_df) == 0:
+                    continue
+
+            sub_chunks.append(year_df)
+
+        if not sub_chunks:
             return None
-
-        if query:
-            df = df.query(query).copy()  # copy avoids later SettingWithCopyWarning
-            if len(df) == 0:
-                return None
-
-        # Compute EGI index + partition columns now, while df is still bounded
-        # to one H3 partition's worth of data.
-        df = egi_mod.egi_dataframe_vectorized(df, level=index_level, set_index=False)
-        if partition_level == index_level:
-            df[egi_part_col] = df[egi_index_col]
-        else:
-            df[egi_part_col] = egi_mod.to_parent(df[egi_index_col].values, partition_level)
-
-        # Spillover filter: at H3 partition boundaries and at inclusive-edge
-        # bbox boundaries, a shot's true egi_part_col can differ from the
-        # task's tile id; those rows belong to a neighbor task and would
-        # cause a cross-task race write if kept. The neighbor task loads
-        # them via its own bbox query.
-        if tile_uid is not None:
-            df = df[df[egi_part_col].values == tile_uid]
-            if len(df) == 0:
-                return None
-
-        return df
+        return pd.concat(sub_chunks, ignore_index=True) if len(sub_chunks) > 1 else sub_chunks[0]
 
     # Stream H3 partitions; only the reduced (post-filter) chunks accumulate.
     chunks = []
@@ -1733,6 +1883,24 @@ def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH
         from .utils import _storage_options
         _scfg = dict(_storage_options)
 
+    # Detect the fastest bbox-filter strategy ONCE on the driver (one parquet
+    # metadata read against a sample h3 partition file). The result is the
+    # same for every file in the db, so we capture it here and pass it
+    # through to every worker task — workers do NOT re-detect per file,
+    # which would cost ~10ms × 210k file reads.
+    _sample_pf = None
+    for _hid in egi_to_h3:
+        _hpath = smart_join(gh3_dir, f"{h3_part_col}={egi_to_h3[_hid][0]}")
+        _files = smart_glob(smart_join(_hpath, '*.parquet')) or \
+                 smart_glob(smart_join(_hpath, '**/*.parquet'), recursive=True)
+        if _files:
+            _sample_pf = _files[0]
+            break
+    if _sample_pf is not None:
+        bbox_strategy, bbox_lat_col, bbox_lon_col = _pick_bbox_strategy(_sample_pf)
+    else:
+        bbox_strategy, bbox_lat_col, bbox_lon_col = 'fallback', None, None
+
     # Define loader function for from_map. set_index=True avoids a later
     # shuffle. tile_egi_id makes the loader stream + spillover-filter per
     # H3 partition (caps peak memory at ~1 H3 partition; without it, the
@@ -1744,6 +1912,9 @@ def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH
             egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
             query, index_level, partition_level, set_index=True,
             tile_egi_id=egi_id,
+            bbox_strategy=bbox_strategy,
+            bbox_lat_col=bbox_lat_col,
+            bbox_lon_col=bbox_lon_col,
         )
 
     # Build metadata from schema (avoids empty sample issue)
