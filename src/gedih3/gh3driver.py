@@ -1399,22 +1399,28 @@ def _prepare_egi_loading(region, gh3_dir, partition_level=12):
 
 
 def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
-                            query, index_level, partition_level, set_index=True):
+                            query, index_level, partition_level, set_index=True,
+                            tile_egi_id=None):
     """
     Load data for a single EGI tile from its intersecting H3 partitions.
 
-    This is the core tile-loading function used by egi_load(). It:
-    1. Reads H3 parquet files with bbox filtering
-    2. Applies optional query
-    3. Adds EGI index and partition columns
-    4. Optionally sets the EGI index as DataFrame index
+    Streams one H3 partition at a time and reduces it (bbox clip → query →
+    EGI indexing → spillover filter) before moving on to the next, then
+    concatenates the reduced results. This caps peak per-task memory at
+    ~one H3 partition's raw size plus the (much smaller) reduced output,
+    independent of how many H3 partitions are in ``h3_list``. Without the
+    streaming, the ring-1 expansion in ``egi_h3_intersection`` would load
+    up to 7× more H3 partitions in parallel for each EGI tile and overflow
+    20 GB workers on dense tropical L12 tiles (production observation:
+    ``KilledWorker`` after 6 retries, ~1,500 tiles unwritten).
 
     Parameters
     ----------
     egi_bbox : tuple
         Bounding box (minx, miny, maxx, maxy) for the EGI tile in EPSG:6933
     h3_list : list
-        List of H3 partition IDs that intersect this EGI tile
+        List of H3 partition IDs that intersect this EGI tile (after the
+        ring-1 expansion in ``egi_h3_intersection``).
     gh3_dir : str
         Path to H3 database directory
     h3_part_col : str
@@ -1429,11 +1435,17 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
         EGI level for partitioning
     set_index : bool
         If True, set EGI index column as DataFrame index (avoids later shuffle)
+    tile_egi_id : int or np.uint64, optional
+        If provided, rows whose ``egi_part_col`` doesn't match are dropped
+        per H3 partition (before concat). This is the spillover filter that
+        prevents the boundary-edge race where two neighbor tasks both write
+        to the same canonical filename (last-writer-wins). When ``None``,
+        no filter is applied (legacy behavior).
 
     Returns
     -------
     DataFrame or GeoDataFrame
-        EGI-indexed data for this tile
+        EGI-indexed data for this tile.
     """
     from gedih3 import egi as egi_mod
     from pyproj import Transformer
@@ -1442,38 +1454,71 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
     egi_index_col = egi_mod.egi_col_name(index_level)
     egi_part_col = egi_mod.egi_col_name(partition_level)
 
-    # Transform EGI bbox from EPSG:6933 to WGS84 for H3 data filtering
-    # H3 database stores data in WGS84 (EPSG:4326)
+    # Transform EGI bbox from EPSG:6933 to WGS84 for H3 data filtering.
+    # EPSG:6933 is Lambert Cylindrical Equal Area, so an axis-aligned
+    # rectangle in 6933 maps to an axis-aligned rectangle in 4326 (corner
+    # transform is exact, no curvature loss).
     transformer = Transformer.from_crs('EPSG:6933', 'EPSG:4326', always_xy=True)
     minx, miny = transformer.transform(egi_bbox[0], egi_bbox[1])
     maxx, maxy = transformer.transform(egi_bbox[2], egi_bbox[3])
     wgs84_bbox = (minx, miny, maxx, maxy)
     clip_box = box(*wgs84_bbox)
 
-    dfs = []
-    for h3_id in h3_list:
+    tile_uid = np.uint64(tile_egi_id) if tile_egi_id is not None else None
+
+    def _reduce_one_h3(h3_id):
+        """Load a single H3 partition, clip+filter, return reduced df or None."""
         h3_path = smart_join(gh3_dir, f"{h3_part_col}={h3_id}")
-        # Search for parquet files - try direct children first, then recursive
         parquet_files = smart_glob(smart_join(h3_path, '*.parquet'))
         if not parquet_files:
             parquet_files = smart_glob(smart_join(h3_path, '**/*.parquet'), recursive=True)
         if not parquet_files:
-            continue
+            return None
 
         try:
-            # Use bbox filter at read time (key optimization!)
+            # Try bbox-pushdown read (cheap when supported)
             df = _read_parquet_files(parquet_files, geo=True, bbox=wgs84_bbox, columns=load_cols)
-            if len(df) > 0:
-                dfs.append(df)
         except Exception:
-            # If bbox filtering fails, fall back to full read + clip
+            # Fallback: full read + in-memory clip
             df = _read_parquet_files(parquet_files, geo=True, columns=load_cols)
             if len(df) > 0:
                 df = df[df.geometry.intersects(clip_box)]
-                if len(df) > 0:
-                    dfs.append(df)
+        if len(df) == 0:
+            return None
 
-    if not dfs:
+        if query:
+            df = df.query(query).copy()  # copy avoids later SettingWithCopyWarning
+            if len(df) == 0:
+                return None
+
+        # Compute EGI index + partition columns now, while df is still bounded
+        # to one H3 partition's worth of data.
+        df = egi_mod.egi_dataframe_vectorized(df, level=index_level, set_index=False)
+        if partition_level == index_level:
+            df[egi_part_col] = df[egi_index_col]
+        else:
+            df[egi_part_col] = egi_mod.to_parent(df[egi_index_col].values, partition_level)
+
+        # Spillover filter: at H3 partition boundaries and at inclusive-edge
+        # bbox boundaries, a shot's true egi_part_col can differ from the
+        # task's tile id; those rows belong to a neighbor task and would
+        # cause a cross-task race write if kept. The neighbor task loads
+        # them via its own bbox query.
+        if tile_uid is not None:
+            df = df[df[egi_part_col].values == tile_uid]
+            if len(df) == 0:
+                return None
+
+        return df
+
+    # Stream H3 partitions; only the reduced (post-filter) chunks accumulate.
+    chunks = []
+    for h3_id in h3_list:
+        c = _reduce_one_h3(h3_id)
+        if c is not None:
+            chunks.append(c)
+
+    if not chunks:
         # Return empty DataFrame with correct structure
         empty = pd.DataFrame(columns=load_cols or [])
         empty[egi_index_col] = pd.Series([], dtype=np.uint64)
@@ -1482,28 +1527,7 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
             empty = empty.set_index(egi_index_col)
         return empty
 
-    df = pd.concat(dfs, ignore_index=True)
-
-    # Apply query if specified
-    if query:
-        df = df.query(query).copy()  # copy to avoid SettingWithCopyWarning on later column assignments
-        if len(df) == 0:
-            empty = pd.DataFrame(columns=df.columns)
-            empty[egi_index_col] = pd.Series([], dtype=np.uint64)
-            empty[egi_part_col] = pd.Series([], dtype=np.uint64)
-            if set_index:
-                empty = empty.set_index(egi_index_col)
-            return empty
-
-    # Add EGI indices (set_index=False here, we'll set it after column reordering)
-    # Use vectorized version to keep original CRS (WGS84) - only transforms coords for hash computation
-    df = egi_mod.egi_dataframe_vectorized(df, level=index_level, set_index=False)
-
-    # Add partition column
-    if partition_level == index_level:
-        df[egi_part_col] = df[egi_index_col]
-    else:
-        df[egi_part_col] = egi_mod.to_parent(df[egi_index_col].values, partition_level)
+    df = pd.concat(chunks, ignore_index=True)
 
     # Set EGI index column as DataFrame index BEFORE reordering columns
     if set_index:
@@ -1511,12 +1535,10 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
 
     # Reorder columns: data cols, partition col, geometry last
     if 'geometry' in df.columns:
-        # Get data columns (not EGI cols or geometry)
         special_cols = {'geometry', egi_part_col}
         if not set_index:
             special_cols.add(egi_index_col)
         data_cols = [c for c in df.columns if c not in special_cols]
-        # Build final column order
         cols = data_cols + [egi_part_col, 'geometry']
         cols = [c for c in cols if c in df.columns]
         df = df[cols]
@@ -1711,27 +1733,18 @@ def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH
         from .utils import _storage_options
         _scfg = dict(_storage_options)
 
-    # Define loader function for from_map
-    # set_index=True in tile loader avoids shuffle at the end
+    # Define loader function for from_map. set_index=True avoids a later
+    # shuffle. tile_egi_id makes the loader stream + spillover-filter per
+    # H3 partition (caps peak memory at ~1 H3 partition; without it, the
+    # ring-1 expansion would OOM workers on dense tropical L12 tiles).
     def load_tile(args):
         _restore_storage_on_worker(_scfg)
         egi_id, h3_list, egi_bbox = args
-        df = _load_egi_tile_from_h3(
+        return _load_egi_tile_from_h3(
             egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
-            query, index_level, partition_level, set_index=True
+            query, index_level, partition_level, set_index=True,
+            tile_egi_id=egi_id,
         )
-        # Drop boundary spillover that belongs to neighbor tiles. The bbox
-        # clip is inclusive on edges, so shots at the exact L12 boundary
-        # land in BOTH neighbors' loaded data; each shot's true ownership
-        # is the deterministic egi_part_col (computed by egi_dataframe_vectorized
-        # under the carry-fixed to_hash). Without this filter, egi_export_part
-        # splits by partition and writes a tiny "spillover" file to a neighbor's
-        # path. Multiple tasks then race-write to the same canonical filename,
-        # last-writer-wins, and a tile with millions of legitimate shots can end
-        # up with the 1-row spillover output from a neighbor.
-        if len(df) > 0 and egi_part_col in df.columns:
-            df = df[df[egi_part_col].values == np.uint64(egi_id)]
-        return df
 
     # Build metadata from schema (avoids empty sample issue)
     # set_index=True because tile loader sets index (metadata must match)
