@@ -14,7 +14,7 @@ from .config import GH3_DEFAULT_H3_DIR, configure_environment, BUILD_LOG_FILENAM
 from .utils import (json_read, json_write, now, get_package_version, is_parquet,
                      smart_glob, smart_exists, smart_isdir, is_remote_path,
                      smart_open, generate_manifest, check_nan_only_columns,
-                     smart_join, AtomicFileWriter,
+                     smart_join, AtomicFileWriter, atomic_parquet_write,
                      dask_safe_wait, dask_safe_collect)
 from .h3utils import intersect_h3_geometries, fix_h3_geometry
 from .cliutils import find_coordinate_column, get_aggregatable_columns
@@ -324,9 +324,27 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         from .utils import _storage_options
         _scfg = dict(_storage_options)
 
-    # Restore index for formats that don't preserve it (e.g. GPKG)
-    needs_index_restore = (index_col and _meta.index.name != index_col
-                           and index_col in _meta.columns)
+    # Restore index for formats that don't preserve it (e.g. GPKG).
+    # Crucially, do NOT restore when the file already produced a valid spatial
+    # index — even if the sidecar's `index_level` says otherwise. Parquet/feather
+    # preserve the pandas index in metadata; trusting a wrong sidecar over the
+    # file-supplied index would silently demote h3_12 → h3_03 (the partition
+    # column), and downstream `h3_to_parent(res=4)` would then attempt to find
+    # an L4 parent of L3 cells (impossible). Defends against the cascading
+    # sidecar-corruption class.
+    import re as _re_idx
+    _file_has_spatial_index = (
+        _meta.index.name is not None and (
+            _re_idx.match(r'^h3_\d{2}$', str(_meta.index.name))
+            or _re_idx.match(r'^egi\d{2}$', str(_meta.index.name))
+        )
+    )
+    needs_index_restore = (
+        index_col
+        and _meta.index.name != index_col
+        and index_col in _meta.columns
+        and not _file_has_spatial_index
+    )
     if needs_index_restore:
         _meta = _meta.set_index(index_col)
 
@@ -519,7 +537,7 @@ def _pa_dtype_to_pandas(s):
     return s
 
 
-def _meta_from_dtype_dict(col_dtypes, *, columns=None, part_col=None):
+def _meta_from_dtype_dict(col_dtypes, *, columns=None, part_col=None, index_name=None):
     """Construct an empty (Geo)DataFrame matching what
     :func:`gh3_load_hex` would return — built entirely from the cached
     ``h3_columns_dtypes`` build-log field, no parquet I/O.
@@ -528,6 +546,17 @@ def _meta_from_dtype_dict(col_dtypes, *, columns=None, part_col=None):
     the translator can't round-trip, or fails to cover a critical
     column the caller has explicitly requested — callers must fall
     back to ``gh3_load_hex(h3_dirs[0], …)`` in any of those cases.
+
+    The ``index_name`` arg names the synthetic meta's index so the lazy
+    ddf's metadata matches what each computed partition actually returns.
+    Required: without it, ``ddf.index.name`` is ``None`` while every
+    actual partition has a proper named index (``h3_12``). That mismatch
+    is silent at load time but cascades into ``_detect_export_params``
+    inferring the wrong ``index_level`` from the only h3 column present
+    (the partition column), which then gets written into every simplified
+    dataset's sidecar — and every later load of that sidecar destroys
+    the real index on each partition via the "needs index restore" branch
+    in ``_load_dataset``.
 
     "Critical column" coverage check:
       * ``shot_number`` is the universal GEDI shot identifier; every
@@ -578,6 +607,10 @@ def _meta_from_dtype_dict(col_dtypes, *, columns=None, part_col=None):
     if 'geometry' in df.columns:
         df = gpd.GeoDataFrame(df, geometry='geometry', crs=4326)
 
+    # Match the named index that the parquet reader produces at compute time.
+    if index_name:
+        df.index = pd.Index([], name=index_name)
+
     return df
 
 
@@ -598,6 +631,8 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
     """Internal: load from H3 database (original gh3_load implementation)."""
     h3_part = gh3_read_meta("h3_partition_level", gh3_root_dir=gh3_dir)
     h3_part_col = f"h3_{h3_part:02d}"
+    h3_index_level = gh3_read_meta("h3_resolution_level", gh3_root_dir=gh3_dir)
+    h3_index_col = f"h3_{int(h3_index_level):02d}" if h3_index_level is not None else None
     h3_ids = gh3_read_meta("h3_partition_ids", gh3_root_dir=gh3_dir)
 
     h3_filter = {}
@@ -664,6 +699,7 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
             col_dtypes,
             columns=fm_filter.get('columns'),
             part_col=h3_part_col,
+            index_name=h3_index_col,
         )
         if _meta is None:
             _meta = gh3_load_hex(h3_dirs[0], part_col=h3_part_col, **fm_filter)
@@ -1004,10 +1040,15 @@ def _write_dataframe(df, opath, fmt):
         df.to_file(opath)
         return
 
+    if is_parquet(opath):
+        # Verify+retry around parquet writes — catches the GPFS/transient-IO
+        # class where pyarrow commits a file whose data pages are corrupt
+        # (footer intact, body bad). A plain AtomicFileWriter cannot detect it.
+        atomic_parquet_write(df, opath, compression='zstd')
+        return
+
     with AtomicFileWriter(opath) as tmp:
-        if is_parquet(opath):
-            df.to_parquet(tmp, compression='zstd')
-        elif fmt == 'feather':
+        if fmt == 'feather':
             df.to_feather(tmp)
         elif fmt == 'txt':
             df.to_csv(tmp, sep='\t')
@@ -2599,41 +2640,42 @@ def _write_egi_file(df, opath, fmt):
     if df.empty:
         return ''
 
-    try:
-        # Handle raster export (rasterio writer handles its own atomicity)
-        if fmt in ('tif', 'tiff', 'geotiff'):
-            raster = egi.geodf_to_raster(df)
-            egi.export_raster(raster, opath)
-            return opath
-
-        # Geo-vector formats infer the OGR driver from the file extension
-        # and shp emits multiple sidecars — bypass the atomic wrapper for
-        # those, like ``_write_dataframe`` does.
-        if fmt in ('geojson', 'gpkg', 'shp'):
-            df.to_file(opath)
-            return opath
-
-        # Single-file formats: write through AtomicFileWriter so a worker
-        # SIGKILL or disk-full mid-write does not leave a partial file at
-        # the final path.
-        with AtomicFileWriter(opath) as tmp:
-            if is_parquet(opath):
-                df.to_parquet(tmp)
-            elif fmt == 'feather':
-                df.to_feather(tmp)
-            elif fmt == 'txt':
-                df.to_csv(tmp, sep='\t')
-            elif fmt == 'csv':
-                df.to_csv(tmp)
-            elif fmt in ('h5', 'hdf5'):
-                df.to_hdf(tmp, key='GEDI', mode='w')
-            else:
-                raise GediProcessingError(f"Unsupported export format: {fmt}")
-
+    # Handle raster export (rasterio writer handles its own atomicity)
+    if fmt in ('tif', 'tiff', 'geotiff'):
+        raster = egi.geodf_to_raster(df)
+        egi.export_raster(raster, opath)
         return opath
 
-    except Exception:
-        return ''
+    # Geo-vector formats infer the OGR driver from the file extension
+    # and shp emits multiple sidecars — bypass the atomic wrapper for
+    # those, like ``_write_dataframe`` does.
+    if fmt in ('geojson', 'gpkg', 'shp'):
+        df.to_file(opath)
+        return opath
+
+    if is_parquet(opath):
+        # Verify+retry around parquet writes — catches the GPFS/transient-IO
+        # class where pyarrow commits a file whose data pages are corrupt
+        # (footer intact, body bad). A plain AtomicFileWriter cannot detect it.
+        atomic_parquet_write(df, opath)
+        return opath
+
+    # Single-file non-parquet formats: write through AtomicFileWriter so a
+    # worker SIGKILL or disk-full mid-write does not leave a partial file at
+    # the final path. Errors propagate — caller decides resilience policy.
+    with AtomicFileWriter(opath) as tmp:
+        if fmt == 'feather':
+            df.to_feather(tmp)
+        elif fmt == 'txt':
+            df.to_csv(tmp, sep='\t')
+        elif fmt == 'csv':
+            df.to_csv(tmp)
+        elif fmt in ('h5', 'hdf5'):
+            df.to_hdf(tmp, key='GEDI', mode='w')
+        else:
+            raise GediProcessingError(f"Unsupported export format: {fmt}")
+
+    return opath
 
 
 def is_egi_indexed(df):

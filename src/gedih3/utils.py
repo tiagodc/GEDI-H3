@@ -1898,3 +1898,43 @@ class AtomicFileWriter:
         return False  # Don't suppress exceptions
 
 
+def atomic_parquet_write(df, opath, *, compression=None, max_attempts=3):
+    """Atomic parquet write with post-write page-level integrity check + retry.
+
+    Each attempt: write to ``.tmp`` inside an ``AtomicFileWriter`` context,
+    then stream-read every data page via ``iter_batches`` while the temp
+    file is still uncommitted. If any page deserialization raises, the
+    exception propagates out of the context, the ``.tmp`` is unlinked, and
+    the loop tries again. After ``max_attempts`` failures the last
+    exception is re-raised — the partition errors out cleanly instead of
+    promoting a torn file to the canonical path.
+
+    Catches the production-observed GPFS/transient-IO class where pyarrow
+    successfully closes a parquet file with corrupt internal page bytes
+    (footer + metadata valid, data pages corrupt). That failure mode
+    silently rides into the renamed final file under plain ``AtomicFileWriter``
+    because pyarrow's normal write path doesn't checksum or re-read.
+
+    Streaming verify (``iter_batches`` with bounded batch_size) keeps peak
+    memory bounded to ~one batch's worth of decoded data — no double-buffer
+    of the whole partition.
+    """
+    import pyarrow.parquet as pq
+
+    last_exc = None
+    for _ in range(max_attempts):
+        try:
+            with AtomicFileWriter(opath) as tmp:
+                kwargs = {'compression': compression} if compression else {}
+                df.to_parquet(tmp, **kwargs)
+                # Stream-verify pages. Forces deserialization of every page;
+                # a corrupt page raises and aborts the AtomicFileWriter context.
+                for _ in pq.ParquetFile(tmp).iter_batches(batch_size=65536):
+                    pass
+            return
+        except Exception as e:
+            last_exc = e
+            continue
+    raise last_exc
+
+
