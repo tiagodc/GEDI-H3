@@ -351,9 +351,21 @@ def main():
                     "Use -egi to aggregate to an EGI level instead, or provide an H3-indexed source."
                 )
 
+        # Parse aggregation spec (string, list, or dict) — needed early so
+        # dict-form keys can be folded into the load list below.
+        agg = parse_aggregation(args.aggregate)
+        agg_is_dict = isinstance(agg, dict)
+
         # Collect columns
         logger.info("Collecting variables...")
         columns = collect_columns(args, available_columns=available_columns)
+
+        # Dict-form aggregation: keys name the variables to aggregate, so they
+        # must be loaded even when -l/-l2a/-l4a were not provided.
+        if agg_is_dict:
+            for k in agg.keys():
+                if k not in columns:
+                    columns.append(k)
 
         # Time-series mode needs datetime column for per-window filtering
         if time_series and 'datetime' not in columns:
@@ -372,10 +384,6 @@ def main():
         if query_str:
             logger.info(f"Query filter: {query_str}")
 
-        # Parse aggregation spec (string, list, or dict)
-        agg = parse_aggregation(args.aggregate)
-        # When agg is a dict, columns are implicit in the dict keys
-        agg_is_dict = isinstance(agg, dict)
         if agg_is_dict:
             logger.info(f"Aggregation: column-specific {agg}")
         elif isinstance(agg, list):
