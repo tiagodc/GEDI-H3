@@ -2577,7 +2577,13 @@ def egi_export_part(df, odir, fmt='parquet', is_file_path=False, partition_level
     if df.empty:
         return ''
 
-    os.makedirs(odir, exist_ok=True)
+    # When is_file_path=True (merge mode), ``odir`` is actually the user's
+    # destination FILE path — creating it as a directory here turns the
+    # final AtomicFileWriter.os.replace() into "Is a directory". The parent
+    # dir is created by AtomicFileWriter.__enter__ anyway, so this is safe
+    # to skip in that case. Mirrors gh3_export_part's guard.
+    if not is_file_path:
+        os.makedirs(odir, exist_ok=True)
 
     if is_file_path:
         # Single file output mode - write all data to one file
