@@ -347,8 +347,23 @@ def egi_h3_intersection(
     """
     Map EGI tiles to intersecting H3 partition cells using spatial index.
 
-    This function efficiently computes which H3 cells intersect each EGI tile,
-    enabling direct loading of data into EGI partitions without full shuffle.
+    Maps each EGI tile to the union of:
+      (a) H3 cells whose polygon geometrically intersects the EGI tile, AND
+      (b) the ring-1 neighbors of those cells that are valid partitions.
+
+    Adding ring-1 neighbors closes a silent data-loss class on the EGI
+    extraction path. The H3 database stores each shot in the partition
+    `cell_to_parent(latlng_to_cell(lon, lat, finer_res), partition_res)`,
+    but partition assignment via geometric overlap of the H3 *polygon* uses
+    the L3 `latlng_to_cell` boundary — and these two functions disagree at
+    H3 cell boundaries (boundary-precision differs across resolutions).
+    Shots at a partition boundary can therefore land in a storage cell
+    whose polygon does not overlap their true EGI tile, so the unexpanded
+    intersection silently misses them — observed in production: a single
+    L3 partition with 1.84M shots had 84k (~5%) stored under a partition
+    whose polygon did not intersect their true L12 tile. Including ring-1
+    neighbors closes this gap because the "fat-partition" extent is
+    bounded by one neighbor-cell width.
 
     Parameters
     ----------
@@ -360,7 +375,7 @@ def egi_h3_intersection(
     Returns
     -------
     dict
-        Mapping of EGI tile hash -> list of intersecting H3 IDs
+        Mapping of EGI tile hash -> list of H3 IDs (with ring-1 expansion).
 
     Examples
     --------
@@ -370,6 +385,8 @@ def egi_h3_intersection(
     >>> for egi_id, h3_list in egi_to_h3.items():
     ...     # Load data from h3_list files for egi_id tile
     """
+    import h3 as _h3lib
+
     # Use EPSG:6933 (EGI native CRS) for intersection.
     # Avoids WGS84 reprojection failures near the poles for fine-level EGI tiles.
     if egi_tiles.crs.to_epsg() != 6933:
@@ -380,13 +397,24 @@ def egi_h3_intersection(
     # Build spatial index on H3 cells
     h3_sindex = h3_gdf.sindex
 
+    valid_partitions = set(h3_gdf.index)
+
     egi_to_h3 = {}
     for egi_id in egi_tiles.index:
         egi_geom = egi_tiles.loc[egi_id, 'geometry']
         # Query spatial index for intersecting H3 cells
         candidate_idx = h3_sindex.query(egi_geom, predicate='intersects')
         intersecting_h3 = h3_gdf.index[candidate_idx].tolist()
-        if intersecting_h3:
-            egi_to_h3[egi_id] = intersecting_h3
+        if not intersecting_h3:
+            continue
+        # Expand by ring-1 neighbors (filtered to valid partitions in the DB).
+        # Captures boundary shots stored in partitions whose polygon doesn't
+        # overlap the EGI tile but which contain shots in that tile.
+        expanded = set(intersecting_h3)
+        for h in intersecting_h3:
+            for nbr in _h3lib.grid_disk(h, 1):
+                if nbr in valid_partitions:
+                    expanded.add(nbr)
+        egi_to_h3[egi_id] = sorted(expanded)
 
     return egi_to_h3
