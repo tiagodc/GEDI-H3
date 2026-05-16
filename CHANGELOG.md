@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.9] - 2026-05-16
+
+### Fixed
+- `gh3_aggregate` (`cli/gh3_aggregate.py`): dict-form `-a/--aggregate` spec (e.g. `"{'rh_098_l2a':['count','mean']}"`) now folds the dict keys into the load column list. Previously `collect_columns` only honored `-l/-l2a/-l4a` + query columns, so dict keys were never loaded from disk and `local_aggregate`'s `df.groupby(level=0).agg(agg)` raised `KeyError: "Label(s) ['rh_098_l2a'] do not exist"`. Aggregation spec is now parsed before column collection so the fold-in happens once in the shared setup — works for both H3 and EGI indexes.
+
+### Changed
+- `egi_load` bbox pushdown (`gh3driver.py`): encoding-aware routing via `_pick_bbox_strategy(sample_file)` + `_read_parquet_bbox` helper, cached per-database in `_BBOX_STRATEGY_CACHE`. WKB-encoded parquets (the v3 default) route to a coord-column pushdown using GEDI L2A `lat_lowestmode_l2a` / `lon_lowestmode_l2a`; point-encoded parquets use `gpd.read_parquet(bbox=...)`; everything else falls back to full read + clip. Kills the full-read fallback that was forcing every worker through a 15–18 GB peak on dense tropical L12 tiles. Production global EGI extract now plateaus at ~7.7 GB RSS per worker.
+
 ## [0.10.8] - 2026-05-16
 
 ### Fixed
