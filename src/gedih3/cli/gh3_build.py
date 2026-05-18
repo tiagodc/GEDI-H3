@@ -233,11 +233,16 @@ def main():
 
     if args.output is None:
         args.output = GH3_DEFAULT_H3_DIR
+    args.output = os.path.abspath(args.output)
     os.makedirs(args.output, exist_ok=True)
 
     if args.tmpdir is None:
         args.tmpdir = os.path.join(args.output, '.tmp')
+    args.tmpdir = os.path.abspath(args.tmpdir)
     os.makedirs(args.tmpdir, exist_ok=True)
+
+    if args.indir:
+        args.indir = os.path.abspath(args.indir)
 
     # Log detected resources and Dask configuration
     cpus, ram, storage = get_system_resources(disk_path=args.output)
