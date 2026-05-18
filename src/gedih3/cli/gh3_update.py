@@ -535,11 +535,13 @@ def main():
     with cli_exception_handler(args):
         import json
 
-        from gedih3.cliutils import setup_logging, print_banner, print_success, setup_storage
+        from gedih3.cliutils import setup_logging, print_banner, print_success, setup_storage, resolve_path_args
 
         logger = setup_logging(args, __name__)
         setup_storage(args, logger=logger)
         print_banner("GEDI Dataset Update Tool", logger=logger)
+
+        resolve_path_args(args, ['dataset', 'database', 'merge'], logger=logger)
 
         from gedih3.config import DATASET_META_FILENAME
 

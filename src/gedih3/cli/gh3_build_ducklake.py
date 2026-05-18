@@ -80,7 +80,7 @@ def get_file_list(root_dir):
 
 def main():
     from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR
-    from gedih3.cliutils import setup_logging, print_banner, print_success, cli_exception_handler
+    from gedih3.cliutils import setup_logging, print_banner, print_success, cli_exception_handler, resolve_path_args
     from gedih3 import sqlutils
     import tqdm
 
@@ -88,6 +88,7 @@ def main():
     logger = setup_logging(args, __name__)
     print_banner("GEDI DuckLake Builder Tool", logger=logger)
 
+    resolve_path_args(args, ['database', 'tmpdir'], logger=logger)
     database = pathlib.Path(args.database or GH3_DEFAULT_H3_DIR)
     tmpdir = args.tmpdir or f"{GH3_DEFAULT_TMP_DIR}/ducklake_temp"
 

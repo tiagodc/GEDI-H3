@@ -155,6 +155,8 @@ def main():
         args.soc_dir = os.path.abspath(args.soc_dir)
     if args.tmpdir is not None:
         args.tmpdir = os.path.abspath(args.tmpdir)
+    if getattr(args, 'report', None):
+        args.report = os.path.abspath(args.report)
 
     if not os.path.isdir(args.indir):
         logger.error(f"Database directory not found: {args.indir}")

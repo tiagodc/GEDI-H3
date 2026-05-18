@@ -42,7 +42,7 @@ def main():
     args = get_cmd_args()
 
     from gedih3.config import GH3_DEFAULT_SOC_DIR
-    from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success
+    from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success, resolve_path_args
     from gedih3.gh3builder import download_soc, s3_etl_subset
     from gedih3.logger import SOCDownloadLogger
     from dask.distributed import Client
@@ -53,6 +53,7 @@ def main():
 
     if args.output is None:
         args.output = GH3_DEFAULT_SOC_DIR
+    resolve_path_args(args, ['output'], logger=logger)
     os.makedirs(args.output, exist_ok=True)
 
     product_vars = parse_gedi_args(args)
