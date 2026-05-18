@@ -168,13 +168,15 @@ def _print_csv(schema_df):
 def main():
     args = get_cmd_args()
 
-    from gedih3.cliutils import setup_storage
+    from gedih3.cliutils import setup_storage, resolve_path_args
     setup_storage(args)
 
     # Resolve default path from environment
     if args.path is None:
         from gedih3.config import GH3_DEFAULT_H3_DIR
         args.path = GH3_DEFAULT_H3_DIR
+
+    resolve_path_args(args, ['path'])
 
     from gedih3.utils import smart_exists
     if not smart_exists(args.path):

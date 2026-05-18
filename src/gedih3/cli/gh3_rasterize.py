@@ -167,13 +167,16 @@ def main():
         from dask.distributed import Client
 
         from gedih3.cliutils import (parse_dask_args, setup_logging,
-                                     print_banner, print_success, setup_storage)
+                                     print_banner, print_success, setup_storage,
+                                     resolve_path_args)
         from gedih3.config import DATASET_META_FILENAME
 
         # Setup logging and print banner
         logger = setup_logging(args, __name__)
         setup_storage(args, logger=logger)
         print_banner("GEDI Rasterization Tool", logger=logger)
+
+        resolve_path_args(args, ['dataset', 'output'], logger=logger)
 
         # Validate input dataset exists
         from gedih3.utils import smart_exists, smart_isdir, smart_glob
