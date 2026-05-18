@@ -783,11 +783,19 @@ def _extract_beam_data(
 
     dfs = {}
     for j in columns:
-        if is_wave := (j == 'rxwaveform' or j == 'txwaveform'):
-            is_tx = j == 'txwaveform'
-            d = wfm_extract(h5_file, beam, idx, is_tx)
-        else:
-            d = h5_file[f"{beam}/{j}"][:][idx]
+        try:
+            if is_wave := (j == 'rxwaveform' or j == 'txwaveform'):
+                is_tx = j == 'txwaveform'
+                d = wfm_extract(h5_file, beam, idx, is_tx)
+            else:
+                d = h5_file[f"{beam}/{j}"][:][idx]
+        except KeyError as e:
+            # Normalize h5py's two missing-path error shapes ("object 'X'
+            # doesn't exist" vs "component not found") into the single form
+            # _MISSING_VAR_RE picks up, so _classify_load_h5_failure tags the
+            # failure as missing_var with the actual variable name and the
+            # end-of-build recovery advisory groups it correctly.
+            raise KeyError(f"object '{j}' doesn't exist (h5py: {e})") from e
 
         if d.ndim == 2:
             for col in range(d.shape[-1]):
