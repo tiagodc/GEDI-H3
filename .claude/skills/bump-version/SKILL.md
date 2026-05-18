@@ -50,6 +50,20 @@ git log --oneline -50
 
 Review the commits and categorize them into: **Added**, **Changed**, **Fixed**, **Removed**. Keep descriptions concise (one line each). Only include categories that have entries.
 
+### Determine actual contributors
+
+In parallel with the categorization, identify the distinct git authors of the commits in this bump cycle:
+
+```bash
+git log <hash>..HEAD --format='%an <%ae>' | sort -u
+```
+
+(If there is no prior bump commit, run the same command with the same range fallback used above.) This list is the **per-release contributor set** and is used downstream in two places:
+- The optional `### Contributors` line at the bottom of the CHANGELOG entry (see Step 5).
+- The commit-message guard in Step 6.
+
+**Do NOT use this list to edit static package-authorship metadata.** `src/gedih3/__init__.py:__author__`, `docs/conf.py:author`, and `CITATION.cff:authors` enumerate the project's overall authors — they are package-level credits that persist across releases and should remain untouched by this skill regardless of who happened to commit in this cycle.
+
 Then evaluate whether the requested bump level (`$ARGUMENTS`) matches the scope of changes:
 - **micro**: bug fixes, documentation, CI, dependency updates, minor tweaks only
 - **minor**: new features, new CLI tools/flags, non-breaking API additions
@@ -59,12 +73,12 @@ If the changes suggest a different level would be more appropriate, **warn the u
 
 ## Step 3: Update version in all hardcoded locations
 
-Read each file first, then use the Edit tool to replace the OLD version with the NEW version in exactly these files:
+Read each file first, then use the Edit tool to replace the OLD version with the NEW version in exactly these files. **Edit only the version/date strings shown.** Do not modify any other field in these files — in particular, do not edit `__author__`, `author`, or `authors:` blocks. Those are persistent package-level credits and are out of scope for the bump skill (see Step 2's contributor-set guard).
 
 1. **`pyproject.toml`**: `version = "OLD"` → `version = "NEW"`
 2. **`src/gedih3/__init__.py`**: `__version__ = "OLD"` → `__version__ = "NEW"`
 3. **`docs/conf.py`**: `release = "OLD"` → `release = "NEW"`
-4. **`CITATION.cff`**: `version: OLD` → `version: NEW` — also update `date-released` to today's date (YYYY-MM-DD)
+4. **`CITATION.cff`**: `version: OLD` → `version: NEW` — also update `date-released` to today's date (YYYY-MM-DD). Leave the `authors:` block unchanged.
 5. **`tests/test_merge_build_logs.py`**: `'package_version': 'OLD'` → `'package_version': 'NEW'`
 6. **`recipe/meta.yaml`**: `{% set version = "OLD" %}` → `{% set version = "NEW" %}`
 
@@ -101,6 +115,12 @@ Format:
 
 Only include categories (Added/Changed/Fixed/Removed) that have actual entries from the git log analysis in Step 2. Do not include empty categories.
 
+### Optional: per-release contributors line
+
+If the contributor set from Step 2 has more than one distinct author, append a trailing `### Contributors` line after the last category, listing the names from the contributor set (display names only, no emails). Skip this section entirely when only one author contributed — solo bump cycles get no contributors line.
+
+This is the *only* place per-release contributor info is recorded. Do not add Co-Authored-By trailers to the bump commit (Step 6) and do not edit the static package-authorship metadata (Step 3).
+
 ## Step 6: Stage and commit
 
 Record the current HEAD before committing:
@@ -116,7 +136,7 @@ git add pyproject.toml src/gedih3/__init__.py docs/conf.py CITATION.cff tests/te
 git commit -m "bump version to NEW_VERSION"
 ```
 
-The commit message must be exactly `bump version to X.Y.Z` with the actual new version. Do NOT add a Co-Authored-By trailer.
+The commit message must be exactly `bump version to X.Y.Z` with the actual new version. Do NOT add a Co-Authored-By trailer — the per-release contributor set lives in the CHANGELOG entry's optional `### Contributors` line (Step 5), not on the bump commit. Static package-authorship credits (`__author__`, `docs/conf.py:author`, `CITATION.cff:authors`) are intentionally not touched by this skill — they enumerate the project's overall authors and persist across releases regardless of who happened to commit in this cycle.
 
 ## Step 7: Print summary
 
