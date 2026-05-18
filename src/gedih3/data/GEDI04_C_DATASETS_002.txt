@@ -56,14 +56,14 @@ wsci_prediction/wsci_xy_pi_upper_a5
 wsci_prediction/wsci_z_a5
 wsci_prediction/wsci_z_pi_lower_a5
 wsci_prediction/wsci_z_pi_upper_a5
-wsci_prediction/algorithm_run_flag_a10
-wsci_prediction/wsci_quality_flag_a10
-wsci_prediction/wsci_a10
-wsci_prediction/wsci_pi_lower_a10
-wsci_prediction/wsci_pi_upper_a10
-wsci_prediction/wsci_xy_a10
-wsci_prediction/wsci_xy_pi_lower_a10
-wsci_prediction/wsci_xy_pi_upper_a10
-wsci_prediction/wsci_z_a10
-wsci_prediction/wsci_z_pi_lower_a10
-wsci_prediction/wsci_z_pi_upper_a10
+# wsci_prediction/algorithm_run_flag_a10
+# wsci_prediction/wsci_quality_flag_a10
+# wsci_prediction/wsci_a10
+# wsci_prediction/wsci_pi_lower_a10
+# wsci_prediction/wsci_pi_upper_a10
+# wsci_prediction/wsci_xy_a10
+# wsci_prediction/wsci_xy_pi_lower_a10
+# wsci_prediction/wsci_xy_pi_upper_a10
+# wsci_prediction/wsci_z_a10
+# wsci_prediction/wsci_z_pi_lower_a10
+# wsci_prediction/wsci_z_pi_upper_a10
