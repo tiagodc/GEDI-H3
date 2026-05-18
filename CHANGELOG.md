@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.10] - 2026-05-18
+
+### Fixed
+- `gh3_build` (`cli/gh3_build.py`): resolve `--output`, `--tmpdir`, `--indir` to absolute paths so ssh-launched dask workers (CWD = `$HOME`) write to the driver's tree instead of their own — was silently scattering Stage 1 fragments across hub `scripts/` and remote `~/` trees on relative-path invocations.
+- `_extract_beam_data` (`gedidriver.py`): normalize h5py's two missing-path error shapes (`"object 'X' doesn't exist"` and `"component not found"`) into the single form `_MISSING_VAR_RE` matches. The latter shape (h5py's error when an intermediate GROUP component is absent, not a final dataset) escaped classification — 32% of failures in the last continental build were mis-bucketed as `kind=other, var=null` and missed the end-of-build `missing_var` recovery advisory.
+- CLI path arguments: extend abspath coverage to every CLI tool that can dispatch paths to dask workers — `gh3_build_ducklake` (`database`, `tmpdir`), `gh3_download` (`output`), `gh3_rasterize` (`dataset`, `output`), `gh3_read_schema` (`path`), `gh3_update` (`dataset`, `database`, `merge`), `gh3_doctor` (added `--report`). Driver-only file paths (`gh3_aggregate -a` file mode, `gh3_update -l` file-element mode) deliberately not wrapped — they're parsed on the driver and only the parsed contents travel to workers.
+
+### Changed
+- `data/GEDI04_C_DATASETS_002.txt`: comment out 11 `wsci_prediction/*_a10` default variables. NASA aliased L4C a10 to a5 in 2025+ V002 releases (byte-identical on `wsci_a10`, ~0.01% rounding-noise diff on PI bounds) — keeping the columns in the default would double-store a5's values with no information gain. L2A/L2B/L4A V002 defaults already had `*_a10` commented out (commit 7b4fa08); this brings L4C in line for cross-product consistency.
+
 ## [0.10.9] - 2026-05-16
 
 ### Fixed
