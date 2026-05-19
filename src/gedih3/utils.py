@@ -1030,6 +1030,9 @@ def read_img_bounds(filepath: str, crs=4326):
     geobox = gpd.GeoDataFrame(geometry=[box(*bounds)], crs=img.rio.crs, index=[0])
     return geobox.to_crs(crs)
 
+_CMR_POLYGON_MAX_VERTICES = 200
+
+
 def geo_to_umm(obj):
     """
     Converts a GeoDataFrame, shapely Polygon, or GeoJSON dictionary to a UMM-style
@@ -1037,19 +1040,39 @@ def geo_to_umm(obj):
 
     Multi-polygon geometries are reduced to their convex hull since earthaccess/CMR
     only supports single-polygon spatial queries.
+
+    Rings with more than ``_CMR_POLYGON_MAX_VERTICES`` points are auto-simplified
+    via iterative ``shapely.simplify`` (doubling tolerance) until the ring fits.
+    CMR/CloudFront returns HTTP 414 (URI too long) when the polygon query string
+    grows past a few hundred vertices; simplifying client-side avoids that failure.
     """
+    import logging
     import geopandas as gpd
     from shapely.ops import orient
     from shapely.geometry.base import BaseGeometry
 
+    logger = logging.getLogger(__name__)
     geom = None
 
     if isinstance(obj, dict):
+        # from_geojson sets crs=4326, no reproject needed
         geodf = from_geojson(obj)
         geom = geodf.union_all()
     elif isinstance(obj, gpd.GeoDataFrame):
+        if obj.crs is None:
+            logger.warning(
+                "Input GeoDataFrame has no CRS set; assuming EPSG:4326. "
+                "Set a CRS on the input to silence this warning."
+            )
+        elif obj.crs.to_epsg() != 4326:
+            logger.warning(
+                f"Input GeoDataFrame CRS is {obj.crs.to_string()}; "
+                f"reprojecting to EPSG:4326 for CMR query."
+            )
+            obj = obj.to_crs(4326)
         geom = obj.union_all()
     elif isinstance(obj, BaseGeometry):
+        # Shapely geometries carry no CRS; assume EPSG:4326 (same as bbox tuples)
         geom = obj
     else:
         raise GediValidationError(f"Unsupported type: {type(obj)}")
@@ -1059,6 +1082,25 @@ def geo_to_umm(obj):
         geom = geom.convex_hull
 
     geom = orient(geom, 1)
+
+    original_n = len(geom.exterior.coords)
+    if original_n > _CMR_POLYGON_MAX_VERTICES:
+        tolerance = 0.001
+        simplified = geom
+        for _ in range(20):
+            simplified = orient(geom.simplify(tolerance, preserve_topology=True), 1)
+            if len(simplified.exterior.coords) <= _CMR_POLYGON_MAX_VERTICES:
+                break
+            tolerance *= 2
+        new_n = len(simplified.exterior.coords)
+        logger.warning(
+            f"Polygon has {original_n} vertices, exceeding CMR's practical limit "
+            f"(~{_CMR_POLYGON_MAX_VERTICES}); auto-simplified to {new_n} vertices "
+            f"at tolerance={tolerance:g}° to avoid HTTP 414. "
+            f"Pass a pre-simplified polygon or a bounding box to silence this warning."
+        )
+        geom = simplified
+
     geo_umm = list(zip(*geom.exterior.coords.xy))
 
     return geo_umm
