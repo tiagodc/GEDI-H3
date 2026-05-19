@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.11] - 2026-05-19
+
+### Fixed
+- `geo_to_umm` (`utils.py`): auto-simplify polygon rings exceeding 200 vertices (iterative `shapely.simplify` with doubling tolerance) before passing to CMR — large boundaries (e.g. state-level GPKGs) were triggering CloudFront HTTP 414 (URI too long) and silently failing every product search in `gh3_download`. Also reproject GeoDataFrame inputs to EPSG:4326 when the CRS differs or is missing. Both events emit a CLI-visible WARNING.
+
 ## [0.10.10] - 2026-05-18
 
 ### Fixed
