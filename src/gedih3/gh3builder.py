@@ -196,7 +196,7 @@ def _subset_s3_file(granule, prod, product_vars, odir, file_idx, n_files):
             if vars_for_prod is None:
                 vars_for_prod = gedi_vars_from_h5(s3_file)
 
-    logger.info(f"[{file_idx}/{n_files}] Subsetting {gf.full_name} ({len(vars_for_prod)} vars)")
+    logger.debug(f"[{file_idx}/{n_files}] Subsetting {gf.full_name} ({len(vars_for_prod)} vars)")
     try:
         result = gedi_subset(s3_file, local_path, vars_for_prod)
         if result is None:
@@ -331,12 +331,17 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
     ]
 
     from distributed import as_completed as dask_as_completed
-    for future, result in dask_as_completed(futures, with_results=True):
-        completed_count += 1
-        if result is None:
-            failed += 1
-        if completed_count % 10 == 0 or completed_count == n_files:
-            logger.info(f"S3 ETL progress: {completed_count}/{n_files} files ({failed} failed)")
+    from tqdm import tqdm as tqdm_bar
+    pbar = tqdm_bar(total=n_files, desc="S3 ETL subset", unit="file")
+    try:
+        for future, result in dask_as_completed(futures, with_results=True):
+            completed_count += 1
+            if result is None:
+                failed += 1
+            pbar.set_postfix(failed=failed, refresh=False)
+            pbar.update(1)
+    finally:
+        pbar.close()
 
     if failed > 0:
         logger.warning(f"S3 ETL completed with {failed}/{n_files} failures")
