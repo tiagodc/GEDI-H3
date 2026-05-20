@@ -486,6 +486,9 @@ def setup_logging(args, name=None):
         warnings.filterwarnings('ignore', message=r'.*Consider loading the data.*')
         warnings.filterwarnings('ignore', message=r'.*large graph.*')
         warnings.filterwarnings('ignore', message=r'.*PerformanceWarning.*')
+        # earthaccess 0.18 deprecation: DataGranule.size() will become an
+        # attribute in 1.0 — internal to earthaccess, not actionable here.
+        warnings.filterwarnings('ignore', category=FutureWarning, module=r'earthaccess.*')
 
         # Suppress distributed module logging (shuffle, scheduler, worker, memory, etc.)
         for logger_name in [
