@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.14] - 2026-05-20
+
+### Fixed
+- `daac.py`: inject HTTP timeouts `(60s connect, 300s read)` into `earthaccess.auth.SessionWithHeaderRedirection.request` via a new `_install_request_timeouts()` helper called from `gedi_download` (main process / pqdm) and `_init_earthaccess_worker` (dask workers). Without this, `earthaccess.store._download_file`'s `session.get(url, stream=True)` blocks indefinitely when a CloudFront edge drops a connection without FIN — observed as workers stuck on `CLOSE-WAIT` sockets with `partial_*.h5` files stalled for 9+ hours, making only N-k of N dask workers visibly progress. Read timeout is inter-packet silence (not total wall time), so multi-minute large-granule downloads on slow links remain safe; only dead sockets trip it. Idempotent install with env overrides `GH3_DOWNLOAD_CONNECT_TIMEOUT` / `GH3_DOWNLOAD_READ_TIMEOUT`. `is_retryable_error` now recognizes `requests.exceptions.{Timeout, ConnectionError}` directly so the `_download_with_retry` exponential-backoff loop fires reliably instead of relying on string-pattern matching. Covered by `tests/test_daac_timeouts.py` (9 tests, including an end-to-end real-socket regression against a local stalling TCP server).
+
 ## [0.10.13] - 2026-05-19
 
 ### Fixed
