@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.13] - 2026-05-19
+
+### Fixed
+- `cliutils.setup_logging`: suppress earthaccess 0.18 `DataGranule.size()` FutureWarnings (internal to earthaccess, not actionable here). Programmatic regex filter on the driver + `PYTHONWARNINGS` env propagation so dask worker subprocesses inherit and silence the same warnings (lists `earthaccess.store` + `earthaccess.results` literally because PYTHONWARNINGS escapes regex chars in the module field).
+- `daac.py gedi_download` (DAAC mode): replaced `distributed.progress(futures)` with a tqdm bar over `dask_as_completed`, mirroring the s3_etl_subset pattern. The CR-animated dask bar was being mangled into a wall of `[ ] | 0% Completed | Xs` lines whenever stdout/stderr was captured via `tee` / log redirect.
+- `daac.py _gedi_subset_one`: demoted per-granule `Subsetting ... with N vars: ...` from WARNING to DEBUG. The tqdm bar is the canonical progress UI; the per-file note remains available with `-vv`.
+
 ## [0.10.12] - 2026-05-19
 
 ### Changed
