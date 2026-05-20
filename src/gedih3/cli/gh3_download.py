@@ -26,7 +26,7 @@ def get_cmd_args():
     p.add_argument("-o", "--output", dest="output", type=str, default=None,
                    help="output directory for downloaded files")
     p.add_argument("-s3", "--s3", dest="s3", action='store_true',
-                   help="use S3 ETL mode: stream and subset from NASA S3 (10-50x less data transfer)")
+                   help="use S3 ETL mode: stream and subset from NASA S3. Best when the subset is narrow (<~10%% of the granule) or bandwidth is constrained. On fast links with broad subsets (e.g. L2A default including rh), plain DAAC download is usually faster")
     p.add_argument("--gedi-version", dest="version", type=int, default=None,
                    help="GEDI data version [default=latest available]")
 
