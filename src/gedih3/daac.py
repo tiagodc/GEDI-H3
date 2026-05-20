@@ -602,7 +602,7 @@ def download_granule(
 
     # Apply variable subsetting if requested
     if subset_vars is not None:
-        logger.warning(f"Subsetting {expected_filename} with {len(subset_vars)} vars: {subset_vars[:5]}...")
+        logger.debug(f"Subsetting {expected_filename} with {len(subset_vars)} vars: {subset_vars[:5]}...")
         osub = opath.replace('.h5', '_subset.h5')
         try:
             osub = gedi_subset(opath, osub, subset_vars)
@@ -802,8 +802,19 @@ def gedi_download(
                         # Reconstruct in original order
                         opaths = [opaths_map[f] for f in futures]
                     else:
-                        # Original path: progress bar + gather
-                        progress(futures)
+                        # Tqdm bar over as_completed (TTY + tee + log-redirect
+                        # friendly) instead of dask.progress(), whose CR-based
+                        # animation gets mangled by tee into a wall of
+                        # `[ ] | 0% Completed | Xs` lines.
+                        from distributed import as_completed as dask_as_completed
+                        from tqdm import tqdm as tqdm_bar
+                        pbar = tqdm_bar(total=len(futures),
+                                        desc=f"DAAC download [{prod}]", unit="file")
+                        try:
+                            for _ in dask_as_completed(futures):
+                                pbar.update(1)
+                        finally:
+                            pbar.close()
                         opaths = dask_client.gather(futures)
                 else:
                     opaths = pqdm(granules, download_func, n_jobs=n_jobs)
