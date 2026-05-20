@@ -31,7 +31,7 @@ def _make_build_log(
 ):
     """Create a synthetic build log dict."""
     return {
-        'metadata': {'package_version': '0.10.11'},
+        'metadata': {'package_version': '0.10.12'},
         'gedi_version': gedi_version,
         'h3_resolution_level': h3_resolution,
         'h3_partition_level': h3_partition,

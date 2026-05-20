@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.12] - 2026-05-19
+
+### Changed
+- `s3_etl_subset` (`gh3builder.py`): replaced the every-10-files INFO loop with a live tqdm bar over `dask_as_completed` (postfix carries the failure count), and demoted the per-file `[N/M] Subsetting …` line from INFO to DEBUG. Aligns the CLI output with the Stage 1 build pattern (`gh3builder.py:1977`) — one live progress line in the terminal, hundreds fewer noisy entries in `gh3_download.log`. Per-file detail still available via `-vv`.
+- `gh3_download --help` + `CLAUDE.md` Performance Optimizations: documented the S3 ETL vs DAAC mode-selection finding from a controlled single-granule L2A bench (May 2026). On a fast home link, DAAC's bulk download wins for broad subsets (e.g. minimal incl. `rh`); S3 ETL only meaningfully wins (1.67×, ~50× less data on the wire) when the subset is narrow (~10% of the granule). Block-size tuning (16 MB → 32 MB) regressed both subsets; stock earthaccess defaults are tuned correctly. No production code changes — the lever for users is mode selection, not knob-twiddling.
+
 ## [0.10.11] - 2026-05-19
 
 ### Fixed
