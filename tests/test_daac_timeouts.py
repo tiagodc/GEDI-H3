@@ -188,7 +188,9 @@ class _StallingTCPServer(threading.Thread):
         self.sock.bind(('127.0.0.1', 0))
         self.sock.listen(1)
         self.port = self.sock.getsockname()[1]
-        self._stop = threading.Event()
+        # Name must not be `_stop` — that shadows `threading.Thread._stop`,
+        # which `Thread.join()` invokes internally on Py3.12.
+        self._stop_event = threading.Event()
 
     def run(self):
         try:
@@ -205,14 +207,14 @@ class _StallingTCPServer(threading.Thread):
                 b"X"
             )
             # Hold connection open without sending more bytes.
-            while not self._stop.wait(0.5):
+            while not self._stop_event.wait(0.5):
                 pass
             conn.close()
         finally:
             self.sock.close()
 
     def stop(self):
-        self._stop.set()
+        self._stop_event.set()
 
 
 def test_end_to_end_read_timeout_fires(reset_timeout_patch):
