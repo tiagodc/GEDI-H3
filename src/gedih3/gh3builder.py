@@ -34,6 +34,11 @@ def _init_earthaccess_worker():
     import earthaccess
     if not earthaccess.__auth__.authenticated:
         earthaccess.login(strategy='netrc', persist=False)
+    # Install HTTP timeouts on the cloned-per-thread sessions used by
+    # earthaccess._download_file. Without this, a dead CloudFront edge
+    # connection blocks the worker indefinitely (CLOSE-WAIT recv hang).
+    from .daac import _install_request_timeouts
+    _install_request_timeouts()
 
 
 def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=False, update=False, version=None, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5, on_granule_complete=None, ensure_l2a=True):

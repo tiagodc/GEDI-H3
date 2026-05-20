@@ -31,6 +31,77 @@ from .logging_config import get_logger
 
 logger = get_logger(__name__)
 
+# Default per-request timeouts (seconds) for earthaccess HTTP downloads.
+# Connect timeout bounds TLS handshake on slow links; read timeout bounds
+# inter-packet silence on a streaming download (not total wall time, so safe
+# for multi-minute large-granule transfers on slow connections). 5-minute
+# read-timeout is what rescues the CLOSE-WAIT zombie sockets we observe when
+# the DAAC CDN drops connections without a FIN reaching the client.
+DOWNLOAD_CONNECT_TIMEOUT_DEFAULT = 60.0
+DOWNLOAD_READ_TIMEOUT_DEFAULT = 300.0
+
+
+def _install_request_timeouts(
+    connect_timeout: Optional[float] = None,
+    read_timeout: Optional[float] = None,
+) -> Tuple[float, float]:
+    """Inject default per-request timeouts into earthaccess's HTTP sessions.
+
+    Monkey-patches ``earthaccess.auth.SessionWithHeaderRedirection.request``
+    so any call without an explicit ``timeout=`` gets ``(connect, read)``
+    seconds. Idempotent — re-calling returns the active values without
+    re-wrapping. Explicit ``timeout=`` kwargs from earthaccess internals
+    (e.g. the 1-second token probe) are preserved.
+
+    Resolution order: arg > env var > module default.
+
+    Returns
+    -------
+    (connect_timeout, read_timeout) : tuple of float
+        The values installed on the session class.
+    """
+    from earthaccess.auth import SessionWithHeaderRedirection
+
+    if connect_timeout is None:
+        connect_timeout = float(
+            os.environ.get('GH3_DOWNLOAD_CONNECT_TIMEOUT',
+                           DOWNLOAD_CONNECT_TIMEOUT_DEFAULT)
+        )
+    if read_timeout is None:
+        read_timeout = float(
+            os.environ.get('GH3_DOWNLOAD_READ_TIMEOUT',
+                           DOWNLOAD_READ_TIMEOUT_DEFAULT)
+        )
+
+    # Idempotent: bail out if already installed with the same values.
+    # Re-install if values changed (lets callers override after the fact).
+    existing = getattr(SessionWithHeaderRedirection, '_gh3_timeouts_installed', None)
+    if existing == (connect_timeout, read_timeout):
+        return existing
+
+    if existing is None:
+        SessionWithHeaderRedirection._gh3_original_request = (
+            SessionWithHeaderRedirection.request
+        )
+
+    original_request = SessionWithHeaderRedirection._gh3_original_request
+
+    def request_with_timeout(self, method, url, **kwargs):
+        # Preserve explicit timeout — earthaccess uses timeout=1 for token
+        # probes, and callers may legitimately pass their own values.
+        if kwargs.get('timeout') is None:
+            kwargs['timeout'] = (connect_timeout, read_timeout)
+        return original_request(self, method, url, **kwargs)
+
+    SessionWithHeaderRedirection.request = request_with_timeout
+    SessionWithHeaderRedirection._gh3_timeouts_installed = (connect_timeout, read_timeout)
+    logger.debug(
+        f"Installed earthaccess HTTP timeouts: "
+        f"connect={connect_timeout}s, read={read_timeout}s"
+    )
+    return (connect_timeout, read_timeout)
+
+
 def gedi_list_versions(product: str) -> List[dict]:
     """Query NASA CMR for all available versions of a GEDI product.
 
@@ -693,6 +764,11 @@ def gedi_download(
     ...     resume=True,
     ... )
     """
+    # Install HTTP timeouts before any auth/download call so the main
+    # process + pqdm subprocesses inherit them. Dask workers get them
+    # via _init_earthaccess_worker below.
+    _install_request_timeouts()
+
     gass = GEDIAccessor(authenticate=True, spatial=spatial, temporal=temporal)
 
     prod_paths = {}

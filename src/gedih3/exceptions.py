@@ -217,6 +217,20 @@ def is_retryable_error(exception: Exception) -> bool:
     import socket
     import urllib.error
 
+    # `requests.exceptions.Timeout` does NOT inherit from builtin
+    # ``TimeoutError``; it lives under ``requests.exceptions.RequestException``
+    # → ``IOError``. List it explicitly so injected per-request timeouts
+    # (see gedih3.daac._install_request_timeouts) reliably trigger the
+    # download retry loop instead of falling back to string-pattern matching.
+    try:
+        from requests.exceptions import (
+            Timeout as _RequestsTimeout,
+            ConnectionError as _RequestsConnectionError,
+        )
+        _requests_retryable = (_RequestsTimeout, _RequestsConnectionError)
+    except ImportError:
+        _requests_retryable = ()
+
     # Network-level errors
     retryable_types = (
         ConnectionError,
@@ -224,7 +238,7 @@ def is_retryable_error(exception: Exception) -> bool:
         socket.timeout,
         socket.gaierror,
         urllib.error.URLError,
-    )
+    ) + _requests_retryable
 
     if isinstance(exception, retryable_types):
         return True
