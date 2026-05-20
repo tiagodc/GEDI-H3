@@ -488,7 +488,19 @@ def setup_logging(args, name=None):
         warnings.filterwarnings('ignore', message=r'.*PerformanceWarning.*')
         # earthaccess 0.18 deprecation: DataGranule.size() will become an
         # attribute in 1.0 — internal to earthaccess, not actionable here.
+        # Driver: programmatic regex filter. Workers (dask subprocesses):
+        # propagate via PYTHONWARNINGS, which escapes regex chars in module
+        # names — so list each emitting module literally.
         warnings.filterwarnings('ignore', category=FutureWarning, module=r'earthaccess.*')
+        import os
+        _ea_filters = [
+            'ignore::FutureWarning:earthaccess.store',
+            'ignore::FutureWarning:earthaccess.results',
+        ]
+        existing = os.environ.get('PYTHONWARNINGS', '')
+        new_parts = [p for p in _ea_filters if p not in existing]
+        if new_parts:
+            os.environ['PYTHONWARNINGS'] = ','.join(([existing] if existing else []) + new_parts)
 
         # Suppress distributed module logging (shuffle, scheduler, worker, memory, etc.)
         for logger_name in [
