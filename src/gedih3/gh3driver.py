@@ -2,7 +2,7 @@
 # Authors: Tiago de Conto, Amelia Grace Holcomb
 # For commercial licensing inquiries, contact UM Ventures at otc@umd.edu
 
-import os, h3
+import os, re, h3
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -737,17 +737,20 @@ def _meta_from_dtype_dict(col_dtypes, *, columns=None, part_col=None, index_name
 
     df = pd.DataFrame(series)
 
+    # Build path also partitions by year (assigned from datetime before
+    # write). pd.read_parquet on a list of files does NOT reconstruct
+    # hive partition columns, so gh3_load_hex attaches `year` per-file
+    # before appending the h3 partition column. The meta column order
+    # must match exactly: `year` first, then `part_col`. Year is never
+    # in h3_columns_dtypes because the build records dtypes before the
+    # partition split.
+    if 'year' not in df.columns:
+        df['year'] = pd.Series([], dtype='int32')
+
     # gh3_load_hex appends part_col post-read from the directory name;
     # include it here so from_map's meta matches the per-partition return.
     if part_col and part_col not in df.columns:
         df[part_col] = pd.Series([], dtype='object')
-
-    # Build path also partitions by year (assigned from datetime before
-    # write); pyarrow reconstructs it as a column on read-back, so the
-    # meta has to carry it too. Year is never in h3_columns_dtypes
-    # because the build records dtypes before the partition split.
-    if 'year' not in df.columns:
-        df['year'] = pd.Series([], dtype='int32')
 
     if 'geometry' in df.columns:
         df = gpd.GeoDataFrame(df, geometry='geometry', crs=4326)
@@ -762,12 +765,41 @@ def _meta_from_dtype_dict(col_dtypes, *, columns=None, part_col=None, index_name
     return df
 
 
+_YEAR_HIVE_RE = re.compile(r'year=(\d{4})')
+
+
 def gh3_load_hex(d, part_col=None, _storage_cfg=None, **kwargs):
     _restore_storage_on_worker(_storage_cfg)
     files = smart_glob(smart_join(d, '**/*.parquet'), recursive=True)
     cols = kwargs.get('columns')
     use_geo = cols is None or 'geometry' in cols
-    df = _read_parquet_files(files, geo=use_geo, **kwargs)
+
+    # Per-file read so we can attach the `year` hive partition column from
+    # each file's path. pd.read_parquet on a LIST of files does NOT
+    # reconstruct hive partition columns (only a directory read or
+    # pyarrow.dataset would), so a list read would return data without
+    # `year` while the synthetic Dask meta (built from h3_columns_dtypes)
+    # always includes it — producing a "Missing: ['year']" mismatch on
+    # every .compute(). Reading per file is the same I/O the list-read
+    # would do internally; the only overhead is N small open() calls.
+    parts = []
+    for f in files:
+        sub = _read_parquet_files([f], geo=use_geo, **kwargs)
+        if 'year' not in sub.columns and sub.index.name != 'year':
+            m = _YEAR_HIVE_RE.search(str(f))
+            if m:
+                sub['year'] = np.int32(m.group(1))
+        parts.append(sub)
+
+    if len(parts) == 0:
+        df = _read_parquet_files(files, geo=use_geo, **kwargs)
+    elif len(parts) == 1:
+        df = parts[0]
+    else:
+        df = pd.concat(parts)
+        if use_geo and not isinstance(df, gpd.GeoDataFrame) and 'geometry' in df.columns:
+            df = gpd.GeoDataFrame(df, geometry='geometry', crs=4326)
+
     # Add partition column from hive-style directory name (e.g., 'h3_03=abc123')
     if part_col:
         part_id = os.path.basename(d.rstrip('/')).split('=')[-1]
