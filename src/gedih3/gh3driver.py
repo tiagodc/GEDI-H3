@@ -980,6 +980,15 @@ def gh3_load(source=None, *, columns=None, region=None, query=None,
             f"Source '{path}' is an EGI-indexed dataset. Use egi_load() instead."
         )
 
+    # Normalize region once so all downstream code (intersect_h3_geometries,
+    # the dask-clip path, _load_dataset) sees a list / GeoDataFrame / shapely
+    # geometry — mirroring what the CLI parse_region() produces. The
+    # docstring example advertises ``region='region.shp'``; without this
+    # normalization that example raises a confusing error 200 lines later.
+    if isinstance(region, str):
+        from .cliutils import parse_region
+        region = parse_region(region)
+
     if info['source_type'] == 'h3_database':
         ddf = _load_h3_database(columns=columns, region=region, query=query,
                                 gh3_dir=path, from_map=from_map)
