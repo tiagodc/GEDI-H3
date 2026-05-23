@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.15] - 2026-05-23
+
+### Fixed
+- `gedidriver._validate_h5_columns`: replaced `list(set(columns))` with `list(dict.fromkeys(columns))` in both the `rxwaveform` and `txwaveform` dependency-injection branches. `set()` orders by Python's per-process hash seed, so the driver-side schema probe and each Stage 1 worker produced the same column set in different orders, breaking the canonical pyarrow schema cast with `"Target schema's field names are not matching the table's field names"` on every L1B granule. Only the waveform branches hit the set() path; L2A/L2B/L4A/L4C builds were never affected.
+- `gh3driver._meta_from_dtype_dict`: aligned the cached Dask `_meta` with what `gh3_load_hex` actually returns at compute time. Two corrections: (1) drop the h3 index column (e.g. `h3_12`) from the synthetic columns and apply it as the named index — parquet pandas metadata pins it as the index on every read, so it never appears as a column; (2) always add `year` as `int32` — the build partitions by year (assigned from `datetime` before write) and pyarrow reconstructs it from the path, but `h3_columns_dtypes` is recorded before the partition split so the cache never carries it. Without this, every `gh3_load(...).head()` / `.compute()` raised `Extra: ['year'], Missing: ['h3_12']`.
+
 ## [0.10.14] - 2026-05-20
 
 ### Fixed
