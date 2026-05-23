@@ -711,6 +711,20 @@ def _meta_from_dtype_dict(col_dtypes, *, columns=None, part_col=None, index_name
             return None
         keep = [c for c in columns if c in col_dtypes]
 
+    # The h3 index column is stored as the pandas index in each parquet
+    # (set_index('h3_<res>') before write), so the read-back partition has
+    # it as the named index, NOT a column. Drop it from the column set
+    # here and apply it as the index dtype below — otherwise the synthetic
+    # meta carries h3_12 as both a column AND the (empty) index name,
+    # while gh3_load_hex returns it as index only → Dask raises
+    # "Missing: ['h3_12']" on the first compute.
+    index_dtype = None
+    if index_name and index_name in keep:
+        index_dtype = _pa_dtype_to_pandas(col_dtypes[index_name])
+        if index_dtype is None:
+            return None
+        keep = [c for c in keep if c != index_name]
+
     series = {}
     for c in keep:
         pd_dtype = _pa_dtype_to_pandas(col_dtypes[c])
@@ -728,12 +742,22 @@ def _meta_from_dtype_dict(col_dtypes, *, columns=None, part_col=None, index_name
     if part_col and part_col not in df.columns:
         df[part_col] = pd.Series([], dtype='object')
 
+    # Build path also partitions by year (assigned from datetime before
+    # write); pyarrow reconstructs it as a column on read-back, so the
+    # meta has to carry it too. Year is never in h3_columns_dtypes
+    # because the build records dtypes before the partition split.
+    if 'year' not in df.columns:
+        df['year'] = pd.Series([], dtype='int32')
+
     if 'geometry' in df.columns:
         df = gpd.GeoDataFrame(df, geometry='geometry', crs=4326)
 
     # Match the named index that the parquet reader produces at compute time.
     if index_name:
-        df.index = pd.Index([], name=index_name)
+        try:
+            df.index = pd.Index([], name=index_name, dtype=index_dtype) if index_dtype else pd.Index([], name=index_name)
+        except (TypeError, ValueError):
+            df.index = pd.Index([], name=index_name)
 
     return df
 
