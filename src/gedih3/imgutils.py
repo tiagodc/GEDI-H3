@@ -690,7 +690,14 @@ def _empty_sampling_result(band_names, window_ops, geo, partition_col,
             cols[col_name] = pd.Series(dtype=dtype)
     elif partition_col:
         cols[partition_col] = pd.Series(dtype=str)
-    cols['shot_number'] = pd.Series(dtype='int64')
+    # uint64 matches the on-disk GEDI shot_number dtype. Using int64 here lets
+    # Dask reconcile a mixed (int64-meta, uint64-data) graph by upcasting to
+    # float64 across the whole column — and float64 has only ~15 significant
+    # digits, while shot_numbers are 19+ digit integers, so the cast silently
+    # collapses thousands of distinct shots onto the same float value. That
+    # corrupts every downstream merge-on-shot_number and produces a Cartesian
+    # blowup (one float-collapsed key → many real shots).
+    cols['shot_number'] = pd.Series(dtype='uint64')
     if band_names:
         for bn in band_names:
             cols[bn] = pd.Series(dtype='float64')
