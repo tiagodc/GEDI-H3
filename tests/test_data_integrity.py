@@ -433,14 +433,16 @@ class TestH3ColumnsDtypesCache:
 
     def test_meta_from_dtype_dict_projection(self):
         """``columns=`` filters the meta to the requested subset; the
-        partition column is added on top regardless."""
+        partition column and the build-invariant ``year`` partition
+        column are added on top regardless."""
         from gedih3.gh3driver import _meta_from_dtype_dict
         meta = _meta_from_dtype_dict({
             'shot_number': 'uint64',
             'agbd_l4a': 'double',
             'rh_098': 'float',
         }, columns=['shot_number', 'agbd_l4a'], part_col='h3_03')
-        assert list(meta.columns) == ['shot_number', 'agbd_l4a', 'h3_03']
+        assert list(meta.columns) == ['shot_number', 'agbd_l4a', 'h3_03', 'year']
+        assert str(meta['year'].dtype) == 'int32'
 
     def test_meta_from_dtype_dict_returns_none_on_empty_or_complex(self):
         from gedih3.gh3driver import _meta_from_dtype_dict
