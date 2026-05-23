@@ -419,7 +419,10 @@ def _empty_join_result(join_columns, prefix, geo, partition_col,
             cols[col_name] = pd.Series(dtype=dtype)
     elif partition_col:
         cols[partition_col] = pd.Series(dtype='object')
-    cols['shot_number'] = pd.Series(dtype='int64')
+    # uint64 matches the on-disk GEDI shot_number dtype. See imgutils.py for the
+    # full rationale — an int64 meta forces Dask to upcast uint64 data to
+    # float64 on reconciliation, which corrupts shot identifiers.
+    cols['shot_number'] = pd.Series(dtype='uint64')
 
     if join_columns:
         prefixed = [f"{prefix}{c}" if prefix else c for c in join_columns]
@@ -468,7 +471,10 @@ def _compute_join_meta(join_columns, polygon_dtypes, prefix, geo,
             cols[col_name] = pd.Series(dtype=dtype)
     elif partition_col:
         cols[partition_col] = pd.Series(dtype='object')
-    cols['shot_number'] = pd.Series(dtype='int64')
+    # uint64 matches the on-disk GEDI shot_number dtype. See imgutils.py for the
+    # full rationale — an int64 meta forces Dask to upcast uint64 data to
+    # float64 on reconciliation, which corrupts shot identifiers.
+    cols['shot_number'] = pd.Series(dtype='uint64')
 
     if join_columns and polygon_dtypes:
         for c in join_columns:
