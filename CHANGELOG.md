@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.16] - 2026-05-23
+
+### Fixed
+- `gh3driver.gh3_load`: Python API now accepts `region='region.shp'` (and bbox-strings / ISO3 codes) — the form advertised in the docstring example — instead of raising a confusing `TypeError: Array should be of object dtype` deep inside `shapely.STRtree.query`. Region is now normalized once at the top of `gh3_load()` via the CLI's `parse_region()`, so every downstream consumer (`intersect_h3_geometries`, the Dask clip path, `_load_dataset`) sees a list / GeoDataFrame / shapely geometry uniformly. Closes the Python/CLI parity gap.
+- `gh3driver.gh3_load_hex`: attach the `year` hive partition column from each file's path so the returned partition matches the synthetic Dask `_meta`. Regression from 0.10.15's `daf7d224`, which added `year` to the meta on the assumption that pyarrow reconstructs hive partition columns on read-back. That holds for *directory* reads or `pyarrow.dataset(partitioning='hive')`, but `gh3_load_hex` passes a *list* of files to `pd.read_parquet`, which does not. Every `gh3_load().head()` / `.compute()` previously raised `Missing: ['year']`. Fix reads each parquet file individually and assigns `year` from the `year=YYYY/` path segment; column order in `_meta_from_dtype_dict` re-ordered so `year` precedes `part_col` to match the data path.
+- `cli/gh3_from_polygon`, `cli/gh3_from_img`: `--merge` no longer leaves a 0-byte directory at the user's `-o` file path. Both CLIs were unconditionally calling `os.makedirs(args.output, exist_ok=True)` even when `args.output` was a *file* path (merge mode), so the subsequent `gh3_export → atomic_parquet_write` failed with `IsADirectoryError` on `os.replace(tmp_file, dir)`. The `makedirs` call is now scoped to the non-merge resume path that globs inside the output dir; `gh3_export` handles directory creation itself in both modes.
+- `imgutils._empty_sampling_result`, `vecutils._empty_join_result`, `vecutils._compute_join_meta`: declare `shot_number` as `uint64` (matching the on-disk dtype) instead of `int64`. The mismatched meta caused Dask to upcast the reconciled column to `float64` to unify int64-meta with uint64-data — and float64's ~15-significant-digit precision silently collapsed thousands of distinct 19-digit GEDI shot IDs onto the same float key. Any downstream `pd.merge(..., on='shot_number')` then produced a Cartesian blowup (e.g. 2.1 M shots → 44 M merged rows on an ES-wide bench) and joined GEDI variables to the wrong samples. **Critical data-correctness fix** for any analysis that joined `gh3_from_img` output to GEDI variables.
+
 ## [0.10.15] - 2026-05-23
 
 ### Fixed
