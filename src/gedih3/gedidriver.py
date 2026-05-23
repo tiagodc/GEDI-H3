@@ -693,11 +693,14 @@ def _validate_h5_columns(columns: List[str]) -> List[str]:
 
     if 'rxwaveform' in columns:
         columns += ['noise_mean_corrected', 'rx_sample_start_index', 'rx_sample_count']
-        columns = list(set(columns))
+        # dict.fromkeys preserves insertion order; list(set(...)) is hash-seed
+        # dependent and produced different orders per worker process, breaking
+        # the driver-derived canonical schema for L1B builds.
+        columns = list(dict.fromkeys(columns))
 
     if 'txwaveform' in columns:
         columns += ['noise_mean_corrected', 'tx_sample_start_index', 'tx_sample_count']
-        columns = list(set(columns))
+        columns = list(dict.fromkeys(columns))
 
     return columns
 
