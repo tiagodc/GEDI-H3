@@ -329,8 +329,15 @@ def main():
             if partition_col:
                 logger.info(f"  Partition column: {partition_col}")
 
-            # Resume: filter out existing partitions
-            os.makedirs(args.output, exist_ok=True)
+            # Resume: filter out existing partitions.
+            # NOTE: unconditional makedirs(args.output) would turn the merge
+            # target (a file path) into a directory, and the subsequent
+            # gh3_export.atomic_parquet_write would fail with IsADirectoryError
+            # on os.replace(tmp, output). gh3_export handles directory creation
+            # itself for both modes, so we only need to ensure the dir exists
+            # here in the non-merge resume path that globs inside it.
+            if not args.merge:
+                os.makedirs(args.output, exist_ok=True)
             if args.resume:
                 existing = glob.glob(os.path.join(args.output, f'*.{args.format}'))
                 if existing:
