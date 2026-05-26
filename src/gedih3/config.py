@@ -34,6 +34,58 @@ def _get_versioned(version_dict, version=None):
         return version_dict[available[-1]]
     return version_dict[min(version_dict)]
 
+def _resolve_identifier(value, version, *, product, field):
+    """Resolve a product short_name/DOI for a requested version.
+
+    LPDAAC products store ``value`` as a plain string (version-agnostic) and
+    pass through. ORNL DAAC products store ``value`` as a ``{version: str}``
+    mapping because the release ID is encoded into the identifier itself.
+
+    Resolution for dict-shaped values:
+      1. Exact match on the requested version.
+      2. Major-version match (e.g. ``2`` → entry keyed ``2.1``).
+      3. Raise ``ValueError`` — never silently substitute an older release.
+
+    Parameters
+    ----------
+    value : str or dict
+        The ``short_name`` or ``doi`` field from a GEDI_PRODUCTS entry.
+    version : int, float, str, or None
+        Requested data version. ``None`` resolves to the product's default
+        version (handled by the caller before calling this helper).
+    product : str
+        Product code, used only for the error message.
+    field : str
+        Field name (``'short_name'`` or ``'doi'``), used only for the error.
+
+    Returns
+    -------
+    str
+        The resolved identifier.
+    """
+    if isinstance(value, str):
+        return value
+    if not isinstance(value, dict):
+        raise TypeError(f"GEDI_PRODUCTS[{product!r}][{field!r}] must be str or dict, got {type(value).__name__}")
+    try:
+        v = float(version)
+    except (TypeError, ValueError):
+        raise ValueError(f"Cannot resolve {field} for {product}: version={version!r} is not numeric")
+    if v in value:
+        return value[v]
+    int_v = int(v)
+    # Major-version match: prefer the lowest minor under the same major
+    # (e.g. v=2 should pick 2.0 over 2.1; v=3 should pick 3.0 over 3.5).
+    candidates = sorted(k for k in value if int(float(k)) == int_v)
+    if candidates:
+        return value[candidates[0]]
+    available = sorted(value)
+    raise ValueError(
+        f"No {field} registered for {product} v{version}; available versions: {available}. "
+        f"If a new release has been published, add it to GEDI_PRODUCTS[{product!r}][{field!r}]."
+    )
+
+
 ISO3_COUNTRIES_URL = "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/country_shapes/exports/geojson/"
 
 # Default download directories
@@ -170,8 +222,10 @@ GEDI_PRODUCTS = {
     #     'description': 'Gridded land surface metrics'
     # },
     'L4A': {
-        'short_name': 'GEDI_L4A_AGB_Density_V2_1_2056',
-        'doi': '10.3334/ORNLDAAC/2056',
+        # ORNL DAAC short_names and DOIs encode the release ID, so they are
+        # version-pinned. Resolve per requested version via _resolve_identifier().
+        'short_name': {2.1: 'GEDI_L4A_AGB_Density_V2_1_2056'},
+        'doi':        {2.1: '10.3334/ORNLDAAC/2056'},
         'daac': 'ORNLDAAC',
         'version': 2.1,
         'format': '.h5',
@@ -186,8 +240,9 @@ GEDI_PRODUCTS = {
     #     'description': 'Gridded aboveground biomass'
     # },
     'L4C': {
-        'short_name': 'GEDI_L4C_WSCI_2338',
-        'doi': '10.3334/ORNLDAAC/2338',
+        # See L4A note re: ORNL DAAC version-pinned identifiers.
+        'short_name': {2: 'GEDI_L4C_WSCI_2338'},
+        'doi':        {2: '10.3334/ORNLDAAC/2338'},
         'daac': 'ORNLDAAC',
         'version': 2,
         'format': '.h5',
