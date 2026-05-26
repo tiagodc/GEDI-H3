@@ -19,7 +19,7 @@ Examples
 >>> gedih3.raster.h3_to_raster(agg_gdf)
 """
 
-__version__ = "0.10.16"
+__version__ = "0.10.17"
 __author__ = "Tiago de Conto and Amelia Grace Holcomb"
 __email__ = "tiagodc@umd.edu"
 __copyright__ = "(C) 2026, University of Maryland. All Rights Reserved."
