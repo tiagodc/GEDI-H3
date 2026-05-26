@@ -15,7 +15,7 @@ from pqdm.processes import pqdm
 from dask.distributed import progress
 
 # Import configuration variables
-from .config import GH3_DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS
+from .config import GH3_DEFAULT_DOWNLOAD_DIR, GEDI_PRODUCTS, _resolve_identifier
 from .utils import get_dask_client, read_vector_file, geo_to_umm, parse_temporal, h5_is_valid
 from .gedidriver import GEDIFile, gedi_subset, gedi_vars_expand, gedi_vars_from_h5
 from .exceptions import (
@@ -120,7 +120,13 @@ def gedi_list_versions(product: str) -> List[dict]:
         raise GediProductError(f"Product must be one of: {list(GEDI_PRODUCTS.keys())}")
 
     short_name = GEDI_PRODUCTS[product]['short_name']
-    collections = earthaccess.search_datasets(short_name=short_name)
+    # LPDAAC short_names are version-agnostic strings; ORNL DAAC short_names
+    # are version-pinned and stored as {version: short_name} dicts — query
+    # each registered short_name and union the results.
+    short_names = list(short_name.values()) if isinstance(short_name, dict) else [short_name]
+    collections = []
+    for sn in short_names:
+        collections.extend(earthaccess.search_datasets(short_name=sn))
     versions = []
     for c in collections:
         umm = c.get('umm', {})
@@ -324,19 +330,38 @@ class GEDIAccessor:
                 raise GediProductError(f"Product must be one of: {list(GEDI_PRODUCTS.keys())}")
 
             self.product = GEDI_PRODUCTS[product.upper()]
+            product_upper = product.upper()
+
+            # Default to the product's registered version when caller didn't
+            # pass one, so per-version short_name/doi resolution always has a
+            # numeric input (matches the prior implicit default from the field).
+            resolved_version = version if version is not None else self.product.get('version')
 
             # Prefer short_name + version over DOI
             if 'short_name' in self.product:
-                search_params['short_name'] = self.product['short_name']
-                if version is not None:
-                    # LPDAAC uses zero-padded versions (e.g., '002'), ORNLDAAC uses plain strings (e.g., '2', '2.1')
+                raw_short_name = self.product['short_name']
+                search_params['short_name'] = _resolve_identifier(
+                    raw_short_name, resolved_version,
+                    product=product_upper, field='short_name',
+                )
+                # Only attach an explicit CMR `version` filter for products
+                # whose short_name is version-agnostic (LPDAAC). For ORNL DAAC
+                # the short_name is version-pinned (e.g. `..._V2_1_2056`) and
+                # an additional `version=` filter only invites a contradiction
+                # → 0 results → DOI fallback warning. The resolved short_name
+                # is sufficient.
+                if version is not None and not isinstance(raw_short_name, dict):
+                    # LPDAAC uses zero-padded versions (e.g., '002')
                     if self.product.get('daac') == 'LPDAAC':
                         search_params['version'] = f'{int(version):03d}'
                     else:
                         search_params['version'] = str(version)
             else:
                 # Fallback to DOI
-                search_params['doi'] = self.product['doi']
+                search_params['doi'] = _resolve_identifier(
+                    self.product['doi'], resolved_version,
+                    product=product_upper, field='doi',
+                )
         else:
             self.product = None
 
@@ -359,15 +384,26 @@ class GEDIAccessor:
 
         # DOI fallback: if short_name search returned 0 results, retry with DOI
         if len(self.granules) == 0 and self.product is not None and 'short_name' in search_params and 'doi' in self.product:
-            dropped = [k for k in ('short_name', 'version') if k in search_params]
-            logger.warning(
-                f"No granules found for short_name={search_params.get('short_name')!r}"
-                f" version={search_params.get('version')!r}; dropping {dropped} and"
-                f" retrying with DOI {self.product['doi']} (search will broaden across all versions)"
-            )
-            fallback_params = {k: v for k, v in search_params.items() if k not in ('short_name', 'version')}
-            fallback_params['doi'] = self.product['doi']
-            self.granules = earthaccess.search_data(**fallback_params)
+            try:
+                fallback_doi = _resolve_identifier(
+                    self.product['doi'], resolved_version,
+                    product=product.upper(), field='doi',
+                )
+            except ValueError as exc:
+                logger.warning(
+                    f"No granules found for short_name={search_params.get('short_name')!r}"
+                    f" version={search_params.get('version')!r}; cannot apply DOI fallback: {exc}"
+                )
+            else:
+                dropped = [k for k in ('short_name', 'version') if k in search_params]
+                logger.warning(
+                    f"No granules found for short_name={search_params.get('short_name')!r}"
+                    f" version={search_params.get('version')!r}; dropping {dropped} and"
+                    f" retrying with DOI {fallback_doi} (search will broaden across all versions)"
+                )
+                fallback_params = {k: v for k, v in search_params.items() if k not in ('short_name', 'version')}
+                fallback_params['doi'] = fallback_doi
+                self.granules = earthaccess.search_data(**fallback_params)
 
         product_key = product.upper() if product is not None else 'CUSTOM'
         self.product_files[product_key] = self.granules
