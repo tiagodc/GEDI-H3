@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.17] - 2026-05-26
+
+### Fixed
+- `daac.py`: convert ORNL DAAC L4A and L4C `short_name` / `doi` to version-keyed `{version: identifier}` dicts and resolve them per request via a new `config._resolve_identifier` helper. The ORNL short_names encode the release ID (e.g. `GEDI_L4A_AGB_Density_V2_1_2056`), so a v3 request used to silently send a v2.1-pinned short_name to CMR — `gedi_list_versions` now iterates over every registered short_name and `GEDIAccessor.search_data` raises a clear `ValueError` listing available versions when a requested version has no registered identifier (no silent older-version substitution). Future releases need only an extra dict entry to wire up.
+- `daac.GEDIAccessor.search_data`: omit the explicit CMR `version=` filter for ORNL DAAC products. The version-pinned short_name uniquely identifies the release, and an extra `version=` filter (e.g. `version='2'` against a `..._V2_1_2056` short_name) only invited a contradiction → 0 results → DOI-fallback warning. LPDAAC products keep their version-agnostic short_names and zero-padded `version='002'`-style filter.
+- `tests/test_unit_gedih3.py::test_meta_from_dtype_dict_projection`: align expected column order with the production `year`-before-`part_col` ordering introduced in 0.10.16.
+
 ## [0.10.16] - 2026-05-23
 
 ### Fixed
