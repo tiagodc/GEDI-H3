@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.18] - 2026-05-27
+
+### Fixed
+- `gh3driver.egi_aggregate`: callable aggregations no longer crash with `AttributeError: 'DataFrame' object has no attribute 'shot_number'` (or any other non-numeric input column), and the resulting Dask DataFrame now advertises the callable's *actual* output schema instead of echoing input column names. Both EGI aggregate paths (`_egi_aggregate_from_indexed` direct-load and `local_egi_aggregate` shuffle) used to route through `get_aggregatable_columns()` regardless of `agg` type, stripping `shot_number` / quality flags / geometry before the user's callable ran. The shared `_build_agg_meta` helper also returned `meta_cols = cols` for callables — wrong whenever the callable produces stats unrelated to input columns (e.g. validators returning `shot_count`, `*_mean`, `*_p98`). All three sites now mirror the H3 path (`gh3_aggregate_func`): callables / dicts pass every column through, `_build_agg_meta` invokes the callable on an empty `_meta` slice (forwarding agg kwargs) to capture the real output schema, and empty-partition branches invoke the callable directly on an empty frame so Dask's `apply_and_enforce` meta check passes.
+
 ## [0.10.17] - 2026-05-26
 
 ### Fixed
