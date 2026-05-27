@@ -2318,7 +2318,7 @@ def egi_add_geometry(df, polygons=True):
     return egi.egi_to_geo(df, polygons=polygons)
 
 
-def _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi'):
+def _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi', **agg_kwargs):
     """
     Build metadata for aggregation result.
 
@@ -2334,6 +2334,8 @@ def _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi'):
         Columns being aggregated
     index_type : str
         'egi' or 'h3'
+    **agg_kwargs
+        Extra kwargs forwarded to the aggregation callable when inferring meta.
 
     Returns
     -------
@@ -2344,18 +2346,38 @@ def _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi'):
 
     if index_type == 'egi':
         idx_col = egi.egi_col_name(target_level)
+        idx_dtype = np.uint64
     else:
         idx_col = f'h3_{target_level:02d}'
+        idx_dtype = str
 
-    # Get sample columns
     sample = gh3_df._meta
+
+    # Callable agg: the output schema is whatever the callable returns and
+    # generally unrelated to the input column names. Invoke it on an empty
+    # sample to infer the true result columns (mirrors gh3_aggregate_func's
+    # H3 path at gh3driver.py:419-434).
+    if callable(agg):
+        if columns is not None:
+            sample_cols = [c for c in columns if c in sample.columns]
+            sample_input = sample[sample_cols].iloc[0:0].copy() if sample_cols else sample.iloc[0:0].copy()
+        else:
+            sample_input = sample.iloc[0:0].copy()
+        try:
+            result = agg(sample_input, **agg_kwargs)
+            _meta = result.iloc[0:0].copy() if hasattr(result, 'iloc') else pd.DataFrame()
+        except Exception:
+            # Fallback: keep legacy behavior of echoing input column names.
+            _meta = pd.DataFrame(columns=list(sample_input.columns), dtype=float)
+        _meta.index = pd.Index([], dtype=idx_dtype, name=idx_col)
+        return _meta
+
     if columns is not None:
         cols = [c for c in columns if c in sample.columns]
     else:
         # Filter out internal columns (h3_XX, egiXX, _egi_x, _egi_y, shot_number, geometry)
         cols = get_aggregatable_columns(sample)
 
-    # Build metadata with aggregated column names
     def _agg_name(func):
         """Get the name pandas uses for an aggregation function."""
         return func.__name__ if callable(func) else str(func)
@@ -2369,7 +2391,7 @@ def _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi'):
         meta_cols = cols
 
     _meta = pd.DataFrame(columns=meta_cols, dtype=float)
-    _meta.index = pd.Index([], dtype=np.uint64 if index_type == 'egi' else str, name=idx_col)
+    _meta.index = pd.Index([], dtype=idx_dtype, name=idx_col)
     return _meta
 
 
@@ -2426,6 +2448,18 @@ def _egi_aggregate_from_indexed(gh3_df, target_level, partition_level, agg,
         from gedih3.egi.core import to_parent as _to_parent
 
         if len(df) == 0:
+            # Empty partition: pandas groupby.apply on empty input skips the
+            # callable and echoes input columns, breaking dask's _meta check.
+            # Invoke the callable directly on an empty frame to get the right
+            # output schema (mirrors gh3_aggregate_func at gh3driver.py:419-434).
+            if callable(agg):
+                try:
+                    out = agg(df.iloc[0:0].copy(), **agg_kwargs)
+                    out = out.iloc[0:0].copy() if hasattr(out, 'iloc') else pd.DataFrame()
+                    out.index = pd.Index([], dtype=np.uint64, name=egi_col)
+                    return out
+                except Exception:
+                    pass
             return pd.DataFrame(index=pd.Index([], dtype=np.uint64, name=egi_col))
 
         # If input level != target level, coarsen index
@@ -2443,6 +2477,9 @@ def _egi_aggregate_from_indexed(gh3_df, target_level, partition_level, agg,
             agg_cols = [c for c in columns if c in df.columns]
             if agg_cols:
                 df = df[agg_cols]
+        elif callable(agg) or isinstance(agg, dict):
+            # Callables / dicts manage column selection themselves — pass everything.
+            pass
         else:
             filtered_cols = get_aggregatable_columns(df)
             if filtered_cols:
@@ -2463,7 +2500,7 @@ def _egi_aggregate_from_indexed(gh3_df, target_level, partition_level, agg,
         return result
 
     # Build metadata for result
-    _agg_meta = _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi')
+    _agg_meta = _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi', **kwargs)
 
     agg_df = gh3_df.map_partitions(
         local_aggregate,
@@ -2596,7 +2633,17 @@ def egi_aggregate(gh3_df, target_level=6, agg='mean', columns=None, query=None,
         from gedih3.egi.core import to_hash as _to_hash
 
         if len(df) == 0:
-            # Return empty DataFrame with correct structure
+            # Empty partition: invoke callable on empty input to capture the
+            # true output schema; otherwise return a bare empty frame.
+            if callable(agg):
+                empty = df.drop(columns=['_egi_x', '_egi_y'], errors='ignore').iloc[0:0].copy()
+                try:
+                    out = agg(empty, **agg_kwargs)
+                    out = out.iloc[0:0].copy() if hasattr(out, 'iloc') else pd.DataFrame()
+                    out.index = pd.Index([], dtype=np.uint64, name=egi_col)
+                    return out
+                except Exception:
+                    pass
             return pd.DataFrame(index=pd.Index([], dtype=np.uint64, name=egi_col))
 
         # Reset index to get outer tile as column (we don't need it anymore)
@@ -2618,6 +2665,9 @@ def egi_aggregate(gh3_df, target_level=6, agg='mean', columns=None, query=None,
             agg_cols = [c for c in columns if c in df.columns]
             if agg_cols:
                 df = df[agg_cols]
+        elif callable(agg) or isinstance(agg, dict):
+            # Callables / dicts manage column selection themselves — pass everything.
+            pass
         else:
             # Filter out internal columns (h3_XX, egiXX, _egi_x, _egi_y, shot_number, geometry)
             filtered_cols = get_aggregatable_columns(df)
@@ -2639,7 +2689,7 @@ def egi_aggregate(gh3_df, target_level=6, agg='mean', columns=None, query=None,
         return result
 
     # Build metadata for result
-    _agg_meta = _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi')
+    _agg_meta = _build_agg_meta(gh3_df, target_level, agg, columns, index_type='egi', **kwargs)
 
     agg_df = shuffled.map_partitions(
         local_egi_aggregate,
