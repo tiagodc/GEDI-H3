@@ -340,10 +340,24 @@ class GEDIAccessor:
             # Prefer short_name + version over DOI
             if 'short_name' in self.product:
                 raw_short_name = self.product['short_name']
-                search_params['short_name'] = _resolve_identifier(
-                    raw_short_name, resolved_version,
-                    product=product_upper, field='short_name',
-                )
+                try:
+                    search_params['short_name'] = _resolve_identifier(
+                        raw_short_name, resolved_version,
+                        product=product_upper, field='short_name',
+                    )
+                except ValueError as exc:
+                    # Unregistered version on a version-pinned short_name dict
+                    # (ORNL DAAC L4A/L4C). Treat as "no data available yet"
+                    # instead of crashing downstream callers — mirrors the
+                    # LPDAAC behavior where an unknown version just returns
+                    # zero CMR results.
+                    logger.warning(
+                        f"{exc} Returning empty granule list."
+                    )
+                    self.granules = []
+                    self.search_params = search_params
+                    self.product_files[product_upper] = self.granules
+                    return self.granules
                 # Only attach an explicit CMR `version` filter for products
                 # whose short_name is version-agnostic (LPDAAC). For ORNL DAAC
                 # the short_name is version-pinned (e.g. `..._V2_1_2056`) and
@@ -358,10 +372,19 @@ class GEDIAccessor:
                         search_params['version'] = str(version)
             else:
                 # Fallback to DOI
-                search_params['doi'] = _resolve_identifier(
-                    self.product['doi'], resolved_version,
-                    product=product_upper, field='doi',
-                )
+                try:
+                    search_params['doi'] = _resolve_identifier(
+                        self.product['doi'], resolved_version,
+                        product=product_upper, field='doi',
+                    )
+                except ValueError as exc:
+                    logger.warning(
+                        f"{exc} Returning empty granule list."
+                    )
+                    self.granules = []
+                    self.search_params = search_params
+                    self.product_files[product_upper] = self.granules
+                    return self.granules
         else:
             self.product = None
 
