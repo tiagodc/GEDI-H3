@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.19] - 2026-05-27
+
+### Fixed
+- `daac.GEDIAccessor.search_data`: querying an unregistered version on a version-pinned ORNL DAAC product (e.g. L4A v3, L4C v3 before release) now logs a warning and returns an empty granule list instead of raising `ValueError`. Mirrors the LPDAAC behavior where an unknown version just returns zero CMR results, so downstream scripts see consistent "no data available" semantics across DAACs.
+
 ## [0.10.18] - 2026-05-27
 
 ### Fixed
