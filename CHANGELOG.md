@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.22] - 2026-05-28
+
+### Fixed
+- `gh3_build`: the resource-banner log line was labeled "System:" but reported `get_system_resources()` (always the local process), so on `--dask-scheduler` runs it implied the cluster's CPUs/RAM while actually showing only the driver host's. Renamed to "Driver host:" and split the disk readout with a separator so the line reads as "local host info | output disk", with cluster info covered separately one line down by the existing `Dask config` log.
+
 ## [0.10.21] - 2026-05-28
 
 ### Fixed
