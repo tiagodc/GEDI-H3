@@ -185,15 +185,25 @@ class SOCDownloadLogger:
         if dir is not None:
             self._PARENT_DIR = dir
 
-        if product_vars:
-            product_vars = gedi_vars_expand(product_vars, version=version)
-
         self.gedi_version = version
         self.s3_access = False
 
         self.log_file = os.path.join(self._PARENT_DIR, self._LOG_FILE_NAME)
         self.log_data = load_log_data(self.log_file)
         self.updating = False
+
+        # Resume-mode `default`/`minimal` expansion must target the
+        # existing DB's version, not the package fallback (v2). Otherwise
+        # `gh3_download -l4c default` against a v3 download tree expands
+        # against the v2 manifest and writes the wrong variable names.
+        # Peek the log before expansion so an absent `--gedi-version` CLI
+        # arg adopts the persisted version.
+        effective_version = version
+        if version is None and self.log_data:
+            effective_version = self.log_data.get('gedi_version', version)
+
+        if product_vars:
+            product_vars = gedi_vars_expand(product_vars, version=effective_version)
 
         if not self.log_data:
             self.product_vars = product_vars
@@ -416,11 +426,22 @@ class H3BuildLogger:
             )
         }
 
-        if product_vars:
-            product_vars = gedi_vars_expand(product_vars, version=version)
-
         self.log_file = os.path.join(self._PARENT_DIR, self._LOG_FILE_NAME)
         self.log_data = load_log_data(self.log_file)
+
+        # Resume-mode `default`/`minimal` expansion must target the
+        # existing DB's gedi_version, not the package fallback (v2).
+        # Otherwise `gh3_build -l4c default` against an existing v3 DB
+        # expands against the v2 manifest, requesting variable names that
+        # don't exist in the v3 h5 files and aborting at validation. Peek
+        # the log before expansion so an absent `--gedi-version` CLI arg
+        # adopts the persisted version.
+        effective_version = version
+        if version is None and self.log_data:
+            effective_version = self.log_data.get('gedi_version', version)
+
+        if product_vars:
+            product_vars = gedi_vars_expand(product_vars, version=effective_version)
         self.updating = False
         self.source_mode = source_mode
         self.build_start_time = datetime.now(timezone.utc)
