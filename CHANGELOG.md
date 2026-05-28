@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.25] - 2026-05-28
+
+### Fixed
+- `gh3builder._add_variables_to_year_file`: pre-reads `year_pf`'s `shot_number` column (cheap projection, ~1–10 MB) and passes it as `shots=` to every `load_h5` call. Previously each granule h5 was read in full (~5M shots × cols), and the subsequent left-join discarded >99% as non-matching — dominant memory consumer on continental cells touched by many granules (live build saw per-worker peaks of ~28 GB). `load_h5(shots=)` was always there: `_get_beams_to_load` derives the beam(s) from `shot_number` encoding and opens only those (often 2–4 of 8 = 2–4× h5 I/O reduction), and `_extract_beam_data` HDF5-indexes only the matching rows for every column. Right-side memory becomes `O(base_shots)` instead of `O(granule × beam × cells_per_granule)` — expected per-worker peak drops to ~1–3 GB for typical cells with proportional wall-time savings.
+- `utils.parquet_join_columns`: now takes an explicit `rows_per_group=100_000` (matching `parquet_merge_files`) and passes it to `ParquetWriter.write_table`, so updated year files have bounded, deterministic per-group sizes regardless of the base file's existing row-group shape.
+
 ## [0.10.24] - 2026-05-28
 
 ### Fixed
