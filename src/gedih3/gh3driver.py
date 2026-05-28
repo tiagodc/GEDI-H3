@@ -767,11 +767,117 @@ def _meta_from_dtype_dict(col_dtypes, *, columns=None, part_col=None, index_name
 
 _YEAR_HIVE_RE = re.compile(r'year=(\d{4})')
 
+# Sidecar parquet pattern: ``<base>.<prod>.sidecar.parquet``. Captures the
+# product slug so we can attribute each sidecar to a base file via
+# ``_SIDECAR_RE.sub('.parquet', sidecar_path)``. Matches the writer-side
+# constant ``gh3builder.VAR_SIDECAR_SUFFIX``; kept duplicated here as a
+# regex to avoid a circular import (builder imports driver utilities).
+_SIDECAR_RE = re.compile(r'\.([A-Za-z0-9]+)\.sidecar\.parquet$')
+
+
+def _classify_hex_files(files):
+    """Split a flat list of parquet files into (base_files, sidecars_by_base).
+
+    Bases are the canonical ``<cell>.<year>.0.parquet`` written by the merge
+    phase. Sidecars are per-product extensions written by the variable-add
+    path; each sidecar maps to exactly one base file via its filename.
+
+    Returns
+    -------
+    tuple
+        ``(base_files: list[str], sidecars_by_base: dict[str, list[str]])``
+    """
+    bases = []
+    sidecars_by_base = {}
+    for f in files:
+        fs = str(f)
+        if _SIDECAR_RE.search(fs):
+            base = _SIDECAR_RE.sub('.parquet', fs)
+            sidecars_by_base.setdefault(base, []).append(fs)
+        else:
+            bases.append(f)
+    return bases, sidecars_by_base
+
+
+def _join_sidecar(base_df, side_df, key='shot_number'):
+    """Left-join ``side_df`` columns onto ``base_df`` on ``key``.
+
+    Handles both code paths the loader produces — key as regular column
+    or key as the DataFrame index — without changing the base's shape
+    (left join: every base row is preserved; missing matches become NaN
+    in the new sidecar columns, matching the legacy
+    ``parquet_join_columns`` left-join semantics).
+    """
+    if key in base_df.columns:
+        return base_df.merge(side_df, on=key, how='left')
+    if base_df.index.name == key:
+        return base_df.merge(
+            side_df.set_index(key),
+            left_index=True, right_index=True, how='left',
+        )
+    # Key not accessible — return unchanged so the loader doesn't lose
+    # the base data. (Should be unreachable for properly-built databases.)
+    return base_df
+
 
 def gh3_load_hex(d, part_col=None, _storage_cfg=None, **kwargs):
+    """Load one H3 partition directory's worth of parquet data.
+
+    Sidecar-aware: per-product ``<base>.<prod>.sidecar.parquet`` files
+    written by the variable-update path are discovered alongside base
+    year files and joined in on ``shot_number`` at read time. The base
+    file is never rewritten by the update path — sidecars hold only
+    ``shot_number`` + the new product's columns, joined in here.
+
+    Column projection is split between base and sidecars: when the user
+    requests a subset that includes sidecar columns, the base read
+    projects to (requested base columns + ``shot_number`` for join),
+    and each sidecar is read with only its share of the requested
+    columns. Mixed layouts (some cells have sidecars, some embedded
+    columns from older runs) load consistently.
+    """
+    import pyarrow.parquet as pq
     _restore_storage_on_worker(_storage_cfg)
-    files = smart_glob(smart_join(d, '**/*.parquet'), recursive=True)
-    cols = kwargs.get('columns')
+    all_files = smart_glob(smart_join(d, '**/*.parquet'), recursive=True)
+    base_files, sidecars_by_base = _classify_hex_files(all_files)
+
+    # Schema-only peek of each sidecar — needed to decide which columns
+    # belong to which file when the user passes a `columns=` projection.
+    # Footer reads are cheap; we cache per call so each sidecar is opened
+    # at most once even when many year files share a (cell, prod) pattern.
+    sidecar_cols_by_path = {}
+    for sps in sidecars_by_base.values():
+        for sp in sps:
+            if sp in sidecar_cols_by_path:
+                continue
+            try:
+                names = pq.read_schema(sp).names
+            except Exception:
+                names = []
+            sidecar_cols_by_path[sp] = set(names) - {'shot_number'}
+
+    requested_cols = kwargs.get('columns')
+    if requested_cols is not None:
+        all_sidecar_cols = set().union(*sidecar_cols_by_path.values()) if sidecar_cols_by_path else set()
+        sidecar_requested = set(requested_cols) & all_sidecar_cols
+        base_requested = [c for c in requested_cols if c not in sidecar_requested]
+        # ``shot_number`` (any product-suffix variant) is the join key for
+        # sidecars — must be on the base side. Most builds always include
+        # at least one shot_number variant in the base, but if the caller
+        # asked for only sidecar columns we have to add it back.
+        if sidecar_requested and 'shot_number' not in base_requested:
+            base_requested.append('shot_number')
+        base_kwargs = {**kwargs, 'columns': base_requested or None}
+        per_sidecar_cols = {
+            sp: cols & sidecar_requested
+            for sp, cols in sidecar_cols_by_path.items()
+        }
+    else:
+        # No projection — read everything from base + all sidecar cols.
+        base_kwargs = kwargs
+        per_sidecar_cols = dict(sidecar_cols_by_path)
+
+    cols = base_kwargs.get('columns')
     use_geo = cols is None or 'geometry' in cols
 
     # Per-file read so we can attach the `year` hive partition column from
@@ -783,16 +889,35 @@ def gh3_load_hex(d, part_col=None, _storage_cfg=None, **kwargs):
     # every .compute(). Reading per file is the same I/O the list-read
     # would do internally; the only overhead is N small open() calls.
     parts = []
-    for f in files:
-        sub = _read_parquet_files([f], geo=use_geo, **kwargs)
+    for f in base_files:
+        fs = str(f)
+        sub = _read_parquet_files([f], geo=use_geo, **base_kwargs)
         if 'year' not in sub.columns and sub.index.name != 'year':
-            m = _YEAR_HIVE_RE.search(str(f))
+            m = _YEAR_HIVE_RE.search(fs)
             if m:
                 sub['year'] = np.int32(m.group(1))
+
+        # Sidecar merge: each per-product sidecar contributes its
+        # requested columns via a left-join on shot_number. Reads are
+        # bounded to the columns the caller actually needs.
+        for sp in sidecars_by_base.get(fs, []):
+            wanted = per_sidecar_cols.get(sp, set())
+            if not wanted:
+                continue
+            read_cols = ['shot_number'] + sorted(wanted)
+            try:
+                side_df = pd.read_parquet(sp, columns=read_cols)
+            except Exception:
+                # Bad sidecar — skip silently here; gh3_doctor surfaces
+                # corrupt parquets cluster-wide. Dropping a sidecar leaves
+                # NaN in its columns; better than failing the whole load.
+                continue
+            sub = _join_sidecar(sub, side_df, key='shot_number')
+
         parts.append(sub)
 
     if len(parts) == 0:
-        df = _read_parquet_files(files, geo=use_geo, **kwargs)
+        df = _read_parquet_files(base_files, geo=use_geo, **base_kwargs)
     elif len(parts) == 1:
         df = parts[0]
     else:
