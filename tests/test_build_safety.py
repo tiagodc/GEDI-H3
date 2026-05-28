@@ -196,75 +196,67 @@ class TestH3SkipColumn:
 
 
 class TestAddVariablesResume:
-    """Per-(cell, year) variable update worker — resume & skip checks."""
+    """Per-(cell, year) variable update workers — scan & join, scatter-free."""
 
     @staticmethod
     def _write_year_sidecar(year_pf, granules):
-        """Write a minimal per-year sidecar metadata JSON beside year_pf
-        with just the fields ``_add_variables_to_year_file`` reads."""
+        """Write a minimal per-year sidecar JSON beside year_pf."""
         meta_path = year_pf.replace('.parquet', '.metadata.json')
         with open(meta_path, 'w') as f:
             json.dump({'granules': granules}, f)
 
-    def test_skips_when_all_new_columns_already_present(self, tmp_dir):
-        """Year file already carries the new columns — worker short-circuits
-        before touching the sidecar or the SOC tree."""
-        from gedih3.gh3builder import _add_variables_to_year_file
+    # ---- Phase 1 scan worker ----
+
+    def test_scan_skips_when_all_new_columns_already_present(self, tmp_dir):
+        """Year file already carries the target columns → scan returns
+        None so the driver never schedules a join task for it."""
+        from gedih3.gh3builder import _scan_year_file_for_update
 
         _, pq_path = make_partition_dir(
             tmp_dir, n=20,
             extra_cols={'wsci_l4c': None},
         )
-        # No sidecar written — worker must not need it on the skip path.
-
-        mtime_before = os.path.getmtime(pq_path)
-        time.sleep(0.05)
-
-        # Empty all_soc would otherwise force an early "no granules" exit,
-        # so the skip-check is the ONLY thing protecting the file from a
-        # rewrite. Pass an obviously-bad value to prove we never reached
-        # the join path.
-        result = _add_variables_to_year_file(
-            pq_path,
-            new_product_vars={'L4C': ['wsci_l4c']},
-            all_soc='<must-not-be-accessed>',
-        )
-
-        assert result is None
-        assert os.path.getmtime(pq_path) == mtime_before
-
-    def test_missing_year_sidecar_returns_none(self, tmp_dir):
-        """No per-year sidecar → worker can't enumerate granules → no-op."""
-        from gedih3.gh3builder import _add_variables_to_year_file
-
-        _, pq_path = make_partition_dir(tmp_dir, n=10)
-        # Sidecar deliberately absent.
-
-        result = _add_variables_to_year_file(
-            pq_path,
-            new_product_vars={'L4C': ['wsci_l4c']},
-            all_soc={},
-        )
+        result = _scan_year_file_for_update(pq_path, ['wsci_l4c'])
         assert result is None
 
-    def test_no_granules_in_soc_tree_returns_none(self, tmp_dir):
-        """Sidecar lists granules but none are present in the broadcast
-        all_soc mapping — worker returns None without writing the file."""
-        from gedih3.gh3builder import _add_variables_to_year_file
+    def test_scan_returns_granule_list_when_columns_missing(self, tmp_dir):
+        """Year file is missing the target columns → scan reads the sidecar
+        and returns the granule list for driver-side path resolution."""
+        from gedih3.gh3builder import _scan_year_file_for_update
 
         _, pq_path = make_partition_dir(tmp_dir, n=10)
         self._write_year_sidecar(
             pq_path,
             granules=[{'orbit': 12345, 'granule': 1, 'track': 99999}],
         )
+        result = _scan_year_file_for_update(pq_path, ['wsci_l4c'])
+        assert result == [{'orbit': 12345, 'granule': 1, 'track': 99999}]
 
+    def test_scan_returns_none_when_sidecar_absent(self, tmp_dir):
+        """No per-year sidecar → scan returns None (no way to know which
+        granules contributed to this year file)."""
+        from gedih3.gh3builder import _scan_year_file_for_update
+
+        _, pq_path = make_partition_dir(tmp_dir, n=10)
+        # Sidecar deliberately absent.
+        result = _scan_year_file_for_update(pq_path, ['wsci_l4c'])
+        assert result is None
+
+    # ---- Phase 3 join worker ----
+
+    def test_join_returns_none_for_empty_h5_specs(self, tmp_dir):
+        """Driver passed no h5 paths → worker is a no-op (matches the
+        no-matching-granules path where soc lookup found nothing)."""
+        from gedih3.gh3builder import _add_variables_to_year_file
+
+        _, pq_path = make_partition_dir(tmp_dir, n=10)
         mtime_before = os.path.getmtime(pq_path)
         time.sleep(0.05)
 
         result = _add_variables_to_year_file(
             pq_path,
+            h5_specs=[],
             new_product_vars={'L4C': ['wsci_l4c']},
-            all_soc={},  # granule not present
         )
         assert result is None
         assert os.path.getmtime(pq_path) == mtime_before
