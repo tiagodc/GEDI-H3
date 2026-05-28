@@ -1260,6 +1260,31 @@ def parse_dask_args(args):
             dask_args['silence_logs'] = logging.CRITICAL
     return dask_args
 
+
+def format_dask_cluster_info(client) -> str:
+    """One-line summary of a live dask Client's cluster — workers, total threads, total RAM.
+
+    Use after `Client(...)` is up so that external --dask-scheduler connections
+    report the cluster's real shape instead of the local-cluster CLI defaults.
+    """
+    try:
+        info = client.scheduler_info()
+        workers = info.get('workers', {}) or {}
+        n_workers = len(workers)
+        total_threads = sum(int(w.get('nthreads', 0) or 0) for w in workers.values())
+        total_mem_bytes = sum(int(w.get('memory_limit', 0) or 0) for w in workers.values())
+        total_mem_gb = total_mem_bytes / (1024 ** 3) if total_mem_bytes else 0.0
+        per_worker_threads = (total_threads / n_workers) if n_workers else 0
+        per_worker_mem_gb = (total_mem_gb / n_workers) if n_workers else 0.0
+        return (
+            f"{n_workers} workers, {per_worker_threads:g} threads/worker, "
+            f"{per_worker_mem_gb:.1f} GB/worker "
+            f"(total: {total_threads} threads, {total_mem_gb:.1f} GB)"
+        )
+    except Exception as e:
+        return f"<unavailable: {e}>"
+
+
 def parse_region(region_str: Optional[str]):
     """Parse region argument into GeoDataFrame or bbox"""
     if region_str is None:

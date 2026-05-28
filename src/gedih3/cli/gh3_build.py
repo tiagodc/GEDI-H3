@@ -220,7 +220,7 @@ def main():
     import glob
     import warnings
     from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR
-    from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success
+    from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success, format_dask_cluster_info
     from gedih3.utils import get_system_resources
     from gedih3.gh3builder import build_h3db, download_soc, soc_file_tree, _reconcile_granules_from_disk, _merge_and_finalize
     from gedih3.gedidriver import GEDIFile, validate_soc_files, gedi_vars_expand
@@ -244,10 +244,10 @@ def main():
     if args.indir:
         args.indir = os.path.abspath(args.indir)
 
-    # Log detected resources and Dask configuration
+    # Log detected resources (Dask config is logged after Client connects so
+    # an external --dask-scheduler reports the cluster's actual workers/RAM).
     cpus, ram, storage = get_system_resources(disk_path=args.output)
     logger.info(f"System: {cpus} CPUs, {ram:.1f} GB RAM, {storage:.1f} GB free disk at {args.output}")
-    logger.info(f"Dask config: {args.cores} workers, {args.threads} threads/worker, {args.memory} GB/worker")
     if storage < 10:
         logger.warning(f"Low disk space ({storage:.1f} GB free) — build may fail writing parquet output")
 
@@ -375,6 +375,7 @@ def main():
 
             client.run(_suppress_pandas_perf_warnings)
 
+            logger.info(f"Dask config: {format_dask_cluster_info(client)}")
             logger.info(f"Dask dashboard available at: {client.dashboard_link}")
 
             # Validate/download SOC data when using local directory mode
