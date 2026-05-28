@@ -3130,7 +3130,14 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
         return None
 
     logger.info(f"SOC tree built ({len(all_soc)} orb_tracks); broadcasting to workers")
-    all_soc_future = client.scatter(all_soc, broadcast=True)
+    # CRITICAL: wrap in a single-element list so scatter ships the dict as ONE
+    # future. ``client.scatter(dict, broadcast=True)`` interprets the dict as
+    # a collection and returns ``{key: Future}`` — one future per orb_track.
+    # Passing that dict-of-futures as a ``client.map`` kwarg would register
+    # one dependency PER worker task PER orb_track (50k tasks × 73k entries
+    # = 3.7B scheduler edges) and hang the graph build for hours with idle
+    # workers. Single-future broadcast = one dependency per task.
+    all_soc_future = client.scatter([all_soc], broadcast=True)[0]
 
     # Phase 1: per-year-file parallel join
     from dask.distributed import as_completed as dask_as_completed
