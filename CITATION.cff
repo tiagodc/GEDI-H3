@@ -3,7 +3,7 @@ message: "If you use this software, please cite it as below."
 type: software
 title: "gedih3"
 abstract: "Access, index, and analyze NASA GEDI LiDAR data with H3 hexagonal spatial indexing and Dask-distributed processing."
-version: 0.10.23
+version: 0.10.24
 date-released: 2026-05-28
 license: LicenseRef-UMD-Source-Available-NonCommercial-1.0
 url: "https://github.com/tiagodc/GEDI-H3"
