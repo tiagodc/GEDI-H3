@@ -164,7 +164,7 @@ The following production-code mechanisms are verified by the test suite:
 | GEDI version check | `logger.py:H3BuildLogger.__init__()` | `test_data_integrity.py::TestVersionMismatch` |
 | NaN-only column warning | `utils.py:check_nan_only_columns()` | `test_data_integrity.py::TestNanOnlyColumns` |
 | Resume from FAILED/INTERRUPTED | `logger.py:H3BuildLogger` granule status tracking | `test_build_safety.py::TestResumeFromFailed` |
-| Variable update skip | `gh3builder.py:_add_variables_to_partition()` | `test_build_safety.py::TestAddVariablesResume` |
+| Variable update skip | `gh3builder.py:_add_variables_to_year_file()` | `test_build_safety.py::TestAddVariablesResume` |
 | Build log merge | `gh3builder.py:merge_build_logs()` | `test_merge_build_logs.py::TestMergeBuildLogs` |
 | H3/EGI level auto-detection | `cliutils.py:get_dataset_index_info()` | `test_data_integrity.py::TestGetDatasetIndexInfo` |
 | Structured exceptions | `exceptions.py` | `test_exceptions.py` |

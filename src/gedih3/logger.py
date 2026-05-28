@@ -44,7 +44,7 @@ def _products_from_columns(columns, active_products):
     """Return the subset of ``active_products`` whose suffix appears in ``columns``.
 
     A product P is considered present if any column ends with ``_<p>`` (the
-    suffix convention used by `_add_variables_to_partition` and `load_h5_merged`).
+    suffix convention used by `_add_variables_to_year_file` and `load_h5_merged`).
     """
     if not columns or not active_products:
         return set()
