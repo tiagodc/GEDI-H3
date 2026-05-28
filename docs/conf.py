@@ -5,7 +5,7 @@ import sys
 project = "gedih3"
 copyright = "2026, University of Maryland. All Rights Reserved"
 author = "Tiago de Conto and Amelia Grace Holcomb"
-release = "0.10.22"
+release = "0.10.23"
 
 # -- General configuration ---------------------------------------------------
 extensions = [

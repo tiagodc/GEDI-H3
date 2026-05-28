@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.23] - 2026-05-28
+
+### Fixed
+- `gh3builder._build_add_variables`: scatter-free driver for the variable-only update path, matching the established lesson in `tests/test_write_streaming.py::test_streaming_driver_completes_end_to_end` ("SCATTER-FREE DRIVER. Inlining is the correct pattern for this cluster topology."). Replaces the interim `client.scatter([all_soc], broadcast=True)[0]` design — even with the single-future wrap, `scatter(broadcast=True)` remains a known hang risk on tunneled / heterogeneous clusters, and the broadcast itself forces every worker to hold the full 73k-entry SOC tree in memory. New 4-phase flow: (1) parallel `_scan_year_file_for_update` returns the granule list per year file (or `None` for already-done / no-sidecar files — naturally resume-aware); (2) driver resolves h5 paths locally via `all_soc[orb_track][prod]` dict lookups; (3) parallel `_add_variables_to_year_file` receives **only the h5 paths it needs** inlined into its args (a few dozen tuples max per task); (4) parallel `h3_merge_metadata` for touched cells. Tiny per-task payloads, one scheduler dep per task, zero broadcast wait. Worker signature changed from `(year_pf, new_product_vars, all_soc, version)` to `(year_pf, h5_specs, new_product_vars, version)` where `h5_specs = [(prod, h5_path, var_list), ...]`. New `_scan_year_file_for_update` worker covers Phase 1.
+- `gh3_build`: fixes the second variable-update stall reported in the in-flight L4C build — after the SOC tree was built, `client.scatter(dict, broadcast=True)` returned 73k per-key futures which `client.map` then registered as 3.7B scheduler edges (50k tasks × 73k entries), hanging the graph build for hours with idle workers. This release's scatter-free design avoids the entire scatter dance.
+
 ## [0.10.22] - 2026-05-28
 
 ### Fixed
