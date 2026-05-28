@@ -3097,6 +3097,7 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     logger.info(f"Updating {len(h3_subdirs)} H3 partitions with new variables")
 
     from dask.distributed import as_completed as dask_as_completed
+    from tqdm import tqdm as tqdm_bar
 
     client = get_dask_client()
     futures = {
@@ -3107,21 +3108,28 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     updated_files = []
     skipped_count = 0
     failed_count = 0
-    for future in dask_as_completed(futures.keys()):
-        d = futures[future]
-        try:
-            result = future.result()
-            if result is not None:
-                updated_files.append(result)
-            else:
-                skipped_count += 1
-        except Exception as e:
-            failed_count += 1
-            logger.warning(f"Variable update failed for {os.path.basename(d.rstrip('/'))}: {e}")
+    pbar = tqdm_bar(total=len(h3_subdirs), desc="Updating partitions", unit="part")
+    try:
+        for future in dask_as_completed(futures.keys()):
+            d = futures[future]
+            try:
+                result = future.result()
+                if result is not None:
+                    updated_files.append(result)
+                else:
+                    skipped_count += 1
+            except Exception as e:
+                failed_count += 1
+                logger.warning(f"Variable update failed for {os.path.basename(d.rstrip('/'))}: {e}")
 
-        total = len(updated_files) + skipped_count + failed_count
-        if total % 20 == 0 or total == len(h3_subdirs):
-            logger.info(f"Variable update progress: {len(updated_files)} updated, {skipped_count} skipped / {len(h3_subdirs)} total")
+            pbar.update(1)
+            pbar.set_postfix(
+                updated=len(updated_files),
+                skipped=skipped_count,
+                failed=failed_count,
+            )
+    finally:
+        pbar.close()
 
     del futures
 
