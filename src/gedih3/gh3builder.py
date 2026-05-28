@@ -2922,51 +2922,50 @@ def _merge_and_finalize(
     return h3_files
 
 
-def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, version=None):
-    """Add new variables to a single H3 partition via shot_number join.
+def _add_variables_to_year_file(year_pf, new_product_vars, all_soc, version=None):
+    """Worker: add new variables to a single ``(cell, year)`` parquet file.
 
-    Reads only shot_number + new variables from source HDF5 files,
-    joins them into the existing partition parquet. Memory-efficient
-    via ``parquet_join_columns()`` which processes row-groups one at a time.
+    Per-(cell, year) granularity matches the fresh-build merge phase
+    (``h3_merge_files`` over ``<tmp>/h3_<p>=X/year=Y`` dirs) and avoids
+    the per-cell granularity's two pitfalls: (a) loading every year's
+    granules into a single in-memory ``new_vars_df``, and (b) the
+    per-cell skip check having to inspect every year file just to know
+    whether the whole partition can be short-circuited.
+
+    The granule list for this exact year file is read from the
+    per-year sidecar (``<cell>.<year>.0.metadata.json``) — already
+    pre-filtered to granules that contributed shots to this year, so
+    no date/filename parsing is needed in the worker.
+
+    ``all_soc`` is built ONCE on the driver and broadcast via
+    ``client.scatter`` — workers must never call ``soc_file_tree``
+    themselves, since that fans a ``walk_soc_parallel`` back to the
+    cluster and deadlocks when there are no free threads.
 
     Parameters
     ----------
-    h3_partition_dir : str
-        Path to an H3 partition directory (e.g., ``h3_03=abc123/``)
+    year_pf : str
+        Path to one ``<cell>/year=YYYY/<cell>.YYYY.0.parquet``.
     new_product_vars : dict
-        Product code → list of new variable names to add
-    soc_source : str, list, or None
-        Source for HDF5 files (directory, file list, or None for S3)
+        Product code → list of new variable names to add.
+    all_soc : dict
+        Pre-built ``orb_track → {prod: hdf5_path}`` mapping. Driver
+        builds and broadcasts; workers consume read-only.
     version : int or None
-        GEDI data version for S3 queries and local file filtering
+        GEDI data version (only used for downstream consistency; the
+        SOC tree was already version-filtered on the driver).
 
     Returns
     -------
     str or None
-        Path to the updated parquet file, or None if no update was needed
+        ``year_pf`` on a successful update; ``None`` when the file was
+        skipped (already has the new columns / no matching granules).
     """
     from .utils import parquet_join_columns
     import tempfile
 
-    # Find the merged metadata file
-    meta_files = glob.glob(os.path.join(h3_partition_dir, f'*{PARTITION_META_FILENAME}'))
-    if not meta_files:
-        return None
-
-    # Use the partition-level metadata (not year-level)
-    meta = json_read(meta_files[0])
-    granules = meta.get('granules', [])
-    if not granules:
-        return None
-
-    # Get existing parquet files in this partition
-    parquet_files = glob.glob(os.path.join(h3_partition_dir, '*', '*.parquet'))
-    if not parquet_files:
-        return None
-
-    # Early exit: check if new columns already exist in partition
-    first_schema = read_parquet_schema(parquet_files[0])
-    existing_cols = set(first_schema['column'].tolist())
+    # Compute target column set (with product suffix). Matches the
+    # naming convention enforced everywhere else in the build path.
     new_cols = set()
     for prod, var_list in new_product_vars.items():
         if var_list:
@@ -2976,42 +2975,39 @@ def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, 
                 for v in var_list
                 if v != 'shot_number'
             )
-    if new_cols and new_cols.issubset(existing_cols):
-        logger.debug(f"Partition already has new variables, skipping: {os.path.basename(h3_partition_dir)}")
+
+    # Per-file resume check (cheap footer-only read). If the file
+    # already carries every requested column we're done — a prior
+    # run completed this exact (cell, year).
+    if new_cols:
+        existing_cols = set(read_parquet_schema(year_pf)['column'].tolist())
+        if new_cols.issubset(existing_cols):
+            return None
+
+    # Per-year sidecar lists the granules that contributed to this year
+    # (h3_write_metadata writes it after every merge / variable join).
+    year_meta_path = year_pf.replace('.parquet', PARTITION_META_FILENAME)
+    if not os.path.exists(year_meta_path):
+        return None
+    meta = json_read(year_meta_path)
+    granules = meta.get('granules', [])
+    if not granules:
         return None
 
-    # Build the SOC file tree for locating source HDF5 files
-    if isinstance(soc_source, str):
-        glob_kwargs = {'version': version} if version is not None else None
-        all_soc = soc_file_tree(soc_source, to_list=False, glob_kwargs=glob_kwargs)
-    elif isinstance(soc_source, list):
-        all_soc = soc_file_tree(soc_source, to_list=False)
-    elif soc_source is None:
-        # For S3 mode, we need to download the specific granules
-        # This is handled by the caller providing a pre-built soc tree
-        return None
-    else:
-        return None
-
-    # Collect new variable data from source HDF5 files for each granule
+    # Pull (shot_number + new vars) from each granule's source h5.
     new_vars_list = []
     for gran in granules:
         orb_track = f"O{gran['orbit']:05d}_{gran['granule']:02d}_T{gran['track']:05d}"
         if orb_track not in all_soc:
-            logger.debug(f"Granule {orb_track} not found in SOC source, skipping")
             continue
-
         soc_files = all_soc[orb_track]
-
         for prod, var_list in new_product_vars.items():
             if prod not in soc_files or var_list is None:
                 continue
-
             try:
                 cols_to_read = ['shot_number'] + var_list
                 df = load_h5(soc_files[prod], columns=cols_to_read, include_source=False)
                 if df is not None and not df.empty:
-                    # Add product suffix to match normal build naming convention
                     suffix = f"_{prod.lower()}"
                     df = df.rename(columns=lambda x: x if x.endswith(suffix) else f"{x}{suffix}")
                     new_vars_list.append(df)
@@ -3021,107 +3017,153 @@ def _add_variables_to_partition(h3_partition_dir, new_product_vars, soc_source, 
     if not new_vars_list:
         return None
 
-    import pandas as pd
     # load_h5 returns DataFrames indexed by shot_number — preserve that index
     new_vars_df = pd.concat(new_vars_list)
     new_vars_df = new_vars_df[~new_vars_df.index.duplicated(keep='first')]
-    new_vars_df = new_vars_df.reset_index()  # shot_number becomes a regular column
+    new_vars_df = new_vars_df.reset_index()
 
-    # Write new vars to temp parquet
     tmp_file = None
-    updated_files = []
     try:
         with tempfile.NamedTemporaryFile(suffix='.parquet', delete=False) as tmp:
             tmp_file = tmp.name
         new_vars_df.to_parquet(tmp_file, engine='pyarrow', index=False)
         del new_vars_df
-
-        # Join into each year-level parquet file
-        for pf in parquet_files:
-            try:
-                parquet_join_columns([pf, tmp_file], pf, key_col='shot_number')
-                updated_files.append(pf)
-            except Exception as e:
-                logger.warning(f"Failed to join columns into {pf}: {e}")
+        # parquet_join_columns is atomic via .join.tmp + os.replace and
+        # filters out columns already present in year_pf, so re-running
+        # against a partially-updated year file never produces duplicate
+        # columns.
+        parquet_join_columns([year_pf, tmp_file], year_pf, key_col='shot_number')
     finally:
         if tmp_file and os.path.exists(tmp_file):
             os.unlink(tmp_file)
 
-    # Update partition metadata with new columns
-    if updated_files:
-        for pf in updated_files:
-            h3_write_metadata(pf)
-        h3_merge_metadata(h3_partition_dir)
-
-    return updated_files[0] if updated_files else None
+    # Per-year-file sidecar refresh (column list / dtypes / shot range).
+    # Per-cell aggregation runs as a separate Phase 2 on the driver.
+    h3_write_metadata(year_pf)
+    return year_pf
 
 
 def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None):
-    """Add new variables to existing H3 database partitions via shot_number join.
+    """Add new variables to an existing H3 database via shot_number join.
 
-    Reads only shot_number + new variables from source HDF5 files,
-    then joins into existing partition parquet files. No re-indexing needed.
+    Per-(cell, year) task granularity (mirrors the fresh-build merge
+    phase). SOC tree is built ONCE on the driver and broadcast to
+    workers via ``client.scatter`` — earlier per-task ``soc_file_tree``
+    calls would have to ``walk_soc_parallel`` from inside a worker,
+    fanning work back to the same cluster and deadlocking under any
+    workers-equal-threads cluster configuration.
+
+    Phase 1: per-year-file join (parallel)
+    Phase 2: per-cell metadata re-merge for cells whose year files
+             changed (parallel; aggregates the per-year sidecars
+             ``h3_write_metadata`` wrote into ``<cell>.metadata.json``)
 
     Parameters
     ----------
     h3_dir : str
-        Root directory of the H3 database
+        Root directory of the H3 database.
     new_product_vars : dict
-        Product code → list of new variable names to add
+        Product code → list of new variable names to add.
     soc_source : str, list, or None
-        Source for HDF5 files
+        Source for HDF5 files. ``None`` (S3 ETL mode) is not
+        supported on this path.
     version : int or None
-        GEDI data version for S3 queries and local file filtering
+        GEDI data version for the SOC tree's filename filter.
 
     Returns
     -------
     list of str or None
-        List of updated parquet file paths
+        Year-file paths updated this run, or None when nothing changed.
     """
     logger.info("Variable-only expansion detected: adding new columns via shot_number join")
 
-    # Direct-children scandir (one syscall) instead of glob — cheaper on
-    # large DBs even with the non-recursive pattern. Preserves the trailing
-    # '/' for downstream callers that expected glob's directory marker.
+    client = get_dask_client()
+
+    # Phase 0: enumerate (cell, year) units. Driver scandirs cell dirs;
+    # year-subdir listing is fanned across workers via client.map
+    # (same shape as the fresh-build merge enumeration).
     try:
-        h3_subdirs = sorted(
-            e.path + '/' for e in os.scandir(h3_dir)
+        h3_part_dirs = sorted(
+            e.path for e in os.scandir(h3_dir)
             if e.is_dir(follow_symlinks=False) and e.name.startswith('h3_')
         )
     except OSError:
-        h3_subdirs = []
-    if not h3_subdirs:
+        h3_part_dirs = []
+    if not h3_part_dirs:
         logger.info("No existing partitions to update")
         return None
 
-    logger.info(f"Updating {len(h3_subdirs)} H3 partitions with new variables")
+    year_lists = client.gather(
+        client.map(_list_year_subdirs, h3_part_dirs, pure=False)
+    )
 
+    year_files = []
+    year_file_to_cell = {}
+    for cell_dir, ydirs in zip(h3_part_dirs, year_lists):
+        for ydir in ydirs:
+            for pf in glob.glob(os.path.join(ydir, '*.parquet')):
+                year_files.append(pf)
+                year_file_to_cell[pf] = cell_dir
+    if not year_files:
+        logger.info("No (cell, year) parquet files found to update")
+        return None
+
+    logger.info(f"Updating {len(year_files)} (cell, year) parquet files across {len(h3_part_dirs)} cells")
+
+    # Build the SOC tree ONCE on the driver. soc_file_tree fans
+    # walk_soc_parallel across the cluster on its own (a single fan-out
+    # the workers don't compete with), then pivots into the
+    # orb_track → {prod: path} dict every worker will need.
+    if isinstance(soc_source, str):
+        glob_kwargs = {'version': version} if version is not None else None
+        all_soc = soc_file_tree(soc_source, to_list=False, glob_kwargs=glob_kwargs)
+    elif isinstance(soc_source, list):
+        all_soc = soc_file_tree(soc_source, to_list=False)
+    elif soc_source is None:
+        logger.warning("Variable-only update requires a local SOC source (no S3 ETL support on this path)")
+        return None
+    else:
+        return None
+
+    if not all_soc:
+        logger.warning("SOC tree is empty — nothing to join")
+        return None
+
+    logger.info(f"SOC tree built ({len(all_soc)} orb_tracks); broadcasting to workers")
+    all_soc_future = client.scatter(all_soc, broadcast=True)
+
+    # Phase 1: per-year-file parallel join
     from dask.distributed import as_completed as dask_as_completed
     from tqdm import tqdm as tqdm_bar
 
-    client = get_dask_client()
-    futures = {
-        client.submit(_add_variables_to_partition, d, new_product_vars, soc_source, version): d
-        for d in h3_subdirs
-    }
+    futures = client.map(
+        _add_variables_to_year_file,
+        year_files,
+        new_product_vars=new_product_vars,
+        all_soc=all_soc_future,
+        version=version,
+        pure=False,
+    )
+    fut_to_pf = dict(zip(futures, year_files))
 
     updated_files = []
+    touched_cells = set()
     skipped_count = 0
     failed_count = 0
-    pbar = tqdm_bar(total=len(h3_subdirs), desc="Updating partitions", unit="part")
+    pbar = tqdm_bar(total=len(year_files), desc="Updating year files", unit="file")
     try:
-        for future in dask_as_completed(futures.keys()):
-            d = futures[future]
+        for future in dask_as_completed(futures):
+            pf = fut_to_pf[future]
             try:
                 result = future.result()
                 if result is not None:
                     updated_files.append(result)
+                    touched_cells.add(year_file_to_cell[pf])
                 else:
                     skipped_count += 1
             except Exception as e:
                 failed_count += 1
-                logger.warning(f"Variable update failed for {os.path.basename(d.rstrip('/'))}: {e}")
-
+                logger.warning(f"Variable update failed for {os.path.relpath(pf, h3_dir)}: {e}")
             pbar.update(1)
             pbar.set_postfix(
                 updated=len(updated_files),
@@ -3131,12 +3173,31 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     finally:
         pbar.close()
 
-    del futures
-
     if failed_count > 0:
-        logger.error(f"{failed_count} partition variable updates failed. Re-run to retry.")
+        logger.error(f"{failed_count} year-file updates failed. Re-run to retry.")
 
-    logger.info(f"Updated {len(updated_files)}/{len(h3_subdirs)} partitions with new variables")
+    logger.info(
+        f"Updated {len(updated_files)}/{len(year_files)} year files "
+        f"(skipped={skipped_count}, failed={failed_count})"
+    )
+
+    # Phase 2: per-cell metadata aggregation for cells that changed.
+    # h3_merge_metadata reads each year's sidecar and rewrites the
+    # cell-level <cell>.metadata.json. Independent across cells so we
+    # fan it out the same way the year-file join was fanned out.
+    if touched_cells:
+        logger.info(f"Merging per-cell metadata for {len(touched_cells)} updated cells")
+        merge_futures = client.map(h3_merge_metadata, sorted(touched_cells), pure=False)
+        merge_pbar = tqdm_bar(total=len(touched_cells), desc="Merging cell metadata", unit="cell")
+        try:
+            for f in dask_as_completed(merge_futures):
+                try:
+                    f.result()
+                except Exception as e:
+                    logger.warning(f"Cell metadata merge failed: {e}")
+                merge_pbar.update(1)
+        finally:
+            merge_pbar.close()
 
     # Regenerate manifest
     generate_manifest(h3_dir, tree_shape='h3db')
