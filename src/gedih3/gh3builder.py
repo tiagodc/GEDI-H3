@@ -2998,13 +2998,34 @@ def _add_variables_to_year_file(year_pf, h5_specs, new_product_vars, version=Non
     if not h5_specs:
         return None
 
+    # Pre-read base shot_number set to bound the right side of the join.
+    # Without this, ``load_h5`` reads EVERY shot from every beam in each
+    # granule (~5M shots/granule) and the left-join later discards >99%
+    # as non-matching — for a continental cell touched by 10 granules
+    # that's ~2.8 GB of unnecessary right-side allocation, the dominant
+    # contributor to the ~28 GB per-worker peaks seen on the live build.
+    # ``load_h5(..., shots=)`` uses the array for two efficient filters:
+    # (a) ``_get_beams_to_load`` derives beams from shot_number encoding
+    # and opens ONLY the beams the shots came from (~4× h5 I/O reduction
+    # when a cell is hit by 2 of 8 beams), and (b) per beam,
+    # ``_extract_beam_data`` HDF5-indexes only the matching rows for
+    # every data column. Right-side size becomes O(base_shots) instead
+    # of O(granule × beam × cells_per_granule).
+    try:
+        base_shots = pd.read_parquet(year_pf, columns=['shot_number'])['shot_number'].to_numpy()
+    except Exception as e:
+        logger.warning(f"Could not read shot_number from {os.path.basename(year_pf)}: {e}")
+        return None
+    if base_shots.size == 0:
+        return None
+
     new_vars_list = []
     for prod, h5_path, var_list in h5_specs:
         if not var_list:
             continue
         try:
             cols_to_read = ['shot_number'] + var_list
-            df = load_h5(h5_path, columns=cols_to_read, include_source=False)
+            df = load_h5(h5_path, columns=cols_to_read, shots=base_shots, include_source=False)
             if df is not None and not df.empty:
                 suffix = f"_{prod.lower()}"
                 df = df.rename(columns=lambda x: x if x.endswith(suffix) else f"{x}{suffix}")

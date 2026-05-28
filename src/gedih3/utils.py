@@ -1614,7 +1614,8 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
     return stats
 
 def parquet_join_columns(flist: List[str], ofile: str, key_col: str = 'shot_number',
-                         tmp_suffix: str = '.join.tmp', join_how='left'):
+                         tmp_suffix: str = '.join.tmp', join_how='left',
+                         rows_per_group: int = 100_000):
     """
     Memory-efficient column-wise join of parquet files. Equivalent to pd.concat(axis=1)
     but processes in batches to avoid loading entire files into memory.
@@ -1627,10 +1628,12 @@ def parquet_join_columns(flist: List[str], ofile: str, key_col: str = 'shot_numb
         Output file path.
     key_col : str, default='shot_number'
         Column for joining (not the index).
-    rm_src : bool, default=False
-        Remove source files after join.
-    rows_per_group : int, optional
-        Output row group size. Defaults to first file's row group size.
+    join_how : str, default='left'
+        Join mode passed to ``DataFrame.join``.
+    rows_per_group : int, default 100_000
+        Output row-group size. Matches the fresh-build ``parquet_merge_files``
+        default so updated files keep a bounded, deterministic per-group size
+        regardless of the base file's existing row-group shape.
     tmp_suffix : str, default='.join.tmp'
         Temporary file suffix.
     """
@@ -1705,7 +1708,8 @@ def parquet_join_columns(flist: List[str], ofile: str, key_col: str = 'shot_numb
             cols_to_select = [c for c in combined_schema.names if c in batch.columns]
             batch = batch[cols_to_select]
 
-            writer.write_table(pa.Table.from_pandas(batch, schema=combined_schema))
+            writer.write_table(pa.Table.from_pandas(batch, schema=combined_schema),
+                               row_group_size=rows_per_group)
 
     # Close file handle before atomic replace (required on Windows)
     base_file.close()
