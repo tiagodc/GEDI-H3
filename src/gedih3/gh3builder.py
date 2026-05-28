@@ -2926,23 +2926,35 @@ def _scan_year_file_for_update(year_pf, new_cols):
     """Worker: cheap footer + sidecar scan for one ``(cell, year)`` file.
 
     Returns the granule list when the file still needs the new columns,
-    ``None`` when it's already done or has no sidecar. The driver maps
-    this across every year file, then uses the returned granule lists
-    to inline the per-task h5 paths via the driver-side ``all_soc``
-    dict — no ``client.scatter`` needed (the fresh-build streaming
-    driver established that scatter-broadcast hangs on SSH-tunneled
-    clusters and the inlined-args pattern is the established fix).
+    ``None`` when it's already done / has no sidecar / hit a recoverable
+    read error (corrupt parquet footer, malformed sidecar JSON). The
+    driver maps this across every year file, then uses the returned
+    granule lists to inline the per-task h5 paths via the driver-side
+    ``all_soc`` dict — no ``client.scatter`` needed (the fresh-build
+    streaming driver established that scatter-broadcast hangs on
+    SSH-tunneled clusters and the inlined-args pattern is the
+    established fix).
+
+    Worker-side ``try/except`` swallows the recoverable errors so the
+    driver-side ``as_completed(..., with_results=True)`` collection
+    loop doesn't crash on a single corrupt fragment — matches the
+    pattern in ``s3_etl_subset`` (line 342) which collects ``None``
+    sentinels from failed workers and aggregates a single warning.
     """
-    new_cols = set(new_cols)
-    if new_cols:
-        existing_cols = set(read_parquet_schema(year_pf)['column'].tolist())
-        if new_cols.issubset(existing_cols):
+    try:
+        new_cols = set(new_cols)
+        if new_cols:
+            existing_cols = set(read_parquet_schema(year_pf)['column'].tolist())
+            if new_cols.issubset(existing_cols):
+                return None
+        year_meta_path = year_pf.replace('.parquet', PARTITION_META_FILENAME)
+        if not os.path.exists(year_meta_path):
             return None
-    year_meta_path = year_pf.replace('.parquet', PARTITION_META_FILENAME)
-    if not os.path.exists(year_meta_path):
+        meta = json_read(year_meta_path)
+        return meta.get('granules', []) or None
+    except Exception as e:
+        logger.warning(f"Scan failed for {os.path.basename(year_pf)}: {type(e).__name__}: {e}")
         return None
-    meta = json_read(year_meta_path)
-    return meta.get('granules', []) or None
 
 
 def _add_variables_to_year_file(year_pf, h5_specs, new_product_vars, version=None):
@@ -3145,6 +3157,17 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     # + ONE small JSON read and returns the granule list (or None when
     # already done / no sidecar). Tiny per-task arg (year_pf path +
     # small set of column names).
+    #
+    # Collection uses ``as_completed(..., with_results=True)`` so the
+    # task result rides along with the completion notification — ONE
+    # round-trip per batch instead of ONE PER TASK. With 50k+ tiny
+    # results, the previous per-future ``.result()`` pattern was
+    # ceiling-bound at ~86 collections/sec (~10 min just to drain the
+    # scheduler queue, even though all worker-side work was done in
+    # ~2 min). The fresh-build merge phase tolerates per-future
+    # ``.result()`` because per-task work is seconds-to-minutes, not
+    # milliseconds; this phase doesn't fit that regime. Same shape
+    # as ``s3_etl_subset`` (line 342) which established the pattern.
     logger.info("Scanning year files for resume state and granule lists")
     scan_futures = client.map(
         _scan_year_file_for_update,
@@ -3152,18 +3175,12 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
         new_cols=list(new_cols),
         pure=False,
     )
-    scan_results: List[Optional[list]] = []
-    scan_pbar = tqdm_bar(total=len(year_files), desc="Scanning year files", unit="file")
     fut_idx = {f: i for i, f in enumerate(scan_futures)}
     scan_buf: List[Any] = [None] * len(year_files)
+    scan_pbar = tqdm_bar(total=len(year_files), desc="Scanning year files", unit="file")
     try:
-        for fut in dask_as_completed(scan_futures):
-            i = fut_idx[fut]
-            try:
-                scan_buf[i] = fut.result()
-            except Exception as e:
-                logger.warning(f"Scan failed for {os.path.relpath(year_files[i], h3_dir)}: {e}")
-                scan_buf[i] = None
+        for fut, result in dask_as_completed(scan_futures, with_results=True):
+            scan_buf[fut_idx[fut]] = result
             scan_pbar.update(1)
     finally:
         scan_pbar.close()
