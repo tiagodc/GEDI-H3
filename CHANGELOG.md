@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.21] - 2026-05-28
+
+### Fixed
+- `gh3builder._build_add_variables`: variable-only update path now shards work per-`(cell, year)` (mirroring the fresh-build merge phase) instead of per-cell, and the SOC tree is built ONCE on the driver and broadcast to workers via `client.scatter(broadcast=True)`. The previous per-cell worker called `soc_file_tree` itself; after the SOC manifest read-removal that fans `walk_soc_parallel` back to the same cluster from inside a worker, deadlocking the phase under any workers-equal-threads config (symptom: progress bar stuck after the initial skip-only batch with zero CPU activity on the dashboard). Per-`(cell, year)` granularity also fixes the multi-year resume edge case where the per-partition skip check could inspect only `parquet_files[0]` and silently mask unfinished year files, and bounds per-task memory to one year's `new_vars_df`. A Phase 2 fans `client.map(h3_merge_metadata, touched_cells)` to re-aggregate the per-year sidecars only for cells whose year files changed. `_add_variables_to_partition` removed; `_add_variables_to_year_file` is the new worker.
+
 ## [0.10.20] - 2026-05-27
 
 ### Fixed
