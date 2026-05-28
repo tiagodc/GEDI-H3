@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.20] - 2026-05-27
+
+### Fixed
+- `gh3_build`: the "Dask config" log line now reads workers/threads/RAM from `client.scheduler_info()` after the Client connects, so runs with `--dask-scheduler` report the actual external cluster instead of the local-cluster CLI defaults. New `cliutils.format_dask_cluster_info()` helper.
+- `gedidriver.soc_file_tree` + `doctor.diagnoses.soc_health._enumerate_soc_files`: stop reading `_soc_manifest.txt`. External population paths (manual rsync, NASA delivery) bypass the producer-driven refresh and a stale manifest silently narrows every downstream scan. Both consumers now unconditionally fan a `walk_soc_parallel` year/doy scan across the registered dask Client. Producers still emit the manifest as an informational sidecar; CLAUDE.md updated to describe it as write-only.
+- `logger.H3BuildLogger` / `logger.SOCDownloadLogger`: peek the build/download log before expanding `default`/`minimal` variable lists so an absent `--gedi-version` CLI arg adopts the persisted `gedi_version`. Resolves the v2-manifest-on-a-v3-DB failure where `gh3_build -l4c default` against an existing v3 database expanded against the v2 manifest and aborted at validation.
+- `gh3builder._expand_variables_only`: wrap the `as_completed` partition-update stream in a tqdm progress bar (`Updating partitions`, with live `updated`/`skipped`/`failed` postfix), matching the existing merge-phase pattern. Replaces the every-20-partitions INFO line so 10k-partition updates don't go silent in the terminal.
+
 ## [0.10.19] - 2026-05-27
 
 ### Fixed
