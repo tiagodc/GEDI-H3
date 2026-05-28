@@ -10,10 +10,11 @@ Remedies (safe):
     not auto-applied (see ``--delete-invalid`` future flag).
 
 Performance pillar (v0.8.x lessons backport):
-  * SOC file enumeration uses :func:`soc_file_tree`, which prefers the
-    ``_soc_manifest.txt`` sentinel over a recursive glob (refreshed by
-    every ``gh3_download`` run). Eliminates the multi-million-file walk
-    over the SOC tree on every doctor invocation.
+  * SOC file enumeration always walks the tree in parallel via
+    :func:`gedih3.parallel.walk_soc_parallel`. The legacy
+    ``_soc_manifest.txt`` shortcut was removed from the read path
+    because external population (manual rsync, NASA delivery) bypasses
+    the producer-driven refresh and silently narrows the doctor's view.
   * Per-file ``h5_is_valid`` checks are dispatched in parallel via
     :func:`gedih3.doctor.parallel.parallel_map` when a dask client is
     registered.
@@ -47,23 +48,16 @@ def _check_h5_file(path: str) -> dict:
 def _enumerate_soc_files(soc_dir: str) -> list:
     """Return every ``GEDI*.h5`` path under *soc_dir*.
 
-    Prefers the ``_soc_manifest.txt`` sentinel (O(1) on the GPFS
-    metadata server) and falls back to a recursive glob on absence.
-    Critically, this returns the *full* file list — unlike
-    :func:`soc_file_tree(..., to_list=True)`, which pivots by orbit/
-    track and ``dropna()``s rows where any product is absent, silently
-    excluding partial-download granules from downstream scans.
+    Always walks the tree in parallel via the registered dask Client.
+    We intentionally do not consume ``_soc_manifest.txt`` here:
+    external population paths (manual rsync, NASA delivery) bypass the
+    producer-driven refresh and would leave the manifest stale relative
+    to disk, silently narrowing the doctor's view. Returns the *full*
+    file list — unlike :func:`soc_file_tree(..., to_list=True)`, which
+    pivots by orbit/track and ``dropna()``s rows where any product is
+    absent, silently excluding partial-download granules from
+    downstream scans.
     """
-    from ...gedidriver import _read_soc_manifest
-    manifest = _read_soc_manifest(soc_dir)
-    if manifest is not None:
-        return sorted(p for p in manifest
-                      if os.path.basename(p).startswith('GEDI')
-                      and p.endswith('.h5'))
-    # No manifest — fall back to a parallel year/doy walk. Serial
-    # recursive globs over multi-million-file SOC trees were the
-    # dominant pre-doctor cost; the parallel walker uses the dask
-    # Client already established by the doctor CLI.
     from ...parallel import walk_soc_parallel
     return walk_soc_parallel(soc_dir, pattern='GEDI*.h5')
 

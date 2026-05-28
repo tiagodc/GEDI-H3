@@ -197,20 +197,20 @@ def test_gedi_vars_static_returns_none_for_unknown_version():
     assert gedi_vars_static('L2A', version=99) is None
 
 
-def test_soc_file_tree_prefers_manifest_when_present(tmp_path):
-    """When ``_soc_manifest.txt`` is present at the SOC root,
-    soc_file_tree must read from it instead of recursive-globbing.
+def test_soc_file_tree_ignores_stale_manifest(tmp_path):
+    """``soc_file_tree`` must NOT trust ``_soc_manifest.txt`` — external
+    population paths (manual rsync, NASA delivery) bypass the
+    producer-driven refresh and a stale manifest would silently narrow
+    every downstream scan. The read path was removed; the canonical
+    discovery method is now an always-on parallel walk.
 
-    Crucially the marker must be a *paired* (L2A + L2B) granule so
-    that the live recursive-glob path would survive the
-    ``pivot_table().dropna()`` step inside ``soc_file_tree`` —
-    otherwise an L2A-only marker is silently dropped on either
-    code path, and the test passes vacuously without proving that
-    the manifest is actually preferred.
+    Setup: write a manifest that lists only one paired granule, then
+    drop a second paired granule on disk without refreshing the
+    manifest. The newly-dropped granule MUST appear in the result —
+    proving the walk wins over the (stale) manifest.
     """
     from gedih3.gedidriver import soc_file_tree, write_soc_manifest
     from gedih3.config import SOC_MANIFEST_FILENAME
-    # Two paired release files (granule with both L2A and L2B)
     for n in [
         'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
         'GEDI02_B_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
@@ -220,10 +220,9 @@ def test_soc_file_tree_prefers_manifest_when_present(tmp_path):
     assert n_written == 2
     assert (tmp_path / SOC_MANIFEST_FILENAME).exists()
 
-    # Drop a paired marker that the live recursive glob would discover
-    # AND that survives the pivot+dropna() inside soc_file_tree (both
-    # L2A and L2B for the same orbit/track). The manifest does NOT list
-    # it, so if soc_file_tree reads the manifest it must not appear.
+    # Drop a second paired granule WITHOUT refreshing the manifest
+    # (mimics an out-of-band rsync). The stale manifest does not list
+    # it; the always-on walk must still surface it.
     for n in [
         'GEDI02_A_2025001000000_O99999_99_T99999_99_999_99_V003.h5',
         'GEDI02_B_2025001000000_O99999_99_T99999_99_999_99_V003.h5',
@@ -231,9 +230,8 @@ def test_soc_file_tree_prefers_manifest_when_present(tmp_path):
         (tmp_path / n).touch()
     tree = soc_file_tree(str(tmp_path), to_list=True)
     seen = sorted(os.path.basename(v) for d in tree for v in d.values())
-    assert all('O99999' not in n for n in seen), \
-        "soc_file_tree should read the manifest, not the live SOC tree"
-    # Sanity: the manifest-listed pair IS visible.
+    assert any('O99999' in n for n in seen), \
+        "soc_file_tree must walk the live SOC tree, not the stale manifest"
     assert any('O01956' in n for n in seen), \
         "manifest-listed granule must still be discovered"
 

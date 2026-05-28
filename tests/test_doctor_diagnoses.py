@@ -515,10 +515,12 @@ def test_soc_health_enumerates_files_from_partial_product_orbits(tmp_dir):
     )
 
 
-def test_soc_health_enumeration_prefers_manifest(tmp_dir):
-    """When ``_soc_manifest.txt`` is present, the soc_health
-    enumerator must read from it (the O(1)-on-the-metadata-server
-    path) rather than recursive-globbing."""
+def test_soc_health_enumeration_ignores_stale_manifest(tmp_dir):
+    """``_enumerate_soc_files`` must NOT trust ``_soc_manifest.txt``.
+    External population paths (manual rsync, NASA delivery) bypass the
+    producer refresh and a stale manifest would silently hide
+    invalid/orphan h5 files from the doctor's scan. The enumerator
+    always walks the live tree."""
     from gedih3.doctor.diagnoses.soc_health import _enumerate_soc_files
     from gedih3.gedidriver import write_soc_manifest
 
@@ -534,16 +536,16 @@ def test_soc_health_enumeration_prefers_manifest(tmp_dir):
     n_written = write_soc_manifest(soc_dir)
     assert n_written == 2
 
-    # Drop a file NOT in the manifest. If the enumerator reads the
-    # manifest it must NOT appear; if it falls back to recursive glob
-    # it would.
+    # Drop a file NOT in the manifest (mimics an out-of-band rsync).
+    # The always-on walk must surface it; the stale manifest must NOT
+    # narrow the enumeration.
     extra = 'GEDI02_A_2025001000000_O99999_99_T99999_99_999_99_V003.h5'
     with open(os.path.join(soc_dir, extra), 'wb') as f:
         f.write(b'x')
 
     enumerated = sorted(os.path.basename(p)
                         for p in _enumerate_soc_files(soc_dir))
-    assert extra not in enumerated, (
-        "Manifest must be preferred over the live recursive glob"
+    assert extra in enumerated, (
+        "Enumerator must walk the live tree, not the stale manifest"
     )
-    assert sorted(listed_files) == enumerated
+    assert sorted(listed_files + [extra]) == enumerated
