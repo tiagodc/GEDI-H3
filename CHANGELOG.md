@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.24] - 2026-05-28
+
+### Fixed
+- `gh3builder._build_add_variables`: Phase 1 scan result collection now uses `dask.distributed.as_completed(..., with_results=True)` so each task result rides along with its completion notification — one round-trip per batch instead of one per future. The previous per-future `fut.result()` pattern (fine for fresh-build merge tasks which take seconds-to-minutes each) was ceiling-bound at ~86 collections/sec when applied to Phase 1's tiny millisecond-scale scan tasks, drawing out the driver-side drain to ~10 min even though all 50k worker-side scans finished in ~2 min. Matches the established pattern from `s3_etl_subset` (`gh3builder.py:342`). `_scan_year_file_for_update` wrapped in try/except so a corrupt parquet footer or malformed sidecar JSON returns `None` (with a worker-side warning) instead of crashing the `with_results=True` collection loop.
+
 ## [0.10.23] - 2026-05-28
 
 ### Fixed
