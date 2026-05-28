@@ -244,10 +244,13 @@ def main():
     if args.indir:
         args.indir = os.path.abspath(args.indir)
 
-    # Log detected resources (Dask config is logged after Client connects so
-    # an external --dask-scheduler reports the cluster's actual workers/RAM).
+    # Log detected resources. ``Driver host`` makes it explicit that the
+    # CPUs/RAM are local to this process — an external ``--dask-scheduler``
+    # cluster may live elsewhere. The cluster's actual workers/threads/RAM
+    # are reported separately by the ``Dask config`` line below, after the
+    # Client connects and we can query ``client.scheduler_info()``.
     cpus, ram, storage = get_system_resources(disk_path=args.output)
-    logger.info(f"System: {cpus} CPUs, {ram:.1f} GB RAM, {storage:.1f} GB free disk at {args.output}")
+    logger.info(f"Driver host: {cpus} CPUs, {ram:.1f} GB RAM | Disk: {storage:.1f} GB free at {args.output}")
     if storage < 10:
         logger.warning(f"Low disk space ({storage:.1f} GB free) — build may fail writing parquet output")
 
