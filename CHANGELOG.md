@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.27] - 2026-05-28
+
+### Fixed
+- `gh3builder.build_h3db`: both variable-only call sites of `_build_add_variables` (the S3 ETL path and the local SOC path) now forward `tmp_dir=tmp_dir`. The CLI's `-t/--tmpdir` arg flowed into `build_h3db`'s `tmp_dir` kwarg but stopped there — the variable-update intermediate fragments (`<tmp_dir>/var_fragments/<granule>__<prod>.parquet`) were always landing at `<h3_dir>/.tmp_var_update/` regardless of the user's requested tmp path. Two-line forward fix; in-flight builds are unaffected (fragments get cleaned up at Phase 5 regardless of location).
+
 ## [0.10.26] - 2026-05-28
 
 ### Changed
