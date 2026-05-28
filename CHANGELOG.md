@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.26] - 2026-05-28
+
+### Changed
+- **Variable-only update path rewritten as per-granule fan-out + per-(cell, year) sidecar merge.** The legacy `_add_variables_to_year_file` worker (per-(cell, year), opened each granule h5 once per cell that listed it ≈ 40× redundancy at continental scale, and rewrote the entire ~1.9 GB base file just to bolt on ~7 small columns) was the dominant cluster-throughput cap (~1.5 tasks/min, 20-29 day ETA on 5-worker continental builds). New 5-phase driver in `gh3builder._build_add_variables`: (1) parallel `_scan_year_file_for_update` — checks both base AND per-product sidecar so mixed layouts resume cleanly; (2) driver inverts to `{granule → [year_pf...]}`; (3a) `_write_granule_var_fragment` opens each granule h5 EXACTLY ONCE and writes a deterministic fragment to `<tmp_dir>/var_fragments/<granule_key>__<prod>.parquet` (resume-safe — existing non-empty fragments are reused); (3b) `_merge_year_sidecar` reads its base `shot_number` set (cheap projection — base file is NEVER rewritten), streams relevant fragments, filters, dedups, writes `<base>.<prod>.sidecar.parquet` atomically, and extends the per-year metadata JSON with sidecar columns + dtypes so `set_post_build_info` picks them up; (4) per-cell metadata aggregation; (5) fragment cleanup. Architecture matches the fresh-build streaming-driver's "scatter-free, inlined-args" contract.
+- `gh3driver.gh3_load_hex` now discovers per-product sidecar parquets via the `<base>.<prod>.sidecar.parquet` pattern (regex `_SIDECAR_RE`) and left-joins them onto the base on `shot_number` at read time. Column projection is split between base and sidecars so a query requesting only sidecar columns reads only `shot_number` from the base. Mixed layouts (cells with sidecars + cells with embedded cols from older runs) load correctly.
+
+### Removed
+- `gh3builder._add_variables_to_year_file` (legacy per-(cell, year) join worker that rewrote the base year file). Its replacement is the Phase 3a/3b pair (`_write_granule_var_fragment` + `_merge_year_sidecar`).
+
 ## [0.10.25] - 2026-05-28
 
 ### Fixed
