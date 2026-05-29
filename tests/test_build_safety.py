@@ -195,6 +195,70 @@ class TestH3SkipColumn:
         assert len(result) == 0
 
 
+class TestH3MergeMetadata:
+    """Per-cell metadata aggregation across years."""
+
+    def _make_year_meta(self, h3_subdir, cell, year, n=10):
+        ydir = os.path.join(h3_subdir, f'year={year}')
+        os.makedirs(ydir, exist_ok=True)
+        pq_path = os.path.join(ydir, f'{cell}.{year}.0.parquet')
+        meta_path = os.path.join(ydir, f'{cell}.{year}.0.metadata.json')
+        # Minimal parquet so glob.glob(*.parquet) finds it.
+        pd.DataFrame({'shot_number': np.arange(n, dtype='uint64')}).to_parquet(
+            pq_path, engine='pyarrow', index=False
+        )
+        meta = {
+            'h3_partition': cell,
+            'h3_geometry': {'type': 'Polygon', 'coordinates': [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]},
+            'year': year,
+            'shot_count': n,
+            'shot_range': [year * 1000, year * 1000 + n],
+            'date_range': [f'{year}-01-01', f'{year}-12-31'],
+            'granules': [{'orbit': year, 'granule': 1, 'track': year}],
+            'columns': ['shot_number'],
+            'column_dtypes': {'shot_number': 'uint64'},
+        }
+        with open(meta_path, 'w') as f:
+            json.dump(meta, f)
+
+    def test_h3_merge_metadata_includes_all_years(self, tmp_dir):
+        """Regression: every year present on disk lands in the per-cell `years` list.
+
+        The pre-fix code initialized the years set as empty and only
+        added year_metadata[1:], silently dropping whichever year
+        glob.glob returned first.
+        """
+        from gedih3.gh3builder import h3_merge_metadata
+
+        cell = '835576fffffffff'
+        cdir = os.path.join(tmp_dir, f'h3_03={cell}')
+        for y in (2019, 2020, 2021, 2022, 2023):
+            self._make_year_meta(cdir, cell, y)
+
+        out = h3_merge_metadata(cdir)
+        assert out is not None
+        with open(out) as f:
+            mmeta = json.load(f)
+        assert mmeta['years'] == [2019, 2020, 2021, 2022, 2023]
+        # Sanity: other aggregates already covered all years pre-fix, but
+        # assert anyway to catch a future regression.
+        assert mmeta['shot_count'] == 50  # 5 years * 10 shots
+        assert mmeta['date_range'] == ['2019-01-01', '2023-12-31']
+
+    def test_h3_merge_metadata_single_year(self, tmp_dir):
+        """Single-year cell: years list has exactly that year."""
+        from gedih3.gh3builder import h3_merge_metadata
+
+        cell = '835576fffffffff'
+        cdir = os.path.join(tmp_dir, f'h3_03={cell}')
+        self._make_year_meta(cdir, cell, 2021)
+
+        out = h3_merge_metadata(cdir)
+        with open(out) as f:
+            mmeta = json.load(f)
+        assert mmeta['years'] == [2021]
+
+
 class TestAddVariablesResume:
     """Per-(cell, year) variable update workers — scan & join, scatter-free."""
 

@@ -551,14 +551,17 @@ def h3_merge_metadata(h3_subdir):
         return None
     
     mmeta = year_metadata[0].copy()
-    
+
     del mmeta['year']
-    mmeta['years'] = set()
-    
+    # Seed with year 0's year — the loop only iterates year_metadata[1:],
+    # so an empty init would silently drop whichever year `glob.glob`
+    # returned first.
+    mmeta['years'] = {year_metadata[0]['year']}
+
     mmeta['last_modified'] = now()
     mmeta['shot_range'] = list(mmeta['shot_range'])
     mmeta['date_range'] = list(mmeta['date_range'])
-    
+
     for ym in year_metadata[1:]:
         mmeta['shot_count'] += ym['shot_count']
         mmeta['shot_range'][0] = min(mmeta['shot_range'][0], ym['shot_range'][0])
