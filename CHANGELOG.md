@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.29] - 2026-05-29
+
+### Fixed
+- `gh3builder.h3_merge_metadata`: per-cell `years` list now includes every year present on disk. The function initialized the years set as empty and populated it from `year_metadata[1:]`, silently dropping whichever year `glob.glob` returned first. Pre-existing bug, surfaced by the rolled-back v0.10.26 sidecar Phase 4 which truncated `years` lists across the entire production DB. Other aggregates (`shot_count`, `shot_range`, `date_range`, `granules`) were unaffected because they were seeded from `year_metadata[0]`. Two regression tests added (`test_h3_merge_metadata_includes_all_years`, `test_h3_merge_metadata_single_year`).
+
 ## [0.10.28] - 2026-05-29
 
 ### Removed
