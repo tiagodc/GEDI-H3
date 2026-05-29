@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.10.28] - 2026-05-29
+
+### Removed
+- **Rolled back the sidecar variable-update architecture** introduced in 0.10.26 (commit `2d533d6b`) and patched in 0.10.27 (commit `d6632a5b`). The sidecar layout produced a per-product `<base>.<prod>.sidecar.parquet` next to each `(cell, year)` base file, broke the package's "one parquet per partition" invariant, complicated every downstream tool (loaders, doctor diagnoses, manifests), and made the database opaque to external readers. The experimental period remains recoverable from the `pre-sidecar-rollback` git tag.
+- Reinstated the legacy single-file variable-update path: `_add_variables_to_year_file` + `parquet_join_columns` rewrites the base year parquet in place to bolt on new columns. This path is slower but preserves the single-file invariant. A future redesign will address the legacy path's redundant h5 reads and full-base rewrite cost without breaking the layout contract.
+
 ## [0.10.27] - 2026-05-28
 
 ### Fixed
