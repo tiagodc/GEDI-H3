@@ -306,24 +306,110 @@ class TestAddVariablesResume:
         result = _scan_year_file_for_update(pq_path, ['wsci_l4c'])
         assert result is None
 
-    # ---- Phase 3 join worker ----
+    # ---- Stage 2 merge worker (no-fragments fast path) ----
 
-    def test_join_returns_none_for_empty_h5_specs(self, tmp_dir):
-        """Driver passed no h5 paths → worker is a no-op (matches the
-        no-matching-granules path where soc lookup found nothing)."""
-        from gedih3.gh3builder import _add_variables_to_year_file
+    def test_merge_returns_none_when_no_fragments(self, tmp_dir):
+        """No fanned fragments for this (cell,year) → merge is a no-op and
+        leaves the base parquet untouched."""
+        from gedih3.gh3builder import _var_merge_cell_year
 
         _, pq_path = make_partition_dir(tmp_dir, n=10)
         mtime_before = os.path.getmtime(pq_path)
         time.sleep(0.05)
-
-        result = _add_variables_to_year_file(
-            pq_path,
-            h5_specs=[],
-            new_product_vars={'L4C': ['wsci_l4c']},
-        )
+        result = _var_merge_cell_year(pq_path, tmp_dir=os.path.join(tmp_dir, '_t'))
         assert result is None
         assert os.path.getmtime(pq_path) == mtime_before
+
+    # ---- Stage 2 merge worker (real fragment → base) ----
+
+    def test_merge_joins_fragments_into_base(self, tmp_dir):
+        """Fanned fragments are concatenated, deduped, and column-joined into
+        the base parquet: rows preserved, new col added, matched on shot."""
+        from gedih3.gh3builder import _var_merge_cell_year, _var_fragment_dir
+        td = os.path.join(tmp_dir, '_t')
+
+        _, pq_path = make_partition_dir(tmp_dir, n=10)  # shots 0..9
+        base_n = len(pd.read_parquet(pq_path))
+        # Year-level metadata JSON so the cheap column-patch path runs
+        # (variable-add updates only columns; it must not recompute stats).
+        ymeta = pq_path.replace('.parquet', '.metadata.json')
+        with open(ymeta, 'w') as f:
+            json.dump({'h3_partition': '83184bfffffffff', 'year': 2020,
+                       'columns': ['shot_number'], 'column_dtypes': {},
+                       'shot_count': base_n, 'granules': [{'orbit': 1, 'granule': 1, 'track': 1}]}, f)
+
+        fdir = _var_fragment_dir(td, pq_path)
+        os.makedirs(fdir, exist_ok=True)
+        pd.DataFrame({
+            'shot_number': np.arange(0, 7, dtype=np.uint64),
+            'wsci_l4c': np.arange(0, 7, dtype=float),
+        }).to_parquet(os.path.join(fdir, 'A.parquet'), index=False)
+        pd.DataFrame({
+            'shot_number': np.arange(5, 10, dtype=np.uint64),
+            'wsci_l4c': np.arange(5, 10, dtype=float) + 100,
+        }).to_parquet(os.path.join(fdir, 'B.parquet'), index=False)
+
+        result = _var_merge_cell_year(pq_path, tmp_dir=td)
+        assert result == pq_path
+
+        out = pd.read_parquet(pq_path)
+        assert len(out) == base_n                 # left join preserves base rows
+        assert 'wsci_l4c' in out.columns          # new column added
+        vals = out.set_index('shot_number')['wsci_l4c']
+        assert vals.loc[3] == 3.0                  # from A
+        assert vals.loc[9] == 109.0                # from B only
+
+    def test_merge_idempotent_rerun_no_duplicate_columns(self, tmp_dir):
+        """Re-running the merge after columns already landed must not add a
+        duplicate column (parquet_join_columns filters present cols)."""
+        from gedih3.gh3builder import _var_merge_cell_year, _var_fragment_dir
+        td = os.path.join(tmp_dir, '_t')
+
+        _, pq_path = make_partition_dir(tmp_dir, n=8)
+        ymeta = pq_path.replace('.parquet', '.metadata.json')
+        with open(ymeta, 'w') as f:
+            json.dump({'h3_partition': '83184bfffffffff', 'year': 2020,
+                       'columns': ['shot_number'], 'column_dtypes': {},
+                       'shot_count': 8, 'granules': [{'orbit': 1, 'granule': 1, 'track': 1}]}, f)
+        fdir = _var_fragment_dir(td, pq_path)
+        os.makedirs(fdir, exist_ok=True)
+        pd.DataFrame({
+            'shot_number': np.arange(0, 8, dtype=np.uint64),
+            'wsci_l4c': np.arange(0, 8, dtype=float),
+        }).to_parquet(os.path.join(fdir, 'A.parquet'), index=False)
+
+        _var_merge_cell_year(pq_path, tmp_dir=td)
+        cols1 = list(pd.read_parquet(pq_path).columns)
+        _var_merge_cell_year(pq_path, tmp_dir=td)
+        cols2 = list(pd.read_parquet(pq_path).columns)
+        assert cols2 == cols1
+        assert cols2.count('wsci_l4c') == 1
+
+    # ---- Stage 1 fan worker ----
+
+    def test_fan_sentinel_short_circuits_done_granule(self, tmp_dir):
+        """A granule whose .done sentinel exists is skipped (resume)."""
+        from gedih3.gh3builder import _var_fan_granule, _emit_var_fan_sentinel
+        td = os.path.join(tmp_dir, '_t')
+        os.makedirs(td, exist_ok=True)
+
+        gkey = 'O12345_01_T00099'
+        _emit_var_fan_sentinel(td, gkey)
+        # h5 path is bogus — sentinel must short-circuit before any read.
+        res = _var_fan_granule(
+            (gkey, {'L4C': '/nonexistent.h5'}, ['/nonexistent.parquet']),
+            new_product_vars={'L4C': ['wsci']}, tmp_dir=td,
+        )
+        assert res['skipped'] is True
+        assert res['fragments'] == 0
+
+    def test_fan_token_roundtrips_cell_year(self, tmp_dir):
+        """The fragment-dir token uniquely encodes (cell, year) so Stage 2
+        finds the same fragments Stage 1 wrote."""
+        from gedih3.gh3builder import _var_frag_token
+        _, pq_path = make_partition_dir(tmp_dir, h3_part='835576fffffffff',
+                                        year='2021', n=4)
+        assert _var_frag_token(pq_path) == 'h3_03=835576fffffffff__year=2021'
 
 
 class TestMergeProductVars:
