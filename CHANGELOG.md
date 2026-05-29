@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.11.0] - 2026-05-29
+
+### Changed
+- **Variable-add updates rewritten as inverted granule fan-out** (`gh3builder._build_add_variables`). The previous per-`(cell, year)` path re-read every granule h5 once per cell that listed it — a DB-wide 39.75× redundancy measured on the production tree (2.64M reads for 66.5k unique granules), and h5 reads are ~93% of runtime (cold GPFS chunk I/O). The new driver reads each unique granule **exactly once** and fans its shots to all owning cells, cutting the dominant phase by ~40×. Four stages, all scatter-free (per the fresh-build streaming-driver contract): (0) driver inverts the metadata granule lists into `{granule: [base year_pf...]}`, skip-checking each `(cell, year)` so a re-run is a fast no-op; (1) `client.map(_var_fan_granule)` reads each granule once (`shots=None` full read — the `[:]` column read is GPFS-optimal) and routes rows to owning cells by `np.isin` against each base's `shot_number` (per-worker `lru_cache`), writing tiny fragments with per-granule `.done` sentinels for resume; (2) `client.map(_var_merge_cell_year)` concatenates a cell-year's fragments and `parquet_join_columns` them into the **base** parquet (rowgroup-wise, atomic) — one self-contained parquet per partition, **no sidecars**, append-only merge-progress for resume; (3) per-cell `h3_merge_metadata` + manifest refresh, fragments cleaned on a fully-clean run.
+- Shots are routed to cells by matching `shot_number` against the existing base parquets — never by recomputing H3 from the new product's coordinates (coordinate drift between products would misroute boundary shots and silently NaN the left-join). Variable-add only changes columns, so the merge patches `columns`/`column_dtypes` in the per-year metadata via a footer-only schema read instead of the full `h3_write_metadata` stats recompute.
+- Verified end-to-end on a 3-cell production subset: +72 L4C V003 columns, rows preserved, 100% non-null, 0 sidecars, idempotent re-run, resume-safe after deleting merge progress + half the fan sentinels.
+
+### Removed
+- Legacy `_add_variables_to_year_file` (the per-`(cell, year)` join worker). Replaced by the Stage 1/2 fan + merge workers.
+
 ## [0.10.29] - 2026-05-29
 
 ### Fixed
