@@ -3611,7 +3611,6 @@ def build_h3db(
                 result = _build_add_variables(
                     h3_dir, product_vars,
                     soc_source=_s3_tmp_dir, version=version,
-                    tmp_dir=tmp_dir,
                 )
                 if not result:
                     logger.warning(
@@ -3678,7 +3677,7 @@ def build_h3db(
 
         if variable_only_update:
             logger.info(f"Variable-only update: adding {set(product_vars.keys())} to existing database")
-            result = _build_add_variables(h3_dir, product_vars, soc_source=soc_source, version=version, tmp_dir=tmp_dir)
+            result = _build_add_variables(h3_dir, product_vars, soc_source=soc_source, version=version)
             if not result:
                 logger.warning(
                     "Variable update completed but no partition files were modified. "
