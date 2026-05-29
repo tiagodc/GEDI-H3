@@ -2922,65 +2922,31 @@ def _merge_and_finalize(
     return h3_files
 
 
-# Suffix for per-product sidecar parquet files written by the
-# variable-update path. Format: ``<base>.<prod>.sidecar.parquet``,
-# e.g. ``831090fffffffff.2023.0.l4c.sidecar.parquet`` lives next to
-# the base ``831090fffffffff.2023.0.parquet``. The base file is NEVER
-# rewritten on the new path — sidecars hold only ``shot_number + new
-# vars`` and are joined in by ``gh3_load_hex`` at read time. Distinct
-# from the per-year *metadata* sidecar (``*.metadata.json``) which is
-# unchanged.
-VAR_SIDECAR_SUFFIX = '.sidecar.parquet'
-
-# Tmp subdir under tmp_dir where per-granule variable-update fragments
-# are written by the fan-out phase and consumed by the merge phase.
-VAR_FRAGMENT_SUBDIR = 'var_fragments'
-
-
-def _sidecar_path_for_year(year_pf: str, prod: str) -> str:
-    """Return the per-product sidecar parquet path next to ``year_pf``."""
-    return year_pf.replace('.parquet', f'.{prod.lower()}{VAR_SIDECAR_SUFFIX}')
-
-
-def _scan_year_file_for_update(year_pf, new_cols, prod):
+def _scan_year_file_for_update(year_pf, new_cols):
     """Worker: cheap footer + sidecar scan for one ``(cell, year)`` file.
 
     Returns the granule list when the file still needs the new columns,
-    ``None`` when the requested columns are ALREADY present — either
-    embedded in the base file (legacy update path output, before the
-    sidecar refactor) OR available in the per-product sidecar
-    (``<base>.<prod>.sidecar.parquet``, the post-refactor output).
+    ``None`` when it's already done / has no sidecar / hit a recoverable
+    read error (corrupt parquet footer, malformed sidecar JSON). The
+    driver maps this across every year file, then uses the returned
+    granule lists to inline the per-task h5 paths via the driver-side
+    ``all_soc`` dict — no ``client.scatter`` needed (the fresh-build
+    streaming driver established that scatter-broadcast hangs on
+    SSH-tunneled clusters and the inlined-args pattern is the
+    established fix).
 
-    The two checks are necessary because a database may be in a mixed
-    layout state if a prior variable-add run was interrupted mid-flight
-    after the sidecar refactor landed: some cells have embedded columns
-    from older runs, others have sidecars from newer runs, all
-    co-existing. The skip check has to recognize both shapes or it
-    would re-do work that's already on disk.
-
-    The driver maps this across every year file, then uses the
-    returned granule lists to fan out per-granule fragment writes and
-    per-(cell, year) sidecar merges — no ``client.scatter`` needed
-    (the fresh-build streaming driver established that
-    scatter-broadcast hangs on SSH-tunneled clusters and the
-    inlined-args pattern is the established fix).
+    Worker-side ``try/except`` swallows the recoverable errors so the
+    driver-side ``as_completed(..., with_results=True)`` collection
+    loop doesn't crash on a single corrupt fragment — matches the
+    pattern in ``s3_etl_subset`` (line 342) which collects ``None``
+    sentinels from failed workers and aggregates a single warning.
     """
     try:
         new_cols = set(new_cols)
         if new_cols:
-            base_cols = set(read_parquet_schema(year_pf)['column'].tolist())
-            if new_cols.issubset(base_cols):
+            existing_cols = set(read_parquet_schema(year_pf)['column'].tolist())
+            if new_cols.issubset(existing_cols):
                 return None
-            sidecar = _sidecar_path_for_year(year_pf, prod)
-            if os.path.exists(sidecar):
-                try:
-                    side_cols = set(read_parquet_schema(sidecar)['column'].tolist())
-                    if new_cols.issubset(base_cols | side_cols):
-                        return None
-                except Exception:
-                    # Corrupt sidecar — treat as not-present and let
-                    # the merge phase recreate it.
-                    pass
         year_meta_path = year_pf.replace('.parquet', PARTITION_META_FILENAME)
         if not os.path.exists(year_meta_path):
             return None
@@ -2991,103 +2957,60 @@ def _scan_year_file_for_update(year_pf, new_cols, prod):
         return None
 
 
-def _granule_var_fragment_path(tmp_dir: str, granule_key: str, prod: str) -> str:
-    """Path of the per-(granule, product) intermediate fragment parquet."""
-    return os.path.join(tmp_dir, VAR_FRAGMENT_SUBDIR, f'{granule_key}__{prod.lower()}.parquet')
+def _add_variables_to_year_file(year_pf, h5_specs, new_product_vars, version=None):
+    """Worker: add new variables to a single ``(cell, year)`` parquet file.
 
+    Each task receives ``h5_specs`` — a list of ``(product, h5_path,
+    var_list)`` tuples the driver already resolved for THIS year file.
+    No cluster-wide SOC tree broadcast, no per-task dict-of-futures.
+    Matches the fresh-build streaming driver's "inline kwargs into
+    each task's args" rule.
 
-def _granule_key_from_h5(h5_path: str) -> str:
-    """Derive a stable filename-safe key for a granule h5 path.
+    Atomicity: ``parquet_join_columns`` writes via ``.join.tmp`` +
+    ``os.replace`` and filters out columns already present in the
+    base file, so re-running against a partially-updated year file
+    never duplicates columns.
 
-    Uses the basename stripped of the ``.h5`` suffix. Multiple products
-    for the same orbit produce different basenames so we don't collide.
-    """
-    return os.path.basename(h5_path).rsplit('.', 1)[0]
-
-
-def _write_granule_var_fragment(h5_path, prod, var_list, tmp_dir):
-    """Worker: load ONE granule h5 (new vars only), write a single fragment.
-
-    Per-(granule, product) granularity is the key correctness win over
-    the legacy per-(cell, year) worker: each granule's h5 is opened
-    EXACTLY ONCE total across the whole build, not once per (cell, year)
-    that lists it. At continental scale the legacy redundancy factor
-    was ~40× — the dominant cluster-wide cost.
-
-    Fragments are written to
-    ``<tmp_dir>/var_fragments/<granule_key>__<prod>.parquet`` and
-    contain ``shot_number`` plus the suffix-renamed new vars only.
-    No H3 recomputation, no per-destination split — destination
-    filtering happens at merge time, where the merger has cheap access
-    to its own base ``shot_number`` set.
-
-    Returns
-    -------
-    str or None
-        Path of the written fragment on success, ``None`` when the h5
-        produced no rows or hit a recoverable read error (corrupt h5,
-        missing var, etc). Worker swallows the exception so the
-        driver-side ``as_completed(..., with_results=True)`` collection
-        loop doesn't crash on a single bad granule.
-    """
-    if not var_list:
-        return None
-    granule_key = _granule_key_from_h5(h5_path)
-    frag_path = _granule_var_fragment_path(tmp_dir, granule_key, prod)
-    # Skip if already written by a prior interrupted run — fragment
-    # content is deterministic from (h5_path, var_list), so an existing
-    # fragment is reusable as-is.
-    if os.path.exists(frag_path) and os.path.getsize(frag_path) > 0:
-        return frag_path
-    try:
-        cols_to_read = ['shot_number'] + list(var_list)
-        df = load_h5(h5_path, columns=cols_to_read, include_source=False)
-        if df is None or df.empty:
-            return None
-        suffix = f"_{prod.lower()}"
-        df = df.rename(columns=lambda x: x if x.endswith(suffix) else f"{x}{suffix}")
-        # load_h5 returns shot_number-indexed; reset for clean parquet write.
-        df = df.reset_index()
-        os.makedirs(os.path.dirname(frag_path), exist_ok=True)
-        tmp = frag_path + '.tmp'
-        df.to_parquet(tmp, engine='pyarrow', index=False, compression='zstd')
-        os.replace(tmp, frag_path)
-        return frag_path
-    except Exception as e:
-        logger.warning(
-            f"Fragment write failed for {prod} {os.path.basename(h5_path)}: "
-            f"{type(e).__name__}: {e}"
-        )
-        return None
-
-
-def _merge_year_sidecar(year_pf, fragment_paths, prod):
-    """Worker: build per-product sidecar from granule fragments + base shots.
-
-    Streams each fragment, filters to ``base_shots`` (which bounds the
-    output to shots that actually exist in the base year file), and
-    writes ``<year_pf>.<prod>.sidecar.parquet`` atomically.
-
-    Memory bound: ONE fragment at a time during the streaming scan +
-    the accumulated filtered subset (≤ base_shots cardinality —
-    typically much smaller than a single full fragment because each
-    granule covers ~30 cells and only ~1/30 of its shots belong to any
-    one cell).
-
-    The base year file is NEVER read or rewritten — only its
-    ``shot_number`` column is loaded (cheap projection). The sidecar
-    is the only on-disk artifact this worker produces.
+    Parameters
+    ----------
+    year_pf : str
+        Path to one ``<cell>/year=YYYY/<cell>.YYYY.0.parquet``.
+    h5_specs : list[tuple[str, str, list[str]]]
+        ``[(product, h5_path, var_list), ...]`` for this year file
+        only. Pre-resolved on the driver against ``all_soc`` + the
+        per-year sidecar's granule list.
+    new_product_vars : dict
+        Product code → list of new variable names (used for the
+        suffix-rename + post-write metadata refresh).
+    version : int or None
+        GEDI data version (carried for consistency; SOC paths are
+        already version-filtered on the driver).
 
     Returns
     -------
     str or None
-        Sidecar path on success, ``None`` when no fragments matched the
-        base shots (no rows survived the filter — e.g. the granule
-        list was stale or all matching granules failed to write
-        fragments).
+        ``year_pf`` on a successful update; ``None`` if every h5 read
+        produced no rows.
     """
-    if not fragment_paths:
+    from .utils import parquet_join_columns
+    import tempfile
+
+    if not h5_specs:
         return None
+
+    # Pre-read base shot_number set to bound the right side of the join.
+    # Without this, ``load_h5`` reads EVERY shot from every beam in each
+    # granule (~5M shots/granule) and the left-join later discards >99%
+    # as non-matching — for a continental cell touched by 10 granules
+    # that's ~2.8 GB of unnecessary right-side allocation, the dominant
+    # contributor to the ~28 GB per-worker peaks seen on the live build.
+    # ``load_h5(..., shots=)`` uses the array for two efficient filters:
+    # (a) ``_get_beams_to_load`` derives beams from shot_number encoding
+    # and opens ONLY the beams the shots came from (~4× h5 I/O reduction
+    # when a cell is hit by 2 of 8 beams), and (b) per beam,
+    # ``_extract_beam_data`` HDF5-indexes only the matching rows for
+    # every data column. Right-side size becomes O(base_shots) instead
+    # of O(granule × beam × cells_per_granule).
     try:
         base_shots = pd.read_parquet(year_pf, columns=['shot_number'])['shot_number'].to_numpy()
     except Exception as e:
@@ -3095,138 +3018,72 @@ def _merge_year_sidecar(year_pf, fragment_paths, prod):
         return None
     if base_shots.size == 0:
         return None
-    # Convert to a set once for O(1) membership tests in pandas .isin().
-    # int conversion guards against numpy types in the set (isin handles
-    # both, but the explicit int sidesteps pandas type-promotion edges).
-    base_shot_set = set(int(s) for s in base_shots)
 
-    keepers = []
-    for fp in fragment_paths:
-        if not fp or not os.path.exists(fp):
+    new_vars_list = []
+    for prod, h5_path, var_list in h5_specs:
+        if not var_list:
             continue
         try:
-            frag = pd.read_parquet(fp, engine='pyarrow')
-            mask = frag['shot_number'].isin(base_shot_set)
-            sub = frag.loc[mask]
-            if not sub.empty:
-                keepers.append(sub)
-            del frag
+            cols_to_read = ['shot_number'] + var_list
+            df = load_h5(h5_path, columns=cols_to_read, shots=base_shots, include_source=False)
+            if df is not None and not df.empty:
+                suffix = f"_{prod.lower()}"
+                df = df.rename(columns=lambda x: x if x.endswith(suffix) else f"{x}{suffix}")
+                new_vars_list.append(df)
         except Exception as e:
-            logger.warning(f"Fragment read failed for {os.path.basename(fp)}: {e}")
+            logger.warning(f"Failed to read {prod} vars from {os.path.basename(h5_path)}: {e}")
 
-    if not keepers:
+    if not new_vars_list:
         return None
 
-    sidecar_df = pd.concat(keepers, ignore_index=True)
-    # Granules can share shots at the edges of cells; dedup on
-    # shot_number, keep first match (matches the legacy
-    # ``parquet_join_columns`` left-join semantics where the base
-    # row's shot_number wins).
-    sidecar_df = sidecar_df.drop_duplicates(subset=['shot_number'], keep='first')
+    # load_h5 returns DataFrames indexed by shot_number — preserve that index
+    new_vars_df = pd.concat(new_vars_list)
+    new_vars_df = new_vars_df[~new_vars_df.index.duplicated(keep='first')]
+    new_vars_df = new_vars_df.reset_index()
 
-    sidecar_path = _sidecar_path_for_year(year_pf, prod)
-    tmp = sidecar_path + '.tmp'
+    tmp_file = None
     try:
-        sidecar_df.to_parquet(tmp, engine='pyarrow', index=False, compression='zstd')
-        os.replace(tmp, sidecar_path)
-    except Exception:
-        if os.path.exists(tmp):
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-        raise
+        with tempfile.NamedTemporaryFile(suffix='.parquet', delete=False) as tmp:
+            tmp_file = tmp.name
+        new_vars_df.to_parquet(tmp_file, engine='pyarrow', index=False)
+        del new_vars_df
+        parquet_join_columns([year_pf, tmp_file], year_pf, key_col='shot_number')
+    finally:
+        if tmp_file and os.path.exists(tmp_file):
+            os.unlink(tmp_file)
 
-    # Extend the per-year metadata JSON with the sidecar's columns +
-    # dtypes so ``h3_merge_metadata`` → ``set_post_build_info`` picks
-    # them up into the build log's ``h3_columns`` /
-    # ``h3_columns_dtypes`` cache. Without this, ``gh3_load()`` would
-    # build a Dask ``_meta`` that's missing the sidecar columns and
-    # any ``.compute()`` would fail with a column-mismatch error.
-    try:
-        year_meta_path = year_pf.replace('.parquet', PARTITION_META_FILENAME)
-        if os.path.exists(year_meta_path):
-            meta = json_read(year_meta_path) or {}
-            side_schema = read_parquet_schema(sidecar_path)
-            side_cols = [c for c in side_schema['column'].tolist() if c != 'shot_number']
-            side_dtypes = dict(zip(side_schema['column'].tolist(), side_schema['dtype'].tolist()))
-            side_dtypes.pop('shot_number', None)
-            cur_cols = list(meta.get('columns') or [])
-            for c in side_cols:
-                if c not in cur_cols:
-                    cur_cols.append(c)
-            cur_dtypes = dict(meta.get('column_dtypes') or {})
-            for c, d in side_dtypes.items():
-                cur_dtypes.setdefault(c, d)
-            meta['columns'] = cur_cols
-            meta['column_dtypes'] = cur_dtypes
-            meta['last_modified'] = now()
-            json_write(meta, year_meta_path, rewrite=True)
-    except Exception as e:
-        # Per-year metadata refresh is best-effort: the sidecar is the
-        # load-bearing artifact. If the metadata refresh fails, the
-        # next reconcile pass will rescan and pick it up.
-        logger.warning(
-            f"Sidecar written but per-year metadata refresh failed for "
-            f"{os.path.basename(year_pf)}: {type(e).__name__}: {e}"
-        )
-
-    return sidecar_path
+    h3_write_metadata(year_pf)
+    return year_pf
 
 
-def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None,
-                         tmp_dir=None):
-    """Add new variables to an existing H3 database via per-product sidecar parquets.
+def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None):
+    """Add new variables to an existing H3 database via shot_number join.
 
-    **Architecture: per-granule fan-out + per-(cell, year) sidecar merge.**
-
-    Per-(cell, year) tasks in earlier versions opened each granule h5
-    ONCE PER (cell, year) that listed it — a measured ~40× redundancy
-    factor at continental scale (2.64M h5 opens for only 66.5k unique
-    granules), saturating the GPFS metadata server and capping
-    cluster throughput at ~1.5 tasks/min on 5 workers regardless of
-    CPU/memory headroom. They also rewrote the entire base year file
-    (~1.9 GB at continental cells, ~55 TB across the queue) just to
-    bolt on a few small columns — a CPU-bound zstd encode of 1376
-    base columns capped per-task throughput at ~11 MB/s/worker.
-
-    The new path fixes both costs simultaneously:
-
-      * **Per-granule fan-out**: each granule h5 is opened EXACTLY ONCE
-        across the whole job. The fragment writer
-        (``_write_granule_var_fragment``) emits a single intermediate
-        parquet per (granule, product) under
-        ``<tmp_dir>/var_fragments/`` containing only
-        ``shot_number + new vars``.
-      * **Sidecar layout**: the per-(cell, year) merger
-        (``_merge_year_sidecar``) reads its base shot_number set
-        (cheap projection — does NOT rewrite the base), streams the
-        relevant fragments, filters to base_shots, and writes
-        ``<base>.<prod>.sidecar.parquet`` adjacent to the base year
-        file. The base is never re-encoded. The loader
-        (``gh3_load_hex``) discovers and joins sidecars at read time.
-
-    Scatter-free per the established fresh-build streaming-driver
-    contract (see
-    ``tests/test_write_streaming.py::test_streaming_driver_completes_end_to_end``):
-    every per-task arg is inlined (year_pf path, fragment paths list,
-    product string). No ``client.scatter``. No big broadcast.
+    Per-(cell, year) task granularity (mirrors the fresh-build merge
+    phase). The driver builds ``all_soc`` once locally and resolves
+    the per-task h5 path lists itself; each worker task receives only
+    the few h5 paths IT needs, inlined into its args. **No
+    ``client.scatter``** — the fresh-build streaming driver
+    (`_write_partitioned_streaming`) established that scatter-broadcast
+    hangs on SSH-tunneled clusters when one worker is slow to ACK, and
+    the regression guard in
+    ``tests/test_write_streaming.py::test_streaming_driver_completes_end_to_end``
+    asserts ``scatter`` is never called from that driver. Same lesson
+    applies here.
 
     Phases:
-      0. Enumerate ``(cell, year)`` units in parallel via
+      0. Parallel enumerate ``(cell, year)`` units via
          ``client.map(_list_year_subdirs, h3_part_dirs)``.
-      1. Parallel scan via ``_scan_year_file_for_update`` — returns
-         granule list per year file (or ``None`` when the file
-         already has the new columns either embedded in the base or
-         present in the per-product sidecar).
-      2. Driver inverts: ``{granule → [year_pf...]}`` (pure local op
-         over the scan results).
-      3a. Per-(granule, product) fragment writer — fans across the
-          cluster.
-      3b. Per-(cell, year) sidecar merger — reads relevant
-          fragments, writes the sidecar.
-      4. Per-cell metadata re-merge for touched cells.
-      5. Cleanup of intermediate fragment dir.
+      1. Parallel scan-and-skip: ``client.map(_scan_year_file_for_update,
+         year_files)`` returns the granule list per file (or ``None``
+         when the file already has the new columns / has no sidecar).
+      2. Driver resolves h5 paths via ``all_soc[orb_track][prod]``
+         lookups and inlines them into each task's args.
+      3. Parallel join: ``client.map(_add_variables_to_year_file,
+         year_pfs, h5_specs_per_task, ...)``. Tiny per-task args, one
+         scheduler dependency per task.
+      4. Per-cell metadata re-merge for cells whose year files
+         changed.
 
     Parameters
     ----------
@@ -3239,30 +3096,22 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
         on this path.
     version : int or None
         GEDI data version for the SOC tree's filename filter.
-    tmp_dir : str, optional
-        Working directory for the per-(granule, product) fragment
-        parquets. Defaults to ``<h3_dir>/.tmp_var_update`` when unset.
 
     Returns
     -------
     list of str or None
-        Year-file paths whose sidecars were (re)written this run, or
-        None when nothing changed.
+        Year-file paths updated this run, or None when nothing changed.
     """
-    logger.info("Variable-only expansion detected: per-granule fan-out + per-(cell, year) sidecar merge")
+    logger.info("Variable-only expansion detected: adding new columns via shot_number join")
 
     from dask.distributed import as_completed as dask_as_completed
     from tqdm import tqdm as tqdm_bar
 
     client = get_dask_client()
 
-    if tmp_dir is None:
-        tmp_dir = os.path.join(h3_dir.rstrip('/'), '.tmp_var_update')
-    os.makedirs(os.path.join(tmp_dir, VAR_FRAGMENT_SUBDIR), exist_ok=True)
-
     # Phase 0: enumerate (cell, year) units. Driver scandirs cell dirs;
-    # year-subdir listing fanned across workers (same shape as the
-    # fresh-build merge enumeration).
+    # year-subdir listing is fanned across workers via client.map (same
+    # shape as the fresh-build merge enumeration).
     try:
         h3_part_dirs = sorted(
             e.path for e in os.scandir(h3_dir)
@@ -3283,11 +3132,6 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     for cell_dir, ydirs in zip(h3_part_dirs, year_lists):
         for ydir in ydirs:
             for pf in glob.glob(os.path.join(ydir, '*.parquet')):
-                # Skip any pre-existing sidecar files from prior runs
-                # (the loader will pick them up; they're not base year
-                # files to scan/update).
-                if pf.endswith(VAR_SIDECAR_SUFFIX):
-                    continue
                 year_files.append(pf)
                 year_file_to_cell[pf] = cell_dir
     if not year_files:
@@ -3297,7 +3141,9 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     logger.info(f"Found {len(year_files)} (cell, year) parquet files across {len(h3_part_dirs)} cells")
 
     # Build the SOC tree ONCE on the driver. soc_file_tree fans
-    # walk_soc_parallel across the cluster on its own.
+    # walk_soc_parallel across the cluster on its own (a single fan-out
+    # the workers don't compete with), then pivots into the
+    # orb_track → {prod: path} dict the driver uses for path resolution.
     if isinstance(soc_source, str):
         glob_kwargs = {'version': version} if version is not None else None
         all_soc = soc_file_tree(soc_source, to_list=False, glob_kwargs=glob_kwargs)
@@ -3315,205 +3161,146 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
 
     logger.info(f"SOC tree built ({len(all_soc)} orb_tracks)")
 
-    # The combined refactor runs phases 1–4 ONCE PER PRODUCT. Multi-product
-    # updates (rare; typical is single-product) iterate this loop. Per-product
-    # iteration keeps the sidecar layout one-file-per-product, which lets the
-    # loader skip products it doesn't need at read time.
-    all_updated_files = []
-    all_touched_cells = set()
-
+    # Target column set (with product suffix). Passed verbatim to the
+    # scan worker — driver-side str-set is small enough that we can
+    # pass it as an inlined kwarg without scatter.
+    new_cols = set()
     for prod, var_list in new_product_vars.items():
-        if not var_list:
+        if var_list:
+            suffix = f"_{prod.lower()}"
+            new_cols.update(
+                v if v.endswith(suffix) else f"{v}{suffix}"
+                for v in var_list
+                if v != 'shot_number'
+            )
+
+    # Phase 1: parallel scan-and-skip. Each task does ONE schema read
+    # + ONE small JSON read and returns the granule list (or None when
+    # already done / no sidecar). Tiny per-task arg (year_pf path +
+    # small set of column names).
+    #
+    # Collection uses ``as_completed(..., with_results=True)`` so the
+    # task result rides along with the completion notification — ONE
+    # round-trip per batch instead of ONE PER TASK. With 50k+ tiny
+    # results, the previous per-future ``.result()`` pattern was
+    # ceiling-bound at ~86 collections/sec (~10 min just to drain the
+    # scheduler queue, even though all worker-side work was done in
+    # ~2 min). The fresh-build merge phase tolerates per-future
+    # ``.result()`` because per-task work is seconds-to-minutes, not
+    # milliseconds; this phase doesn't fit that regime. Same shape
+    # as ``s3_etl_subset`` (line 342) which established the pattern.
+    logger.info("Scanning year files for resume state and granule lists")
+    scan_futures = client.map(
+        _scan_year_file_for_update,
+        year_files,
+        new_cols=list(new_cols),
+        pure=False,
+    )
+    fut_idx = {f: i for i, f in enumerate(scan_futures)}
+    scan_buf: List[Any] = [None] * len(year_files)
+    scan_pbar = tqdm_bar(total=len(year_files), desc="Scanning year files", unit="file")
+    try:
+        for fut, result in dask_as_completed(scan_futures, with_results=True):
+            scan_buf[fut_idx[fut]] = result
+            scan_pbar.update(1)
+    finally:
+        scan_pbar.close()
+    scan_results = scan_buf
+    del scan_futures, fut_idx, scan_buf
+
+    # Phase 2: driver-side h5 path resolution. Pure local dict lookups
+    # — fast even at continental scale, and the result is a tiny
+    # per-task list of (prod, h5_path, var_list) tuples.
+    work_items = []
+    already_done = 0
+    no_match = 0
+    for year_pf, granules in zip(year_files, scan_results):
+        if granules is None:
+            already_done += 1
             continue
-
-        prod_lower = prod.lower()
-        suffix = f'_{prod_lower}'
-        new_cols = {
-            v if v.endswith(suffix) else f"{v}{suffix}"
-            for v in var_list
-            if v != 'shot_number'
-        }
-        if not new_cols:
-            continue
-
-        logger.info(f"==== Product {prod}: scanning year files for resume state and granule lists ====")
-
-        # Phase 1: parallel scan-and-skip per year file.
-        # Uses with_results=True for batched result fetching — see
-        # commentary on the equivalent loop in s3_etl_subset (line 342).
-        scan_futures = client.map(
-            _scan_year_file_for_update,
-            year_files,
-            new_cols=list(new_cols),
-            prod=prod,
-            pure=False,
-        )
-        fut_idx = {f: i for i, f in enumerate(scan_futures)}
-        scan_buf: List[Any] = [None] * len(year_files)
-        scan_pbar = tqdm_bar(total=len(year_files), desc=f"Scanning ({prod})", unit="file")
-        try:
-            for fut, result in dask_as_completed(scan_futures, with_results=True):
-                scan_buf[fut_idx[fut]] = result
-                scan_pbar.update(1)
-        finally:
-            scan_pbar.close()
-        scan_results = scan_buf
-        del scan_futures, fut_idx, scan_buf
-
-        # Phase 2: driver inverts → {(orbit, granule, track) → [year_pf...]}.
-        # Pure local op. The result is what makes the per-granule fan-out
-        # possible: instead of N tasks (one per cell-year, each loading 30
-        # granule h5s), we now have ~1/30th as many fragment-write tasks
-        # (one per granule) feeding into N merge tasks.
-        granule_to_dests = {}  # (orbit, granule, track) -> set of year_pf
-        granule_keys_with_h5 = {}  # (orbit, granule, track) -> orb_track key
-        already_done = 0
-        no_match = 0
-        dest_to_granules = {}  # year_pf -> list of (orbit, granule, track)
-        for year_pf, granules in zip(year_files, scan_results):
-            if granules is None:
-                already_done += 1
+        h5_specs = []
+        for gran in granules:
+            ot = f"O{gran['orbit']:05d}_{gran['granule']:02d}_T{gran['track']:05d}"
+            soc_files = all_soc.get(ot)
+            if not soc_files:
                 continue
-            matched_for_dest = []
-            for gran in granules:
-                ot = f"O{gran['orbit']:05d}_{gran['granule']:02d}_T{gran['track']:05d}"
-                soc_files = all_soc.get(ot)
-                if not soc_files or prod not in soc_files:
-                    continue
-                key = (gran['orbit'], gran['granule'], gran['track'])
-                granule_to_dests.setdefault(key, set()).add(year_pf)
-                granule_keys_with_h5[key] = ot
-                matched_for_dest.append(key)
-            if matched_for_dest:
-                dest_to_granules[year_pf] = matched_for_dest
-            else:
-                no_match += 1
-        del scan_results
+            for prod, var_list in new_product_vars.items():
+                if prod in soc_files and var_list:
+                    h5_specs.append((prod, soc_files[prod], var_list))
+        if h5_specs:
+            work_items.append((year_pf, h5_specs))
+        else:
+            no_match += 1
 
-        logger.info(
-            f"Product {prod}: {len(dest_to_granules)} year files need update, "
-            f"{len(granule_to_dests)} unique granule h5s involved "
-            f"(already-done={already_done}, no-matching-granules={no_match})"
-        )
+    logger.info(
+        f"Resolved {len(work_items)} year files needing update "
+        f"(already-done={already_done}, no-matching-granules={no_match})"
+    )
 
-        if not dest_to_granules:
-            continue
-
-        # Phase 3a: per-(granule, product) fragment writer.
-        # Each granule h5 is opened EXACTLY ONCE — the redundancy fix.
-        # Fragments live under <tmp_dir>/var_fragments/<granule_key>__<prod>.parquet
-        # and are reused for any subsequent dest merge that needs them.
-        granule_keys = sorted(granule_to_dests.keys())
-        granule_h5_paths = [all_soc[granule_keys_with_h5[k]][prod] for k in granule_keys]
-
-        logger.info(f"Product {prod}: fanning out {len(granule_keys)} per-granule fragment writes")
-
-        frag_futures = client.map(
-            _write_granule_var_fragment,
-            granule_h5_paths,
-            prod=prod,
-            var_list=list(var_list),
-            tmp_dir=tmp_dir,
+    # Phase 3: per-year-file join with inlined h5_specs. Each task arg
+    # is small (a few dozen tuples max), so scheduler overhead is
+    # bounded and there's no scatter dance.
+    updated_files = []
+    touched_cells = set()
+    failed_count = 0
+    if work_items:
+        join_futures = client.map(
+            _add_variables_to_year_file,
+            [w[0] for w in work_items],
+            [w[1] for w in work_items],
+            new_product_vars=new_product_vars,
+            version=version,
             pure=False,
         )
-        frag_fut_idx = {f: i for i, f in enumerate(frag_futures)}
-        frag_paths_by_key = {}  # (orbit, granule, track) -> fragment path or None
-        frag_pbar = tqdm_bar(total=len(granule_keys), desc=f"Writing fragments ({prod})", unit="granule")
+        fut_to_pf = dict(zip(join_futures, [w[0] for w in work_items]))
+        pbar = tqdm_bar(total=len(work_items), desc="Updating year files", unit="file")
         try:
-            for fut, result in dask_as_completed(frag_futures, with_results=True):
-                i = frag_fut_idx[fut]
-                frag_paths_by_key[granule_keys[i]] = result
-                frag_pbar.update(1)
-        finally:
-            frag_pbar.close()
-        del frag_futures, frag_fut_idx
-
-        frag_failures = sum(1 for v in frag_paths_by_key.values() if v is None)
-        if frag_failures:
-            logger.warning(f"Product {prod}: {frag_failures} granule fragment writes failed")
-
-        # Phase 3b: per-(cell, year) sidecar merger.
-        # Each merger receives ONLY the fragment paths for its dest's
-        # granules (inlined). No scatter, no big shared dict.
-        merge_args = []
-        for year_pf, granule_list in dest_to_granules.items():
-            frags = [frag_paths_by_key.get(k) for k in granule_list]
-            frags = [f for f in frags if f]
-            if frags:
-                merge_args.append((year_pf, frags))
-
-        logger.info(f"Product {prod}: merging {len(merge_args)} per-(cell, year) sidecars")
-
-        merge_futures = client.map(
-            _merge_year_sidecar,
-            [a[0] for a in merge_args],
-            [a[1] for a in merge_args],
-            prod=prod,
-            pure=False,
-        )
-        merge_fut_to_pf = dict(zip(merge_futures, [a[0] for a in merge_args]))
-
-        updated_files = []
-        failed_count = 0
-        merge_pbar = tqdm_bar(total=len(merge_args), desc=f"Merging sidecars ({prod})", unit="file")
-        try:
-            for future in dask_as_completed(merge_futures):
-                pf = merge_fut_to_pf[future]
+            for future in dask_as_completed(join_futures):
+                pf = fut_to_pf[future]
                 try:
                     result = future.result()
                     if result is not None:
-                        updated_files.append(pf)
-                        all_touched_cells.add(year_file_to_cell[pf])
+                        updated_files.append(result)
+                        touched_cells.add(year_file_to_cell[pf])
                 except Exception as e:
                     failed_count += 1
-                    logger.warning(f"Sidecar merge failed for {os.path.relpath(pf, h3_dir)}: {e}")
-                merge_pbar.update(1)
-                merge_pbar.set_postfix(updated=len(updated_files), failed=failed_count)
+                    logger.warning(f"Variable update failed for {os.path.relpath(pf, h3_dir)}: {e}")
+                pbar.update(1)
+                pbar.set_postfix(updated=len(updated_files), failed=failed_count)
         finally:
-            merge_pbar.close()
+            pbar.close()
 
-        if failed_count > 0:
-            logger.error(f"Product {prod}: {failed_count} sidecar merges failed. Re-run to retry.")
+    if failed_count > 0:
+        logger.error(f"{failed_count} year-file updates failed. Re-run to retry.")
 
-        logger.info(
-            f"Product {prod}: wrote {len(updated_files)}/{len(merge_args)} sidecars "
-            f"(failed={failed_count})"
-        )
-        all_updated_files.extend(updated_files)
+    logger.info(
+        f"Updated {len(updated_files)}/{len(year_files)} year files "
+        f"(already-done={already_done}, no-matching-granules={no_match}, "
+        f"failed={failed_count})"
+    )
 
     # Phase 4: per-cell metadata aggregation for cells that changed.
-    # h3_merge_metadata reads the per-year sidecars and rewrites the
-    # cell-level <cell>.metadata.json. Independent across cells.
-    if all_touched_cells:
-        logger.info(f"Merging per-cell metadata for {len(all_touched_cells)} updated cells")
-        cell_meta_futures = client.map(h3_merge_metadata, sorted(all_touched_cells), pure=False)
-        cell_meta_pbar = tqdm_bar(total=len(all_touched_cells), desc="Merging cell metadata", unit="cell")
+    # h3_merge_metadata reads each year's sidecar and rewrites the
+    # cell-level <cell>.metadata.json. Independent across cells so we
+    # fan it out the same way the year-file join was fanned out.
+    if touched_cells:
+        logger.info(f"Merging per-cell metadata for {len(touched_cells)} updated cells")
+        merge_futures = client.map(h3_merge_metadata, sorted(touched_cells), pure=False)
+        merge_pbar = tqdm_bar(total=len(touched_cells), desc="Merging cell metadata", unit="cell")
         try:
-            for f in dask_as_completed(cell_meta_futures):
+            for f in dask_as_completed(merge_futures):
                 try:
                     f.result()
                 except Exception as e:
                     logger.warning(f"Cell metadata merge failed: {e}")
-                cell_meta_pbar.update(1)
+                merge_pbar.update(1)
         finally:
-            cell_meta_pbar.close()
+            merge_pbar.close()
 
-    # Phase 5: cleanup intermediate fragments (they're only needed for the
-    # in-flight merge; sidecars are the load-bearing on-disk artifact).
-    # Best-effort — leaving them on resume failure is harmless (next run's
-    # fragment writer skips existing fragments).
-    frag_dir = os.path.join(tmp_dir, VAR_FRAGMENT_SUBDIR)
-    if all_updated_files and os.path.isdir(frag_dir):
-        try:
-            shutil.rmtree(frag_dir)
-        except OSError as e:
-            logger.warning(f"Could not clean up fragment dir {frag_dir}: {e}")
-
-    # Regenerate manifest so consumers see the new sidecars on the next
-    # smart_glob.
+    # Regenerate manifest
     generate_manifest(h3_dir, tree_shape='h3db')
 
-    return all_updated_files if all_updated_files else None
+    return updated_files if updated_files else None
 
 
 def build_h3db(
