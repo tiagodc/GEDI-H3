@@ -196,188 +196,70 @@ class TestH3SkipColumn:
 
 
 class TestAddVariablesResume:
-    """Variable update workers: scan, per-granule fragment writer, per-(cell, year)
-    sidecar merger.
-
-    The refactor replaced the legacy per-(cell, year) join (which rewrote the
-    base year file and opened each granule h5 once per cell that listed it,
-    ~40× redundancy) with: per-granule fragment fan-out + per-(cell, year)
-    sidecar merge (each granule h5 opened exactly once, base file never
-    rewritten).
-    """
+    """Per-(cell, year) variable update workers — scan & join, scatter-free."""
 
     @staticmethod
-    def _write_year_sidecar_meta(year_pf, granules):
+    def _write_year_sidecar(year_pf, granules):
         """Write a minimal per-year sidecar JSON beside year_pf."""
         meta_path = year_pf.replace('.parquet', '.metadata.json')
         with open(meta_path, 'w') as f:
             json.dump({'granules': granules}, f)
 
-    # ---- Phase 1: scan worker ----
+    # ---- Phase 1 scan worker ----
 
-    def test_scan_skips_when_all_new_columns_already_in_base(self, tmp_dir):
-        """Legacy layout: year file's base already has the target columns
-        embedded (older update path output). Scan must recognize this and
-        return None so the driver doesn't redo the work."""
+    def test_scan_skips_when_all_new_columns_already_present(self, tmp_dir):
+        """Year file already carries the target columns → scan returns
+        None so the driver never schedules a join task for it."""
         from gedih3.gh3builder import _scan_year_file_for_update
 
         _, pq_path = make_partition_dir(
             tmp_dir, n=20,
             extra_cols={'wsci_l4c': None},
         )
-        result = _scan_year_file_for_update(pq_path, ['wsci_l4c'], 'L4C')
-        assert result is None
-
-    def test_scan_skips_when_sidecar_already_covers_columns(self, tmp_dir):
-        """New layout: base lacks the columns, but the per-product sidecar
-        exists and contains them. Scan must check the sidecar too — otherwise
-        the driver would needlessly rewrite a sidecar already on disk."""
-        from gedih3.gh3builder import _scan_year_file_for_update, _sidecar_path_for_year
-
-        _, pq_path = make_partition_dir(tmp_dir, n=20)
-        # Write a synthetic sidecar parquet with the new column.
-        side_path = _sidecar_path_for_year(pq_path, 'L4C')
-        side_df = pd.DataFrame({'shot_number': np.arange(20), 'wsci_l4c': np.zeros(20)})
-        side_df.to_parquet(side_path, engine='pyarrow', index=False)
-
-        result = _scan_year_file_for_update(pq_path, ['wsci_l4c'], 'L4C')
+        result = _scan_year_file_for_update(pq_path, ['wsci_l4c'])
         assert result is None
 
     def test_scan_returns_granule_list_when_columns_missing(self, tmp_dir):
-        """Neither base nor sidecar has the columns → scan reads the per-year
-        metadata sidecar and returns the granule list for driver-side fan-out."""
+        """Year file is missing the target columns → scan reads the sidecar
+        and returns the granule list for driver-side path resolution."""
         from gedih3.gh3builder import _scan_year_file_for_update
 
         _, pq_path = make_partition_dir(tmp_dir, n=10)
-        self._write_year_sidecar_meta(
+        self._write_year_sidecar(
             pq_path,
             granules=[{'orbit': 12345, 'granule': 1, 'track': 99999}],
         )
-        result = _scan_year_file_for_update(pq_path, ['wsci_l4c'], 'L4C')
+        result = _scan_year_file_for_update(pq_path, ['wsci_l4c'])
         assert result == [{'orbit': 12345, 'granule': 1, 'track': 99999}]
 
-    def test_scan_returns_none_when_metadata_sidecar_absent(self, tmp_dir):
-        """No per-year metadata sidecar → scan returns None (no way to know
-        which granules contributed to this year file)."""
+    def test_scan_returns_none_when_sidecar_absent(self, tmp_dir):
+        """No per-year sidecar → scan returns None (no way to know which
+        granules contributed to this year file)."""
         from gedih3.gh3builder import _scan_year_file_for_update
 
         _, pq_path = make_partition_dir(tmp_dir, n=10)
         # Sidecar deliberately absent.
-        result = _scan_year_file_for_update(pq_path, ['wsci_l4c'], 'L4C')
+        result = _scan_year_file_for_update(pq_path, ['wsci_l4c'])
         assert result is None
 
-    # ---- Phase 3a: per-granule fragment writer ----
+    # ---- Phase 3 join worker ----
 
-    def test_write_granule_var_fragment_skips_empty_var_list(self, tmp_dir):
-        """No vars requested → writer is a no-op (defensive guard for
-        edge-case product specs where the parsed var list ended up empty)."""
-        from gedih3.gh3builder import _write_granule_var_fragment
-        result = _write_granule_var_fragment('/nonexistent.h5', 'L4C', [], tmp_dir)
+    def test_join_returns_none_for_empty_h5_specs(self, tmp_dir):
+        """Driver passed no h5 paths → worker is a no-op (matches the
+        no-matching-granules path where soc lookup found nothing)."""
+        from gedih3.gh3builder import _add_variables_to_year_file
+
+        _, pq_path = make_partition_dir(tmp_dir, n=10)
+        mtime_before = os.path.getmtime(pq_path)
+        time.sleep(0.05)
+
+        result = _add_variables_to_year_file(
+            pq_path,
+            h5_specs=[],
+            new_product_vars={'L4C': ['wsci_l4c']},
+        )
         assert result is None
-
-    def test_write_granule_var_fragment_reuses_existing(self, tmp_dir):
-        """Resume safety: a fragment from a prior interrupted run is content-
-        deterministic, so re-running the worker should reuse it without
-        opening the h5. (Verified by passing a /nonexistent.h5 — if the
-        worker tried to read it, it'd fail; reusing the existing fragment
-        bypasses the h5 read.)"""
-        from gedih3.gh3builder import (
-            _write_granule_var_fragment, _granule_var_fragment_path,
-            _granule_key_from_h5, VAR_FRAGMENT_SUBDIR,
-        )
-
-        h5_path = '/some/dir/GEDI04_C_2019108002012_O01956_03_T03909_02_003_01_V003.h5'
-        gkey = _granule_key_from_h5(h5_path)
-        frag_path = _granule_var_fragment_path(tmp_dir, gkey, 'L4C')
-        os.makedirs(os.path.dirname(frag_path), exist_ok=True)
-        # Write a fake non-empty fragment.
-        pd.DataFrame({'shot_number': [1], 'wsci_l4c': [0.5]}).to_parquet(
-            frag_path, engine='pyarrow', index=False
-        )
-
-        result = _write_granule_var_fragment(
-            h5_path, 'L4C', ['wsci_l4c'], tmp_dir,
-        )
-        assert result == frag_path
-
-    # ---- Phase 3b: per-(cell, year) sidecar merger ----
-
-    def test_merge_year_sidecar_returns_none_for_empty_fragments(self, tmp_dir):
-        """No fragments → no sidecar (matches the path where every granule
-        fragment write failed and the merger has nothing to consume)."""
-        from gedih3.gh3builder import _merge_year_sidecar
-
-        _, pq_path = make_partition_dir(tmp_dir, n=10)
-        result = _merge_year_sidecar(pq_path, [], 'L4C')
-        assert result is None
-
-    def test_merge_year_sidecar_produces_sidecar_from_fragments(self, tmp_dir):
-        """End-to-end: synthetic fragments → merger filters by base_shots →
-        writes sidecar with the right columns + only the matching rows."""
-        from gedih3.gh3builder import _merge_year_sidecar, _sidecar_path_for_year
-
-        # Base year file with shots 0..9
-        _, pq_path = make_partition_dir(tmp_dir, n=10)
-
-        # Two fragments: granule A covers shots 0-14, granule B covers 5-19.
-        # Only shots 0-9 should survive (intersect with base).
-        frag_dir = os.path.join(tmp_dir, 'frags')
-        os.makedirs(frag_dir, exist_ok=True)
-        frag_a = os.path.join(frag_dir, 'A.parquet')
-        frag_b = os.path.join(frag_dir, 'B.parquet')
-        pd.DataFrame({
-            'shot_number': np.arange(15),
-            'wsci_l4c': np.arange(15, dtype=float),
-        }).to_parquet(frag_a, engine='pyarrow', index=False)
-        pd.DataFrame({
-            'shot_number': np.arange(5, 20),
-            'wsci_l4c': np.arange(5, 20, dtype=float) + 100,
-        }).to_parquet(frag_b, engine='pyarrow', index=False)
-
-        result = _merge_year_sidecar(pq_path, [frag_a, frag_b], 'L4C')
-        assert result == _sidecar_path_for_year(pq_path, 'L4C')
-
-        side_df = pd.read_parquet(result)
-        assert sorted(side_df.columns.tolist()) == ['shot_number', 'wsci_l4c']
-        # Shots 0-9 covered. Granule A wins on overlap (keep='first').
-        assert sorted(side_df['shot_number'].tolist()) == list(range(10))
-        a_only = side_df.set_index('shot_number').loc[range(5)]['wsci_l4c'].tolist()
-        assert a_only == list(range(5))  # from fragment A
-
-    def test_merge_year_sidecar_updates_per_year_metadata(self, tmp_dir):
-        """The merger must extend the per-year metadata JSON with the
-        sidecar's columns + dtypes so h3_merge_metadata → set_post_build_info
-        picks them up into the build log's column cache."""
-        from gedih3.gh3builder import _merge_year_sidecar
-
-        _, pq_path = make_partition_dir(tmp_dir, n=10)
-        # Pre-write a per-year metadata sidecar (would normally come from
-        # h3_write_metadata after the fresh-build merge).
-        meta_path = pq_path.replace('.parquet', '.metadata.json')
-        with open(meta_path, 'w') as f:
-            json.dump({
-                'h3_partition': 'test',
-                'year': 2020,
-                'columns': ['shot_number', 'lat_lowestmode_l2a'],
-                'column_dtypes': {'shot_number': 'int64', 'lat_lowestmode_l2a': 'double'},
-                'granules': [{'orbit': 1, 'granule': 1, 'track': 1}],
-            }, f)
-
-        # Synthetic fragment matching the base shots.
-        frag = os.path.join(tmp_dir, 'frag.parquet')
-        pd.DataFrame({
-            'shot_number': np.arange(10),
-            'wsci_l4c': np.arange(10, dtype=float),
-        }).to_parquet(frag, engine='pyarrow', index=False)
-
-        _merge_year_sidecar(pq_path, [frag], 'L4C')
-
-        with open(meta_path) as f:
-            updated = json.load(f)
-        assert 'wsci_l4c' in updated['columns']
-        assert 'wsci_l4c' in updated['column_dtypes']
-        # Existing columns preserved
-        assert 'lat_lowestmode_l2a' in updated['columns']
+        assert os.path.getmtime(pq_path) == mtime_before
 
 
 class TestMergeProductVars:
