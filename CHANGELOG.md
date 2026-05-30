@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.11.1] - 2026-05-30
+
+### Fixed
+- **Variable-add fragment cleanup is now incremental + parallel** (`gh3builder._var_merge_cell_year`). The Stage 2 merge worker deletes each `(cell, year)`'s fragment directory immediately after its successful atomic join — the same `rm_src=True` discipline the fresh-build merge (`h3_merge_files`) uses. Previously every fragment was left for one serial `shutil.rmtree` on the driver at end-of-run; at continental fan-out scale that is ~2.6M files deleted single-threaded (~130/min), which pinned the driver in disk-sleep for ~6h **and** blocked the `COMPLETED` build-log write (`set_post_build_info` + `save_log`) behind it — so the newly-added product columns were not query-exposed (`gh3_load` builds its Dask `_meta` from the not-yet-updated `h3_columns_dtypes` cache) until the throwaway cleanup finished. Fragments now drain distributed across all workers as merges proceed, so the end-of-run sweep is a cheap no-op. The leftover `_var_fan_complete` sentinel dir (66k+ files at scale) is also cleaned in parallel via `parallel_map(_unlink_path)` instead of a serial rmtree. Observed on the first production L4C update (50,652 cell-years, 2.6M fragments): Stage 1 fan + Stage 2 merge were flawless, but the serial cleanup tail ran ~6h; this removes it. Resume-safe — fragments are deleted only after the base atomically carries the columns.
+
 ## [0.11.0] - 2026-05-29
 
 ### Changed
