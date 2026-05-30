@@ -358,10 +358,15 @@ class TestAddVariablesResume:
         vals = out.set_index('shot_number')['wsci_l4c']
         assert vals.loc[3] == 3.0                  # from A
         assert vals.loc[9] == 109.0                # from B only
+        # rm_src: the cell-year's fragment dir is dropped on a successful
+        # merge (distributed per-worker cleanup, not a serial end-of-run sweep).
+        assert not os.path.isdir(fdir)
 
-    def test_merge_idempotent_rerun_no_duplicate_columns(self, tmp_dir):
-        """Re-running the merge after columns already landed must not add a
-        duplicate column (parquet_join_columns filters present cols)."""
+    def test_merge_rm_src_then_rerun_is_noop(self, tmp_dir):
+        """After a successful merge the fragment dir is gone (rm_src), so a
+        re-run is a no-op (returns None) and never duplicates columns. If
+        the dir were somehow recreated with the same fragments, the
+        parquet_join_columns present-column filter still prevents dupes."""
         from gedih3.gh3builder import _var_merge_cell_year, _var_fragment_dir
         td = os.path.join(tmp_dir, '_t')
 
@@ -373,17 +378,30 @@ class TestAddVariablesResume:
                        'shot_count': 8, 'granules': [{'orbit': 1, 'granule': 1, 'track': 1}]}, f)
         fdir = _var_fragment_dir(td, pq_path)
         os.makedirs(fdir, exist_ok=True)
+        frag = os.path.join(fdir, 'A.parquet')
         pd.DataFrame({
             'shot_number': np.arange(0, 8, dtype=np.uint64),
             'wsci_l4c': np.arange(0, 8, dtype=float),
-        }).to_parquet(os.path.join(fdir, 'A.parquet'), index=False)
+        }).to_parquet(frag, index=False)
 
-        _var_merge_cell_year(pq_path, tmp_dir=td)
+        assert _var_merge_cell_year(pq_path, tmp_dir=td) == pq_path
         cols1 = list(pd.read_parquet(pq_path).columns)
+        assert not os.path.isdir(fdir)            # rm_src dropped it
+
+        # Re-run with the dir gone → no-op.
+        assert _var_merge_cell_year(pq_path, tmp_dir=td) is None
+        assert list(pd.read_parquet(pq_path).columns) == cols1
+
+        # Even if the same fragment reappears (e.g. a resume re-fanned it),
+        # the merge must not duplicate the already-present column.
+        os.makedirs(fdir, exist_ok=True)
+        pd.DataFrame({
+            'shot_number': np.arange(0, 8, dtype=np.uint64),
+            'wsci_l4c': np.arange(0, 8, dtype=float),
+        }).to_parquet(frag, index=False)
         _var_merge_cell_year(pq_path, tmp_dir=td)
-        cols2 = list(pd.read_parquet(pq_path).columns)
-        assert cols2 == cols1
-        assert cols2.count('wsci_l4c') == 1
+        cols3 = list(pd.read_parquet(pq_path).columns)
+        assert cols3.count('wsci_l4c') == 1
 
     # ---- Stage 1 fan worker ----
 
