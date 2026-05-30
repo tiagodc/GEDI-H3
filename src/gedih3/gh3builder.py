@@ -3112,6 +3112,19 @@ def _var_fan_granule(task, *, new_product_vars, tmp_dir):
     return {'granule': granule_key, 'fragments': n_frag}
 
 
+def _unlink_path(path):
+    """Worker: best-effort unlink of one file. Picklable top-level fn for
+    parallel cleanup of large sentinel/fragment sets via ``parallel_map``.
+    Idempotent — a missing file is success (already cleaned)."""
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+    except OSError as e:
+        return f"{type(e).__name__}: {e}"
+    return None
+
+
 def _var_merge_cell_year(year_pf, *, tmp_dir):
     """Stage 2 worker: merge a cell-year's fanned fragments into its base.
 
@@ -3123,6 +3136,19 @@ def _var_merge_cell_year(year_pf, *, tmp_dir):
     filters columns already present in the base, so a re-run after a
     partial merge never duplicates columns. Refreshes the per-year
     metadata JSON afterward.
+
+    On a successful merge the worker deletes THIS cell-year's fragment
+    directory immediately — the same ``rm_src=True`` discipline the
+    fresh-build merge (`h3_merge_files`) uses. This drops the consumed
+    fragments distributed across all workers as the merge proceeds,
+    instead of leaving every fragment for one giant serial
+    ``shutil.rmtree`` on the driver at end-of-run (which on a continental
+    fan-out is millions of files and pins the driver in disk-sleep for
+    hours while blocking the COMPLETED build-log write). Resume-safe:
+    once the base has the new columns, a re-run finds no fragments and
+    returns ``None`` (the skip-check also catches it via the base
+    schema), so deleting fragments after the atomic join never loses
+    recoverable work.
 
     Returns the base path on a real merge, ``None`` when the cell-year had
     no fragments (granule(s) produced no matching shots here).
@@ -3155,6 +3181,12 @@ def _var_merge_cell_year(year_pf, *, tmp_dir):
     # h3_write_metadata (which re-reads root_file_l2a + datetime to
     # recompute stats that have not changed).
     _refresh_year_columns_meta(year_pf)
+
+    # rm_src: drop this cell-year's consumed fragments now (distributed,
+    # one rmtree per worker) rather than accumulating all of them for a
+    # serial driver-side sweep at the end. The base already carries the
+    # columns atomically, so this is safe post-join.
+    shutil.rmtree(frag_dir, ignore_errors=True)
     return year_pf
 
 
@@ -3248,6 +3280,7 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
 
     from dask.distributed import as_completed as dask_as_completed
     from tqdm import tqdm as tqdm_bar
+    from .parallel import parallel_map
 
     client = get_dask_client()
     if client is None:
@@ -3475,25 +3508,47 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
 
     generate_manifest(h3_dir, tree_shape='h3db')
 
-    # ── Cleanup: drop intermediate fragments + sentinels on a clean run ─
-    # Leave them in place if anything failed so the next resume can reuse
-    # completed work (sentinels skip done granules; progress skips done
-    # merges). Harmless to leave otherwise — but a clean tree is tidier.
+    # ── Cleanup: drop the leftover sentinel/progress scaffolding ────────
+    # The per-cell-year fragment dirs were already deleted INSIDE
+    # _var_merge_cell_year as each merge succeeded (rm_src discipline,
+    # distributed across workers) — so _var_frags is empty here and its
+    # rmtree is a cheap no-op rather than a multi-hour serial sweep of
+    # millions of files on the driver. What remains is the
+    # _var_fan_complete sentinel dir + the merge-progress file, only
+    # meaningful for resuming an interrupted run. Drop them on a fully
+    # clean run; leave them if anything failed so the next resume reuses
+    # completed work. Fan-out cleanup is parallelized to avoid the same
+    # serial-rmtree trap (66k+ sentinel files at continental scale).
     if updated_files and n_fan_fail == 0 and n_merge_fail == 0:
-        for sub in (_VAR_FRAG_DIRNAME, _VAR_FAN_COMPLETE_DIRNAME):
-            d = os.path.join(tmp_dir, sub)
-            if os.path.isdir(d):
-                try:
-                    shutil.rmtree(d)
-                except OSError as e:
-                    logger.warning(f"Could not clean up {d}: {e}")
-        for fn in (_VAR_MERGE_PROGRESS_FILENAME,):
-            p = os.path.join(tmp_dir, fn)
+        frag_root = os.path.join(tmp_dir, _VAR_FRAG_DIRNAME)
+        if os.path.isdir(frag_root):
             try:
-                if os.path.exists(p):
-                    os.unlink(p)
-            except OSError:
-                pass
+                shutil.rmtree(frag_root)  # empty after per-merge rm_src — cheap
+            except OSError as e:
+                logger.warning(f"Could not clean up {frag_root}: {e}")
+        fan_dir = os.path.join(tmp_dir, _VAR_FAN_COMPLETE_DIRNAME)
+        if os.path.isdir(fan_dir):
+            try:
+                sentinels = [os.path.join(fan_dir, e.name)
+                             for e in os.scandir(fan_dir) if e.is_file()]
+                if len(sentinels) > 10000:
+                    # Parallel unlink across the cluster — the same anti-
+                    # serial-rmtree fix as the per-merge fragment drop.
+                    for _ in parallel_map(sentinels, _unlink_path,
+                                          desc="Cleaning fan sentinels",
+                                          unit="file", batch_size=2000):
+                        pass
+                    shutil.rmtree(fan_dir, ignore_errors=True)
+                else:
+                    shutil.rmtree(fan_dir)
+            except Exception as e:
+                logger.warning(f"Could not clean up {fan_dir}: {e}")
+        p = os.path.join(tmp_dir, _VAR_MERGE_PROGRESS_FILENAME)
+        try:
+            if os.path.exists(p):
+                os.unlink(p)
+        except OSError:
+            pass
 
     return updated_files if updated_files else None
 
