@@ -816,7 +816,7 @@ def gh3_load_hex(d, part_col=None, _storage_cfg=None, **kwargs):
 
     return df
 
-def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR, from_map=True):
+def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR, from_map=True, filters=None):
     """Internal: load from H3 database (original gh3_load implementation)."""
     h3_part = gh3_read_meta("h3_partition_level", gh3_root_dir=gh3_dir)
     h3_part_col = f"h3_{h3_part:02d}"
@@ -845,13 +845,21 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
 
         h3_filter['columns'] = columns
 
+    region_filters = None
     if region is not None:
         h3_ids = intersect_h3_geometries(region, h3_ids=h3_ids)
-        h3_filter['filters'] = [(h3_part_col,'in',h3_ids)]
+        region_filters = [(h3_part_col,'in',h3_ids)]
 
         if 'columns' in h3_filter:
             if 'geometry' not in h3_filter['columns']:
                 h3_filter['columns'].append('geometry')
+
+    # Combine the region partition filter (on h3_part_col, only meaningful for
+    # the read_parquet branch) with the user-supplied pyarrow predicate filters
+    # (on real data columns). Both forms are conjunctive lists of tuples, so an
+    # AND-combination is plain concatenation.
+    if region_filters is not None or filters is not None:
+        h3_filter['filters'] = (region_filters or []) + (list(filters) if filters is not None else [])
 
     if from_map:
         if is_remote_path(gh3_dir) or region is not None:
@@ -873,6 +881,14 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
         fm_filter = {k: v for k, v in h3_filter.items() if k != 'filters'}
         if 'columns' in fm_filter:
             fm_filter['columns'] = [c for c in fm_filter['columns'] if c != h3_part_col]
+
+        # Re-attach the user's pyarrow predicate filters (on real data columns)
+        # so they apply as per-file row-group pushdown during the from_map read.
+        # The region partition filter is intentionally NOT re-added — it targets
+        # h3_part_col, which lives in the directory name, not the parquet files,
+        # and is already honored by the h3_dirs selection above.
+        if filters is not None:
+            fm_filter['filters'] = list(filters)
 
         # Pass storage credentials so Dask workers (separate processes) can
         # authenticate against remote filesystems.
@@ -957,7 +973,10 @@ def gh3_load(source=None, *, columns=None, region=None, query=None,
         If True (default), return Dask DataFrame. If False, return computed
         pandas DataFrame.
     filters : list, optional
-        PyArrow predicate pushdown filters (only for lazy=False + parquet datasets).
+        PyArrow predicate pushdown filters (conjunctive list of
+        ``(column, op, value)`` tuples), applied as per-file row-group pushdown
+        during the read. Works for H3 databases and simplified parquet datasets,
+        and combines (AND) with ``region`` when both are given.
 
     Returns
     -------
@@ -1000,7 +1019,7 @@ def gh3_load(source=None, *, columns=None, region=None, query=None,
 
     if info['source_type'] == 'h3_database':
         ddf = _load_h3_database(columns=columns, region=region, query=query,
-                                gh3_dir=path, from_map=from_map)
+                                gh3_dir=path, from_map=from_map, filters=filters)
     else:
         ddf = _load_dataset(path, columns=columns, query=query, region=region,
                             lazy=True, filters=filters)
