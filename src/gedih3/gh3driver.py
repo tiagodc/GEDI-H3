@@ -737,20 +737,18 @@ def _meta_from_dtype_dict(col_dtypes, *, columns=None, part_col=None, index_name
 
     df = pd.DataFrame(series)
 
-    # Build path also partitions by year (assigned from datetime before
-    # write). pd.read_parquet on a list of files does NOT reconstruct
-    # hive partition columns, so gh3_load_hex attaches `year` per-file
-    # before appending the h3 partition column. The meta column order
-    # must match exactly: `year` first, then `part_col`. Year is never
-    # in h3_columns_dtypes because the build records dtypes before the
-    # partition split.
-    if 'year' not in df.columns:
-        df['year'] = pd.Series([], dtype='int32')
-
-    # gh3_load_hex appends part_col post-read from the directory name;
-    # include it here so from_map's meta matches the per-partition return.
+    # gh3_load_hex normalizes tail columns to [part_col, year] order:
+    # gpd.read_parquet infers hive partition columns in outer→inner path
+    # order (h3_03 then year), and the explicit normalize step at the end
+    # of gh3_load_hex guarantees this order for both geo and non-geo paths.
+    # Mirror that canonical tail order here so from_map's meta matches.
+    # Neither column is in h3_columns_dtypes (build records dtypes before
+    # the partition split).
     if part_col and part_col not in df.columns:
         df[part_col] = pd.Series([], dtype='object')
+
+    if 'year' not in df.columns:
+        df['year'] = pd.Series([], dtype='int32')
 
     if 'geometry' in df.columns:
         df = gpd.GeoDataFrame(df, geometry='geometry', crs=4326)
@@ -805,6 +803,17 @@ def gh3_load_hex(d, part_col=None, _storage_cfg=None, **kwargs):
         part_id = os.path.basename(d.rstrip('/')).split('=')[-1]
         if part_col not in df.columns and df.index.name != part_col:
             df[part_col] = part_id
+
+    # Normalize tail column order to [part_col, year] regardless of reader.
+    # gpd.read_parquet infers hive columns from the path in outer→inner order
+    # (h3_03 then year), while pd.read_parquet does not infer them at all and
+    # the manual adds above produce the same order. _meta_from_dtype_dict relies
+    # on this canonical order — keep them in sync.
+    _tail = [c for c in [part_col, 'year'] if c and c in df.columns]
+    if _tail:
+        _other = [c for c in df.columns if c not in _tail]
+        df = df[_other + _tail]
+
     return df
 
 def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR, from_map=True):
