@@ -433,17 +433,20 @@ class TestH3ColumnsDtypesCache:
 
     def test_meta_from_dtype_dict_projection(self):
         """``columns=`` filters the meta to the requested subset; the
-        build-invariant ``year`` hive column and the partition column are
-        appended on top in that order — matching the layout
-        ``gh3_load_hex`` produces at compute time (per-file year
-        attachment, then directory-derived part_col)."""
+        partition column and the build-invariant ``year`` hive column are
+        appended on top in ``[part_col, year]`` order — matching the
+        canonical tail order ``gh3_load_hex`` normalizes to at compute
+        time for both readers. (``gpd.read_parquet`` infers the hive
+        columns in outer→inner path order — ``h3_03`` then ``year`` — and
+        the explicit normalize step in ``gh3_load_hex`` makes the non-geo
+        path match.)"""
         from gedih3.gh3driver import _meta_from_dtype_dict
         meta = _meta_from_dtype_dict({
             'shot_number': 'uint64',
             'agbd_l4a': 'double',
             'rh_098': 'float',
         }, columns=['shot_number', 'agbd_l4a'], part_col='h3_03')
-        assert list(meta.columns) == ['shot_number', 'agbd_l4a', 'year', 'h3_03']
+        assert list(meta.columns) == ['shot_number', 'agbd_l4a', 'h3_03', 'year']
         assert str(meta['year'].dtype) == 'int32'
 
     def test_meta_from_dtype_dict_returns_none_on_empty_or_complex(self):
