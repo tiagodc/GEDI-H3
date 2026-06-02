@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.11.5] - 2026-06-02
+
+### Fixed
+- Install HTTP `(connect, read)` timeouts per-worker in `_download_with_retry`, so download workers spawned directly via `pqdm.processes` (bypassing `gedi_download`) no longer block forever on a dropped CDN stream
+
 ## [0.11.4] - 2026-06-02
 
 ### Changed
