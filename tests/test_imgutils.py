@@ -308,7 +308,8 @@ class TestSampleRasterAtPoints:
 
         # Points at pixel centers: pixel (0,0) is at x=-9, y=9 (top-left)
         pts = _make_test_points([(-9, 9), (-7, 9), (-9, 7)])
-        result = sample_raster_at_points(pts, path, band_names=['elevation'])
+        result = sample_raster_at_points(pts, path, band_names=['elevation'],
+                                         pixel_distance=True)
 
         assert 'elevation' in result.columns
         assert 'relative_pixel_distance' in result.columns
@@ -336,7 +337,8 @@ class TestSampleRasterAtPoints:
 
         # One point inside, one outside
         pts = _make_test_points([(2.5, 2.5), (50, 50)])
-        result = sample_raster_at_points(pts, path, band_names=['val'])
+        result = sample_raster_at_points(pts, path, band_names=['val'],
+                                         pixel_distance=True)
 
         assert not np.isnan(result.iloc[0]['val'])
         assert np.isnan(result.iloc[1]['val'])
@@ -489,7 +491,8 @@ class TestCRSReprojection:
         center_lon, center_lat = t.transform(455000, 5505000)
 
         pts = _make_test_points([(center_lon, center_lat)])
-        result = sample_raster_at_points(pts, path, band_names=['val'])
+        result = sample_raster_at_points(pts, path, band_names=['val'],
+                                         pixel_distance=True)
 
         assert len(result) == 1
         assert not np.isnan(result.iloc[0]['val'])
@@ -514,7 +517,7 @@ class TestComputeSamplingMeta:
         assert 'shot_number' in meta.columns
         assert 'b0' in meta.columns
         assert 'b1' in meta.columns
-        assert 'relative_pixel_distance' in meta.columns
+        assert 'relative_pixel_distance' not in meta.columns
 
     def test_meta_with_windows(self):
         wops = parse_window_specs(['031'])

@@ -334,7 +334,7 @@ def parse_window_specs(specs):
 def sample_raster_at_points(df, raster_path, band_names=None,
                             window_ops=None, fillna=None, dropna=False,
                             geo=False, partition_col=None, band_indices=None,
-                            all_band_names=None):
+                            all_band_names=None, pixel_distance=False):
     """Sample raster values at GEDI shot locations within a single partition.
 
     Designed to be called via Dask map_partitions. For each partition:
@@ -343,7 +343,7 @@ def sample_raster_at_points(df, raster_path, band_names=None,
     3. Open raster, clip to bbox (reads only relevant VRT tiles)
     4. Reproject points to raster CRS if needed
     5. Sample nearest pixel for each shot
-    6. Compute relative_pixel_distance
+    6. Compute relative_pixel_distance (if pixel_distance=True)
     7. Apply window operations if specified
 
     Parameters
@@ -372,12 +372,15 @@ def sample_raster_at_points(df, raster_path, band_names=None,
         Full list of raster band names (all bands). Used for resolving window
         operation column names when ``band_indices`` selects a subset. If None,
         defaults to ``band_names``.
+    pixel_distance : bool
+        If True, include ``relative_pixel_distance`` column in output.
+        Defaults to False.
 
     Returns
     -------
     DataFrame or GeoDataFrame
-        Sampled data with band columns, relative_pixel_distance, and
-        optional window operation columns
+        Sampled data with band columns, optional relative_pixel_distance,
+        and optional window operation columns
     """
     import xarray as xr
     import rioxarray
@@ -386,7 +389,8 @@ def sample_raster_at_points(df, raster_path, band_names=None,
         spatial_cols = None
         if partition_col:
             spatial_cols = {partition_col: 'object'}
-        return _empty_sampling_result(band_names, window_ops, geo, partition_col, spatial_cols=spatial_cols)
+        return _empty_sampling_result(band_names, window_ops, geo, partition_col, spatial_cols=spatial_cols,
+                                      pixel_distance=pixel_distance)
 
     # --- Extract coordinates ---
     if 'geometry' in df.columns and hasattr(df['geometry'], 'geom_type'):
@@ -409,7 +413,8 @@ def sample_raster_at_points(df, raster_path, band_names=None,
 
     if len(pts_lon) == 0:
         spatial_cols = _detect_spatial_cols(df) or ({partition_col: 'object'} if partition_col else None)
-        return _empty_sampling_result(band_names, window_ops, geo, partition_col, spatial_cols=spatial_cols)
+        return _empty_sampling_result(band_names, window_ops, geo, partition_col, spatial_cols=spatial_cols,
+                                      pixel_distance=pixel_distance)
 
     # --- Resolve band selection ---
     # Build merged band index set (selected + window-referenced) for efficient loading
@@ -593,7 +598,8 @@ def sample_raster_at_points(df, raster_path, band_names=None,
     out.update(band_values)
 
     # Distance
-    out['relative_pixel_distance'] = distances
+    if pixel_distance:
+        out['relative_pixel_distance'] = distances
 
     # Window values
     out.update(window_values)
@@ -663,7 +669,8 @@ def _finest_spatial_col(col_names):
 
 
 def _empty_sampling_result(band_names, window_ops, geo, partition_col,
-                           spatial_cols=None, all_band_names=None):
+                           spatial_cols=None, all_band_names=None,
+                           pixel_distance=False):
     """Return empty DataFrame matching the sampling output schema.
 
     Parameters
@@ -701,7 +708,8 @@ def _empty_sampling_result(band_names, window_ops, geo, partition_col,
     if band_names:
         for bn in band_names:
             cols[bn] = pd.Series(dtype='float64')
-    cols['relative_pixel_distance'] = pd.Series(dtype='float64')
+    if pixel_distance:
+        cols['relative_pixel_distance'] = pd.Series(dtype='float64')
     if window_ops:
         for wop in window_ops:
             col_name = _resolve_window_col_name(wop, all_band_names)
@@ -724,7 +732,8 @@ def _empty_sampling_result(band_names, window_ops, geo, partition_col,
 # =============================================================================
 
 def _compute_sampling_meta(band_names, window_ops, geo, partition_col,
-                           spatial_cols=None, all_band_names=None):
+                           spatial_cols=None, all_band_names=None,
+                           pixel_distance=False):
     """Build empty DataFrame with correct schema for Dask map_partitions meta.
 
     Parameters
@@ -748,7 +757,8 @@ def _compute_sampling_meta(band_names, window_ops, geo, partition_col,
         Empty frame matching output schema
     """
     return _empty_sampling_result(band_names, window_ops, geo, partition_col,
-                                  spatial_cols=spatial_cols, all_band_names=all_band_names)
+                                  spatial_cols=spatial_cols, all_band_names=all_band_names,
+                                  pixel_distance=pixel_distance)
 
 
 # =============================================================================
@@ -758,7 +768,8 @@ def _compute_sampling_meta(band_names, window_ops, geo, partition_col,
 def from_image(image_path, data_source=None, region=None,
                query=None, band_names=None, band_indices=None,
                window_ops=None, fillna=None,
-               dropna=False, geo=False, file_format='tif'):
+               dropna=False, geo=False, file_format='tif',
+               pixel_distance=False):
     """Sample raster values at GEDI shot locations.
 
     Supports two input modes with different ROI logic:
@@ -798,6 +809,9 @@ def from_image(image_path, data_source=None, region=None,
         Include geometry in output
     file_format : str
         Tile file extension for directory input
+    pixel_distance : bool
+        If True, include ``relative_pixel_distance`` column in output.
+        Defaults to False.
 
     Returns
     -------
@@ -882,7 +896,8 @@ def from_image(image_path, data_source=None, region=None,
 
     # Compute meta for map_partitions
     meta = _compute_sampling_meta(band_names, window_ops, geo, partition_col,
-                                  all_band_names=all_band_names if band_indices else None)
+                                  all_band_names=all_band_names if band_indices else None,
+                                  pixel_distance=pixel_distance)
 
     # Apply sampling via map_partitions
     result = ddf.map_partitions(
@@ -896,6 +911,7 @@ def from_image(image_path, data_source=None, region=None,
         partition_col=partition_col,
         band_indices=band_indices,
         all_band_names=all_band_names if band_indices else None,
+        pixel_distance=pixel_distance,
         meta=meta
     )
 
