@@ -552,6 +552,13 @@ def _download_with_retry(
     except Exception:
         granule_id = str(granule)
 
+    # Install HTTP timeouts here, not only in gedi_download(): callers that
+    # invoke download_granule/_download_with_retry directly via pqdm.processes
+    # (e.g. soc_tools.downloader_cli) spawn fresh worker processes that never
+    # run gedi_download, so without this they'd stream with no read timeout and
+    # block forever on a CDN connection that drops mid-transfer. Idempotent.
+    _install_request_timeouts()
+
     # Ensure authentication in worker processes (pqdm/Dask spawn fresh processes
     # that don't inherit the main-process earthaccess session)
     if not earthaccess.__auth__.authenticated:
