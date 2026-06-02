@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.11.4] - 2026-06-02
+
+### Changed
+- `sample_raster_at_points` and `from_image` no longer include `relative_pixel_distance` by default; opt in with `pixel_distance=True`
+
 ## [0.11.1] - 2026-05-30
 
 ### Fixed
