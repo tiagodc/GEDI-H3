@@ -14,7 +14,10 @@ dependencies:
   - pip
 
   # Core Python
-  - python[version='>=3.13']
+  # Capped below 3.14: on Windows, some not-yet-reputable cp314 conda-forge
+  # binaries can be blocked from loading by Smart App Control. cp313 builds
+  # have reputation and load fine. Lift the cap once cp314 wheels are established.
+  - python[version='>=3.13,<3.14']
   - setuptools[version='>=80.0']
 
   # Core scientific computing
