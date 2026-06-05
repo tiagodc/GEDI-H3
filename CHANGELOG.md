@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.11.6] - 2026-06-05
+
+### Fixed
+- Cap `python` below 3.14 in `environment.yml`: on Windows, not-yet-reputable cp314 conda-forge binaries (e.g. scikit-learn's `_cd_fast`) can be blocked from loading by Smart App Control; cp313 builds load fine
+
 ## [0.11.5] - 2026-06-02
 
 ### Fixed
