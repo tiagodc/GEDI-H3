@@ -281,7 +281,15 @@ def build_vrt(tif_files, vrt_path):
     """
     from osgeo import gdal
     gdal.UseExceptions()
-    gdal.BuildVRT(vrt_path, tif_files)
+    # Pin the VRT resolution to the first tile's pixel size.  Without an
+    # explicit resolution, gdal.BuildVRT defaults to 'average', which mixes
+    # in the smaller pixel size of edge tiles clipped at the CRS boundary and
+    # produces a VRT at the wrong (averaged) resolution.
+    ds = gdal.Open(tif_files[0])
+    gt = ds.GetGeoTransform()
+    ds = None
+    opts = gdal.BuildVRTOptions(resolution='user', xRes=gt[1], yRes=abs(gt[5]))
+    gdal.BuildVRT(vrt_path, tif_files, options=opts)
 
 
 def merge_and_export_rasters(
