@@ -84,16 +84,15 @@ def geodf_to_raster(
     pid = outer_df.index.value_counts().idxmax()
 
     # Get outer tile bounds
-    left, bottom, right, top = pixel_shape(pid).bounds
+    left, bottom, _, _ = pixel_shape(pid).bounds
     pixels_per_tile = int(round(OUTER_RES / res))
 
     # Always use the full (unclamped) tile extent for coordinates and the
     # affine transform.  Tiles at the eastern CRS boundary have a clamped
     # `right`, which makes from_bounds() produce a smaller x_cell (~900 m
-    # instead of ~1001 m).  gdal.BuildVRT then averages all tile pixel sizes
-    # and the resulting mosaic VRT ends up at the wrong resolution (~1001 m →
-    # ~1001 m).  Using bottom + OUTER_RES as the canonical top guarantees every
-    # tile carries the same pixel size regardless of CRS clipping.
+    # instead of ~1001 m). Using bottom + OUTER_RES as the canonical top
+    # guarantees every tile carries the same pixel size regardless of
+    # CRS clipping.
     tile_top = bottom + OUTER_RES
 
     # Create coordinate arrays for xarray
@@ -146,7 +145,7 @@ def geodf_to_raster(
         if np.issubdtype(ds[var].dtype, np.floating):
             ds[var] = ds[var].rio.write_nodata(np.nan)
 
-    # Set transform using canonical pixel size, not bounds-derived size.
+    # Set transform using canonical EGI pixel size
     trf = Affine(res, 0.0, left, 0.0, -res, tile_top)
     ds = ds.rio.write_transform(trf)
 
