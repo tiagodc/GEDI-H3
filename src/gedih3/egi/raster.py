@@ -5,6 +5,7 @@ This module provides rasterization functions for converting EGI-indexed
 GeoDataFrames to raster (xarray/GeoTIFF) format. The native alignment of
 EGI with EASE-Grid 2.0 allows for direct rasterization without resampling.
 """
+import logging
 from typing import List, Optional
 import numpy as np
 import pandas as pd
@@ -15,15 +16,17 @@ from affine import Affine
 from rasterio import transform
 from .config import RESOLUTIONS, OUTER_RES, OUTER_LEVEL, EGI_CRS_STRING, get_resolution
 from .spatial import pixel_shape
-from .dataframe import egi_to_parent
 from ..cliutils import filter_raster_columns as _filter_raster_columns
 from ..exceptions import GediRasterizationError
+
+logger = logging.getLogger(__name__)
 
 
 def geodf_to_raster(
     geodf: gpd.GeoDataFrame,
     columns: Optional[List[str]] = None,
-    fill_value: float = np.nan
+    fill_value: float = np.nan,
+    outer_tile: Optional[int] = None
 ) -> xr.Dataset:
     """
     Convert EGI-indexed GeoDataFrame to raster (xarray Dataset).
@@ -31,6 +34,16 @@ def geodf_to_raster(
     This function creates a raster aligned to the EASE-Grid 2.0 projection,
     with each EGI pixel mapped directly to a corresponding raster cell using
     direct index assignment (no interpolation or extrapolation).
+
+    The raster covers exactly ONE level-12 outer tile. Pixels belonging to
+    any other outer tile are skipped with a WARNING — their inner indices
+    are positions within their own tile and would land at wrong map
+    coordinates in this tile's grid. Post-fix pipelines always deliver
+    single-tile inputs (the ``to_hash`` boundary-overflow carry plus the
+    ``egi_load`` spillover filter guarantee it), so mixed tiles only arrive
+    from legacy datasets extracted before those fixes or from multi-tile
+    API calls; split by outer tile first (``rasterize_partition``) to keep
+    every pixel.
 
     Parameters
     ----------
@@ -41,6 +54,11 @@ def geodf_to_raster(
         Internal columns (egi indices, h3 indices) are automatically excluded.
     fill_value : float
         Value for pixels with no data (default: NaN)
+    outer_tile : int, optional
+        Level-12 EGI hash of the tile to rasterize. Callers that know their
+        tile (partition writers, ``rasterize_partition``) should always pass
+        it. When None, the dominant tile is chosen by a deterministic
+        majority count over the full index.
 
     Returns
     -------
@@ -78,10 +96,31 @@ def geodf_to_raster(
     level = int(egi_hashes[0] // np.uint64(1e18))
     res = RESOLUTIONS[level]
 
-    # Determine outer tile from data
-    _df = geodf.sample(100) if len(geodf) > 100 else geodf
-    outer_df = egi_to_parent(_df, OUTER_LEVEL)
-    pid = outer_df.index.value_counts().idxmax()
+    # Determine the target outer tile. ``outer_ids`` packs px_outer*1000 +
+    # py_outer for every input pixel (same digit layout from_hash decodes).
+    outer_ids = (egi_hashes % np.uint64(10**18)) // np.uint64(10**12)
+    uniq_outer, outer_counts = np.unique(outer_ids, return_counts=True)
+    if outer_tile is not None:
+        pid = np.uint64(outer_tile)
+        target_outer = (pid % np.uint64(10**18)) // np.uint64(10**12)
+    else:
+        # Deterministic majority over the FULL index (pure integer ops) —
+        # replaces the legacy unseeded 100-row sample, which could pick a
+        # different tile on every run for mixed-tile input.
+        target_outer = uniq_outer[np.argmax(outer_counts)]
+        pid = (np.uint64(OUTER_LEVEL) * np.uint64(10**18)
+               + target_outer * np.uint64(10**12))
+
+    n_dropped = int(outer_counts[uniq_outer != target_outer].sum())
+    if n_dropped:
+        logger.warning(
+            f"geodf_to_raster: input spans {len(uniq_outer)} outer tiles; "
+            f"rasterizing tile {int(pid)} and skipping {n_dropped} pixel(s) "
+            f"from other tile(s). Single-tile input is expected — mixed "
+            f"tiles indicate a legacy dataset (pre boundary-overflow fix) "
+            f"or a multi-tile API call; split by outer tile "
+            f"(rasterize_partition) to keep every pixel."
+        )
 
     # Get outer tile bounds
     left, bottom, _, _ = pixel_shape(pid).bounds
@@ -206,14 +245,16 @@ def rasterize_partition(
                 continue
 
             try:
+                # Tile ID at level 12 (consistent regardless of data level) —
+                # passed to geodf_to_raster as the explicit target so no
+                # tile inference happens, and reused as the raster attribute.
+                p_outer = outer_tile % np.uint64(1e18) // np.uint64(1e12)
+                egi12_id = int(np.uint64(OUTER_LEVEL * 1e18) + np.uint64(p_outer * 1e12))
+
                 # Rasterize this tile's data
-                xras = geodf_to_raster(tile_gdf, columns=columns)
+                xras = geodf_to_raster(tile_gdf, columns=columns, outer_tile=egi12_id)
 
                 if len(xras.data_vars) > 0:
-                    # Add tile ID as attribute (use level 12 for consistency)
-                    p_outer = outer_tile % np.uint64(1e18) // np.uint64(1e12)
-                    egi12_id = int(np.uint64(OUTER_LEVEL * 1e18) + np.uint64(p_outer * 1e12))
-
                     for var in list(xras.data_vars):
                         xras[var] = xras[var].assign_attrs(egi12_id=egi12_id)
 

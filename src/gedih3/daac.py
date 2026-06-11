@@ -920,7 +920,10 @@ def gedi_download(
                         on_granule_complete(ginfo, 'PENDING')
 
                 if dask_client is not None:
-                    futures = dask_client.map(download_func, granules)
+                    # pure=False: downloads are impure (write files, mutate
+                    # logs) — never let dask key-cache their outcomes for a
+                    # same-process resubmission of identical granules.
+                    futures = dask_client.map(download_func, granules, pure=False)
 
                     if on_granule_complete and prod != 'CUSTOM':
                         # Real-time per-file tracking via as_completed
