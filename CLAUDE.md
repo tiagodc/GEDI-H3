@@ -323,6 +323,7 @@ Before writing new helper code, check whether one of these covers your case. Eve
 | `read_parquet_schema` | `utils.py` | Footer-only schema read, returns DataFrame of `column` + `dtype`. |
 | `h5_is_valid` | `utils.py` | Cheap HDF5 header open; the canonical "is this file readable" check on resume. |
 | `h3_partition_bbox` | `utils.py` | H3 cell bbox from the cell ID — no geometry scan. |
+| `h3_expand_ring(cells, ring=1, valid=None)` | `h3utils.py` | The shared overhang-safety primitive: grid_disk ring expansion of a cell set, optionally restricted to a valid set (existing partitions). Use for ANY ROI→partition selection — exact polygon intersection alone silently misses boundary shots stored in neighbor partitions (child overhang ≈ 0.18 × edge). Consumers: `intersect_h3_geometries`, `egi_h3_intersection`, `geoseries_to_filter`. |
 | `gh3_read_meta(var)` | `gh3driver.py` | Read fields from the build-log sidecar (`h3_columns`, `h3_columns_dtypes`, `h3_partition_level`, `h3_partition_ids`). Use this before reaching for a parquet open. |
 | `gedi_vars_static(product, version)` | `gedidriver.py` | Cached per-product variable list from shipped manifests in `data/`. Prefer over `gedi_vars_from_h5` for NASA release files. |
 | `gedi_vars_from_h5` | `gedidriver.py` | HDF5 BEAM-tree walk. Use *only* when the file may have been previously subset (compact HDF5 from S3 ETL or `gedi_subset`); otherwise use `gedi_vars_static`. |
