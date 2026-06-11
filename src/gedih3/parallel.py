@@ -125,7 +125,16 @@ def parallel_map(
             f"of up to {batch_size} {unit}s "
             f"({len(items)} total) to dask cluster (progress on dashboard)"
         )
-        futures = client.map(_run_chunk, chunks, fn=fn, broadcast=broadcast)
+        # pure=False: every fn shipped through parallel_map reads live
+        # filesystem state (directory scans, h5 validity, metadata reads).
+        # Dask's default pure=True hashes (fn, args) into a deterministic
+        # task key and reuses cached results for identical keys — a repeat
+        # of the same scan in one process (manifest write -> doctor scan,
+        # --fix -> re-scan) could silently return stale pre-mutation
+        # results when the resubmission races the async release of the
+        # previous futures.
+        futures = client.map(_run_chunk, chunks, fn=fn, broadcast=broadcast,
+                             pure=False)
 
         log_every = max(1, len(chunks) // 20)
         n_done_chunks = 0
@@ -159,7 +168,9 @@ def parallel_map(
         f"{desc}: dispatching {len(items)} tasks to dask cluster "
         f"(progress on dashboard)"
     )
-    futures = client.map(fn, items, **broadcast)
+    # pure=False — see the batched branch above: parallel_map fns are
+    # impure filesystem readers; key-cached results would be stale.
+    futures = client.map(fn, items, pure=False, **broadcast)
     fut2item = {f: it for f, it in zip(futures, items)}
 
     log_every = max(1, len(items) // 20)
