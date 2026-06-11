@@ -2797,12 +2797,18 @@ def _merge_and_finalize(
         # Submit every remaining merge to the scheduler at once and let dask
         # distribute work across all available workers. No driver-side
         # throttling: scaling decisions belong to the scheduler.
+        # pure=False: merges read fragments, write outputs and delete
+        # sources — dask must never key-cache their results/exceptions
+        # (this phase keeps every future alive for its whole duration, so
+        # any same-process resubmission of a dir would otherwise get the
+        # cached outcome without re-executing).
         futures_list = client.map(
             h3_merge_files,
             remaining_dirs,
             out_dir=h3_dir,
             rm_src=True,
             replace=False,
+            pure=False,
         )
         futures: Dict[Any, str] = dict(zip(futures_list, remaining_dirs))
 
