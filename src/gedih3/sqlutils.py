@@ -45,14 +45,24 @@ def attach_ducklake_db(con, name='gedi_dl'):
         USE {name};
     """)
 
-def geoseries_to_filter(shp: gpd.GeoSeries, resolution: int = 3):
-    """Convert a GeoSeries to H3 cells at the given resolution."""
+def geoseries_to_filter(shp: gpd.GeoSeries, resolution: int = 3, expand_ring: int = 1):
+    """Convert a GeoSeries to an H3 partition filter at the given resolution.
+
+    ``'overlap'`` coverage is exact w.r.t. the cell polygons, but shots are
+    stored under their hierarchy partition, which can overhang the polygon
+    by ~0.18 x edge length (see ``intersect_h3_geometries``). ``expand_ring``
+    adds grid_disk neighbors so boundary shots stored in a non-overlapping
+    neighbor partition are not silently filtered out; pass 0 to disable.
+    """
     h3_cells = set()
     for geom in shp:
         h3shape = h3.geo_to_h3shape(geom)
         cells = h3.h3shape_to_cells_experimental(h3shape, resolution, 'overlap')
         h3_cells.update(cells)
-    return "h3_03 = ANY({})".format(list(h3_cells))
+    if expand_ring:
+        for cell in list(h3_cells):
+            h3_cells.update(h3.grid_disk(cell, expand_ring))
+    return "h3_03 = ANY({})".format(sorted(h3_cells))
 
 def duck_to_gdf(
     table, geometry_columns=["geometry"], crs="EPSG:4326"
