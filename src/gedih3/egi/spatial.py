@@ -385,7 +385,7 @@ def egi_h3_intersection(
     >>> for egi_id, h3_list in egi_to_h3.items():
     ...     # Load data from h3_list files for egi_id tile
     """
-    import h3 as _h3lib
+    from ..h3utils import h3_expand_ring
 
     # Use EPSG:6933 (EGI native CRS) for intersection.
     # Avoids WGS84 reprojection failures near the poles for fine-level EGI tiles.
@@ -410,11 +410,6 @@ def egi_h3_intersection(
         # Expand by ring-1 neighbors (filtered to valid partitions in the DB).
         # Captures boundary shots stored in partitions whose polygon doesn't
         # overlap the EGI tile but which contain shots in that tile.
-        expanded = set(intersecting_h3)
-        for h in intersecting_h3:
-            for nbr in _h3lib.grid_disk(h, 1):
-                if nbr in valid_partitions:
-                    expanded.add(nbr)
-        egi_to_h3[egi_id] = sorted(expanded)
+        egi_to_h3[egi_id] = h3_expand_ring(intersecting_h3, valid=valid_partitions)
 
     return egi_to_h3

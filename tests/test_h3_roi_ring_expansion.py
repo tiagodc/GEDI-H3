@@ -68,6 +68,22 @@ def overhang_case():
     return found
 
 
+class TestH3ExpandRing:
+    """Direct tests for the shared expansion primitive (used by
+    intersect_h3_geometries, egi_h3_intersection and geoseries_to_filter)."""
+
+    def test_unrestricted_expansion_is_grid_disk_union(self):
+        cell = h3.latlng_to_cell(0.5, -50.5, PART_RES)
+        from gedih3.h3utils import h3_expand_ring
+        assert h3_expand_ring([cell]) == sorted(h3.grid_disk(cell, 1))
+
+    def test_valid_set_restricts_but_keeps_input_cells(self):
+        from gedih3.h3utils import h3_expand_ring
+        cell = h3.latlng_to_cell(0.5, -50.5, PART_RES)
+        nbr = next(c for c in h3.grid_disk(cell, 1) if c != cell)
+        assert h3_expand_ring([cell], valid={nbr}) == sorted([cell, nbr])
+
+
 class TestOverhangPhenomenon:
     def test_point_in_one_polygon_stored_in_another(self, overhang_case):
         """Documents the root cause: hierarchy partition != polygon partition."""

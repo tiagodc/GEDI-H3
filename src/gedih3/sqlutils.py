@@ -8,6 +8,7 @@ import warnings
 from typing import List
 
 from .config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR
+from .h3utils import h3_expand_ring
 from .utils import get_system_resources
 
 
@@ -60,9 +61,10 @@ def geoseries_to_filter(shp: gpd.GeoSeries, resolution: int = 3, expand_ring: in
         cells = h3.h3shape_to_cells_experimental(h3shape, resolution, 'overlap')
         h3_cells.update(cells)
     if expand_ring:
-        for cell in list(h3_cells):
-            h3_cells.update(h3.grid_disk(cell, expand_ring))
-    return "h3_03 = ANY({})".format(sorted(h3_cells))
+        cells_out = h3_expand_ring(h3_cells, ring=expand_ring)
+    else:
+        cells_out = sorted(h3_cells)
+    return "h3_03 = ANY({})".format(cells_out)
 
 def duck_to_gdf(
     table, geometry_columns=["geometry"], crs="EPSG:4326"

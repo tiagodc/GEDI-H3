@@ -35,6 +35,40 @@ def fix_h3_geometry(hex:str):
     fixed_geometry = fix_polygon(polygon)
     return fixed_geometry
 
+def h3_expand_ring(cells, ring=1, valid=None):
+    """Expand a set of H3 cells by their ``grid_disk`` neighbors.
+
+    The shared overhang-safety primitive: shots are stored under their
+    hierarchy partition, which can overhang the partition's polygon by
+    ~0.18 x edge length (see ``_H3_OVERHANG_FRACTION`` in utils.py) — far
+    less than one cell width, so any cell set selected by exact polygon
+    intersection only needs its ring-1 neighbors to cover all storage
+    partitions. Used by ``intersect_h3_geometries``, ``egi_h3_intersection``
+    and ``geoseries_to_filter``.
+
+    Parameters
+    ----------
+    cells : iterable of str
+        H3 cell IDs (all at the same resolution).
+    ring : int, default 1
+        ``grid_disk`` radius.
+    valid : set, optional
+        When given, only neighbors in this set are added (e.g. the
+        partitions that actually exist in a database).
+
+    Returns
+    -------
+    list[str]
+        Sorted union of ``cells`` and their (filtered) neighbors.
+    """
+    expanded = set(cells)
+    for cell in cells:
+        for nbr in h3.grid_disk(cell, ring):
+            if valid is None or nbr in valid:
+                expanded.add(nbr)
+    return sorted(expanded)
+
+
 def intersect_h3_geometries(spatial, res=3, h3_ids=None, expand_ring=1):
     """Return H3 cells whose data footprint may intersect ``spatial``.
 
@@ -101,16 +135,11 @@ def intersect_h3_geometries(spatial, res=3, h3_ids=None, expand_ring=1):
     hits = h3_geo.index[h3_intersects].unique().tolist()
 
     if expand_ring and hits:
-        # Mirror egi_h3_intersection: expand by grid_disk neighbors filtered
-        # to the candidate set, so boundary shots stored in a partition whose
-        # polygon doesn't touch the ROI are still selected.
-        valid = set(full_h3_list)
-        expanded = set(hits)
-        for cell in hits:
-            for nbr in h3.grid_disk(cell, expand_ring):
-                if nbr in valid:
-                    expanded.add(nbr)
-        hits = sorted(expanded)
+        # Restrict to the candidate set when given (only partitions that
+        # exist); against the full grid every neighbor is valid by
+        # construction, so skip building the 41k+-entry set.
+        valid = set(h3_ids) if h3_ids is not None else None
+        hits = h3_expand_ring(hits, ring=expand_ring, valid=valid)
 
     return hits
 
