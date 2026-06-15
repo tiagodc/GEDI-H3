@@ -2980,10 +2980,11 @@ def _write_egi_file(df, opath, fmt, outer_tile=None):
     outer_tile : int, optional
         Level-12 EGI hash of the data's outer tile, when the caller knows it
         (per-partition writes). Forwarded to ``geodf_to_raster`` so raster
-        output targets the right tile without inference. None falls back to
-        the deterministic majority pick (single-file merge mode, where the
-        data may legitimately span tiles — only the dominant one is
-        rasterized, with a warning).
+        output targets the right tile without inference. When None and a
+        raster format is requested, ``geodf_to_raster`` requires the data to
+        resolve to a single outer tile and raises ``GediRasterizationError``
+        on genuine multi-tile input (single-file merge mode) — split by tile
+        or pass ``outer_tile`` rather than silently dropping pixels.
 
     Returns
     -------

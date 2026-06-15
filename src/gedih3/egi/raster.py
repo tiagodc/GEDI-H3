@@ -35,15 +35,16 @@ def geodf_to_raster(
     with each EGI pixel mapped directly to a corresponding raster cell using
     direct index assignment (no interpolation or extrapolation).
 
-    The raster covers exactly ONE level-12 outer tile. Pixels belonging to
-    any other outer tile are skipped with a WARNING — their inner indices
-    are positions within their own tile and would land at wrong map
-    coordinates in this tile's grid. Post-fix pipelines always deliver
-    single-tile inputs (the ``to_hash`` boundary-overflow carry plus the
-    ``egi_load`` spillover filter guarantee it), so mixed tiles only arrive
-    from legacy datasets extracted before those fixes or from multi-tile
-    API calls; split by outer tile first (``rasterize_partition``) to keep
-    every pixel.
+    The raster covers exactly ONE level-12 outer tile. When that tile is
+    given explicitly (``outer_tile``), stray pixels from any other tile are
+    skipped with a WARNING — their inner indices are positions within their
+    own tile and would land at wrong map coordinates in this tile's grid
+    (this protects legacy datasets extracted before the ``to_hash``
+    boundary-overflow carry and the ``egi_load`` spillover filter, which can
+    still hold cross-tile rows). When no tile is given, the input must
+    resolve to a single tile; a genuine multi-tile input raises
+    ``GediRasterizationError`` instead of guessing which tile to keep —
+    split by outer tile first (``rasterize_partition``) to keep every pixel.
 
     Parameters
     ----------
@@ -57,8 +58,18 @@ def geodf_to_raster(
     outer_tile : int, optional
         Level-12 EGI hash of the tile to rasterize. Callers that know their
         tile (partition writers, ``rasterize_partition``) should always pass
-        it. When None, the dominant tile is chosen by a deterministic
-        majority count over the full index.
+        it. When None, the input must resolve to a single outer tile; a
+        multi-tile input with no ``outer_tile`` hint raises
+        ``GediRasterizationError`` rather than guessing which tile to keep —
+        split by outer tile first (``rasterize_partition``) so no pixels are
+        dropped.
+
+    Raises
+    ------
+    GediRasterizationError
+        If the input spans more than one outer tile and no ``outer_tile`` is
+        given (the function rasterizes exactly one tile and will not silently
+        drop the rest).
 
     Returns
     -------
@@ -103,13 +114,24 @@ def geodf_to_raster(
     if outer_tile is not None:
         pid = np.uint64(outer_tile)
         target_outer = (pid % np.uint64(10**18)) // np.uint64(10**12)
-    else:
-        # Deterministic majority over the FULL index (pure integer ops) —
-        # replaces the legacy unseeded 100-row sample, which could pick a
-        # different tile on every run for mixed-tile input.
-        target_outer = uniq_outer[np.argmax(outer_counts)]
+    elif len(uniq_outer) == 1:
+        # No hint, but the input resolves to exactly one tile — that tile is
+        # determined, not guessed.
+        target_outer = uniq_outer[0]
         pid = (np.uint64(OUTER_LEVEL) * np.uint64(10**18)
                + target_outer * np.uint64(10**12))
+    else:
+        # Multi-tile input with no explicit target. Refuse rather than pick a
+        # winner and silently drop the rest: this function rasterizes exactly
+        # one outer tile, so callers must split by tile first
+        # (``rasterize_partition``) or pass the tile they want explicitly.
+        raise GediRasterizationError(
+            f"geodf_to_raster received {len(uniq_outer)} outer tiles but "
+            f"rasterizes exactly one. Split the input by outer tile "
+            f"(egi.rasterize_partition) so every pixel is kept, or pass "
+            f"outer_tile=<level-12 hash> to select the tile to rasterize. "
+            f"Tiles present: {sorted(int(t) for t in uniq_outer)}."
+        )
 
     n_dropped = int(outer_counts[uniq_outer != target_outer].sum())
     if n_dropped:
