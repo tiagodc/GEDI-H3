@@ -9,9 +9,11 @@ legacy datasets or multi-tile API calls. The guard therefore:
 
   * accepts an explicit ``outer_tile=`` from callers that know their tile
     (a-priori knowledge over runtime detection),
-  * otherwise picks the dominant tile by a deterministic full-index majority
-    (the legacy unseeded 100-row sample could pick a different tile per run),
-  * warns loudly whenever pixels are skipped (previously silent).
+  * accepts a no-hint input only when it resolves to a single tile,
+  * raises ``GediRasterizationError`` on a genuine multi-tile input with no
+    hint, rather than guessing a winner and silently dropping the rest
+    (the legacy code rasterized an unseeded 100-row sample's dominant tile),
+  * warns loudly whenever stray pixels are skipped against an explicit tile.
 
 TimeSeriesRasterizer legitimately aggregates ROIs spanning multiple outer
 tiles, so its EGI path now splits per tile and merges instead of relying on
@@ -86,18 +88,16 @@ class TestGeodfToRasterTileGuard:
         assert int(np.isfinite(ras['val'].values).sum()) == 5
         assert not raster_caplog.records
 
-    def test_mixed_tiles_majority_is_deterministic_and_warns(self, raster_caplog):
+    def test_mixed_tiles_no_hint_raises(self):
+        from gedih3.exceptions import GediRasterizationError
+
         gdf = _egi_gdf({(100, 50): 5, (101, 50): 2})
-        rasters = [egi.geodf_to_raster(gdf) for _ in range(3)]
+        # No outer_tile and genuinely multi-tile: refuse rather than guess a
+        # winner and silently drop the other tile's pixels.
+        with pytest.raises(GediRasterizationError, match='outer tile'):
+            egi.geodf_to_raster(gdf)
 
-        # Majority tile (100, 50) wins on every run — 5 pixels survive.
-        for ras in rasters:
-            assert int(np.isfinite(ras['val'].values).sum()) == 5
-            left = ras.rio.transform().c
-            assert left == pytest.approx(LIMITS['lon_w'] + 100 * OUTER_RES)
-        assert 'skipping 2 pixel(s)' in raster_caplog.text
-
-    def test_explicit_outer_tile_overrides_majority(self, raster_caplog):
+    def test_explicit_outer_tile_selects_requested_tile(self, raster_caplog):
         gdf = _egi_gdf({(100, 50): 5, (101, 50): 2})
         ras = egi.geodf_to_raster(gdf, outer_tile=_egi12_id(101, 50))
 
