@@ -143,6 +143,24 @@ ddf = gh3.gh3_load(source='/path/to/extracted/')
 gdf = gh3.gh3_load(source='/path/to/extracted/').compute()
 ```
 
+### Selecting partition files directly
+
+If you read the H3 partition files yourself instead of going through `gh3_load`, **do not** pick partitions by intersecting the H3 cell polygons with your region — H3 partitions are not geometrically inclusive of the shots stored in them, so an exact intersection silently drops boundary shots (see the [Parent/Child Nesting Caveat](../concepts/h3-indexing.md)).
+
+Use `gh3_select_partitions`, which applies the same overhang-safe ring-1 expansion that `gh3_load` uses internally and returns the correct minimal set of partition cell IDs:
+
+```python
+import gedih3, glob
+
+# Overhang-safe partition selection (ring-1 expansion applied)
+ids = gedih3.gh3_select_partitions(source='/path/to/h3_database/', region='roi.shp')
+
+files = [f for i in ids
+         for f in glob.glob(f'/path/to/h3_database/h3_03={i}/year=*/*.parquet')]
+```
+
+Each partition's `*.metadata.json` sidecar (and the parquet GeoParquet footer) also carries an overhang-padded `bbox` that is safe to intersect against; its `h3_geometry` is the *exact* cell polygon and is **not**. Compute a padded extent for any cell ID with `gedih3.h3_partition_bbox(cell_id, partition_level)`.
+
 ---
 
 ## Aggregation

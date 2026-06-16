@@ -84,6 +84,66 @@ def gh3_read_meta(var, gh3_root_dir=GH3_DEFAULT_H3_DIR):
     meta = json_read(meta_path)
     return meta.get(var)
 
+
+def gh3_select_partitions(source, region=None):
+    """Return the H3 partition cell IDs of a database that may hold shots for ``region``.
+
+    This is the canonical, overhang-safe way to determine which partition
+    files a region touches, and the function external consumers should use
+    when reading the H3 database **directly** (i.e. not through
+    :func:`gh3_load`). It applies the same ring-1 expansion ``gh3_load`` uses
+    internally.
+
+    H3 partitions are *not* geometrically inclusive of the shots stored in
+    them: a shot is filed under ``cell_to_parent(latlng_to_cell(lon, lat,
+    index_res), partition_res)``, whose polygon a boundary shot can sit
+    outside of by up to ~0.18 x the partition's edge length (~11 km at
+    partition level 3). Selecting partitions by an *exact* polygon
+    intersection therefore silently drops boundary shots (~5% of a boundary
+    partition's shots observed in production). The ring-1 expansion applied
+    here closes that gap; it is guaranteed sufficient because the overhang is
+    far smaller than one cell width. See the "Parent/Child Nesting Caveat" in
+    the H3 Indexing docs for the full explanation.
+
+    Parameters
+    ----------
+    source : str
+        Path to an H3 database (the directory holding ``gedih3_build_log.json``).
+    region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
+        ROI as a vector-file path / ``"W,S,E,N"`` string, ``[W, S, E, N]``
+        bbox list, geopandas object, or shapely geometry (EPSG:4326). When
+        ``None`` (default), every partition in the database is returned.
+
+    Returns
+    -------
+    list[str]
+        Sorted H3 partition cell IDs at the database's partition level.
+
+    Raises
+    ------
+    GediDatabaseNotFoundError
+        If ``source`` has no readable build log / partition list.
+
+    Examples
+    --------
+    >>> ids = gh3_select_partitions('/data/h3db', region='roi.shp')
+    >>> ids[:2]
+    ['83804cfffffffff', '838041fffffffff']
+    >>> # Map ids -> files when reading outside gh3_load:
+    >>> import glob
+    >>> files = [f for i in ids
+    ...          for f in glob.glob(f'/data/h3db/h3_03={i}/year=*/*.parquet')]
+    """
+    h3_ids = gh3_read_meta("h3_partition_ids", gh3_root_dir=source)
+    if not h3_ids:
+        raise GediDatabaseNotFoundError(
+            f"No H3 partition list found in {source} "
+            f"(missing or empty 'h3_partition_ids' in {BUILD_LOG_FILENAME})."
+        )
+    if region is None:
+        return sorted(h3_ids)
+    return intersect_h3_geometries(region, h3_ids=h3_ids)
+
 def gh3_write_meta(opath, **kwargs):
     h3_partition_ids = gh3_list_parts(gh3_root_dir=opath)
     storage_kwargs = {}
