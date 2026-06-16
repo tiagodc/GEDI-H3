@@ -97,6 +97,7 @@ from .gh3builder import (
 # --- Database querying ------------------------------------------------------
 from .gh3driver import (
     gh3_load,
+    gh3_select_partitions,
     gh3_aggregate,
     gh3_export,
     egi_load,
@@ -105,6 +106,10 @@ from .gh3driver import (
     gh3_to_raster,
     gh3_rasterize_partitions,
 )
+
+# --- Spatial selection helpers (for direct / external database access) ------
+from .h3utils import intersect_h3_geometries, h3_expand_ring
+from .utils import h3_partition_bbox
 
 # --- Sub-modules ------------------------------------------------------------
 from . import egi
@@ -174,6 +179,7 @@ __all__ = [
     "download_soc",
     # database querying
     "gh3_load",
+    "gh3_select_partitions",
     "gh3_aggregate",
     "gh3_export",
     "egi_load",
@@ -181,6 +187,10 @@ __all__ = [
     "egi_extract",
     "gh3_to_raster",
     "gh3_rasterize_partitions",
+    # spatial selection helpers (direct / external database access)
+    "intersect_h3_geometries",
+    "h3_expand_ring",
+    "h3_partition_bbox",
     # sub-modules
     "egi",
     "raster",

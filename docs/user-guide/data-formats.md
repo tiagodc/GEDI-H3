@@ -32,7 +32,18 @@ h3_database/
 - Each H3 directory contains a cell-level metadata file and yearly sub-directories; each year holds a `.parquet` data file and a companion `.metadata.json`
 - This two-level scheme caps file size and makes it easy to append new data without touching existing files
 - `gedih3_build_log.json` records build metadata (products, variables, region, resolution levels); `_manifest.txt` lists all partition paths
-- **Not designed for direct use with external tools** — use `gh3_extract` to produce user-friendly flat files
+- **Not designed for direct use with external tools** — use `gh3_extract` to produce user-friendly flat files. If you must read the partition files directly, select them with `gedih3.gh3_select_partitions(source, region)` rather than intersecting the cell polygons yourself (see the selection-safety note below)
+
+#### Partition metadata sidecar (`*.metadata.json`)
+
+Each partition's sidecar carries two spatial fields that are **not interchangeable**:
+
+| Field | Meaning | Safe for partition selection? |
+|-------|---------|-------------------------------|
+| `h3_geometry` | The *exact* H3 cell polygon (GeoJSON) | **No** — H3 children overhang their parent, so a region that clips this polygon silently misses boundary shots |
+| `bbox` | `[minlon, minlat, maxlon, maxlat]`, **overhang-padded** to enclose every shot actually stored in the partition | **Yes** — intersect ROIs against this |
+
+The same overhang-padded bbox is also embedded in each parquet file's GeoParquet footer (`columns.geometry.bbox`). To compute the padded extent for any cell ID directly, use `gedih3.h3_partition_bbox(cell_id, partition_level)`.
 
 ### Build Log Keys
 
@@ -51,7 +62,7 @@ The H3 database uses two H3 resolution levels simultaneously:
 - **Partition level** (default: 3) — determines the directory structure. A query for a specific region only reads tiles that overlap that region.
 - **Index level** (default: 12) — the H3 cell ID assigned to each individual GEDI shot, stored as a column/index in every parquet file.
 
-> **Parent/child caveat**: H3 parent hexagons are not perfectly geometrically inclusive of their children. When aggregating across resolution levels, `gh3_aggregate` uses `h3.cell_to_parent()` which assigns each shot to its closest parent, which is consistent and fast but not a strict geometric containment. See [H3 Indexing](../concepts/h3-indexing.md) for details.
+> **Parent/child caveat**: H3 parent hexagons are not perfectly geometrically inclusive of their children. When aggregating across resolution levels, `gh3_aggregate` uses `h3.cell_to_parent()` which assigns each shot to its closest parent, which is consistent and fast but not a strict geometric containment. The same property means a partition's stored shots can fall slightly outside the partition's own cell polygon — so selecting partition files by exact polygon intersection silently drops boundary shots. Use `gh3_select_partitions` (or the padded `bbox`) for direct access. See [H3 Indexing](../concepts/h3-indexing.md) for details.
 
 ---
 

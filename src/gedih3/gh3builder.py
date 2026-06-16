@@ -483,11 +483,24 @@ def h3_write_metadata(h3_file, stats=None):
     h3_polygon = gpd.GeoDataFrame(geometry=[fix_h3_geometry(h3_part)],
                                   crs=4326, index=[h3_part])
 
+    # Overhang-padded bbox safe for *partition selection*: H3 children are not
+    # geometrically contained in their parent, so a shot filed under this
+    # partition can sit up to ~0.18 x edge length outside the exact cell
+    # polygon. `bbox` pads for that and is the field external consumers should
+    # intersect against; `h3_geometry` is the EXACT cell polygon and is NOT
+    # selection-safe (it silently excludes boundary shots). See h3_partition_bbox.
+    partition_res = h3.get_resolution(h3_part)
+    partition_bbox = h3_partition_bbox(h3_part, partition_res)
+
     meta = {
         'last_modified': now(),
         'l2a_version': l2a_version,
         'h3_partition': h3_part,
         'h3_geometry': to_geojson(h3_polygon),
+        'bbox': partition_bbox,
+        'bbox_note': ('overhang-padded [minlon,minlat,maxlon,maxlat]; '
+                      'selection-safe. h3_geometry is the exact cell polygon '
+                      'and is NOT selection-safe.'),
         'year': int(year),
         'shot_count': shot_count,
         'shot_range': shot_range,

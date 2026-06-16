@@ -85,6 +85,35 @@ H3 parent/child nesting caveat. Level-7 hierarchical children of two adjacent le
 
 For the vast majority of analyses, this has negligible effect. It becomes relevant only if you are studying phenomena at or near H3 cell boundaries, or if you need exact geometric containment (in which case EGI square pixels may be more appropriate — see [EGI Indexing](egi-indexing.md)).
 
+### Selecting partition files: don't intersect the cell polygons yourself
+
+The same caveat has a sharp edge for anyone reading the H3 database **directly** (i.e. opening partition parquet files without going through `gh3_load`). Because a shot is filed under `cell_to_parent(latlng_to_cell(lon, lat, index_level), partition_level)`, a boundary shot can be physically located **outside** the polygon of the level-3 partition it is stored in — by up to ~0.18 × the partition's edge length (~11 km at level 3). A shot's true location and its storage partition can therefore disagree right at partition boundaries.
+
+The practical consequence: **selecting partitions by an exact polygon intersection silently drops boundary shots.** In production we measured a single level-3 partition where ~5% of its 1.84M shots were stored under a cell whose polygon did not intersect their true location. Code that picks files like this —
+
+```python
+# WRONG — silently misses ~boundary shots
+cells = h3.h3shape_to_cells(h3.geo_to_h3shape(roi), 3)
+files = [f for c in cells for f in glob.glob(f'{db}/h3_03={c}/year=*/*.parquet')]
+```
+
+— will under-read at every region edge. `gh3_load` avoids this internally by expanding the polygon-intersecting cells with their **ring-1 grid neighbors** (the overhang is far smaller than one cell width, so an immediate neighbor is always sufficient).
+
+**Use the provided selection helper instead** — it applies the ring-1 expansion for you and returns the correct minimal set of partition cell IDs:
+
+```python
+import gedih3
+
+# Overhang-safe: ring-1 expansion applied, no boundary shots lost
+ids = gedih3.gh3_select_partitions(source='/data/h3db', region=roi)
+
+import glob
+files = [f for i in ids
+         for f in glob.glob(f'/data/h3db/h3_03={i}/year=*/*.parquet')]
+```
+
+If you prefer to filter on bounding boxes, each partition's `*.metadata.json` sidecar (and the parquet GeoParquet footer) carries an **overhang-padded** `bbox` that *is* safe to intersect against — while its `h3_geometry` is the exact cell polygon and is **not**. You can also compute the padded extent for any cell ID with `gedih3.h3_partition_bbox(cell_id, partition_level)`. See [Data Formats](../user-guide/data-formats.md).
+
 ---
 
 ## H3 Aggregation in gedih3
