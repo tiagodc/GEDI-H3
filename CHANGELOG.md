@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.12.0] - 2026-06-15
+
+### Added
+- `gh3_select_partitions(source, region)` — public, overhang-safe way to determine which H3 partitions a region touches when reading the database directly; returns ring-1-expanded partition cell IDs. Exported alongside `intersect_h3_geometries`, `h3_expand_ring`, and `h3_partition_bbox`
+- Overhang-padded `bbox` (+ `bbox_note`) in H3 partition metadata sidecars — a selection-safe extent for direct consumers; the existing `h3_geometry` is the exact cell polygon and is *not* selection-safe
+
+### Changed
+- Consolidated ROI ring expansion into a shared `h3_expand_ring` primitive in `h3utils`
+
+### Fixed
+- Ring-1 expansion in ROI→H3 partition selection closes silent skipping of boundary shots stored under neighbor partitions (child overhang ≈ 0.18 × edge)
+- `gh3_update`: EGI partition lookup compared numeric keys against filename strings and never matched
+- `parallel_map` tasks marked impure — dask key-caching was returning stale scans
+- EGI rasterization: deterministic, loud outer-tile guard + correct multi-tile time-series merge; raise on multi-tile no-hint input instead of majority-guessing
+- EGI rasterization: correct pixel widths in eastern edge tiles and the mosaic VRT (previously averaged mismatched edge/non-edge pixel sizes)
+
+### Contributors
+- Tiago de Conto, Amelia Holcomb
+
 ## [0.11.6] - 2026-06-05
 
 ### Fixed
