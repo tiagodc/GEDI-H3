@@ -329,8 +329,11 @@ def _update_egi_partitions(dataset_path, db_path, data_files, fmt, new_cols,
     egi_partition_level = dataset_meta.get('egi_partition_level', 12)
     egi_part_col = egi_col_name(egi_partition_level)
 
-    # Prepare EGI↔H3 intersection
-    egi_tiles, egi_to_h3, h3_part_col, _ = gh3._prepare_egi_loading(None, db_path)
+    # Prepare EGI↔H3 intersection at the dataset's partition level — the
+    # egi_to_h3 keys must be the same level as the hashes encoded in the
+    # partition filenames.
+    egi_tiles, egi_to_h3, h3_part_col, _ = gh3._prepare_egi_loading(
+        None, db_path, partition_level=egi_partition_level)
 
     load_cols = [sn_col] + new_cols + extra_filter_cols
     reader = make_dataset_reader(fmt)
@@ -340,7 +343,13 @@ def _update_egi_partitions(dataset_path, db_path, data_files, fmt, new_cols,
                        args=args, unit="part") as bar:
         for fpath in bar:
             part_id = os.path.splitext(os.path.basename(fpath))[0]
-            h3_list = egi_to_h3.get(part_id, [])
+            # Filenames carry the EGI hash as a decimal string, but egi_to_h3
+            # is keyed by the numeric hash (egi_tiles.index values).
+            try:
+                h3_list = egi_to_h3.get(np.uint64(part_id), [])
+            except ValueError:
+                logger.warning(f"  Skipping non-EGI partition filename: {fpath}")
+                h3_list = []
 
             target_df = reader(fpath)
 
