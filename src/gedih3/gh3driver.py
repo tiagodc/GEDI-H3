@@ -2955,14 +2955,17 @@ def egi_export_part(df, odir, fmt='parquet', is_file_path=False, partition_level
         oname = str(part_hash)
         opath = smart_join(odir, f"{oname}.{fmt}")
 
-        written_path = _write_egi_file(tile_df, opath, fmt)
+        # Partitions at level <= 12 nest in exactly one outer tile — pass it
+        # so raster outputs never fall back to tile inference.
+        outer_tile = int(egi.to_parent(np.uint64(part_hash), egi.OUTER_LEVEL))
+        written_path = _write_egi_file(tile_df, opath, fmt, outer_tile=outer_tile)
         if written_path:
             output_paths.append(written_path)
 
     return ','.join(output_paths) if output_paths else ''
 
 
-def _write_egi_file(df, opath, fmt):
+def _write_egi_file(df, opath, fmt, outer_tile=None):
     """
     Write EGI data to a file.
 
@@ -2974,6 +2977,14 @@ def _write_egi_file(df, opath, fmt):
         Output file path
     fmt : str
         Output format
+    outer_tile : int, optional
+        Level-12 EGI hash of the data's outer tile, when the caller knows it
+        (per-partition writes). Forwarded to ``geodf_to_raster`` so raster
+        output targets the right tile without inference. When None and a
+        raster format is requested, ``geodf_to_raster`` requires the data to
+        resolve to a single outer tile and raises ``GediRasterizationError``
+        on genuine multi-tile input (single-file merge mode) — split by tile
+        or pass ``outer_tile`` rather than silently dropping pixels.
 
     Returns
     -------
@@ -2987,7 +2998,7 @@ def _write_egi_file(df, opath, fmt):
 
     # Handle raster export (rasterio writer handles its own atomicity)
     if fmt in ('tif', 'tiff', 'geotiff'):
-        raster = egi.geodf_to_raster(df)
+        raster = egi.geodf_to_raster(df, outer_tile=outer_tile)
         egi.export_raster(raster, opath)
         return opath
 

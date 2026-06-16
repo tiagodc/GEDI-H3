@@ -377,7 +377,16 @@ class TimeSeriesRasterizer:
         """Convert aggregated data to raster."""
         if self.use_egi:
             from .. import egi
-            return egi.geodf_to_raster(gdf, columns=self.columns)
+            # A time-window aggregate over an arbitrary ROI legitimately
+            # spans multiple 160-km outer tiles — split per tile and merge,
+            # instead of relying on geodf_to_raster's single-tile fallback
+            # (which rasterizes only the dominant tile and drops the rest).
+            rasters = egi.rasterize_partition(gdf, columns=self.columns)
+            if len(rasters) == 0:
+                return xr.Dataset()
+            if len(rasters) == 1:
+                return rasters.iloc[0]
+            return egi.merge_raster_partitions(rasters)
         else:
             from .h3_raster import h3_to_raster
             return h3_to_raster(gdf, columns=self.columns)

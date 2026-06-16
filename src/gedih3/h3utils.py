@@ -35,7 +35,74 @@ def fix_h3_geometry(hex:str):
     fixed_geometry = fix_polygon(polygon)
     return fixed_geometry
 
-def intersect_h3_geometries(spatial, res=3, h3_ids=None):
+def h3_expand_ring(cells, ring=1, valid=None):
+    """Expand a set of H3 cells by their ``grid_disk`` neighbors.
+
+    The shared overhang-safety primitive: shots are stored under their
+    hierarchy partition, which can overhang the partition's polygon by
+    ~0.18 x edge length (see ``_H3_OVERHANG_FRACTION`` in utils.py) — far
+    less than one cell width, so any cell set selected by exact polygon
+    intersection only needs its ring-1 neighbors to cover all storage
+    partitions. Used by ``intersect_h3_geometries``, ``egi_h3_intersection``
+    and ``geoseries_to_filter``.
+
+    Parameters
+    ----------
+    cells : iterable of str
+        H3 cell IDs (all at the same resolution).
+    ring : int, default 1
+        ``grid_disk`` radius.
+    valid : set, optional
+        When given, only neighbors in this set are added (e.g. the
+        partitions that actually exist in a database).
+
+    Returns
+    -------
+    list[str]
+        Sorted union of ``cells`` and their (filtered) neighbors.
+    """
+    expanded = set(cells)
+    for cell in cells:
+        for nbr in h3.grid_disk(cell, ring):
+            if valid is None or nbr in valid:
+                expanded.add(nbr)
+    return sorted(expanded)
+
+
+def intersect_h3_geometries(spatial, res=3, h3_ids=None, expand_ring=1):
+    """Return H3 cells whose data footprint may intersect ``spatial``.
+
+    H3 children are not geometrically contained in their parents: a shot
+    stored under partition ``cell_to_parent(latlng_to_cell(lon, lat, index_res),
+    part_res)`` can sit up to ~0.14-0.16 x the parent's edge length outside
+    the parent's own polygon (~8-10 km at partition level 3; see
+    ``_H3_OVERHANG_FRACTION`` in utils.py). A ROI touching that overhang
+    band intersects the polygon the shots physically fall in, not the
+    partition they are stored in — so an exact polygon intersection
+    silently misses boundary shots (observed in production on the EGI
+    path: ~5% of one L3 partition's shots; see ``egi_h3_intersection``).
+
+    ``expand_ring=1`` (default) closes this by adding the grid_disk ring-1
+    neighbors of every polygon-intersecting cell, restricted to the
+    candidate set (``h3_ids`` when given). This is guaranteed sufficient:
+    the overhang (~0.18 x edge) is far smaller than one cell width, so the
+    true storage partition of any shot inside a polygon is always that
+    polygon's cell or an immediate neighbor. Callers that need the exact
+    polygon intersection can pass ``expand_ring=0``.
+
+    Parameters
+    ----------
+    spatial : str | list | GeoSeries | GeoDataFrame | shapely geometry
+        ROI as a vector-file path / "W,S,E,N" string, [W,S,E,N] bbox list,
+        geopandas object, or shapely geometry (EPSG:4326).
+    res : int
+        H3 resolution of the candidate cells (ignored when ``h3_ids`` given).
+    h3_ids : list, optional
+        Candidate cell set (e.g. a database's partition ids). When given,
+        both the intersection and the ring expansion are restricted to it.
+    expand_ring : int, default 1
+        ``grid_disk`` radius for the overhang-safety expansion; 0 disables.
+    """
     from shapely.geometry import box
     from shapely.geometry.base import BaseGeometry
     import geopandas as gpd
@@ -65,7 +132,16 @@ def intersect_h3_geometries(spatial, res=3, h3_ids=None):
     h3_geo = gpd.GeoSeries(full_h3_geo, index=full_h3_list, crs=4326)
     
     h3_intersects = h3_geo.sindex.query(spatial, predicate='intersects')
-    return h3_geo.index[h3_intersects].unique().tolist()
+    hits = h3_geo.index[h3_intersects].unique().tolist()
+
+    if expand_ring and hits:
+        # Restrict to the candidate set when given (only partitions that
+        # exist); against the full grid every neighbor is valid by
+        # construction, so skip building the 41k+-entry set.
+        valid = set(h3_ids) if h3_ids is not None else None
+        hits = h3_expand_ring(hits, ring=expand_ring, valid=valid)
+
+    return hits
 
 def h3_index_df(df, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode'):
     import warnings

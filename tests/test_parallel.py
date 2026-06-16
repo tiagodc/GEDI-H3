@@ -171,6 +171,63 @@ def test_walk_soc_parallel_aborts_on_worker_failure(_local_dask_client, syntheti
         parallel_mod.walk_soc_parallel(str(soc_dir))
 
 
+# ---- impure-task contract: no key-cached stale results ----------------------
+
+
+def _read_marker(path):
+    with open(path) as f:
+        return f.read()
+
+
+def _echo(x):
+    return x
+
+
+def test_parallel_map_resubmission_sees_live_state(_local_dask_client, tmp_path):
+    """Identical (fn, args) submitted twice must re-read the filesystem,
+    not return dask's key-cached result. Regression for the CI-observed
+    soc_health race: write_soc_manifest walked a dir, a file was added,
+    and _enumerate_soc_files' identical resubmission raced the async
+    release of the first walk's futures — with dask's default pure=True
+    the scheduler handed back the stale walk and the new file was
+    invisible."""
+    from gedih3.parallel import parallel_map
+
+    marker = tmp_path / 'state.txt'
+    marker.write_text('before')
+    first = list(parallel_map([str(marker)], _read_marker))
+    marker.write_text('after')
+    second = list(parallel_map([str(marker)], _read_marker))
+
+    assert first[0][1] == 'before'
+    assert second[0][1] == 'after', (
+        "parallel_map returned a key-cached stale result — client.map "
+        "must be called with pure=False"
+    )
+
+
+def test_parallel_map_submits_pure_false(_local_dask_client):
+    """Direct contract: both dispatch branches (unbatched and batched)
+    mark their tasks impure so dask never key-caches them."""
+    from gedih3.parallel import parallel_map
+
+    captured = []
+    real_map = _local_dask_client.map
+
+    def spy(*args, **kwargs):
+        captured.append(kwargs.get('pure'))
+        return real_map(*args, **kwargs)
+
+    _local_dask_client.map = spy
+    try:
+        list(parallel_map(['a', 'b'], _echo))                 # unbatched
+        list(parallel_map(['a', 'b'], _echo, batch_size=1))   # batched
+    finally:
+        del _local_dask_client.map
+
+    assert captured == [False, False]
+
+
 # ---- doctor.parallel re-export identity ------------------------------------
 
 
