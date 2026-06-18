@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.12.1] - 2026-06-18
+
+### Fixed
+- `gh3_extract`/`collect_columns`: `-lXX min`/`default` now resolve against v3 database column naming — shared identifier columns (`shot_number`) fall back to their unsuffixed form, `min`/`default` expand using the database's actual GEDI version (no more v2 default), and build-expanded 2D/profile variables (`rh`, `cover_z`, `pai_z`, `pavd_z`) match their full `<var>_NNN_<prod>` family
+
 ## [0.12.0] - 2026-06-15
 
 ### Added
