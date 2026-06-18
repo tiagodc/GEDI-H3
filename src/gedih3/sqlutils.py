@@ -1,19 +1,31 @@
 import h3
 import duckdb
 import geopandas as gpd
+import re
 import shapely
+from string import Template
 import os
 import warnings
 
-from typing import List
+from typing import Iterable, List
 
 from .config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR
 from .h3utils import h3_expand_ring
 from .utils import get_system_resources
 
 
-def init_duckdb(threads=None, memory_limit=None, temp_directory=None, max_temp_size=None):
-    temp_directory = temp_directory if temp_directory is not None else f"{GH3_DEFAULT_TMP_DIR}/duckdb"
+def init_duckdb(
+    threads=None,
+    memory_limit=None,
+    temp_directory=None,
+    max_temp_size=None,
+    extension_directory=None,
+):
+    temp_directory = (
+        temp_directory
+        if temp_directory is not None
+        else f"{GH3_DEFAULT_TMP_DIR}/duckdb"
+    )
     os.makedirs(temp_directory, exist_ok=True)
 
     cpus, ram, storage = get_system_resources(disk_path=temp_directory)
@@ -35,16 +47,34 @@ def init_duckdb(threads=None, memory_limit=None, temp_directory=None, max_temp_s
     con.execute(f"PRAGMA threads={threads};")
     return con
 
-def attach_ducklake_db(con, name='gedi_dl'):
-    """Attach existing ducklake database located in GH3_DEFAULT_H3_DIR.
+
+def attach_ducklake_db(con, name="gedi_dl", dir=None):
+    """Attach existing ducklake database
+    If dir is not specified, it will be located in GH3_DEFAULT_H3_DIR.
 
     Once this function is called, the gedi data can be queried using
         `SELECT ... FROM {name}.data`
     """
+    if dir is None:
+        dir = GH3_DEFAULT_H3_DIR
     con.sql(f"""--sql
-        ATTACH 'ducklake:{GH3_DEFAULT_H3_DIR}/gedi.ducklake' AS {name} (READ_ONLY);
+        ATTACH 'ducklake:{dir}/gedi.ducklake' AS {name} (READ_ONLY);
         USE {name};
     """)
+
+def geoseries_to_cells(shp: gpd.GeoSeries, resolution: int = 3, expand_ring: int = 1):
+    """Convert a GeoSeries to a list of overlapping H3 cells at the given resolution."""
+    h3_cells = set()
+    for geom in shp:
+        h3shape = h3.geo_to_h3shape(geom)
+        cells = h3.h3shape_to_cells_experimental(h3shape, resolution, "overlap")
+        h3_cells.update(cells)
+    if expand_ring:
+        cells_out = h3_expand_ring(h3_cells, ring=expand_ring)
+    else:
+        cells_out = sorted(h3_cells)
+    return cells_out
+
 
 def geoseries_to_filter(shp: gpd.GeoSeries, resolution: int = 3, expand_ring: int = 1):
     """Convert a GeoSeries to an H3 partition filter at the given resolution.
@@ -55,16 +85,9 @@ def geoseries_to_filter(shp: gpd.GeoSeries, resolution: int = 3, expand_ring: in
     adds grid_disk neighbors so boundary shots stored in a non-overlapping
     neighbor partition are not silently filtered out; pass 0 to disable.
     """
-    h3_cells = set()
-    for geom in shp:
-        h3shape = h3.geo_to_h3shape(geom)
-        cells = h3.h3shape_to_cells_experimental(h3shape, resolution, 'overlap')
-        h3_cells.update(cells)
-    if expand_ring:
-        cells_out = h3_expand_ring(h3_cells, ring=expand_ring)
-    else:
-        cells_out = sorted(h3_cells)
+    cells_out = geoseries_to_cells(shp, resolution, expand_ring)
     return "h3_03 = ANY({})".format(cells_out)
+
 
 def duck_to_gdf(
     table, geometry_columns=["geometry"], crs="EPSG:4326"
@@ -85,7 +108,8 @@ def duck_to_gdf(
         geometry=gpd.GeoSeries.from_wkb(df[geometry_columns[0]]),
         crs=crs,
     )
-    gdf.drop(columns=[geometry_columns[0]], inplace=True)
+    if geometry_columns[0] != "geometry":
+        gdf.drop(columns=[geometry_columns[0]], inplace=True)
     if len(geometry_columns) > 1:
         for geom_col in geometry_columns[1:]:
             gdf[geom_col] = gpd.GeoSeries.from_wkb(df[geom_col])
@@ -105,13 +129,24 @@ def gdf_to_duck(
     # If the crs is EPSG:4326, we need to swap the order of coordinates when converting to WKT.
     if gdf_tmp.crs is not None and gdf_tmp.crs.to_string() == "EPSG:4326":
         for col in geometry_columns:
-            gdf_tmp[col] = gdf_tmp[col].apply(lambda polygon: shapely.ops.transform(lambda x, y: (y, x), polygon))
-    
+            gdf_tmp[col] = gdf_tmp[col].apply(
+                lambda polygon: shapely.ops.transform(
+                    lambda x, y: (y, x), polygon
+                )
+            )
+
     with warnings.catch_warnings():
         # ignore that the df now has a geometry column of strings
         warnings.simplefilter("ignore")
         for col in geometry_columns:
             gdf_tmp[col] = gdf_tmp[col].to_wkt()
+
+        # All columns with type 'str' must be converted to 'string'
+        # DuckDB does not yet support the new pandas 2.3+, 3.x str dtype.
+        for col in gdf_tmp.columns:
+            if gdf_tmp[col].dtype == "str":
+                gdf_tmp[col] = gdf_tmp[col].astype("string")
+
     replace_cols = ", ".join(
         [f"ST_GeomFromText({col}) AS {col}" for col in geometry_columns]
     )
