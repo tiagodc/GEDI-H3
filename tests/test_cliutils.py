@@ -878,3 +878,22 @@ class TestCollectColumnsWildcard:
         args = _make_collect_args(l4a=['agbd'])
         cols = collect_columns(args, available_columns=_SAMPLE_COLUMNS)
         assert cols == ['agbd_l4a']
+
+    def test_shared_unsuffixed_column_falls_back(self):
+        """shot_number is stored once, unsuffixed; a product request must find it
+        rather than looking for the non-existent shot_number_l2a."""
+        cols_with_shot = _SAMPLE_COLUMNS + ['shot_number']
+        args = _make_collect_args(l2a=['shot_number', 'sensitivity'])
+        cols = collect_columns(args, available_columns=cols_with_shot)
+        assert 'shot_number' in cols
+        assert 'sensitivity_l2a' in cols
+        assert 'shot_number_l2a' not in cols
+
+    def test_2d_profile_var_expands_to_family(self):
+        """A base name for a build-time-expanded 2D variable (rh) matches the
+        whole <var>_NNN_<prod> family."""
+        args = _make_collect_args(l2a=['rh'])
+        cols = collect_columns(args, available_columns=_SAMPLE_COLUMNS)
+        rh_cols = [c for c in cols if c.startswith('rh_')]
+        assert len(rh_cols) == 6
+        assert 'rh_l2a' not in cols

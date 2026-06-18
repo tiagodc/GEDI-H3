@@ -1339,9 +1339,15 @@ def collect_columns(args, available_columns=None):
     Collect all requested variables from command line arguments and validate against available columns.
     Returns: (column_list, product_map)
     """
+    from .gh3driver import gh3_read_meta
     if available_columns is None:
-        from .gh3driver import gh3_read_meta
         available_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)
+    # min/default expand to version-specific variable names (e.g. quality_flag in
+    # v2 vs l2a_quality_flag_rel3 in v3). Resolve against the DB's actual version
+    # rather than letting gedi_vars_expand fall back to its v2 default.
+    gedi_version = None
+    if getattr(args, 'database', None):
+        gedi_version = gh3_read_meta('gedi_version', gh3_root_dir=args.database)
     read_cols = []
 
     if args.list is not None:
@@ -1365,7 +1371,7 @@ def collect_columns(args, available_columns=None):
 
     product_map = {i: getattr(args, i.lower()) for i in GEDI_PRODUCTS.keys() if getattr(args, i.lower()) is not None}
     from .gedidriver import gedi_vars_expand
-    prod_vars = gedi_vars_expand(product_map)
+    prod_vars = gedi_vars_expand(product_map, version=gedi_version)
 
     for prod, vars in prod_vars.items():
         if vars is None:
@@ -1376,12 +1382,24 @@ def collect_columns(args, available_columns=None):
             vars = file_vars
 
         import fnmatch
+        suffix = f"_{prod.lower()}"
         for var in vars:
-            suffixed = var if var.endswith(f"_{prod.lower()}") else f"{var}_{prod.lower()}"
+            base = var[:-len(suffix)] if var.endswith(suffix) else var
+            suffixed = f"{base}{suffix}"
             if any(c in suffixed for c in ('*', '?', '[', ']')):
                 matched_vars = fnmatch.filter(available_columns, suffixed)
             else:
                 matched_vars = [suffixed] if suffixed in available_columns else []
+                # Shared identifier columns (e.g. shot_number) are stored once,
+                # unsuffixed (carried as the build-time index), even though every
+                # product's min/default list names them. Fall back to the plain name.
+                if not matched_vars and var in available_columns:
+                    matched_vars = [var]
+                # 2D/profile variables (rh, cover_z, pai_z, pavd_z) are expanded
+                # at build time into indexed columns <var>_NNN_<prod>; a request
+                # for the base name matches the whole family.
+                if not matched_vars:
+                    matched_vars = fnmatch.filter(available_columns, f"{base}_*{suffix}")
 
             if not matched_vars:
                 raise GediValidationError(f"Variable '{var}' from --{prod.lower()} not found in database columns")
