@@ -1,13 +1,11 @@
 import h3
 import duckdb
 import geopandas as gpd
-import re
 import shapely
-from string import Template
 import os
 import warnings
 
-from typing import Iterable, List
+from typing import List
 
 from .config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_TMP_DIR
 from .h3utils import h3_expand_ring
@@ -34,6 +32,8 @@ def init_duckdb(
     threads = threads if threads is not None else max(1, cpus // 4)
 
     con = duckdb.connect()
+    if extension_directory is not None:
+        con.execute(f"SET extension_directory='{extension_directory}';")
     con.install_extension("spatial")
     con.load_extension("spatial")
     con.execute("INSTALL h3 FROM community;")
