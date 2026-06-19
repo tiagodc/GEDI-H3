@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.12.2] - 2026-06-19
+
+### Added
+- `sqlutils`: roundtrip tests covering the DuckDB/DuckLake path
+
+### Changed
+- `sqlutils`: wire `extension_directory`, drop dead imports
+
+### Contributors
+- Tiago de Conto
+- Amelia Holcomb
+
 ## [0.12.1] - 2026-06-18
 
 ### Fixed
