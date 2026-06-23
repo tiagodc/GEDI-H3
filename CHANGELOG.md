@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.12.2] - 2026-06-23
+
+### Changed
+- `sqlutils`: dropped dead imports, wired `extension_directory`, and added roundtrip tests; minor updates
+
+### Fixed
+- `collect_columns`: tolerate a missing/unreadable build log when reading `gedi_version` (the v3 `min`/`default` fix had made this read unconditional, breaking `gh3_aggregate` over pre-extracted flat datasets that have no build log)
+- `gedi_download`: thread the requested `version` into `gedi_vars_expand` so a direct `min`/`default` API call resolves version-correct names
+
+### Contributors
+- Amelia Holcomb
+- Tiago de Conto
+
 ## [0.12.1] - 2026-06-18
 
 ### Fixed
