@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.12.4] - 2026-06-23
+
+### Fixed
+- `gh3_update`: dropped the source-database query filter when it references columns absent from that database (e.g. joining L1B columns from an L1B-only DB onto an L2A/L4A quality-filtered dataset), which previously crashed with `UndefinedVariableError`. The `shot_number` left join already restricts source rows to the filtered target shots, so the source filter is now applied only when all its columns are loadable; otherwise the source is loaded unfiltered. The original filter is preserved in dataset metadata.
+
 ## [0.12.3] - 2026-06-23
 
 ### Added
