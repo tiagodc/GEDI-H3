@@ -224,8 +224,10 @@ GEDI_PRODUCTS = {
     'L4A': {
         # ORNL DAAC short_names and DOIs encode the release ID, so they are
         # version-pinned. Resolve per requested version via _resolve_identifier().
-        'short_name': {2.1: 'GEDI_L4A_AGB_Density_V2_1_2056'},
-        'doi':        {2.1: '10.3334/ORNLDAAC/2056'},
+        'short_name': {2.1: 'GEDI_L4A_AGB_Density_V2_1_2056',
+                       3:   'GEDI_L4A_AGB_Density_V3_2508'},
+        'doi':        {2.1: '10.3334/ORNLDAAC/2056',
+                       3:   '10.3334/ORNLDAAC/2508'},
         'daac': 'ORNLDAAC',
         'version': 2.1,
         'format': '.h5',
