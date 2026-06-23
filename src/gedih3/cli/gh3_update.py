@@ -40,6 +40,29 @@ def _query_filter_columns(query_filter, available_columns):
     return [t for t in all_tokens if t in available and t not in python_keywords]
 
 
+_QUERY_KEYWORDS = {'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None',
+                   'nan', 'NaN', 'inf', 'Inf'}
+
+
+def _query_required_names(query_filter):
+    """Return every identifier a pandas query needs to resolve as a column.
+
+    Unlike ``_query_filter_columns`` (which intersects against a known column
+    set), this returns the *raw* set of names the query references, so the
+    caller can detect names that are absent from a target schema. String
+    literals are stripped first so their contents aren't mistaken for columns.
+    """
+    if not query_filter:
+        return set()
+    # Backtick-quoted names are unambiguously columns (may contain '/').
+    backtick_tokens = set(re.findall(r'`([^`]+)`', query_filter))
+    # Drop quoted string literals so e.g. `name == 'Brazil'` doesn't flag 'Brazil'.
+    no_strings = re.sub(r"'[^']*'", '', query_filter)
+    no_strings = re.sub(r'"[^"]*"', '', no_strings)
+    word_tokens = set(re.findall(r'\b([a-zA-Z_]\w*)\b', no_strings))
+    return (backtick_tokens | word_tokens) - _QUERY_KEYWORDS
+
+
 def _make_plain_reader(fmt, columns=None):
     """Create a plain pandas reader (no geometry) for merge sources."""
     import pandas as pd
@@ -222,9 +245,30 @@ def _update_from_database(args, dataset_path, dataset_meta, logger):
     index_type = dataset_meta.get('index_type', 'h3')
     query_filter = dataset_meta.get('query_filter')
 
-    # Identify extra columns needed by the query filter that aren't in new_cols
-    filter_cols = _query_filter_columns(query_filter, available_columns)
-    extra_filter_cols = [c for c in filter_cols if c not in new_cols and c != sn_col]
+    # The stored query_filter was built against the *target's* source database.
+    # When adding columns from a different database (db_path) that lacks some of
+    # the filtered columns — e.g. the target was extracted with L2A/L4A quality
+    # flags but we're now joining L1B columns from an L1B-only database — applying
+    # the filter to that source would raise UndefinedVariableError. The left join
+    # on shot_number already restricts the source rows to the (already-filtered)
+    # target shots, so filtering the source is only a memory optimization: safe to
+    # drop whenever it can't be applied. Apply it only when every name it
+    # references is loadable from the source database.
+    loadable_names = set(available_columns) | {sn_col}
+    missing_names = sorted(_query_required_names(query_filter) - loadable_names)
+    if missing_names:
+        logger.info(
+            f"  Query filter references column(s) absent from the source database "
+            f"({', '.join(missing_names)}); loading the source unfiltered and "
+            f"relying on the shot_number left join to drop non-matching rows."
+        )
+        effective_filter = None
+        extra_filter_cols = []
+    else:
+        effective_filter = query_filter
+        # Extra columns needed by the query filter that aren't in new_cols.
+        filter_cols = _query_filter_columns(query_filter, available_columns)
+        extra_filter_cols = [c for c in filter_cols if c not in new_cols and c != sn_col]
 
     dask_kwargs = parse_dask_args(args)
 
@@ -234,13 +278,13 @@ def _update_from_database(args, dataset_path, dataset_meta, logger):
         if index_type == 'h3':
             _update_h3_partitions(
                 dataset_path, db_path, data_files, fmt, new_cols,
-                sn_col, query_filter, extra_filter_cols, dataset_meta,
+                sn_col, effective_filter, extra_filter_cols, dataset_meta,
                 logger, args=args
             )
         elif index_type == 'egi':
             _update_egi_partitions(
                 dataset_path, db_path, data_files, fmt, new_cols,
-                sn_col, query_filter, extra_filter_cols, dataset_meta,
+                sn_col, effective_filter, extra_filter_cols, dataset_meta,
                 logger, args=args
             )
         else:
