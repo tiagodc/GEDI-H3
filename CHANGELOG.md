@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.12.3] - 2026-06-23
+
+### Added
+- L4A v3: registered the published ORNL DAAC V3 collection (`GEDI_L4A_AGB_Density_V3_2508`, DOI `10.3334/ORNLDAAC/2508`) so `gh3_download -l4a ... --gedi-version 3` resolves. Default L4A version stays at 2.1.
+
 ## [0.12.2] - 2026-06-23
 
 ### Changed
