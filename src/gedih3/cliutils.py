@@ -1345,9 +1345,16 @@ def collect_columns(args, available_columns=None):
     # min/default expand to version-specific variable names (e.g. quality_flag in
     # v2 vs l2a_quality_flag_rel3 in v3). Resolve against the DB's actual version
     # rather than letting gedi_vars_expand fall back to its v2 default.
+    # gh3_aggregate also accepts a pre-extracted/aggregated flat dataset whose
+    # directory has no build log; tolerate the missing/unreadable log and let
+    # gedi_vars_expand fall back to its v2 default (concrete column names in a
+    # flat source are validated against available_columns regardless).
     gedi_version = None
     if getattr(args, 'database', None):
-        gedi_version = gh3_read_meta('gedi_version', gh3_root_dir=args.database)
+        try:
+            gedi_version = gh3_read_meta('gedi_version', gh3_root_dir=args.database)
+        except (OSError, ValueError):
+            gedi_version = None
     read_cols = []
 
     if args.list is not None:

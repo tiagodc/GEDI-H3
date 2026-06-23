@@ -897,3 +897,11 @@ class TestCollectColumnsWildcard:
         rh_cols = [c for c in cols if c.startswith('rh_')]
         assert len(rh_cols) == 6
         assert 'rh_l2a' not in cols
+
+    def test_flat_dataset_database_without_build_log(self, tmp_path):
+        """gh3_aggregate accepts a pre-extracted flat dataset whose dir has no
+        build log. The version lookup must tolerate the missing log rather than
+        raising FileNotFoundError (regression: unconditional gedi_version read)."""
+        args = _make_collect_args(l4a=['agbd'], database=str(tmp_path))
+        cols = collect_columns(args, available_columns=_SAMPLE_COLUMNS)
+        assert cols == ['agbd_l4a']

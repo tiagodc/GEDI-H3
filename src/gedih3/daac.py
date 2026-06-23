@@ -845,7 +845,11 @@ def gedi_download(
     elif product_vars is None:
         raise GediValidationError("Either product_vars or search_kwargs must be provided")
     else:
-        product_vars = gedi_vars_expand(product_vars)
+        # Thread the requested version so a direct min/default call resolves to
+        # version-correct names (e.g. l2a_quality_flag_rel3 for v3). CLI callers
+        # pre-expand to concrete lists via SOCDownloadLogger / download_soc, so
+        # this is a harmless no-op on that path.
+        product_vars = gedi_vars_expand(product_vars, version=version)
 
     dask_client = get_dask_client()
     if dask_client is not None:

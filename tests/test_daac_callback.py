@@ -40,7 +40,7 @@ def patch_daac(monkeypatch):
     monkeypatch.setattr(daac, "get_dask_client", lambda: None)
 
     # Skip product-variable expansion — the test passes explicit lists
-    monkeypatch.setattr(daac, "gedi_vars_expand", lambda pv: pv)
+    monkeypatch.setattr(daac, "gedi_vars_expand", lambda pv, version=None: pv)
 
     # Fake accessor — authenticate() never runs, search_data returns granules
     accessor = MagicMock()
