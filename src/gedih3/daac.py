@@ -178,32 +178,82 @@ def _cmr_hits(search_params: dict) -> int:
     return query.parameters(**search_params).hits()
 
 
-def _search_verified(search_params: dict, label: str) -> List[Any]:
-    """Run ``earthaccess.search_data`` and reconcile the result against CMR-Hits.
+def _paginated_granules(search_params: dict) -> List[Any]:
+    """Direct CMR ``CMR-Search-After`` walk that terminates on cursor exhaustion.
 
-    earthaccess pagination (``utils/_search.get_results``) terminates on the first
-    under-full page, so a degraded-but-HTTP-200 short page from CMR yields a
-    *silently* truncated list with no exception (observed 2026-06-24: 75,985 of
-    96,888 L1B granules returned). We compare the returned count against the
-    authoritative ``CMR-Hits`` header, retry transient shortfalls with the same
-    exponential backoff used by downloads, and fail loud if it persists rather
-    than letting a partial list masquerade as complete.
+    Fallback backend for when earthaccess's own pagination
+    (``utils/_search.get_results``) silently truncates. That code stops on the
+    first under-full page (``page_size <= len(latest)``) instead of following the
+    ``cmr-search-after`` cursor it just captured, so a degraded-but-HTTP-200 short
+    page from CMR ends the walk early with no exception (observed 2026-06-24:
+    75,985 of 96,888 L1B granules). This walk instead continues while CMR keeps
+    handing back a cursor — the only correct stop condition — and returns real
+    earthaccess ``DataGranule`` objects so the download path is unchanged.
+
+    Mirrors ``_cmr_hits`` auth/query construction, so the spatial/temporal/
+    short_name/doi filters baked into ``search_params`` are inherited verbatim.
+    """
+    # Internal earthaccess surface used to drive the raw cursor walk. Confined to
+    # this one function so the rest of gedih3 stays on the public API.
+    from earthaccess.results import DataGranule
+
+    auth = earthaccess.__auth__
+    query = earthaccess.DataGranules(auth) if auth.authenticated else earthaccess.DataGranules()
+    query = query.parameters(**search_params)
+    url = query._build_url()
+    headers = dict(query.headers or {})
+    raw: List[Any] = []
+    while True:
+        resp = query.session.get(url, headers=headers, params={"page_size": 2000})
+        resp.raise_for_status()
+        cursor = resp.headers.get("cmr-search-after")
+        page = resp.json()["items"]
+        raw.extend(page)
+        if not cursor or not page:             # cursor exhausted -> genuine end
+            break
+        headers["cmr-search-after"] = cursor
+    cloud = len(raw) > 0 and query._is_cloud_hosted(raw[0])
+    return [DataGranule(g, cloud_hosted=cloud) for g in raw]
+
+
+def _search_verified(search_params: dict, label: str) -> List[Any]:
+    """Search granules, reconcile against CMR-Hits, fall back to a direct CMR walk.
+
+    Primary backend is ``earthaccess.search_data`` (fast path when its pagination
+    behaves). When it returns fewer granules than the authoritative ``CMR-Hits``
+    header it has silently truncated on a degraded HTTP-200 short page (see
+    ``_paginated_granules``) — re-running it is futile because the short page is
+    deterministic, so we fall back to ``_paginated_granules`` (a direct cursor
+    walk that does not have the bug). The fallback is retried with the same
+    exponential backoff used by downloads to absorb genuine transient CMR
+    degradation, and fails loud if a shortfall persists rather than letting a
+    partial list masquerade as complete.
 
     An empty-but-legitimate result (``hits == 0``) reads as complete.
     """
+    expected = _cmr_hits(search_params)
+    granules = earthaccess.search_data(**search_params)
+    if len(granules) >= expected:              # hits == 0 -> 0 >= 0 -> complete
+        return granules
+
+    logger.warning(
+        f"earthaccess returned {len(granules)}/{expected} granules for {label}; "
+        f"falling back to direct CMR search-after pagination "
+        f"(earthaccess get_results truncates on degraded HTTP-200 short pages)"
+    )
     attempts = RETRY_DEFAULTS['max_attempts']
-    last = None
+    last = (len(granules), expected)
     for attempt in range(1, attempts + 1):
         expected = _cmr_hits(search_params)
-        granules = earthaccess.search_data(**search_params)
-        if len(granules) >= expected:          # hits == 0 -> 0 >= 0 -> complete
+        granules = _paginated_granules(search_params)
+        if len(granules) >= expected:
             return granules
         last = (len(granules), expected)
         if attempt < attempts:
             sleep = min(RETRY_DEFAULTS['initial_wait'] * 2 ** (attempt - 1), RETRY_DEFAULTS['max_wait'])
             logger.warning(
-                f"Incomplete CMR listing for {label}: {last[0]}/{last[1]} granules; "
-                f"retrying {attempt}/{attempts} in {sleep:.1f}s "
+                f"Incomplete CMR listing for {label}: {last[0]}/{last[1]} granules via "
+                f"direct CMR walk; retrying {attempt}/{attempts} in {sleep:.1f}s "
                 f"(CMR may be degraded — see 'An Internal Error has occurred.')"
             )
             time.sleep(sleep)

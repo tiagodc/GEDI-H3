@@ -222,10 +222,13 @@ def test_search_data_raises_on_silent_truncation(monkeypatch):
     from gedih3 import daac
     from gedih3.exceptions import GediIncompleteListingError
 
-    # CMR claims 100; earthaccess only ever returns 80 -> persistent shortfall.
+    # CMR claims 100; both earthaccess AND the direct CMR-walk fallback only ever
+    # return 80 -> persistent shortfall through both backends.
     monkeypatch.setattr(daac, "_cmr_hits", lambda search_params: 100)
     monkeypatch.setattr(daac.earthaccess, "search_data",
                         lambda **kwargs: [object()] * 80)
+    monkeypatch.setattr(daac, "_paginated_granules",
+                        lambda search_params: [object()] * 80)
     monkeypatch.setattr(daac.time, "sleep", lambda *_: None)  # no backoff wait
 
     acc = daac.GEDIAccessor.__new__(daac.GEDIAccessor)
@@ -234,6 +237,29 @@ def test_search_data_raises_on_silent_truncation(monkeypatch):
         acc.search_data("L2A", version=2)
     assert exc.value.expected == 100
     assert exc.value.received == 80
+
+
+def test_search_data_falls_back_to_cmr_walk(monkeypatch):
+    """When earthaccess truncates, the direct CMR walk fallback cures it.
+
+    earthaccess returns a partial list (its known short-page bug); the direct
+    CMR-Search-After walk returns the full count, so search_data returns the
+    complete listing without raising.
+    """
+    from gedih3 import daac
+
+    monkeypatch.setattr(daac, "_cmr_hits", lambda search_params: 100)
+    # Primary backend truncates (earthaccess get_results short-page bug)...
+    monkeypatch.setattr(daac.earthaccess, "search_data",
+                        lambda **kwargs: [object()] * 80)
+    # ...fallback walk returns the complete listing.
+    monkeypatch.setattr(daac, "_paginated_granules",
+                        lambda search_params: [object()] * 100)
+
+    acc = daac.GEDIAccessor.__new__(daac.GEDIAccessor)
+    acc.product_files = {}
+    granules = acc.search_data("L2A", version=2)
+    assert len(granules) == 100
 
 
 def test_search_data_complete_listing_passes(monkeypatch):
