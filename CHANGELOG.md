@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.12.5] - 2026-06-26
+
+### Fixed
+- `GEDIAccessor.search_data` now detects silently truncated CMR listings (earthaccess returning fewer granules than CMR-Hits with no error); reconciles against the authoritative count, retries transient shortfalls, and raises `GediIncompleteListingError` if persistent.
+
 ## [0.12.4] - 2026-06-23
 
 ### Fixed
