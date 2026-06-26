@@ -216,6 +216,16 @@ def _paginated_granules(search_params: dict) -> List[Any]:
     return [DataGranule(g, cloud_hosted=cloud) for g in raw]
 
 
+# Tolerance for the fallback acceptance gate. The cursor walk reads the umm_json
+# endpoint, whose item count is structurally <= the format-independent CMR-Hits
+# whenever a granule's UMM-G document isn't renderable (e.g. anomalous
+# `_T00000_`-track records counted in the index but with un-rendered metadata).
+# Cursor exhaustion already guarantees the full result set was retrieved, so a
+# sub-percent shortfall is endpoint skew, not truncation. 0.5% mirrors soc_tools'
+# downstream reconcile (`len < hits * 0.995` => incomplete).
+_LISTING_TOLERANCE = 0.005
+
+
 def _search_verified(search_params: dict, label: str) -> List[Any]:
     """Search granules, reconcile against CMR-Hits, fall back to a direct CMR walk.
 
@@ -224,16 +234,22 @@ def _search_verified(search_params: dict, label: str) -> List[Any]:
     header it has silently truncated on a degraded HTTP-200 short page (see
     ``_paginated_granules``) — re-running it is futile because the short page is
     deterministic, so we fall back to ``_paginated_granules`` (a direct cursor
-    walk that does not have the bug). The fallback is retried with the same
-    exponential backoff used by downloads to absorb genuine transient CMR
-    degradation, and fails loud if a shortfall persists rather than letting a
-    partial list masquerade as complete.
+    walk that does not have the bug).
+
+    The two gates are scoped differently on purpose. The fast path stays *strict*
+    (``>= CMR-Hits``): any shortfall there is earthaccess truncation and must
+    trigger the fallback. The fallback is *tolerant* (``>= CMR-Hits * (1 -
+    _LISTING_TOLERANCE)``): cursor exhaustion is its real completeness signal, and
+    its umm_json count is structurally <= CMR-Hits, so only a large shortfall (a
+    genuine CMR failure) should fail it. It is retried with the download backoff
+    to absorb transient CMR degradation, and fails loud if a large shortfall
+    persists rather than letting a partial list masquerade as complete.
 
     An empty-but-legitimate result (``hits == 0``) reads as complete.
     """
     expected = _cmr_hits(search_params)
     granules = earthaccess.search_data(**search_params)
-    if len(granules) >= expected:              # hits == 0 -> 0 >= 0 -> complete
+    if len(granules) >= expected:              # fast path: strict; hits == 0 -> complete
         return granules
 
     logger.warning(
@@ -246,7 +262,13 @@ def _search_verified(search_params: dict, label: str) -> List[Any]:
     for attempt in range(1, attempts + 1):
         expected = _cmr_hits(search_params)
         granules = _paginated_granules(search_params)
-        if len(granules) >= expected:
+        if len(granules) >= expected * (1 - _LISTING_TOLERANCE):
+            if len(granules) < expected:
+                logger.info(
+                    f"Accepting {len(granules)}/{expected} granules for {label} via direct "
+                    f"CMR walk (umm_json renders <= CMR-Hits; within "
+                    f"{_LISTING_TOLERANCE:.1%} tolerance, cursor exhausted)"
+                )
             return granules
         last = (len(granules), expected)
         if attempt < attempts:

@@ -262,6 +262,56 @@ def test_search_data_falls_back_to_cmr_walk(monkeypatch):
     assert len(granules) == 100
 
 
+def test_search_data_fallback_tolerates_umm_json_skew(monkeypatch):
+    """A sub-percent fallback shortfall is endpoint skew, not truncation.
+
+    The umm_json cursor walk renders <= CMR-Hits whenever a granule's UMM-G doc
+    isn't rendered (observed L1B: 96,873 walked vs 96,888 Hits — 15 anomalous
+    old records). With cursor exhaustion as the completeness signal, the tolerant
+    fallback gate accepts it instead of failing an otherwise-complete listing.
+    """
+    from gedih3 import daac
+
+    monkeypatch.setattr(daac, "_cmr_hits", lambda search_params: 96888)
+    # earthaccess truncates on its short-page bug -> triggers the fallback...
+    monkeypatch.setattr(daac.earthaccess, "search_data",
+                        lambda **kwargs: [object()] * 75985)
+    # ...direct walk reaches cursor exhaustion 15 short of Hits (0.015% skew).
+    monkeypatch.setattr(daac, "_paginated_granules",
+                        lambda search_params: [object()] * 96873)
+    monkeypatch.setattr(daac.time, "sleep", lambda *_: None)
+
+    acc = daac.GEDIAccessor.__new__(daac.GEDIAccessor)
+    acc.product_files = {}
+    granules = acc.search_data("L2A", version=2)
+    assert len(granules) == 96873  # accepted within tolerance, no raise
+
+
+def test_search_data_fast_path_stays_strict(monkeypatch):
+    """The fast path keeps the exact gate; a sub-tolerance earthaccess result
+    still triggers the fallback (its only job is truncation detection)."""
+    from gedih3 import daac
+
+    walk_calls = {"n": 0}
+
+    def fake_walk(search_params):
+        walk_calls["n"] += 1
+        return [object()] * 1000
+
+    monkeypatch.setattr(daac, "_cmr_hits", lambda search_params: 1000)
+    # 996/1000 is within the 0.5% fallback tolerance, but the fast path is strict.
+    monkeypatch.setattr(daac.earthaccess, "search_data",
+                        lambda **kwargs: [object()] * 996)
+    monkeypatch.setattr(daac, "_paginated_granules", fake_walk)
+    monkeypatch.setattr(daac.time, "sleep", lambda *_: None)
+
+    acc = daac.GEDIAccessor.__new__(daac.GEDIAccessor)
+    acc.product_files = {}
+    granules = acc.search_data("L2A", version=2)
+    assert walk_calls["n"] == 1     # fallback fired despite 996 being within tolerance
+    assert len(granules) == 1000
+
+
 def test_search_data_complete_listing_passes(monkeypatch):
     """When len(granules) >= CMR-Hits the search returns normally (no false positive)."""
     from gedih3 import daac
