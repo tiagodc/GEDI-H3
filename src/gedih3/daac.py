@@ -22,6 +22,7 @@ from .exceptions import (
     GediDownloadError,
     GediAuthenticationError,
     GediNetworkError,
+    GediIncompleteListingError,
     GediProductError,
     GediValidationError,
     is_retryable_error,
@@ -162,6 +163,55 @@ def gedi_latest_version(product: str) -> str:
     if not versions:
         raise GediProductError(f"No versions found for {product}")
     return versions[-1]['version']
+
+
+def _cmr_hits(search_params: dict) -> int:
+    """Authoritative CMR-Hits count for a query — one lightweight header request.
+
+    Mirrors how ``earthaccess.api.search_data`` builds its query, so the count is
+    computed from the *identical* parameters (short_name/version/doi + spatial/
+    temporal filters). Isolated as a module-level seam so callers can reconcile
+    against it and tests can monkeypatch it offline.
+    """
+    auth = earthaccess.__auth__
+    query = earthaccess.DataGranules(auth) if auth.authenticated else earthaccess.DataGranules()
+    return query.parameters(**search_params).hits()
+
+
+def _search_verified(search_params: dict, label: str) -> List[Any]:
+    """Run ``earthaccess.search_data`` and reconcile the result against CMR-Hits.
+
+    earthaccess pagination (``utils/_search.get_results``) terminates on the first
+    under-full page, so a degraded-but-HTTP-200 short page from CMR yields a
+    *silently* truncated list with no exception (observed 2026-06-24: 75,985 of
+    96,888 L1B granules returned). We compare the returned count against the
+    authoritative ``CMR-Hits`` header, retry transient shortfalls with the same
+    exponential backoff used by downloads, and fail loud if it persists rather
+    than letting a partial list masquerade as complete.
+
+    An empty-but-legitimate result (``hits == 0``) reads as complete.
+    """
+    attempts = RETRY_DEFAULTS['max_attempts']
+    last = None
+    for attempt in range(1, attempts + 1):
+        expected = _cmr_hits(search_params)
+        granules = earthaccess.search_data(**search_params)
+        if len(granules) >= expected:          # hits == 0 -> 0 >= 0 -> complete
+            return granules
+        last = (len(granules), expected)
+        if attempt < attempts:
+            sleep = min(RETRY_DEFAULTS['initial_wait'] * 2 ** (attempt - 1), RETRY_DEFAULTS['max_wait'])
+            logger.warning(
+                f"Incomplete CMR listing for {label}: {last[0]}/{last[1]} granules; "
+                f"retrying {attempt}/{attempts} in {sleep:.1f}s "
+                f"(CMR may be degraded — see 'An Internal Error has occurred.')"
+            )
+            time.sleep(sleep)
+    raise GediIncompleteListingError(
+        f"CMR returned {last[0]} of {last[1]} granules for {label} after {attempts} attempts "
+        f"(silent truncation; CMR is degraded or data is unavailable upstream)",
+        expected=last[1], received=last[0],
+    )
 
 
 class GEDIAccessor:
@@ -403,7 +453,8 @@ class GEDIAccessor:
         search_params.update(kwargs)
 
         self.search_params = search_params
-        self.granules = earthaccess.search_data(**search_params)
+        primary_label = product or search_params.get('short_name') or kwargs.get('concept_id') or 'custom search'
+        self.granules = _search_verified(search_params, primary_label)
 
         # DOI fallback: if short_name search returned 0 results, retry with DOI
         if len(self.granules) == 0 and self.product is not None and 'short_name' in search_params and 'doi' in self.product:
@@ -426,7 +477,7 @@ class GEDIAccessor:
                 )
                 fallback_params = {k: v for k, v in search_params.items() if k not in ('short_name', 'version')}
                 fallback_params['doi'] = fallback_doi
-                self.granules = earthaccess.search_data(**fallback_params)
+                self.granules = _search_verified(fallback_params, f"{product} (DOI fallback)")
 
         product_key = product.upper() if product is not None else 'CUSTOM'
         self.product_files[product_key] = self.granules

@@ -48,6 +48,15 @@ class GediS3AccessError(GediNetworkError):
     pass
 
 
+class GediIncompleteListingError(GediNetworkError):
+    """CMR returned fewer granules than its own CMR-Hits count (silent truncation)."""
+
+    def __init__(self, message: str, expected: int = None, received: int = None):
+        self.expected = expected
+        self.received = received
+        super().__init__(message)
+
+
 # =============================================================================
 # Validation Errors
 # =============================================================================

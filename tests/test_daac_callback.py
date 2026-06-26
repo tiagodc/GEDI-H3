@@ -184,6 +184,10 @@ def test_doi_fallback_warning_mentions_dropped_version(monkeypatch):
         return [object(), object()]
 
     monkeypatch.setattr(daac.earthaccess, "search_data", fake_search)
+    # search_data now reconciles len(granules) vs CMR-Hits; stub the count seam
+    # so the offline fallback path doesn't hit the network. 0 keeps both the
+    # empty first result and the 2-object fallback result "complete".
+    monkeypatch.setattr(daac, "_cmr_hits", lambda search_params: 0)
 
     captured = []
 
@@ -206,3 +210,41 @@ def test_doi_fallback_warning_mentions_dropped_version(monkeypatch):
     assert "version" in msg, msg
     assert "short_name" in msg, msg
     assert call_count["n"] == 2  # confirm fallback actually fired
+
+
+def test_search_data_raises_on_silent_truncation(monkeypatch):
+    """A CMR result shorter than CMR-Hits must raise after retries, not pass silently.
+
+    Reproduces the 2026-06-24 incident class: earthaccess returns fewer granules
+    than the authoritative CMR-Hits count with no exception. search_data must
+    reconcile and fail loud rather than treat the partial list as complete.
+    """
+    from gedih3 import daac
+    from gedih3.exceptions import GediIncompleteListingError
+
+    # CMR claims 100; earthaccess only ever returns 80 -> persistent shortfall.
+    monkeypatch.setattr(daac, "_cmr_hits", lambda search_params: 100)
+    monkeypatch.setattr(daac.earthaccess, "search_data",
+                        lambda **kwargs: [object()] * 80)
+    monkeypatch.setattr(daac.time, "sleep", lambda *_: None)  # no backoff wait
+
+    acc = daac.GEDIAccessor.__new__(daac.GEDIAccessor)
+    acc.product_files = {}
+    with pytest.raises(GediIncompleteListingError) as exc:
+        acc.search_data("L2A", version=2)
+    assert exc.value.expected == 100
+    assert exc.value.received == 80
+
+
+def test_search_data_complete_listing_passes(monkeypatch):
+    """When len(granules) >= CMR-Hits the search returns normally (no false positive)."""
+    from gedih3 import daac
+
+    monkeypatch.setattr(daac, "_cmr_hits", lambda search_params: 50)
+    monkeypatch.setattr(daac.earthaccess, "search_data",
+                        lambda **kwargs: [object()] * 50)
+
+    acc = daac.GEDIAccessor.__new__(daac.GEDIAccessor)
+    acc.product_files = {}
+    granules = acc.search_data("L2A", version=2)
+    assert len(granules) == 50
