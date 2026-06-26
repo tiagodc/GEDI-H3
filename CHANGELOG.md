@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.12.7] - 2026-06-26
+
+### Fixed
+- `GEDIAccessor.search_data` now falls back to a direct CMR `CMR-Search-After` walk (`_paginated_granules`) when earthaccess pagination silently truncates on a degraded HTTP-200 short page; the walk terminates on cursor exhaustion and returns real `DataGranule` objects, so a deterministic short page (observed L1B: 75,985 of 96,888) no longer fails the gather.
+- The fallback acceptance gate now tolerates the structural `umm_json`-vs-`CMR-Hits` skew (`>= CMR-Hits * 0.995`): the cursor walk's umm_json count is `<= CMR-Hits` whenever a granule's UMM-G doc isn't renderable (e.g. anomalous `_T00000_`-track records), so a sub-percent shortfall on a cursor-exhausted walk is accepted instead of hard-failing. The fast path stays strict to keep detecting earthaccess truncation, and large shortfalls still raise `GediIncompleteListingError`.
+
 ## [0.12.5] - 2026-06-26
 
 ### Fixed
