@@ -3,6 +3,7 @@
 # For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu
 
 import os
+import stat
 import time
 from typing import Union, List, Dict, Optional, Tuple, Any, Callable, Iterable
 from functools import partial
@@ -40,6 +41,29 @@ logger = get_logger(__name__)
 # the DAAC CDN drops connections without a FIN reaching the client.
 DOWNLOAD_CONNECT_TIMEOUT_DEFAULT = 60.0
 DOWNLOAD_READ_TIMEOUT_DEFAULT = 300.0
+
+
+def _make_group_accessible(paths: Iterable[str]) -> None:
+    """Add group read/write mode bits to freshly downloaded files.
+
+    NASA granules are usually written into shared, ACL-controlled trees whose
+    directory *default ACLs* already grant the relevant data groups access. A
+    restrictive download-process umask can clobber a new file's POSIX ACL
+    *mask* to ``---``, which silently nullifies those inherited group entries
+    and leaves the file readable by the owner only. Re-adding the group
+    read/write mode bits resets the mask so the inherited group ACLs stay
+    effective.
+
+    Deliberately generic: it hardcodes no group names or paths (the policy
+    lives in the directory's default ACL), preserves the owner and ``other``
+    bits (never widens world access), and is a harmless no-op where POSIX modes
+    don't apply (e.g. Windows) or when the caller doesn't own the file.
+    """
+    for p in paths or ():
+        try:
+            os.chmod(p, os.stat(p).st_mode | stat.S_IRGRP | stat.S_IWGRP)
+        except OSError:
+            pass
 
 
 def _install_request_timeouts(
@@ -604,6 +628,7 @@ class GEDIAccessor:
         
         os.makedirs(download_dir, exist_ok=True)        
         downloaded_files = earthaccess.download(granules, download_dir, **kwargs)
+        _make_group_accessible(downloaded_files)
         return downloaded_files
 
     def link_s3(self, product: str = None):
@@ -691,6 +716,7 @@ def _download_with_retry(
     for attempt in range(1, max_attempts + 1):
         try:
             opath = earthaccess.download(granule, odir_soc, threads=1, show_progress=False)
+            _make_group_accessible(opath)
 
             if len(opath) == 0:
                 raise GediDownloadError(
