@@ -2,6 +2,31 @@
 
 Thank you for your interest in contributing to gedih3! This document provides guidelines for contributing to the project.
 
+## Licensing of contributions — please read first
+
+`gedih3` is **source available, not open source**. It is distributed under the UMD Source Available
+Non-Commercial End User License Agreement ([LICENSE](LICENSE), [NOTICE](NOTICE)). Two terms directly
+affect contributors, and we would rather you know them up front than discover them later:
+
+- **Contributions become the University of Maryland's property.** Under Section 6(b), contributions,
+  commits, deposits, modifications, and forks that you provide to the repository become part of the
+  Materials and are owned by the University as derivative work. You retain no ownership or
+  intellectual property rights in them and receive no compensation. Section 6(a) vests all right,
+  title, and interest in the Materials in the University.
+- **Modifications must be contributed back, not released separately.** Section 2(a) permits you to
+  modify the software for non-commercial purposes and to share those modifications *only* by
+  contributing them back — fork the repository and open a pull request. Distributing modified copies
+  as a separate release is not permitted.
+
+By opening a pull request you confirm that you have read these terms and that you have the right to
+contribute the work you are submitting.
+
+Redistribution of **unmodified** copies is permitted, including through public package repositories
+and their mirrors, provided the LICENSE and all required notices travel with every copy.
+
+Commercial use requires a separate license from the University of Maryland. Contact UM Ventures at
+[umdtechtransfer@umd.edu](mailto:umdtechtransfer@umd.edu).
+
 ## Getting Started
 
 1. Fork the repository and clone your fork
