@@ -25,6 +25,7 @@ build:
     - gh3_from_img = gedih3.cli.gh3_from_img:main
     - gh3_from_polygon = gedih3.cli.gh3_from_polygon:main
     - gh3_build_ducklake = gedih3.cli.gh3_build_ducklake:main
+    - gh3_doctor = gedih3.cli.gh3_doctor:main
 
 requirements:
   host:
@@ -59,7 +60,9 @@ requirements:
     - pyyaml >=6.0
     - scipy >=1.10.0
     - gdal >=3.4.0
-    - python-duckdb >=0.9.0
+    # pin to 1.4.x LTS: DuckLake catalog format v0.3 is version-locked;
+    # 1.5+ writes v0.4 which 1.4 cannot read
+    - python-duckdb >=1.4.4,<1.5
 
 test:
   imports:
