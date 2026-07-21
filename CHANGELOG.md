@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.12.9] - 2026-07-21
+
+### Fixed
+- `egi_load(columns=None)` (the load-everything EGI path) no longer trips a Dask meta ↔ partition schema mismatch. On a hive-partitioned H3 database, `gpd.read_parquet` with no explicit column list infers the `h3_03`/`year` partition columns from the directory path and injects them into every computed partition, while the declared `_meta` (built via `pq.read_schema` on a single file) never sees them — raising `ValueError: The columns in the computed data do not match the metadata` at `.compute()`. `columns=None` is now resolved to the concrete data-column list from the DB schema before the read, suppressing hive inference and keeping H3 partition artifacts out of the EGI output.
+
 ## [0.12.7] - 2026-06-26
 
 ### Fixed
