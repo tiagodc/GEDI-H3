@@ -1,3 +1,7 @@
+# Copyright (C) 2026, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu
+
 """Fused per-partition scan for gh3_doctor's h3db-tree diagnoses.
 
 When the user asks for multiple per-partition diagnoses in one invocation

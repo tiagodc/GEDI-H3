@@ -1,3 +1,7 @@
+# Copyright (C) 2026, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu
+
 """backfill diagnosis — fill NaN gaps in product columns from source HDF5s.
 
 The detection runs row-level: for each partition × product, we count nulls per

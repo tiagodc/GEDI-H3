@@ -1,3 +1,7 @@
+# Copyright (C) 2026, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu
+
 """Dask worker preload: per-task gc + glibc malloc_trim cleanup.
 
 Use as ``dask worker --preload /path/to/dask_worker_trim.py ...``.

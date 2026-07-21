@@ -1,3 +1,7 @@
+# Copyright (C) 2026, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu
+
 """gh3_doctor — audit and (optionally) heal a gedih3 database.
 
 Public API:

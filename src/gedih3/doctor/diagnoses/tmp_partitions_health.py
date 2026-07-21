@@ -1,3 +1,7 @@
+# Copyright (C) 2026, University of Maryland. All Rights Reserved.
+# Authors: Tiago de Conto, Amelia Grace Holcomb
+# For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu
+
 """tmp_partitions_health diagnosis — post-build forensics on ``tmp/partitions/``.
 
 Audit-only check that NEVER iterates healthy partitions (Pillar 1 — no
