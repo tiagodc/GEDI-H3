@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.13.0] - 2026-07-21
+
+First public release. No version of gedih3 was published, distributed, or licensed to any party before this one.
+
+### Added
+- `LICENSE`: the UMD Source Available Non-Commercial End User License Agreement, as delivered by UM Ventures on 2026-07-21. Free for research, education, and other non-commercial use; redistribution of **unmodified** copies is permitted, including through public package repositories and their mirrors, provided the Agreement and all Section 4(a) notices travel with every copy; modifications may be shared only by contributing them back via pull request, not as a separate release; commercial use requires a separate license from the University of Maryland (UM Ventures, umdtechtransfer@umd.edu).
+- `NOTICE`: copyright, authorship, source-available status, and the licensing history — recording that nothing was published, distributed, licensed, or otherwise made available before 0.13.0, so any license text appearing in the repository's history was never operative and conferred no rights on any person.
+- Copyright notice headers on all 59 source files (previously 20). Section 2(a) conditions the redistribution grant on the Section 4(a) notices being preserved, so the notices must exist on the Materials.
+
+### Changed
+- `pyproject.toml`: `license` is now the PEP 639 expression `LicenseRef-UMD-Source-Available-NonCommercial-1.0`, with `license-files = ["LICENSE", "NOTICE"]` so both ship inside the sdist and wheel.
+- `recipe/meta.yaml`: `license`/`license_family`/`license_file` updated to match.
+- `README.md`, `docs/about.md`: state plainly that gedih3 is **source available, not open source**, and summarise the four operative terms.
+- `CONTRIBUTING.md`: discloses Section 6(b) up front — contributions, commits, deposits, modifications, and forks become the University's property, with no compensation or retained IP rights for the contributor.
+
 ## [0.12.9] - 2026-07-21
 
 ### Fixed
