@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.13.1] - 2026-07-21
+
+### Fixed
+- `recipe/meta.yaml`: `gh3_doctor` was missing from `build.entry_points` (11 of 12 console scripts were listed), so conda installs would not provide the `gh3_doctor` CLI at all.
+- `recipe/meta.yaml`: the conda `python-duckdb` constraint was still `>=0.9.0` while `pyproject.toml` pins `duckdb >=1.4.4,<1.5`. That pin is deliberate — the DuckLake catalog format v0.3 is version-locked and duckdb 1.5+ writes v0.4, which 1.4 cannot read — so the loose conda constraint could resolve to a version that silently breaks DuckLake catalogs.
+
 ## [0.13.0] - 2026-07-21
 
 First public release. No version of gedih3 was published, distributed, or licensed to any party before this one.
