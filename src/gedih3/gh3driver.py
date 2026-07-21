@@ -17,7 +17,7 @@ from .utils import (json_read, json_write, now, get_package_version, is_parquet,
                      smart_join, AtomicFileWriter, atomic_parquet_write,
                      dask_safe_wait, dask_safe_collect)
 from .h3utils import intersect_h3_geometries, fix_h3_geometry
-from .cliutils import find_coordinate_column, get_aggregatable_columns
+from .cliutils import find_coordinate_column, get_aggregatable_columns, filter_data_columns
 from .exceptions import (GediValidationError, GediDatabaseNotFoundError, GediProcessingError,
                          GediSpatialError, GediVariableError)
 
@@ -1995,6 +1995,22 @@ def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH
     egi_tiles, egi_to_h3, h3_part_col, region_gdf = _prepare_egi_loading(
         region, gh3_dir, partition_level=partition_level
     )
+
+    # When no explicit column list is requested, resolve it to the concrete
+    # data-column list from the DB schema. Passing an explicit list into the
+    # per-file read below suppresses geopandas' hive-partition inference —
+    # ``gpd.read_parquet(file)`` with ``columns=None`` injects the ``h3_03``
+    # and ``year`` partition columns from the directory path, which then
+    # appear in every computed partition but are absent from the Dask
+    # ``_meta`` (built via ``pq.read_schema`` on a single file, which never
+    # sees them). That schema mismatch either leaks H3 partition artifacts
+    # into EGI output or trips a meta-mismatch error in a downstream op.
+    # Resolving to the explicit data columns routes columns=None through the
+    # same always-correct machinery as an explicit request. (See
+    # tests/test_egi_load_meta.py.)
+    if columns is None:
+        _schema_data_cols = _get_schema_columns(None, gh3_dir, exclude_geometry=True)[1]
+        columns = filter_data_columns(_schema_data_cols, exclude_geometry=True)
 
     # Track output columns (exclude query-only columns from final output)
     out_cols = None
