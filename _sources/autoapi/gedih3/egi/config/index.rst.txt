@@ -1,0 +1,228 @@
+gedih3.egi.config
+=================
+
+.. py:module:: gedih3.egi.config
+
+.. autoapi-nested-parse::
+
+   EGI (EASE Grid Index) Configuration Module
+
+   This module defines constants and configuration for the EASE-Grid 2.0 (EPSG:6933)
+   spatial indexing system used for GEDI L4B-compatible square pixel outputs.
+
+   The EGI system provides:
+   - 12 resolution levels (1m to 160km)
+   - Perfect alignment with GEDI L4B products at level 6 (~1km)
+   - Native raster output without resampling artifacts
+   - Hash-based coordinate encoding for efficient spatial indexing
+
+   Reference:
+   - EASE-Grid 2.0: https://nsidc.org/ease/ease-grid-projection-gt
+   - EPSG:6933: WGS 84 / NSIDC EASE-Grid 2.0 Global
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.egi.config.UINT_MAX
+   gedih3.egi.config.INT_MAX
+   gedih3.egi.config.LIMITS
+   gedih3.egi.config.EGI_RES6
+   gedih3.egi.config.RESOLUTIONS
+   gedih3.egi.config.OUTER_RES
+   gedih3.egi.config.OUTER_LEVEL
+   gedih3.egi.config.EGI_CRS
+   gedih3.egi.config.EGI_CRS_STRING
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.egi.config.egi_col_name
+   gedih3.egi.config.validate_level
+   gedih3.egi.config.get_resolution
+   gedih3.egi.config.get_level_from_resolution
+
+
+Module Contents
+---------------
+
+.. py:data:: UINT_MAX
+   :type:  int
+   :value: 18446744073709551615
+
+
+.. py:data:: INT_MAX
+   :type:  int
+   :value: 9223372036854775807
+
+
+.. py:data:: LIMITS
+   :type:  Dict[str, float]
+
+.. py:data:: EGI_RES6
+   :type:  float
+   :value: 1000.89502334956
+
+
+.. py:data:: RESOLUTIONS
+   :type:  Dict[int, float]
+
+.. py:data:: OUTER_RES
+   :type:  float
+
+.. py:data:: OUTER_LEVEL
+   :type:  int
+
+.. py:data:: EGI_CRS
+   :type:  int
+   :value: 6933
+
+
+.. py:data:: EGI_CRS_STRING
+   :type:  str
+   :value: 'EPSG:6933'
+
+
+.. py:function:: egi_col_name(level: int) -> str
+
+   
+   Generate standard EGI column name for a given resolution level.
+
+
+   :Parameters:
+
+       **level** : int
+           EGI resolution level (1-12)
+
+
+
+   :Returns:
+
+       str
+           Column name in format 'egi{level:02d}' (e.g., 'egi01', 'egi12')
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: validate_level(level: int) -> None
+
+   
+   Validate that a level is within the supported range.
+
+
+   :Parameters:
+
+       **level** : int
+           EGI resolution level to validate
+
+
+
+
+
+
+
+   :Raises:
+
+       ValueError
+           If level is not between 1 and 12
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_resolution(level: int) -> float
+
+   
+   Get the pixel size in meters for a given EGI level.
+
+
+   :Parameters:
+
+       **level** : int
+           EGI resolution level (1-12)
+
+
+
+   :Returns:
+
+       float
+           Pixel size in meters
+
+
+
+
+   :Raises:
+
+       ValueError
+           If level is not between 1 and 12
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_level_from_resolution(resolution: float, tolerance: float = 0.01) -> int
+
+   
+   Find the EGI level closest to a given resolution.
+
+
+   :Parameters:
+
+       **resolution** : float
+           Target resolution in meters
+
+       **tolerance** : float
+           Relative tolerance for matching (default 1%)
+
+
+
+   :Returns:
+
+       int
+           EGI level with closest matching resolution
+
+
+
+
+   :Raises:
+
+       ValueError
+           If no level matches within tolerance
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

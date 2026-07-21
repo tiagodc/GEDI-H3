@@ -1,0 +1,1549 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>gedih3.utils &#8212; gedih3 0.12.9 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=8bafde03" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../../_static/documentation_options.js?v=54dfaa76"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'autoapi/gedih3/utils/index';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="gedih3.validation" href="../validation/index.html" />
+    <link rel="prev" title="gedih3.sqlutils" href="../sqlutils/index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../_static/searchtools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script src="../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+     
+  
+
+<a class="navbar-brand logo" href="/GEDI-H3/">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.12.9 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.12.9 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user-guide/index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user-guide/index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">gedih3</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2 has-children"><a class="reference internal" href="../cli/index.html">gedih3.cli</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_aggregate/index.html">gedih3.cli.gh3_aggregate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_build/index.html">gedih3.cli.gh3_build</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_build_ducklake/index.html">gedih3.cli.gh3_build_ducklake</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_doctor/index.html">gedih3.cli.gh3_doctor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_download/index.html">gedih3.cli.gh3_download</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_extract/index.html">gedih3.cli.gh3_extract</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_from_img/index.html">gedih3.cli.gh3_from_img</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_from_polygon/index.html">gedih3.cli.gh3_from_polygon</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_list_resolutions/index.html">gedih3.cli.gh3_list_resolutions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_rasterize/index.html">gedih3.cli.gh3_rasterize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_read_schema/index.html">gedih3.cli.gh3_read_schema</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_update/index.html">gedih3.cli.gh3_update</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../cliutils/index.html">gedih3.cliutils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../config/index.html">gedih3.config</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../daac/index.html">gedih3.daac</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../doctor/index.html">gedih3.doctor</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../doctor/diagnoses/index.html">gedih3.doctor.diagnoses</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/backfill/index.html">gedih3.doctor.diagnoses.backfill</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/geoparquet_bbox/index.html">gedih3.doctor.diagnoses.geoparquet_bbox</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/log_state/index.html">gedih3.doctor.diagnoses.log_state</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/metadata/index.html">gedih3.doctor.diagnoses.metadata</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/orphans/index.html">gedih3.doctor.diagnoses.orphans</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/parquet_health/index.html">gedih3.doctor.diagnoses.parquet_health</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/soc_health/index.html">gedih3.doctor.diagnoses.soc_health</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/tmp_partitions_health/index.html">gedih3.doctor.diagnoses.tmp_partitions_health</a></li>
+</ul>
+</details></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/fused/index.html">gedih3.doctor.fused</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/inspect/index.html">gedih3.doctor.inspect</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/parallel/index.html">gedih3.doctor.parallel</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/parquet_ops/index.html">gedih3.doctor.parquet_ops</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/report/index.html">gedih3.doctor.report</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/runner/index.html">gedih3.doctor.runner</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/upstream/index.html">gedih3.doctor.upstream</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../egi/index.html">gedih3.egi</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../egi/config/index.html">gedih3.egi.config</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../egi/core/index.html">gedih3.egi.core</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../egi/dataframe/index.html">gedih3.egi.dataframe</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../egi/raster/index.html">gedih3.egi.raster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../egi/spatial/index.html">gedih3.egi.spatial</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../exceptions/index.html">gedih3.exceptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../gedidriver/index.html">gedih3.gedidriver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../gh3builder/index.html">gedih3.gh3builder</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../gh3driver/index.html">gedih3.gh3driver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../h3utils/index.html">gedih3.h3utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../imgutils/index.html">gedih3.imgutils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../logger/index.html">gedih3.logger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../logging_config/index.html">gedih3.logging_config</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../parallel/index.html">gedih3.parallel</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../raster/index.html">gedih3.raster</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../raster/config/index.html">gedih3.raster.config</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../raster/export/index.html">gedih3.raster.export</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../raster/h3_raster/index.html">gedih3.raster.h3_raster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../raster/timeseries/index.html">gedih3.raster.timeseries</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../sqlutils/index.html">gedih3.sqlutils</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">gedih3.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../validation/index.html">gedih3.validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../vecutils/index.html">gedih3.vecutils</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">API Reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link">gedih3</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">gedih3.utils</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-gedih3.utils">
+<span id="gedih3-utils"></span><h1>gedih3.utils<a class="headerlink" href="#module-gedih3.utils" title="Link to this heading">#</a></h1>
+<section id="classes">
+<h2>Classes<a class="headerlink" href="#classes" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.AtomicFileWriter" title="gedih3.utils.AtomicFileWriter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AtomicFileWriter</span></code></a></p></td>
+<td><p>Context manager for atomic file writes with automatic rollback on failure.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.is_remote_path" title="gedih3.utils.is_remote_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_remote_path</span></code></a>(path)</p></td>
+<td><p>Check if path is a remote URL (S3, HTTP, FTP, etc.).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.smart_join" title="gedih3.utils.smart_join"><code class="xref py py-obj docutils literal notranslate"><span class="pre">smart_join</span></code></a>(*parts)</p></td>
+<td><p>os.path.join() that uses forward slashes for remote URLs.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.configure_storage" title="gedih3.utils.configure_storage"><code class="xref py py-obj docutils literal notranslate"><span class="pre">configure_storage</span></code></a>([protocol])</p></td>
+<td><p>Set storage credentials for a remote protocol.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.get_storage_options" title="gedih3.utils.get_storage_options"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_storage_options</span></code></a>([protocol])</p></td>
+<td><p>Return the stored options for <em>protocol</em>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.smart_exists" title="gedih3.utils.smart_exists"><code class="xref py py-obj docutils literal notranslate"><span class="pre">smart_exists</span></code></a>(path)</p></td>
+<td><p>os.path.exists() that works with remote paths.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.smart_isdir" title="gedih3.utils.smart_isdir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">smart_isdir</span></code></a>(path)</p></td>
+<td><p>os.path.isdir() that works with remote paths.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.generate_manifest" title="gedih3.utils.generate_manifest"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_manifest</span></code></a>(root_path[, pattern, ...])</p></td>
+<td><p>Atomically write a manifest file listing all matching files.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.smart_glob" title="gedih3.utils.smart_glob"><code class="xref py py-obj docutils literal notranslate"><span class="pre">smart_glob</span></code></a>(pattern[, recursive])</p></td>
+<td><p>glob.glob() that works with remote paths.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.smart_open" title="gedih3.utils.smart_open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">smart_open</span></code></a>(path[, mode, storage_options])</p></td>
+<td><p>open() that works with remote paths. Use as context manager.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.get_package_version" title="gedih3.utils.get_package_version"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_package_version</span></code></a>()</p></td>
+<td><p>Get the current package version</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.now" title="gedih3.utils.now"><code class="xref py py-obj docutils literal notranslate"><span class="pre">now</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.get_system_resources" title="gedih3.utils.get_system_resources"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_system_resources</span></code></a>([disk_path])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.json_write" title="gedih3.utils.json_write"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json_write</span></code></a>(obj, path[, mode, rewrite])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.json_read" title="gedih3.utils.json_read"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json_read</span></code></a>(path[, mode])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.check_nan_only_columns" title="gedih3.utils.check_nan_only_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">check_nan_only_columns</span></code></a>(df[, context, logger])</p></td>
+<td><p>Warn about columns that are entirely NaN.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.is_parquet" title="gedih3.utils.is_parquet"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_parquet</span></code></a>(→ bool)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.is_hive_directory" title="gedih3.utils.is_hive_directory"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_hive_directory</span></code></a>(→ bool)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_parquet_schema" title="gedih3.utils.read_parquet_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_parquet_schema</span></code></a>(path)</p></td>
+<td><p>path: parquet file path</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_geopackage_schema" title="gedih3.utils.read_geopackage_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_geopackage_schema</span></code></a>(path)</p></td>
+<td><p>path: gpkg file path</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_feather_schema" title="gedih3.utils.read_feather_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_feather_schema</span></code></a>(path)</p></td>
+<td><p>Read schema from a feather (Arrow IPC) file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_h3_database_schema" title="gedih3.utils.read_h3_database_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_h3_database_schema</span></code></a>(db_path)</p></td>
+<td><p>Read parquet schema from an H3 hive-partitioned database.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_schema" title="gedih3.utils.read_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_schema</span></code></a>(path[, root])</p></td>
+<td><p>Read schema from a data file or dataset directory, auto-detecting format.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_is_valid" title="gedih3.utils.h5_is_valid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_is_valid</span></code></a>(file)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.release_arrow_pool" title="gedih3.utils.release_arrow_pool"><code class="xref py py-obj docutils literal notranslate"><span class="pre">release_arrow_pool</span></code></a>(→ None)</p></td>
+<td><p>Best-effort drain of pyarrow's allocator.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_traverse" title="gedih3.utils.h5_traverse"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_traverse</span></code></a>(h5_file[, root])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h5_info" title="gedih3.utils.h5_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_info</span></code></a>(hdf_file[, root])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_var" title="gedih3.utils.h5_var"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_var</span></code></a>(file, var[, col])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h5_meta" title="gedih3.utils.h5_meta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_meta</span></code></a>(file[, var])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_copy_subset" title="gedih3.utils.h5_copy_subset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_copy_subset</span></code></a>(source_file, dest_file, variables)</p></td>
+<td><p>Copy selected datasets from source to dest HDF5 file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_vector_file" title="gedih3.utils.read_vector_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_vector_file</span></code></a>(filepath[, crs])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_img_bounds" title="gedih3.utils.read_img_bounds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_img_bounds</span></code></a>(filepath[, crs])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.geo_to_umm" title="gedih3.utils.geo_to_umm"><code class="xref py py-obj docutils literal notranslate"><span class="pre">geo_to_umm</span></code></a>(obj)</p></td>
+<td><p>Converts a GeoDataFrame, shapely Polygon, or GeoJSON dictionary to a UMM-style</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.to_geojson" title="gedih3.utils.to_geojson"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_geojson</span></code></a>(→ Dict)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.from_geojson" title="gedih3.utils.from_geojson"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_geojson</span></code></a>(geojson)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_append_columns" title="gedih3.utils.parquet_append_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_append_columns</span></code></a>(df, f[, tmp_suffix])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parquet_schema_add_bbox" title="gedih3.utils.parquet_schema_add_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_schema_add_bbox</span></code></a>(schema, bbox)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parse_h3_partition_dirname" title="gedih3.utils.parse_h3_partition_dirname"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_h3_partition_dirname</span></code></a>(h3part)</p></td>
+<td><p>Parse a partition dir name like <code class="docutils literal notranslate"><span class="pre">'h3_03=830e4afffffffff'</span></code> into</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h3_partition_bbox" title="gedih3.utils.h3_partition_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h3_partition_bbox</span></code></a>(h3_cell_id, parent_res[, edge_fraction])</p></td>
+<td><p>Return the EPSG:4326 bbox of an H3 cell, padded to safely contain all</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_backfill_bbox" title="gedih3.utils.parquet_backfill_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_backfill_bbox</span></code></a>(path)</p></td>
+<td><p>Rewrite a single parquet file in place so its GeoParquet <code class="docutils literal notranslate"><span class="pre">geo</span></code> metadata</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parquet_merge_files" title="gedih3.utils.parquet_merge_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_merge_files</span></code></a>(ofile, flist[, check_shots, ...])</p></td>
+<td><p>Stream-merge parquet files into a single output with a bounded memory footprint.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_join_columns" title="gedih3.utils.parquet_join_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_join_columns</span></code></a>(flist, ofile[, key_col, ...])</p></td>
+<td><p>Memory-efficient column-wise join of parquet files. Equivalent to pd.concat(axis=1)</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parse_temporal" title="gedih3.utils.parse_temporal"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_temporal</span></code></a>(temporal)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parse_spatial" title="gedih3.utils.parse_spatial"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_spatial</span></code></a>(spatial)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.merge_spatial" title="gedih3.utils.merge_spatial"><code class="xref py py-obj docutils literal notranslate"><span class="pre">merge_spatial</span></code></a>(existing, new)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.get_dask_client" title="gedih3.utils.get_dask_client"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_dask_client</span></code></a>()</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.dask_safe_wait" title="gedih3.utils.dask_safe_wait"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dask_safe_wait</span></code></a>(persisted[, show_progress])</p></td>
+<td><p>Wait for a persisted Dask collection to finish and re-raise the first</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.dask_safe_collect" title="gedih3.utils.dask_safe_collect"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dask_safe_collect</span></code></a>(collection[, show_progress])</p></td>
+<td><p>Persist a Dask DataFrame/Series on the cluster, then gather each</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.atomic_parquet_write" title="gedih3.utils.atomic_parquet_write"><code class="xref py py-obj docutils literal notranslate"><span class="pre">atomic_parquet_write</span></code></a>(df, opath, *[, compression, ...])</p></td>
+<td><p>Atomic parquet write with post-write page-level integrity check + retry.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="module-contents">
+<h2>Module Contents<a class="headerlink" href="#module-contents" title="Link to this heading">#</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.is_remote_path">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">is_remote_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#is_remote_path"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.is_remote_path" title="Link to this definition">#</a></dt>
+<dd><p>Check if path is a remote URL (S3, HTTP, FTP, etc.).</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.smart_join">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">smart_join</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">parts</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#smart_join"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.smart_join" title="Link to this definition">#</a></dt>
+<dd><p>os.path.join() that uses forward slashes for remote URLs.</p>
+<p>On Windows, os.path.join uses backslashes which corrupts URLs like
+<code class="docutils literal notranslate"><span class="pre">http://host:port/path</span></code> into <code class="docutils literal notranslate"><span class="pre">http://host:port\path</span></code>, causing
+port-parsing failures in urllib3.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.configure_storage">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">configure_storage</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">protocol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'s3'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#configure_storage"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.configure_storage" title="Link to this definition">#</a></dt>
+<dd><p>Set storage credentials for a remote protocol.</p>
+<p>Credentials are stored at module level and automatically used by every
+<code class="docutils literal notranslate"><span class="pre">smart_*</span></code> function (which all flow through <code class="docutils literal notranslate"><span class="pre">_get_filesystem</span></code> /
+<code class="docutils literal notranslate"><span class="pre">smart_open</span></code>).</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl>
+<dt><strong>protocol</strong><span class="classifier">str</span></dt><dd><p>Protocol name: <code class="docutils literal notranslate"><span class="pre">'s3'</span></code>, <code class="docutils literal notranslate"><span class="pre">'http'</span></code>, <code class="docutils literal notranslate"><span class="pre">'https'</span></code>, <code class="docutils literal notranslate"><span class="pre">'ftp'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'sftp'</span></code>, <code class="docutils literal notranslate"><span class="pre">'ssh'</span></code>.</p>
+</dd>
+<dt><strong>**kwargs</strong></dt><dd><p>Protocol-specific options passed to <code class="docutils literal notranslate"><span class="pre">fsspec.filesystem()</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">S3</span></code> (s3fs): <code class="docutils literal notranslate"><span class="pre">key</span></code>, <code class="docutils literal notranslate"><span class="pre">secret</span></code>, <code class="docutils literal notranslate"><span class="pre">endpoint_url</span></code>, <code class="docutils literal notranslate"><span class="pre">anon</span></code>.
+<code class="docutils literal notranslate"><span class="pre">endpoint_url</span></code> is automatically wrapped into
+<code class="docutils literal notranslate"><span class="pre">client_kwargs={'endpoint_url':</span> <span class="pre">...}</span></code> for s3fs compatibility.</p>
+<p><code class="docutils literal notranslate"><span class="pre">HTTP/HTTPS</span></code> (aiohttp): <code class="docutils literal notranslate"><span class="pre">username</span></code>/<code class="docutils literal notranslate"><span class="pre">password</span></code> (basic auth
+via <code class="docutils literal notranslate"><span class="pre">client_kwargs</span></code>) or <code class="docutils literal notranslate"><span class="pre">headers</span></code> dict (bearer tokens, API
+keys).</p>
+<p><code class="docutils literal notranslate"><span class="pre">FTP</span></code>: <code class="docutils literal notranslate"><span class="pre">username</span></code>, <code class="docutils literal notranslate"><span class="pre">password</span></code>, <code class="docutils literal notranslate"><span class="pre">host</span></code>, <code class="docutils literal notranslate"><span class="pre">port</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">SFTP/SSH</span></code>: <code class="docutils literal notranslate"><span class="pre">username</span></code>, <code class="docutils literal notranslate"><span class="pre">password</span></code> or <code class="docutils literal notranslate"><span class="pre">key_filename</span></code>
+(path to SSH private key), <code class="docutils literal notranslate"><span class="pre">port</span></code>.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">configure_storage</span><span class="p">(</span><span class="s1">&#39;s3&#39;</span><span class="p">,</span> <span class="n">endpoint_url</span><span class="o">=</span><span class="s1">&#39;http://localhost:7000&#39;</span><span class="p">,</span> <span class="n">anon</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">configure_storage</span><span class="p">(</span><span class="s1">&#39;http&#39;</span><span class="p">,</span> <span class="n">username</span><span class="o">=</span><span class="s1">&#39;user&#39;</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="s1">&#39;pass&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">configure_storage</span><span class="p">(</span><span class="s1">&#39;https&#39;</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;Authorization&#39;</span><span class="p">:</span> <span class="s1">&#39;Bearer tok&#39;</span><span class="p">})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">configure_storage</span><span class="p">(</span><span class="s1">&#39;sftp&#39;</span><span class="p">,</span> <span class="n">username</span><span class="o">=</span><span class="s1">&#39;user&#39;</span><span class="p">,</span> <span class="n">key_filename</span><span class="o">=</span><span class="s1">&#39;/path/to/id_rsa&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.get_storage_options">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">get_storage_options</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">protocol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#get_storage_options"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.get_storage_options" title="Link to this definition">#</a></dt>
+<dd><p>Return the stored options for <em>protocol</em>.</p>
+<p>Returns <code class="docutils literal notranslate"><span class="pre">{'anon':</span> <span class="pre">True}</span></code> for S3 when nothing has been configured
+(public-bucket default). Other protocols return <code class="docutils literal notranslate"><span class="pre">{}</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>protocol</strong><span class="classifier">str or None</span></dt><dd><p>Protocol name (e.g. <code class="docutils literal notranslate"><span class="pre">'s3'</span></code>). <code class="docutils literal notranslate"><span class="pre">None</span></code> returns <code class="docutils literal notranslate"><span class="pre">{}</span></code>.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>dict</dt><dd><p>A <strong>copy</strong> of the stored options (safe to mutate).</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.smart_exists">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">smart_exists</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#smart_exists"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.smart_exists" title="Link to this definition">#</a></dt>
+<dd><p>os.path.exists() that works with remote paths.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.smart_isdir">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">smart_isdir</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#smart_isdir"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.smart_isdir" title="Link to this definition">#</a></dt>
+<dd><p>os.path.isdir() that works with remote paths.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.generate_manifest">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">generate_manifest</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">root_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pattern</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'**/*.parquet'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">manifest_filename</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tree_shape</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'h3db'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">files</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#generate_manifest"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.generate_manifest" title="Link to this definition">#</a></dt>
+<dd><p>Atomically write a manifest file listing all matching files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>root_path</strong><span class="classifier">str</span></dt><dd><p>Database root directory (must be local).</p>
+</dd>
+<dt><strong>pattern</strong><span class="classifier">str</span></dt><dd><p>Glob pattern matched at each leaf — meaning depends on
+<code class="docutils literal notranslate"><span class="pre">tree_shape</span></code>. For <code class="docutils literal notranslate"><span class="pre">'h3db'</span></code> it is matched recursively under
+each <code class="docutils literal notranslate"><span class="pre">h3_NN=*</span></code> partition; for <code class="docutils literal notranslate"><span class="pre">'soc'</span></code> it is matched at
+each <code class="docutils literal notranslate"><span class="pre">year/doy/</span></code> leaf; for <code class="docutils literal notranslate"><span class="pre">'flat'</span></code> it is matched at the
+single <code class="docutils literal notranslate"><span class="pre">root_path</span></code>. The default <code class="docutils literal notranslate"><span class="pre">**/*.parquet</span></code> is the H3
+layout for backwards compatibility.</p>
+</dd>
+<dt><strong>manifest_filename</strong><span class="classifier">str, optional</span></dt><dd><p>Name of the manifest sentinel file. Defaults to the H3 database
+manifest (<code class="docutils literal notranslate"><span class="pre">MANIFEST_FILENAME</span></code>). Pass <code class="docutils literal notranslate"><span class="pre">SOC_MANIFEST_FILENAME</span></code>
+for the SOC parallel.</p>
+</dd>
+<dt><strong>tree_shape</strong><span class="classifier">{‘h3db’, ‘soc’, ‘flat’}</span></dt><dd><p>Tree topology to walk. Dispatches to the matching walker in
+<a class="reference internal" href="../parallel/index.html#module-gedih3.parallel" title="gedih3.parallel"><code class="xref py py-mod docutils literal notranslate"><span class="pre">gedih3.parallel</span></code></a>. The walker requires a registered dask
+Client at call time — there is <strong>no serial fallback</strong> (matches
+the package-wide always-parallel contract).</p>
+</dd>
+<dt><strong>files</strong><span class="classifier">list[str], optional</span></dt><dd><p>Pre-computed absolute file list to use instead of walking. When
+the caller already has the file list in memory (e.g.
+<code class="docutils literal notranslate"><span class="pre">cli/gh3_build.py</span></code> after its existing-h5 listing), passing
+them here avoids a redundant walk. The list must contain
+absolute paths under <code class="docutils literal notranslate"><span class="pre">root_path</span></code>.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>str</dt><dd><p>Path to the written manifest file. The write is atomic
+(<code class="docutils literal notranslate"><span class="pre">.tmp</span></code> + <code class="docutils literal notranslate"><span class="pre">os.replace</span></code>) so an interrupted run never leaves
+a partial manifest at the final path — important when the
+manifest is also a resume-correctness signal for the next
+invocation.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.smart_glob">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">smart_glob</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pattern</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">recursive</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#smart_glob"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.smart_glob" title="Link to this definition">#</a></dt>
+<dd><p>glob.glob() that works with remote paths.</p>
+<p>Uses a _manifest.txt file at the glob root when available, filtering
+entries by pattern.  Falls back to filesystem globbing when no
+manifest exists.</p>
+<p>For remote paths, uses fs.find() to list all files under the root,
+then filters with a glob-to-regex matcher.  Results include the full
+protocol prefix.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.smart_open">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">smart_open</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'r'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">storage_options</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#smart_open"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.smart_open" title="Link to this definition">#</a></dt>
+<dd><p>open() that works with remote paths. Use as context manager.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>path</strong><span class="classifier">str</span></dt><dd><p>Local or remote file path.</p>
+</dd>
+<dt><strong>mode</strong><span class="classifier">str</span></dt><dd><p>File mode (default <code class="docutils literal notranslate"><span class="pre">'r'</span></code>).</p>
+</dd>
+<dt><strong>storage_options</strong><span class="classifier">dict, optional</span></dt><dd><p>Per-call overrides merged on top of the global config.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.get_package_version">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">get_package_version</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#get_package_version"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.get_package_version" title="Link to this definition">#</a></dt>
+<dd><p>Get the current package version</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.now">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">now</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#now"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.now" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.get_system_resources">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">get_system_resources</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">disk_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#get_system_resources"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.get_system_resources" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.json_write">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">json_write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'w'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rewrite</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#json_write"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.json_write" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.json_read">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">json_read</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'r'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#json_read"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.json_read" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.check_nan_only_columns">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">check_nan_only_columns</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">logger</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#check_nan_only_columns"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.check_nan_only_columns" title="Link to this definition">#</a></dt>
+<dd><p>Warn about columns that are entirely NaN.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>df</strong><span class="classifier">DataFrame or GeoDataFrame</span></dt><dd><p>Data to check.</p>
+</dd>
+<dt><strong>context</strong><span class="classifier">str</span></dt><dd><p>Optional prefix for the warning message.</p>
+</dd>
+<dt><strong>logger</strong><span class="classifier">logging.Logger, optional</span></dt><dd><p>Logger instance. If None, uses module-level warnings.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>list</dt><dd><p>Column names that are entirely NaN.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.is_parquet">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">is_parquet</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/utils.html#is_parquet"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.is_parquet" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.is_hive_directory">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">is_hive_directory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dir_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">match_str</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'.+=.+'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/utils.html#is_hive_directory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.is_hive_directory" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.read_parquet_schema">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">read_parquet_schema</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#read_parquet_schema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.read_parquet_schema" title="Link to this definition">#</a></dt>
+<dd><p>path: parquet file path</p>
+<p>returns a pandas.DataFrame with the parquet column structure</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.read_geopackage_schema">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">read_geopackage_schema</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#read_geopackage_schema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.read_geopackage_schema" title="Link to this definition">#</a></dt>
+<dd><p>path: gpkg file path</p>
+<p>returns a pandas.DataFrame with the gpkg column structure</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.read_feather_schema">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">read_feather_schema</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#read_feather_schema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.read_feather_schema" title="Link to this definition">#</a></dt>
+<dd><p>Read schema from a feather (Arrow IPC) file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>path</strong><span class="classifier">str</span></dt><dd><p>Path to feather file</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>pandas.DataFrame</dt><dd><p>DataFrame with ‘column’ and ‘dtype’ columns</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.read_h3_database_schema">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">read_h3_database_schema</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">db_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#read_h3_database_schema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.read_h3_database_schema" title="Link to this definition">#</a></dt>
+<dd><p>Read parquet schema from an H3 hive-partitioned database.</p>
+<p>Finds the first parquet file inside any H3 partition directory
+and reads its schema via read_parquet_schema().</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>db_path</strong><span class="classifier">str</span></dt><dd><p>Path to H3 database root directory (containing h3_XX=* subdirs)</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>pandas.DataFrame</dt><dd><p>DataFrame with ‘column’ and ‘dtype’ columns</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>FileNotFoundError</dt><dd><p>If no H3 partition directories or parquet files found</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.read_schema">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">read_schema</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">root</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#read_schema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.read_schema" title="Link to this definition">#</a></dt>
+<dd><p>Read schema from a data file or dataset directory, auto-detecting format.</p>
+<p>Supports parquet, feather, gpkg, and HDF5 files. For directories, detects
+the dataset format from metadata or file extensions. Also detects H3
+databases by the presence of the build log file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>path</strong><span class="classifier">str</span></dt><dd><p>Path to a file or dataset directory</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>pandas.DataFrame</dt><dd><p>DataFrame with ‘column’ and ‘dtype’ columns (for vector/tabular formats),
+or ‘column’, ‘dtype’, and ‘shape’ columns (for HDF5)</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>FileNotFoundError</dt><dd><p>If no data files found</p>
+</dd>
+<dt>ValueError</dt><dd><p>If format cannot be determined</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.h5_is_valid">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">h5_is_valid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#h5_is_valid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.h5_is_valid" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.release_arrow_pool">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">release_arrow_pool</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/utils.html#release_arrow_pool"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.release_arrow_pool" title="Link to this definition">#</a></dt>
+<dd><p>Best-effort drain of pyarrow’s allocator.</p>
+<p>pyarrow’s transient read/write buffers do not always return to the
+OS at GC time, which causes long-running worker RSS to climb across
+successive parquet operations on shared GPFS. Calling
+<code class="docutils literal notranslate"><span class="pre">pa.default_memory_pool().release_unused()</span></code> after each per-file
+or per-task scope keeps the plateau flat. The pool API may also
+raise on unusual installations; we swallow exceptions because the
+drain is an optimization, not a correctness gate.</p>
+<p>This helper is the single source of truth for the pattern that
+used to be inlined in 6+ doctor / build call sites and was easy
+to forget at a new site.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.h5_traverse">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">h5_traverse</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h5_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">root</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#h5_traverse"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.h5_traverse" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.h5_info">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">h5_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hdf_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">root</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#h5_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.h5_info" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.h5_var">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">h5_var</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">col</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#h5_var"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.h5_var" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.h5_meta">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">h5_meta</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'METADATA/DatasetIdentification'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#h5_meta"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.h5_meta" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.h5_copy_subset">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">h5_copy_subset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variables</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#h5_copy_subset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.h5_copy_subset" title="Link to this definition">#</a></dt>
+<dd><p>Copy selected datasets from source to dest HDF5 file.</p>
+<p>Uses direct path iteration instead of visit_links() to avoid
+traversing the entire HDF5 tree — critical for S3 performance
+where each node visit is a range request (~50-100ms).</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.read_vector_file">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">read_vector_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filepath</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">crs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">4326</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#read_vector_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.read_vector_file" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.read_img_bounds">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">read_img_bounds</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filepath</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">crs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4326</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#read_img_bounds"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.read_img_bounds" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.geo_to_umm">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">geo_to_umm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">obj</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#geo_to_umm"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.geo_to_umm" title="Link to this definition">#</a></dt>
+<dd><p>Converts a GeoDataFrame, shapely Polygon, or GeoJSON dictionary to a UMM-style
+list of (lon, lat) coordinate tuples for a single polygon.</p>
+<p>Multi-polygon geometries are reduced to their convex hull since earthaccess/CMR
+only supports single-polygon spatial queries.</p>
+<p>Rings with more than <code class="docutils literal notranslate"><span class="pre">_CMR_POLYGON_MAX_VERTICES</span></code> points are auto-simplified
+via iterative <code class="docutils literal notranslate"><span class="pre">shapely.simplify</span></code> (doubling tolerance) until the ring fits.
+CMR/CloudFront returns HTTP 414 (URI too long) when the polygon query string
+grows past a few hundred vertices; simplifying client-side avoids that failure.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.to_geojson">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">to_geojson</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">geodf</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span></span></span><a class="reference internal" href="../../../_modules/gedih3/utils.html#to_geojson"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.to_geojson" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.from_geojson">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">from_geojson</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">geojson</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#from_geojson"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.from_geojson" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.parquet_append_columns">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">parquet_append_columns</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">tmp_suffix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'.col.tmp'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#parquet_append_columns"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.parquet_append_columns" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.parquet_schema_add_bbox">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">parquet_schema_add_bbox</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">schema</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bbox</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#parquet_schema_add_bbox"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.parquet_schema_add_bbox" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.parse_h3_partition_dirname">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">parse_h3_partition_dirname</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h3part</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#parse_h3_partition_dirname"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.parse_h3_partition_dirname" title="Link to this definition">#</a></dt>
+<dd><p>Parse a partition dir name like <code class="docutils literal notranslate"><span class="pre">'h3_03=830e4afffffffff'</span></code> into
+<code class="docutils literal notranslate"><span class="pre">(cell_id,</span> <span class="pre">parent_res)</span></code>. Returns <code class="docutils literal notranslate"><span class="pre">(None,</span> <span class="pre">None)</span></code> on parse failure.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.h3_partition_bbox">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">h3_partition_bbox</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h3_cell_id</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent_res</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_fraction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">_H3_OVERHANG_FRACTION</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#h3_partition_bbox"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.h3_partition_bbox" title="Link to this definition">#</a></dt>
+<dd><p>Return the EPSG:4326 bbox of an H3 cell, padded to safely contain all
+descendants at any deeper resolution.</p>
+<p>The buffer derives from the icosahedral-projection distortion measured
+empirically at H3 face boundaries: a child cell’s vertices can sit up to
+<code class="docutils literal notranslate"><span class="pre">edge_fraction</span> <span class="pre">×</span> <span class="pre">parent_edge_length</span></code> outside the parent cell’s own
+bbox (in metres on the ground, regardless of how deep the child is once
+the depth gap is ≥ ~5 levels). The default <code class="docutils literal notranslate"><span class="pre">0.18</span></code> is the measured
+asymptote (~14%) × 1.2 safety margin.</p>
+<p>The buffer is converted to longitude-degrees at the parent’s most
+poleward vertex (cosine-corrected) so the same scalar in degrees is
+safe for both lat and lon directions of the bbox.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>h3_cell_id</strong><span class="classifier">str</span></dt><dd><p>H3 cell index (hex string) at <code class="docutils literal notranslate"><span class="pre">parent_res</span></code>.</p>
+</dd>
+<dt><strong>parent_res</strong><span class="classifier">int</span></dt><dd><p>Resolution of <code class="docutils literal notranslate"><span class="pre">h3_cell_id</span></code>. Used to look up the average edge
+length for the buffer.</p>
+</dd>
+<dt><strong>edge_fraction</strong><span class="classifier">float, default 0.18</span></dt><dd><p>Buffer as a fraction of the parent’s edge length.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>list[float] | None</dt><dd><p><code class="docutils literal notranslate"><span class="pre">[minlon,</span> <span class="pre">minlat,</span> <span class="pre">maxlon,</span> <span class="pre">maxlat]</span></code> in EPSG:4326 degrees, or
+<code class="docutils literal notranslate"><span class="pre">None</span></code> if the cell ID cannot be decoded.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Antimeridian-crossing parents produce a loose bbox spanning ~[-180, 180]
+in longitude (because the simple min/max over boundary vertices folds
+incorrectly there). This is conservative — the bbox still contains the
+cell — but predicate pushdown is ineffective for those partitions.
+GEDI data above the antimeridian is rare (ISS limit ±51.6° latitude);
+accept the looseness rather than complicate the formula.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.parquet_backfill_bbox">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">parquet_backfill_bbox</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#parquet_backfill_bbox"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.parquet_backfill_bbox" title="Link to this definition">#</a></dt>
+<dd><p>Rewrite a single parquet file in place so its GeoParquet <code class="docutils literal notranslate"><span class="pre">geo</span></code> metadata
+declares a valid <code class="docutils literal notranslate"><span class="pre">columns.&lt;primary&gt;.bbox</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>str</dt><dd><p><code class="docutils literal notranslate"><span class="pre">'ok'</span></code> if the file already has a valid bbox (no-op),
+<code class="docutils literal notranslate"><span class="pre">'rewritten'</span></code> if a bbox was computed and the file was rewritten,
+<code class="docutils literal notranslate"><span class="pre">'no_geometry'</span></code> if the file has no <code class="docutils literal notranslate"><span class="pre">geometry</span></code> column.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>ValueError</dt><dd><p>If the file lacks a <code class="docutils literal notranslate"><span class="pre">geo</span></code> schema metadata key (cannot be backfilled
+without re-merging from source — caller should flag for a full rebuild).</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Atomic: writes to <code class="docutils literal notranslate"><span class="pre">&lt;path&gt;.bbox.tmp</span></code> then <code class="docutils literal notranslate"><span class="pre">os.replace</span></code>. A stale tmp from
+a prior crash is removed before each rewrite. Memory is bounded by the
+streaming scanner (<code class="docutils literal notranslate"><span class="pre">batch_size=100_000</span></code>), same profile as
+<code class="docutils literal notranslate"><span class="pre">parquet_merge_files</span></code>.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.parquet_merge_files">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">parquet_merge_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ofile</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">check_shots</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rm_src</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows_per_group</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bbox</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#parquet_merge_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.parquet_merge_files" title="Link to this definition">#</a></dt>
+<dd><p>Stream-merge parquet files into a single output with a bounded memory footprint.</p>
+<p>Architecture (per-file iteration, native column projection):</p>
+<ul class="simple">
+<li><p>Schema is taken from the first file’s footer (one <code class="docutils literal notranslate"><span class="pre">pq.read_schema</span></code>).
+Each input fragment is opened sequentially via <code class="docutils literal notranslate"><span class="pre">pq.ParquetFile</span></code> and
+drained via <code class="docutils literal notranslate"><span class="pre">iter_batches(batch_size=rows_per_group,</span> <span class="pre">columns=schema.names)</span></code>.
+The <code class="docutils literal notranslate"><span class="pre">columns=...</span></code> argument has pyarrow’s C++ reader <strong>read columns in the
+target order</strong> — no Python-side reordering, no per-batch reconciler,
+and any extras the file might have are dropped at read time (less I/O).
+When the file goes out of scope, its IO state is released —
+deterministic per-file lifecycle.</p></li>
+<li><p><strong>Invariant assumed by design</strong>: all input fragments share an identical
+column set and dtypes (true in gh3_build because all fragments come
+from the same <code class="docutils literal notranslate"><span class="pre">dask_geopandas.to_parquet</span></code> call). A fragment with a
+missing target column will raise from pyarrow — that’s the right
+behavior; it surfaces a serious data invariant violation rather than
+silently null-filling.</p></li>
+<li><p>Bbox is <strong>provided by the caller</strong> via the <code class="docutils literal notranslate"><span class="pre">bbox</span></code> argument when the
+input has a <code class="docutils literal notranslate"><span class="pre">geometry</span></code> column. <code class="docutils literal notranslate"><span class="pre">gh3builder.h3_merge_files</span></code> derives
+it directly from the H3 partition geometry (no data scan).</p></li>
+<li><p>Row-group accumulator flushes BEFORE appending a batch that would
+overflow <code class="docutils literal notranslate"><span class="pre">rows_per_group</span></code>.</p></li>
+<li><p>Shot-dedup activates only when <code class="docutils literal notranslate"><span class="pre">check_shots=True</span></code>.</p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>rows_per_group</strong><span class="classifier">int, default 100_000</span></dt><dd><p>Output row-group size and per-file iter batch size.</p>
+</dd>
+<dt><strong>bbox</strong><span class="classifier">list[float] or None</span></dt><dd><p><code class="docutils literal notranslate"><span class="pre">[minlon,</span> <span class="pre">minlat,</span> <span class="pre">maxlon,</span> <span class="pre">maxlat]</span></code> in EPSG:4326. When provided and
+the input has a <code class="docutils literal notranslate"><span class="pre">geometry</span></code> column, embedded into the GeoParquet
+<code class="docutils literal notranslate"><span class="pre">columns.geometry.bbox</span></code> metadata.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>dict or None</dt><dd><p><code class="docutils literal notranslate"><span class="pre">None</span></code> if <code class="docutils literal notranslate"><span class="pre">flist</span></code> is empty. Otherwise a stats dict accumulated
+online during the merge stream:
+<code class="docutils literal notranslate"><span class="pre">{'shot_count',</span> <span class="pre">'shot_min',</span> <span class="pre">'shot_max',</span> <span class="pre">'dt_min',</span> <span class="pre">'dt_max',</span>
+<span class="pre">'root_files'}</span></code>. Fields are <code class="docutils literal notranslate"><span class="pre">None</span></code> when the source column is
+absent from the schema. Used by <code class="docutils literal notranslate"><span class="pre">h3_write_metadata</span></code> to skip
+re-reading the merged file.</p>
+</dd>
+<dt>Output is written atomically: <code class="docutils literal notranslate"><span class="pre">ofile</span> <span class="pre">+</span> <span class="pre">'.merge.tmp'</span></code> first, then</dt><dd></dd>
+<dt><code class="docutils literal notranslate"><span class="pre">os.replace</span></code> to <code class="docutils literal notranslate"><span class="pre">ofile</span></code>. A stale <code class="docutils literal notranslate"><span class="pre">.merge.tmp</span></code> from a prior crash is</dt><dd></dd>
+<dt>cleaned up before the new write.</dt><dd></dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.parquet_join_columns">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">parquet_join_columns</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">flist</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ofile</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">key_col</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'shot_number'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tmp_suffix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'.join.tmp'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join_how</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'left'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows_per_group</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100000</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#parquet_join_columns"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.parquet_join_columns" title="Link to this definition">#</a></dt>
+<dd><p>Memory-efficient column-wise join of parquet files. Equivalent to pd.concat(axis=1)
+but processes in batches to avoid loading entire files into memory.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>flist</strong><span class="classifier">List[str]</span></dt><dd><p>Parquet files to join. First file determines row order, index, and metadata.</p>
+</dd>
+<dt><strong>ofile</strong><span class="classifier">str</span></dt><dd><p>Output file path.</p>
+</dd>
+<dt><strong>key_col</strong><span class="classifier">str, default=’shot_number’</span></dt><dd><p>Column for joining (not the index).</p>
+</dd>
+<dt><strong>join_how</strong><span class="classifier">str, default=’left’</span></dt><dd><p>Join mode passed to <code class="docutils literal notranslate"><span class="pre">DataFrame.join</span></code>.</p>
+</dd>
+<dt><strong>rows_per_group</strong><span class="classifier">int, default 100_000</span></dt><dd><p>Output row-group size. Matches the fresh-build <code class="docutils literal notranslate"><span class="pre">parquet_merge_files</span></code>
+default so updated files keep a bounded, deterministic per-group size
+regardless of the base file’s existing row-group shape.</p>
+</dd>
+<dt><strong>tmp_suffix</strong><span class="classifier">str, default=’.join.tmp’</span></dt><dd><p>Temporary file suffix.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.parse_temporal">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">parse_temporal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">temporal</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#parse_temporal"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.parse_temporal" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.parse_spatial">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">parse_spatial</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spatial</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#parse_spatial"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.parse_spatial" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.merge_spatial">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">merge_spatial</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">existing</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#merge_spatial"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.merge_spatial" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.get_dask_client">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">get_dask_client</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#get_dask_client"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.get_dask_client" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.dask_safe_wait">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">dask_safe_wait</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">persisted</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">show_progress</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#dask_safe_wait"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.dask_safe_wait" title="Link to this definition">#</a></dt>
+<dd><p>Wait for a persisted Dask collection to finish and re-raise the first
+worker exception. Side-effect-only equivalent of <code class="docutils literal notranslate"><span class="pre">.compute()</span></code> with no
+driver-side collect.</p>
+<p>Why this exists: dask &gt;= 2025.2 always inserts a <code class="docutils literal notranslate"><span class="pre">RepartitionToFewer(1)</span></code>
+optimization step inside <code class="docutils literal notranslate"><span class="pre">.compute()</span></code> on a multi-partition collection,
+which collapses all partitions onto a single worker before delivering to
+the driver. That fan-in deterministically wedges on tunneled multi-node
+clusters past ~1500 partitions. Workloads that only need side effects
+(e.g. per-partition file writes) don’t need to collect anything — they
+just need to wait for completion and surface task exceptions. This helper
+does exactly that, without going through <code class="docutils literal notranslate"><span class="pre">.compute()</span></code>.</p>
+<p>Follows the same persist + futures_of + error-result pattern already used
+in <code class="docutils literal notranslate"><span class="pre">gh3builder._create_h3_dataframe</span></code> (proven in production builds).</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.dask_safe_collect">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">dask_safe_collect</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">collection</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">show_progress</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#dask_safe_collect"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.dask_safe_collect" title="Link to this definition">#</a></dt>
+<dd><p>Persist a Dask DataFrame/Series on the cluster, then gather each
+partition independently to the driver and concatenate locally. Returns
+a single pandas/geopandas DataFrame or Series (or list for a Bag).</p>
+<p>Same motivation as <a class="reference internal" href="#gedih3.utils.dask_safe_wait" title="gedih3.utils.dask_safe_wait"><code class="xref py py-func docutils literal notranslate"><span class="pre">dask_safe_wait()</span></code></a>: bypasses the optimizer’s
+<code class="docutils literal notranslate"><span class="pre">RepartitionToFewer(1)</span></code> collapse step inside <code class="docutils literal notranslate"><span class="pre">.compute()</span></code> by walking
+<code class="docutils literal notranslate"><span class="pre">to_delayed()</span></code> and gathering through the well-tested scheduler↔client
+comm path. Each partition becomes one outbound future, so a single
+unreachable peer fails only its own fetch instead of wedging the whole
+job.</p>
+<p>When no distributed client is registered, falls back to a plain
+<code class="docutils literal notranslate"><span class="pre">.compute()</span></code> (synchronous scheduler — no fan-in, no wedge possible).</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="gedih3.utils.AtomicFileWriter">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">AtomicFileWriter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'.tmp'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backup</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backup_suffix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'.bak'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#AtomicFileWriter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.AtomicFileWriter" title="Link to this definition">#</a></dt>
+<dd><p>Context manager for atomic file writes with automatic rollback on failure.</p>
+<p>Writes to a temporary file first, then atomically replaces the target
+file only on successful completion. If an error occurs, the temporary
+file is cleaned up and the original file (if any) is preserved.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>target_path</strong><span class="classifier">str</span></dt><dd><p>The final destination file path</p>
+</dd>
+<dt><strong>suffix</strong><span class="classifier">str</span></dt><dd><p>Suffix for the temporary file (default: ‘.tmp’)</p>
+</dd>
+<dt><strong>backup</strong><span class="classifier">bool</span></dt><dd><p>If True, keep a backup of the original file (default: False)</p>
+</dd>
+<dt><strong>backup_suffix</strong><span class="classifier">str</span></dt><dd><p>Suffix for backup files (default: ‘.bak’)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">AtomicFileWriter</span><span class="p">(</span><span class="s1">&#39;/path/to/output.parquet&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">tmp_path</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="n">df</span><span class="o">.</span><span class="n">to_parquet</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">)</span>
+<span class="go"># File is atomically renamed to /path/to/output.parquet on success</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">AtomicFileWriter</span><span class="p">(</span><span class="s1">&#39;/path/to/output.json&#39;</span><span class="p">,</span> <span class="n">backup</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">tmp_path</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<span class="gp">... </span>        <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+<span class="go"># Original file backed up to .bak, new file replaces it</span>
+</pre></div>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.utils.AtomicFileWriter.target_path">
+<span class="sig-name descname"><span class="pre">target_path</span></span><a class="headerlink" href="#gedih3.utils.AtomicFileWriter.target_path" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.utils.AtomicFileWriter.temp_path">
+<span class="sig-name descname"><span class="pre">temp_path</span></span><a class="headerlink" href="#gedih3.utils.AtomicFileWriter.temp_path" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.utils.AtomicFileWriter.backup">
+<span class="sig-name descname"><span class="pre">backup</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#gedih3.utils.AtomicFileWriter.backup" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.utils.AtomicFileWriter.backup_path">
+<span class="sig-name descname"><span class="pre">backup_path</span></span><a class="headerlink" href="#gedih3.utils.AtomicFileWriter.backup_path" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gedih3.utils.AtomicFileWriter.__enter__">
+<span class="sig-name descname"><span class="pre">__enter__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/utils.html#AtomicFileWriter.__enter__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.AtomicFileWriter.__enter__" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gedih3.utils.AtomicFileWriter.__exit__">
+<span class="sig-name descname"><span class="pre">__exit__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">exc_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_val</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_tb</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#AtomicFileWriter.__exit__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.AtomicFileWriter.__exit__" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.atomic_parquet_write">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">atomic_parquet_write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">opath</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">compression</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_attempts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#atomic_parquet_write"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.atomic_parquet_write" title="Link to this definition">#</a></dt>
+<dd><p>Atomic parquet write with post-write page-level integrity check + retry.</p>
+<p>Each attempt: write to <code class="docutils literal notranslate"><span class="pre">.tmp</span></code> inside an <code class="docutils literal notranslate"><span class="pre">AtomicFileWriter</span></code> context,
+then stream-read every data page via <code class="docutils literal notranslate"><span class="pre">iter_batches</span></code> while the temp
+file is still uncommitted. If any page deserialization raises, the
+exception propagates out of the context, the <code class="docutils literal notranslate"><span class="pre">.tmp</span></code> is unlinked, and
+the loop tries again. After <code class="docutils literal notranslate"><span class="pre">max_attempts</span></code> failures the last
+exception is re-raised — the partition errors out cleanly instead of
+promoting a torn file to the canonical path.</p>
+<p>Catches the production-observed GPFS/transient-IO class where pyarrow
+successfully closes a parquet file with corrupt internal page bytes
+(footer + metadata valid, data pages corrupt). That failure mode
+silently rides into the renamed final file under plain <code class="docutils literal notranslate"><span class="pre">AtomicFileWriter</span></code>
+because pyarrow’s normal write path doesn’t checksum or re-read.</p>
+<p>Streaming verify (<code class="docutils literal notranslate"><span class="pre">iter_batches</span></code> with bounded batch_size) keeps peak
+memory bounded to ~one batch’s worth of decoded data — no double-buffer
+of the whole partition.</p>
+</dd></dl>
+
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../sqlutils/index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">gedih3.sqlutils</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../validation/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">gedih3.validation</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#classes">Classes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.is_remote_path"><code class="docutils literal notranslate"><span class="pre">is_remote_path()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_join"><code class="docutils literal notranslate"><span class="pre">smart_join()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.configure_storage"><code class="docutils literal notranslate"><span class="pre">configure_storage()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.get_storage_options"><code class="docutils literal notranslate"><span class="pre">get_storage_options()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_exists"><code class="docutils literal notranslate"><span class="pre">smart_exists()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_isdir"><code class="docutils literal notranslate"><span class="pre">smart_isdir()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.generate_manifest"><code class="docutils literal notranslate"><span class="pre">generate_manifest()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_glob"><code class="docutils literal notranslate"><span class="pre">smart_glob()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_open"><code class="docutils literal notranslate"><span class="pre">smart_open()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.get_package_version"><code class="docutils literal notranslate"><span class="pre">get_package_version()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.now"><code class="docutils literal notranslate"><span class="pre">now()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.get_system_resources"><code class="docutils literal notranslate"><span class="pre">get_system_resources()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.json_write"><code class="docutils literal notranslate"><span class="pre">json_write()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.json_read"><code class="docutils literal notranslate"><span class="pre">json_read()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.check_nan_only_columns"><code class="docutils literal notranslate"><span class="pre">check_nan_only_columns()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.is_parquet"><code class="docutils literal notranslate"><span class="pre">is_parquet()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.is_hive_directory"><code class="docutils literal notranslate"><span class="pre">is_hive_directory()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.read_parquet_schema"><code class="docutils literal notranslate"><span class="pre">read_parquet_schema()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.read_geopackage_schema"><code class="docutils literal notranslate"><span class="pre">read_geopackage_schema()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.read_feather_schema"><code class="docutils literal notranslate"><span class="pre">read_feather_schema()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.read_h3_database_schema"><code class="docutils literal notranslate"><span class="pre">read_h3_database_schema()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.read_schema"><code class="docutils literal notranslate"><span class="pre">read_schema()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.h5_is_valid"><code class="docutils literal notranslate"><span class="pre">h5_is_valid()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.release_arrow_pool"><code class="docutils literal notranslate"><span class="pre">release_arrow_pool()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.h5_traverse"><code class="docutils literal notranslate"><span class="pre">h5_traverse()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.h5_info"><code class="docutils literal notranslate"><span class="pre">h5_info()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.h5_var"><code class="docutils literal notranslate"><span class="pre">h5_var()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.h5_meta"><code class="docutils literal notranslate"><span class="pre">h5_meta()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.h5_copy_subset"><code class="docutils literal notranslate"><span class="pre">h5_copy_subset()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.read_vector_file"><code class="docutils literal notranslate"><span class="pre">read_vector_file()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.read_img_bounds"><code class="docutils literal notranslate"><span class="pre">read_img_bounds()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.geo_to_umm"><code class="docutils literal notranslate"><span class="pre">geo_to_umm()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.to_geojson"><code class="docutils literal notranslate"><span class="pre">to_geojson()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.from_geojson"><code class="docutils literal notranslate"><span class="pre">from_geojson()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parquet_append_columns"><code class="docutils literal notranslate"><span class="pre">parquet_append_columns()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parquet_schema_add_bbox"><code class="docutils literal notranslate"><span class="pre">parquet_schema_add_bbox()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parse_h3_partition_dirname"><code class="docutils literal notranslate"><span class="pre">parse_h3_partition_dirname()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.h3_partition_bbox"><code class="docutils literal notranslate"><span class="pre">h3_partition_bbox()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parquet_backfill_bbox"><code class="docutils literal notranslate"><span class="pre">parquet_backfill_bbox()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parquet_merge_files"><code class="docutils literal notranslate"><span class="pre">parquet_merge_files()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parquet_join_columns"><code class="docutils literal notranslate"><span class="pre">parquet_join_columns()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parse_temporal"><code class="docutils literal notranslate"><span class="pre">parse_temporal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parse_spatial"><code class="docutils literal notranslate"><span class="pre">parse_spatial()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.merge_spatial"><code class="docutils literal notranslate"><span class="pre">merge_spatial()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.get_dask_client"><code class="docutils literal notranslate"><span class="pre">get_dask_client()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.dask_safe_wait"><code class="docutils literal notranslate"><span class="pre">dask_safe_wait()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.dask_safe_collect"><code class="docutils literal notranslate"><span class="pre">dask_safe_collect()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.AtomicFileWriter"><code class="docutils literal notranslate"><span class="pre">AtomicFileWriter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.AtomicFileWriter.target_path"><code class="docutils literal notranslate"><span class="pre">AtomicFileWriter.target_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.AtomicFileWriter.temp_path"><code class="docutils literal notranslate"><span class="pre">AtomicFileWriter.temp_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.AtomicFileWriter.backup"><code class="docutils literal notranslate"><span class="pre">AtomicFileWriter.backup</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.AtomicFileWriter.backup_path"><code class="docutils literal notranslate"><span class="pre">AtomicFileWriter.backup_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.AtomicFileWriter.__enter__"><code class="docutils literal notranslate"><span class="pre">AtomicFileWriter.__enter__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.AtomicFileWriter.__exit__"><code class="docutils literal notranslate"><span class="pre">AtomicFileWriter.__exit__()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.atomic_parquet_write"><code class="docutils literal notranslate"><span class="pre">atomic_parquet_write()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  <div class="tocsection sourcelink">
+    <a href="../../../_sources/autoapi/gedih3/utils/index.rst.txt">
+      <i class="fa-solid fa-file-lines"></i> Show Source
+    </a>
+  </div>
+</div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, University of Maryland. All Rights Reserved.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

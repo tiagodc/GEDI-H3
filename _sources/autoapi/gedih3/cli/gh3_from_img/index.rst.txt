@@ -1,0 +1,54 @@
+gedih3.cli.gh3_from_img
+=======================
+
+.. py:module:: gedih3.cli.gh3_from_img
+
+.. autoapi-nested-parse::
+
+   GEDI Raster Sampling Tool
+
+   Sample raster pixel values at GEDI shot locations from an H3 database or
+   simplified dataset. Supports single files, VRT mosaics, and tile directories.
+   Optional moving-window statistics (sum, mean, median, mode).
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.cli.gh3_from_img.get_cmd_args
+   gedih3.cli.gh3_from_img.main
+
+
+Module Contents
+---------------
+
+.. py:function:: get_cmd_args()
+
+   
+   Parse command line arguments for raster sampling tool.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: main()
+

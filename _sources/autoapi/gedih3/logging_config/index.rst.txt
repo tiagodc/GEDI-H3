@@ -1,0 +1,280 @@
+gedih3.logging_config
+=====================
+
+.. py:module:: gedih3.logging_config
+
+.. autoapi-nested-parse::
+
+   Logging configuration for gedih3 package.
+
+   Provides a consistent logging interface across all modules and CLI tools.
+   Uses Python's standard logging module with configurable levels and handlers.
+
+   Usage:
+       from gedih3.logging_config import get_logger
+       logger = get_logger(__name__)
+       logger.info("Processing started")
+       logger.debug("Detailed information")
+       logger.warning("Something unexpected")
+       logger.error("An error occurred")
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.logging_config.CONSOLE_FORMAT
+   gedih3.logging_config.CONSOLE_FORMAT_VERBOSE
+   gedih3.logging_config.FILE_FORMAT
+   gedih3.logging_config.DATE_FORMAT
+   gedih3.logging_config.ROOT_LOGGER_NAME
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   gedih3.logging_config.LoggingContext
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.logging_config.configure_logging
+   gedih3.logging_config.get_logger
+   gedih3.logging_config.set_level
+   gedih3.logging_config.silence
+   gedih3.logging_config.enable_debug
+
+
+Module Contents
+---------------
+
+.. py:data:: CONSOLE_FORMAT
+   :value: '%(message)s'
+
+
+.. py:data:: CONSOLE_FORMAT_VERBOSE
+   :value: '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+
+
+.. py:data:: FILE_FORMAT
+   :value: '%(asctime)s [%(levelname)s] %(name)s (%(filename)s:%(lineno)d): %(message)s'
+
+
+.. py:data:: DATE_FORMAT
+   :value: '%Y-%m-%d %H:%M:%S'
+
+
+.. py:data:: ROOT_LOGGER_NAME
+   :value: 'gedih3'
+
+
+.. py:function:: configure_logging(level: int = logging.INFO, verbose: bool = False, log_file: Optional[str] = None, quiet: bool = False) -> logging.Logger
+
+   
+   Configure the gedih3 logging system.
+
+
+   :Parameters:
+
+       **level** : int
+           Logging level (logging.DEBUG, logging.INFO, logging.WARNING, etc.)
+
+       **verbose** : bool
+           If True, use verbose format with timestamps and module names
+
+       **log_file** : str, optional
+           Path to log file. If provided, logs will also be written to this file.
+
+       **quiet** : bool
+           If True, suppress console output (file logging still works if configured)
+
+
+
+   :Returns:
+
+       logging.Logger
+           The configured root logger for gedih3
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> from gedih3.logging_config import configure_logging
+   >>> configure_logging(level=logging.DEBUG, verbose=True)
+   >>> configure_logging(log_file="/tmp/gedih3.log")
+   >>> configure_logging(quiet=True)  # Suppress console output
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_logger(name: Optional[str] = None) -> logging.Logger
+
+   
+   Get a logger for the specified module.
+
+
+   :Parameters:
+
+       **name** : str, optional
+           Module name (typically __name__). If None, returns the root gedih3 logger.
+
+
+
+   :Returns:
+
+       logging.Logger
+           Logger instance for the module
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> from gedih3.logging_config import get_logger
+   >>> logger = get_logger(__name__)
+   >>> logger.info("Processing started")
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: set_level(level: int) -> None
+
+   
+   Change the logging level for all gedih3 loggers.
+
+
+   :Parameters:
+
+       **level** : int
+           New logging level (logging.DEBUG, logging.INFO, etc.)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: silence() -> None
+
+   
+   Silence all gedih3 logging output.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: enable_debug() -> None
+
+   
+   Enable debug-level logging.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:class:: LoggingContext(level: int)
+
+   
+   Context manager for temporarily changing log level.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> with LoggingContext(logging.DEBUG):
+   ...     # Debug logging enabled here
+   ...     pass
+   >>> # Original log level restored
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:attribute:: level
+
+
+   .. py:attribute:: logger
+
+
+   .. py:attribute:: old_level
+      :value: None
+
+
+
+   .. py:method:: __enter__()
+
+
+   .. py:method:: __exit__(exc_type, exc_val, exc_tb)
+
+

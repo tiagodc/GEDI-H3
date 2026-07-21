@@ -1,0 +1,149 @@
+gedih3.sqlutils
+===============
+
+.. py:module:: gedih3.sqlutils
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.sqlutils.init_duckdb
+   gedih3.sqlutils.attach_ducklake_db
+   gedih3.sqlutils.geoseries_to_cells
+   gedih3.sqlutils.geoseries_to_filter
+   gedih3.sqlutils.duck_to_gdf
+   gedih3.sqlutils.gdf_to_duck
+
+
+Module Contents
+---------------
+
+.. py:function:: init_duckdb(threads=None, memory_limit=None, temp_directory=None, max_temp_size=None, extension_directory=None)
+
+.. py:function:: attach_ducklake_db(con, name='gedi_dl', dir=None)
+
+   
+   Attach existing ducklake database
+   If dir is not specified, it will be located in GH3_DEFAULT_H3_DIR.
+
+   Once this function is called, the gedi data can be queried using
+       `SELECT ... FROM {name}.data`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: geoseries_to_cells(shp: geopandas.GeoSeries, resolution: int = 3, expand_ring: int = 1)
+
+   
+   Convert a GeoSeries to a list of overlapping H3 cells at the given resolution.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: geoseries_to_filter(shp: geopandas.GeoSeries, resolution: int = 3, expand_ring: int = 1)
+
+   
+   Convert a GeoSeries to an H3 partition filter at the given resolution.
+
+   ``'overlap'`` coverage is exact w.r.t. the cell polygons, but shots are
+   stored under their hierarchy partition, which can overhang the polygon
+   by ~0.18 x edge length (see ``intersect_h3_geometries``). ``expand_ring``
+   adds grid_disk neighbors so boundary shots stored in a non-overlapping
+   neighbor partition are not silently filtered out; pass 0 to disable.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: duck_to_gdf(table, geometry_columns=['geometry'], crs='EPSG:4326') -> geopandas.GeoDataFrame
+
+   
+   Convert a DuckDB table to a GeoDataFrame.
+   If multiple geometry columns are specified,
+   the first will be set as the active geometry.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: gdf_to_duck(con, gdf: geopandas.GeoDataFrame, geometry_columns: List[str] = ['geometry']) -> duckdb.DuckDBPyRelation
+
+   
+   Load a GeoDataFrame into a DuckDB table.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

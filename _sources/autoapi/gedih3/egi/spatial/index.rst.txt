@@ -1,0 +1,358 @@
+gedih3.egi.spatial
+==================
+
+.. py:module:: gedih3.egi.spatial
+
+.. autoapi-nested-parse::
+
+   EGI (EASE Grid Index) Spatial Module
+
+   This module provides spatial operations for EGI indices including:
+   - Coordinate extraction from hashes
+   - Geometry generation (points and polygons)
+   - Neighbor finding (pixel ring)
+   - Child pixel enumeration
+   - Area of Interest (AOI) tile generation
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.egi.spatial.check_crs_limits
+   gedih3.egi.spatial.pixel_coordinate
+   gedih3.egi.spatial.pixel_coordinates
+   gedih3.egi.spatial.pixel_shape
+   gedih3.egi.spatial.pixel_ring
+   gedih3.egi.spatial.aoi_tiles
+   gedih3.egi.spatial.to_geodataframe
+   gedih3.egi.spatial.egi_h3_intersection
+
+
+Module Contents
+---------------
+
+.. py:function:: check_crs_limits(x: Union[float, numpy.typing.NDArray[numpy.floating]], y: Union[float, numpy.typing.NDArray[numpy.floating]]) -> Tuple[Union[float, numpy.typing.NDArray[numpy.floating]], Union[float, numpy.typing.NDArray[numpy.floating]]]
+
+   
+   Clamp coordinates to EPSG:6933 valid bounds.
+
+
+   :Parameters:
+
+       **x** : float or array
+           X coordinate(s) in EPSG:6933
+
+       **y** : float or array
+           Y coordinate(s) in EPSG:6933
+
+
+
+   :Returns:
+
+       tuple
+           (x, y) clamped to valid bounds
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: pixel_coordinate(uint_hash: numpy.uint64, center: bool = True, return_point: bool = False) -> Union[Tuple[float, float], shapely.geometry.Point]
+
+   
+   Get the coordinate of an EGI pixel.
+
+
+   :Parameters:
+
+       **uint_hash** : uint64
+           EGI hash value
+
+       **center** : bool
+           If True, return pixel center; if False, return lower-left corner
+
+       **return_point** : bool
+           If True, return a Shapely Point; if False, return (x, y) tuple
+
+
+
+   :Returns:
+
+       tuple or Point
+           (x, y) coordinates in EPSG:6933, or Shapely Point
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> x, y = pixel_coordinate(hash_val)
+   >>> point = pixel_coordinate(hash_val, return_point=True)
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: pixel_coordinates(uint_hash: numpy.typing.NDArray[numpy.uint64], center: bool = True) -> Tuple[numpy.typing.NDArray[numpy.floating], numpy.typing.NDArray[numpy.floating]]
+
+   
+   Get coordinates for multiple EGI pixels (vectorized).
+
+
+   :Parameters:
+
+       **uint_hash** : array of uint64
+           EGI hash values
+
+       **center** : bool
+           If True, return pixel centers; if False, return lower-left corners
+
+
+
+   :Returns:
+
+       tuple
+           (x_array, y_array) coordinates in EPSG:6933
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: pixel_shape(uint_hash: numpy.uint64) -> shapely.geometry.Polygon
+
+   
+   Get the bounding polygon of an EGI pixel.
+
+
+   :Parameters:
+
+       **uint_hash** : uint64
+           EGI hash value
+
+
+
+   :Returns:
+
+       Polygon
+           Shapely polygon representing the pixel bounds
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> geom = pixel_shape(hash_val)
+   >>> area_m2 = geom.area
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: pixel_ring(uint_hash: numpy.uint64, include_input: bool = False) -> List[numpy.uint64]
+
+   
+   Get the 8 neighboring pixels (ring) around an EGI pixel.
+
+
+   :Parameters:
+
+       **uint_hash** : uint64
+           EGI hash value (center pixel)
+
+       **include_input** : bool
+           If True, include the input pixel in the result
+
+
+
+   :Returns:
+
+       list of uint64
+           EGI hashes of neighboring pixels (up to 8)
+
+
+
+
+
+
+
+
+   .. rubric:: Notes
+
+   Pixels at the edge of the projection bounds will have fewer than 8 neighbors.
+   The function correctly handles tile boundary crossings.
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: aoi_tiles(region: Optional[geopandas.GeoDataFrame] = None) -> geopandas.GeoDataFrame
+
+   
+   Generate outer tiles (level 12) covering an area of interest.
+
+
+   :Parameters:
+
+       **region** : GeoDataFrame, optional
+           Area of interest. If None, returns all global tiles.
+
+
+
+   :Returns:
+
+       GeoDataFrame
+           Tiles indexed by EGI level-12 hash with polygon geometries
+
+
+
+
+   :Raises:
+
+       ValueError
+           If region has no CRS defined
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> # Get tiles for a specific region
+   >>> region = gpd.read_file("study_area.shp")
+   >>> tiles = aoi_tiles(region)
+   >>>
+   >>> # Get all global tiles
+   >>> all_tiles = aoi_tiles()
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: to_geodataframe(uint_hash_iter: Union[List[numpy.uint64], numpy.typing.NDArray[numpy.uint64]], return_polygons: bool = True) -> geopandas.GeoDataFrame
+
+   
+   Convert EGI hashes to a GeoDataFrame.
+
+
+   :Parameters:
+
+       **uint_hash_iter** : list or array of uint64
+           EGI hash values
+
+       **return_polygons** : bool
+           If True, return polygon geometries; if False, return point centroids
+
+
+
+   :Returns:
+
+       GeoDataFrame
+           GeoDataFrame indexed by EGI hash with geometry column
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> gdf = to_geodataframe(egi_hashes, return_polygons=True)
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: egi_h3_intersection(egi_tiles: geopandas.GeoDataFrame, h3_gdf: geopandas.GeoDataFrame) -> dict
+
+   
+   Map EGI tiles to intersecting H3 partition cells using spatial index.
+
+   Maps each EGI tile to the union of:
+     (a) H3 cells whose polygon geometrically intersects the EGI tile, AND
+     (b) the ring-1 neighbors of those cells that are valid partitions.
+
+   Adding ring-1 neighbors closes a silent data-loss class on the EGI
+   extraction path. The H3 database stores each shot in the partition
+   `cell_to_parent(latlng_to_cell(lon, lat, finer_res), partition_res)`,
+   but partition assignment via geometric overlap of the H3 *polygon* uses
+   the L3 `latlng_to_cell` boundary — and these two functions disagree at
+   H3 cell boundaries (boundary-precision differs across resolutions).
+   Shots at a partition boundary can therefore land in a storage cell
+   whose polygon does not overlap their true EGI tile, so the unexpanded
+   intersection silently misses them — observed in production: a single
+   L3 partition with 1.84M shots had 84k (~5%) stored under a partition
+   whose polygon did not intersect their true L12 tile. Including ring-1
+   neighbors closes this gap because the "fat-partition" extent is
+   bounded by one neighbor-cell width.
+
+   :Parameters:
+
+       **egi_tiles** : GeoDataFrame
+           EGI tiles (typically level 12), indexed by EGI hash
+
+       **h3_gdf** : GeoDataFrame
+           H3 partition cells, indexed by H3 ID (string)
+
+
+
+   :Returns:
+
+       dict
+           Mapping of EGI tile hash -> list of H3 IDs (with ring-1 expansion).
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> egi_tiles = aoi_tiles(region)
+   >>> h3_gdf = h3_parts_to_gdf(h3_ids)
+   >>> egi_to_h3 = egi_h3_intersection(egi_tiles, h3_gdf)
+   >>> for egi_id, h3_list in egi_to_h3.items():
+   ...     # Load data from h3_list files for egi_id tile
+
+   ..
+       !! processed by numpydoc !!
+

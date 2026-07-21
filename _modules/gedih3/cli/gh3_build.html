@@ -1,0 +1,1723 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>gedih3.cli.gh3_build &#8212; gedih3 0.12.9 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=8bafde03" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../../_static/documentation_options.js?v=54dfaa76"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = "pre.mermaid {\n    /* Same as .mermaid-container > pre */\n    display: block;\n    width: 100%;\n}\n\npre.mermaid > svg {\n    /* Same as .mermaid-container > pre > svg */\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}";
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = ".mermaid-container {\n    position: relative;\n    display: flex;\n    flex-direction: row;\n    width: 100%;\n}\n\n.mermaid-container > pre {\n    display: block;\n    width: 100%;\n}\n\n.mermaid-container > pre > svg {\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}\n\n.mermaid-fullscreen-btn {\n    position: absolute;\n    width: 28px;\n    height: 28px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.3);\n    border-radius: 4px;\n    cursor: pointer;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    transition: all 0.2s;\n    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);\n    font-size: 14px;\n    line-height: 1;\n    padding: 0;\n    color: #333;\n}\n\n.mermaid-fullscreen-btn:hover {\n    opacity: 100% !important;\n    background: rgba(255, 255, 255, 1);\n    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-btn.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.3);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-btn.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal {\n    display: none;\n    position: fixed !important;\n    top: 0 !important;\n    left: 0 !important;\n    width: 95vw;\n    height: 100vh;\n    background: rgba(255, 255, 255, 0.98);\n    z-index: 9999;\n    padding: 20px;\n    overflow: auto;\n}\n\n.mermaid-fullscreen-modal.dark-theme {\n    background: rgba(0, 0, 0, 0.98);\n}\n\n.mermaid-fullscreen-modal.active {\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen {\n    position: relative;\n    width: 95vw;\n    height: 90vh;\n    max-width: 95vw;\n    max-height: 90vh;\n    background: white;\n    border-radius: 8px;\n    padding: 20px;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);\n    overflow: auto;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen.dark-theme {\n    background: #1a1a1a;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);\n}\n\n.mermaid-container-fullscreen pre.mermaid {\n    width: 100%;\n    height: 100%;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen .mermaid svg {\n    height: 100% !important;\n    width: 100% !important;\n    cursor: grab;\n}\n\n.mermaid-fullscreen-close {\n    position: fixed !important;\n    top: 20px !important;\n    right: 20px !important;\n    width: 40px;\n    height: 40px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.2);\n    border-radius: 50%;\n    cursor: pointer;\n    z-index: 10000;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);\n    transition: all 0.2s;\n    font-size: 24px;\n    line-height: 1;\n    color: #333;\n}\n\n.mermaid-fullscreen-close:hover {\n    background: white;\n    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-close.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.2);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-close.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal .mermaid-fullscreen-btn {\n    display: none !important;\n}";
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+let _lazyObserver = null;
+let _renderQueue = Promise.resolve();
+let closeModal = () => {};
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal?.classList.contains('active')) {
+        closeModal();
+    }
+});
+
+// Apply d3 zoom to each SVG. Idempotent: an SVG already wrapped is skipped,
+// so this is safe to call both for the initial batch and for diagrams that
+// render lazily once they become visible.
+const addZoomToSvgs = (svgs) => {
+    svgs.each(function() {
+        if (this.getAttribute('data-zoom-applied') === 'true') return;
+        var svg = d3.select(this);
+        svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+        var inner = svg.select("g");
+        var zoom = d3.zoom().on("zoom", function(event) {
+            inner.attr("transform", event.transform);
+        });
+        svg.call(zoom);
+        this.setAttribute('data-zoom-applied', 'true');
+    });
+};
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        // Disconnect any previous lazy rendering observer
+        if (_lazyObserver) {
+            _lazyObserver.disconnect();
+            _lazyObserver = null;
+        }
+
+        all_mermaids.forEach((el) => {
+            el.removeAttribute('data-mermaid-deferred');
+            el.removeAttribute('data-mermaid-render-failed');
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+
+        // Separate visible and hidden elements. Mermaid's layout engine measures
+        // text dimensions via the DOM, which fails for elements hidden by a parent
+        // (e.g., Reveal.js non-active slides, sphinx-design unopened tabs),
+        // producing broken SVGs. Render visible elements now, defer hidden ones.
+        const visible = [];
+        const hidden = [];
+        all_mermaids.forEach((el) => {
+            // offsetParent is null for display:none ancestors.
+            // getClientRects().length > 0 catches position:fixed elements
+            // (which also have null offsetParent but are still visible).
+            if (el.offsetParent !== null || el.getClientRects().length > 0) {
+                visible.push(el);
+            } else {
+                hidden.push(el);
+                el.setAttribute('data-mermaid-deferred', 'true');
+            }
+        });
+
+        if (visible.length > 0) {
+            try {
+                await mermaid.run({ nodes: visible });
+            } catch (e) {
+                console.error("Mermaid rendering failed:", e);
+            }
+        }
+
+        // Lazily render hidden elements when they become visible.
+        // Uses a promise chain (_renderQueue) to serialize rendering,
+        // since IntersectionObserver may report multiple entries at once
+        // and mermaid.run() is not safe to call concurrently.
+        if (hidden.length > 0) {
+            if (typeof IntersectionObserver === 'undefined') {
+                console.warn("IntersectionObserver not available; hidden mermaid diagrams will not render.");
+            } else {
+                _renderQueue = Promise.resolve();
+                _lazyObserver = new IntersectionObserver((entries) => {
+                    for (const entry of entries) {
+                        if (entry.isIntersecting && entry.target.getAttribute("data-processed") !== "true") {
+                            _lazyObserver.unobserve(entry.target);
+                            const el = entry.target;
+                            _renderQueue = _renderQueue.then(async () => {
+                                try {
+                                    await mermaid.run({ nodes: [el] });
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    // Apply zoom to the now-rendered diagram, matching
+                                    // the decoration visible diagrams receive.
+                                    if (false) {
+                                        addZoomToSvgs(d3.selectAll("").select(function() {
+                                            return this.querySelector("svg");
+                                        }));
+                                    }
+                                } catch (e) {
+                                    console.error("Mermaid deferred rendering failed:", e);
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    el.setAttribute('data-mermaid-render-failed', 'true');
+                                }
+                            });
+                        }
+                    }
+                });
+                hidden.forEach((el) => _lazyObserver.observe(el));
+            }
+        }
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    // Exclude deferred (hidden) and render-failed elements from completion checks
+    const mermaids_active = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])");
+    const mermaids_processed = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])[data-processed='true']");
+
+    if (false) {
+        const mermaids_to_add_zoom = 0 === -1 ? mermaids_active.length : 0;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("").select(function() {
+                return this.querySelector("svg");
+            });
+            // Wait until every active (visible) diagram has rendered. Deferred
+            // diagrams are excluded, so a fixed d3_node_count that counts a
+            // hidden diagram no longer loops forever waiting for its SVG.
+            if(mermaids_active.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            }
+            addZoomToSvgs(svgs);
+        }
+    } else if(mermaids_active.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if (!true) return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = "\u26f6";
+        fullscreenBtn.style.opacity = "50%";
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scrollX, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.display = 'block';
+
+                if (false) {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+
+
+const load = async () => {
+    initStyles();
+
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...{"startOnLoad": false},
+                ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...{"startOnLoad": false},
+    ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+    }
+);
+
+window.addEventListener("load", load);
+window.runMermaid = runMermaid;</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/gedih3/cli/gh3_build';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../_static/searchtools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script src="../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+     
+  
+
+<a class="navbar-brand logo" href="/GEDI-H3/">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.12.9 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.12.9 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user-guide/index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../autoapi/index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user-guide/index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../autoapi/index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">gedih3.cli.gh3_build</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for gedih3.cli.gh3_build</h1><div class="highlight"><pre>
+<span></span><span class="ch">#! python</span>
+
+<span class="c1"># Copyright (C) 2026, University of Maryland. All Rights Reserved.</span>
+<span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
+<span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+
+
+<div class="viewcode-block" id="explicit_vars_missing_in_sample">
+<a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_build/index.html#gedih3.cli.gh3_build.explicit_vars_missing_in_sample">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">explicit_vars_missing_in_sample</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">default_products</span><span class="p">,</span> <span class="n">sample_dict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return ``{product: [bad_names]}`` for explicit-list products whose</span>
+<span class="sd">    requested variables are absent from the sample HDF5.</span>
+
+<span class="sd">    Pure function over its inputs — extracted from the gh3_build CLI so the</span>
+<span class="sd">    pre-flight typo check can be unit-tested without invoking ``main()``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    product_vars : dict</span>
+<span class="sd">        Mapping ``{product: list-or-None}``. ``None`` means &quot;everything&quot;</span>
+<span class="sd">        (``*``/``all``) and is skipped. ``default``-sourced lists are</span>
+<span class="sd">        identified by ``default_products`` and skipped (they are validated</span>
+<span class="sd">        against the static manifest instead).</span>
+<span class="sd">    default_products : set</span>
+<span class="sd">        Products the user requested as ``default`` (skipped — manifest is</span>
+<span class="sd">        the contract).</span>
+<span class="sd">    sample_dict : dict</span>
+<span class="sd">        One ``{product: hdf5_path}`` mapping from</span>
+<span class="sd">        :func:`gedidriver.soc_file_tree`. Pass an empty dict to short-circuit.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        Empty when every explicit-list variable was found (or no explicit</span>
+<span class="sd">        lists exist). Otherwise ``{product: [missing_names]}``. Wildcards</span>
+<span class="sd">        that match nothing in the sample HDF5 are surfaced as a single</span>
+<span class="sd">        ``GediValidationError`` string entry under their product.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">gedi_vars_from_h5</span><span class="p">,</span> <span class="n">expand_var_wildcards</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">GediValidationError</span>
+
+    <span class="n">to_introspect</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">p</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">(</span><span class="n">product_vars</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">p</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">default_products</span> <span class="ow">or</span> <span class="nb">set</span><span class="p">())</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">to_introspect</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">sample_dict</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{}</span>
+
+    <span class="n">missing</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">requested</span> <span class="ow">in</span> <span class="n">to_introspect</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">prod</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sample_dict</span><span class="p">:</span>
+            <span class="k">continue</span>  <span class="c1"># downstream gate handles product-presence</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">available</span> <span class="o">=</span> <span class="n">gedi_vars_from_h5</span><span class="p">(</span><span class="n">sample_dict</span><span class="p">[</span><span class="n">prod</span><span class="p">])</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="c1"># Caller surfaces this as a warning; treat as soft skip so a</span>
+            <span class="c1"># broken sample file doesn&#39;t block an otherwise-valid request.</span>
+            <span class="k">continue</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">expanded_names</span> <span class="o">=</span> <span class="n">expand_var_wildcards</span><span class="p">(</span><span class="n">requested</span><span class="p">,</span> <span class="n">available</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">GediValidationError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">missing</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)]</span>
+            <span class="k">continue</span>
+        <span class="n">avail_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">available</span><span class="p">)</span>
+        <span class="n">bad</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">expanded_names</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">avail_set</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">bad</span><span class="p">:</span>
+            <span class="n">missing</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="n">bad</span>
+    <span class="k">return</span> <span class="n">missing</span></div>
+
+
+
+<div class="viewcode-block" id="manifest_check_scope">
+<a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_build/index.html#gedih3.cli.gh3_build.manifest_check_scope">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">manifest_check_scope</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the subset of ``product_vars`` that should be validated</span>
+<span class="sd">    against the shipped static manifest, per the regime rule:</span>
+
+<span class="sd">    - **Regime A** (fresh build): every product the user passed that was</span>
+<span class="sd">      requested via ``default``/``def``.</span>
+<span class="sd">    - **Regime C** (resume + explicit ``default`` re-request): only</span>
+<span class="sd">      products in ``h3_logger.default_products`` that also appear in</span>
+<span class="sd">      ``h3_logger.new_product_vars`` (i.e. produced a delta).</span>
+<span class="sd">    - **Regimes B &amp; D** (resume with granules-only or explicit-list</span>
+<span class="sd">      expansion): empty — the build log is authoritative.</span>
+
+<span class="sd">    An empty return signals the caller to skip validation entirely.</span>
+
+<span class="sd">    Pure function over logger state so the regime gate can be unit-tested</span>
+<span class="sd">    without the full CLI pipeline.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">updating</span><span class="p">:</span>
+        <span class="n">scope</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">default_products</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">product_vars</span> <span class="ow">or</span> <span class="p">{})</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span> <span class="ow">or</span> <span class="p">{})</span>
+        <span class="n">scope</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">default_products</span> <span class="o">&amp;</span> <span class="n">delta</span>
+    <span class="k">return</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="n">product_vars</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">scope</span> <span class="k">if</span> <span class="n">p</span> <span class="ow">in</span> <span class="p">(</span><span class="n">product_vars</span> <span class="ow">or</span> <span class="p">{})}</span></div>
+
+
+<div class="viewcode-block" id="get_cmd_args">
+<a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_build/index.html#gedih3.cli.gh3_build.get_cmd_args">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_cmd_args</span><span class="p">():</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">add_dask_args</span><span class="p">,</span> <span class="n">add_verbosity_args</span><span class="p">,</span> <span class="n">add_product_args</span>
+
+    <span class="n">p</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Build H3-indexed GEDI database from SOC files&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Spatial/temporal filtering</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-r&quot;</span><span class="p">,</span> <span class="s2">&quot;--region&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;region&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;vector file, bbox &#39;W,S,E,N&#39;, or ISO3 country code&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-t0&quot;</span><span class="p">,</span> <span class="s2">&quot;--time-start&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;time_start&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;start date [YYYY-MM-DD]&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-t1&quot;</span><span class="p">,</span> <span class="s2">&quot;--time-end&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;time_end&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;end date [YYYY-MM-DD]&quot;</span><span class="p">)</span>
+
+    <span class="c1"># H3 configuration. Default is None (not 12 / 3) so the logger can</span>
+    <span class="c1"># distinguish &quot;user-passed&quot; from &quot;fell-back-to-default&quot; — the latter</span>
+    <span class="c1"># is silently filled in for new builds (defaults: 12 / 3), the former</span>
+    <span class="c1"># is strictly validated against the existing log on resume to refuse</span>
+    <span class="c1"># silent layout drift. See H3BuildLogger.__init__.</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-h3r&quot;</span><span class="p">,</span> <span class="s2">&quot;--h3-resolution&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;h3_resolution&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;H3 index level [0-15, default=12 on fresh build; ignored on resume — must match existing log]&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-h3p&quot;</span><span class="p">,</span> <span class="s2">&quot;--h3-partition&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;h3_partition&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;H3 partition level [0-15, default=3 on fresh build; ignored on resume — must match existing log]&quot;</span><span class="p">)</span>
+
+    <span class="c1"># GEDI product variables</span>
+    <span class="n">add_product_args</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+
+    <span class="c1"># I/O paths</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-o&quot;</span><span class="p">,</span> <span class="s2">&quot;--output&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;output&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;output directory for H3 database (default: GH3_DEFAULT_H3_DIR)&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-i&quot;</span><span class="p">,</span> <span class="s1">&#39;--indir&#39;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;indir&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;directory with GEDI SOC files (default: GH3_DEFAULT_SOC_DIR)&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-dl&quot;</span><span class="p">,</span> <span class="s2">&quot;--download&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;download&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;download missing GEDI data before building (embeds gh3_download as pre-step)&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-t&quot;</span><span class="p">,</span> <span class="s1">&#39;--tmpdir&#39;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;tmpdir&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;temporary directory for intermediate files&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-s3&quot;</span><span class="p">,</span> <span class="s2">&quot;--s3&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;s3&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;download from NASA S3 to temp directory (no persistent local download)&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--gedi-version&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;version&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;GEDI data version [default=latest available]&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--exclude&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;exclude&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;append&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;PATTERN&#39;</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;exclude files whose basename matches the given fnmatch pattern. &quot;</span>
+                        <span class="s2">&quot;Repeat the flag for multiple patterns. &quot;</span>
+                        <span class="s2">&quot;Example: --exclude &#39;*_SGS.h5&#39; --exclude &#39;*_BETA.h5&#39;&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Dask and verbosity</span>
+    <span class="n">add_dask_args</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="s1">&#39;build&#39;</span><span class="p">)</span>
+    <span class="n">add_verbosity_args</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_has_new_local_granules</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Check if SOC directory has HDF5 files not tracked in the build log.&quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">glob</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">globmod</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEDIFile</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">soc_source</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">soc_source</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="n">tracked</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">&#39;granule_info&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">granule_info</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">granule_info</span><span class="p">:</span>
+            <span class="n">tracked</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">&#39;orbit&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;granule&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;track&#39;</span><span class="p">]))</span>
+
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">globmod</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="s1">&#39;**&#39;</span><span class="p">,</span> <span class="s1">&#39;GEDI*.h5&#39;</span><span class="p">),</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">gf</span> <span class="o">=</span> <span class="n">GEDIFile</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">gf</span><span class="o">.</span><span class="n">orbit</span><span class="p">,</span> <span class="n">gf</span><span class="o">.</span><span class="n">orbit_granule</span><span class="p">,</span> <span class="n">gf</span><span class="o">.</span><span class="n">track</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">tracked</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+    <span class="k">return</span> <span class="kc">False</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_detect_merge_resume_signal</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">parquet_dir</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a human-readable signal name if the resume should skip extract</span>
+<span class="sd">    and go straight to merge, else return None.</span>
+
+<span class="sd">    L1 (canonical): the on-disk log says ``status == &#39;MERGING&#39;``. This is set</span>
+<span class="sd">    by ``build_h3db`` immediately before the merge phase, so seeing it on</span>
+<span class="sd">    resume proves the previous run finished extract.</span>
+
+<span class="sd">    L2 (fallback for older builds): ``&lt;parquet_dir&gt;/_merge_progress.txt``</span>
+<span class="sd">    exists with ≥1 non-empty line. A non-empty merge-progress file proves</span>
+<span class="sd">    that merge already started, which in turn proves extract finished.</span>
+
+<span class="sd">    The two signals are independent — either is sufficient.</span>
+
+<span class="sd">    **Veto: MERGE_FAILED granules.** If the build log contains any granule</span>
+<span class="sd">    in ``MERGE_FAILED`` status, the shortcut is suppressed even when L1/L2</span>
+<span class="sd">    fire. Those granules&#39; partitions failed merge on a prior run with a</span>
+<span class="sd">    corrupt-fragment error — they were flipped to ``MERGE_FAILED`` by</span>
+<span class="sd">    ``apply_merge_failures_to_logger`` so that Stage 1 would re-extract</span>
+<span class="sd">    them on the next resume. Taking the merge-only shortcut would skip the</span>
+<span class="sd">    extract pass and re-attempt the same merge against the same bad</span>
+<span class="sd">    fragments, looping forever. The full path&#39;s reconcile + extract pass</span>
+<span class="sd">    is what closes the loop: it walks ``MERGE_FAILED → INDEXING``,</span>
+<span class="sd">    re-writes the fragments from source HDF5, and feeds the merge fresh</span>
+<span class="sd">    inputs.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+    <span class="n">granule_info</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">&#39;granule_info&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;status&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;MERGE_FAILED&#39;</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">granule_info</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">&#39;previous_status&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;MERGING&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s1">&#39;log status MERGING&#39;</span>
+    <span class="n">progress_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">,</span> <span class="s1">&#39;_merge_progress.txt&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">progress_file</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">progress_file</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">fh</span><span class="p">):</span>
+                    <span class="k">return</span> <span class="s1">&#39;merge progress file present&#39;</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="k">pass</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="main">
+<a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_build/index.html#gedih3.cli.gh3_build.main">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">get_cmd_args</span><span class="p">()</span>
+
+    <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">glob</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">GH3_DEFAULT_H3_DIR</span><span class="p">,</span> <span class="n">GH3_DEFAULT_SOC_DIR</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_gedi_args</span><span class="p">,</span> <span class="n">parse_dask_args</span><span class="p">,</span> <span class="n">parse_region</span><span class="p">,</span> <span class="n">setup_logging</span><span class="p">,</span> <span class="n">print_banner</span><span class="p">,</span> <span class="n">print_success</span><span class="p">,</span> <span class="n">format_dask_cluster_info</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_system_resources</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_h3db</span><span class="p">,</span> <span class="n">download_soc</span><span class="p">,</span> <span class="n">soc_file_tree</span><span class="p">,</span> <span class="n">_reconcile_granules_from_disk</span><span class="p">,</span> <span class="n">_merge_and_finalize</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEDIFile</span><span class="p">,</span> <span class="n">validate_soc_files</span><span class="p">,</span> <span class="n">gedi_vars_expand</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">H3BuildLogger</span><span class="p">,</span> <span class="n">SOCDownloadLogger</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dask.distributed</span><span class="w"> </span><span class="kn">import</span> <span class="n">Client</span>
+
+    <span class="c1"># Setup logging and print banner</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">setup_logging</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
+    <span class="n">print_banner</span><span class="p">(</span><span class="s2">&quot;GEDI H3 Database Builder Tool&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">output</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">output</span> <span class="o">=</span> <span class="n">GH3_DEFAULT_H3_DIR</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">output</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="s1">&#39;.tmp&#39;</span><span class="p">)</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">indir</span><span class="p">:</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">indir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">indir</span><span class="p">)</span>
+
+    <span class="c1"># Log detected resources. ``Driver host`` makes it explicit that the</span>
+    <span class="c1"># CPUs/RAM are local to this process — an external ``--dask-scheduler``</span>
+    <span class="c1"># cluster may live elsewhere. The cluster&#39;s actual workers/threads/RAM</span>
+    <span class="c1"># are reported separately by the ``Dask config`` line below, after the</span>
+    <span class="c1"># Client connects and we can query ``client.scheduler_info()``.</span>
+    <span class="n">cpus</span><span class="p">,</span> <span class="n">ram</span><span class="p">,</span> <span class="n">storage</span> <span class="o">=</span> <span class="n">get_system_resources</span><span class="p">(</span><span class="n">disk_path</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Driver host: </span><span class="si">{</span><span class="n">cpus</span><span class="si">}</span><span class="s2"> CPUs, </span><span class="si">{</span><span class="n">ram</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> GB RAM | Disk: </span><span class="si">{</span><span class="n">storage</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> GB free at </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">storage</span> <span class="o">&lt;</span> <span class="mi">10</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Low disk space (</span><span class="si">{</span><span class="n">storage</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> GB free) — build may fail writing parquet output&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Determine source mode: --s3 (temp download+build) or local SOC directory</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">s3</span><span class="p">:</span>
+        <span class="n">soc_source</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># S3 ETL to temp dir</span>
+        <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">indir</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Both -i and --s3 specified. Using --s3 (S3 mode).&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">download</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;--download is ignored when using --s3 (S3 mode downloads automatically).&quot;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">indir</span><span class="p">:</span>
+        <span class="n">soc_source</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">indir</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">soc_source</span> <span class="o">=</span> <span class="n">GH3_DEFAULT_SOC_DIR</span>
+
+    <span class="n">product_vars</span> <span class="o">=</span> <span class="n">parse_gedi_args</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+    <span class="n">spatial</span> <span class="o">=</span> <span class="n">parse_region</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">region</span><span class="p">)</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">region</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">temporal</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">time_start</span> <span class="ow">or</span> <span class="n">args</span><span class="o">.</span><span class="n">time_end</span><span class="p">:</span>
+        <span class="n">temporal</span> <span class="o">=</span> <span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">time_start</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">time_end</span><span class="p">)</span>
+
+    <span class="n">h3_logger</span> <span class="o">=</span> <span class="n">H3BuildLogger</span><span class="p">(</span>
+        <span class="n">product_vars</span><span class="o">=</span><span class="n">product_vars</span><span class="p">,</span>
+        <span class="n">spatial</span><span class="o">=</span><span class="n">spatial</span><span class="p">,</span>
+        <span class="n">temporal</span><span class="o">=</span><span class="n">temporal</span><span class="p">,</span>
+        <span class="n">res</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">h3_resolution</span><span class="p">,</span>
+        <span class="n">part</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">h3_partition</span><span class="p">,</span>
+        <span class="n">version</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">version</span><span class="p">,</span>
+        <span class="nb">dir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span>
+        <span class="n">source_mode</span><span class="o">=</span><span class="s1">&#39;s3&#39;</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">s3</span> <span class="k">else</span> <span class="s1">&#39;local&#39;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">product_vars</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">updating</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;No GEDI product selected - please select at least one of &quot;</span>
+            <span class="s2">&quot;--l2a, --l2b, --l4a, --l4c (or use --detail-level for all four), &quot;</span>
+            <span class="s2">&quot;and/or --l1b for waveform data&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">get_spatial</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No spatial filter provided - processing global data&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">updating</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Build log exists, checking for updates&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_spatial</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Spatial filter updated&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_temporal</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Temporal filter updated&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Product variables updated&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Detect variable-only update: only new products, no spatial/temporal changes</span>
+    <span class="n">is_variable_only_update</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">h3_logger</span><span class="o">.</span><span class="n">updating</span>
+        <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_spatial</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_temporal</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Detect mixed update: spatial/temporal expansion AND new variables</span>
+    <span class="c1"># Must be split into two phases to prevent data loss (P0-B)</span>
+    <span class="n">is_mixed_update</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">h3_logger</span><span class="o">.</span><span class="n">updating</span>
+        <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="ow">and</span> <span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">new_spatial</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_temporal</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">is_mixed_update</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Mixed update detected (spatial/temporal + new variables)&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;  Phase 1: expand spatial/temporal range with existing products&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;  Phase 2: add new variable columns to all partitions&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Check for pending variable update from crash recovery</span>
+    <span class="n">pending_var_update</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;_pending_variable_update&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Early exit: database is already up-to-date with requested parameters</span>
+    <span class="c1"># Only when a valid build log exists with partition data to confirm completeness</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">is_up_to_date</span><span class="p">()</span>
+            <span class="ow">and</span> <span class="ow">not</span> <span class="n">pending_var_update</span>
+            <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">&#39;h3_partition_ids&#39;</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">h3_partition_ids</span><span class="p">):</span>
+        <span class="c1"># S3/download modes: skip early exit — let the pipeline query CMR</span>
+        <span class="c1"># or run download_soc() to discover new NASA granules</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">s3</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">download</span><span class="p">:</span>
+            <span class="c1"># Local mode: check SOC directory for new HDF5 files</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">_has_new_local_granules</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">previous_status</span> <span class="o">!=</span> <span class="s1">&#39;COMPLETED&#39;</span><span class="p">:</span>
+                    <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
+                    <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;COMPLETED&#39;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Database is already up-to-date with requested parameters&quot;</span><span class="p">)</span>
+                <span class="n">print_success</span><span class="p">(</span><span class="s2">&quot;Database is up-to-date, no changes needed&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+                <span class="k">return</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;New granules detected in SOC directory — updating database&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">soc_source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">source_label</span> <span class="o">=</span> <span class="s2">&quot;NASA S3 (temp download)&quot;</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">download</span><span class="p">:</span>
+        <span class="n">source_label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;download+build: </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">source_label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;local: </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Building GEDI H3 database at </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2"> (source: </span><span class="si">{</span><span class="n">source_label</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+
+    <span class="n">dask_kwargs</span> <span class="o">=</span> <span class="n">parse_dask_args</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+    <span class="c1"># Common kwargs shared across all build_h3db() calls</span>
+    <span class="n">_build_kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+        <span class="n">spatial</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">get_spatial</span><span class="p">(),</span>
+        <span class="n">temporal</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">get_temporal</span><span class="p">(),</span>
+        <span class="n">res</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">res</span><span class="p">,</span>
+        <span class="n">part</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">part</span><span class="p">,</span>
+        <span class="n">version</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">,</span>
+        <span class="n">h3_dir</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">_PARENT_DIR</span><span class="p">,</span>
+        <span class="n">status_callback</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">,</span>
+        <span class="n">tmp_dir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span>
+        <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">Client</span><span class="p">(</span><span class="o">**</span><span class="n">dask_kwargs</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;Sending large graph of size.*&quot;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">UserWarning</span><span class="p">,</span> <span class="n">module</span><span class="o">=</span><span class="s2">&quot;distributed.client&quot;</span><span class="p">)</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">_suppress_pandas_perf_warnings</span><span class="p">():</span>
+                <span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+                <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;DataFrame is highly fragmented.*&quot;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="n">pd</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">PerformanceWarning</span><span class="p">)</span>
+
+            <span class="n">client</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">_suppress_pandas_perf_warnings</span><span class="p">)</span>
+
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dask config: </span><span class="si">{</span><span class="n">format_dask_cluster_info</span><span class="p">(</span><span class="n">client</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dask dashboard available at: </span><span class="si">{</span><span class="n">client</span><span class="o">.</span><span class="n">dashboard_link</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Validate/download SOC data when using local directory mode</span>
+            <span class="k">if</span> <span class="n">soc_source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="c1"># Parallel year/doy walk on the dask cluster — the serial</span>
+                <span class="c1"># recursive glob the prior implementation used was the</span>
+                <span class="c1"># dominant cost of `gh3_build` resume on multi-million-</span>
+                <span class="c1"># file SOC trees. ``walk_soc_parallel`` pushes the doy-</span>
+                <span class="c1"># level scandir to workers and applies the exclude filter</span>
+                <span class="c1"># locally so we never ship excluded paths back to the</span>
+                <span class="c1"># driver.</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.parallel</span><span class="w"> </span><span class="kn">import</span> <span class="n">walk_soc_parallel</span>
+                <span class="n">existing_h5</span> <span class="o">=</span> <span class="n">walk_soc_parallel</span><span class="p">(</span>
+                    <span class="n">soc_source</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="s1">&#39;GEDI*.h5&#39;</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Listed </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">existing_h5</span><span class="p">)</span><span class="si">}</span><span class="s2"> HDF5 files in </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2"> &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;(exclude filters: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="si">}</span><span class="s2">)&quot;</span>
+                    <span class="p">)</span>
+
+                <span class="k">def</span><span class="w"> </span><span class="nf">_validate_existing_h5</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">soc_dir</span><span class="p">):</span>
+<span class="w">                    </span><span class="sd">&quot;&quot;&quot;Validate requested products/variables exist in HDF5 files. Exits on mismatch.</span>
+
+<span class="sd">                    Two stages:</span>
+
+<span class="sd">                    1. ``default``-requested products are validated against</span>
+<span class="sd">                       the shipped static manifest via :func:`validate_soc_files`.</span>
+<span class="sd">                       The manifest is the contract for canonical NASA release</span>
+<span class="sd">                       files.</span>
+<span class="sd">                    2. Products with an *explicit* variable list (user-supplied</span>
+<span class="sd">                       names, a file, or wildcards — anything that is not</span>
+<span class="sd">                       ``default`` / ``*`` / ``minimal``) are sanity-checked</span>
+<span class="sd">                       against the schema of one sample HDF5 file per product.</span>
+<span class="sd">                       Catches typos and unknown names before a multi-hour</span>
+<span class="sd">                       build hits a runtime ``KeyError``.</span>
+
+<span class="sd">                    A single-file introspection cannot catch NASA-side schema</span>
+<span class="sd">                    variance across orbit clusters (a variable present in</span>
+<span class="sd">                    99% of granules but absent in a handful); those surface</span>
+<span class="sd">                    as Stage1 warnings at build time and are recorded as</span>
+<span class="sd">                    non-INDEXED in the build log for retry.</span>
+<span class="sd">                    &quot;&quot;&quot;</span>
+                    <span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+
+                    <span class="c1"># ── Stage 1: default-products vs shipped manifest ──</span>
+                    <span class="n">scoped</span> <span class="o">=</span> <span class="n">manifest_check_scope</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">scoped</span><span class="p">:</span>
+                        <span class="n">expanded</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">scoped</span><span class="p">)</span>
+                        <span class="n">gedi_vars_expand</span><span class="p">(</span><span class="n">expanded</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">)</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">validation</span> <span class="o">=</span> <span class="n">validate_soc_files</span><span class="p">(</span>
+                                <span class="n">expanded</span><span class="p">,</span> <span class="n">soc_dir</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">,</span>
+                                <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">,</span>
+                            <span class="p">)</span>
+                        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">val_err</span><span class="p">:</span>
+                            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not validate HDF5 files (corrupt file?): </span><span class="si">{</span><span class="n">val_err</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                            <span class="n">validation</span> <span class="o">=</span> <span class="kc">None</span>
+
+                        <span class="k">if</span> <span class="n">validation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">validation</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+                                <span class="n">can_skip</span> <span class="o">=</span> <span class="kc">False</span>
+                                <span class="n">validation</span> <span class="o">=</span> <span class="n">validation</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">validation</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="p">{}</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="n">can_skip</span> <span class="o">=</span> <span class="n">validation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;can_skip&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+
+                            <span class="k">if</span> <span class="ow">not</span> <span class="n">can_skip</span><span class="p">:</span>
+                                <span class="n">msg_parts</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Requested variables not found in existing HDF5 files:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">]</span>
+                                <span class="k">if</span> <span class="n">validation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;missing_products&quot;</span><span class="p">):</span>
+                                    <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Missing products: </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">validation</span><span class="p">[</span><span class="s1">&#39;missing_products&#39;</span><span class="p">])</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                                <span class="k">if</span> <span class="n">validation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;missing_variables&quot;</span><span class="p">):</span>
+                                    <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">mvars</span> <span class="ow">in</span> <span class="n">validation</span><span class="p">[</span><span class="s2">&quot;missing_variables&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                                        <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Missing variables in </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">mvars</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                                <span class="k">if</span> <span class="n">validation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;error&quot;</span><span class="p">):</span>
+                                    <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">validation</span><span class="p">[</span><span class="s1">&#39;error&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;To fix:&quot;</span><span class="p">)</span>
+                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;  1. Check available variables:  gh3_read_schema /path/to/file.h5&quot;</span><span class="p">)</span>
+                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;  2. Adjust your -l2a/-l4a/... flags to match available data&quot;</span><span class="p">)</span>
+                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;  3. Run gh3_download to fetch the required products&quot;</span><span class="p">)</span>
+                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;  4. Or add --download to auto-fetch before building&quot;</span><span class="p">)</span>
+                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;  5. Or use --s3 to build directly from NASA S3 (no persistent download)&quot;</span><span class="p">)</span>
+                                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg_parts</span><span class="p">))</span>
+                                <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+
+                    <span class="c1"># ── Stage 2: explicit-list products vs sample HDF5 schema ──</span>
+                    <span class="n">has_explicit</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span>
+                        <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">p</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">default_products</span>
+                        <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">(</span><span class="n">product_vars</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                    <span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">has_explicit</span><span class="p">:</span>
+                        <span class="k">return</span>
+
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">sample</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span>
+                            <span class="n">soc_dir</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                            <span class="n">glob_kwargs</span><span class="o">=</span><span class="p">(</span>
+                                <span class="p">{</span><span class="s1">&#39;version&#39;</span><span class="p">:</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">}</span>
+                                <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+                            <span class="p">),</span>
+                            <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">,</span>
+                        <span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">&quot;Pre-flight var check: could not sample SOC tree &quot;</span>
+                            <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">)&quot;</span>
+                        <span class="p">)</span>
+                        <span class="k">return</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">sample</span><span class="p">:</span>
+                        <span class="k">return</span>  <span class="c1"># nothing to introspect against</span>
+
+                    <span class="n">sample_dict</span> <span class="o">=</span> <span class="n">sample</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="n">missing</span> <span class="o">=</span> <span class="n">explicit_vars_missing_in_sample</span><span class="p">(</span>
+                        <span class="n">product_vars</span><span class="p">,</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">default_products</span><span class="p">,</span> <span class="n">sample_dict</span><span class="p">,</span>
+                    <span class="p">)</span>
+
+                    <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+                        <span class="n">msg</span> <span class="o">=</span> <span class="p">[</span>
+                            <span class="s2">&quot;Pre-flight variable check failed: requested names &quot;</span>
+                            <span class="s2">&quot;are not present in the sample HDF5 files.&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;Fix typos or unknown names and rerun. Nothing was built.&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;&quot;</span><span class="p">,</span>
+                        <span class="p">]</span>
+                        <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">bad</span> <span class="ow">in</span> <span class="n">missing</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                            <span class="n">preview</span> <span class="o">=</span> <span class="n">bad</span><span class="p">[:</span><span class="mi">10</span><span class="p">]</span>
+                            <span class="n">tail</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bad</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">10</span> <span class="k">else</span> <span class="sa">f</span><span class="s1">&#39; (+</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">bad</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">10</span><span class="si">}</span><span class="s1"> more)&#39;</span>
+                            <span class="n">msg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">preview</span><span class="si">}{</span><span class="n">tail</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                        <span class="n">msg</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span>
+                            <span class="s2">&quot;&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;To inspect available variables in a SOC file:&quot;</span><span class="p">,</span>
+                            <span class="s2">&quot;  gh3_read_schema /path/to/file.h5&quot;</span><span class="p">,</span>
+                            <span class="sa">f</span><span class="s2">&quot;  gh3_read_schema </span><span class="si">{</span><span class="n">sample_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">missing</span><span class="p">)),</span><span class="w"> </span><span class="s1">&#39;&lt;file.h5&gt;&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="p">])</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg</span><span class="p">))</span>
+                        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">download</span><span class="p">:</span>
+                    <span class="c1"># --download enabled: embed gh3_download as pre-step</span>
+                    <span class="n">soc_logger</span> <span class="o">=</span> <span class="n">SOCDownloadLogger</span><span class="p">(</span>
+                        <span class="n">product_vars</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">get_product_vars</span><span class="p">(),</span>
+                        <span class="n">spatial</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">get_spatial</span><span class="p">(),</span>
+                        <span class="n">temporal</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">get_temporal</span><span class="p">(),</span>
+                        <span class="n">version</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">,</span>
+                        <span class="nb">dir</span><span class="o">=</span><span class="n">soc_source</span><span class="p">,</span>
+                    <span class="p">)</span>
+
+                    <span class="n">needs_download</span> <span class="o">=</span> <span class="kc">True</span>
+
+                    <span class="k">if</span> <span class="n">soc_logger</span><span class="o">.</span><span class="n">updating</span> <span class="ow">and</span> <span class="n">soc_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;status&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;COMPLETED&#39;</span><span class="p">:</span>
+                        <span class="c1"># Completed download log exists — check if more data is needed</span>
+                        <span class="k">if</span> <span class="p">(</span><span class="n">is_variable_only_update</span> <span class="ow">or</span> <span class="n">is_mixed_update</span><span class="p">)</span> <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span><span class="p">:</span>
+                            <span class="c1"># Regime C: only consult the static manifest for products</span>
+                            <span class="c1"># the user explicitly re-requested as `default`. For</span>
+                            <span class="c1"># explicit-list var deltas, skip the manifest check</span>
+                            <span class="c1"># and fall through to download — download_soc() is</span>
+                            <span class="c1"># idempotent (resume=True skips files already on disk).</span>
+                            <span class="n">default_delta</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">default_products</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span><span class="p">)</span>
+                            <span class="k">if</span> <span class="n">default_delta</span><span class="p">:</span>
+                                <span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+                                <span class="n">expanded_new</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">({</span><span class="n">p</span><span class="p">:</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">default_delta</span><span class="p">})</span>
+                                <span class="n">gedi_vars_expand</span><span class="p">(</span><span class="n">expanded_new</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">)</span>
+                                <span class="k">try</span><span class="p">:</span>
+                                    <span class="n">validation</span> <span class="o">=</span> <span class="n">validate_soc_files</span><span class="p">(</span>
+                                        <span class="n">expanded_new</span><span class="p">,</span> <span class="n">soc_source</span><span class="p">,</span>
+                                        <span class="n">version</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">,</span>
+                                        <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">,</span>
+                                    <span class="p">)</span>
+                                    <span class="n">can_skip</span> <span class="o">=</span> <span class="n">validation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;can_skip&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">validation</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="kc">False</span>
+                                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                                    <span class="n">can_skip</span> <span class="o">=</span> <span class="kc">False</span>
+                                <span class="k">if</span> <span class="n">can_skip</span><span class="p">:</span>
+                                    <span class="n">needs_download</span> <span class="o">=</span> <span class="kc">False</span>
+                                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;New products already available in </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                                <span class="k">else</span><span class="p">:</span>
+                                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;New products not found in existing HDF5 files — downloading them&quot;</span><span class="p">)</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="c1"># Regime D — explicit-list var delta; trust the user</span>
+                                <span class="c1"># and let download_soc() resume idempotently.</span>
+                                <span class="n">needs_download</span> <span class="o">=</span> <span class="kc">True</span>
+                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;New variables requested — downloading missing granules (idempotent resume)&quot;</span><span class="p">)</span>
+                        <span class="k">elif</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_spatial</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_temporal</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span><span class="p">:</span>
+                            <span class="c1"># Same parameters — still run download to discover new NASA granules.</span>
+                            <span class="c1"># download_soc() is idempotent: existing files are skipped via resume=True.</span>
+                            <span class="n">needs_download</span> <span class="o">=</span> <span class="kc">True</span>
+                            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Checking for new GEDI data (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">soc_logger</span><span class="o">.</span><span class="n">granule_info</span><span class="p">)</span><span class="si">}</span><span class="s2"> granules already downloaded)&quot;</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="c1"># Regime B — spatial/temporal expansion without var change.</span>
+                            <span class="c1"># No manifest consultation; the log is the contract and</span>
+                            <span class="c1"># download_soc() will fetch granules for the new range.</span>
+                            <span class="n">needs_download</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># Spatial/temporal expansion needs new granules</span>
+
+                    <span class="k">if</span> <span class="n">needs_download</span><span class="p">:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Downloading GEDI data to </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                        <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;DOWNLOADING&#39;</span><span class="p">)</span>
+
+                        <span class="k">def</span><span class="w"> </span><span class="nf">_download_tracker</span><span class="p">(</span><span class="n">gran_info</span><span class="p">,</span> <span class="n">status</span><span class="p">):</span>
+<span class="w">                            </span><span class="sd">&quot;&quot;&quot;Called from main thread (as_completed loop). Thread safe.&quot;&quot;&quot;</span>
+                            <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="s1">&#39;PENDING&#39;</span><span class="p">:</span>
+                                <span class="n">soc_logger</span><span class="o">.</span><span class="n">register_pending_granules</span><span class="p">([</span><span class="n">gran_info</span><span class="p">])</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="n">soc_logger</span><span class="o">.</span><span class="n">update_granule_status</span><span class="p">(</span><span class="n">gran_info</span><span class="p">,</span> <span class="n">status</span><span class="p">)</span>
+                            <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;DOWNLOADING&#39;</span><span class="p">)</span>
+
+                        <span class="n">download_soc</span><span class="p">(</span>
+                            <span class="n">product_vars</span><span class="o">=</span><span class="n">soc_logger</span><span class="o">.</span><span class="n">get_product_vars</span><span class="p">(),</span>
+                            <span class="n">spatial</span><span class="o">=</span><span class="n">soc_logger</span><span class="o">.</span><span class="n">get_spatial</span><span class="p">(),</span>
+                            <span class="n">temporal</span><span class="o">=</span><span class="n">soc_logger</span><span class="o">.</span><span class="n">get_temporal</span><span class="p">(),</span>
+                            <span class="n">direct_access</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                            <span class="n">update</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                            <span class="n">version</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">,</span>
+                            <span class="n">odir</span><span class="o">=</span><span class="n">soc_source</span><span class="p">,</span>
+                            <span class="n">on_granule_complete</span><span class="o">=</span><span class="n">_download_tracker</span><span class="p">,</span>
+                            <span class="n">ensure_l2a</span><span class="o">=</span><span class="ow">not</span> <span class="n">is_variable_only_update</span><span class="p">,</span>
+                        <span class="p">)</span>
+                        <span class="n">soc_logger</span><span class="o">.</span><span class="n">set_post_download_info</span><span class="p">()</span>
+                        <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;COMPLETED&#39;</span><span class="p">)</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Download complete&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># --download NOT enabled: build from existing data only</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">existing_h5</span><span class="p">:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">&quot;No HDF5 files found in </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">.</span><span class="se">\n</span><span class="s2">&quot;</span>
+                            <span class="s2">&quot;Options:</span><span class="se">\n</span><span class="s2">&quot;</span>
+                            <span class="s2">&quot;  1. Run gh3_download first to fetch GEDI data</span><span class="se">\n</span><span class="s2">&quot;</span>
+                            <span class="s2">&quot;  2. Add --download to auto-fetch before building</span><span class="se">\n</span><span class="s2">&quot;</span>
+                            <span class="s2">&quot;  3. Use --s3 to build directly from NASA S3 (no persistent download)&quot;</span>
+                        <span class="p">)</span>
+                        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Building from </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">existing_h5</span><span class="p">)</span><span class="si">}</span><span class="s2"> existing HDF5 files in </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Note: using only existing data (add --download to fetch missing data)&quot;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Validating product variables in existing HDF5 files&quot;</span><span class="p">)</span>
+                    <span class="n">_validate_existing_h5</span><span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">get_product_vars</span><span class="p">(),</span> <span class="n">soc_source</span><span class="p">)</span>
+
+                    <span class="c1"># Opportunistic SOC manifest refresh: we have the</span>
+                    <span class="c1"># file list in memory from the parallel walk above,</span>
+                    <span class="c1"># so persisting the sentinel is free. Closes the</span>
+                    <span class="c1"># &quot;tree populated externally (NASA delivery, manual</span>
+                    <span class="c1"># rsync) and gh3_download was never run&quot; gap that</span>
+                    <span class="c1"># left every consumer paying the recursive walk.</span>
+                    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">write_soc_manifest</span>
+                    <span class="n">n_written</span> <span class="o">=</span> <span class="n">write_soc_manifest</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">files</span><span class="o">=</span><span class="n">existing_h5</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">n_written</span><span class="p">:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SOC manifest refreshed (</span><span class="si">{</span><span class="n">n_written</span><span class="si">}</span><span class="s2"> files)&quot;</span><span class="p">)</span>
+
+            <span class="c1"># ── Resume shortcut: skip reconcile + extract on merge-resume ──</span>
+            <span class="c1"># If a previous run finished extract and was killed during merge,</span>
+            <span class="c1"># the on-disk log status is &#39;MERGING&#39; and we have nothing to</span>
+            <span class="c1"># re-extract. Calling _merge_and_finalize directly (which is</span>
+            <span class="c1"># itself resume-aware via _merge_progress.txt + atomic .merge.tmp</span>
+            <span class="c1"># rename) is sufficient.</span>
+            <span class="c1">#</span>
+            <span class="c1"># Detection (see _detect_merge_resume_signal):</span>
+            <span class="c1">#   L1 (canonical): h3_logger.previous_status == &#39;MERGING&#39;.</span>
+            <span class="c1">#   L2 (fallback for builds started before this code shipped):</span>
+            <span class="c1">#     &lt;tmp&gt;/partitions/_merge_progress.txt exists with ≥1 entry.</span>
+            <span class="c1">#</span>
+            <span class="c1"># Contract: between crash and resume, the SOC tree is treated as</span>
+            <span class="c1"># frozen. Adding new HDF5s mid-cycle is unsupported on this path —</span>
+            <span class="c1"># finish the current build first, then run a separate gh3_build</span>
+            <span class="c1"># to incorporate new granules. (The shortcut also leaves PENDING</span>
+            <span class="c1"># entries in granule_info that the next non-shortcut run cleans</span>
+            <span class="c1"># up; gh3_doctor can flag/fix this if needed.)</span>
+            <span class="n">_parquet_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span> <span class="s1">&#39;partitions&#39;</span><span class="p">)</span>
+            <span class="n">_merge_signal</span> <span class="o">=</span> <span class="n">_detect_merge_resume_signal</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">_parquet_dir</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">_merge_signal</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Resume shortcut: </span><span class="si">{</span><span class="n">_merge_signal</span><span class="si">}</span><span class="s2"> — skipping register/&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;reconcile/extract, running merge only&quot;</span>
+                <span class="p">)</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;MERGING&#39;</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">h3_files</span> <span class="o">=</span> <span class="n">_merge_and_finalize</span><span class="p">(</span><span class="n">_parquet_dir</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">_e</span><span class="p">:</span>
+                    <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;FAILED&#39;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Merge-resume failed: </span><span class="si">{</span><span class="n">_e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="k">raise</span>
+                <span class="c1"># Fold per-failed-merge granule flip-backs into the build</span>
+                <span class="c1"># log so the next resume re-extracts the affected granules</span>
+                <span class="c1"># instead of treating their (corrupt) parquet as canonical.</span>
+                <span class="c1"># Idempotent + truncates the sidecar after fold.</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply_merge_failures_to_logger</span>
+                <span class="n">_flipped</span> <span class="o">=</span> <span class="n">apply_merge_failures_to_logger</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">_parquet_dir</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">_flipped</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Flipped </span><span class="si">{</span><span class="n">_flipped</span><span class="si">}</span><span class="s2"> granule(s) INDEXED → MERGE_FAILED &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;after corrupt-fragment merge failures. They will be &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;re-extracted on the next resume.&quot;</span>
+                    <span class="p">)</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;_pending_variable_update&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;COMPLETED&#39;</span><span class="p">)</span>
+                <span class="n">_n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">h3_files</span><span class="p">)</span> <span class="k">if</span> <span class="n">h3_files</span> <span class="k">else</span> <span class="mi">0</span>
+                <span class="n">print_success</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">_n</span><span class="si">}</span><span class="s2"> files exported to </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2"> (merge-only resume)&quot;</span><span class="p">,</span>
+                    <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">return</span>
+
+            <span class="c1"># Save log only after validation/download passes — prevents</span>
+            <span class="c1"># writing unverified products (e.g. L4C) when data is missing</span>
+            <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;PARTITIONING&#39;</span><span class="p">)</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="c1"># Register granules being submitted for build as PENDING</span>
+                <span class="c1"># Only for local download mode (-i); S3 mode has no local SOC directory</span>
+                <span class="k">if</span> <span class="n">soc_source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">soc_source</span><span class="p">):</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Listing SOC files for granule registration&quot;</span><span class="p">)</span>
+                    <span class="n">_soc_for_build</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">)</span>
+                    <span class="c1"># GEDI filename: GEDInn_L_DATE_O{orbit}_{granule}_T{track}_PPDS_PGE_GEN_V{ver}.h5</span>
+                    <span class="c1"># Parse orbit/granule/track from the basename directly — no</span>
+                    <span class="c1"># GEDIFile() so we skip the unused os.path.getsize call per</span>
+                    <span class="c1"># granule (matters on network filesystems).</span>
+                    <span class="n">_build_granules</span> <span class="o">=</span> <span class="p">[]</span>
+                    <span class="k">for</span> <span class="n">_soc</span> <span class="ow">in</span> <span class="n">_soc_for_build</span><span class="p">:</span>
+                        <span class="n">fl</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">_soc</span><span class="o">.</span><span class="n">values</span><span class="p">())[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">)</span>
+                        <span class="n">_build_granules</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+                            <span class="s1">&#39;orbit&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">3</span><span class="p">][</span><span class="mi">1</span><span class="p">:]),</span>
+                            <span class="s1">&#39;granule&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">4</span><span class="p">]),</span>
+                            <span class="s1">&#39;track&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">5</span><span class="p">][</span><span class="mi">1</span><span class="p">:]),</span>
+                        <span class="p">})</span>
+                    <span class="n">h3_logger</span><span class="o">.</span><span class="n">register_pending_granules</span><span class="p">(</span><span class="n">_build_granules</span><span class="p">)</span>
+
+                    <span class="c1"># Resume reconciliation: scan h3 db AND tmp/partitions for</span>
+                    <span class="c1"># granules already represented on disk and flip them to</span>
+                    <span class="c1"># INDEXED before stage 1 starts. Without this, a kill</span>
+                    <span class="c1"># during stage 2 leaves all granules PENDING and stage 1</span>
+                    <span class="c1"># re-extracts everything on the next rerun.</span>
+                    <span class="n">_reconcile_granules_from_disk</span><span class="p">(</span>
+                        <span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">,</span>
+                        <span class="n">tmp_dir</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span> <span class="s1">&#39;partitions&#39;</span><span class="p">),</span>
+                    <span class="p">)</span>
+
+                    <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;PROCESSING&#39;</span><span class="p">)</span>
+
+                <span class="n">h3_files</span> <span class="o">=</span> <span class="kc">None</span>
+
+                <span class="c1"># ── Stage 1: Spatial/temporal build ──────────────────────</span>
+                <span class="c1"># Runs for: fresh build, resume, spatial/temporal expansion,</span>
+                <span class="c1"># or mixed update Phase 1.</span>
+                <span class="c1"># Skipped for: variable-only update, pending variable resume.</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">pending_var_update</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_variable_only_update</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">is_mixed_update</span><span class="p">:</span>
+                        <span class="n">stage1_products</span> <span class="o">=</span> <span class="p">{</span>
+                            <span class="n">k</span><span class="p">:</span> <span class="n">val</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;variables&#39;</span><span class="p">)</span>
+                            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;products&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                        <span class="p">}</span>
+                        <span class="n">stage1_skip</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Re-examine all granules for new spatial area</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Mixed update Phase 1: expanding with existing products&quot;</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">stage1_products</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">get_product_vars</span><span class="p">()</span>
+                        <span class="n">stage1_skip</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">get_finished_granules</span><span class="p">()</span>
+
+                    <span class="n">h3_files</span> <span class="o">=</span> <span class="n">build_h3db</span><span class="p">(</span>
+                        <span class="n">product_vars</span><span class="o">=</span><span class="n">stage1_products</span><span class="p">,</span>
+                        <span class="n">soc_source</span><span class="o">=</span><span class="n">soc_source</span><span class="p">,</span>
+                        <span class="n">skip_granules</span><span class="o">=</span><span class="n">stage1_skip</span><span class="p">,</span>
+                        <span class="n">variable_only_update</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="o">**</span><span class="n">_build_kwargs</span><span class="p">,</span>
+                    <span class="p">)</span>
+
+                <span class="c1"># ── Stage 2: Variable update ─────────────────────────────</span>
+                <span class="c1"># Runs for: variable-only update, mixed update Phase 2,</span>
+                <span class="c1"># or pending variable resume from crash.</span>
+                <span class="k">if</span> <span class="n">pending_var_update</span> <span class="ow">or</span> <span class="n">is_variable_only_update</span> <span class="ow">or</span> <span class="n">is_mixed_update</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">pending_var_update</span><span class="p">:</span>
+                        <span class="n">stage2_products</span> <span class="o">=</span> <span class="n">pending_var_update</span><span class="p">[</span><span class="s1">&#39;product_vars&#39;</span><span class="p">]</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Resuming pending variable update&quot;</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">stage2_products</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">is_mixed_update</span><span class="p">:</span>
+                            <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
+                            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Mixed update Phase 2: adding new variables&quot;</span><span class="p">)</span>
+                        <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="p">[</span><span class="s1">&#39;_pending_variable_update&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                            <span class="s1">&#39;product_vars&#39;</span><span class="p">:</span> <span class="n">stage2_products</span><span class="p">,</span>
+                        <span class="p">}</span>
+                        <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;PROCESSING&#39;</span><span class="p">)</span>
+
+                    <span class="n">h3_files_s2</span> <span class="o">=</span> <span class="n">build_h3db</span><span class="p">(</span>
+                        <span class="n">product_vars</span><span class="o">=</span><span class="n">stage2_products</span><span class="p">,</span>
+                        <span class="n">soc_source</span><span class="o">=</span><span class="n">soc_source</span><span class="p">,</span>
+                        <span class="n">skip_granules</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                        <span class="n">variable_only_update</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                        <span class="o">**</span><span class="n">_build_kwargs</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="n">h3_files</span> <span class="o">=</span> <span class="p">(</span><span class="n">h3_files</span> <span class="ow">or</span> <span class="p">[])</span> <span class="o">+</span> <span class="p">(</span><span class="n">h3_files_s2</span> <span class="ow">or</span> <span class="p">[])</span>
+
+                <span class="c1"># ── Finalize ─────────────────────────────────────────────</span>
+                <span class="c1"># Fold per-failed-merge granule flip-backs into the build</span>
+                <span class="c1"># log so the next resume re-extracts the affected granules</span>
+                <span class="c1"># instead of treating their (corrupt) parquet as canonical.</span>
+                <span class="c1"># Idempotent + truncates the sidecar after fold. Skipped</span>
+                <span class="c1"># silently when no recoverable merge failures occurred.</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+                    <span class="n">apply_merge_failures_to_logger</span><span class="p">,</span> <span class="n">_read_granule_failures</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">_parquet_dir_for_fold</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span> <span class="s1">&#39;partitions&#39;</span><span class="p">)</span>
+                <span class="n">_flipped</span> <span class="o">=</span> <span class="n">apply_merge_failures_to_logger</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">_parquet_dir_for_fold</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">_flipped</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Flipped </span><span class="si">{</span><span class="n">_flipped</span><span class="si">}</span><span class="s2"> granule(s) INDEXED → MERGE_FAILED &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;after corrupt-fragment merge failures. They will be &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;re-extracted on the next resume.&quot;</span>
+                    <span class="p">)</span>
+                <span class="c1"># Advisory: surface Stage 1 failure classes with actionable</span>
+                <span class="c1"># recovery recipes. The granule failure sidecar persisted by</span>
+                <span class="c1"># _append_granule_failure carries structured cause records,</span>
+                <span class="c1"># which we group here so the operator sees a single summary</span>
+                <span class="c1"># with the exact gh3_build command to fix each class.</span>
+                <span class="n">_gran_failures</span> <span class="o">=</span> <span class="n">_read_granule_failures</span><span class="p">(</span><span class="n">_parquet_dir_for_fold</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">_gran_failures</span><span class="p">:</span>
+                    <span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
+                    <span class="n">_by_class</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span>
+                        <span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;kind&#39;</span><span class="p">),</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;product&#39;</span><span class="p">),</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;var&#39;</span><span class="p">))</span>
+                        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">_gran_failures</span>
+                    <span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">_gran_failures</span><span class="p">)</span><span class="si">}</span><span class="s2"> (granule × beam) task(s) failed &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;Stage 1. Breakdown:&quot;</span>
+                    <span class="p">)</span>
+                    <span class="k">for</span> <span class="p">(</span><span class="n">kind</span><span class="p">,</span> <span class="n">product</span><span class="p">,</span> <span class="n">var</span><span class="p">),</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">_by_class</span><span class="o">.</span><span class="n">most_common</span><span class="p">():</span>
+                        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;missing_var&#39;</span><span class="p">:</span>
+                            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                                <span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">count</span><span class="si">}</span><span class="s2">x missing_var: </span><span class="si">{</span><span class="n">product</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;&lt;product&gt;&#39;</span><span class="si">}</span><span class="s2"> &quot;</span>
+                                <span class="sa">f</span><span class="s2">&quot;variable &#39;</span><span class="si">{</span><span class="n">var</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;&lt;var&gt;&#39;</span><span class="si">}</span><span class="s2">&#39; absent from HDF5. &quot;</span>
+                                <span class="sa">f</span><span class="s2">&quot;Recovery: re-run gh3_build with an explicit &quot;</span>
+                                <span class="sa">f</span><span class="s2">&quot;-l</span><span class="si">{</span><span class="p">(</span><span class="n">product</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;XX&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()[</span><span class="mi">1</span><span class="p">:]</span><span class="si">}</span><span class="s2"> list that omits &quot;</span>
+                                <span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">var</span><span class="si">}</span><span class="s2">&#39; (and any other listed vars on this line).&quot;</span>
+                            <span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">count</span><span class="si">}</span><span class="s2">x </span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">product</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;N/A&#39;</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
+                <span class="c1"># Clear pending variable update BEFORE saving — ensures the flag</span>
+                <span class="c1"># is not persisted to disk after successful completion.</span>
+                <span class="c1"># Crash safety: if crash between pop and save, disk still has</span>
+                <span class="c1"># PROCESSING status with the flag → next run resumes correctly.</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;_pending_variable_update&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;COMPLETED&#39;</span><span class="p">)</span>
+
+                <span class="n">n_files</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">h3_files</span><span class="p">)</span> <span class="k">if</span> <span class="n">h3_files</span> <span class="k">else</span> <span class="mi">0</span>
+                <span class="n">print_success</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_files</span><span class="si">}</span><span class="s2"> files exported to </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+
+                <span class="c1"># Regime C: Stage 2 ran from a `default` re-expansion. Any vars</span>
+                <span class="c1"># not present in the source HDF5 files were silently written</span>
+                <span class="c1"># as NaN columns. gh3_doctor&#39;s backfill diagnosis flags these.</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">is_variable_only_update</span> <span class="ow">or</span> <span class="n">is_mixed_update</span><span class="p">)</span> <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span> <span class="ow">and</span> <span class="p">(</span>
+                    <span class="n">h3_logger</span><span class="o">.</span><span class="n">default_products</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span><span class="p">)</span>
+                <span class="p">):</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                        <span class="s2">&quot;New variables added via `default`; run &quot;</span>
+                        <span class="s2">&quot;`gh3_doctor --check backfill` if you suspect any are &quot;</span>
+                        <span class="s2">&quot;not present in source HDF5 files.&quot;</span>
+                    <span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">soc_source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">args</span><span class="o">.</span><span class="n">download</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Note: Downloaded HDF5 files in </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2"> are no longer needed and can be deleted to free disk space&quot;</span><span class="p">)</span>
+
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;FAILED&#39;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Build failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="n">e</span>
+
+    <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Build interrupted by user&quot;</span><span class="p">)</span>
+        <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
+        <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;INTERRUPTED&#39;</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">130</span><span class="p">)</span>
+
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+            <span class="n">H3ValidationError</span><span class="p">,</span>
+            <span class="n">GediFileError</span><span class="p">,</span>
+            <span class="n">GediDatabaseError</span><span class="p">,</span>
+            <span class="n">GediError</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">H3ValidationError</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;H3 parameter error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">GediFileError</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;File error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">GediDatabaseError</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Database error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">GediError</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;GEDI error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unexpected error: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="kn">import</span><span class="w"> </span><span class="nn">traceback</span>
+                <span class="n">traceback</span><span class="o">.</span><span class="n">print_exc</span><span class="p">()</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, University of Maryland. All Rights Reserved.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,61 @@
+gedih3.cli.gh3_rasterize
+========================
+
+.. py:module:: gedih3.cli.gh3_rasterize
+
+.. autoapi-nested-parse::
+
+   GEDI H3/EGI Rasterization Tool
+
+   Convert pre-aggregated GEDI datasets to GeoTIFF raster format.
+
+   This tool reads datasets produced by gh3_aggregate or gh3_extract and
+   converts them to GeoTIFF rasters. For EGI datasets, the output is natively
+   aligned to the EASE-Grid 2.0 projection. For H3 datasets, interpolation
+   is used to approximate hexagonal data on a regular grid.
+
+   IMPORTANT: This tool does NOT perform aggregation. To aggregate raw GEDI
+   shots to coarser resolutions before rasterization, use gh3_aggregate first
+   (optionally with the --rasterize flag to do both in one step).
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.cli.gh3_rasterize.get_cmd_args
+   gedih3.cli.gh3_rasterize.main
+
+
+Module Contents
+---------------
+
+.. py:function:: get_cmd_args()
+
+   
+   Parse command line arguments for GEDI rasterization
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: main()
+

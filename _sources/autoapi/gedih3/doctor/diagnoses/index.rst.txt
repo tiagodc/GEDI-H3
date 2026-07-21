@@ -1,0 +1,47 @@
+gedih3.doctor.diagnoses
+=======================
+
+.. py:module:: gedih3.doctor.diagnoses
+
+.. autoapi-nested-parse::
+
+   
+   Diagnoses package — importing this module auto-registers all diagnoses.
+
+   Each diagnosis lives in its own submodule and registers itself via
+   :func:`gedih3.doctor.runner.register` at import time.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /autoapi/gedih3/doctor/diagnoses/backfill/index
+   /autoapi/gedih3/doctor/diagnoses/geoparquet_bbox/index
+   /autoapi/gedih3/doctor/diagnoses/log_state/index
+   /autoapi/gedih3/doctor/diagnoses/metadata/index
+   /autoapi/gedih3/doctor/diagnoses/orphans/index
+   /autoapi/gedih3/doctor/diagnoses/parquet_health/index
+   /autoapi/gedih3/doctor/diagnoses/soc_health/index
+   /autoapi/gedih3/doctor/diagnoses/tmp_partitions_health/index
+
+

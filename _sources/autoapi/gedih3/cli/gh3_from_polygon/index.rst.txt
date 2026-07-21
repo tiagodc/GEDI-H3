@@ -1,0 +1,54 @@
+gedih3.cli.gh3_from_polygon
+===========================
+
+.. py:module:: gedih3.cli.gh3_from_polygon
+
+.. autoapi-nested-parse::
+
+   GEDI Vector Polygon Join Tool
+
+   Spatially join polygon attributes (e.g., ecoregion names, administrative
+   boundaries, land cover classes) to GEDI shot locations from an H3 database
+   or simplified dataset.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.cli.gh3_from_polygon.get_cmd_args
+   gedih3.cli.gh3_from_polygon.main
+
+
+Module Contents
+---------------
+
+.. py:function:: get_cmd_args()
+
+   
+   Parse command line arguments for vector polygon join tool.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: main()
+

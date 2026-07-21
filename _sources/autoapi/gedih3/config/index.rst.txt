@@ -1,0 +1,122 @@
+gedih3.config
+=============
+
+.. py:module:: gedih3.config
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.config.ISO3_COUNTRIES_URL
+   gedih3.config.GH3_DEFAULT_DOWNLOAD_DIR
+   gedih3.config.GH3_DEFAULT_TMP_DIR
+   gedih3.config.GH3_DEFAULT_SOC_DIR
+   gedih3.config.GH3_DEFAULT_H3_DIR
+   gedih3.config.BUILD_LOG_FILENAME
+   gedih3.config.DATASET_META_FILENAME
+   gedih3.config.PARTITION_META_FILENAME
+   gedih3.config.MANIFEST_FILENAME
+   gedih3.config.SOC_MANIFEST_FILENAME
+   gedih3.config.GEDI_START_DATE
+   gedih3.config.GEDI_MISSION_START
+   gedih3.config.GEDI_BEAMS
+   gedih3.config.GEDI_PRODUCTS
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.config.get_package_data_path
+   gedih3.config.configure_environment
+   gedih3.config.get_default_vars_file
+
+
+Module Contents
+---------------
+
+.. py:function:: get_package_data_path(filename)
+
+.. py:data:: ISO3_COUNTRIES_URL
+   :value: 'https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/country_shapes/exports/geojson/'
+
+
+.. py:data:: GH3_DEFAULT_DOWNLOAD_DIR
+   :value: ''
+
+
+.. py:data:: GH3_DEFAULT_TMP_DIR
+
+.. py:data:: GH3_DEFAULT_SOC_DIR
+
+.. py:data:: GH3_DEFAULT_H3_DIR
+
+.. py:data:: BUILD_LOG_FILENAME
+   :value: 'gedih3_build_log.json'
+
+
+.. py:data:: DATASET_META_FILENAME
+   :value: 'gedih3_dataset.json'
+
+
+.. py:data:: PARTITION_META_FILENAME
+   :value: '.metadata.json'
+
+
+.. py:data:: MANIFEST_FILENAME
+   :value: '_manifest.txt'
+
+
+.. py:data:: SOC_MANIFEST_FILENAME
+   :value: '_soc_manifest.txt'
+
+
+.. py:function:: configure_environment(mkdirs=False)
+
+.. py:data:: GEDI_START_DATE
+
+.. py:data:: GEDI_MISSION_START
+
+.. py:data:: GEDI_BEAMS
+   :value: ['BEAM0000', 'BEAM0001', 'BEAM0010', 'BEAM0011', 'BEAM0101', 'BEAM0110', 'BEAM1000', 'BEAM1011']
+
+
+.. py:data:: GEDI_PRODUCTS
+
+.. py:function:: get_default_vars_file(product, version=None)
+
+   
+   Get the default variable list file for a product, with version awareness.
+
+
+   :Parameters:
+
+       **product** : str
+           Product code (e.g., 'L2A', 'L4A')
+
+       **version** : int or None
+           GEDI data version. If None, falls back to known version 2.
+
+
+
+   :Returns:
+
+       Path
+           Path to the variable list file
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

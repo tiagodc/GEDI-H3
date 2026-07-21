@@ -1,0 +1,1234 @@
+gedih3.cliutils
+===============
+
+.. py:module:: gedih3.cliutils
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.cliutils.VALID_FORMATS
+   gedih3.cliutils.PIPELINE_FORMATS
+   gedih3.cliutils.FORMAT_EXTENSIONS
+   gedih3.cliutils.INTERNAL_COLUMN_PATTERNS
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.cliutils.detect_dataset_format
+   gedih3.cliutils.list_dataset_files
+   gedih3.cliutils.read_dataset_schema
+   gedih3.cliutils.make_dataset_reader
+   gedih3.cliutils.add_dask_args
+   gedih3.cliutils.add_verbosity_args
+   gedih3.cliutils.add_storage_args
+   gedih3.cliutils.setup_storage
+   gedih3.cliutils.add_product_args
+   gedih3.cliutils.parse_egi_levels
+   gedih3.cliutils.setup_logging
+   gedih3.cliutils.print_banner
+   gedih3.cliutils.print_success
+   gedih3.cliutils.resolve_path_args
+   gedih3.cliutils.progress_iter
+   gedih3.cliutils.cli_exception_handler
+   gedih3.cliutils.configure_database_path
+   gedih3.cliutils.get_dataset_index_info
+   gedih3.cliutils.load_data_from_source
+   gedih3.cliutils.is_internal_column
+   gedih3.cliutils.filter_data_columns
+   gedih3.cliutils.get_numeric_columns
+   gedih3.cliutils.get_rasterizable_columns
+   gedih3.cliutils.get_aggregatable_columns
+   gedih3.cliutils.filter_raster_columns
+   gedih3.cliutils.h3_col_name
+   gedih3.cliutils.find_coordinate_column
+   gedih3.cliutils.parse_aggregation
+   gedih3.cliutils.parse_file_format
+   gedih3.cliutils.resolve_product_vars
+   gedih3.cliutils.parse_gedi_args
+   gedih3.cliutils.parse_dask_args
+   gedih3.cliutils.format_dask_cluster_info
+   gedih3.cliutils.parse_region
+   gedih3.cliutils.collect_columns
+   gedih3.cliutils.get_product_quality_conditions
+   gedih3.cliutils.build_query_string
+   gedih3.cliutils.safe_query
+
+
+Module Contents
+---------------
+
+.. py:data:: VALID_FORMATS
+   :value: ['parquet', 'feather', 'shp', 'geojson', 'gpkg', 'txt', 'csv', 'h5', 'hdf5']
+
+
+.. py:data:: PIPELINE_FORMATS
+
+.. py:data:: FORMAT_EXTENSIONS
+
+.. py:function:: detect_dataset_format(dataset_path)
+
+   
+   Detect the file format of a simplified dataset.
+
+   Checks DATASET_META_FILENAME for 'file_format' field first, then scans
+   directory for known extensions. Defaults to 'parquet' for backwards compat.
+
+   :Parameters:
+
+       **dataset_path** : str
+           Path to the dataset directory
+
+
+
+   :Returns:
+
+       str
+           Detected format ('parquet', 'feather', or 'gpkg')
+
+
+
+
+   :Raises:
+
+       GediValidationError
+           If detected format is not in PIPELINE_FORMATS
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: list_dataset_files(dataset_path, fmt=None)
+
+   
+   List data files in a simplified dataset directory.
+
+
+   :Parameters:
+
+       **dataset_path** : str
+           Path to the dataset directory
+
+       **fmt** : str, optional
+           File format. If None, auto-detected via detect_dataset_format().
+
+
+
+   :Returns:
+
+       list of str
+           Sorted list of file paths
+
+
+
+
+   :Raises:
+
+       FileNotFoundError
+           If no matching files found
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: read_dataset_schema(filepath, fmt)
+
+   
+   Read column names and geometry flag from a dataset file without loading data.
+
+
+   :Parameters:
+
+       **filepath** : str
+           Path to a single data file
+
+       **fmt** : str
+           File format ('parquet', 'feather', or 'gpkg')
+
+
+
+   :Returns:
+
+       tuple
+           (column_names: list[str], has_geometry: bool)
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: make_dataset_reader(fmt, columns=None, geo=True)
+
+   
+   Return a callable that reads a single file into a DataFrame or GeoDataFrame.
+
+   The returned callable supports column selection at read time.
+
+   :Parameters:
+
+       **fmt** : str
+           File format ('parquet', 'feather', or 'gpkg')
+
+       **columns** : list, optional
+           Columns to load
+
+       **geo** : bool
+           If True, use geopandas readers (for files with geometry metadata).
+           If False, use pandas readers (for files without geometry metadata).
+
+
+
+   :Returns:
+
+       callable
+           f(filepath) -> DataFrame or GeoDataFrame
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: add_dask_args(parser, profile=None)
+
+   
+   Add Dask-related arguments to an argument parser.
+
+
+   :Parameters:
+
+       **parser** : argparse.ArgumentParser
+           The argument parser to add arguments to.
+
+       **profile** : str, optional
+           Resource profile hint. ``'build'`` uses fewer workers with more memory
+           (suitable for HDF5→parquet pipelines). ``None`` uses generic defaults.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: add_verbosity_args(parser)
+
+   
+   Add verbosity-related arguments to an argument parser.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: add_storage_args(parser)
+
+   
+   Add remote storage credential arguments to an argument parser.
+
+   Covers S3, HTTP/HTTPS, FTP, and SFTP/SSH protocols.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: setup_storage(args, logger=None)
+
+   
+   Call ``configure_storage()`` from parsed CLI arguments.
+
+   Should be called early in ``main()`` before any data access.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: add_product_args(parser, include_detail_level=True)
+
+   
+   Add GEDI product variable arguments to an argument parser.
+
+   Supports two mutually exclusive modes:
+   1. Global: ``--detail-level <level>`` applies a detail level to ALL products.
+   2. Per-product: ``-l2a <...> -l4a <...>`` selects specific products.
+
+   Per-product flags use ``nargs='*'`` so a bare flag (e.g. ``-l2a``)
+   means "dump everything from L2A", while ``-l2a default`` uses the
+   standard variable set.
+
+   :Parameters:
+
+       **parser** : argparse.ArgumentParser
+           ..
+
+       **include_detail_level** : bool
+           Include ``--detail-level`` flag (only useful for download/build).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: parse_egi_levels(value)
+
+   
+   Parse EGI argument in format 'level' or 'level:partition'.
+
+   This function is used by CLI tools to parse EGI level arguments that
+   specify both an index/aggregation level and an optional output partition level.
+
+   EGI levels: 1 = finest (~1m), 12 = coarsest (~160km)
+   Note: This is opposite to H3 where higher numbers mean finer resolution.
+
+   Examples:
+       '1' -> (1, 12)      # Level 1, partition at level 12 (default)
+       '1:12' -> (1, 12)   # Explicit level:partition
+       '6:10' -> (6, 10)   # Level 6, partition at level 10
+
+   :Parameters:
+
+       **value** : str or None
+           EGI level specification string
+
+
+
+   :Returns:
+
+       tuple or None
+           (level, partition_level) tuple, or None if value is None
+
+
+
+
+   :Raises:
+
+       argparse.ArgumentTypeError
+           If the value cannot be parsed or levels are invalid
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: setup_logging(args, name=None)
+
+   
+   Configure logging based on verbosity flags and return a logger.
+
+   Also configures Dask warning suppression for non-DEBUG modes.
+
+   Args:
+       args: Parsed arguments with 'quiet' and 'verbose' attributes
+       name: Logger name (defaults to calling module's __name__)
+
+   Returns:
+       Configured logger instance
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: print_banner(title, version=None, logger=None)
+
+   
+   Print a tool banner with centered title.
+
+   Args:
+       title: Tool title string
+       version: Package version (if None, imports from gedih3)
+       logger: Logger to use (if None, uses print)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: print_success(message, logger=None)
+
+   
+   Print a success message with banner formatting.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: resolve_path_args(args, names, logger=None)
+
+   
+   Absolutize each path-bearing CLI arg listed in ``names`` on the driver.
+
+   Tools that dispatch work to dask workers (``gh3_extract``, ``gh3_aggregate``,
+   ``gh3_from_img``, ``gh3_from_polygon``) pass paths from ``args`` verbatim
+   into ``map_partitions`` / ``client.map``. Workers then resolve any relative
+   path against *their own* CWD — which on a remote scheduler is almost never
+   the same as the user's interactive shell. The result is silent and brutal:
+   workers write to (or read from) the wrong location with no error surfaced
+   until much later (empty output dir / "FileNotFoundError" mid-aggregation).
+   Absolutizing on the driver before dispatch closes the footgun.
+
+   Skips: ``None`` / empty, already-absolute paths, and URL-style strings
+   (``http://``, ``s3://``, ``/vsicurl/``, ``/vsis3/``, ``gs://``, ``gcs://``,
+   ``/vsigs/``). Callers should *only* pass arg names that are known to be
+   paths — keeps bbox / country-code / query args (``region``, etc.) untouched.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: progress_iter(iterable, *, desc, total=None, args=None, unit='it')
+
+   
+   tqdm wrapper with consistent style + safe logger interleaving.
+
+   Yields a tqdm-wrapped iterator. ``logging_redirect_tqdm`` is used so that
+   ``logger.info`` / ``logger.warning`` calls made from inside the loop body
+   do not clobber the bar.
+
+   :Parameters:
+
+       **iterable** : Iterable
+           The items to iterate over.
+
+       **desc** : str
+           Description shown to the left of the bar.
+
+       **total** : int, optional
+           Total item count. Inferred via ``len(iterable)`` when possible.
+
+       **args** : argparse.Namespace, optional
+           CLI args; used to read ``--quiet`` defensively via
+           ``getattr(args, 'quiet', False)``. Pass ``None`` to always show.
+
+       **unit** : str
+           Unit label for the bar (default ``'it'``).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: cli_exception_handler(args, logger=None)
+
+   
+   Standard exception handling context manager for CLI tools.
+
+   Provides consistent error handling across CLI tools:
+   - KeyboardInterrupt: Clean exit with message
+   - Other exceptions: Print error message, optionally show traceback in verbose mode
+
+   Args:
+       args: Parsed arguments with 'verbose' attribute for traceback control
+       logger: Optional logger (not currently used, reserved for future use)
+
+   Usage::
+
+       with cli_exception_handler(args):
+           # CLI main logic here
+           pass
+
+   Example::
+
+       def main():
+           args = get_cmd_args()
+           with cli_exception_handler(args):
+               # Main CLI logic
+               client = Client(**dask_kwargs)
+               ...
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: configure_database_path(args, logger=None)
+
+   
+   Configure database path from args or default.
+
+   Args:
+       args: Parsed arguments with 'database' attribute
+       logger: Optional logger for output
+
+   Returns:
+       Database path string
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_dataset_index_info(database)
+
+   
+   Get spatial index information from a dataset or database.
+
+   Reads metadata to determine the index type (h3 or egi) and level.
+
+   :Parameters:
+
+       **database** : str
+           Path to H3 database or simplified dataset directory
+
+
+
+   :Returns:
+
+       dict
+           Dictionary with keys:
+           - 'source_type': 'h3_database', 'simplified_dataset', or 'parquet_directory'
+           - 'index_type': 'h3' or 'egi' (or None if unknown)
+           - 'index_level': int (or None if unknown)
+           - 'partition_level': int (or None if not applicable)
+           - Other metadata fields from the source
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: load_data_from_source(database, columns=None, region=None, query=None, logger=None)
+
+   
+   Load data from H3 database, simplified dataset, or parquet directory.
+
+   Auto-detects the data source type and loads accordingly.
+   Delegates to gh3_load() or egi_load() based on index type.
+
+   Args:
+       database: Path to database directory
+       columns: Columns to load
+       region: Spatial filter (GeoDataFrame or bbox)
+       query: Query string for filtering
+       logger: Optional logger for output
+
+   Returns:
+       Dask GeoDataFrame
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:data:: INTERNAL_COLUMN_PATTERNS
+   :value: ['^h3_\\d{2}$', '^egi\\d{2}$', '^_egi_[xy]$', '^shot_number']
+
+
+.. py:function:: is_internal_column(col_name)
+
+   
+   Check if a column name matches internal/partition column patterns.
+
+   Internal columns include H3 partition columns (h3_XX), EGI index columns (egiXX),
+   internal EGI coordinates (_egi_x, _egi_y), and shot identifiers.
+
+   Args:
+       col_name: Column name to check
+
+   Returns:
+       True if column is internal, False otherwise
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: filter_data_columns(columns, exclude_geometry=True)
+
+   
+   Filter out internal/partition columns from a column list.
+
+   Args:
+       columns: List of column names
+       exclude_geometry: If True, also exclude 'geometry' column
+
+   Returns:
+       List of user data columns (excluding internal columns)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_numeric_columns(ddf, exclude_internal=True)
+
+   
+   Get list of numeric columns from a Dask DataFrame.
+
+   Args:
+       ddf: Dask DataFrame
+       exclude_internal: If True (default), exclude internal/partition columns
+
+   Returns:
+       List of column names with numeric dtypes
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_rasterizable_columns(ddf)
+
+   
+   Get columns suitable for rasterization from a Dask DataFrame.
+
+   This is a convenience function that returns numeric columns excluding
+   internal columns (h3_XX, egiXX, etc.) and geometry.
+
+   Args:
+       ddf: Dask DataFrame
+
+   Returns:
+       List of column names suitable for rasterization
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_aggregatable_columns(df)
+
+   
+   Get numeric columns suitable for aggregation from a DataFrame.
+
+   This is a convenience function that returns numeric columns excluding
+   internal/partition columns (h3_XX, egiXX, _egi_x, _egi_y, shot_number, etc.).
+
+   This encapsulates the common pattern:
+       numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+       filtered_cols = filter_data_columns(numeric_cols)
+
+   Args:
+       df: DataFrame, GeoDataFrame, or Dask DataFrame
+
+   Returns:
+       List of column names suitable for aggregation
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: filter_raster_columns(columns, geodf)
+
+   
+   Filter columns suitable for rasterization, excluding internal columns.
+
+   Internal columns (egi indices, h3 indices, shot_number) should not be
+   rasterized as bands - they're metadata, not data values.
+   Also excludes the index column since it will become a column after reset_index().
+
+   Args:
+       columns: List of column names to filter, or None to auto-detect numeric columns
+       geodf: GeoDataFrame to get numeric columns and index name from
+
+   Returns:
+       List of filtered column names suitable for rasterization, or None if empty
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: h3_col_name(level)
+
+   
+   Get H3 column name for a given resolution level.
+
+   Args:
+       level: H3 resolution level (0-15)
+
+   Returns:
+       Column name string, e.g. 'h3_06' for level 6
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: find_coordinate_column(columns, base_name)
+
+   
+   Find a coordinate column by base name, handling product suffixes.
+
+   In the H3 database, coordinate columns may have product suffixes
+   (e.g., 'lon_lowestmode_l2a' instead of 'lon_lowestmode').
+
+   Args:
+       columns: list-like of available column names
+       base_name: Base column name to search for (e.g., 'lon_lowestmode')
+
+   Returns:
+       Actual column name if found, None otherwise
+
+   Examples:
+       >>> find_coordinate_column(['lon_lowestmode_l2a', 'lat_lowestmode_l2a'], 'lon_lowestmode')
+       'lon_lowestmode_l2a'
+       >>> find_coordinate_column(['lon', 'lat'], 'lon')
+       'lon'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: parse_aggregation(agg_str)
+
+   
+   Parse aggregation spec from CLI string, JSON file, or text file.
+
+   Supports:
+
+       - Single function: 'mean' → 'mean'
+       - Percentile shorthand: 'p25', 'p50', 'p95' → named percentile callable
+       - List of functions: "['mean', 'std', 'p25', 'p75']" → mixed list
+       - Column-specific dict: "{'col':['mean','p50']}" → dict with callables
+       - JSON file (.json): parsed as dict or list
+       - Text file: one function name per line → list (single line → string)
+
+   Percentile patterns (p25, p90, etc.) are expanded into named callable
+   functions that work with pandas .agg() and produce clean column names
+   like 'agbd_l4a_percentile_25'.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: parse_file_format(args, default='parquet')
+
+.. py:function:: resolve_product_vars(args)
+
+   
+   Resolve product variables from CLI args.
+
+   Two modes (mutually exclusive for L2A/L2B/L4A/L4C):
+   1. Global: ``--detail-level <level>`` applies level to L2A/L2B/L4A/L4C (not L1B).
+   2. Per-product: ``-l2a <...> -l4a <...>`` selects specific products.
+
+   L1B is always specified separately via ``-l1b`` and can be combined with either mode.
+
+   Per-product flag semantics (with ``nargs='*'``):
+   - Flag absent → ``args.l2a = None`` (product not selected)
+   - Bare flag (``-l2a``) → ``args.l2a = []`` (dump everything)
+   - With keyword: ``-l2a default`` → ``['default']``
+   - With vars: ``-l2a rh agbd`` → ``['rh', 'agbd']``
+
+
+
+
+   :Returns:
+
+       dict
+           Product code → variable list mapping.
+
+
+
+
+   :Raises:
+
+       GediValidationError
+           If ``--detail-level`` is combined with non-L1B per-product flags.
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: parse_gedi_args(args)
+
+   
+   Parse GEDI product args from CLI (legacy wrapper around resolve_product_vars).
+
+   Supports both the new ``-l`` global flag and legacy per-product flags.
+   Falls back to legacy parsing when ``detail_level`` attribute is absent.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: parse_dask_args(args)
+
+.. py:function:: format_dask_cluster_info(client) -> str
+
+   
+   One-line summary of a live dask Client's cluster — workers, total threads, total RAM.
+
+   Use after `Client(...)` is up so that external --dask-scheduler connections
+   report the cluster's real shape instead of the local-cluster CLI defaults.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: parse_region(region_str: Optional[str])
+
+   
+   Parse region argument into GeoDataFrame or bbox
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: collect_columns(args, available_columns=None)
+
+   
+   Collect all requested variables from command line arguments and validate against available columns.
+   Returns: (column_list, product_map)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_product_quality_conditions(selected_products, version, available_columns)
+
+   
+   Return quality filter conditions for the selected products and GEDI version.
+
+
+   :Parameters:
+
+       **selected_products** : list[str]
+           Product keys that were requested (e.g. ['L2A', 'L4A']).
+
+       **version** : int or None
+           GEDI data version from build log (e.g. 2 or 3). None defaults to 2.
+
+       **available_columns** : list[str]
+           Columns present in the database (suffixed form e.g. 'quality_flag_l2a').
+
+
+
+   :Returns:
+
+       list[tuple[str, str]]
+           Pairs of (column_name, condition_str) to use in the quality filter query,
+           e.g. ``[('quality_flag_l2a', '== 1'), ('degrade_flag_l2a', '== 0')]``.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: build_query_string(args, available_columns=None)
+
+   
+   Build pandas query string from arguments
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: safe_query(df, query_str)
+
+   
+   Apply a pandas query, handling column names with '/' that pandas can't parse.
+
+   pandas.DataFrame.query() fails on backtick-quoted names containing '/'
+   because it converts the slash to an unresolvable internal token.
+   This function works around the limitation by temporarily renaming such columns.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

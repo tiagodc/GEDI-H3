@@ -1,0 +1,98 @@
+/* Hero section — larger tagline, centered CTA */
+
+.bd-main h1 {
+    font-size: 1.8rem;
+    line-height: 1.3;
+    margin-bottom: 1rem;
+}
+
+/* All cards — subtle border, hover lift */
+
+.sd-card {
+    flex: 1 1 auto;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-left: 3px solid var(--pst-color-primary);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sd-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12) !important;
+}
+
+html[data-theme="dark"] .sd-card {
+    border-color: rgba(255, 255, 255, 0.08);
+    border-left-color: var(--pst-color-primary);
+}
+
+html[data-theme="dark"] .sd-card:hover {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* Comparison cards override — colored left border instead of primary */
+
+.sd-card.sd-border-success {
+    border-left-color: var(--sd-color-success);
+}
+
+.sd-card.sd-border-danger {
+    border-left-color: var(--sd-color-danger);
+}
+
+/* Feature & navigation cards — uniform height within grid rows */
+
+.sd-card .sd-card-body {
+    flex: 1 1 auto;
+}
+
+/* Comparison cards — pill labels */
+
+.comparison-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.comparison-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Tighter vertical rhythm inside card bodies */
+.comparison-card .sd-card-body p {
+    margin-bottom: 0.35rem;
+}
+
+/* Bold labels as colored pill badges */
+.comparison-card.sd-border-danger .sd-card-body p strong:first-child {
+    display: inline-block;
+    background: var(--sd-color-danger-bg);
+    color: var(--sd-color-danger-text);
+    padding: 0.1em 0.5em;
+    border-radius: 0.8em;
+    font-size: 0.85em;
+    margin-right: 0.15em;
+}
+
+.comparison-card.sd-border-success .sd-card-body p strong:first-child {
+    display: inline-block;
+    background: var(--sd-color-success-bg);
+    color: var(--sd-color-success-text);
+    padding: 0.1em 0.5em;
+    border-radius: 0.8em;
+    font-size: 0.85em;
+    margin-right: 0.15em;
+}
+
+/* Dark mode adjustments */
+html[data-theme="dark"] .comparison-card:hover {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4) !important;
+}
+
+html[data-theme="dark"] .comparison-card.sd-border-danger .sd-card-body p strong:first-child {
+    background: rgba(220, 53, 69, 0.25);
+    color: #f8a0a8;
+}
+
+html[data-theme="dark"] .comparison-card.sd-border-success .sd-card-body p strong:first-child {
+    background: rgba(40, 167, 69, 0.25);
+    color: #7ddf96;
+}

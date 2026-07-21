@@ -1,0 +1,128 @@
+gedih3.doctor.fused
+===================
+
+.. py:module:: gedih3.doctor.fused
+
+.. autoapi-nested-parse::
+
+   Fused per-partition scan for gh3_doctor's h3db-tree diagnoses.
+
+   When the user asks for multiple per-partition diagnoses in one invocation
+   (e.g. ``--check db`` or ``--check parquet_health,metadata``), this module
+   turns N separate ``parallel_map`` dispatches with N file opens per
+   partition into a single dispatch where each partition's parquet listing,
+   meta JSON, and parquet footers are opened **once** and shared across
+   every enabled scan.
+
+   The shared state is built by :func:`_build_shared_state` at worker entry,
+   passed as a ``shared`` dict to each diagnosis's ``_scan_partition_*(dir,
+   shared=None)`` worker, and dropped when the partition's work is done.
+   Each scan in :data:`_SCAN_REGISTRY` returns the per-partition payload its
+   diagnosis already produces today (no schema change), so driver-side
+   ``_finalize_check_from_results`` aggregation is identical to the single-
+   diagnosis path.
+
+   Read-amplification savings on a continental DB scale with the parquet
+   footer reuse — the heaviest reads — between ``parquet_health``,
+   ``geoparquet_bbox``, and ``backfill``.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.doctor.fused.register_scan
+   gedih3.doctor.fused.fused_scan_partition
+   gedih3.doctor.fused.fused_eligible_names
+
+
+Module Contents
+---------------
+
+.. py:function:: register_scan(name: str, fn: Callable[Ellipsis, Any]) -> None
+
+   
+   Register a per-partition scan worker under ``name``.
+
+   The worker must be picklable (module-level), accept ``partition_dir``
+   as the first positional arg, and accept ``shared=None`` plus any
+   diagnosis-specific keyword args.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: fused_scan_partition(partition_dir: str, *, enabled_scans: List[str], scan_kwargs: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]
+
+   
+   Worker: run every enabled per-partition scan on one partition.
+
+   Returns ``{scan_name: per_partition_result_or_exception}``. A
+   per-scan exception is captured in the result dict (mirroring
+   ``parallel_map``'s exception-passthrough) so one scan's failure on
+   one partition never aborts the others for that same partition.
+
+   ``scan_kwargs`` carries per-diagnosis broadcast args namespaced by
+   diagnosis name — e.g. ``{'orphans': {'age_seconds': 86400},
+   'backfill': {'products': [...], 'expected_by_product': {...}}}``.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: fused_eligible_names() -> set
+
+   
+   Return the set of diagnosis names that participate in fusion.
+
+   The runner uses this to decide whether ``--check X,Y`` is fusible.
+   Only diagnoses whose worker has been registered via
+   :func:`register_scan` are eligible.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

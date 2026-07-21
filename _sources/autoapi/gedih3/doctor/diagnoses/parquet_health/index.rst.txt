@@ -1,0 +1,81 @@
+gedih3.doctor.diagnoses.parquet_health
+======================================
+
+.. py:module:: gedih3.doctor.diagnoses.parquet_health
+
+.. autoapi-nested-parse::
+
+   parquet_health diagnosis — corrupt files, duplicate shots, schema drift.
+
+   Three sub-checks bundled because they share the partition/parquet scan:
+
+     - **corrupt**: open each parquet file with ``pq.ParquetFile``; flag exceptions.
+       No remedy (would risk deleting user data); reported only.
+     - **duplicate_shots**: count duplicate ``shot_number`` rows per partition file.
+       Streamed row-group-at-a-time via ``pq.ParquetFile.iter_batches`` with
+       capped readahead, then a single global ``pc.value_counts`` for the
+       exact count — required because GEDI partitions interleave
+       shot_numbers across row groups (each row group comes from a
+       different granule). Memory scales with the file's ``shot_number``
+       column size (8 B/row × N rows) plus the value_counts hashmap;
+       typically <50 MB on production partitions. Remedy:
+       ``parquet_dedup_partition`` (streaming, keep-first).
+     - **schema_drift**: compare each partition's column set to the modal column
+       set; flag outliers. Check-only — recommend running ``--fix backfill`` to
+       re-join the missing product columns.
+
+   Per-partition work runs through :func:`gedih3.doctor.parallel.parallel_map`
+   so a registered dask client distributes the I/O.
+
+   Memory pillar (v0.8.x lessons applied):
+     * One ``pq.ParquetFile`` open per file (was three: open_safely +
+       count_duplicates + partition_columns).
+     * ``shot_number`` is **streamed via ``iter_batches``** with capped
+       readahead (``batch_readahead=1``, ``fragment_readahead=1``) and
+       ``pre_buffer=True`` for I/O coalescing on shared GPFS — never the
+       full ``pd.read_parquet(columns=['shot_number'])`` pull that used
+       to spike workers to ~800 MB on continental partitions.
+     * Explicit ``del pf`` + ``pa.default_memory_pool().release_unused()``
+       after each file so worker RSS plateaus instead of climbing.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.doctor.diagnoses.parquet_health.parquet_health_check
+   gedih3.doctor.diagnoses.parquet_health.parquet_health_fix
+
+
+Module Contents
+---------------
+
+.. py:function:: parquet_health_check(ctx: gedih3.doctor.report.DoctorContext) -> gedih3.doctor.report.Report
+
+.. py:function:: parquet_health_fix(ctx: gedih3.doctor.report.DoctorContext, report: gedih3.doctor.report.Report) -> gedih3.doctor.report.Report
+
+   
+   Fix only what's safely fixable: duplicate_shots.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

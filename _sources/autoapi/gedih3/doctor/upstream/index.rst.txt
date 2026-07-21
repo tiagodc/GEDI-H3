@@ -1,0 +1,154 @@
+gedih3.doctor.upstream
+======================
+
+.. py:module:: gedih3.doctor.upstream
+
+.. autoapi-nested-parse::
+
+   Upstream NASA CMR check + backfill/build recommendation engine.
+
+   Triggered by the ``--online`` flag. Queries NASA CMR (via the existing
+   :class:`gedih3.daac.GEDIAccessor`) for each product the database tracks, in
+   the database's own spatial/temporal extent, and classifies each gap into one
+   of five buckets:
+
+     - ``BACKFILL_LOCAL``   : granule indexed in DB; missing product file is on disk
+     - ``BACKFILL_REMOTE``  : granule indexed; missing file on NASA, not local
+     - ``BACKFILL_UNAVAIL`` : granule indexed; NASA does not list the missing product
+     - ``BUILD_NEW``        : granule available on NASA in DB extent; not indexed
+     - ``OUT_OF_SCOPE``     : granule available on NASA outside DB extent
+
+   The classifier maps each bucket to a concrete CLI command the user can run.
+   The doctor never executes these commands.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.doctor.upstream.GranuleKey
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   gedih3.doctor.upstream.UpstreamReport
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.doctor.upstream.query_available_granules
+   gedih3.doctor.upstream.gather_upstream
+
+
+Module Contents
+---------------
+
+.. py:data:: GranuleKey
+
+.. py:class:: UpstreamReport
+
+   
+   Summary of NASA-side granule availability vs database state.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:attribute:: available_per_product
+      :type:  Dict[str, Set[GranuleKey]]
+
+
+   .. py:attribute:: db_granule_keys
+      :type:  Set[GranuleKey]
+
+
+   .. py:attribute:: db_per_product
+      :type:  Dict[str, Set[GranuleKey]]
+
+
+   .. py:attribute:: classifications
+      :type:  Dict[str, List[Tuple[GranuleKey, str]]]
+
+
+   .. py:attribute:: recommendations
+      :type:  List[str]
+      :value: []
+
+
+
+   .. py:method:: to_dict()
+
+
+.. py:function:: query_available_granules(spatial, temporal, products: List[str], version=None, logger=None) -> Dict[str, Set[GranuleKey]]
+
+   
+   For each product, query NASA CMR and return granule keys.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: gather_upstream(ctx, logger=None) -> UpstreamReport
+
+   
+   Run the upstream check and produce an :class:`UpstreamReport`.
+
+   Reads the DB extent from the build log. Computes per-product availability
+   on NASA, the per-product on-disk presence, and the per-product DB
+   presence, then classifies and emits recommendations.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

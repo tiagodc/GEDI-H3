@@ -1,0 +1,76 @@
+gedih3.doctor.diagnoses.geoparquet_bbox
+=======================================
+
+.. py:module:: gedih3.doctor.diagnoses.geoparquet_bbox
+
+.. autoapi-nested-parse::
+
+   geoparquet_bbox diagnosis — partition parquets without a valid bbox.
+
+   Detects partition parquets whose GeoParquet ``geo`` schema metadata is missing
+   or has no usable ``columns.<primary>.bbox``. The bbox is required for valid
+   GeoParquet (per the spec it is optional in the strict sense, but predicate
+   pushdown across spatial reads depends on it, and downstream tools like
+   geopandas / dask_geopandas expect it on production datasets).
+
+   Background: pre-v0.8.14, ``parquet_merge_files`` had a ``bbox_threshold=50``
+   gate that skipped bbox computation for partition-years with many fragments —
+   which is most continental partitions. v0.8.14 removed the gate; this
+   diagnosis backfills the bbox on files merged before that fix.
+
+   Findings:
+     - ``missing_geo``: no ``geo`` key in schema metadata. Cannot be backfilled
+       in place (would need a full re-merge from source). Reported only.
+     - ``missing_bbox``: ``geo`` exists but no ``columns.<primary>.bbox`` field.
+       Fixable via ``parquet_backfill_bbox``.
+     - ``invalid_bbox``: bbox present but malformed (wrong length, non-finite).
+       Fixable via ``parquet_backfill_bbox``.
+     - ``no_geometry``: file has no geometry column (rare; typical for non-spatial
+       sidecars). Reported only — no bbox is meaningful here.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.doctor.diagnoses.geoparquet_bbox.geoparquet_bbox_check
+   gedih3.doctor.diagnoses.geoparquet_bbox.geoparquet_bbox_fix
+
+
+Module Contents
+---------------
+
+.. py:function:: geoparquet_bbox_check(ctx: gedih3.doctor.report.DoctorContext) -> gedih3.doctor.report.Report
+
+.. py:function:: geoparquet_bbox_fix(ctx: gedih3.doctor.report.DoctorContext, report: gedih3.doctor.report.Report) -> gedih3.doctor.report.Report
+
+   
+   Rewrite missing/invalid-bbox files via parquet_backfill_bbox.
+
+   Per-file work is independent (each call rewrites a single
+   parquet's metadata block) so we dispatch through ``parallel_map``
+   when a dask client is registered — same shape as the check path.
+   Without parallelism the fix on a continental DB with thousands of
+   bbox-missing files takes hours of single-threaded I/O.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

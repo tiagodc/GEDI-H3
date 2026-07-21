@@ -1,0 +1,283 @@
+gedih3.egi.raster
+=================
+
+.. py:module:: gedih3.egi.raster
+
+.. autoapi-nested-parse::
+
+   EGI (EASE Grid Index) Raster Module
+
+   This module provides rasterization functions for converting EGI-indexed
+   GeoDataFrames to raster (xarray/GeoTIFF) format. The native alignment of
+   EGI with EASE-Grid 2.0 allows for direct rasterization without resampling.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.egi.raster.logger
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.egi.raster.geodf_to_raster
+   gedih3.egi.raster.rasterize_partition
+   gedih3.egi.raster.export_raster
+   gedih3.egi.raster.merge_raster_partitions
+   gedih3.egi.raster.get_raster_profile
+
+
+Module Contents
+---------------
+
+.. py:data:: logger
+
+.. py:function:: geodf_to_raster(geodf: geopandas.GeoDataFrame, columns: Optional[List[str]] = None, fill_value: float = np.nan, outer_tile: Optional[int] = None) -> xarray.Dataset
+
+   
+   Convert EGI-indexed GeoDataFrame to raster (xarray Dataset).
+
+   This function creates a raster aligned to the EASE-Grid 2.0 projection,
+   with each EGI pixel mapped directly to a corresponding raster cell using
+   direct index assignment (no interpolation or extrapolation).
+
+   The raster covers exactly ONE level-12 outer tile. When that tile is
+   given explicitly (``outer_tile``), stray pixels from any other tile are
+   skipped with a WARNING — their inner indices are positions within their
+   own tile and would land at wrong map coordinates in this tile's grid
+   (this protects legacy datasets extracted before the ``to_hash``
+   boundary-overflow carry and the ``egi_load`` spillover filter, which can
+   still hold cross-tile rows). When no tile is given, the input must
+   resolve to a single tile; a genuine multi-tile input raises
+   ``GediRasterizationError`` instead of guessing which tile to keep —
+   split by outer tile first (``rasterize_partition``) to keep every pixel.
+
+   :Parameters:
+
+       **geodf** : GeoDataFrame
+           EGI-indexed GeoDataFrame (index must be EGI hash values)
+
+       **columns** : list of str, optional
+           Columns to rasterize. If None, all numeric columns are used.
+           Internal columns (egi indices, h3 indices) are automatically excluded.
+
+       **fill_value** : float
+           Value for pixels with no data (default: NaN)
+
+       **outer_tile** : int, optional
+           Level-12 EGI hash of the tile to rasterize. Callers that know their
+           tile (partition writers, ``rasterize_partition``) should always pass
+           it. When None, the input must resolve to a single outer tile; a
+           multi-tile input with no ``outer_tile`` hint raises
+           ``GediRasterizationError`` rather than guessing which tile to keep —
+           split by outer tile first (``rasterize_partition``) so no pixels are
+           dropped.
+
+
+
+   :Returns:
+
+       xr.Dataset
+           Raster dataset with one data variable per column
+
+
+
+
+   :Raises:
+
+       GediRasterizationError
+           If the input spans more than one outer tile and no ``outer_tile`` is
+           given (the function rasterizes exactly one tile and will not silently
+           drop the rest).
+
+
+
+
+   .. rubric:: Notes
+
+   This implementation uses direct index-based pixel assignment:
+   1. Decode each EGI hash to get pixel indices within the outer tile
+   2. Create a raster array with exact tile dimensions
+   3. Assign values directly to pixel locations
+
+   This guarantees one polygon = one pixel with no extrapolation.
+
+
+   .. rubric:: Examples
+
+   >>> # Rasterize aggregated GEDI data
+   >>> raster = geodf_to_raster(agg_gdf, columns=['agbd_mean', 'rh_098_mean'])
+   >>> raster.rio.to_raster("output.tif")
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: rasterize_partition(gdf: geopandas.GeoDataFrame, columns: Optional[List[str]] = None, include_egi_id: bool = True) -> pandas.Series
+
+   
+   Rasterize a single EGI partition (for use with Dask map_partitions).
+
+   This function splits the partition by outer tile and rasterizes each
+   tile separately to ensure proper alignment and avoid mixing data from
+   different tiles.
+
+   :Parameters:
+
+       **gdf** : GeoDataFrame
+           EGI-indexed GeoDataFrame partition
+
+       **columns** : list of str, optional
+           Columns to rasterize
+
+       **include_egi_id** : bool
+           If True, include outer tile ID in raster attributes
+
+
+
+   :Returns:
+
+       pd.Series
+           Series containing xarray Dataset(s), one per outer tile
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> # With Dask
+   >>> rasters = ddf.map_partitions(rasterize_partition, meta=pd.Series(dtype=object))
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: export_raster(xras: xarray.Dataset, output_path: str, compress: str = 'LZW', tiled: bool = True, blocksize: int = 256, bigtiff: bool = True) -> str
+
+   
+   Export xarray Dataset to GeoTIFF file.
+
+
+   :Parameters:
+
+       **xras** : xr.Dataset
+           Raster dataset to export
+
+       **output_path** : str
+           Output file path
+
+       **compress** : str
+           Compression method ('LZW', 'ZSTD', 'DEFLATE', None)
+
+       **tiled** : bool
+           Use tiled output format
+
+       **blocksize** : int
+           Tile block size in pixels
+
+       **bigtiff** : bool
+           Use BigTIFF format for large files
+
+
+
+   :Returns:
+
+       str
+           Output file path
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: merge_raster_partitions(raster_series: pandas.Series, output_path: Optional[str] = None) -> xarray.Dataset
+
+   
+   Merge multiple raster partitions into a single raster.
+
+
+   :Parameters:
+
+       **raster_series** : pd.Series
+           Series of xarray Datasets from rasterize_partition
+
+       **output_path** : str, optional
+           If provided, save merged raster to this path
+
+
+
+   :Returns:
+
+       xr.Dataset
+           Merged raster dataset
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_raster_profile(level: int, bounds: tuple, crs: str = EGI_CRS_STRING) -> dict
+
+   
+   Generate a rasterio profile for EGI raster output.
+
+
+   :Parameters:
+
+       **level** : int
+           EGI resolution level
+
+       **bounds** : tuple
+           Raster bounds (left, bottom, right, top)
+
+       **crs** : str
+           Coordinate reference system
+
+
+
+   :Returns:
+
+       dict
+           Rasterio profile dictionary
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

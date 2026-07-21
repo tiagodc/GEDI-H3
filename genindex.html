@@ -1,0 +1,2715 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Index &#8212; gedih3 0.12.9 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=8bafde03" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="_static/documentation_options.js?v=54dfaa76"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = "pre.mermaid {\n    /* Same as .mermaid-container > pre */\n    display: block;\n    width: 100%;\n}\n\npre.mermaid > svg {\n    /* Same as .mermaid-container > pre > svg */\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}";
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = ".mermaid-container {\n    position: relative;\n    display: flex;\n    flex-direction: row;\n    width: 100%;\n}\n\n.mermaid-container > pre {\n    display: block;\n    width: 100%;\n}\n\n.mermaid-container > pre > svg {\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}\n\n.mermaid-fullscreen-btn {\n    position: absolute;\n    width: 28px;\n    height: 28px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.3);\n    border-radius: 4px;\n    cursor: pointer;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    transition: all 0.2s;\n    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);\n    font-size: 14px;\n    line-height: 1;\n    padding: 0;\n    color: #333;\n}\n\n.mermaid-fullscreen-btn:hover {\n    opacity: 100% !important;\n    background: rgba(255, 255, 255, 1);\n    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-btn.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.3);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-btn.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal {\n    display: none;\n    position: fixed !important;\n    top: 0 !important;\n    left: 0 !important;\n    width: 95vw;\n    height: 100vh;\n    background: rgba(255, 255, 255, 0.98);\n    z-index: 9999;\n    padding: 20px;\n    overflow: auto;\n}\n\n.mermaid-fullscreen-modal.dark-theme {\n    background: rgba(0, 0, 0, 0.98);\n}\n\n.mermaid-fullscreen-modal.active {\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen {\n    position: relative;\n    width: 95vw;\n    height: 90vh;\n    max-width: 95vw;\n    max-height: 90vh;\n    background: white;\n    border-radius: 8px;\n    padding: 20px;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);\n    overflow: auto;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen.dark-theme {\n    background: #1a1a1a;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);\n}\n\n.mermaid-container-fullscreen pre.mermaid {\n    width: 100%;\n    height: 100%;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen .mermaid svg {\n    height: 100% !important;\n    width: 100% !important;\n    cursor: grab;\n}\n\n.mermaid-fullscreen-close {\n    position: fixed !important;\n    top: 20px !important;\n    right: 20px !important;\n    width: 40px;\n    height: 40px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.2);\n    border-radius: 50%;\n    cursor: pointer;\n    z-index: 10000;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);\n    transition: all 0.2s;\n    font-size: 24px;\n    line-height: 1;\n    color: #333;\n}\n\n.mermaid-fullscreen-close:hover {\n    background: white;\n    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-close.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.2);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-close.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal .mermaid-fullscreen-btn {\n    display: none !important;\n}";
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+let _lazyObserver = null;
+let _renderQueue = Promise.resolve();
+let closeModal = () => {};
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal?.classList.contains('active')) {
+        closeModal();
+    }
+});
+
+// Apply d3 zoom to each SVG. Idempotent: an SVG already wrapped is skipped,
+// so this is safe to call both for the initial batch and for diagrams that
+// render lazily once they become visible.
+const addZoomToSvgs = (svgs) => {
+    svgs.each(function() {
+        if (this.getAttribute('data-zoom-applied') === 'true') return;
+        var svg = d3.select(this);
+        svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+        var inner = svg.select("g");
+        var zoom = d3.zoom().on("zoom", function(event) {
+            inner.attr("transform", event.transform);
+        });
+        svg.call(zoom);
+        this.setAttribute('data-zoom-applied', 'true');
+    });
+};
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        // Disconnect any previous lazy rendering observer
+        if (_lazyObserver) {
+            _lazyObserver.disconnect();
+            _lazyObserver = null;
+        }
+
+        all_mermaids.forEach((el) => {
+            el.removeAttribute('data-mermaid-deferred');
+            el.removeAttribute('data-mermaid-render-failed');
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+
+        // Separate visible and hidden elements. Mermaid's layout engine measures
+        // text dimensions via the DOM, which fails for elements hidden by a parent
+        // (e.g., Reveal.js non-active slides, sphinx-design unopened tabs),
+        // producing broken SVGs. Render visible elements now, defer hidden ones.
+        const visible = [];
+        const hidden = [];
+        all_mermaids.forEach((el) => {
+            // offsetParent is null for display:none ancestors.
+            // getClientRects().length > 0 catches position:fixed elements
+            // (which also have null offsetParent but are still visible).
+            if (el.offsetParent !== null || el.getClientRects().length > 0) {
+                visible.push(el);
+            } else {
+                hidden.push(el);
+                el.setAttribute('data-mermaid-deferred', 'true');
+            }
+        });
+
+        if (visible.length > 0) {
+            try {
+                await mermaid.run({ nodes: visible });
+            } catch (e) {
+                console.error("Mermaid rendering failed:", e);
+            }
+        }
+
+        // Lazily render hidden elements when they become visible.
+        // Uses a promise chain (_renderQueue) to serialize rendering,
+        // since IntersectionObserver may report multiple entries at once
+        // and mermaid.run() is not safe to call concurrently.
+        if (hidden.length > 0) {
+            if (typeof IntersectionObserver === 'undefined') {
+                console.warn("IntersectionObserver not available; hidden mermaid diagrams will not render.");
+            } else {
+                _renderQueue = Promise.resolve();
+                _lazyObserver = new IntersectionObserver((entries) => {
+                    for (const entry of entries) {
+                        if (entry.isIntersecting && entry.target.getAttribute("data-processed") !== "true") {
+                            _lazyObserver.unobserve(entry.target);
+                            const el = entry.target;
+                            _renderQueue = _renderQueue.then(async () => {
+                                try {
+                                    await mermaid.run({ nodes: [el] });
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    // Apply zoom to the now-rendered diagram, matching
+                                    // the decoration visible diagrams receive.
+                                    if (false) {
+                                        addZoomToSvgs(d3.selectAll("").select(function() {
+                                            return this.querySelector("svg");
+                                        }));
+                                    }
+                                } catch (e) {
+                                    console.error("Mermaid deferred rendering failed:", e);
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    el.setAttribute('data-mermaid-render-failed', 'true');
+                                }
+                            });
+                        }
+                    }
+                });
+                hidden.forEach((el) => _lazyObserver.observe(el));
+            }
+        }
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    // Exclude deferred (hidden) and render-failed elements from completion checks
+    const mermaids_active = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])");
+    const mermaids_processed = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])[data-processed='true']");
+
+    if (false) {
+        const mermaids_to_add_zoom = 0 === -1 ? mermaids_active.length : 0;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("").select(function() {
+                return this.querySelector("svg");
+            });
+            // Wait until every active (visible) diagram has rendered. Deferred
+            // diagrams are excluded, so a fixed d3_node_count that counts a
+            // hidden diagram no longer loops forever waiting for its SVG.
+            if(mermaids_active.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            }
+            addZoomToSvgs(svgs);
+        }
+    } else if(mermaids_active.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if (!true) return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = "\u26f6";
+        fullscreenBtn.style.opacity = "50%";
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scrollX, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.display = 'block';
+
+                if (false) {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+
+
+const load = async () => {
+    initStyles();
+
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...{"startOnLoad": false},
+                ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...{"startOnLoad": false},
+    ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+    }
+);
+
+window.addEventListener("load", load);
+window.runMermaid = runMermaid;</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'genindex';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="#" />
+    <link rel="search" title="Search" href="search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="_static/searchtools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script src="searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+     
+  
+
+<a class="navbar-brand logo" href="/GEDI-H3/">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.12.9 documentation - Home"/>
+    <img src="_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.12.9 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="user-guide/index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="autoapi/index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="user-guide/index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="autoapi/index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none"></div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+
+<h1 id="index">Index</h1>
+
+<div class="genindex-jumpbox">
+ <a href="#_"><strong>_</strong></a>
+ | <a href="#A"><strong>A</strong></a>
+ | <a href="#B"><strong>B</strong></a>
+ | <a href="#C"><strong>C</strong></a>
+ | <a href="#D"><strong>D</strong></a>
+ | <a href="#E"><strong>E</strong></a>
+ | <a href="#F"><strong>F</strong></a>
+ | <a href="#G"><strong>G</strong></a>
+ | <a href="#H"><strong>H</strong></a>
+ | <a href="#I"><strong>I</strong></a>
+ | <a href="#J"><strong>J</strong></a>
+ | <a href="#L"><strong>L</strong></a>
+ | <a href="#M"><strong>M</strong></a>
+ | <a href="#N"><strong>N</strong></a>
+ | <a href="#O"><strong>O</strong></a>
+ | <a href="#P"><strong>P</strong></a>
+ | <a href="#Q"><strong>Q</strong></a>
+ | <a href="#R"><strong>R</strong></a>
+ | <a href="#S"><strong>S</strong></a>
+ | <a href="#T"><strong>T</strong></a>
+ | <a href="#U"><strong>U</strong></a>
+ | <a href="#V"><strong>V</strong></a>
+ | <a href="#W"><strong>W</strong></a>
+ | <a href="#Y"><strong>Y</strong></a>
+ 
+</div>
+<h2 id="_">_</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/index.html#gedih3.__author__">__author__ (in module gedih3)</a>
+</li>
+      <li><a href="autoapi/gedih3/index.html#gedih3.__copyright__">__copyright__ (in module gedih3)</a>
+</li>
+      <li><a href="autoapi/gedih3/index.html#gedih3.__email__">__email__ (in module gedih3)</a>
+</li>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.LoggingContext.__enter__">__enter__() (gedih3.logging_config.LoggingContext method)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.AtomicFileWriter.__enter__">(gedih3.utils.AtomicFileWriter method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.LoggingContext.__exit__">__exit__() (gedih3.logging_config.LoggingContext method)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.AtomicFileWriter.__exit__">(gedih3.utils.AtomicFileWriter method)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.GEDIFile.__str__">__str__() (gedih3.gedidriver.GEDIFile method)</a>
+</li>
+      <li><a href="autoapi/gedih3/index.html#gedih3.__version__">__version__ (in module gedih3)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="A">A</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.add_dask_args">add_dask_args() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.add_product_args">add_product_args() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.add_special_columns">add_special_columns() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.add_storage_args">add_storage_args() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.add_verbosity_args">add_verbosity_args() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.TimeSeriesRasterizer.aggregation">aggregation (gedih3.raster.timeseries.TimeSeriesRasterizer attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.ALIAS_GROUPS">ALIAS_GROUPS (in module gedih3.doctor.runner)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.Diagnosis.aliases">aliases (gedih3.doctor.runner.Diagnosis attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/spatial/index.html#gedih3.egi.spatial.aoi_tiles">aoi_tiles() (in module gedih3.egi.spatial)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Report.applied">applied (gedih3.doctor.report.Report attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.apply_merge_failures_to_logger">apply_merge_failures_to_logger() (in module gedih3.gh3builder)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.DoctorContext.args">args (gedih3.doctor.report.DoctorContext attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.atomic_parquet_write">atomic_parquet_write() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.AtomicFileWriter">AtomicFileWriter (class in gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/sqlutils/index.html#gedih3.sqlutils.attach_ducklake_db">attach_ducklake_db() (in module gedih3.sqlutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediDownloadError.attempts">attempts (gedih3.exceptions.GediDownloadError attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.GEDIAccessor.authenticated">authenticated (gedih3.daac.GEDIAccessor attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/upstream/index.html#gedih3.doctor.upstream.UpstreamReport.available_per_product">available_per_product (gedih3.doctor.upstream.UpstreamReport attribute)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="B">B</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/backfill/index.html#gedih3.doctor.diagnoses.backfill.backfill_check">backfill_check() (in module gedih3.doctor.diagnoses.backfill)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/backfill/index.html#gedih3.doctor.diagnoses.backfill.backfill_fix">backfill_fix() (in module gedih3.doctor.diagnoses.backfill)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.AtomicFileWriter.backup">backup (gedih3.utils.AtomicFileWriter attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.AtomicFileWriter.backup_path">backup_path (gedih3.utils.AtomicFileWriter attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.build_h3db">build_h3db() (in module gedih3.gh3builder)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.BUILD_LOG_FILENAME">BUILD_LOG_FILENAME (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.build_query_string">build_query_string() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.build_start_time">build_start_time (gedih3.logger.H3BuildLogger attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.build_temporal_query">build_temporal_query() (in module gedih3.raster.timeseries)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/export/index.html#gedih3.raster.export.build_vrt">build_vrt() (in module gedih3.raster.export)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="C">C</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.Diagnosis.check">check (gedih3.doctor.runner.Diagnosis attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/spatial/index.html#gedih3.egi.spatial.check_crs_limits">check_crs_limits() (in module gedih3.egi.spatial)</a>
+</li>
+      <li><a href="autoapi/gedih3/parallel/index.html#gedih3.parallel.check_manifest_freshness">check_manifest_freshness() (in module gedih3.parallel)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.check_nan_only_columns">check_nan_only_columns() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.check_soc_file_vars">check_soc_file_vars() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/upstream/index.html#gedih3.doctor.upstream.UpstreamReport.classifications">classifications (gedih3.doctor.upstream.UpstreamReport attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.cli_exception_handler">cli_exception_handler() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.collect_columns">collect_columns() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.TimeSeriesRasterizer.columns">columns (gedih3.raster.timeseries.TimeSeriesRasterizer attribute)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/raster/config/index.html#gedih3.raster.config.COMPRESSION_OPTIONS">COMPRESSION_OPTIONS (in module gedih3.raster.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/h3_raster/index.html#gedih3.raster.h3_raster.compute_raster_mosaic">compute_raster_mosaic() (in module gedih3.raster.h3_raster)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/export/index.html#gedih3.raster.export.compute_raster_stats">compute_raster_stats() (in module gedih3.raster.export)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.configure_database_path">configure_database_path() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.configure_environment">configure_environment() (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.configure_logging">configure_logging() (in module gedih3.logging_config)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.configure_storage">configure_storage() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.CONSOLE_FORMAT">CONSOLE_FORMAT (in module gedih3.logging_config)</a>
+</li>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.CONSOLE_FORMAT_VERBOSE">CONSOLE_FORMAT_VERBOSE (in module gedih3.logging_config)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.convert_delta_time_to_datetime">convert_delta_time_to_datetime() (in module gedih3.raster.timeseries)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="D">D</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.dask_h5_merged">dask_h5_merged() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.dask_safe_collect">dask_safe_collect() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.dask_safe_wait">dask_safe_wait() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.DATASET_META_FILENAME">DATASET_META_FILENAME (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.DATE_FORMAT">DATE_FORMAT (in module gedih3.logging_config)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/upstream/index.html#gedih3.doctor.upstream.UpstreamReport.db_granule_keys">db_granule_keys (gedih3.doctor.upstream.UpstreamReport attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/upstream/index.html#gedih3.doctor.upstream.UpstreamReport.db_per_product">db_per_product (gedih3.doctor.upstream.UpstreamReport attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.default_products">default_products (gedih3.logger.H3BuildLogger attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.Diagnosis.description">description (gedih3.doctor.runner.Diagnosis attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediTransactionError.dest_path">dest_path (gedih3.exceptions.GediTransactionError attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.detect_dataset_format">detect_dataset_format() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.dh3_merge_files">dh3_merge_files() (in module gedih3.gh3builder)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.dh3_merge_metadata">dh3_merge_metadata() (in module gedih3.gh3builder)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.Diagnosis">Diagnosis (class in gedih3.doctor.runner)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/inspect/index.html#gedih3.doctor.inspect.discover_partition_dirs">discover_partition_dirs() (in module gedih3.doctor.inspect)</a>
+</li>
+      <li><a href="autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.display_egi_resolutions">display_egi_resolutions() (in module gedih3.cli.gh3_list_resolutions)</a>
+</li>
+      <li><a href="autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.display_h3_resolutions">display_h3_resolutions() (in module gedih3.cli.gh3_list_resolutions)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.DoctorContext">DoctorContext (class in gedih3.doctor.report)</a>
+</li>
+      <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.GEDIAccessor.download_all">download_all() (gedih3.daac.GEDIAccessor method)</a>
+</li>
+      <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.DOWNLOAD_CONNECT_TIMEOUT_DEFAULT">DOWNLOAD_CONNECT_TIMEOUT_DEFAULT (in module gedih3.daac)</a>
+</li>
+      <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.download_custom_granule">download_custom_granule() (in module gedih3.daac)</a>
+</li>
+      <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.download_granule">download_granule() (in module gedih3.daac)</a>
+</li>
+      <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.DOWNLOAD_READ_TIMEOUT_DEFAULT">DOWNLOAD_READ_TIMEOUT_DEFAULT (in module gedih3.daac)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.download_soc">download_soc() (in module gedih3.gh3builder)</a>
+</li>
+      <li><a href="autoapi/gedih3/sqlutils/index.html#gedih3.sqlutils.duck_to_gdf">duck_to_gdf() (in module gedih3.sqlutils)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="E">E</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.egi_add_geometry">egi_add_geometry() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/dataframe/index.html#gedih3.egi.dataframe.egi_aggregate">egi_aggregate() (in module gedih3.egi.dataframe)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.egi_aggregate">(in module gedih3.gh3driver)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.egi_aggregate_func">egi_aggregate_func() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/dataframe/index.html#gedih3.egi.dataframe.egi_col_from_df">egi_col_from_df() (in module gedih3.egi.dataframe)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/config/index.html#gedih3.egi.config.egi_col_name">egi_col_name() (in module gedih3.egi.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/config/index.html#gedih3.egi.config.EGI_CRS">EGI_CRS (in module gedih3.egi.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/config/index.html#gedih3.egi.config.EGI_CRS_STRING">EGI_CRS_STRING (in module gedih3.egi.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/dataframe/index.html#gedih3.egi.dataframe.egi_dataframe">egi_dataframe() (in module gedih3.egi.dataframe)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/dataframe/index.html#gedih3.egi.dataframe.egi_dataframe_vectorized">egi_dataframe_vectorized() (in module gedih3.egi.dataframe)</a>
+</li>
+      <li><a href="autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.EGI_DESCRIPTIONS">EGI_DESCRIPTIONS (in module gedih3.cli.gh3_list_resolutions)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.egi_export_part">egi_export_part() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.egi_extract">egi_extract() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/dataframe/index.html#gedih3.egi.dataframe.egi_get_level_from_df">egi_get_level_from_df() (in module gedih3.egi.dataframe)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/spatial/index.html#gedih3.egi.spatial.egi_h3_intersection">egi_h3_intersection() (in module gedih3.egi.spatial)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.egi_load">egi_load() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.EGI_MAX_LEVEL">EGI_MAX_LEVEL (in module gedih3.validation)</a>
+</li>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.EGI_MIN_LEVEL">EGI_MIN_LEVEL (in module gedih3.validation)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/config/index.html#gedih3.egi.config.EGI_RES6">EGI_RES6 (in module gedih3.egi.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/dataframe/index.html#gedih3.egi.dataframe.egi_to_geo">egi_to_geo() (in module gedih3.egi.dataframe)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/dataframe/index.html#gedih3.egi.dataframe.egi_to_parent">egi_to_parent() (in module gedih3.egi.dataframe)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/dataframe/index.html#gedih3.egi.dataframe.egi_to_parent_vectorized">egi_to_parent_vectorized() (in module gedih3.egi.dataframe)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.EGIValidationError">EGIValidationError</a>
+</li>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.enable_debug">enable_debug() (in module gedih3.logging_config)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Severity.ERROR">ERROR (gedih3.doctor.report.Severity attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.expand_var_wildcards">expand_var_wildcards() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediIncompleteListingError.expected">expected (gedih3.exceptions.GediIncompleteListingError attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/cli/gh3_build/index.html#gedih3.cli.gh3_build.explicit_vars_missing_in_sample">explicit_vars_missing_in_sample() (in module gedih3.cli.gh3_build)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/raster/index.html#gedih3.egi.raster.export_raster">export_raster() (in module gedih3.egi.raster)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/raster/export/index.html#gedih3.raster.export.export_raster">(in module gedih3.raster.export)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/raster/export/index.html#gedih3.raster.export.export_raster_partition">export_raster_partition() (in module gedih3.raster.export)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="F">F</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.FILE_FORMAT">FILE_FORMAT (in module gedih3.logging_config)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediCorruptedFileError.file_path">file_path (gedih3.exceptions.GediCorruptedFileError attribute)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediHDF5Error.file_path">(gedih3.exceptions.GediHDF5Error attribute)</a>
+</li>
+        <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediParquetError.file_path">(gedih3.exceptions.GediParquetError attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.filter_by_time_range">filter_by_time_range() (in module gedih3.raster.timeseries)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.filter_data_columns">filter_data_columns() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.filter_raster_columns">filter_raster_columns() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.find_coordinate_column">find_coordinate_column() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Report.findings">findings (gedih3.doctor.report.Report attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.Diagnosis.fix">fix (gedih3.doctor.runner.Diagnosis attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/h3utils/index.html#gedih3.h3utils.fix_h3_geometry">fix_h3_geometry() (in module gedih3.h3utils)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.format_area">format_area() (in module gedih3.cli.gh3_list_resolutions)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.format_dask_cluster_info">format_dask_cluster_info() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.format_edge">format_edge() (in module gedih3.cli.gh3_list_resolutions)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.FORMAT_EXTENSIONS">FORMAT_EXTENSIONS (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.format_number">format_number() (in module gedih3.cli.gh3_list_resolutions)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.GEDIFile.from_filename">from_filename() (gedih3.gedidriver.GEDIFile class method)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.from_geojson">from_geojson() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/core/index.html#gedih3.egi.core.from_hash">from_hash() (in module gedih3.egi.core)</a>
+</li>
+      <li><a href="autoapi/gedih3/imgutils/index.html#gedih3.imgutils.from_image">from_image() (in module gedih3.imgutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/fused/index.html#gedih3.doctor.fused.fused_eligible_names">fused_eligible_names() (in module gedih3.doctor.fused)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/fused/index.html#gedih3.doctor.fused.fused_scan_partition">fused_scan_partition() (in module gedih3.doctor.fused)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="G">G</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/doctor/upstream/index.html#gedih3.doctor.upstream.gather_upstream">gather_upstream() (in module gedih3.doctor.upstream)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.TimeSeriesRasterizer.gdf">gdf (gedih3.raster.timeseries.TimeSeriesRasterizer attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/sqlutils/index.html#gedih3.sqlutils.gdf_to_duck">gdf_to_duck() (in module gedih3.sqlutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.GEDI_BEAMS">GEDI_BEAMS (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.gedi_download">gedi_download() (in module gedih3.daac)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.gedi_file_glob">gedi_file_glob() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.gedi_latest_version">gedi_latest_version() (in module gedih3.daac)</a>
+</li>
+      <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.gedi_list_versions">gedi_list_versions() (in module gedih3.daac)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.GEDI_MISSION_START">GEDI_MISSION_START (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.GEDI_PRODUCTS">GEDI_PRODUCTS (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.GEDI_START_DATE">GEDI_START_DATE (in module gedih3.config)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.GEDI_START_DATE">(in module gedih3.raster.timeseries)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/raster/config/index.html#gedih3.raster.config.GEDI_START_DATE_STR">GEDI_START_DATE_STR (in module gedih3.raster.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.gedi_subset">gedi_subset() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.gedi_vars_expand">gedi_vars_expand() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.gedi_vars_from_h5">gedi_vars_from_h5() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.gedi_vars_static">gedi_vars_static() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.gedi_version">gedi_version (gedih3.logger.SOCDownloadLogger attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.GEDIAccessor">GEDIAccessor (class in gedih3.daac)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediAggregationError">GediAggregationError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediAuthenticationError">GediAuthenticationError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediCorruptedFileError">GediCorruptedFileError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediDatabaseCorruptedError">GediDatabaseCorruptedError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediDatabaseError">GediDatabaseError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediDatabaseNotFoundError">GediDatabaseNotFoundError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediDownloadError">GediDownloadError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediError">GediError</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.GEDIFile">GEDIFile (class in gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediFileError">GediFileError</a>
+</li>
+      <li>
+    gedih3
+
+      <ul>
+        <li><a href="autoapi/gedih3/index.html#module-gedih3">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.cli
+
+      <ul>
+        <li><a href="autoapi/gedih3/cli/index.html#module-gedih3.cli">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.cli.gh3_aggregate
+
+      <ul>
+        <li><a href="autoapi/gedih3/cli/gh3_aggregate/index.html#module-gedih3.cli.gh3_aggregate">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.cli.gh3_build
+
+      <ul>
+        <li><a href="autoapi/gedih3/cli/gh3_build/index.html#module-gedih3.cli.gh3_build">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.cli.gh3_build_ducklake
+
+      <ul>
+        <li><a href="autoapi/gedih3/cli/gh3_build_ducklake/index.html#module-gedih3.cli.gh3_build_ducklake">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.cli.gh3_doctor
+
+      <ul>
+        <li><a href="autoapi/gedih3/cli/gh3_doctor/index.html#module-gedih3.cli.gh3_doctor">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.cli.gh3_download
+
+      <ul>
+        <li><a href="autoapi/gedih3/cli/gh3_download/index.html#module-gedih3.cli.gh3_download">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.cli.gh3_extract
+
+      <ul>
+        <li><a href="autoapi/gedih3/cli/gh3_extract/index.html#module-gedih3.cli.gh3_extract">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.cli.gh3_from_img
+
+      <ul>
+        <li><a href="autoapi/gedih3/cli/gh3_from_img/index.html#module-gedih3.cli.gh3_from_img">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.cli.gh3_from_polygon
+
+      <ul>
+        <li><a href="autoapi/gedih3/cli/gh3_from_polygon/index.html#module-gedih3.cli.gh3_from_polygon">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.cli.gh3_list_resolutions
+
+      <ul>
+        <li><a href="autoapi/gedih3/cli/gh3_list_resolutions/index.html#module-gedih3.cli.gh3_list_resolutions">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.cli.gh3_rasterize
+
+      <ul>
+        <li><a href="autoapi/gedih3/cli/gh3_rasterize/index.html#module-gedih3.cli.gh3_rasterize">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.cli.gh3_read_schema
+
+      <ul>
+        <li><a href="autoapi/gedih3/cli/gh3_read_schema/index.html#module-gedih3.cli.gh3_read_schema">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.cli.gh3_update
+
+      <ul>
+        <li><a href="autoapi/gedih3/cli/gh3_update/index.html#module-gedih3.cli.gh3_update">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.cliutils
+
+      <ul>
+        <li><a href="autoapi/gedih3/cliutils/index.html#module-gedih3.cliutils">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.config
+
+      <ul>
+        <li><a href="autoapi/gedih3/config/index.html#module-gedih3.config">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.daac
+
+      <ul>
+        <li><a href="autoapi/gedih3/daac/index.html#module-gedih3.daac">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/index.html#module-gedih3.doctor">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.diagnoses
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/index.html#module-gedih3.doctor.diagnoses">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.diagnoses.backfill
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/backfill/index.html#module-gedih3.doctor.diagnoses.backfill">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.diagnoses.geoparquet_bbox
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/geoparquet_bbox/index.html#module-gedih3.doctor.diagnoses.geoparquet_bbox">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.diagnoses.log_state
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/log_state/index.html#module-gedih3.doctor.diagnoses.log_state">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.diagnoses.metadata
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/metadata/index.html#module-gedih3.doctor.diagnoses.metadata">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.diagnoses.orphans
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/orphans/index.html#module-gedih3.doctor.diagnoses.orphans">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.diagnoses.parquet_health
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/parquet_health/index.html#module-gedih3.doctor.diagnoses.parquet_health">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.diagnoses.soc_health
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/soc_health/index.html#module-gedih3.doctor.diagnoses.soc_health">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.diagnoses.tmp_partitions_health
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/tmp_partitions_health/index.html#module-gedih3.doctor.diagnoses.tmp_partitions_health">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.fused
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/fused/index.html#module-gedih3.doctor.fused">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.inspect
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/inspect/index.html#module-gedih3.doctor.inspect">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.parallel
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/parallel/index.html#module-gedih3.doctor.parallel">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.parquet_ops
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/parquet_ops/index.html#module-gedih3.doctor.parquet_ops">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.report
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/report/index.html#module-gedih3.doctor.report">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.runner
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/runner/index.html#module-gedih3.doctor.runner">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.doctor.upstream
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/upstream/index.html#module-gedih3.doctor.upstream">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.egi
+
+      <ul>
+        <li><a href="autoapi/gedih3/egi/index.html#module-gedih3.egi">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.egi.config
+
+      <ul>
+        <li><a href="autoapi/gedih3/egi/config/index.html#module-gedih3.egi.config">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.egi.core
+
+      <ul>
+        <li><a href="autoapi/gedih3/egi/core/index.html#module-gedih3.egi.core">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.egi.dataframe
+
+      <ul>
+        <li><a href="autoapi/gedih3/egi/dataframe/index.html#module-gedih3.egi.dataframe">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.egi.raster
+
+      <ul>
+        <li><a href="autoapi/gedih3/egi/raster/index.html#module-gedih3.egi.raster">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.egi.spatial
+
+      <ul>
+        <li><a href="autoapi/gedih3/egi/spatial/index.html#module-gedih3.egi.spatial">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.exceptions
+
+      <ul>
+        <li><a href="autoapi/gedih3/exceptions/index.html#module-gedih3.exceptions">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.gedidriver
+
+      <ul>
+        <li><a href="autoapi/gedih3/gedidriver/index.html#module-gedih3.gedidriver">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.gh3builder
+
+      <ul>
+        <li><a href="autoapi/gedih3/gh3builder/index.html#module-gedih3.gh3builder">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.gh3driver
+
+      <ul>
+        <li><a href="autoapi/gedih3/gh3driver/index.html#module-gedih3.gh3driver">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.h3utils
+
+      <ul>
+        <li><a href="autoapi/gedih3/h3utils/index.html#module-gedih3.h3utils">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.imgutils
+
+      <ul>
+        <li><a href="autoapi/gedih3/imgutils/index.html#module-gedih3.imgutils">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.logger
+
+      <ul>
+        <li><a href="autoapi/gedih3/logger/index.html#module-gedih3.logger">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.logging_config
+
+      <ul>
+        <li><a href="autoapi/gedih3/logging_config/index.html#module-gedih3.logging_config">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.parallel
+
+      <ul>
+        <li><a href="autoapi/gedih3/parallel/index.html#module-gedih3.parallel">module</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li>
+    gedih3.raster
+
+      <ul>
+        <li><a href="autoapi/gedih3/raster/index.html#module-gedih3.raster">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.raster.config
+
+      <ul>
+        <li><a href="autoapi/gedih3/raster/config/index.html#module-gedih3.raster.config">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.raster.export
+
+      <ul>
+        <li><a href="autoapi/gedih3/raster/export/index.html#module-gedih3.raster.export">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.raster.h3_raster
+
+      <ul>
+        <li><a href="autoapi/gedih3/raster/h3_raster/index.html#module-gedih3.raster.h3_raster">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.raster.timeseries
+
+      <ul>
+        <li><a href="autoapi/gedih3/raster/timeseries/index.html#module-gedih3.raster.timeseries">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.sqlutils
+
+      <ul>
+        <li><a href="autoapi/gedih3/sqlutils/index.html#module-gedih3.sqlutils">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.utils
+
+      <ul>
+        <li><a href="autoapi/gedih3/utils/index.html#module-gedih3.utils">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.validation
+
+      <ul>
+        <li><a href="autoapi/gedih3/validation/index.html#module-gedih3.validation">module</a>
+</li>
+      </ul></li>
+      <li>
+    gedih3.vecutils
+
+      <ul>
+        <li><a href="autoapi/gedih3/vecutils/index.html#module-gedih3.vecutils">module</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediHDF5Error">GediHDF5Error</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediImageSamplingError">GediImageSamplingError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediIncompleteListingError">GediIncompleteListingError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediMergeError">GediMergeError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediNetworkError">GediNetworkError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediParquetError">GediParquetError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediProcessingError">GediProcessingError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediProductError">GediProductError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediRasterizationError">GediRasterizationError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediS3AccessError">GediS3AccessError</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.GEDIShot">GEDIShot (class in gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediSpatialError">GediSpatialError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediSpatialJoinError">GediSpatialJoinError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediTemporalError">GediTemporalError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediTransactionError">GediTransactionError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediValidationError">GediValidationError</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediVariableError">GediVariableError</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.TimeSeriesRasterizer.generate">generate() (gedih3.raster.timeseries.TimeSeriesRasterizer method)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.generate_manifest">generate_manifest() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.generate_time_windows">generate_time_windows() (in module gedih3.raster.timeseries)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.geo_to_umm">geo_to_umm() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/raster/index.html#gedih3.egi.raster.geodf_to_raster">geodf_to_raster() (in module gedih3.egi.raster)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/geoparquet_bbox/index.html#gedih3.doctor.diagnoses.geoparquet_bbox.geoparquet_bbox_check">geoparquet_bbox_check() (in module gedih3.doctor.diagnoses.geoparquet_bbox)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/geoparquet_bbox/index.html#gedih3.doctor.diagnoses.geoparquet_bbox.geoparquet_bbox_fix">geoparquet_bbox_fix() (in module gedih3.doctor.diagnoses.geoparquet_bbox)</a>
+</li>
+      <li><a href="autoapi/gedih3/sqlutils/index.html#gedih3.sqlutils.geoseries_to_cells">geoseries_to_cells() (in module gedih3.sqlutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/sqlutils/index.html#gedih3.sqlutils.geoseries_to_filter">geoseries_to_filter() (in module gedih3.sqlutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/config/index.html#gedih3.raster.config.GEOTIFF_DEFAULTS">GEOTIFF_DEFAULTS (in module gedih3.raster.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.get_aggregatable_columns">get_aggregatable_columns() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/h3utils/index.html#gedih3.h3utils.get_all_h3_hexagons">get_all_h3_hexagons() (in module gedih3.h3utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/core/index.html#gedih3.egi.core.get_children">get_children() (in module gedih3.egi.core)</a>
+</li>
+      <li><a href="autoapi/gedih3/cli/gh3_aggregate/index.html#gedih3.cli.gh3_aggregate.get_cmd_args">get_cmd_args() (in module gedih3.cli.gh3_aggregate)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/cli/gh3_build/index.html#gedih3.cli.gh3_build.get_cmd_args">(in module gedih3.cli.gh3_build)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_build_ducklake/index.html#gedih3.cli.gh3_build_ducklake.get_cmd_args">(in module gedih3.cli.gh3_build_ducklake)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_doctor/index.html#gedih3.cli.gh3_doctor.get_cmd_args">(in module gedih3.cli.gh3_doctor)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_download/index.html#gedih3.cli.gh3_download.get_cmd_args">(in module gedih3.cli.gh3_download)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_extract/index.html#gedih3.cli.gh3_extract.get_cmd_args">(in module gedih3.cli.gh3_extract)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_from_img/index.html#gedih3.cli.gh3_from_img.get_cmd_args">(in module gedih3.cli.gh3_from_img)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_from_polygon/index.html#gedih3.cli.gh3_from_polygon.get_cmd_args">(in module gedih3.cli.gh3_from_polygon)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.get_cmd_args">(in module gedih3.cli.gh3_list_resolutions)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_rasterize/index.html#gedih3.cli.gh3_rasterize.get_cmd_args">(in module gedih3.cli.gh3_rasterize)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_read_schema/index.html#gedih3.cli.gh3_read_schema.get_cmd_args">(in module gedih3.cli.gh3_read_schema)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_update/index.html#gedih3.cli.gh3_update.get_cmd_args">(in module gedih3.cli.gh3_update)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.get_dask_client">get_dask_client() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.get_dataset_index_info">get_dataset_index_info() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.get_default_vars_file">get_default_vars_file() (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.get_diagnoses">get_diagnoses() (in module gedih3.doctor.runner)</a>
+</li>
+      <li><a href="autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.get_egi_resolution_info">get_egi_resolution_info() (in module gedih3.cli.gh3_list_resolutions)</a>
+</li>
+      <li><a href="autoapi/gedih3/cli/gh3_build_ducklake/index.html#gedih3.cli.gh3_build_ducklake.get_file_list">get_file_list() (in module gedih3.cli.gh3_build_ducklake)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.get_finished_granules">get_finished_granules() (gedih3.logger.H3BuildLogger method)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.get_finished_granules">(gedih3.logger.SOCDownloadLogger method)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/raster/config/index.html#gedih3.raster.config.get_geotiff_options">get_geotiff_options() (in module gedih3.raster.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.GEDIFile.get_glob_pattern">get_glob_pattern() (gedih3.gedidriver.GEDIFile method)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.GEDIShot.get_glob_pattern">(gedih3.gedidriver.GEDIShot method)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.get_granule_product_status">get_granule_product_status() (gedih3.logger.H3BuildLogger method)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/h3_raster/index.html#gedih3.raster.h3_raster.get_h3_raster_resolution">get_h3_raster_resolution() (in module gedih3.raster.h3_raster)</a>
+</li>
+      <li><a href="autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.get_h3_resolution_info">get_h3_resolution_info() (in module gedih3.cli.gh3_list_resolutions)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/h3_raster/index.html#gedih3.raster.h3_raster.get_h3_resolution_meters">get_h3_resolution_meters() (in module gedih3.raster.h3_raster)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/core/index.html#gedih3.egi.core.get_level">get_level() (in module gedih3.egi.core)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/config/index.html#gedih3.egi.config.get_level_from_resolution">get_level_from_resolution() (in module gedih3.egi.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.get_logger">get_logger() (in module gedih3.logging_config)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.get_numeric_columns">get_numeric_columns() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/h3_raster/index.html#gedih3.raster.h3_raster.get_optimal_utm">get_optimal_utm() (in module gedih3.raster.h3_raster)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.get_package_data_path">get_package_data_path() (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.get_package_version">get_package_version() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.get_product_gaps">get_product_gaps() (gedih3.logger.H3BuildLogger method)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.get_product_quality_conditions">get_product_quality_conditions() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.get_product_vars">get_product_vars() (gedih3.logger.H3BuildLogger method)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.get_product_vars">(gedih3.logger.SOCDownloadLogger method)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/imgutils/index.html#gedih3.imgutils.get_raster_info">get_raster_info() (in module gedih3.imgutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/raster/index.html#gedih3.egi.raster.get_raster_profile">get_raster_profile() (in module gedih3.egi.raster)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.get_rasterizable_columns">get_rasterizable_columns() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/config/index.html#gedih3.egi.config.get_resolution">get_resolution() (in module gedih3.egi.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/core/index.html#gedih3.egi.core.get_scale">get_scale() (in module gedih3.egi.core)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.get_spatial">get_spatial() (gedih3.logger.H3BuildLogger method)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.get_spatial">(gedih3.logger.SOCDownloadLogger method)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.get_spatial_index_type">get_spatial_index_type() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.get_storage_options">get_storage_options() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.get_system_resources">get_system_resources() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.get_temporal">get_temporal() (gedih3.logger.H3BuildLogger method)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.get_temporal">(gedih3.logger.SOCDownloadLogger method)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/vecutils/index.html#gedih3.vecutils.get_vector_info">get_vector_info() (in module gedih3.vecutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_add_geometry">gh3_add_geometry() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_aggregate">gh3_aggregate() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_aggregate_func">gh3_aggregate_func() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.GH3_DEFAULT_DOWNLOAD_DIR">GH3_DEFAULT_DOWNLOAD_DIR (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.GH3_DEFAULT_H3_DIR">GH3_DEFAULT_H3_DIR (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.GH3_DEFAULT_SOC_DIR">GH3_DEFAULT_SOC_DIR (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.GH3_DEFAULT_TMP_DIR">GH3_DEFAULT_TMP_DIR (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_export">gh3_export() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_export_part">gh3_export_part() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_list_files">gh3_list_files() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_list_parts">gh3_list_parts() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_load">gh3_load() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_load_hex">gh3_load_hex() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_part_from_df">gh3_part_from_df() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_rasterize_partitions">gh3_rasterize_partitions() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_read_meta">gh3_read_meta() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_reindex">gh3_reindex() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_sample_raster">gh3_sample_raster() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_select_partitions">gh3_select_partitions() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_set_db_path">gh3_set_db_path() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_to_raster">gh3_to_raster() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_write_dataset_meta">gh3_write_dataset_meta() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_write_meta">gh3_write_meta() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediDownloadError.granule_id">granule_id (gedih3.exceptions.GediDownloadError attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/backfill/index.html#gedih3.doctor.diagnoses.backfill.GranuleKey">GranuleKey (in module gedih3.doctor.diagnoses.backfill)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/inspect/index.html#gedih3.doctor.inspect.GranuleKey">(in module gedih3.doctor.inspect)</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/upstream/index.html#gedih3.doctor.upstream.GranuleKey">(in module gedih3.doctor.upstream)</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="H">H</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.h3_add_skip_column">h3_add_skip_column() (in module gedih3.gh3builder)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.h3_col_name">h3_col_name() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.DoctorContext.h3_dir">h3_dir (gedih3.doctor.report.DoctorContext attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/h3utils/index.html#gedih3.h3utils.h3_expand_ring">h3_expand_ring() (in module gedih3.h3utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/h3utils/index.html#gedih3.h3utils.h3_index_df">h3_index_df() (in module gedih3.h3utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.DoctorContext.h3_logger">h3_logger (gedih3.doctor.report.DoctorContext attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.H3_MAX_RESOLUTION">H3_MAX_RESOLUTION (in module gedih3.validation)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.h3_merge_files">h3_merge_files() (in module gedih3.gh3builder)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.h3_merge_metadata">h3_merge_metadata() (in module gedih3.gh3builder)</a>
+</li>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.H3_MIN_RESOLUTION">H3_MIN_RESOLUTION (in module gedih3.validation)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.h3_part_files">h3_part_files() (in module gedih3.gh3builder)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.h3_partition_bbox">h3_partition_bbox() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/h3utils/index.html#gedih3.h3utils.h3_parts_to_gdf">h3_parts_to_gdf() (in module gedih3.h3utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/config/index.html#gedih3.raster.config.H3_RASTER_CRS">H3_RASTER_CRS (in module gedih3.raster.config)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.h3_read_metadata">h3_read_metadata() (in module gedih3.gh3builder)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.h3_skip_part">h3_skip_part() (in module gedih3.gh3builder)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/h3_raster/index.html#gedih3.raster.h3_raster.h3_to_raster">h3_to_raster() (in module gedih3.raster.h3_raster)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.h3_write_metadata">h3_write_metadata() (in module gedih3.gh3builder)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger">H3BuildLogger (class in gedih3.logger)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.H3ValidationError">H3ValidationError</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.h5_copy_subset">h5_copy_subset() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.h5_info">h5_info() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.h5_is_valid">h5_is_valid() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.h5_meta">h5_meta() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.h5_traverse">h5_traverse() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.h5_var">h5_var() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Report.has_findings">has_findings (gedih3.doctor.report.Report property)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/core/index.html#gedih3.egi.core.hasher">hasher() (in module gedih3.egi.core)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="I">I</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Severity.INFO">INFO (gedih3.doctor.report.Severity attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/sqlutils/index.html#gedih3.sqlutils.init_duckdb">init_duckdb() (in module gedih3.sqlutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/config/index.html#gedih3.egi.config.INT_MAX">INT_MAX (in module gedih3.egi.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.INTERNAL_COLUMN_PATTERNS">INTERNAL_COLUMN_PATTERNS (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/h3utils/index.html#gedih3.h3utils.intersect_h3_geometries">intersect_h3_geometries() (in module gedih3.h3utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Report.is_clean">is_clean (gedih3.doctor.report.Report property)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.is_egi_indexed">is_egi_indexed() (in module gedih3.gh3driver)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.is_hive_directory">is_hive_directory() (in module gedih3.utils)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.is_internal_column">is_internal_column() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.is_parquet">is_parquet() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/config/index.html#gedih3.raster.config.is_raster_format">is_raster_format() (in module gedih3.raster.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.is_remote_path">is_remote_path() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.is_retryable_error">is_retryable_error() (in module gedih3.exceptions)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.is_up_to_date">is_up_to_date() (gedih3.logger.H3BuildLogger method)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.ISO3_COUNTRIES_URL">ISO3_COUNTRIES_URL (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/h3utils/index.html#gedih3.h3utils.iter_all_h3_hexagons">iter_all_h3_hexagons() (in module gedih3.h3utils)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="J">J</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/vecutils/index.html#gedih3.vecutils.join_polygons_to_points">join_polygons_to_points() (in module gedih3.vecutils)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.json_read">json_read() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.json_write">json_write() (in module gedih3.utils)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="L">L</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.LoggingContext.level">level (gedih3.logging_config.LoggingContext attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/config/index.html#gedih3.egi.config.LIMITS">LIMITS (in module gedih3.egi.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.GEDIAccessor.link_s3">link_s3() (gedih3.daac.GEDIAccessor method)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.list_dataset_files">list_dataset_files() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/parallel/index.html#gedih3.doctor.parallel.list_year_dirs">list_year_dirs() (in module gedih3.doctor.parallel)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.load_data_from_source">load_data_from_source() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.load_h5">load_h5() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.load_h5_merged">load_h5_merged() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.load_log_data">load_log_data() (in module gedih3.logger)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/inspect/index.html#gedih3.doctor.inspect.load_partition_meta">load_partition_meta() (in module gedih3.doctor.inspect)</a>
+</li>
+      <li><a href="autoapi/gedih3/vecutils/index.html#gedih3.vecutils.load_vector">load_vector() (in module gedih3.vecutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.log_data">log_data (gedih3.logger.H3BuildLogger attribute)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.log_data">(gedih3.logger.SOCDownloadLogger attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.log_file">log_file (gedih3.logger.H3BuildLogger attribute)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.log_file">(gedih3.logger.SOCDownloadLogger attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/log_state/index.html#gedih3.doctor.diagnoses.log_state.log_state_check">log_state_check() (in module gedih3.doctor.diagnoses.log_state)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/log_state/index.html#gedih3.doctor.diagnoses.log_state.log_state_fix">log_state_fix() (in module gedih3.doctor.diagnoses.log_state)</a>
+</li>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.LoggingContext.logger">logger (gedih3.logging_config.LoggingContext attribute)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.logger">(in module gedih3.daac)</a>
+</li>
+        <li><a href="autoapi/gedih3/egi/raster/index.html#gedih3.egi.raster.logger">(in module gedih3.egi.raster)</a>
+</li>
+        <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.logger">(in module gedih3.gedidriver)</a>
+</li>
+        <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.logger">(in module gedih3.gh3builder)</a>
+</li>
+        <li><a href="autoapi/gedih3/imgutils/index.html#gedih3.imgutils.logger">(in module gedih3.imgutils)</a>
+</li>
+        <li><a href="autoapi/gedih3/parallel/index.html#gedih3.parallel.logger">(in module gedih3.parallel)</a>
+</li>
+        <li><a href="autoapi/gedih3/vecutils/index.html#gedih3.vecutils.logger">(in module gedih3.vecutils)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.LoggingContext">LoggingContext (class in gedih3.logging_config)</a>
+</li>
+      <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.GEDIAccessor.login">login() (gedih3.daac.GEDIAccessor method)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="M">M</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/cli/gh3_aggregate/index.html#gedih3.cli.gh3_aggregate.main">main() (in module gedih3.cli.gh3_aggregate)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/cli/gh3_build/index.html#gedih3.cli.gh3_build.main">(in module gedih3.cli.gh3_build)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_build_ducklake/index.html#gedih3.cli.gh3_build_ducklake.main">(in module gedih3.cli.gh3_build_ducklake)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_doctor/index.html#gedih3.cli.gh3_doctor.main">(in module gedih3.cli.gh3_doctor)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_download/index.html#gedih3.cli.gh3_download.main">(in module gedih3.cli.gh3_download)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_extract/index.html#gedih3.cli.gh3_extract.main">(in module gedih3.cli.gh3_extract)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_from_img/index.html#gedih3.cli.gh3_from_img.main">(in module gedih3.cli.gh3_from_img)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_from_polygon/index.html#gedih3.cli.gh3_from_polygon.main">(in module gedih3.cli.gh3_from_polygon)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.main">(in module gedih3.cli.gh3_list_resolutions)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_rasterize/index.html#gedih3.cli.gh3_rasterize.main">(in module gedih3.cli.gh3_rasterize)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_read_schema/index.html#gedih3.cli.gh3_read_schema.main">(in module gedih3.cli.gh3_read_schema)</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_update/index.html#gedih3.cli.gh3_update.main">(in module gedih3.cli.gh3_update)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.make_dataset_reader">make_dataset_reader() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cli/gh3_build/index.html#gedih3.cli.gh3_build.manifest_check_scope">manifest_check_scope() (in module gedih3.cli.gh3_build)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.MANIFEST_FILENAME">MANIFEST_FILENAME (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.mark_granule_product">mark_granule_product() (gedih3.logger.H3BuildLogger method)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/export/index.html#gedih3.raster.export.merge_and_export_rasters">merge_and_export_rasters() (in module gedih3.raster.export)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.merge_build_logs">merge_build_logs() (in module gedih3.gh3builder)</a>
+</li>
+      <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.GEDIAccessor.merge_paths">merge_paths() (gedih3.daac.GEDIAccessor method)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.merge_product_vars">merge_product_vars() (in module gedih3.logger)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/raster/index.html#gedih3.egi.raster.merge_raster_partitions">merge_raster_partitions() (in module gedih3.egi.raster)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.merge_spatial">merge_spatial() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.merge_temporal">merge_temporal() (in module gedih3.logger)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/metadata/index.html#gedih3.doctor.diagnoses.metadata.metadata_check">metadata_check() (in module gedih3.doctor.diagnoses.metadata)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/metadata/index.html#gedih3.doctor.diagnoses.metadata.metadata_fix">metadata_fix() (in module gedih3.doctor.diagnoses.metadata)</a>
+</li>
+      <li>
+    module
+
+      <ul>
+        <li><a href="autoapi/gedih3/index.html#module-gedih3">gedih3</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/index.html#module-gedih3.cli">gedih3.cli</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_aggregate/index.html#module-gedih3.cli.gh3_aggregate">gedih3.cli.gh3_aggregate</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_build/index.html#module-gedih3.cli.gh3_build">gedih3.cli.gh3_build</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_build_ducklake/index.html#module-gedih3.cli.gh3_build_ducklake">gedih3.cli.gh3_build_ducklake</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_doctor/index.html#module-gedih3.cli.gh3_doctor">gedih3.cli.gh3_doctor</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_download/index.html#module-gedih3.cli.gh3_download">gedih3.cli.gh3_download</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_extract/index.html#module-gedih3.cli.gh3_extract">gedih3.cli.gh3_extract</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_from_img/index.html#module-gedih3.cli.gh3_from_img">gedih3.cli.gh3_from_img</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_from_polygon/index.html#module-gedih3.cli.gh3_from_polygon">gedih3.cli.gh3_from_polygon</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_list_resolutions/index.html#module-gedih3.cli.gh3_list_resolutions">gedih3.cli.gh3_list_resolutions</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_rasterize/index.html#module-gedih3.cli.gh3_rasterize">gedih3.cli.gh3_rasterize</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_read_schema/index.html#module-gedih3.cli.gh3_read_schema">gedih3.cli.gh3_read_schema</a>
+</li>
+        <li><a href="autoapi/gedih3/cli/gh3_update/index.html#module-gedih3.cli.gh3_update">gedih3.cli.gh3_update</a>
+</li>
+        <li><a href="autoapi/gedih3/cliutils/index.html#module-gedih3.cliutils">gedih3.cliutils</a>
+</li>
+        <li><a href="autoapi/gedih3/config/index.html#module-gedih3.config">gedih3.config</a>
+</li>
+        <li><a href="autoapi/gedih3/daac/index.html#module-gedih3.daac">gedih3.daac</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/index.html#module-gedih3.doctor">gedih3.doctor</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/index.html#module-gedih3.doctor.diagnoses">gedih3.doctor.diagnoses</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/backfill/index.html#module-gedih3.doctor.diagnoses.backfill">gedih3.doctor.diagnoses.backfill</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/geoparquet_bbox/index.html#module-gedih3.doctor.diagnoses.geoparquet_bbox">gedih3.doctor.diagnoses.geoparquet_bbox</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/log_state/index.html#module-gedih3.doctor.diagnoses.log_state">gedih3.doctor.diagnoses.log_state</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/metadata/index.html#module-gedih3.doctor.diagnoses.metadata">gedih3.doctor.diagnoses.metadata</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/orphans/index.html#module-gedih3.doctor.diagnoses.orphans">gedih3.doctor.diagnoses.orphans</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/parquet_health/index.html#module-gedih3.doctor.diagnoses.parquet_health">gedih3.doctor.diagnoses.parquet_health</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/soc_health/index.html#module-gedih3.doctor.diagnoses.soc_health">gedih3.doctor.diagnoses.soc_health</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/diagnoses/tmp_partitions_health/index.html#module-gedih3.doctor.diagnoses.tmp_partitions_health">gedih3.doctor.diagnoses.tmp_partitions_health</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/fused/index.html#module-gedih3.doctor.fused">gedih3.doctor.fused</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/inspect/index.html#module-gedih3.doctor.inspect">gedih3.doctor.inspect</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/parallel/index.html#module-gedih3.doctor.parallel">gedih3.doctor.parallel</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/parquet_ops/index.html#module-gedih3.doctor.parquet_ops">gedih3.doctor.parquet_ops</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/report/index.html#module-gedih3.doctor.report">gedih3.doctor.report</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/runner/index.html#module-gedih3.doctor.runner">gedih3.doctor.runner</a>
+</li>
+        <li><a href="autoapi/gedih3/doctor/upstream/index.html#module-gedih3.doctor.upstream">gedih3.doctor.upstream</a>
+</li>
+        <li><a href="autoapi/gedih3/egi/index.html#module-gedih3.egi">gedih3.egi</a>
+</li>
+        <li><a href="autoapi/gedih3/egi/config/index.html#module-gedih3.egi.config">gedih3.egi.config</a>
+</li>
+        <li><a href="autoapi/gedih3/egi/core/index.html#module-gedih3.egi.core">gedih3.egi.core</a>
+</li>
+        <li><a href="autoapi/gedih3/egi/dataframe/index.html#module-gedih3.egi.dataframe">gedih3.egi.dataframe</a>
+</li>
+        <li><a href="autoapi/gedih3/egi/raster/index.html#module-gedih3.egi.raster">gedih3.egi.raster</a>
+</li>
+        <li><a href="autoapi/gedih3/egi/spatial/index.html#module-gedih3.egi.spatial">gedih3.egi.spatial</a>
+</li>
+        <li><a href="autoapi/gedih3/exceptions/index.html#module-gedih3.exceptions">gedih3.exceptions</a>
+</li>
+        <li><a href="autoapi/gedih3/gedidriver/index.html#module-gedih3.gedidriver">gedih3.gedidriver</a>
+</li>
+        <li><a href="autoapi/gedih3/gh3builder/index.html#module-gedih3.gh3builder">gedih3.gh3builder</a>
+</li>
+        <li><a href="autoapi/gedih3/gh3driver/index.html#module-gedih3.gh3driver">gedih3.gh3driver</a>
+</li>
+        <li><a href="autoapi/gedih3/h3utils/index.html#module-gedih3.h3utils">gedih3.h3utils</a>
+</li>
+        <li><a href="autoapi/gedih3/imgutils/index.html#module-gedih3.imgutils">gedih3.imgutils</a>
+</li>
+        <li><a href="autoapi/gedih3/logger/index.html#module-gedih3.logger">gedih3.logger</a>
+</li>
+        <li><a href="autoapi/gedih3/logging_config/index.html#module-gedih3.logging_config">gedih3.logging_config</a>
+</li>
+        <li><a href="autoapi/gedih3/parallel/index.html#module-gedih3.parallel">gedih3.parallel</a>
+</li>
+        <li><a href="autoapi/gedih3/raster/index.html#module-gedih3.raster">gedih3.raster</a>
+</li>
+        <li><a href="autoapi/gedih3/raster/config/index.html#module-gedih3.raster.config">gedih3.raster.config</a>
+</li>
+        <li><a href="autoapi/gedih3/raster/export/index.html#module-gedih3.raster.export">gedih3.raster.export</a>
+</li>
+        <li><a href="autoapi/gedih3/raster/h3_raster/index.html#module-gedih3.raster.h3_raster">gedih3.raster.h3_raster</a>
+</li>
+        <li><a href="autoapi/gedih3/raster/timeseries/index.html#module-gedih3.raster.timeseries">gedih3.raster.timeseries</a>
+</li>
+        <li><a href="autoapi/gedih3/sqlutils/index.html#module-gedih3.sqlutils">gedih3.sqlutils</a>
+</li>
+        <li><a href="autoapi/gedih3/utils/index.html#module-gedih3.utils">gedih3.utils</a>
+</li>
+        <li><a href="autoapi/gedih3/validation/index.html#module-gedih3.validation">gedih3.validation</a>
+</li>
+        <li><a href="autoapi/gedih3/vecutils/index.html#module-gedih3.vecutils">gedih3.vecutils</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="N">N</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Report.name">name (gedih3.doctor.report.Report attribute)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.Diagnosis.name">(gedih3.doctor.runner.Diagnosis attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.new_product_vars">new_product_vars (gedih3.logger.H3BuildLogger attribute)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.new_product_vars">(gedih3.logger.SOCDownloadLogger attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.new_spatial">new_spatial (gedih3.logger.H3BuildLogger attribute)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.new_spatial">(gedih3.logger.SOCDownloadLogger attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.new_temporal">new_temporal (gedih3.logger.H3BuildLogger attribute)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.new_temporal">(gedih3.logger.SOCDownloadLogger attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.now">now() (in module gedih3.utils)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="O">O</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.LoggingContext.old_level">old_level (gedih3.logging_config.LoggingContext attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/orphans/index.html#gedih3.doctor.diagnoses.orphans.orphans_check">orphans_check() (in module gedih3.doctor.diagnoses.orphans)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/orphans/index.html#gedih3.doctor.diagnoses.orphans.orphans_fix">orphans_fix() (in module gedih3.doctor.diagnoses.orphans)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/config/index.html#gedih3.egi.config.OUTER_LEVEL">OUTER_LEVEL (in module gedih3.egi.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/config/index.html#gedih3.egi.config.OUTER_RES">OUTER_RES (in module gedih3.egi.config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="P">P</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/parallel/index.html#gedih3.parallel.parallel_map">parallel_map() (in module gedih3.parallel)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.EGIValidationError.param_name">param_name (gedih3.exceptions.EGIValidationError attribute)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.H3ValidationError.param_name">(gedih3.exceptions.H3ValidationError attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.parquet_append_columns">parquet_append_columns() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.parquet_backfill_bbox">parquet_backfill_bbox() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/parquet_ops/index.html#gedih3.doctor.parquet_ops.parquet_dedup_partition">parquet_dedup_partition() (in module gedih3.doctor.parquet_ops)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/parquet_ops/index.html#gedih3.doctor.parquet_ops.parquet_fill_columns">parquet_fill_columns() (in module gedih3.doctor.parquet_ops)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/parquet_health/index.html#gedih3.doctor.diagnoses.parquet_health.parquet_health_check">parquet_health_check() (in module gedih3.doctor.diagnoses.parquet_health)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/parquet_health/index.html#gedih3.doctor.diagnoses.parquet_health.parquet_health_fix">parquet_health_fix() (in module gedih3.doctor.diagnoses.parquet_health)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.parquet_join_columns">parquet_join_columns() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.parquet_merge_files">parquet_merge_files() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.parquet_schema_add_bbox">parquet_schema_add_bbox() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.parse_aggregation">parse_aggregation() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.parse_dask_args">parse_dask_args() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.parse_datetime_column">parse_datetime_column() (in module gedih3.raster.timeseries)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.parse_egi_levels">parse_egi_levels() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.GEDIFile.parse_file">parse_file() (gedih3.gedidriver.GEDIFile method)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.parse_file_format">parse_file_format() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.parse_gedi_args">parse_gedi_args() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.parse_h3_partition_dirname">parse_h3_partition_dirname() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.parse_region">parse_region() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.GEDIShot.parse_shot">parse_shot() (gedih3.gedidriver.GEDIShot method)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.parse_spatial">parse_spatial() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.parse_temporal">parse_temporal() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/imgutils/index.html#gedih3.imgutils.parse_window_specs">parse_window_specs() (in module gedih3.imgutils)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.DoctorContext.partition_dirs">partition_dirs (gedih3.doctor.report.DoctorContext attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/parallel/index.html#gedih3.doctor.parallel.partition_is_empty">partition_is_empty() (in module gedih3.doctor.parallel)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/inspect/index.html#gedih3.doctor.inspect.partition_meta_file">partition_meta_file() (in module gedih3.doctor.inspect)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.PARTITION_META_FILENAME">PARTITION_META_FILENAME (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/inspect/index.html#gedih3.doctor.inspect.partition_parquet_files">partition_parquet_files() (in module gedih3.doctor.inspect)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/inspect/index.html#gedih3.doctor.inspect.per_granule_null_counts">per_granule_null_counts() (in module gedih3.doctor.inspect)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.PIPELINE_FORMATS">PIPELINE_FORMATS (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/spatial/index.html#gedih3.egi.spatial.pixel_coordinate">pixel_coordinate() (in module gedih3.egi.spatial)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/spatial/index.html#gedih3.egi.spatial.pixel_coordinates">pixel_coordinates() (in module gedih3.egi.spatial)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/spatial/index.html#gedih3.egi.spatial.pixel_ring">pixel_ring() (in module gedih3.egi.spatial)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/spatial/index.html#gedih3.egi.spatial.pixel_shape">pixel_shape() (in module gedih3.egi.spatial)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/core/index.html#gedih3.egi.core.pixels_per_tile">pixels_per_tile() (in module gedih3.egi.core)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.preclean_merge_failures">preclean_merge_failures() (in module gedih3.gh3builder)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.previous_status">previous_status (gedih3.logger.H3BuildLogger attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.print_banner">print_banner() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.print_success">print_success() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.process_waveforms">process_waveforms() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/inspect/index.html#gedih3.doctor.inspect.product_columns_in_schema">product_columns_in_schema() (in module gedih3.doctor.inspect)</a>
+</li>
+      <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.GEDIAccessor.product_files">product_files (gedih3.daac.GEDIAccessor attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.PRODUCT_STATUS_FAILED">PRODUCT_STATUS_FAILED (in module gedih3.logger)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.PRODUCT_STATUS_INDEXED">PRODUCT_STATUS_INDEXED (in module gedih3.logger)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.PRODUCT_STATUS_MISSING_COLUMN">PRODUCT_STATUS_MISSING_COLUMN (in module gedih3.logger)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.PRODUCT_STATUS_MISSING_SOURCE">PRODUCT_STATUS_MISSING_SOURCE (in module gedih3.logger)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.PRODUCT_STATUS_PARTIAL_NAN">PRODUCT_STATUS_PARTIAL_NAN (in module gedih3.logger)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.PRODUCT_STATUS_PENDING">PRODUCT_STATUS_PENDING (in module gedih3.logger)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.progress_iter">progress_iter() (in module gedih3.cliutils)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="Q">Q</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/doctor/upstream/index.html#gedih3.doctor.upstream.query_available_granules">query_available_granules() (in module gedih3.doctor.upstream)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="R">R</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/raster/config/index.html#gedih3.raster.config.RASTER_FORMATS">RASTER_FORMATS (in module gedih3.raster.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/export/index.html#gedih3.raster.export.rasterize_and_export_partitions">rasterize_and_export_partitions() (in module gedih3.raster.export)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/h3_raster/index.html#gedih3.raster.h3_raster.rasterize_h3_partition">rasterize_h3_partition() (in module gedih3.raster.h3_raster)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/raster/index.html#gedih3.egi.raster.rasterize_partition">rasterize_partition() (in module gedih3.egi.raster)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.read_dataset_schema">read_dataset_schema() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.read_feather_schema">read_feather_schema() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.read_geopackage_schema">read_geopackage_schema() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.read_h3_database_schema">read_h3_database_schema() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.read_img_bounds">read_img_bounds() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.read_parquet_schema">read_parquet_schema() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.read_schema">read_schema() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.read_vector_file">read_vector_file() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediIncompleteListingError.received">received (gedih3.exceptions.GediIncompleteListingError attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Report.recommendations">recommendations (gedih3.doctor.report.Report attribute)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/upstream/index.html#gedih3.doctor.upstream.UpstreamReport.recommendations">(gedih3.doctor.upstream.UpstreamReport attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.register">register() (in module gedih3.doctor.runner)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.register_pending_granules">register_pending_granules() (gedih3.logger.H3BuildLogger method)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.register_pending_granules">(gedih3.logger.SOCDownloadLogger method)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/doctor/fused/index.html#gedih3.doctor.fused.register_scan">register_scan() (in module gedih3.doctor.fused)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.release_arrow_pool">release_arrow_pool() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Report">Report (class in gedih3.doctor.report)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/config/index.html#gedih3.egi.config.RESOLUTIONS">RESOLUTIONS (in module gedih3.egi.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.resolve_names">resolve_names() (in module gedih3.doctor.runner)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.resolve_path_args">resolve_path_args() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.resolve_product_vars">resolve_product_vars() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/imgutils/index.html#gedih3.imgutils.resolve_raster_source">resolve_raster_source() (in module gedih3.imgutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/vecutils/index.html#gedih3.vecutils.resolve_vector_source">resolve_vector_source() (in module gedih3.vecutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.RETRY_DEFAULTS">RETRY_DEFAULTS (in module gedih3.exceptions)</a>
+</li>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.ROOT_LOGGER_NAME">ROOT_LOGGER_NAME (in module gedih3.logging_config)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.run_diagnoses">run_diagnoses() (in module gedih3.doctor.runner)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="S">S</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.s3_access">s3_access (gedih3.logger.SOCDownloadLogger attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.s3_etl_subset">s3_etl_subset() (in module gedih3.gh3builder)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.safe_query">safe_query() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/imgutils/index.html#gedih3.imgutils.sample_raster_at_points">sample_raster_at_points() (in module gedih3.imgutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.save_log">save_log() (gedih3.logger.H3BuildLogger method)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.save_log">(gedih3.logger.SOCDownloadLogger method)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.Diagnosis.scope">scope (gedih3.doctor.runner.Diagnosis attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/daac/index.html#gedih3.daac.GEDIAccessor.search_data">search_data() (gedih3.daac.GEDIAccessor method)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.GEDIFile.search_file">search_file() (gedih3.gedidriver.GEDIFile method)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.GEDIShot.search_file">(gedih3.gedidriver.GEDIShot method)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.set_level">set_level() (in module gedih3.logging_config)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.set_post_build_info">set_post_build_info() (gedih3.logger.H3BuildLogger method)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.set_post_download_info">set_post_download_info() (gedih3.logger.SOCDownloadLogger method)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.setup_logging">setup_logging() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.setup_storage">setup_storage() (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Severity">Severity (class in gedih3.doctor.report)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Report.severity">severity (gedih3.doctor.report.Report attribute)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.silence">silence() (in module gedih3.logging_config)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.smart_exists">smart_exists() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.smart_glob">smart_glob() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.smart_isdir">smart_isdir() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.smart_join">smart_join() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.smart_open">smart_open() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.DoctorContext.soc_dir">soc_dir (gedih3.doctor.report.DoctorContext attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.soc_file_tree">soc_file_tree() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.soc_from_file">soc_from_file() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/soc_health/index.html#gedih3.doctor.diagnoses.soc_health.soc_health_check">soc_health_check() (in module gedih3.doctor.diagnoses.soc_health)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/soc_health/index.html#gedih3.doctor.diagnoses.soc_health.soc_health_fix">soc_health_fix() (in module gedih3.doctor.diagnoses.soc_health)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.DoctorContext.soc_logger">soc_logger (gedih3.doctor.report.DoctorContext attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/config/index.html#gedih3.config.SOC_MANIFEST_FILENAME">SOC_MANIFEST_FILENAME (in module gedih3.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.soc_prod_from_file">soc_prod_from_file() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger">SOCDownloadLogger (class in gedih3.logger)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.source_mode">source_mode (gedih3.logger.H3BuildLogger attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediTransactionError.source_path">source_path (gedih3.exceptions.GediTransactionError attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Report.summary">summary (gedih3.doctor.report.Report attribute)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="T">T</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.TimeSeriesRasterizer.target_level">target_level (gedih3.raster.timeseries.TimeSeriesRasterizer attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.AtomicFileWriter.target_path">target_path (gedih3.utils.AtomicFileWriter attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.AtomicFileWriter.temp_path">temp_path (gedih3.utils.AtomicFileWriter attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.TimeSeriesRasterizer.time_col">time_col (gedih3.raster.timeseries.TimeSeriesRasterizer attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/cli/gh3_aggregate/index.html#gedih3.cli.gh3_aggregate.TIME_UNITS">TIME_UNITS (in module gedih3.cli.gh3_aggregate)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/raster/config/index.html#gedih3.raster.config.TIME_UNITS">(in module gedih3.raster.config)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.TimeSeriesRasterizer">TimeSeriesRasterizer (class in gedih3.raster.timeseries)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.DoctorContext.tmp_dir">tmp_dir (gedih3.doctor.report.DoctorContext attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/tmp_partitions_health/index.html#gedih3.doctor.diagnoses.tmp_partitions_health.tmp_partitions_health_check">tmp_partitions_health_check() (in module gedih3.doctor.diagnoses.tmp_partitions_health)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/doctor/diagnoses/tmp_partitions_health/index.html#gedih3.doctor.diagnoses.tmp_partitions_health.tmp_partitions_health_fix">tmp_partitions_health_fix() (in module gedih3.doctor.diagnoses.tmp_partitions_health)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Report.to_dict">to_dict() (gedih3.doctor.report.Report method)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/doctor/upstream/index.html#gedih3.doctor.upstream.UpstreamReport.to_dict">(gedih3.doctor.upstream.UpstreamReport method)</a>
+</li>
+        <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.to_dict">(gedih3.logger.H3BuildLogger method)</a>
+</li>
+        <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.to_dict">(gedih3.logger.SOCDownloadLogger method)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/egi/spatial/index.html#gedih3.egi.spatial.to_geodataframe">to_geodataframe() (in module gedih3.egi.spatial)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.to_geojson">to_geojson() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/core/index.html#gedih3.egi.core.to_hash">to_hash() (in module gedih3.egi.core)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/core/index.html#gedih3.egi.core.to_parent">to_parent() (in module gedih3.egi.core)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="U">U</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/egi/config/index.html#gedih3.egi.config.UINT_MAX">UINT_MAX (in module gedih3.egi.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.update_granule_status">update_granule_status() (gedih3.logger.H3BuildLogger method)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.update_granule_status">(gedih3.logger.SOCDownloadLogger method)</a>
+</li>
+      </ul></li>
+      <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.updating">updating (gedih3.logger.H3BuildLogger attribute)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.updating">(gedih3.logger.SOCDownloadLogger attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.DoctorContext.upstream">upstream (gedih3.doctor.report.DoctorContext attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/doctor/upstream/index.html#gedih3.doctor.upstream.UpstreamReport">UpstreamReport (class in gedih3.doctor.upstream)</a>
+</li>
+      <li><a href="autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.TimeSeriesRasterizer.use_egi">use_egi (gedih3.raster.timeseries.TimeSeriesRasterizer attribute)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="V">V</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.VALID_FORMATS">VALID_FORMATS (in module gedih3.cliutils)</a>
+</li>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.VALID_PRODUCTS">VALID_PRODUCTS (in module gedih3.validation)</a>
+</li>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.validate_bbox">validate_bbox() (in module gedih3.validation)</a>
+</li>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.validate_coordinates">validate_coordinates() (in module gedih3.validation)</a>
+</li>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.validate_database_path">validate_database_path() (in module gedih3.validation)</a>
+</li>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.validate_directory_exists">validate_directory_exists() (in module gedih3.validation)</a>
+</li>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.validate_egi_level">validate_egi_level() (in module gedih3.validation)</a>
+</li>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.validate_file_exists">validate_file_exists() (in module gedih3.validation)</a>
+</li>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.validate_h3_cell">validate_h3_cell() (in module gedih3.validation)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.validate_h3_params">validate_h3_params() (in module gedih3.validation)</a>
+</li>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.validate_h3_resolution">validate_h3_resolution() (in module gedih3.validation)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/core/index.html#gedih3.egi.core.validate_hash">validate_hash() (in module gedih3.egi.core)</a>
+</li>
+      <li><a href="autoapi/gedih3/egi/config/index.html#gedih3.egi.config.validate_level">validate_level() (in module gedih3.egi.config)</a>
+</li>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.validate_product">validate_product() (in module gedih3.validation)</a>
+</li>
+      <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.validate_product_vars">validate_product_vars() (in module gedih3.validation)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.validate_soc_files">validate_soc_files() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.EGIValidationError.value">value (gedih3.exceptions.EGIValidationError attribute)</a>
+
+      <ul>
+        <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.H3ValidationError.value">(gedih3.exceptions.H3ValidationError attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="W">W</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/parallel/index.html#gedih3.parallel.walk_flat_parallel">walk_flat_parallel() (in module gedih3.parallel)</a>
+</li>
+      <li><a href="autoapi/gedih3/parallel/index.html#gedih3.parallel.walk_h3db_parallel">walk_h3db_parallel() (in module gedih3.parallel)</a>
+</li>
+      <li><a href="autoapi/gedih3/parallel/index.html#gedih3.parallel.walk_soc_parallel">walk_soc_parallel() (in module gedih3.parallel)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Severity.WARN">WARN (gedih3.doctor.report.Severity attribute)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.wfm_extract">wfm_extract() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.wfm_pad">wfm_pad() (in module gedih3.gedidriver)</a>
+</li>
+      <li><a href="autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.write_soc_manifest">write_soc_manifest() (in module gedih3.gedidriver)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="Y">Y</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/doctor/parallel/index.html#gedih3.doctor.parallel.year_dir_is_empty">year_dir_is_empty() (in module gedih3.doctor.parallel)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, University of Maryland. All Rights Reserved.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

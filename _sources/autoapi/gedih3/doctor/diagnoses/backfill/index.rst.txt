@@ -1,0 +1,53 @@
+gedih3.doctor.diagnoses.backfill
+================================
+
+.. py:module:: gedih3.doctor.diagnoses.backfill
+
+.. autoapi-nested-parse::
+
+   backfill diagnosis — fill NaN gaps in product columns from source HDF5s.
+
+   The detection runs row-level: for each partition × product, we count nulls per
+   granule by grouping on ``root_file_l2a``. Findings include the partition file,
+   the product, and the per-granule null counts.
+
+   The fix:
+     1. Group findings by source granule × product to compute the minimal set of
+        HDF5 files to read.
+     2. (S3 mode) run :func:`s3_etl_subset` to populate a temp dir with just those
+        granules' source files for the requested products. Cleanup in ``finally``.
+     3. For each affected partition file, read the relevant ``[shot_number, vars]``
+        from the source HDF5(s), suffix columns with ``_<prod>``, write to a
+        temporary patch parquet, and call :func:`parquet_fill_columns` to merge.
+     4. Mark each healed granule × product as ``INDEXED`` in the build log.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.doctor.diagnoses.backfill.GranuleKey
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.doctor.diagnoses.backfill.backfill_check
+   gedih3.doctor.diagnoses.backfill.backfill_fix
+
+
+Module Contents
+---------------
+
+.. py:data:: GranuleKey
+
+.. py:function:: backfill_check(ctx: gedih3.doctor.report.DoctorContext) -> gedih3.doctor.report.Report
+
+.. py:function:: backfill_fix(ctx: gedih3.doctor.report.DoctorContext, report: gedih3.doctor.report.Report) -> gedih3.doctor.report.Report
+

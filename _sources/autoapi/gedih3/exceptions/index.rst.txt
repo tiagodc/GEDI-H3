@@ -1,0 +1,870 @@
+gedih3.exceptions
+=================
+
+.. py:module:: gedih3.exceptions
+
+.. autoapi-nested-parse::
+
+   gedih3 Exception Hierarchy
+
+   Custom exceptions for structured error handling throughout the package.
+   All exceptions inherit from GediError for easy catching of package-specific errors.
+
+   Usage:
+       from gedih3.exceptions import GediDownloadError, GediValidationError
+
+       try:
+           download_granule(granule, odir)
+       except GediDownloadError as e:
+           logger.error(f"Download failed: {e}")
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.exceptions.RETRY_DEFAULTS
+
+
+Exceptions
+----------
+
+.. autoapisummary::
+
+   gedih3.exceptions.GediError
+   gedih3.exceptions.GediNetworkError
+   gedih3.exceptions.GediDownloadError
+   gedih3.exceptions.GediAuthenticationError
+   gedih3.exceptions.GediS3AccessError
+   gedih3.exceptions.GediIncompleteListingError
+   gedih3.exceptions.GediValidationError
+   gedih3.exceptions.H3ValidationError
+   gedih3.exceptions.EGIValidationError
+   gedih3.exceptions.GediProductError
+   gedih3.exceptions.GediVariableError
+   gedih3.exceptions.GediFileError
+   gedih3.exceptions.GediHDF5Error
+   gedih3.exceptions.GediParquetError
+   gedih3.exceptions.GediCorruptedFileError
+   gedih3.exceptions.GediTransactionError
+   gedih3.exceptions.GediDatabaseError
+   gedih3.exceptions.GediDatabaseNotFoundError
+   gedih3.exceptions.GediDatabaseCorruptedError
+   gedih3.exceptions.GediMergeError
+   gedih3.exceptions.GediSpatialError
+   gedih3.exceptions.GediTemporalError
+   gedih3.exceptions.GediProcessingError
+   gedih3.exceptions.GediAggregationError
+   gedih3.exceptions.GediRasterizationError
+   gedih3.exceptions.GediImageSamplingError
+   gedih3.exceptions.GediSpatialJoinError
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.exceptions.is_retryable_error
+
+
+Module Contents
+---------------
+
+.. py:exception:: GediError
+
+   Bases: :py:obj:`Exception`
+
+
+   
+   Base exception for all gedih3 errors.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediNetworkError
+
+   Bases: :py:obj:`GediError`
+
+
+   
+   Base exception for network-related errors.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediDownloadError(message: str, granule_id: str = None, attempts: int = None)
+
+   Bases: :py:obj:`GediNetworkError`
+
+
+   
+   Error during file download from NASA DAAC.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:attribute:: granule_id
+      :value: None
+
+
+
+   .. py:attribute:: attempts
+      :value: None
+
+
+
+.. py:exception:: GediAuthenticationError
+
+   Bases: :py:obj:`GediNetworkError`
+
+
+   
+   Error during NASA Earthdata authentication.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediS3AccessError
+
+   Bases: :py:obj:`GediNetworkError`
+
+
+   
+   Error accessing GEDI data via S3.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediIncompleteListingError(message: str, expected: int = None, received: int = None)
+
+   Bases: :py:obj:`GediNetworkError`
+
+
+   
+   CMR returned fewer granules than its own CMR-Hits count (silent truncation).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:attribute:: expected
+      :value: None
+
+
+
+   .. py:attribute:: received
+      :value: None
+
+
+
+.. py:exception:: GediValidationError
+
+   Bases: :py:obj:`GediError`
+
+
+   
+   Base exception for validation errors.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: H3ValidationError(message: str, param_name: str = None, value=None)
+
+   Bases: :py:obj:`GediValidationError`
+
+
+   
+   Error in H3 parameter validation.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:attribute:: param_name
+      :value: None
+
+
+
+   .. py:attribute:: value
+      :value: None
+
+
+
+.. py:exception:: EGIValidationError(message: str, param_name: str = None, value=None)
+
+   Bases: :py:obj:`GediValidationError`
+
+
+   
+   Error in EGI parameter validation.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:attribute:: param_name
+      :value: None
+
+
+
+   .. py:attribute:: value
+      :value: None
+
+
+
+.. py:exception:: GediProductError
+
+   Bases: :py:obj:`GediValidationError`
+
+
+   
+   Error with GEDI product specification.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediVariableError
+
+   Bases: :py:obj:`GediValidationError`
+
+
+   
+   Error with GEDI variable specification.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediFileError
+
+   Bases: :py:obj:`GediError`
+
+
+   
+   Base exception for file-related errors.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediHDF5Error(message: str, file_path: str = None)
+
+   Bases: :py:obj:`GediFileError`
+
+
+   
+   Error reading/processing HDF5 file.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:attribute:: file_path
+      :value: None
+
+
+
+.. py:exception:: GediParquetError(message: str, file_path: str = None)
+
+   Bases: :py:obj:`GediFileError`
+
+
+   
+   Error reading/writing Parquet file.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:attribute:: file_path
+      :value: None
+
+
+
+.. py:exception:: GediCorruptedFileError(message: str, file_path: str = None)
+
+   Bases: :py:obj:`GediFileError`
+
+
+   
+   File is corrupted or unreadable.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:attribute:: file_path
+      :value: None
+
+
+
+.. py:exception:: GediTransactionError(message: str, source_path: str = None, dest_path: str = None)
+
+   Bases: :py:obj:`GediFileError`
+
+
+   
+   Error during atomic file operation.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:attribute:: source_path
+      :value: None
+
+
+
+   .. py:attribute:: dest_path
+      :value: None
+
+
+
+.. py:exception:: GediDatabaseError
+
+   Bases: :py:obj:`GediError`
+
+
+   
+   Base exception for H3 database errors.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediDatabaseNotFoundError
+
+   Bases: :py:obj:`GediDatabaseError`
+
+
+   
+   H3 database directory not found.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediDatabaseCorruptedError
+
+   Bases: :py:obj:`GediDatabaseError`
+
+
+   
+   H3 database is corrupted or inconsistent.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediMergeError
+
+   Bases: :py:obj:`GediDatabaseError`
+
+
+   
+   Error merging H3 partitions or databases.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediSpatialError
+
+   Bases: :py:obj:`GediError`
+
+
+   
+   Error with spatial operations or filters.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediTemporalError
+
+   Bases: :py:obj:`GediError`
+
+
+   
+   Error with temporal operations or filters.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediProcessingError
+
+   Bases: :py:obj:`GediError`
+
+
+   
+   Base exception for data processing errors.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediAggregationError
+
+   Bases: :py:obj:`GediProcessingError`
+
+
+   
+   Error during data aggregation.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediRasterizationError
+
+   Bases: :py:obj:`GediProcessingError`
+
+
+   
+   Error during rasterization.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediImageSamplingError
+
+   Bases: :py:obj:`GediProcessingError`
+
+
+   
+   Error during raster image sampling at GEDI shot locations.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:exception:: GediSpatialJoinError
+
+   Bases: :py:obj:`GediProcessingError`
+
+
+   
+   Error during spatial join of vector data to GEDI shot locations.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:data:: RETRY_DEFAULTS
+
+.. py:function:: is_retryable_error(exception: Exception) -> bool
+
+   
+   Determine if an exception is retryable.
+
+   Returns True for transient network errors that may succeed on retry.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

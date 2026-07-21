@@ -1,0 +1,664 @@
+gedih3.gh3builder
+=================
+
+.. py:module:: gedih3.gh3builder
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.gh3builder.logger
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.gh3builder.download_soc
+   gedih3.gh3builder.s3_etl_subset
+   gedih3.gh3builder.h3_part_files
+   gedih3.gh3builder.h3_write_metadata
+   gedih3.gh3builder.h3_read_metadata
+   gedih3.gh3builder.h3_merge_metadata
+   gedih3.gh3builder.h3_skip_part
+   gedih3.gh3builder.h3_add_skip_column
+   gedih3.gh3builder.dh3_merge_metadata
+   gedih3.gh3builder.h3_merge_files
+   gedih3.gh3builder.dh3_merge_files
+   gedih3.gh3builder.preclean_merge_failures
+   gedih3.gh3builder.apply_merge_failures_to_logger
+   gedih3.gh3builder.build_h3db
+   gedih3.gh3builder.merge_build_logs
+
+
+Module Contents
+---------------
+
+.. py:data:: logger
+
+.. py:function:: download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=False, update=False, version=None, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5, on_granule_complete=None, ensure_l2a=True)
+
+   
+   Download GEDI HDF5 files in SOC (Science Operation Center) format.
+
+   Expands variable specifications, ensures L2A essentials and shot_number
+   are included, then delegates to ``gedi_download`` for retrieval.
+
+   :Parameters:
+
+       **product_vars** : dict
+           Mapping of GEDI product codes (e.g., 'L2A', 'L4A') to variable
+           lists. Accepts 'default', 'minimal', or explicit variable names.
+
+       **spatial** : GeoDataFrame, list, or str, optional
+           Spatial filter (vector file, bbox as [W,S,E,N], or ISO3 code).
+
+       **temporal** : tuple of str, optional
+           Temporal range as (start_date, end_date) in 'YYYY-MM-DD' format.
+
+       **direct_access** : bool, default False
+           If True, use S3 streaming instead of downloading to disk.
+
+       **update** : bool, default False
+           If True, resume a previous download (skip already-downloaded files).
+
+       **version** : int or str, optional
+           GEDI data version (e.g., 2). If None, uses latest available.
+
+       **odir** : str
+           Output directory for downloaded HDF5 files.
+
+       **n_jobs** : int, default 5
+           Number of parallel download workers.
+
+       **on_granule_complete** : callable, optional
+           Callback ``(granule_info_dict, status_str) -> None`` for per-granule
+           progress tracking. Passed through to ``gedi_download()``; see its
+           docstring for the ``granule_info_dict`` contract (includes a
+           ``path`` key).
+
+       **ensure_l2a** : bool, default True
+           If True, automatically add L2A essentials when L2A is not in
+           product_vars. Set to False for variable-only updates where L2A
+           data already exists in the target database.
+
+
+
+   :Returns:
+
+       list
+           List of downloaded SOC file paths or EarthAccessFile objects.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=None, ensure_l2a=True)
+
+   
+   ETL-style S3 build: search for GEDI granules, then dispatch Dask workers
+   to open remote HDF5 files, extract only selected variables via range
+   requests, and write compact local HDF5 files.
+
+   This transfers and stores significantly less data than full downloads
+   (10-50x smaller depending on variable selection). Workers run as true
+   separate processes via Dask (GIL-free), matching the parallelism of
+   download mode.
+
+   :Parameters:
+
+       **product_vars** : dict
+           Mapping of GEDI product codes (e.g., 'L2A', 'L4A') to variable
+           lists. Accepts 'default', 'minimal', or explicit variable names.
+
+       **spatial** : GeoDataFrame, list, or str, optional
+           Spatial filter (vector file, bbox as [W,S,E,N], or ISO3 code).
+
+       **temporal** : tuple of str, optional
+           Temporal range as (start_date, end_date) in 'YYYY-MM-DD' format.
+
+       **version** : int or str, optional
+           GEDI data version. If None, uses latest available.
+
+       **odir** : str
+           Output directory for compact local HDF5 files in SOC structure.
+
+       **ensure_l2a** : bool, default True
+           If True, automatically add L2A essentials when L2A is not in
+           product_vars. Set to False for variable-only updates where L2A
+           data already exists in the target database.
+
+
+
+   :Returns:
+
+       str
+           Path to the output directory containing compact HDF5 files.
+
+
+
+
+   :Raises:
+
+       GediFileError
+           If no GEDI files are found on S3 for the given parameters.
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: h3_part_files(df, dir_path, res=12, part=3, lat_col='lat_lowestmode', lon_col='lon_lowestmode', roi_tiles=[])
+
+   
+   Write a DataFrame to H3-partitioned parquet files.
+
+   Indexes the DataFrame by H3 cell, groups rows by partition cell, and
+   writes each group as a separate parquet file. If a file already exists
+   for a partition, new rows are appended.
+
+   :Parameters:
+
+       **df** : pandas.DataFrame
+           Input DataFrame with coordinate columns and ``root_beam``,
+           ``root_file`` metadata columns.
+
+       **dir_path** : str
+           Base directory for output partition subdirectories.
+
+       **res** : int, default 12
+           H3 resolution for shot-level indexing.
+
+       **part** : int, default 3
+           H3 resolution for file partitioning.
+
+       **lat_col** : str, default 'lat_lowestmode'
+           Column name for latitude values.
+
+       **lon_col** : str, default 'lon_lowestmode'
+           Column name for longitude values.
+
+       **roi_tiles** : list of str, optional
+           If non-empty, only write partitions whose H3 cell ID is in this list.
+
+
+
+   :Returns:
+
+       list of str or None
+           List of written parquet file paths, or None if the input is empty.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: h3_write_metadata(h3_file, stats=None)
+
+   
+   Write a sidecar metadata JSON file for an H3 partition parquet file.
+
+
+   :Parameters:
+
+       **h3_file** : str
+           Path to the H3 partition parquet file.
+
+       **stats** : dict, optional
+           Pre-computed stats from ``parquet_merge_files``'s streaming pass:
+           ``{'shot_count', 'shot_min', 'shot_max', 'dt_min', 'dt_max',
+           'root_files'}``. When provided, skips the ~1.5-2 GB ``pd.read_parquet``
+           re-read of the just-written merged file. When ``None`` or any field is
+           ``None``, falls back to reading the columns from disk (slower, more
+           memory).
+
+
+
+   :Returns:
+
+       str
+           Path to the written metadata JSON file (``*PARTITION_META_FILENAME``).
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: h3_read_metadata(h3_file)
+
+   
+   Read the sidecar metadata JSON for an H3 partition parquet file.
+
+
+   :Parameters:
+
+       **h3_file** : str
+           Path to the H3 partition parquet file. The metadata file is
+           expected at the same path with a ``PARTITION_META_FILENAME`` extension.
+
+
+
+   :Returns:
+
+       dict or None
+           Parsed metadata dictionary, or None if the metadata file does not
+           exist.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: h3_merge_metadata(h3_subdir)
+
+   
+   Merge per-year metadata files into a single summary for an H3 partition.
+
+   Aggregates shot counts, expands shot and date ranges, and deduplicates
+   granule identifiers across all year subdirectories within one H3 cell.
+
+   :Parameters:
+
+       **h3_subdir** : str
+           Path to an H3 partition directory (e.g., ``h3_03=<cell_id>/``)
+           containing year subdirectories with parquet and metadata files.
+
+
+
+   :Returns:
+
+       str or None
+           Path to the merged metadata JSON file, or None if no metadata
+           files were found.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: h3_skip_part(h3_dir, h3_part, gedi_file, cols=None)
+
+   
+   Check whether an H3 partition already contains data from a GEDI granule.
+
+   Reads the partition's merged metadata to determine if the granule has
+   already been indexed and, optionally, if the requested columns are
+   already present.
+
+   :Parameters:
+
+       **h3_dir** : str
+           Root directory of the H3 database.
+
+       **h3_part** : str
+           H3 cell ID of the partition to check.
+
+       **gedi_file** : str
+           Path or filename of the GEDI HDF5 file to test against.
+
+       **cols** : list of str, optional
+           If provided, also verify that these columns already exist in the
+           partition. The partition is only skipped when both the granule
+           is present and all requested columns are available.
+
+
+
+   :Returns:
+
+       bool
+           True if the partition should be skipped (granule already indexed
+           and columns present), False otherwise.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: h3_add_skip_column(df, h3_dir)
+
+   
+   Add a ``_skip`` boolean column indicating partitions to skip.
+
+   Designed for use with ``dask.dataframe.map_partitions``. Checks each
+   unique H3 partition cell individually, since a single beam can span
+   multiple H3 cells. Delegates to ``h3_skip_part`` per cell.
+
+   :Parameters:
+
+       **df** : pandas.DataFrame
+           A single Dask partition containing H3 partition column(s)
+           (``h3_XX``) and ``root_file_l2a``.
+
+       **h3_dir** : str
+           Root directory of the H3 database.
+
+
+
+   :Returns:
+
+       pandas.DataFrame
+           Input DataFrame with an added ``_skip`` column (True if the
+           cell's granule data already exists in the database).
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: dh3_merge_metadata(h3_subdir)
+
+.. py:function:: h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+
+   
+   Merge multiple parquet files for an H3 partition into a single file.
+
+   Reads all parquet files in ``in_dir``, merges them (deduplicating shots
+   when appending to an existing file), writes the result to ``out_dir``,
+   and generates a sidecar metadata JSON file.
+
+   :Parameters:
+
+       **in_dir** : str
+           Input directory containing parquet fragment files for one
+           H3 cell/year combination.
+
+       **out_dir** : str
+           Output directory where the merged file will be written,
+           preserving the ``<h3_cell>/<year>/`` structure.
+
+       **rm_src** : bool, default True
+           If True, remove the source directory after a successful merge.
+
+       **replace** : bool, default False
+           If True, overwrite existing output files. If False, merge new
+           data into any existing output file.
+
+
+
+   :Returns:
+
+       str or None
+           Path to the merged parquet file, or None if ``in_dir`` contained
+           no parquet files.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: dh3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+
+.. py:function:: preclean_merge_failures(tmp_dir: str) -> Dict[str, int]
+
+   
+   L1 resume pre-clean: act on every recorded ``_merge_failures`` sentinel.
+
+   For each partition the prior run's merge marked failed:
+
+   1. Stat each ``*.parquet`` in the partition — unlink if 0-byte (the
+      canonical class B artifact). Truncated-but-nonzero parquets (class C)
+      are unlinked only when ``pq.ParquetFile`` cannot open them — checked
+      cheaply by opening the footer once. The cost is bounded by the
+      failure list, never the full healthy tree.
+   2. Unlink any co-located ``*.tmp`` / ``*.merge.tmp`` siblings. These
+      survive SIGKILL when ``AtomicFileWriter.__exit__`` never runs and
+      would otherwise pollute future merges.
+   3. Delete the failure sentinel itself so re-running the pre-clean is
+      idempotent (next run only re-acts on freshly-failed merges).
+
+   Returns ``{'partitions_cleaned': N, 'parquets_removed': N, 'tmps_removed': N}``.
+   Companion to ``apply_merge_failures_to_logger`` — calling this without
+   the granule flip-back would unlink fragments and leave their granules
+   marked INDEXED, permanently dropping rows. The CLI runs both together.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: apply_merge_failures_to_logger(h3_logger, tmp_dir: str) -> int
+
+   
+   Fold the merge-failed-granules sidecar into the build-log's
+   granule status (INDEXED → MERGE_FAILED). Returns the count flipped.
+
+   Idempotent: re-applying after a successful resume is a no-op because
+   re-extracted granules have already been flipped back to INDEXED by
+   ``_reconcile_granules_from_disk``. Truncates the sidecar after fold to
+   keep it bounded across resumes.
+
+   Callable from the CLI right after ``_merge_and_finalize`` returns,
+   regardless of which code path invoked merge. Does NOT call
+   ``h3_logger.save_log`` — the caller controls save cadence.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: build_h3db(product_vars: Dict[str, List[str]], res: int = 12, part: int = 3, spatial=None, temporal=None, soc_source: Union[str, List, None] = None, version: Optional[int] = None, tmp_dir: str = os.path.join(GH3_DEFAULT_TMP_DIR, 'gh3_build'), h3_dir: str = GH3_DEFAULT_H3_DIR, skip_granules: Optional[List[Dict]] = None, status_callback: Optional[Callable[[str], None]] = None, variable_only_update: bool = False, exclude: Optional[List[str]] = None) -> Optional[List[str]]
+
+   
+   Build an H3-indexed GEDI database from local SOC files or S3 download.
+
+
+   :Parameters:
+
+       **product_vars** : dict
+           Dictionary mapping GEDI product codes (e.g., 'L2A', 'L4A') to lists of
+           variable names to extract. Use 'default', 'minimal', or explicit lists.
+
+       **res** : int, default 12
+           H3 resolution level for indexing individual shots (0-15).
+
+       **part** : int, default 3
+           H3 resolution level for file partitioning (0-15, must be <= res).
+
+       **spatial** : GeoDataFrame, list, or str, optional
+           Spatial filter for the region of interest.
+
+       **temporal** : tuple, optional
+           Temporal filter as (start_date, end_date) in 'YYYY-MM-DD' format.
+
+       **soc_source** : str, list, or None
+           - ``None``: download from NASA S3 to a temp directory (cleaned up after build)
+           - ``str``: path to local directory containing GEDI SOC HDF5 files
+           - ``list``: pre-acquired list of file paths or EarthAccessFile objects
+
+       **version** : int or None
+           GEDI data version. If None, uses latest available.
+           Also used to filter local files by version when soc_source is a directory.
+
+       **tmp_dir** : str
+           Path to temporary directory for intermediate files.
+
+       **h3_dir** : str
+           Output path for the H3-indexed parquet database.
+
+       **skip_granules** : list of dict, optional
+           List of granule identifiers to skip (from previous builds).
+
+       **status_callback** : callable, optional
+           Called with status string at pipeline stage transitions.
+
+       **variable_only_update** : bool, default False
+           If True, only add new variable columns to existing partition files
+           via shot_number join (``_build_add_variables``). Skips full pipeline.
+           The caller (CLI) determines this from the build logger state.
+
+
+
+   :Returns:
+
+       list of str or None
+           List of output parquet file paths, or None if no new data processed.
+
+
+
+
+   :Raises:
+
+       H3ValidationError
+           If H3 resolution or partition parameters are invalid
+
+       GediFileError
+           If local source directory doesn't exist or S3 returns no files
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> dict
+
+   
+   Merge two build log files from separate databases.
+
+   Combines granules, columns, partition IDs, and date ranges while validating
+   configuration consistency (gedi_version, h3_resolution_level, h3_partition_level).
+
+   :Parameters:
+
+       **log_file_1** : str
+           Path to first build log (base log)
+
+       **log_file_2** : str
+           Path to second build log (log to merge in)
+
+       **output_log_file** : str
+           Path to write merged build log
+
+
+
+   :Returns:
+
+       dict
+           Merged log dictionary
+
+
+
+
+   :Raises:
+
+       FileNotFoundError
+           If either log file does not exist
+
+       ValueError
+           If log configurations are incompatible (different gedi_version, h3_resolution_level, or h3_partition_level)
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> merged_log = merge_build_logs(
+   ...     f'/path/to/database_world/{BUILD_LOG_FILENAME}',
+   ...     f'/path/to/database_world_a10/{BUILD_LOG_FILENAME}',
+   ...     f'/path/to/database_world_merged/{BUILD_LOG_FILENAME}'
+   ... )
+
+   ..
+       !! processed by numpydoc !!
+

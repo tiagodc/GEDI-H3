@@ -1,0 +1,486 @@
+gedih3.validation
+=================
+
+.. py:module:: gedih3.validation
+
+.. autoapi-nested-parse::
+
+   gedih3 Validation Module
+
+   Parameter validation functions for H3, EGI, and other critical operations.
+   These functions raise descriptive exceptions to help users fix configuration issues.
+
+   Usage:
+       from gedih3.validation import validate_h3_params, validate_egi_level
+
+       validate_h3_params(res=12, part=3)  # Raises H3ValidationError if invalid
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.validation.H3_MIN_RESOLUTION
+   gedih3.validation.H3_MAX_RESOLUTION
+   gedih3.validation.EGI_MIN_LEVEL
+   gedih3.validation.EGI_MAX_LEVEL
+   gedih3.validation.VALID_PRODUCTS
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.validation.validate_h3_resolution
+   gedih3.validation.validate_h3_params
+   gedih3.validation.validate_h3_cell
+   gedih3.validation.validate_egi_level
+   gedih3.validation.validate_product
+   gedih3.validation.validate_product_vars
+   gedih3.validation.validate_file_exists
+   gedih3.validation.validate_directory_exists
+   gedih3.validation.validate_database_path
+   gedih3.validation.validate_coordinates
+   gedih3.validation.validate_bbox
+
+
+Module Contents
+---------------
+
+.. py:data:: H3_MIN_RESOLUTION
+   :value: 0
+
+
+.. py:data:: H3_MAX_RESOLUTION
+   :value: 15
+
+
+.. py:function:: validate_h3_resolution(res: int, param_name: str = 'resolution') -> int
+
+   
+   Validate H3 resolution is within valid range [0, 15].
+
+
+   :Parameters:
+
+       **res** : int
+           H3 resolution level
+
+       **param_name** : str
+           Parameter name for error messages
+
+
+
+   :Returns:
+
+       int
+           Validated resolution
+
+
+
+
+   :Raises:
+
+       H3ValidationError
+           If resolution is out of range or not an integer
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: validate_h3_params(res: int, part: int) -> tuple
+
+   
+   Validate H3 resolution and partition parameters.
+
+
+   :Parameters:
+
+       **res** : int
+           H3 resolution level for indexing (0-15)
+
+       **part** : int
+           H3 resolution level for partitioning (0-15, must be <= res)
+
+
+
+   :Returns:
+
+       tuple
+           (res, part) validated values
+
+
+
+
+   :Raises:
+
+       H3ValidationError
+           If parameters are invalid
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> validate_h3_params(12, 3)  # OK
+   (12, 3)
+   >>> validate_h3_params(3, 12)  # Raises H3ValidationError
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: validate_h3_cell(cell: str, expected_res: Optional[int] = None) -> str
+
+   
+   Validate an H3 cell index string.
+
+
+   :Parameters:
+
+       **cell** : str
+           H3 cell index (hexadecimal string)
+
+       **expected_res** : int, optional
+           Expected resolution level
+
+
+
+   :Returns:
+
+       str
+           Validated cell index
+
+
+
+
+   :Raises:
+
+       H3ValidationError
+           If cell is invalid
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:data:: EGI_MIN_LEVEL
+   :value: 1
+
+
+.. py:data:: EGI_MAX_LEVEL
+   :value: 12
+
+
+.. py:function:: validate_egi_level(level: int, param_name: str = 'level') -> int
+
+   
+   Validate EGI level is within valid range [1, 12].
+
+
+   :Parameters:
+
+       **level** : int
+           EGI resolution level
+
+       **param_name** : str
+           Parameter name for error messages
+
+
+
+   :Returns:
+
+       int
+           Validated level
+
+
+
+
+   :Raises:
+
+       EGIValidationError
+           If level is out of range
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:data:: VALID_PRODUCTS
+
+.. py:function:: validate_product(product: str) -> str
+
+   
+   Validate GEDI product identifier.
+
+
+   :Parameters:
+
+       **product** : str
+           GEDI product code (e.g., 'L2A', 'L4A')
+
+
+
+   :Returns:
+
+       str
+           Normalized product code (uppercase)
+
+
+
+
+   :Raises:
+
+       GediProductError
+           If product is invalid
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: validate_product_vars(product_vars: Dict[str, Any]) -> Dict[str, List[str]]
+
+   
+   Validate product variables dictionary.
+
+
+   :Parameters:
+
+       **product_vars** : dict
+           Dictionary mapping product codes to variable specifications
+
+
+
+   :Returns:
+
+       dict
+           Validated product variables
+
+
+
+
+   :Raises:
+
+       GediProductError
+           If product is invalid
+
+       GediVariableError
+           If variable specification is invalid
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: validate_file_exists(path: str, file_type: str = 'file') -> str
+
+   
+   Validate that a file exists.
+
+
+   :Parameters:
+
+       **path** : str
+           File path to validate
+
+       **file_type** : str
+           Description for error message (e.g., 'HDF5 file', 'database')
+
+
+
+   :Returns:
+
+       str
+           Validated path
+
+
+
+
+   :Raises:
+
+       GediFileError
+           If file does not exist
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: validate_directory_exists(path: str, create: bool = False) -> str
+
+   
+   Validate that a directory exists, optionally creating it.
+
+
+   :Parameters:
+
+       **path** : str
+           Directory path to validate
+
+       **create** : bool
+           If True, create directory if it doesn't exist
+
+
+
+   :Returns:
+
+       str
+           Validated path
+
+
+
+
+   :Raises:
+
+       GediFileError
+           If directory does not exist and create=False
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: validate_database_path(db_path: str) -> str
+
+   
+   Validate H3 database path exists and appears valid.
+
+
+   :Parameters:
+
+       **db_path** : str
+           Path to H3 database directory
+
+
+
+   :Returns:
+
+       str
+           Validated path
+
+
+
+
+   :Raises:
+
+       GediDatabaseNotFoundError
+           If database directory doesn't exist or appears invalid
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: validate_coordinates(lat: float, lon: float) -> tuple
+
+   
+   Validate latitude and longitude coordinates.
+
+
+   :Parameters:
+
+       **lat** : float
+           Latitude in degrees
+
+       **lon** : float
+           Longitude in degrees
+
+
+
+   :Returns:
+
+       tuple
+           (lat, lon) validated coordinates
+
+
+
+
+   :Raises:
+
+       ValueError
+           If coordinates are out of range
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: validate_bbox(bbox: Union[list, tuple]) -> tuple
+
+   
+   Validate bounding box coordinates.
+
+
+   :Parameters:
+
+       **bbox** : list or tuple
+           Bounding box as (west, south, east, north) or [west, south, east, north]
+
+
+
+   :Returns:
+
+       tuple
+           Validated (west, south, east, north)
+
+
+
+
+   :Raises:
+
+       ValueError
+           If bbox is invalid
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

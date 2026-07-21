@@ -1,0 +1,108 @@
+gedih3.cli.gh3_build
+====================
+
+.. py:module:: gedih3.cli.gh3_build
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.cli.gh3_build.explicit_vars_missing_in_sample
+   gedih3.cli.gh3_build.manifest_check_scope
+   gedih3.cli.gh3_build.get_cmd_args
+   gedih3.cli.gh3_build.main
+
+
+Module Contents
+---------------
+
+.. py:function:: explicit_vars_missing_in_sample(product_vars, default_products, sample_dict)
+
+   
+   Return ``{product: [bad_names]}`` for explicit-list products whose
+   requested variables are absent from the sample HDF5.
+
+   Pure function over its inputs — extracted from the gh3_build CLI so the
+   pre-flight typo check can be unit-tested without invoking ``main()``.
+
+   :Parameters:
+
+       **product_vars** : dict
+           Mapping ``{product: list-or-None}``. ``None`` means "everything"
+           (``*``/``all``) and is skipped. ``default``-sourced lists are
+           identified by ``default_products`` and skipped (they are validated
+           against the static manifest instead).
+
+       **default_products** : set
+           Products the user requested as ``default`` (skipped — manifest is
+           the contract).
+
+       **sample_dict** : dict
+           One ``{product: hdf5_path}`` mapping from
+           :func:`gedidriver.soc_file_tree`. Pass an empty dict to short-circuit.
+
+
+
+   :Returns:
+
+       dict
+           Empty when every explicit-list variable was found (or no explicit
+           lists exist). Otherwise ``{product: [missing_names]}``. Wildcards
+           that match nothing in the sample HDF5 are surfaced as a single
+           ``GediValidationError`` string entry under their product.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: manifest_check_scope(h3_logger, product_vars)
+
+   
+   Return the subset of ``product_vars`` that should be validated
+   against the shipped static manifest, per the regime rule:
+
+   - **Regime A** (fresh build): every product the user passed that was
+     requested via ``default``/``def``.
+   - **Regime C** (resume + explicit ``default`` re-request): only
+     products in ``h3_logger.default_products`` that also appear in
+     ``h3_logger.new_product_vars`` (i.e. produced a delta).
+   - **Regimes B & D** (resume with granules-only or explicit-list
+     expansion): empty — the build log is authoritative.
+
+   An empty return signals the caller to skip validation entirely.
+
+   Pure function over logger state so the regime gate can be unit-tested
+   without the full CLI pipeline.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_cmd_args()
+
+.. py:function:: main()
+

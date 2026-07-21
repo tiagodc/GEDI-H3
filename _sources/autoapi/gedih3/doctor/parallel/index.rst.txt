@@ -1,0 +1,108 @@
+gedih3.doctor.parallel
+======================
+
+.. py:module:: gedih3.doctor.parallel
+
+.. autoapi-nested-parse::
+
+   Doctor-internal scandir helpers + back-compat re-export of
+   :func:`gedih3.parallel.parallel_map`.
+
+   The general parallelism primitive has been promoted to
+   :mod:`gedih3.parallel` (it is used by the build, download, and
+   manifest-writing paths too, not only by the doctor diagnoses). This
+   module now keeps only the doctor-internal O(1) scandir helpers used by
+   ``doctor/diagnoses/orphans.py`` and re-exports ``parallel_map`` so any
+   external caller importing from here keeps working.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.doctor.parallel.partition_is_empty
+   gedih3.doctor.parallel.list_year_dirs
+   gedih3.doctor.parallel.year_dir_is_empty
+
+
+Module Contents
+---------------
+
+.. py:function:: partition_is_empty(partition_dir: str) -> bool
+
+   
+   O(1) emptiness check via :func:`os.scandir` — no recursive glob.
+
+   Mirrors the build pipeline's emptiness check at
+   ``gh3builder.py:1356-1362``. A partition is considered empty when
+   it contains no parquet file at any depth (year subdir or root).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: list_year_dirs(partition_dir: str) -> List[str]
+
+   
+   List immediate subdirectories of a partition directory.
+
+   Single ``os.scandir`` call instead of ``glob.glob('*/')``; same
+   primitive the build pipeline uses to enumerate per-h3 work units.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: year_dir_is_empty(year_dir: str) -> bool
+
+   
+   O(1) parquet presence check inside one year=*/ directory.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

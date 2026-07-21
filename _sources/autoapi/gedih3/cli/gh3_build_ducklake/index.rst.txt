@@ -1,0 +1,55 @@
+gedih3.cli.gh3_build_ducklake
+=============================
+
+.. py:module:: gedih3.cli.gh3_build_ducklake
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.cli.gh3_build_ducklake.get_cmd_args
+   gedih3.cli.gh3_build_ducklake.get_file_list
+   gedih3.cli.gh3_build_ducklake.main
+
+
+Module Contents
+---------------
+
+.. py:function:: get_cmd_args()
+
+.. py:function:: get_file_list(root_dir)
+
+   
+   Generate a list of all expected parquet files in the H3 database.
+
+
+   :Parameters:
+
+       **root_dir** : str or pathlib.Path
+           Root directory of the H3 database.
+
+
+
+   :Returns:
+
+       list of pathlib.Path
+           Paths to parquet files that exist on disk, ordered so the first element
+           is guaranteed to exist (used to infer the table schema).
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: main()
+

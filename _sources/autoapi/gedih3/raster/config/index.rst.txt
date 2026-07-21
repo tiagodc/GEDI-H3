@@ -1,0 +1,127 @@
+gedih3.raster.config
+====================
+
+.. py:module:: gedih3.raster.config
+
+.. autoapi-nested-parse::
+
+   Raster Module Configuration
+
+   This module defines constants and defaults for raster output operations
+   including GeoTIFF compression, tiling, and format settings.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.raster.config.GEOTIFF_DEFAULTS
+   gedih3.raster.config.COMPRESSION_OPTIONS
+   gedih3.raster.config.RASTER_FORMATS
+   gedih3.raster.config.TIME_UNITS
+   gedih3.raster.config.H3_RASTER_CRS
+   gedih3.raster.config.GEDI_START_DATE_STR
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.raster.config.get_geotiff_options
+   gedih3.raster.config.is_raster_format
+
+
+Module Contents
+---------------
+
+.. py:data:: GEOTIFF_DEFAULTS
+   :type:  Dict[str, Any]
+
+.. py:data:: COMPRESSION_OPTIONS
+   :value: ['LZW', 'ZSTD', 'DEFLATE', 'PACKBITS', 'NONE']
+
+
+.. py:data:: RASTER_FORMATS
+   :value: ['tif', 'tiff', 'geotiff', 'nc', 'netcdf']
+
+
+.. py:data:: TIME_UNITS
+   :value: ['years', 'months', 'weeks', 'days']
+
+
+.. py:data:: H3_RASTER_CRS
+   :value: 'EPSG:4326'
+
+
+.. py:data:: GEDI_START_DATE_STR
+   :value: '2018-01-01'
+
+
+.. py:function:: get_geotiff_options(compress: str = 'LZW', tiled: bool = True, blocksize: int = 256, bigtiff: bool = True) -> Dict[str, Any]
+
+   
+   Generate rasterio GeoTIFF export options.
+
+
+   :Parameters:
+
+       **compress** : str
+           Compression method ('LZW', 'ZSTD', 'DEFLATE', 'PACKBITS', 'NONE')
+
+       **tiled** : bool
+           Use tiled output format
+
+       **blocksize** : int
+           Tile block size in pixels
+
+       **bigtiff** : bool
+           Use BigTIFF format for large files
+
+
+
+   :Returns:
+
+       dict
+           Options dictionary for rio.to_raster()
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: is_raster_format(fmt: str) -> bool
+
+   
+   Check if a format string indicates raster output.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

@@ -1,0 +1,509 @@
+gedih3.logger
+=============
+
+.. py:module:: gedih3.logger
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.logger.PRODUCT_STATUS_INDEXED
+   gedih3.logger.PRODUCT_STATUS_PARTIAL_NAN
+   gedih3.logger.PRODUCT_STATUS_MISSING_COLUMN
+   gedih3.logger.PRODUCT_STATUS_MISSING_SOURCE
+   gedih3.logger.PRODUCT_STATUS_FAILED
+   gedih3.logger.PRODUCT_STATUS_PENDING
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   gedih3.logger.SOCDownloadLogger
+   gedih3.logger.H3BuildLogger
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.logger.load_log_data
+   gedih3.logger.merge_temporal
+   gedih3.logger.merge_product_vars
+
+
+Module Contents
+---------------
+
+.. py:data:: PRODUCT_STATUS_INDEXED
+   :value: 'INDEXED'
+
+
+.. py:data:: PRODUCT_STATUS_PARTIAL_NAN
+   :value: 'PARTIAL_NAN'
+
+
+.. py:data:: PRODUCT_STATUS_MISSING_COLUMN
+   :value: 'MISSING_COLUMN'
+
+
+.. py:data:: PRODUCT_STATUS_MISSING_SOURCE
+   :value: 'MISSING_SOURCE'
+
+
+.. py:data:: PRODUCT_STATUS_FAILED
+   :value: 'FAILED'
+
+
+.. py:data:: PRODUCT_STATUS_PENDING
+   :value: 'PENDING'
+
+
+.. py:function:: load_log_data(file_path)
+
+.. py:function:: merge_temporal(existing, new)
+
+.. py:function:: merge_product_vars(existing_product_vars, new_product_vars=None)
+
+.. py:class:: SOCDownloadLogger(product_vars, spatial=None, temporal=None, version=None, dir=None)
+
+   .. py:attribute:: gedi_version
+      :value: None
+
+
+
+   .. py:attribute:: s3_access
+      :value: False
+
+
+
+   .. py:attribute:: log_file
+
+
+   .. py:attribute:: log_data
+
+
+   .. py:attribute:: updating
+      :value: False
+
+
+
+   .. py:attribute:: new_spatial
+      :value: None
+
+
+
+   .. py:attribute:: new_temporal
+      :value: None
+
+
+
+   .. py:attribute:: new_product_vars
+      :value: None
+
+
+
+   .. py:method:: register_pending_granules(granule_list)
+
+      
+      Register granules as PENDING. Called before download starts.
+
+
+      :Parameters:
+
+          **granule_list** : list of dict
+              Each dict must have 'orbit', 'granule', 'track' keys.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: update_granule_status(gran_key, status)
+
+      
+      Update status of a single granule (does NOT auto-save).
+
+      Caller controls save frequency via explicit save_log() calls.
+
+      :Parameters:
+
+          **gran_key** : dict
+              Dict with 'orbit', 'granule', 'track' keys.
+
+          **status** : str
+              'DOWNLOADED' or 'FAILED'.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: set_post_download_info()
+
+      
+      Scan SOC directory and record downloaded granules.
+
+      Refreshes ``_soc_manifest.txt`` first so subsequent
+      ``soc_file_tree`` calls (here and on the next resume) skip the
+      recursive glob over the SOC tree. This is the same pattern the
+      H3 database uses via ``MANIFEST_FILENAME``.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: get_finished_granules()
+
+      
+      Return skip list when resuming with same filters.
+
+      Only returns successfully completed granules, with the status
+      field stripped for backward compatibility with _filter_granules()
+      dict comparison. Legacy logs without status fields are treated
+      as successful.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: get_temporal()
+
+
+   .. py:method:: get_spatial()
+
+
+   .. py:method:: get_product_vars()
+
+
+   .. py:method:: to_dict(status)
+
+
+   .. py:method:: save_log(status)
+
+
+.. py:class:: H3BuildLogger(product_vars, spatial=None, temporal=None, res: int = 12, part: int = 3, version: int = None, dir=None, source_mode=None)
+
+   .. py:attribute:: default_products
+
+
+   .. py:attribute:: log_file
+
+
+   .. py:attribute:: log_data
+
+
+   .. py:attribute:: updating
+      :value: False
+
+
+
+   .. py:attribute:: source_mode
+      :value: None
+
+
+
+   .. py:attribute:: build_start_time
+
+
+   .. py:attribute:: previous_status
+
+
+   .. py:attribute:: new_spatial
+      :value: None
+
+
+
+   .. py:attribute:: new_temporal
+      :value: None
+
+
+
+   .. py:attribute:: new_product_vars
+      :value: None
+
+
+
+   .. py:method:: get_temporal()
+
+
+   .. py:method:: get_spatial()
+
+
+   .. py:method:: get_product_vars()
+
+
+   .. py:method:: register_pending_granules(granule_list)
+
+      
+      Register granules as PENDING. Called before build starts.
+
+
+      :Parameters:
+
+          **granule_list** : list of dict
+              Each dict must have 'orbit', 'granule', 'track' keys.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: update_granule_status(gran_key, status)
+
+      
+      Update status of a single granule (does NOT auto-save).
+
+      Caller controls save frequency via explicit save_log() calls.
+
+      :Parameters:
+
+          **gran_key** : dict
+              Dict with 'orbit', 'granule', 'track' keys.
+
+          **status** : str
+              'INDEXED' or 'PENDING'.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: get_finished_granules()
+
+      
+      Return skip list when resuming with same filters.
+
+      Only returns successfully completed granules, with the status and
+      products fields stripped for backward compatibility with
+      ``_filter_granules()`` dict comparison (which expects bare
+      ``{'orbit', 'granule', 'track'}`` dicts). Legacy logs without status
+      fields are treated as successful.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: is_up_to_date()
+
+      
+      Check if database already matches requested parameters.
+
+      Returns True when all of these hold:
+      - Log exists (updating=True)
+      - No new products, spatial, or temporal changes detected
+      - No pending variable update from a previous crash
+      - All tracked granules are INDEXED
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: set_post_build_info()
+
+
+   .. py:method:: to_dict(status)
+
+
+   .. py:method:: save_log(status)
+
+
+   .. py:method:: get_granule_product_status(gran_key, product)
+
+      
+      Return per-product status for a granule, or None if unknown.
+
+
+      :Parameters:
+
+          **gran_key** : dict or tuple
+              Either ``{'orbit', 'granule', 'track'}`` or ``(orbit, granule, track)``.
+
+          **product** : str
+              Product code (e.g. 'L4A').
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: get_product_gaps(active_products=None, gap_statuses=None)
+
+      
+      List granules where any active product is not INDEXED.
+
+      Returns a list of ``(gran_key_dict, [missing_products])`` pairs.
+      Used by gh3_doctor as the fast-path audit (log-only, no parquet scan).
+
+      :Parameters:
+
+          **active_products** : iterable of str, optional
+              Products to check. Defaults to ``self.product_vars.keys()``.
+
+          **gap_statuses** : iterable of str, optional
+              Per-product statuses considered as gaps. Defaults to everything except
+              ``INDEXED`` (i.e. PARTIAL_NAN, MISSING_COLUMN, MISSING_SOURCE, FAILED, PENDING).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: mark_granule_product(gran_key, product, status)
+
+      
+      Set per-product status for a granule (does not auto-save).
+
+      Caller is responsible for invoking ``save_log()`` to persist.
+      Used by gh3_doctor after a fix or verification step.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+

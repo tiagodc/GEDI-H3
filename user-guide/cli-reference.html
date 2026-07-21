@@ -1,0 +1,1026 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>CLI Reference &#8212; gedih3 0.12.9 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=8bafde03" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../_static/documentation_options.js?v=54dfaa76"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'user-guide/cli-reference';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="author" title="About these documents" href="../about.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Data Formats" href="data-formats.html" />
+    <link rel="prev" title="Building a Database" href="building-a-database.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+     
+  
+
+<a class="navbar-brand logo" href="/GEDI-H3/">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.12.9 documentation - Home"/>
+    <img src="../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.12.9 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../autoapi/index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../autoapi/index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="building-a-database.html">Building a Database</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">CLI Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data-formats.html">Data Formats</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python-api.html">Python API</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link">Core Functionality</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">CLI Reference</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="cli-reference">
+<h1>CLI Reference<a class="headerlink" href="#cli-reference" title="Link to this heading">#</a></h1>
+<p>gedih3 installs 10 command-line tools. All tools support <code class="docutils literal notranslate"><span class="pre">-v</span></code> (INFO) and <code class="docutils literal notranslate"><span class="pre">-vv</span></code> (DEBUG) verbosity, and <code class="docutils literal notranslate"><span class="pre">-Q</span></code> for quiet mode.</p>
+<blockquote>
+<div><p><strong>Tip</strong>: Every tool supports <code class="docutils literal notranslate"><span class="pre">--help</span></code> (<code class="docutils literal notranslate"><span class="pre">-h</span></code>) for a complete list of flags and examples:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>--help
+gh3_aggregate<span class="w"> </span>--help
+gh3_extract<span class="w"> </span>--help
+</pre></div>
+</div>
+</div></blockquote>
+<hr class="docutils" />
+<section id="core-workflow-tools">
+<h2>Core Workflow Tools<a class="headerlink" href="#core-workflow-tools" title="Link to this heading">#</a></h2>
+<section id="gh3-download">
+<h3><code class="docutils literal notranslate"><span class="pre">gh3_download</span></code><a class="headerlink" href="#gh3-download" title="Link to this heading">#</a></h3>
+<p>Download GEDI data from NASA DAAC.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_download<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;W,S,E,N&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-N<span class="w"> </span><span class="m">8</span>
+gh3_download<span class="w"> </span>-r<span class="w"> </span>region.shp<span class="w"> </span>-l4a<span class="w"> </span>agbd<span class="w"> </span>-t0<span class="w"> </span><span class="m">2020</span>-01-01<span class="w"> </span>-t1<span class="w"> </span><span class="m">2021</span>-01-01
+gh3_download<span class="w"> </span>--s3<span class="w">  </span><span class="c1"># Stream from NASA S3 without local download</span>
+</pre></div>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-r,</span> <span class="pre">--region</span></code></p></td>
+<td><p>Spatial filter: bbox, vector file, or ISO3 code</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-t0,</span> <span class="pre">-t1</span></code></p></td>
+<td><p>Start/end date (YYYY-MM-DD)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-l1b,</span> <span class="pre">-l2a,</span> <span class="pre">-l2b,</span> <span class="pre">-l4a,</span> <span class="pre">-l4c</span></code></p></td>
+<td><p>Products to download (<code class="docutils literal notranslate"><span class="pre">default</span></code>, <code class="docutils literal notranslate"><span class="pre">minimal</span></code>, or list)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--gedi-version</span></code></p></td>
+<td><p>GEDI data version (default: latest)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--s3</span></code></p></td>
+<td><p>S3 streaming mode</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<hr class="docutils" />
+<section id="gh3-build">
+<h3><code class="docutils literal notranslate"><span class="pre">gh3_build</span></code><a class="headerlink" href="#gh3-build" title="Link to this heading">#</a></h3>
+<p>Build H3 parquet database from downloaded HDF5 files.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;W,S,E,N&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-h3r<span class="w"> </span><span class="m">12</span><span class="w"> </span>-h3p<span class="w"> </span><span class="m">3</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span>region.shp<span class="w"> </span>-l4a<span class="w"> </span>agbd<span class="w"> </span>--resume
+gh3_build<span class="w"> </span>--s3<span class="w"> </span>-r<span class="w"> </span>region.shp<span class="w"> </span>-l4a<span class="w"> </span>agbd<span class="w">  </span><span class="c1"># Build directly from S3</span>
+</pre></div>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-h3r</span></code></p></td>
+<td><p>H3 index resolution (default: 12, ~25 m²)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-h3p</span></code></p></td>
+<td><p>H3 partition resolution (default: 3, ~12,393 km²)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-i</span></code></p></td>
+<td><p>Input directory where GEDI HDF5 files are stored (default: <code class="docutils literal notranslate"><span class="pre">GH3_DEFAULT_SOC_DIR</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-d</span></code></p></td>
+<td><p>Output H3 database directory</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<hr class="docutils" />
+<section id="gh3-extract">
+<h3><code class="docutils literal notranslate"><span class="pre">gh3_extract</span></code><a class="headerlink" href="#gh3-extract" title="Link to this heading">#</a></h3>
+<p>Extract data from H3 database into simplified flat parquet files.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_extract<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-r<span class="w"> </span>region.shp<span class="w"> </span>-l2a<span class="w"> </span>rh_098<span class="w"> </span>-l4a<span class="w"> </span>agbd<span class="w"> </span>-y<span class="w"> </span>-o<span class="w"> </span>output/
+</pre></div>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-d</span></code></p></td>
+<td><p>H3 database path</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-r</span></code></p></td>
+<td><p>Spatial filter</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-t0,</span> <span class="pre">-t1</span></code></p></td>
+<td><p>Temporal filter</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-l*</span></code></p></td>
+<td><p>Product variables</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-y,</span> <span class="pre">--quality</span></code></p></td>
+<td><p>Apply pre-configured quality filters</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-q,</span> <span class="pre">--query</span></code></p></td>
+<td><p>Pandas-style filter string</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-g</span></code></p></td>
+<td><p>Include geometry</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-o</span></code></p></td>
+<td><p>Output directory</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="egi-variant">
+<h4>EGI variant<a class="headerlink" href="#egi-variant" title="Link to this heading">#</a></h4>
+<p>For square-pixel indexing instead of H3 — see <a class="reference internal" href="../concepts/egi-indexing.html"><span class="std std-doc">EGI Indexing</span></a>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_extract<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-egi<span class="w"> </span><span class="m">6</span><span class="w"> </span>-o<span class="w"> </span>output/<span class="w">       </span><span class="c1"># ~1 km EGI index</span>
+gh3_extract<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-egi<span class="w"> </span><span class="m">6</span>:10<span class="w"> </span>-o<span class="w"> </span>output/<span class="w">    </span><span class="c1"># explicit index:partition</span>
+</pre></div>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-egi</span> <span class="pre">INDEX[:PART]</span></code></p></td>
+<td><p>EGI index level and optional partition level</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="gh3-aggregate">
+<h3><code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code><a class="headerlink" href="#gh3-aggregate" title="Link to this heading">#</a></h3>
+<p>Aggregate data to a coarser spatial resolution.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-h3<span class="w"> </span><span class="m">6</span><span class="w"> </span>-o<span class="w"> </span>output/
+gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-h3<span class="w"> </span><span class="m">6</span><span class="w"> </span>-a<span class="w"> </span><span class="s2">&quot;[&#39;mean&#39;,&#39;std&#39;,&#39;count&#39;]&quot;</span><span class="w"> </span>-o<span class="w"> </span>output/
+</pre></div>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-h3</span> <span class="pre">LEVEL</span></code></p></td>
+<td><p>Aggregate to H3 level</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-a</span></code></p></td>
+<td><p>Aggregation function: <code class="docutils literal notranslate"><span class="pre">mean</span></code>, <code class="docutils literal notranslate"><span class="pre">sum</span></code>, <code class="docutils literal notranslate"><span class="pre">median</span></code>, <code class="docutils literal notranslate"><span class="pre">std</span></code>, <code class="docutils literal notranslate"><span class="pre">count</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-R,</span> <span class="pre">--rasterize</span></code></p></td>
+<td><p>Export as rasters after aggregation</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-o</span></code></p></td>
+<td><p>Output directory</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="id1">
+<h4>EGI variant<a class="headerlink" href="#id1" title="Link to this heading">#</a></h4>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-egi<span class="w"> </span><span class="m">6</span><span class="w"> </span>-a<span class="w"> </span>mean<span class="w"> </span>-o<span class="w"> </span>output/<span class="w">        </span><span class="c1"># ~1 km</span>
+gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-egi<span class="w"> </span><span class="m">6</span>:10<span class="w"> </span>-a<span class="w"> </span>mean<span class="w"> </span>-o<span class="w"> </span>output/<span class="w">     </span><span class="c1"># explicit partition</span>
+gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-egi<span class="w"> </span><span class="m">6</span><span class="w"> </span>-a<span class="w"> </span>mean<span class="w"> </span>-R<span class="w"> </span>-o<span class="w"> </span>output/<span class="w">     </span><span class="c1"># aggregate + rasterize</span>
+</pre></div>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-egi</span> <span class="pre">INDEX[:PART]</span></code></p></td>
+<td><p>EGI aggregation level and optional partition level</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="gh3-rasterize">
+<h3><code class="docutils literal notranslate"><span class="pre">gh3_rasterize</span></code><a class="headerlink" href="#gh3-rasterize" title="Link to this heading">#</a></h3>
+<p>Convert pre-aggregated dataset to GeoTIFF rasters.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_rasterize<span class="w"> </span>-d<span class="w"> </span>/path/to/aggregated/<span class="w"> </span>-o<span class="w"> </span>output/<span class="w"> </span>--compress<span class="w"> </span>LZW<span class="w">  </span><span class="c1"># tiled output</span>
+gh3_rasterize<span class="w"> </span>-d<span class="w"> </span>/path/to/aggregated/<span class="w"> </span>-m<span class="w"> </span>-o<span class="w"> </span>output.tif<span class="w">           </span><span class="c1"># merged GeoTIFF</span>
+gh3_rasterize<span class="w"> </span>-d<span class="w"> </span>/path/to/aggregated/<span class="w"> </span>-l<span class="w"> </span>agbd_l4a<span class="w"> </span>-o<span class="w"> </span>output/<span class="w">     </span><span class="c1"># select variables</span>
+</pre></div>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-d</span></code></p></td>
+<td><p>Dataset from <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code> or <code class="docutils literal notranslate"><span class="pre">gh3_extract</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-l</span></code></p></td>
+<td><p>Variable(s) to rasterize</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-m</span></code></p></td>
+<td><p>Merge all tiles into a single GeoTIFF</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--compress</span></code></p></td>
+<td><p>Compression: <code class="docutils literal notranslate"><span class="pre">LZW</span></code>, <code class="docutils literal notranslate"><span class="pre">DEFLATE</span></code>, <code class="docutils literal notranslate"><span class="pre">ZSTD</span></code>, <code class="docutils literal notranslate"><span class="pre">NONE</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-o</span></code></p></td>
+<td><p>Output path (directory or <code class="docutils literal notranslate"><span class="pre">.tif</span></code> when <code class="docutils literal notranslate"><span class="pre">-m</span></code>)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="ancillary-data-tools">
+<h2>Ancillary Data Tools<a class="headerlink" href="#ancillary-data-tools" title="Link to this heading">#</a></h2>
+<section id="gh3-from-img">
+<h3><code class="docutils literal notranslate"><span class="pre">gh3_from_img</span></code><a class="headerlink" href="#gh3-from-img" title="Link to this heading">#</a></h3>
+<p>Sample raster pixel values at GEDI shot locations.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Single raster</span>
+gh3_from_img<span class="w"> </span>-i<span class="w"> </span>/path/to/dem.tif<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-r<span class="w"> </span>region.shp<span class="w"> </span>-o<span class="w"> </span>output/
+
+<span class="c1"># Tile directory with band selection and window operations</span>
+gh3_from_img<span class="w"> </span>-i<span class="w"> </span>/path/to/tiles/<span class="w"> </span>-B<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">2</span><span class="w"> </span>-w<span class="w"> </span><span class="m">131</span><span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-o<span class="w"> </span>output/
+
+<span class="c1"># Custom band names, quality filter, include geometry</span>
+gh3_from_img<span class="w"> </span>-i<span class="w"> </span>/path/to/raster.vrt<span class="w"> </span>-b<span class="w"> </span>elevation<span class="w"> </span>slope<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-y<span class="w"> </span>-g<span class="w"> </span>-o<span class="w"> </span>output/
+</pre></div>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-i</span></code></p></td>
+<td><p>Raster file (tif), VRT, or tile directory</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-B</span></code></p></td>
+<td><p>Band indices to sample (0-based)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-b</span></code></p></td>
+<td><p>Custom band names</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-w</span></code></p></td>
+<td><p>Window operations (3-digit BZO format)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-F,</span> <span class="pre">--fillna</span></code></p></td>
+<td><p>Fill NoData value</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-g</span></code></p></td>
+<td><p>Include geometry in output</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Window spec format</strong> (<code class="docutils literal notranslate"><span class="pre">-w</span> <span class="pre">BZO</span></code>):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">B</span></code> = band index (0-based)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Z</span></code> = window size (odd, 1–9)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">O</span></code> = operation: <code class="docutils literal notranslate"><span class="pre">0</span></code>=sum, <code class="docutils literal notranslate"><span class="pre">1</span></code>=mean, <code class="docutils literal notranslate"><span class="pre">2</span></code>=median, <code class="docutils literal notranslate"><span class="pre">3</span></code>=mode</p></li>
+</ul>
+</section>
+<hr class="docutils" />
+<section id="gh3-from-polygon">
+<h3><code class="docutils literal notranslate"><span class="pre">gh3_from_polygon</span></code><a class="headerlink" href="#gh3-from-polygon" title="Link to this heading">#</a></h3>
+<p>Join polygon attributes to GEDI shots via spatial join.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_from_polygon<span class="w"> </span>-i<span class="w"> </span>ecoregions.shp<span class="w"> </span>-c<span class="w"> </span>ECO_NAME<span class="w"> </span>BIOME_NAME<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-o<span class="w"> </span>output/
+gh3_from_polygon<span class="w"> </span>-i<span class="w"> </span>landcover.gpkg<span class="w"> </span>-x<span class="w"> </span>lc_<span class="w"> </span>--dropna<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-o<span class="w"> </span>output/
+gh3_from_polygon<span class="w"> </span>-i<span class="w"> </span>boundaries.shp<span class="w"> </span>-p<span class="w"> </span>intersects<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-o<span class="w"> </span>output/
+</pre></div>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-i</span></code></p></td>
+<td><p>Polygon vector file (shapefile, GPKG, GeoJSON)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-c</span></code></p></td>
+<td><p>Columns to include from polygon file</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-x,</span> <span class="pre">--prefix</span></code></p></td>
+<td><p>Column name prefix (avoids conflicts)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-p</span></code></p></td>
+<td><p>Spatial predicate: <code class="docutils literal notranslate"><span class="pre">within</span></code> (default) or <code class="docutils literal notranslate"><span class="pre">intersects</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--dropna</span></code></p></td>
+<td><p>Drop shots not matched to any polygon</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-g</span></code></p></td>
+<td><p>Include geometry in output</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="utility-tools">
+<h2>Utility Tools<a class="headerlink" href="#utility-tools" title="Link to this heading">#</a></h2>
+<section id="gh3-list-resolutions">
+<h3><code class="docutils literal notranslate"><span class="pre">gh3_list_resolutions</span></code><a class="headerlink" href="#gh3-list-resolutions" title="Link to this heading">#</a></h3>
+<p>Display H3 and EGI resolution levels with pixel sizes.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_list_resolutions<span class="w">        </span><span class="c1"># H3 levels</span>
+gh3_list_resolutions<span class="w"> </span>-egi<span class="w">   </span><span class="c1"># EGI levels</span>
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="gh3-read-schema">
+<h3><code class="docutils literal notranslate"><span class="pre">gh3_read_schema</span></code><a class="headerlink" href="#gh3-read-schema" title="Link to this heading">#</a></h3>
+<p>Inspect file or database schemas. Lists column names and types from parquet, feather, geopackage, HDF5 files, or H3 databases. When no path is given, reads from the default H3 database.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_read_schema<span class="w">                        </span><span class="c1"># default H3 database</span>
+gh3_read_schema<span class="w"> </span>/path/to/database/<span class="w">     </span><span class="c1"># specific H3 database</span>
+gh3_read_schema<span class="w"> </span>/path/to/file.parquet<span class="w">  </span><span class="c1"># single file</span>
+gh3_read_schema<span class="w"> </span>/path/to/file.h5<span class="w">       </span><span class="c1"># HDF5 file</span>
+gh3_read_schema<span class="w"> </span>-p<span class="w"> </span>L2A<span class="w">                 </span><span class="c1"># filter by product</span>
+gh3_read_schema<span class="w"> </span>--grep<span class="w"> </span>agbd<span class="w">            </span><span class="c1"># grep filter</span>
+</pre></div>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">path</span></code></p></td>
+<td><p>File or directory to inspect (default: H3 database)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-p</span></code></p></td>
+<td><p>Filter by product suffix (e.g., <code class="docutils literal notranslate"><span class="pre">L2A</span></code> → <code class="docutils literal notranslate"><span class="pre">_l2a</span></code> columns)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--grep</span></code></p></td>
+<td><p>Filter columns by keyword (case-insensitive)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-g</span></code></p></td>
+<td><p>HDF5 group/beam filter (e.g., <code class="docutils literal notranslate"><span class="pre">BEAM0101</span></code>)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="common-flags">
+<h2>Common Flags<a class="headerlink" href="#common-flags" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-r,</span> <span class="pre">--region</span></code></p></td>
+<td><p>Spatial filter: vector file, bbox <code class="docutils literal notranslate"><span class="pre">&quot;W,S,E,N&quot;</span></code>, or ISO3 code</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-t0,</span> <span class="pre">-t1</span></code></p></td>
+<td><p>Temporal filters (YYYY-MM-DD)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-l1b,</span> <span class="pre">-l2a,</span> <span class="pre">-l2b,</span> <span class="pre">-l4a,</span> <span class="pre">-l4c</span></code></p></td>
+<td><p>Product variables (supports wildcards, e.g. <code class="docutils literal notranslate"><span class="pre">&quot;rh_*&quot;</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-N,</span> <span class="pre">-T,</span> <span class="pre">-M,</span> <span class="pre">-P</span></code></p></td>
+<td><p>Dask workers, threads, memory, dashboard port</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-s</span></code></p></td>
+<td><p>Connect to existing Dask scheduler</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-v,</span> <span class="pre">-vv</span></code></p></td>
+<td><p>Verbosity: INFO, DEBUG</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-Q</span></code></p></td>
+<td><p>Quiet mode (errors only)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-egi</span> <span class="pre">INDEX[:PART]</span></code></p></td>
+<td><p>EGI indexing</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-R</span></code></p></td>
+<td><p>Rasterize after aggregation (<code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code> only)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr class="docutils" />
+</section>
+<section id="remote-storage-credentials">
+<span id="id2"></span><h2>Remote Storage Credentials<a class="headerlink" href="#remote-storage-credentials" title="Link to this heading">#</a></h2>
+<p>All tools that accept a database path (<code class="docutils literal notranslate"><span class="pre">-d</span></code>) can read from remote filesystems. Pass the appropriate credential flags alongside the remote URI:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--s3-endpoint</span></code></p></td>
+<td><p>S3 endpoint URL (e.g. <code class="docutils literal notranslate"><span class="pre">http://localhost:7000</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--s3-key</span></code></p></td>
+<td><p>S3 access key</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--s3-secret</span></code></p></td>
+<td><p>S3 secret key</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--s3-anon</span></code></p></td>
+<td><p>Anonymous S3 access (for public buckets)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--remote-user</span></code></p></td>
+<td><p>Username for HTTP basic auth / FTP / SFTP</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--remote-pass</span></code></p></td>
+<td><p>Password for HTTP basic auth / FTP / SFTP</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--remote-token</span></code></p></td>
+<td><p>Bearer token for HTTP(S) auth</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--ssh-key</span></code></p></td>
+<td><p>Path to SSH/SFTP private key file</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Supported protocols: <code class="docutils literal notranslate"><span class="pre">s3://</span></code>, <code class="docutils literal notranslate"><span class="pre">http://</span></code>, <code class="docutils literal notranslate"><span class="pre">https://</span></code>, <code class="docutils literal notranslate"><span class="pre">ftp://</span></code>, <code class="docutils literal notranslate"><span class="pre">sftp://</span></code> (or <code class="docutils literal notranslate"><span class="pre">ssh://</span></code>). Credentials are passed through to <a class="reference external" href="https://filesystem-spec.readthedocs.io/">fsspec</a> — any option that fsspec accepts for a given protocol will work.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Public S3 bucket (anonymous)</span>
+gh3_extract<span class="w"> </span>-d<span class="w"> </span>s3://my-bucket/h3_database/<span class="w"> </span>--s3-anon<span class="w"> </span>-r<span class="w"> </span>region.shp<span class="w"> </span>-o<span class="w"> </span>output/
+
+<span class="c1"># SFTP with SSH key</span>
+gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>sftp://server.example.com/data/h3/<span class="w"> </span>--ssh-key<span class="w"> </span>~/.ssh/id_rsa<span class="w"> </span>-egi<span class="w"> </span><span class="m">6</span><span class="w"> </span>-o<span class="w"> </span>output/
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="building-a-database.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Building a Database</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="data-formats.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Data Formats</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#core-workflow-tools">Core Workflow Tools</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gh3-download"><code class="docutils literal notranslate"><span class="pre">gh3_download</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gh3-build"><code class="docutils literal notranslate"><span class="pre">gh3_build</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gh3-extract"><code class="docutils literal notranslate"><span class="pre">gh3_extract</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#egi-variant">EGI variant</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gh3-aggregate"><code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">EGI variant</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gh3-rasterize"><code class="docutils literal notranslate"><span class="pre">gh3_rasterize</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#ancillary-data-tools">Ancillary Data Tools</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gh3-from-img"><code class="docutils literal notranslate"><span class="pre">gh3_from_img</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gh3-from-polygon"><code class="docutils literal notranslate"><span class="pre">gh3_from_polygon</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#utility-tools">Utility Tools</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gh3-list-resolutions"><code class="docutils literal notranslate"><span class="pre">gh3_list_resolutions</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gh3-read-schema"><code class="docutils literal notranslate"><span class="pre">gh3_read_schema</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#common-flags">Common Flags</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-storage-credentials">Remote Storage Credentials</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  <div class="tocsection sourcelink">
+    <a href="../_sources/user-guide/cli-reference.md.txt">
+      <i class="fa-solid fa-file-lines"></i> Show Source
+    </a>
+  </div>
+</div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, University of Maryland. All Rights Reserved.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,213 @@
+gedih3.vecutils
+===============
+
+.. py:module:: gedih3.vecutils
+
+.. autoapi-nested-parse::
+
+   Vector Polygon Spatial Join at GEDI Shot Locations
+
+   Spatially join polygon attributes (e.g., ecoregion names, administrative
+   boundaries) to GEDI shot locations based on spatial containment.
+
+   Supports shapefiles, GeoPackages, GeoJSON, and GeoParquet. Works with both
+   H3 databases and simplified datasets from gh3_extract.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.vecutils.logger
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.vecutils.resolve_vector_source
+   gedih3.vecutils.get_vector_info
+   gedih3.vecutils.load_vector
+   gedih3.vecutils.join_polygons_to_points
+
+
+Module Contents
+---------------
+
+.. py:data:: logger
+
+.. py:function:: resolve_vector_source(vector_path, file_format='*')
+
+   
+   Resolve vector input to a single file path.
+
+   - Single file -> return as-is
+   - Directory -> glob for vector files
+
+   :Parameters:
+
+       **vector_path** : str
+           Path to vector file or directory of vector files
+
+       **file_format** : str
+           File extension to glob when vector_path is a directory.
+           Use '*' to search all supported formats.
+
+
+
+   :Returns:
+
+       tuple
+           (file_path, file_count)
+
+
+
+
+   :Raises:
+
+       GediSpatialJoinError
+           If no valid vector file found
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_vector_info(vector_path)
+
+   
+   Read vector file metadata without loading all features.
+
+
+   :Parameters:
+
+       **vector_path** : str
+           Path to vector file
+
+
+
+   :Returns:
+
+       dict
+           Keys: crs, bounds_wgs84, columns, feature_count, geometry_type
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: load_vector(vector_path, columns=None, to_crs=4326)
+
+   
+   Load polygon GeoDataFrame, filter columns, reproject to WGS84.
+
+
+   :Parameters:
+
+       **vector_path** : str
+           Path to vector file
+
+       **columns** : list of str, optional
+           Polygon attribute columns to include. If None, all columns.
+
+       **to_crs** : int or str
+           Target CRS (default: EPSG:4326 for WGS84)
+
+
+
+   :Returns:
+
+       GeoDataFrame
+           Polygon geometries in target CRS with spatial index
+
+
+
+
+   :Raises:
+
+       GediSpatialJoinError
+           If file contains non-polygon geometries
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: join_polygons_to_points(df, vector_path, join_columns=None, predicate='within', how='left', prefix=None, partition_col=None, geo=False)
+
+   
+   Spatially join polygon attributes to GEDI shot locations within a partition.
+
+   Designed to be called via Dask map_partitions. For each partition:
+   1. Load polygons via worker-level cache
+   2. Build GeoDataFrame from partition points
+   3. Perform spatial join (gpd.sjoin)
+   4. Cleanup: drop index_right, apply column prefix, handle conflicts
+
+   :Parameters:
+
+       **df** : DataFrame or GeoDataFrame
+           Input partition with geometry column (Point geometries)
+
+       **vector_path** : str
+           Path to polygon vector file
+
+       **join_columns** : list of str, optional
+           Polygon attribute columns to include. If None, all polygon columns.
+
+       **predicate** : str
+           Spatial join predicate: 'within' or 'intersects'
+
+       **how** : str
+           Join type: 'left' (keep all shots) or 'inner' (matched only)
+
+       **prefix** : str, optional
+           Prefix to add to polygon column names (avoids conflicts)
+
+       **partition_col** : str, optional
+           Partition column name to preserve in output
+
+       **geo** : bool
+           Include geometry in output
+
+
+
+   :Returns:
+
+       DataFrame or GeoDataFrame
+           Joined data with polygon attribute columns
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

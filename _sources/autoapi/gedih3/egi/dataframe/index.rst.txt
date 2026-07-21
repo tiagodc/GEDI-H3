@@ -1,0 +1,377 @@
+gedih3.egi.dataframe
+====================
+
+.. py:module:: gedih3.egi.dataframe
+
+.. autoapi-nested-parse::
+
+   EGI (EASE Grid Index) DataFrame Module
+
+   This module provides operations for integrating EGI spatial indexing with
+   pandas and GeoPandas DataFrames:
+   - Adding EGI indices to DataFrames based on coordinates
+   - Converting between resolution levels (to_parent)
+   - Aggregation functions with spatial grouping
+   - Conversion to/from GeoDataFrames
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.egi.dataframe.egi_dataframe
+   gedih3.egi.dataframe.egi_dataframe_vectorized
+   gedih3.egi.dataframe.egi_to_parent
+   gedih3.egi.dataframe.egi_to_parent_vectorized
+   gedih3.egi.dataframe.egi_to_geo
+   gedih3.egi.dataframe.egi_aggregate
+   gedih3.egi.dataframe.egi_col_from_df
+   gedih3.egi.dataframe.egi_get_level_from_df
+
+
+Module Contents
+---------------
+
+.. py:function:: egi_dataframe(df: Union[pandas.DataFrame, geopandas.GeoDataFrame], x_col: str = 'lon_lowestmode', y_col: str = 'lat_lowestmode', level: int = 1, in_epsg: int = 4326, set_index: bool = True) -> geopandas.GeoDataFrame
+
+   
+   Add EGI spatial index to a DataFrame based on coordinate columns.
+
+   This is the primary function for converting GEDI shot data to EGI-indexed format.
+   It reprojects coordinates to EPSG:6933 and computes EGI hashes at the specified
+   resolution level.
+
+   :Parameters:
+
+       **df** : DataFrame or GeoDataFrame
+           Input data with coordinate columns or Point geometries
+
+       **x_col** : str
+           Name of longitude/X column (default: 'lon_lowestmode')
+
+       **y_col** : str
+           Name of latitude/Y column (default: 'lat_lowestmode')
+
+       **level** : int
+           EGI resolution level (1-12), default=1 (finest)
+
+       **in_epsg** : int
+           EPSG code of input coordinates (default: 4326 for WGS84)
+
+       **set_index** : bool
+           If True, set the EGI column as the DataFrame index
+
+
+
+   :Returns:
+
+       GeoDataFrame
+           GeoDataFrame with EGI column added and optionally set as index
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> # Add EGI index to GEDI shots
+   >>> gedi_df = pd.read_parquet("gedi_shots.parquet")
+   >>> egi_df = egi_dataframe(gedi_df, level=6)  # ~1km resolution
+   >>>
+   >>> # Using existing GeoDataFrame
+   >>> gdf = gpd.read_file("points.gpkg")
+   >>> egi_gdf = egi_dataframe(gdf, level=6)
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: egi_dataframe_vectorized(df: Union[pandas.DataFrame, geopandas.GeoDataFrame], x_col: str = 'lon_lowestmode', y_col: str = 'lat_lowestmode', level: int = 1, in_epsg: int = 4326, set_index: bool = True) -> geopandas.GeoDataFrame
+
+   
+   Add EGI spatial index using vectorized operations (faster for large datasets).
+
+   This is an optimized version of egi_dataframe() that uses numpy vectorization
+   for better performance on large datasets.
+
+   :Parameters:
+
+       **df** : DataFrame or GeoDataFrame
+           Input data with coordinate columns
+
+       **x_col** : str
+           Name of longitude/X column
+
+       **y_col** : str
+           Name of latitude/Y column
+
+       **level** : int
+           EGI resolution level (1-12)
+
+       **in_epsg** : int
+           EPSG code of input coordinates
+
+       **set_index** : bool
+           If True, set the EGI column as index
+
+
+
+   :Returns:
+
+       GeoDataFrame
+           GeoDataFrame with EGI column added
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: egi_to_parent(gdf: Union[pandas.DataFrame, geopandas.GeoDataFrame], parent_level: int = OUTER_LEVEL, set_index: bool = True) -> Union[pandas.DataFrame, geopandas.GeoDataFrame]
+
+   
+   Convert EGI-indexed DataFrame to a coarser resolution level.
+
+
+   :Parameters:
+
+       **gdf** : DataFrame or GeoDataFrame
+           EGI-indexed DataFrame (index must be EGI hash)
+
+       **parent_level** : int
+           Target coarser resolution level
+
+       **set_index** : bool
+           If True, replace the index with the parent level
+
+
+
+   :Returns:
+
+       DataFrame or GeoDataFrame
+           DataFrame with parent-level EGI column/index
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> # Aggregate from level 1 to level 6
+   >>> parent_df = egi_to_parent(fine_df, parent_level=6)
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: egi_to_parent_vectorized(gdf: Union[pandas.DataFrame, geopandas.GeoDataFrame], parent_level: int = OUTER_LEVEL, set_index: bool = True) -> Union[pandas.DataFrame, geopandas.GeoDataFrame]
+
+   
+   Convert EGI-indexed DataFrame to coarser resolution (vectorized version).
+
+   This is an optimized version using numpy vectorization.
+
+   :Parameters:
+
+       **gdf** : DataFrame or GeoDataFrame
+           EGI-indexed DataFrame
+
+       **parent_level** : int
+           Target coarser resolution level
+
+       **set_index** : bool
+           If True, replace the index with parent level
+
+
+
+   :Returns:
+
+       DataFrame or GeoDataFrame
+           DataFrame with parent-level EGI column/index
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: egi_to_geo(df: Union[pandas.DataFrame, geopandas.GeoDataFrame], polygons: bool = True) -> geopandas.GeoDataFrame
+
+   
+   Add geometry to an EGI-indexed DataFrame.
+
+
+   :Parameters:
+
+       **df** : DataFrame or GeoDataFrame
+           EGI-indexed DataFrame
+
+       **polygons** : bool
+           If True, use polygon geometries; if False, use point centroids
+
+
+
+   :Returns:
+
+       GeoDataFrame
+           GeoDataFrame with geometry column added
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> # Add polygon geometries for visualization
+   >>> gdf = egi_to_geo(aggregated_df, polygons=True)
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: egi_aggregate(gdf: Union[pandas.DataFrame, geopandas.GeoDataFrame], mapper: Union[str, List[str], Dict, Callable] = 'mean', return_geometry: bool = True, geom_points: bool = False) -> Union[pandas.DataFrame, geopandas.GeoDataFrame]
+
+   
+   Aggregate EGI-indexed DataFrame by spatial index.
+
+
+   :Parameters:
+
+       **gdf** : DataFrame or GeoDataFrame
+           EGI-indexed DataFrame
+
+       **mapper** : str, list, dict, or callable
+           Aggregation specification:
+           - str: Single aggregation function (e.g., 'mean', 'sum', 'count')
+           - list: Multiple functions ['mean', 'std', 'count']
+           - dict: Per-column specification {'col1': 'mean', 'col2': ['min', 'max']}
+           - callable: Custom aggregation function
+
+       **return_geometry** : bool
+           If True, return GeoDataFrame with geometry
+
+       **geom_points** : bool
+           If True and return_geometry, use point centroids instead of polygons
+
+
+
+   :Returns:
+
+       DataFrame or GeoDataFrame
+           Aggregated data, optionally with geometry
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> # Simple mean aggregation
+   >>> agg_df = egi_aggregate(shots_df, mapper='mean')
+   >>>
+   >>> # Multiple aggregations
+   >>> agg_df = egi_aggregate(shots_df, mapper=['mean', 'std', 'count'])
+   >>>
+   >>> # Per-column specification
+   >>> agg_df = egi_aggregate(shots_df, mapper={'agbd': 'mean', 'rh_098': ['mean', 'std']})
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: egi_col_from_df(df: Union[pandas.DataFrame, geopandas.GeoDataFrame]) -> Optional[str]
+
+   
+   Find the EGI column in a DataFrame.
+
+
+   :Parameters:
+
+       **df** : DataFrame or GeoDataFrame
+           DataFrame to search
+
+
+
+   :Returns:
+
+       str or None
+           Name of the EGI column, or None if not found
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: egi_get_level_from_df(df: Union[pandas.DataFrame, geopandas.GeoDataFrame]) -> Optional[int]
+
+   
+   Get the EGI resolution level from a DataFrame's index.
+
+
+   :Parameters:
+
+       **df** : DataFrame or GeoDataFrame
+           EGI-indexed DataFrame
+
+
+
+   :Returns:
+
+       int or None
+           Resolution level, or None if not EGI-indexed
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

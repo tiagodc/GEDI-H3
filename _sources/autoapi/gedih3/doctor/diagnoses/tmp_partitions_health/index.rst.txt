@@ -1,0 +1,48 @@
+gedih3.doctor.diagnoses.tmp_partitions_health
+=============================================
+
+.. py:module:: gedih3.doctor.diagnoses.tmp_partitions_health
+
+.. autoapi-nested-parse::
+
+   tmp_partitions_health diagnosis — post-build forensics on ``tmp/partitions/``.
+
+   Audit-only check that NEVER iterates healthy partitions (Pillar 1 — no
+   driver-side O(N) GPFS scans). It acts strictly on the signals the build
+   already persisted:
+
+     * ``tmp_dir/_merge_failures/*.fail`` sentinels  (one per failed merge)
+     * ``tmp_dir/_granule_failures.jsonl``           (one record per failed granule)
+     * ``tmp_dir/_merge_progress.txt`` vs. the DB ``_manifest.txt`` line count
+
+   The cost of the check is O(N_failures) + O(1) on the manifest — never
+   O(N_partitions). All work runs on the driver because the inputs are
+   narrow (a single sentinel directory + two flat files).
+
+   The ``--fix`` variant calls :func:`gh3builder.preclean_merge_failures` to
+   remove zero-byte / unreadable parquets + ``.tmp`` siblings under every
+   failed-merge partition. Granule failures are reported only — recovery
+   belongs in ``gh3_update --recover-missing-vars``. As a hard guard, the
+   fix refuses to act when a fresh ``gh3_build`` process appears to be
+   running (recent ``gh3_build.log`` mtime + matching pgrep PID).
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.doctor.diagnoses.tmp_partitions_health.tmp_partitions_health_check
+   gedih3.doctor.diagnoses.tmp_partitions_health.tmp_partitions_health_fix
+
+
+Module Contents
+---------------
+
+.. py:function:: tmp_partitions_health_check(ctx: gedih3.doctor.report.DoctorContext) -> gedih3.doctor.report.Report
+
+.. py:function:: tmp_partitions_health_fix(ctx: gedih3.doctor.report.DoctorContext, report: gedih3.doctor.report.Report) -> gedih3.doctor.report.Report
+

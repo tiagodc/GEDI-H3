@@ -1,0 +1,1144 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>gedih3.gh3builder &#8212; gedih3 0.12.9 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=8bafde03" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../../_static/documentation_options.js?v=54dfaa76"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'autoapi/gedih3/gh3builder/index';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="gedih3.gh3driver" href="../gh3driver/index.html" />
+    <link rel="prev" title="gedih3.gedidriver" href="../gedidriver/index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../_static/searchtools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script src="../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+     
+  
+
+<a class="navbar-brand logo" href="/GEDI-H3/">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.12.9 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.12.9 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user-guide/index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user-guide/index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">gedih3</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2 has-children"><a class="reference internal" href="../cli/index.html">gedih3.cli</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_aggregate/index.html">gedih3.cli.gh3_aggregate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_build/index.html">gedih3.cli.gh3_build</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_build_ducklake/index.html">gedih3.cli.gh3_build_ducklake</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_doctor/index.html">gedih3.cli.gh3_doctor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_download/index.html">gedih3.cli.gh3_download</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_extract/index.html">gedih3.cli.gh3_extract</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_from_img/index.html">gedih3.cli.gh3_from_img</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_from_polygon/index.html">gedih3.cli.gh3_from_polygon</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_list_resolutions/index.html">gedih3.cli.gh3_list_resolutions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_rasterize/index.html">gedih3.cli.gh3_rasterize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_read_schema/index.html">gedih3.cli.gh3_read_schema</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_update/index.html">gedih3.cli.gh3_update</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../cliutils/index.html">gedih3.cliutils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../config/index.html">gedih3.config</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../daac/index.html">gedih3.daac</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../doctor/index.html">gedih3.doctor</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../doctor/diagnoses/index.html">gedih3.doctor.diagnoses</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/backfill/index.html">gedih3.doctor.diagnoses.backfill</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/geoparquet_bbox/index.html">gedih3.doctor.diagnoses.geoparquet_bbox</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/log_state/index.html">gedih3.doctor.diagnoses.log_state</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/metadata/index.html">gedih3.doctor.diagnoses.metadata</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/orphans/index.html">gedih3.doctor.diagnoses.orphans</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/parquet_health/index.html">gedih3.doctor.diagnoses.parquet_health</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/soc_health/index.html">gedih3.doctor.diagnoses.soc_health</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/tmp_partitions_health/index.html">gedih3.doctor.diagnoses.tmp_partitions_health</a></li>
+</ul>
+</details></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/fused/index.html">gedih3.doctor.fused</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/inspect/index.html">gedih3.doctor.inspect</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/parallel/index.html">gedih3.doctor.parallel</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/parquet_ops/index.html">gedih3.doctor.parquet_ops</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/report/index.html">gedih3.doctor.report</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/runner/index.html">gedih3.doctor.runner</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/upstream/index.html">gedih3.doctor.upstream</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../egi/index.html">gedih3.egi</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../egi/config/index.html">gedih3.egi.config</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../egi/core/index.html">gedih3.egi.core</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../egi/dataframe/index.html">gedih3.egi.dataframe</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../egi/raster/index.html">gedih3.egi.raster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../egi/spatial/index.html">gedih3.egi.spatial</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../exceptions/index.html">gedih3.exceptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../gedidriver/index.html">gedih3.gedidriver</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">gedih3.gh3builder</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../gh3driver/index.html">gedih3.gh3driver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../h3utils/index.html">gedih3.h3utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../imgutils/index.html">gedih3.imgutils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../logger/index.html">gedih3.logger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../logging_config/index.html">gedih3.logging_config</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../parallel/index.html">gedih3.parallel</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../raster/index.html">gedih3.raster</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../raster/config/index.html">gedih3.raster.config</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../raster/export/index.html">gedih3.raster.export</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../raster/h3_raster/index.html">gedih3.raster.h3_raster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../raster/timeseries/index.html">gedih3.raster.timeseries</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../sqlutils/index.html">gedih3.sqlutils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utils/index.html">gedih3.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../validation/index.html">gedih3.validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../vecutils/index.html">gedih3.vecutils</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">API Reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link">gedih3</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">gedih3.gh3builder</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-gedih3.gh3builder">
+<span id="gedih3-gh3builder"></span><h1>gedih3.gh3builder<a class="headerlink" href="#module-gedih3.gh3builder" title="Link to this heading">#</a></h1>
+<section id="attributes">
+<h2>Attributes<a class="headerlink" href="#attributes" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.logger" title="gedih3.gh3builder.logger"><code class="xref py py-obj docutils literal notranslate"><span class="pre">logger</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.download_soc" title="gedih3.gh3builder.download_soc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">download_soc</span></code></a>(product_vars[, spatial, temporal, ...])</p></td>
+<td><p>Download GEDI HDF5 files in SOC (Science Operation Center) format.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.s3_etl_subset" title="gedih3.gh3builder.s3_etl_subset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">s3_etl_subset</span></code></a>(product_vars[, spatial, temporal, ...])</p></td>
+<td><p>ETL-style S3 build: search for GEDI granules, then dispatch Dask workers</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.h3_part_files" title="gedih3.gh3builder.h3_part_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h3_part_files</span></code></a>(df, dir_path[, res, part, lat_col, ...])</p></td>
+<td><p>Write a DataFrame to H3-partitioned parquet files.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.h3_write_metadata" title="gedih3.gh3builder.h3_write_metadata"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h3_write_metadata</span></code></a>(h3_file[, stats])</p></td>
+<td><p>Write a sidecar metadata JSON file for an H3 partition parquet file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.h3_read_metadata" title="gedih3.gh3builder.h3_read_metadata"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h3_read_metadata</span></code></a>(h3_file)</p></td>
+<td><p>Read the sidecar metadata JSON for an H3 partition parquet file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.h3_merge_metadata" title="gedih3.gh3builder.h3_merge_metadata"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h3_merge_metadata</span></code></a>(h3_subdir)</p></td>
+<td><p>Merge per-year metadata files into a single summary for an H3 partition.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.h3_skip_part" title="gedih3.gh3builder.h3_skip_part"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h3_skip_part</span></code></a>(h3_dir, h3_part, gedi_file[, cols])</p></td>
+<td><p>Check whether an H3 partition already contains data from a GEDI granule.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.h3_add_skip_column" title="gedih3.gh3builder.h3_add_skip_column"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h3_add_skip_column</span></code></a>(df, h3_dir)</p></td>
+<td><p>Add a <code class="docutils literal notranslate"><span class="pre">_skip</span></code> boolean column indicating partitions to skip.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.dh3_merge_metadata" title="gedih3.gh3builder.dh3_merge_metadata"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dh3_merge_metadata</span></code></a>(h3_subdir)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.h3_merge_files" title="gedih3.gh3builder.h3_merge_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h3_merge_files</span></code></a>(in_dir, out_dir[, rm_src, replace])</p></td>
+<td><p>Merge multiple parquet files for an H3 partition into a single file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.dh3_merge_files" title="gedih3.gh3builder.dh3_merge_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dh3_merge_files</span></code></a>(in_dir, out_dir[, rm_src, replace])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.preclean_merge_failures" title="gedih3.gh3builder.preclean_merge_failures"><code class="xref py py-obj docutils literal notranslate"><span class="pre">preclean_merge_failures</span></code></a>(→ Dict[str, int])</p></td>
+<td><p>L1 resume pre-clean: act on every recorded <code class="docutils literal notranslate"><span class="pre">_merge_failures</span></code> sentinel.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.apply_merge_failures_to_logger" title="gedih3.gh3builder.apply_merge_failures_to_logger"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply_merge_failures_to_logger</span></code></a>(→ int)</p></td>
+<td><p>Fold the merge-failed-granules sidecar into the build-log's</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.build_h3db" title="gedih3.gh3builder.build_h3db"><code class="xref py py-obj docutils literal notranslate"><span class="pre">build_h3db</span></code></a>(, h3_dir, skip_granules, status_callback, ...)</p></td>
+<td><p>Build an H3-indexed GEDI database from local SOC files or S3 download.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.merge_build_logs" title="gedih3.gh3builder.merge_build_logs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">merge_build_logs</span></code></a>(→ dict)</p></td>
+<td><p>Merge two build log files from separate databases.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="module-contents">
+<h2>Module Contents<a class="headerlink" href="#module-contents" title="Link to this heading">#</a></h2>
+<dl class="py data">
+<dt class="sig sig-object py" id="gedih3.gh3builder.logger">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">logger</span></span><a class="headerlink" href="#gedih3.gh3builder.logger" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.download_soc">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">download_soc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">product_vars</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spatial</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temporal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">direct_access</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">update</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">odir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">GH3_DEFAULT_SOC_DIR</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jobs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">on_granule_complete</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ensure_l2a</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#download_soc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.download_soc" title="Link to this definition">#</a></dt>
+<dd><p>Download GEDI HDF5 files in SOC (Science Operation Center) format.</p>
+<p>Expands variable specifications, ensures L2A essentials and shot_number
+are included, then delegates to <code class="docutils literal notranslate"><span class="pre">gedi_download</span></code> for retrieval.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>product_vars</strong><span class="classifier">dict</span></dt><dd><p>Mapping of GEDI product codes (e.g., ‘L2A’, ‘L4A’) to variable
+lists. Accepts ‘default’, ‘minimal’, or explicit variable names.</p>
+</dd>
+<dt><strong>spatial</strong><span class="classifier">GeoDataFrame, list, or str, optional</span></dt><dd><p>Spatial filter (vector file, bbox as [W,S,E,N], or ISO3 code).</p>
+</dd>
+<dt><strong>temporal</strong><span class="classifier">tuple of str, optional</span></dt><dd><p>Temporal range as (start_date, end_date) in ‘YYYY-MM-DD’ format.</p>
+</dd>
+<dt><strong>direct_access</strong><span class="classifier">bool, default False</span></dt><dd><p>If True, use S3 streaming instead of downloading to disk.</p>
+</dd>
+<dt><strong>update</strong><span class="classifier">bool, default False</span></dt><dd><p>If True, resume a previous download (skip already-downloaded files).</p>
+</dd>
+<dt><strong>version</strong><span class="classifier">int or str, optional</span></dt><dd><p>GEDI data version (e.g., 2). If None, uses latest available.</p>
+</dd>
+<dt><strong>odir</strong><span class="classifier">str</span></dt><dd><p>Output directory for downloaded HDF5 files.</p>
+</dd>
+<dt><strong>n_jobs</strong><span class="classifier">int, default 5</span></dt><dd><p>Number of parallel download workers.</p>
+</dd>
+<dt><strong>on_granule_complete</strong><span class="classifier">callable, optional</span></dt><dd><p>Callback <code class="docutils literal notranslate"><span class="pre">(granule_info_dict,</span> <span class="pre">status_str)</span> <span class="pre">-&gt;</span> <span class="pre">None</span></code> for per-granule
+progress tracking. Passed through to <code class="docutils literal notranslate"><span class="pre">gedi_download()</span></code>; see its
+docstring for the <code class="docutils literal notranslate"><span class="pre">granule_info_dict</span></code> contract (includes a
+<code class="docutils literal notranslate"><span class="pre">path</span></code> key).</p>
+</dd>
+<dt><strong>ensure_l2a</strong><span class="classifier">bool, default True</span></dt><dd><p>If True, automatically add L2A essentials when L2A is not in
+product_vars. Set to False for variable-only updates where L2A
+data already exists in the target database.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>list</dt><dd><p>List of downloaded SOC file paths or EarthAccessFile objects.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.s3_etl_subset">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">s3_etl_subset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">product_vars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spatial</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temporal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">odir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ensure_l2a</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#s3_etl_subset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.s3_etl_subset" title="Link to this definition">#</a></dt>
+<dd><p>ETL-style S3 build: search for GEDI granules, then dispatch Dask workers
+to open remote HDF5 files, extract only selected variables via range
+requests, and write compact local HDF5 files.</p>
+<p>This transfers and stores significantly less data than full downloads
+(10-50x smaller depending on variable selection). Workers run as true
+separate processes via Dask (GIL-free), matching the parallelism of
+download mode.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>product_vars</strong><span class="classifier">dict</span></dt><dd><p>Mapping of GEDI product codes (e.g., ‘L2A’, ‘L4A’) to variable
+lists. Accepts ‘default’, ‘minimal’, or explicit variable names.</p>
+</dd>
+<dt><strong>spatial</strong><span class="classifier">GeoDataFrame, list, or str, optional</span></dt><dd><p>Spatial filter (vector file, bbox as [W,S,E,N], or ISO3 code).</p>
+</dd>
+<dt><strong>temporal</strong><span class="classifier">tuple of str, optional</span></dt><dd><p>Temporal range as (start_date, end_date) in ‘YYYY-MM-DD’ format.</p>
+</dd>
+<dt><strong>version</strong><span class="classifier">int or str, optional</span></dt><dd><p>GEDI data version. If None, uses latest available.</p>
+</dd>
+<dt><strong>odir</strong><span class="classifier">str</span></dt><dd><p>Output directory for compact local HDF5 files in SOC structure.</p>
+</dd>
+<dt><strong>ensure_l2a</strong><span class="classifier">bool, default True</span></dt><dd><p>If True, automatically add L2A essentials when L2A is not in
+product_vars. Set to False for variable-only updates where L2A
+data already exists in the target database.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>str</dt><dd><p>Path to the output directory containing compact HDF5 files.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>GediFileError</dt><dd><p>If no GEDI files are found on S3 for the given parameters.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.h3_part_files">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">h3_part_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dir_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">res</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">12</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">part</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lat_col</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lat_lowestmode'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lon_col</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lon_lowestmode'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi_tiles</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">[]</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#h3_part_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.h3_part_files" title="Link to this definition">#</a></dt>
+<dd><p>Write a DataFrame to H3-partitioned parquet files.</p>
+<p>Indexes the DataFrame by H3 cell, groups rows by partition cell, and
+writes each group as a separate parquet file. If a file already exists
+for a partition, new rows are appended.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>df</strong><span class="classifier">pandas.DataFrame</span></dt><dd><p>Input DataFrame with coordinate columns and <code class="docutils literal notranslate"><span class="pre">root_beam</span></code>,
+<code class="docutils literal notranslate"><span class="pre">root_file</span></code> metadata columns.</p>
+</dd>
+<dt><strong>dir_path</strong><span class="classifier">str</span></dt><dd><p>Base directory for output partition subdirectories.</p>
+</dd>
+<dt><strong>res</strong><span class="classifier">int, default 12</span></dt><dd><p>H3 resolution for shot-level indexing.</p>
+</dd>
+<dt><strong>part</strong><span class="classifier">int, default 3</span></dt><dd><p>H3 resolution for file partitioning.</p>
+</dd>
+<dt><strong>lat_col</strong><span class="classifier">str, default ‘lat_lowestmode’</span></dt><dd><p>Column name for latitude values.</p>
+</dd>
+<dt><strong>lon_col</strong><span class="classifier">str, default ‘lon_lowestmode’</span></dt><dd><p>Column name for longitude values.</p>
+</dd>
+<dt><strong>roi_tiles</strong><span class="classifier">list of str, optional</span></dt><dd><p>If non-empty, only write partitions whose H3 cell ID is in this list.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>list of str or None</dt><dd><p>List of written parquet file paths, or None if the input is empty.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.h3_write_metadata">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">h3_write_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h3_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#h3_write_metadata"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.h3_write_metadata" title="Link to this definition">#</a></dt>
+<dd><p>Write a sidecar metadata JSON file for an H3 partition parquet file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>h3_file</strong><span class="classifier">str</span></dt><dd><p>Path to the H3 partition parquet file.</p>
+</dd>
+<dt><strong>stats</strong><span class="classifier">dict, optional</span></dt><dd><p>Pre-computed stats from <code class="docutils literal notranslate"><span class="pre">parquet_merge_files</span></code>’s streaming pass:
+<code class="docutils literal notranslate"><span class="pre">{'shot_count',</span> <span class="pre">'shot_min',</span> <span class="pre">'shot_max',</span> <span class="pre">'dt_min',</span> <span class="pre">'dt_max',</span>
+<span class="pre">'root_files'}</span></code>. When provided, skips the ~1.5-2 GB <code class="docutils literal notranslate"><span class="pre">pd.read_parquet</span></code>
+re-read of the just-written merged file. When <code class="docutils literal notranslate"><span class="pre">None</span></code> or any field is
+<code class="docutils literal notranslate"><span class="pre">None</span></code>, falls back to reading the columns from disk (slower, more
+memory).</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>str</dt><dd><p>Path to the written metadata JSON file (<code class="docutils literal notranslate"><span class="pre">*PARTITION_META_FILENAME</span></code>).</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.h3_read_metadata">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">h3_read_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h3_file</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#h3_read_metadata"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.h3_read_metadata" title="Link to this definition">#</a></dt>
+<dd><p>Read the sidecar metadata JSON for an H3 partition parquet file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>h3_file</strong><span class="classifier">str</span></dt><dd><p>Path to the H3 partition parquet file. The metadata file is
+expected at the same path with a <code class="docutils literal notranslate"><span class="pre">PARTITION_META_FILENAME</span></code> extension.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>dict or None</dt><dd><p>Parsed metadata dictionary, or None if the metadata file does not
+exist.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.h3_merge_metadata">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">h3_merge_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h3_subdir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#h3_merge_metadata"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.h3_merge_metadata" title="Link to this definition">#</a></dt>
+<dd><p>Merge per-year metadata files into a single summary for an H3 partition.</p>
+<p>Aggregates shot counts, expands shot and date ranges, and deduplicates
+granule identifiers across all year subdirectories within one H3 cell.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>h3_subdir</strong><span class="classifier">str</span></dt><dd><p>Path to an H3 partition directory (e.g., <code class="docutils literal notranslate"><span class="pre">h3_03=&lt;cell_id&gt;/</span></code>)
+containing year subdirectories with parquet and metadata files.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>str or None</dt><dd><p>Path to the merged metadata JSON file, or None if no metadata
+files were found.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.h3_skip_part">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">h3_skip_part</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h3_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h3_part</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gedi_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cols</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#h3_skip_part"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.h3_skip_part" title="Link to this definition">#</a></dt>
+<dd><p>Check whether an H3 partition already contains data from a GEDI granule.</p>
+<p>Reads the partition’s merged metadata to determine if the granule has
+already been indexed and, optionally, if the requested columns are
+already present.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>h3_dir</strong><span class="classifier">str</span></dt><dd><p>Root directory of the H3 database.</p>
+</dd>
+<dt><strong>h3_part</strong><span class="classifier">str</span></dt><dd><p>H3 cell ID of the partition to check.</p>
+</dd>
+<dt><strong>gedi_file</strong><span class="classifier">str</span></dt><dd><p>Path or filename of the GEDI HDF5 file to test against.</p>
+</dd>
+<dt><strong>cols</strong><span class="classifier">list of str, optional</span></dt><dd><p>If provided, also verify that these columns already exist in the
+partition. The partition is only skipped when both the granule
+is present and all requested columns are available.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>bool</dt><dd><p>True if the partition should be skipped (granule already indexed
+and columns present), False otherwise.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.h3_add_skip_column">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">h3_add_skip_column</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h3_dir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#h3_add_skip_column"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.h3_add_skip_column" title="Link to this definition">#</a></dt>
+<dd><p>Add a <code class="docutils literal notranslate"><span class="pre">_skip</span></code> boolean column indicating partitions to skip.</p>
+<p>Designed for use with <code class="docutils literal notranslate"><span class="pre">dask.dataframe.map_partitions</span></code>. Checks each
+unique H3 partition cell individually, since a single beam can span
+multiple H3 cells. Delegates to <code class="docutils literal notranslate"><span class="pre">h3_skip_part</span></code> per cell.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>df</strong><span class="classifier">pandas.DataFrame</span></dt><dd><p>A single Dask partition containing H3 partition column(s)
+(<code class="docutils literal notranslate"><span class="pre">h3_XX</span></code>) and <code class="docutils literal notranslate"><span class="pre">root_file_l2a</span></code>.</p>
+</dd>
+<dt><strong>h3_dir</strong><span class="classifier">str</span></dt><dd><p>Root directory of the H3 database.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>pandas.DataFrame</dt><dd><p>Input DataFrame with an added <code class="docutils literal notranslate"><span class="pre">_skip</span></code> column (True if the
+cell’s granule data already exists in the database).</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.dh3_merge_metadata">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">dh3_merge_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h3_subdir</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#gedih3.gh3builder.dh3_merge_metadata" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.h3_merge_files">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">h3_merge_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">in_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rm_src</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replace</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#h3_merge_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.h3_merge_files" title="Link to this definition">#</a></dt>
+<dd><p>Merge multiple parquet files for an H3 partition into a single file.</p>
+<p>Reads all parquet files in <code class="docutils literal notranslate"><span class="pre">in_dir</span></code>, merges them (deduplicating shots
+when appending to an existing file), writes the result to <code class="docutils literal notranslate"><span class="pre">out_dir</span></code>,
+and generates a sidecar metadata JSON file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>in_dir</strong><span class="classifier">str</span></dt><dd><p>Input directory containing parquet fragment files for one
+H3 cell/year combination.</p>
+</dd>
+<dt><strong>out_dir</strong><span class="classifier">str</span></dt><dd><p>Output directory where the merged file will be written,
+preserving the <code class="docutils literal notranslate"><span class="pre">&lt;h3_cell&gt;/&lt;year&gt;/</span></code> structure.</p>
+</dd>
+<dt><strong>rm_src</strong><span class="classifier">bool, default True</span></dt><dd><p>If True, remove the source directory after a successful merge.</p>
+</dd>
+<dt><strong>replace</strong><span class="classifier">bool, default False</span></dt><dd><p>If True, overwrite existing output files. If False, merge new
+data into any existing output file.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>str or None</dt><dd><p>Path to the merged parquet file, or None if <code class="docutils literal notranslate"><span class="pre">in_dir</span></code> contained
+no parquet files.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.dh3_merge_files">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">dh3_merge_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">in_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rm_src</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replace</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#gedih3.gh3builder.dh3_merge_files" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.preclean_merge_failures">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">preclean_merge_failures</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tmp_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#preclean_merge_failures"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.preclean_merge_failures" title="Link to this definition">#</a></dt>
+<dd><p>L1 resume pre-clean: act on every recorded <code class="docutils literal notranslate"><span class="pre">_merge_failures</span></code> sentinel.</p>
+<p>For each partition the prior run’s merge marked failed:</p>
+<ol class="arabic simple">
+<li><p>Stat each <code class="docutils literal notranslate"><span class="pre">*.parquet</span></code> in the partition — unlink if 0-byte (the
+canonical class B artifact). Truncated-but-nonzero parquets (class C)
+are unlinked only when <code class="docutils literal notranslate"><span class="pre">pq.ParquetFile</span></code> cannot open them — checked
+cheaply by opening the footer once. The cost is bounded by the
+failure list, never the full healthy tree.</p></li>
+<li><p>Unlink any co-located <code class="docutils literal notranslate"><span class="pre">*.tmp</span></code> / <code class="docutils literal notranslate"><span class="pre">*.merge.tmp</span></code> siblings. These
+survive SIGKILL when <code class="docutils literal notranslate"><span class="pre">AtomicFileWriter.__exit__</span></code> never runs and
+would otherwise pollute future merges.</p></li>
+<li><p>Delete the failure sentinel itself so re-running the pre-clean is
+idempotent (next run only re-acts on freshly-failed merges).</p></li>
+</ol>
+<p>Returns <code class="docutils literal notranslate"><span class="pre">{'partitions_cleaned':</span> <span class="pre">N,</span> <span class="pre">'parquets_removed':</span> <span class="pre">N,</span> <span class="pre">'tmps_removed':</span> <span class="pre">N}</span></code>.
+Companion to <code class="docutils literal notranslate"><span class="pre">apply_merge_failures_to_logger</span></code> — calling this without
+the granule flip-back would unlink fragments and leave their granules
+marked INDEXED, permanently dropping rows. The CLI runs both together.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.apply_merge_failures_to_logger">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">apply_merge_failures_to_logger</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h3_logger</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tmp_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#apply_merge_failures_to_logger"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.apply_merge_failures_to_logger" title="Link to this definition">#</a></dt>
+<dd><p>Fold the merge-failed-granules sidecar into the build-log’s
+granule status (INDEXED → MERGE_FAILED). Returns the count flipped.</p>
+<p>Idempotent: re-applying after a successful resume is a no-op because
+re-extracted granules have already been flipped back to INDEXED by
+<code class="docutils literal notranslate"><span class="pre">_reconcile_granules_from_disk</span></code>. Truncates the sidecar after fold to
+keep it bounded across resumes.</p>
+<p>Callable from the CLI right after <code class="docutils literal notranslate"><span class="pre">_merge_and_finalize</span></code> returns,
+regardless of which code path invoked merge. Does NOT call
+<code class="docutils literal notranslate"><span class="pre">h3_logger.save_log</span></code> — the caller controls save cadence.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.build_h3db">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">build_h3db</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">product_vars</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">res</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">12</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">part</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spatial</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temporal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">soc_source</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">List</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tmp_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">os.path.join(GH3_DEFAULT_TMP_DIR,</span> <span class="pre">'gh3_build')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h3_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">GH3_DEFAULT_H3_DIR</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skip_granules</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Dict</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">status_callback</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_only_update</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exclude</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#build_h3db"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.build_h3db" title="Link to this definition">#</a></dt>
+<dd><p>Build an H3-indexed GEDI database from local SOC files or S3 download.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>product_vars</strong><span class="classifier">dict</span></dt><dd><p>Dictionary mapping GEDI product codes (e.g., ‘L2A’, ‘L4A’) to lists of
+variable names to extract. Use ‘default’, ‘minimal’, or explicit lists.</p>
+</dd>
+<dt><strong>res</strong><span class="classifier">int, default 12</span></dt><dd><p>H3 resolution level for indexing individual shots (0-15).</p>
+</dd>
+<dt><strong>part</strong><span class="classifier">int, default 3</span></dt><dd><p>H3 resolution level for file partitioning (0-15, must be &lt;= res).</p>
+</dd>
+<dt><strong>spatial</strong><span class="classifier">GeoDataFrame, list, or str, optional</span></dt><dd><p>Spatial filter for the region of interest.</p>
+</dd>
+<dt><strong>temporal</strong><span class="classifier">tuple, optional</span></dt><dd><p>Temporal filter as (start_date, end_date) in ‘YYYY-MM-DD’ format.</p>
+</dd>
+<dt><strong>soc_source</strong><span class="classifier">str, list, or None</span></dt><dd><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">None</span></code>: download from NASA S3 to a temp directory (cleaned up after build)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">str</span></code>: path to local directory containing GEDI SOC HDF5 files</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">list</span></code>: pre-acquired list of file paths or EarthAccessFile objects</p></li>
+</ul>
+</dd>
+<dt><strong>version</strong><span class="classifier">int or None</span></dt><dd><p>GEDI data version. If None, uses latest available.
+Also used to filter local files by version when soc_source is a directory.</p>
+</dd>
+<dt><strong>tmp_dir</strong><span class="classifier">str</span></dt><dd><p>Path to temporary directory for intermediate files.</p>
+</dd>
+<dt><strong>h3_dir</strong><span class="classifier">str</span></dt><dd><p>Output path for the H3-indexed parquet database.</p>
+</dd>
+<dt><strong>skip_granules</strong><span class="classifier">list of dict, optional</span></dt><dd><p>List of granule identifiers to skip (from previous builds).</p>
+</dd>
+<dt><strong>status_callback</strong><span class="classifier">callable, optional</span></dt><dd><p>Called with status string at pipeline stage transitions.</p>
+</dd>
+<dt><strong>variable_only_update</strong><span class="classifier">bool, default False</span></dt><dd><p>If True, only add new variable columns to existing partition files
+via shot_number join (<code class="docutils literal notranslate"><span class="pre">_build_add_variables</span></code>). Skips full pipeline.
+The caller (CLI) determines this from the build logger state.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>list of str or None</dt><dd><p>List of output parquet file paths, or None if no new data processed.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>H3ValidationError</dt><dd><p>If H3 resolution or partition parameters are invalid</p>
+</dd>
+<dt>GediFileError</dt><dd><p>If local source directory doesn’t exist or S3 returns no files</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.merge_build_logs">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">merge_build_logs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">log_file_1</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_file_2</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_log_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#merge_build_logs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.merge_build_logs" title="Link to this definition">#</a></dt>
+<dd><p>Merge two build log files from separate databases.</p>
+<p>Combines granules, columns, partition IDs, and date ranges while validating
+configuration consistency (gedi_version, h3_resolution_level, h3_partition_level).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>log_file_1</strong><span class="classifier">str</span></dt><dd><p>Path to first build log (base log)</p>
+</dd>
+<dt><strong>log_file_2</strong><span class="classifier">str</span></dt><dd><p>Path to second build log (log to merge in)</p>
+</dd>
+<dt><strong>output_log_file</strong><span class="classifier">str</span></dt><dd><p>Path to write merged build log</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>dict</dt><dd><p>Merged log dictionary</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>FileNotFoundError</dt><dd><p>If either log file does not exist</p>
+</dd>
+<dt>ValueError</dt><dd><p>If log configurations are incompatible (different gedi_version, h3_resolution_level, or h3_partition_level)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">merged_log</span> <span class="o">=</span> <span class="n">merge_build_logs</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="sa">f</span><span class="s1">&#39;/path/to/database_world/</span><span class="si">{</span><span class="n">BUILD_LOG_FILENAME</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="sa">f</span><span class="s1">&#39;/path/to/database_world_a10/</span><span class="si">{</span><span class="n">BUILD_LOG_FILENAME</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="sa">f</span><span class="s1">&#39;/path/to/database_world_merged/</span><span class="si">{</span><span class="n">BUILD_LOG_FILENAME</span><span class="si">}</span><span class="s1">&#39;</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../gedidriver/index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">gedih3.gedidriver</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../gh3driver/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">gedih3.gh3driver</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#attributes">Attributes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.logger"><code class="docutils literal notranslate"><span class="pre">logger</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.download_soc"><code class="docutils literal notranslate"><span class="pre">download_soc()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.s3_etl_subset"><code class="docutils literal notranslate"><span class="pre">s3_etl_subset()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.h3_part_files"><code class="docutils literal notranslate"><span class="pre">h3_part_files()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.h3_write_metadata"><code class="docutils literal notranslate"><span class="pre">h3_write_metadata()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.h3_read_metadata"><code class="docutils literal notranslate"><span class="pre">h3_read_metadata()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.h3_merge_metadata"><code class="docutils literal notranslate"><span class="pre">h3_merge_metadata()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.h3_skip_part"><code class="docutils literal notranslate"><span class="pre">h3_skip_part()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.h3_add_skip_column"><code class="docutils literal notranslate"><span class="pre">h3_add_skip_column()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.dh3_merge_metadata"><code class="docutils literal notranslate"><span class="pre">dh3_merge_metadata()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.h3_merge_files"><code class="docutils literal notranslate"><span class="pre">h3_merge_files()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.dh3_merge_files"><code class="docutils literal notranslate"><span class="pre">dh3_merge_files()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.preclean_merge_failures"><code class="docutils literal notranslate"><span class="pre">preclean_merge_failures()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.apply_merge_failures_to_logger"><code class="docutils literal notranslate"><span class="pre">apply_merge_failures_to_logger()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.build_h3db"><code class="docutils literal notranslate"><span class="pre">build_h3db()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.merge_build_logs"><code class="docutils literal notranslate"><span class="pre">merge_build_logs()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  <div class="tocsection sourcelink">
+    <a href="../../../_sources/autoapi/gedih3/gh3builder/index.rst.txt">
+      <i class="fa-solid fa-file-lines"></i> Show Source
+    </a>
+  </div>
+</div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, University of Maryland. All Rights Reserved.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

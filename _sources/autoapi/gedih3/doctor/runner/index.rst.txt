@@ -1,0 +1,196 @@
+gedih3.doctor.runner
+====================
+
+.. py:module:: gedih3.doctor.runner
+
+.. autoapi-nested-parse::
+
+   Diagnosis registry + orchestrator for gh3_doctor.
+
+   Each diagnosis is a callable with ``check(ctx) -> Report`` and optional
+   ``fix(ctx, report) -> Report``. Diagnoses register themselves at import time
+   via :func:`register`; the package's :mod:`diagnoses` subpackage auto-imports
+   all known diagnosis modules.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.doctor.runner.ALIAS_GROUPS
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   gedih3.doctor.runner.Diagnosis
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.doctor.runner.register
+   gedih3.doctor.runner.get_diagnoses
+   gedih3.doctor.runner.resolve_names
+   gedih3.doctor.runner.run_diagnoses
+
+
+Module Contents
+---------------
+
+.. py:class:: Diagnosis
+
+   .. py:attribute:: name
+      :type:  str
+
+
+   .. py:attribute:: description
+      :type:  str
+
+
+   .. py:attribute:: scope
+      :type:  str
+
+
+   .. py:attribute:: check
+      :type:  Callable[[gedih3.doctor.report.DoctorContext], gedih3.doctor.report.Report]
+
+
+   .. py:attribute:: fix
+      :type:  Optional[Callable[[gedih3.doctor.report.DoctorContext, gedih3.doctor.report.Report], gedih3.doctor.report.Report]]
+      :value: None
+
+
+
+   .. py:attribute:: aliases
+      :type:  List[str]
+      :value: None
+
+
+
+.. py:data:: ALIAS_GROUPS
+
+.. py:function:: register(name: str, description: str, scope: str = 'global', fix: Optional[Callable] = None)
+
+   
+   Decorator to register a check function.
+
+   Usage::
+
+       @register('orphans', 'Leftover temp + empty partitions', scope='global', fix=orphans_fix)
+       def orphans_check(ctx): ...
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_diagnoses() -> Dict[str, Diagnosis]
+
+   
+   Return a copy of the diagnosis registry.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: resolve_names(names: List[str]) -> List[str]
+
+   
+   Expand alias groups (``db``, ``soc``, ``all``) into concrete names.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: run_diagnoses(ctx: gedih3.doctor.report.DoctorContext, names: List[str], mode: str = 'check') -> List[gedih3.doctor.report.Report]
+
+   
+   Run the named diagnoses (or aliases) against ``ctx``.
+
+   When two or more per-partition h3db diagnoses are requested at
+   ``mode='check'``, dispatch fuses them into a single per-partition
+   scan that opens each partition's files once and routes the per-
+   partition payload to every enabled diagnosis's driver-side
+   aggregator. Falls back to per-diagnosis dispatch for fix mode and
+   for single-diagnosis check invocations.
+
+   :Parameters:
+
+       **ctx** : DoctorContext
+           Shared state.
+
+       **names** : list of str
+           Diagnosis names or alias groups. Empty list = all registered.
+
+       **mode** : str
+           'check' (read-only) or 'fix' (apply remedies where supported).
+
+
+
+   :Returns:
+
+       list of Report
+           ..
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

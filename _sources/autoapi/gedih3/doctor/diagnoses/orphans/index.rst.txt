@@ -1,0 +1,51 @@
+gedih3.doctor.diagnoses.orphans
+===============================
+
+.. py:module:: gedih3.doctor.diagnoses.orphans
+
+.. autoapi-nested-parse::
+
+   orphans diagnosis — leftover temp files and empty partition directories.
+
+   Detects:
+     - ``*.tmp``, ``*.join.tmp``, ``*.fill.tmp``, ``*.dedup.tmp`` under db / tmp roots.
+     - ``_s3_download/`` and ``dask-worker-space/`` directories left behind by
+       crashed builds.
+     - Empty ``h3_*/`` partition directories (no parquet files).
+     - Empty year subdirs.
+
+   A finding is only flagged when the file/dir's mtime is older than
+   ``--orphan-age-hours`` (default 24h) so an in-progress build isn't disturbed.
+
+   Performance pillar (v0.8.x lessons backport):
+     * The temp-file/leftover-dir scan over the database root is pushed
+       to workers via :func:`gedih3.doctor.parallel.parallel_map` — one
+       task per ``h3_*`` partition. Mirrors the build merge phase's
+       ``_list_year_subdirs`` pattern (gh3builder.py:906-924) which
+       eliminated the same driver-side recursive walk on continental builds.
+     * Empty-partition / empty-year-dir checks are O(1) ``os.scandir``
+       instead of ``glob.glob('**/*.parquet', recursive=True)`` (matches
+       the build pipeline's emptiness check at gh3builder.py:1356-1362).
+     * The temp directory's scan stays driver-side because it's narrow
+       and not nested as deeply as the database tree.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.doctor.diagnoses.orphans.orphans_check
+   gedih3.doctor.diagnoses.orphans.orphans_fix
+
+
+Module Contents
+---------------
+
+.. py:function:: orphans_check(ctx: gedih3.doctor.report.DoctorContext) -> gedih3.doctor.report.Report
+
+.. py:function:: orphans_fix(ctx: gedih3.doctor.report.DoctorContext, report: gedih3.doctor.report.Report) -> gedih3.doctor.report.Report
+

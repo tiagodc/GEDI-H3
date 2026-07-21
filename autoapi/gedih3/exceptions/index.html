@@ -1,0 +1,1069 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>gedih3.exceptions &#8212; gedih3 0.12.9 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=8bafde03" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../../_static/documentation_options.js?v=54dfaa76"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'autoapi/gedih3/exceptions/index';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="gedih3.gedidriver" href="../gedidriver/index.html" />
+    <link rel="prev" title="gedih3.egi.spatial" href="../egi/spatial/index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../_static/searchtools.js"></script>
+    <script src="../../../_static/language_data.js"></script>
+    <script src="../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+     
+  
+
+<a class="navbar-brand logo" href="/GEDI-H3/">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.12.9 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.12.9 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user-guide/index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user-guide/index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">gedih3</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2 has-children"><a class="reference internal" href="../cli/index.html">gedih3.cli</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_aggregate/index.html">gedih3.cli.gh3_aggregate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_build/index.html">gedih3.cli.gh3_build</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_build_ducklake/index.html">gedih3.cli.gh3_build_ducklake</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_doctor/index.html">gedih3.cli.gh3_doctor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_download/index.html">gedih3.cli.gh3_download</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_extract/index.html">gedih3.cli.gh3_extract</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_from_img/index.html">gedih3.cli.gh3_from_img</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_from_polygon/index.html">gedih3.cli.gh3_from_polygon</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_list_resolutions/index.html">gedih3.cli.gh3_list_resolutions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_rasterize/index.html">gedih3.cli.gh3_rasterize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_read_schema/index.html">gedih3.cli.gh3_read_schema</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_update/index.html">gedih3.cli.gh3_update</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../cliutils/index.html">gedih3.cliutils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../config/index.html">gedih3.config</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../daac/index.html">gedih3.daac</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../doctor/index.html">gedih3.doctor</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../doctor/diagnoses/index.html">gedih3.doctor.diagnoses</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/backfill/index.html">gedih3.doctor.diagnoses.backfill</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/geoparquet_bbox/index.html">gedih3.doctor.diagnoses.geoparquet_bbox</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/log_state/index.html">gedih3.doctor.diagnoses.log_state</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/metadata/index.html">gedih3.doctor.diagnoses.metadata</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/orphans/index.html">gedih3.doctor.diagnoses.orphans</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/parquet_health/index.html">gedih3.doctor.diagnoses.parquet_health</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/soc_health/index.html">gedih3.doctor.diagnoses.soc_health</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/tmp_partitions_health/index.html">gedih3.doctor.diagnoses.tmp_partitions_health</a></li>
+</ul>
+</details></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/fused/index.html">gedih3.doctor.fused</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/inspect/index.html">gedih3.doctor.inspect</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/parallel/index.html">gedih3.doctor.parallel</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/parquet_ops/index.html">gedih3.doctor.parquet_ops</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/report/index.html">gedih3.doctor.report</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/runner/index.html">gedih3.doctor.runner</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../doctor/upstream/index.html">gedih3.doctor.upstream</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../egi/index.html">gedih3.egi</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../egi/config/index.html">gedih3.egi.config</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../egi/core/index.html">gedih3.egi.core</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../egi/dataframe/index.html">gedih3.egi.dataframe</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../egi/raster/index.html">gedih3.egi.raster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../egi/spatial/index.html">gedih3.egi.spatial</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">gedih3.exceptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../gedidriver/index.html">gedih3.gedidriver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../gh3builder/index.html">gedih3.gh3builder</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../gh3driver/index.html">gedih3.gh3driver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../h3utils/index.html">gedih3.h3utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../imgutils/index.html">gedih3.imgutils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../logger/index.html">gedih3.logger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../logging_config/index.html">gedih3.logging_config</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../parallel/index.html">gedih3.parallel</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../raster/index.html">gedih3.raster</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../raster/config/index.html">gedih3.raster.config</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../raster/export/index.html">gedih3.raster.export</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../raster/h3_raster/index.html">gedih3.raster.h3_raster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../raster/timeseries/index.html">gedih3.raster.timeseries</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../sqlutils/index.html">gedih3.sqlutils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utils/index.html">gedih3.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../validation/index.html">gedih3.validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../vecutils/index.html">gedih3.vecutils</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">API Reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link">gedih3</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">gedih3.exceptions</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-gedih3.exceptions">
+<span id="gedih3-exceptions"></span><h1>gedih3.exceptions<a class="headerlink" href="#module-gedih3.exceptions" title="Link to this heading">#</a></h1>
+<p>gedih3 Exception Hierarchy</p>
+<p>Custom exceptions for structured error handling throughout the package.
+All exceptions inherit from GediError for easy catching of package-specific errors.</p>
+<dl>
+<dt>Usage:</dt><dd><p>from gedih3.exceptions import GediDownloadError, GediValidationError</p>
+<dl class="simple">
+<dt>try:</dt><dd><p>download_granule(granule, odir)</p>
+</dd>
+<dt>except GediDownloadError as e:</dt><dd><p>logger.error(f”Download failed: {e}”)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<section id="attributes">
+<h2>Attributes<a class="headerlink" href="#attributes" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.RETRY_DEFAULTS" title="gedih3.exceptions.RETRY_DEFAULTS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RETRY_DEFAULTS</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="exceptions">
+<h2>Exceptions<a class="headerlink" href="#exceptions" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.GediError" title="gedih3.exceptions.GediError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediError</span></code></a></p></td>
+<td><p>Base exception for all gedih3 errors.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.exceptions.GediNetworkError" title="gedih3.exceptions.GediNetworkError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediNetworkError</span></code></a></p></td>
+<td><p>Base exception for network-related errors.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.GediDownloadError" title="gedih3.exceptions.GediDownloadError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediDownloadError</span></code></a></p></td>
+<td><p>Error during file download from NASA DAAC.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.exceptions.GediAuthenticationError" title="gedih3.exceptions.GediAuthenticationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediAuthenticationError</span></code></a></p></td>
+<td><p>Error during NASA Earthdata authentication.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.GediS3AccessError" title="gedih3.exceptions.GediS3AccessError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediS3AccessError</span></code></a></p></td>
+<td><p>Error accessing GEDI data via S3.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.exceptions.GediIncompleteListingError" title="gedih3.exceptions.GediIncompleteListingError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediIncompleteListingError</span></code></a></p></td>
+<td><p>CMR returned fewer granules than its own CMR-Hits count (silent truncation).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.GediValidationError" title="gedih3.exceptions.GediValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediValidationError</span></code></a></p></td>
+<td><p>Base exception for validation errors.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.exceptions.H3ValidationError" title="gedih3.exceptions.H3ValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">H3ValidationError</span></code></a></p></td>
+<td><p>Error in H3 parameter validation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.EGIValidationError" title="gedih3.exceptions.EGIValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">EGIValidationError</span></code></a></p></td>
+<td><p>Error in EGI parameter validation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.exceptions.GediProductError" title="gedih3.exceptions.GediProductError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediProductError</span></code></a></p></td>
+<td><p>Error with GEDI product specification.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.GediVariableError" title="gedih3.exceptions.GediVariableError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediVariableError</span></code></a></p></td>
+<td><p>Error with GEDI variable specification.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.exceptions.GediFileError" title="gedih3.exceptions.GediFileError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediFileError</span></code></a></p></td>
+<td><p>Base exception for file-related errors.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.GediHDF5Error" title="gedih3.exceptions.GediHDF5Error"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediHDF5Error</span></code></a></p></td>
+<td><p>Error reading/processing HDF5 file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.exceptions.GediParquetError" title="gedih3.exceptions.GediParquetError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediParquetError</span></code></a></p></td>
+<td><p>Error reading/writing Parquet file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.GediCorruptedFileError" title="gedih3.exceptions.GediCorruptedFileError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediCorruptedFileError</span></code></a></p></td>
+<td><p>File is corrupted or unreadable.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.exceptions.GediTransactionError" title="gedih3.exceptions.GediTransactionError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediTransactionError</span></code></a></p></td>
+<td><p>Error during atomic file operation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.GediDatabaseError" title="gedih3.exceptions.GediDatabaseError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediDatabaseError</span></code></a></p></td>
+<td><p>Base exception for H3 database errors.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.exceptions.GediDatabaseNotFoundError" title="gedih3.exceptions.GediDatabaseNotFoundError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediDatabaseNotFoundError</span></code></a></p></td>
+<td><p>H3 database directory not found.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.GediDatabaseCorruptedError" title="gedih3.exceptions.GediDatabaseCorruptedError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediDatabaseCorruptedError</span></code></a></p></td>
+<td><p>H3 database is corrupted or inconsistent.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.exceptions.GediMergeError" title="gedih3.exceptions.GediMergeError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediMergeError</span></code></a></p></td>
+<td><p>Error merging H3 partitions or databases.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.GediSpatialError" title="gedih3.exceptions.GediSpatialError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediSpatialError</span></code></a></p></td>
+<td><p>Error with spatial operations or filters.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.exceptions.GediTemporalError" title="gedih3.exceptions.GediTemporalError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediTemporalError</span></code></a></p></td>
+<td><p>Error with temporal operations or filters.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.GediProcessingError" title="gedih3.exceptions.GediProcessingError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediProcessingError</span></code></a></p></td>
+<td><p>Base exception for data processing errors.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.exceptions.GediAggregationError" title="gedih3.exceptions.GediAggregationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediAggregationError</span></code></a></p></td>
+<td><p>Error during data aggregation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.GediRasterizationError" title="gedih3.exceptions.GediRasterizationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediRasterizationError</span></code></a></p></td>
+<td><p>Error during rasterization.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.exceptions.GediImageSamplingError" title="gedih3.exceptions.GediImageSamplingError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediImageSamplingError</span></code></a></p></td>
+<td><p>Error during raster image sampling at GEDI shot locations.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.GediSpatialJoinError" title="gedih3.exceptions.GediSpatialJoinError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediSpatialJoinError</span></code></a></p></td>
+<td><p>Error during spatial join of vector data to GEDI shot locations.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.exceptions.is_retryable_error" title="gedih3.exceptions.is_retryable_error"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_retryable_error</span></code></a>(→ bool)</p></td>
+<td><p>Determine if an exception is retryable.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="module-contents">
+<h2>Module Contents<a class="headerlink" href="#module-contents" title="Link to this heading">#</a></h2>
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/exceptions.html#Exception" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Exception</span></code></a></p>
+<p>Base exception for all gedih3 errors.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediNetworkError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediNetworkError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediNetworkError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediNetworkError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediError" title="gedih3.exceptions.GediError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediError</span></code></a></p>
+<p>Base exception for network-related errors.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediDownloadError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediDownloadError</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">granule_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attempts</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediDownloadError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediDownloadError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediNetworkError" title="gedih3.exceptions.GediNetworkError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediNetworkError</span></code></a></p>
+<p>Error during file download from NASA DAAC.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediDownloadError.granule_id">
+<span class="sig-name descname"><span class="pre">granule_id</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#gedih3.exceptions.GediDownloadError.granule_id" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediDownloadError.attempts">
+<span class="sig-name descname"><span class="pre">attempts</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#gedih3.exceptions.GediDownloadError.attempts" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediAuthenticationError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediAuthenticationError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediAuthenticationError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediAuthenticationError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediNetworkError" title="gedih3.exceptions.GediNetworkError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediNetworkError</span></code></a></p>
+<p>Error during NASA Earthdata authentication.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediS3AccessError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediS3AccessError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediS3AccessError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediS3AccessError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediNetworkError" title="gedih3.exceptions.GediNetworkError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediNetworkError</span></code></a></p>
+<p>Error accessing GEDI data via S3.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediIncompleteListingError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediIncompleteListingError</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">expected</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">received</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediIncompleteListingError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediIncompleteListingError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediNetworkError" title="gedih3.exceptions.GediNetworkError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediNetworkError</span></code></a></p>
+<p>CMR returned fewer granules than its own CMR-Hits count (silent truncation).</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediIncompleteListingError.expected">
+<span class="sig-name descname"><span class="pre">expected</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#gedih3.exceptions.GediIncompleteListingError.expected" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediIncompleteListingError.received">
+<span class="sig-name descname"><span class="pre">received</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#gedih3.exceptions.GediIncompleteListingError.received" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediValidationError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediValidationError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediValidationError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediValidationError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediError" title="gedih3.exceptions.GediError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediError</span></code></a></p>
+<p>Base exception for validation errors.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.H3ValidationError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">H3ValidationError</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">param_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#H3ValidationError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.H3ValidationError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediValidationError" title="gedih3.exceptions.GediValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediValidationError</span></code></a></p>
+<p>Error in H3 parameter validation.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.exceptions.H3ValidationError.param_name">
+<span class="sig-name descname"><span class="pre">param_name</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#gedih3.exceptions.H3ValidationError.param_name" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.exceptions.H3ValidationError.value">
+<span class="sig-name descname"><span class="pre">value</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#gedih3.exceptions.H3ValidationError.value" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.EGIValidationError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">EGIValidationError</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">param_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#EGIValidationError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.EGIValidationError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediValidationError" title="gedih3.exceptions.GediValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediValidationError</span></code></a></p>
+<p>Error in EGI parameter validation.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.exceptions.EGIValidationError.param_name">
+<span class="sig-name descname"><span class="pre">param_name</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#gedih3.exceptions.EGIValidationError.param_name" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.exceptions.EGIValidationError.value">
+<span class="sig-name descname"><span class="pre">value</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#gedih3.exceptions.EGIValidationError.value" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediProductError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediProductError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediProductError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediProductError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediValidationError" title="gedih3.exceptions.GediValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediValidationError</span></code></a></p>
+<p>Error with GEDI product specification.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediVariableError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediVariableError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediVariableError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediVariableError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediValidationError" title="gedih3.exceptions.GediValidationError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediValidationError</span></code></a></p>
+<p>Error with GEDI variable specification.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediFileError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediFileError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediFileError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediFileError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediError" title="gedih3.exceptions.GediError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediError</span></code></a></p>
+<p>Base exception for file-related errors.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediHDF5Error">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediHDF5Error</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediHDF5Error"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediHDF5Error" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediFileError" title="gedih3.exceptions.GediFileError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediFileError</span></code></a></p>
+<p>Error reading/processing HDF5 file.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediHDF5Error.file_path">
+<span class="sig-name descname"><span class="pre">file_path</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#gedih3.exceptions.GediHDF5Error.file_path" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediParquetError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediParquetError</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediParquetError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediParquetError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediFileError" title="gedih3.exceptions.GediFileError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediFileError</span></code></a></p>
+<p>Error reading/writing Parquet file.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediParquetError.file_path">
+<span class="sig-name descname"><span class="pre">file_path</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#gedih3.exceptions.GediParquetError.file_path" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediCorruptedFileError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediCorruptedFileError</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediCorruptedFileError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediCorruptedFileError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediFileError" title="gedih3.exceptions.GediFileError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediFileError</span></code></a></p>
+<p>File is corrupted or unreadable.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediCorruptedFileError.file_path">
+<span class="sig-name descname"><span class="pre">file_path</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#gedih3.exceptions.GediCorruptedFileError.file_path" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediTransactionError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediTransactionError</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">source_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediTransactionError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediTransactionError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediFileError" title="gedih3.exceptions.GediFileError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediFileError</span></code></a></p>
+<p>Error during atomic file operation.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediTransactionError.source_path">
+<span class="sig-name descname"><span class="pre">source_path</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#gedih3.exceptions.GediTransactionError.source_path" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediTransactionError.dest_path">
+<span class="sig-name descname"><span class="pre">dest_path</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#gedih3.exceptions.GediTransactionError.dest_path" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediDatabaseError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediDatabaseError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediDatabaseError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediDatabaseError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediError" title="gedih3.exceptions.GediError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediError</span></code></a></p>
+<p>Base exception for H3 database errors.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediDatabaseNotFoundError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediDatabaseNotFoundError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediDatabaseNotFoundError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediDatabaseNotFoundError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediDatabaseError" title="gedih3.exceptions.GediDatabaseError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediDatabaseError</span></code></a></p>
+<p>H3 database directory not found.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediDatabaseCorruptedError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediDatabaseCorruptedError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediDatabaseCorruptedError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediDatabaseCorruptedError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediDatabaseError" title="gedih3.exceptions.GediDatabaseError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediDatabaseError</span></code></a></p>
+<p>H3 database is corrupted or inconsistent.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediMergeError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediMergeError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediMergeError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediMergeError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediDatabaseError" title="gedih3.exceptions.GediDatabaseError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediDatabaseError</span></code></a></p>
+<p>Error merging H3 partitions or databases.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediSpatialError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediSpatialError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediSpatialError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediSpatialError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediError" title="gedih3.exceptions.GediError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediError</span></code></a></p>
+<p>Error with spatial operations or filters.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediTemporalError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediTemporalError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediTemporalError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediTemporalError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediError" title="gedih3.exceptions.GediError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediError</span></code></a></p>
+<p>Error with temporal operations or filters.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediProcessingError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediProcessingError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediProcessingError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediProcessingError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediError" title="gedih3.exceptions.GediError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediError</span></code></a></p>
+<p>Base exception for data processing errors.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediAggregationError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediAggregationError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediAggregationError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediAggregationError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediProcessingError" title="gedih3.exceptions.GediProcessingError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediProcessingError</span></code></a></p>
+<p>Error during data aggregation.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediRasterizationError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediRasterizationError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediRasterizationError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediRasterizationError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediProcessingError" title="gedih3.exceptions.GediProcessingError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediProcessingError</span></code></a></p>
+<p>Error during rasterization.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediImageSamplingError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediImageSamplingError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediImageSamplingError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediImageSamplingError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediProcessingError" title="gedih3.exceptions.GediProcessingError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediProcessingError</span></code></a></p>
+<p>Error during raster image sampling at GEDI shot locations.</p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="gedih3.exceptions.GediSpatialJoinError">
+<span class="property"><span class="k"><span class="pre">exception</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">GediSpatialJoinError</span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#GediSpatialJoinError"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.GediSpatialJoinError" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gedih3.exceptions.GediProcessingError" title="gedih3.exceptions.GediProcessingError"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GediProcessingError</span></code></a></p>
+<p>Error during spatial join of vector data to GEDI shot locations.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="gedih3.exceptions.RETRY_DEFAULTS">
+<span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">RETRY_DEFAULTS</span></span><a class="headerlink" href="#gedih3.exceptions.RETRY_DEFAULTS" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.exceptions.is_retryable_error">
+<span class="sig-prename descclassname"><span class="pre">gedih3.exceptions.</span></span><span class="sig-name descname"><span class="pre">is_retryable_error</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">exception</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#Exception" title="(in Python v3.14)"><span class="pre">Exception</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/exceptions.html#is_retryable_error"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.exceptions.is_retryable_error" title="Link to this definition">#</a></dt>
+<dd><p>Determine if an exception is retryable.</p>
+<p>Returns True for transient network errors that may succeed on retry.</p>
+</dd></dl>
+
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../egi/spatial/index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">gedih3.egi.spatial</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../gedidriver/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">gedih3.gedidriver</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#attributes">Attributes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#exceptions">Exceptions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediError"><code class="docutils literal notranslate"><span class="pre">GediError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediNetworkError"><code class="docutils literal notranslate"><span class="pre">GediNetworkError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediDownloadError"><code class="docutils literal notranslate"><span class="pre">GediDownloadError</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediDownloadError.granule_id"><code class="docutils literal notranslate"><span class="pre">GediDownloadError.granule_id</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediDownloadError.attempts"><code class="docutils literal notranslate"><span class="pre">GediDownloadError.attempts</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediAuthenticationError"><code class="docutils literal notranslate"><span class="pre">GediAuthenticationError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediS3AccessError"><code class="docutils literal notranslate"><span class="pre">GediS3AccessError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediIncompleteListingError"><code class="docutils literal notranslate"><span class="pre">GediIncompleteListingError</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediIncompleteListingError.expected"><code class="docutils literal notranslate"><span class="pre">GediIncompleteListingError.expected</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediIncompleteListingError.received"><code class="docutils literal notranslate"><span class="pre">GediIncompleteListingError.received</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediValidationError"><code class="docutils literal notranslate"><span class="pre">GediValidationError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.H3ValidationError"><code class="docutils literal notranslate"><span class="pre">H3ValidationError</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.H3ValidationError.param_name"><code class="docutils literal notranslate"><span class="pre">H3ValidationError.param_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.H3ValidationError.value"><code class="docutils literal notranslate"><span class="pre">H3ValidationError.value</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.EGIValidationError"><code class="docutils literal notranslate"><span class="pre">EGIValidationError</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.EGIValidationError.param_name"><code class="docutils literal notranslate"><span class="pre">EGIValidationError.param_name</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.EGIValidationError.value"><code class="docutils literal notranslate"><span class="pre">EGIValidationError.value</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediProductError"><code class="docutils literal notranslate"><span class="pre">GediProductError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediVariableError"><code class="docutils literal notranslate"><span class="pre">GediVariableError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediFileError"><code class="docutils literal notranslate"><span class="pre">GediFileError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediHDF5Error"><code class="docutils literal notranslate"><span class="pre">GediHDF5Error</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediHDF5Error.file_path"><code class="docutils literal notranslate"><span class="pre">GediHDF5Error.file_path</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediParquetError"><code class="docutils literal notranslate"><span class="pre">GediParquetError</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediParquetError.file_path"><code class="docutils literal notranslate"><span class="pre">GediParquetError.file_path</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediCorruptedFileError"><code class="docutils literal notranslate"><span class="pre">GediCorruptedFileError</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediCorruptedFileError.file_path"><code class="docutils literal notranslate"><span class="pre">GediCorruptedFileError.file_path</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediTransactionError"><code class="docutils literal notranslate"><span class="pre">GediTransactionError</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediTransactionError.source_path"><code class="docutils literal notranslate"><span class="pre">GediTransactionError.source_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediTransactionError.dest_path"><code class="docutils literal notranslate"><span class="pre">GediTransactionError.dest_path</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediDatabaseError"><code class="docutils literal notranslate"><span class="pre">GediDatabaseError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediDatabaseNotFoundError"><code class="docutils literal notranslate"><span class="pre">GediDatabaseNotFoundError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediDatabaseCorruptedError"><code class="docutils literal notranslate"><span class="pre">GediDatabaseCorruptedError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediMergeError"><code class="docutils literal notranslate"><span class="pre">GediMergeError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediSpatialError"><code class="docutils literal notranslate"><span class="pre">GediSpatialError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediTemporalError"><code class="docutils literal notranslate"><span class="pre">GediTemporalError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediProcessingError"><code class="docutils literal notranslate"><span class="pre">GediProcessingError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediAggregationError"><code class="docutils literal notranslate"><span class="pre">GediAggregationError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediRasterizationError"><code class="docutils literal notranslate"><span class="pre">GediRasterizationError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediImageSamplingError"><code class="docutils literal notranslate"><span class="pre">GediImageSamplingError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.GediSpatialJoinError"><code class="docutils literal notranslate"><span class="pre">GediSpatialJoinError</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.RETRY_DEFAULTS"><code class="docutils literal notranslate"><span class="pre">RETRY_DEFAULTS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.exceptions.is_retryable_error"><code class="docutils literal notranslate"><span class="pre">is_retryable_error()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  <div class="tocsection sourcelink">
+    <a href="../../../_sources/autoapi/gedih3/exceptions/index.rst.txt">
+      <i class="fa-solid fa-file-lines"></i> Show Source
+    </a>
+  </div>
+</div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, University of Maryland. All Rights Reserved.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

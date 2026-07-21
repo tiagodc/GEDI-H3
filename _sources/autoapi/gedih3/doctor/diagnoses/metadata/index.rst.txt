@@ -1,0 +1,44 @@
+gedih3.doctor.diagnoses.metadata
+================================
+
+.. py:module:: gedih3.doctor.diagnoses.metadata
+
+.. autoapi-nested-parse::
+
+   metadata diagnosis — partition meta JSON + dataset manifest health.
+
+   Detects:
+     - Partitions whose merged meta JSON file is missing.
+     - A stale or absent ``_manifest.txt`` R2 sentinel at the database root.
+
+   Remedies (safe):
+     - Regenerate missing partition meta via ``h3_merge_metadata``.
+     - Regenerate manifest via ``generate_manifest``.
+
+   Performance pillar (v0.8.x lessons backport):
+     * Both the missing-meta check and the newest-parquet-mtime walk are
+       pushed to workers via :func:`gedih3.doctor.parallel.parallel_map`.
+       The driver receives a single bool / float per partition and
+       aggregates — no driver-side recursive glob over h3_*//*/*.parquet
+       on continental DBs.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.doctor.diagnoses.metadata.metadata_check
+   gedih3.doctor.diagnoses.metadata.metadata_fix
+
+
+Module Contents
+---------------
+
+.. py:function:: metadata_check(ctx: gedih3.doctor.report.DoctorContext) -> gedih3.doctor.report.Report
+
+.. py:function:: metadata_fix(ctx: gedih3.doctor.report.DoctorContext, report: gedih3.doctor.report.Report) -> gedih3.doctor.report.Report
+

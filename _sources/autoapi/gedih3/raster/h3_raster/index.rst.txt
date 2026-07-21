@@ -1,0 +1,277 @@
+gedih3.raster.h3_raster
+=======================
+
+.. py:module:: gedih3.raster.h3_raster
+
+.. autoapi-nested-parse::
+
+   H3 Hexagon Rasterization Module
+
+   This module provides functions for converting H3-indexed GeoDataFrames
+   to raster format. Unlike EGI (which has native square pixels), H3 hexagons
+   require interpolation/resampling for raster output.
+
+   The workflow:
+   1. Determine appropriate resolution from H3 level
+   2. Find optimal UTM zone for the data extent
+   3. Rasterize using geocube with bilinear interpolation
+   4. Reproject to target CRS (default: EPSG:4326)
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.raster.h3_raster.get_h3_resolution_meters
+   gedih3.raster.h3_raster.get_optimal_utm
+   gedih3.raster.h3_raster.h3_to_raster
+   gedih3.raster.h3_raster.rasterize_h3_partition
+   gedih3.raster.h3_raster.compute_raster_mosaic
+   gedih3.raster.h3_raster.get_h3_raster_resolution
+
+
+Module Contents
+---------------
+
+.. py:function:: get_h3_resolution_meters(h3_level: int) -> float
+
+   
+   Get the approximate pixel resolution in meters for an H3 level.
+
+   Uses the average hexagon edge length * 2 (diameter) as the pixel size.
+
+   :Parameters:
+
+       **h3_level** : int
+           H3 resolution level (0-15)
+
+
+
+   :Returns:
+
+       float
+           Approximate pixel size in meters
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_optimal_utm(gdf: geopandas.GeoDataFrame) -> int
+
+   
+   Find the optimal UTM zone EPSG code for a GeoDataFrame's extent.
+
+
+   :Parameters:
+
+       **gdf** : GeoDataFrame
+           Input GeoDataFrame (any CRS)
+
+
+
+   :Returns:
+
+       int
+           EPSG code for the optimal UTM zone
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: h3_to_raster(gdf: geopandas.GeoDataFrame, resolution: Optional[Tuple[float, float]] = None, columns: Optional[List[str]] = None, fill_value: float = np.nan, output_crs: str = H3_RASTER_CRS, partition_level: Optional[int] = None) -> xarray.Dataset
+
+   
+   Convert H3-indexed GeoDataFrame to raster (xarray Dataset).
+
+   This function rasterizes H3 hexagon data using geocube, with automatic
+   resolution determination based on the H3 level. The data is first
+   reprojected to UTM for accurate rasterization, then to the output CRS.
+
+   :Parameters:
+
+       **gdf** : GeoDataFrame
+           H3-indexed GeoDataFrame with polygon geometries
+
+       **resolution** : tuple of float, optional
+           Output resolution as (y_res, x_res) in target CRS units.
+           If None, automatically determined from H3 level.
+
+       **columns** : list of str, optional
+           Columns to rasterize. If None, all numeric columns are used.
+           Internal columns (h3 indices, egi indices) are automatically excluded.
+
+       **fill_value** : float
+           Value for pixels with no data (default: NaN)
+
+       **output_crs** : str
+           Output coordinate reference system (default: EPSG:4326)
+
+       **partition_level** : int, optional
+           H3 partition level for metadata. If None, auto-detected from data.
+
+
+
+   :Returns:
+
+       xr.Dataset
+           Raster dataset with one data variable per column
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> # Rasterize H3 aggregated data
+   >>> raster = h3_to_raster(h3_gdf, columns=['agbd_mean'])
+   >>> raster.rio.to_raster("output.tif")
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: rasterize_h3_partition(gdf: geopandas.GeoDataFrame, columns: Optional[List[str]] = None, output_crs: str = H3_RASTER_CRS, include_partition_id: bool = True, partition_level: Optional[int] = None) -> pandas.Series
+
+   
+   Rasterize a single H3 partition (for use with Dask map_partitions).
+
+   Splits data by a coarser H3 parent level to create separate raster tiles,
+   each named by the parent cell ID. This ensures manageable tile sizes and
+   proper file naming for tiled output.
+
+   :Parameters:
+
+       **gdf** : GeoDataFrame
+           H3-indexed GeoDataFrame partition
+
+       **columns** : list of str, optional
+           Columns to rasterize
+
+       **output_crs** : str
+           Output coordinate reference system
+
+       **include_partition_id** : bool
+           If True, include H3 partition ID in raster attributes
+
+       **partition_level** : int, optional
+           H3 partition level for grouping tiles. If None, auto-detected from
+           data columns or computed as 3 levels coarser than data level.
+
+
+
+   :Returns:
+
+       pd.Series
+           Series containing xarray Dataset(s), one per spatial tile
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> # With Dask
+   >>> rasters = ddf.map_partitions(rasterize_h3_partition, meta=pd.Series(dtype=object))
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: compute_raster_mosaic(raster_series: pandas.Series, show_progress: bool = False) -> xarray.Dataset
+
+   
+   Merge multiple raster partitions into a single mosaic.
+
+
+   :Parameters:
+
+       **raster_series** : pd.Series
+           Series of xarray Datasets from rasterize_h3_partition
+
+       **show_progress** : bool
+           If True, show progress during computation
+
+
+
+   :Returns:
+
+       xr.Dataset
+           Merged raster mosaic
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_h3_raster_resolution(gdf: geopandas.GeoDataFrame, npartitions: int = 1) -> Tuple[float, float]
+
+   
+   Determine the appropriate raster resolution for H3 data.
+
+
+   :Parameters:
+
+       **gdf** : GeoDataFrame or dask GeoDataFrame
+           H3-indexed data
+
+       **npartitions** : int
+           Number of partitions to sample (for dask)
+
+
+
+   :Returns:
+
+       tuple
+           (y_resolution, x_resolution) in degrees (EPSG:4326)
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

@@ -1,0 +1,53 @@
+gedih3.doctor.diagnoses.log_state
+=================================
+
+.. py:module:: gedih3.doctor.diagnoses.log_state
+
+.. autoapi-nested-parse::
+
+   log_state diagnosis — stuck recovery flags + log↔disk drift.
+
+   Detects:
+     - ``_pending_variable_update`` left in the log without matching state.
+     - Partitions present on disk but not listed in ``h3_partition_ids``.
+     - Partitions listed in the log but missing from disk.
+     - Granule status drift — granules in ``granule_info`` with a non-INDEXED
+       status whose ``(orbit, granule, track)`` is present in a finalized
+       partition's metadata JSON. Caused by the merge-only resume shortcut
+       (gh3_build v0.8.9+), which skips reconcile and leaves stale PENDING
+       statuses behind even though the data is already on disk.
+
+   Remedies (safe):
+     - Clear the stuck flag when no work is pending.
+     - Repopulate ``h3_partition_ids`` from disk via ``set_post_build_info``.
+     - Disk-missing partitions are reported only (manual intervention).
+     - Granule status drift: flip stale entries to ``INDEXED`` and save log.
+
+   Performance pillar (v0.8.x cross-pipeline lessons):
+     * Granule-triple discovery is fanned out via
+       :func:`gedih3.doctor.parallel.parallel_map` — one task per
+       partition reads its few meta JSONs and returns the triples
+       found. Without this, the default ``--check db`` audit on a
+       continental-scale (10k+ partitions) database stalls for minutes
+       in two driver-side recursive globs over h3_*/.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.doctor.diagnoses.log_state.log_state_check
+   gedih3.doctor.diagnoses.log_state.log_state_fix
+
+
+Module Contents
+---------------
+
+.. py:function:: log_state_check(ctx: gedih3.doctor.report.DoctorContext) -> gedih3.doctor.report.Report
+
+.. py:function:: log_state_fix(ctx: gedih3.doctor.report.DoctorContext, report: gedih3.doctor.report.Report) -> gedih3.doctor.report.Report
+

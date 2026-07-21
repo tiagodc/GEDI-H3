@@ -1,0 +1,1305 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Building a Database &#8212; gedih3 0.12.9 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=8bafde03" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../_static/documentation_options.js?v=54dfaa76"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'user-guide/building-a-database';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="author" title="About these documents" href="../about.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="CLI Reference" href="cli-reference.html" />
+    <link rel="prev" title="Core Functionality" href="index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+     
+  
+
+<a class="navbar-brand logo" href="/GEDI-H3/">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.12.9 documentation - Home"/>
+    <img src="../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.12.9 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../autoapi/index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../autoapi/index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Building a Database</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli-reference.html">CLI Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data-formats.html">Data Formats</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python-api.html">Python API</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link">Core Functionality</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Building a Database</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="building-a-database">
+<h1>Building a Database<a class="headerlink" href="#building-a-database" title="Link to this heading">#</a></h1>
+<p>The H3 database is the foundation of every gedih3 workflow. Every other tool — <code class="docutils literal notranslate"><span class="pre">gh3_extract</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_rasterize</span></code>, and the ancillary data tools — reads from this database. The database is designed to grow incrementally: you can expand its spatial, temporal, or variable coverage at any time without rebuilding from scratch. Getting the build right means faster queries, less disk usage, and analysis-ready data from the start.</p>
+<p>This page explains what <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> does, what it produces, how to control the process, and how to make good choices for your specific use case.</p>
+<blockquote>
+<div><p><strong>Use the CLI.</strong> <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> is best invoked from the command line. A Python API exists for advanced programmatic use, but the CLI handles all configuration, logging, resume logic, and Dask setup automatically. If in doubt, use the CLI.</p>
+</div></blockquote>
+<hr class="docutils" />
+<section id="what-gh3-build-does">
+<h2>What <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> Does<a class="headerlink" href="#what-gh3-build-does" title="Link to this heading">#</a></h2>
+<p>Raw GEDI data arrives as thousands of large HDF5 files organized by acquisition time (year/day-of-year). Each file contains up to 8 laser beams, and each beam holds hundreds of variables for millions of shots. Reading this data requires specialized tools, knowledge of the file structure, and significant engineering effort just to get a simple spatial query working.</p>
+<p><code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> performs a one-time transformation:</p>
+<ol class="arabic simple">
+<li><p><strong>Reads</strong> the raw HDF5 files, navigating the beam/variable hierarchy automatically</p></li>
+<li><p><strong>Selects</strong> the variables you requested, expanding presets like <code class="docutils literal notranslate"><span class="pre">default</span></code> or <code class="docutils literal notranslate"><span class="pre">minimal</span></code> to exact variable lists</p></li>
+<li><p><strong>Assigns</strong> each shot an H3 spatial index at a fine resolution (default: level 12, ~22 m — roughly the GEDI footprint size)</p></li>
+<li><p><strong>Groups</strong> shots into spatial partitions at a coarser H3 resolution (default: level 3, ~12,000 km²)</p></li>
+<li><p><strong>Writes</strong> column-oriented GeoParquet files — one per spatial partition per year — along with a build log that records exactly what was built and how</p></li>
+</ol>
+<p>The result is a spatially-indexed database where regional queries skip irrelevant partitions entirely, making subsequent operations fast regardless of dataset size.</p>
+</section>
+<hr class="docutils" />
+<section id="the-output-database-structure">
+<h2>The Output Database Structure<a class="headerlink" href="#the-output-database-structure" title="Link to this heading">#</a></h2>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>~/gedih3_db/h3/
+├── h3_03=8031fffffffffff/
+│   ├── 8031fffffffffff.metadata.json
+│   ├── year=2019/
+│   │   ├── 8031fffffffffff.2019.0.parquet
+│   │   └── 8031fffffffffff.2019.0.metadata.json
+│   ├── year=2020/
+│   │   ├── 8031fffffffffff.2020.0.parquet
+│   │   └── 8031fffffffffff.2020.0.metadata.json
+│   │   ...
+├── h3_03=8033fffffffffff/
+│   ├── 8033fffffffffff.metadata.json
+│   ├── year=2019/
+│   │   ...
+│   ...
+├── gedih3_build_log.json
+└── _manifest.txt
+</pre></div>
+</div>
+<p>The database uses <strong>nested hive partitioning</strong> — first by H3 level-3 cell, then by year. Each top-level directory corresponds to a spatial partition; inside, data is further split into yearly sub-partitions. This two-level scheme caps the maximum file size while making it straightforward to add new data — appending a new year never touches existing files.</p>
+<p>Each year sub-directory contains a <code class="docutils literal notranslate"><span class="pre">.parquet</span></code> data file and a companion <code class="docutils literal notranslate"><span class="pre">.metadata.json</span></code>. A cell-level metadata file sits at the H3 partition root. At the database root, <code class="docutils literal notranslate"><span class="pre">gedih3_build_log.json</span></code> records the full build configuration — products, variables, region, temporal range, and H3 resolution settings — and <code class="docutils literal notranslate"><span class="pre">_manifest.txt</span></code> lists all partition paths.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The database can live anywhere — not just on local disk. Once built, all downstream tools (<code class="docutils literal notranslate"><span class="pre">gh3_extract</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_rasterize</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_from_img</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_from_polygon</span></code>) can read the database transparently from <strong>S3</strong>, <strong>HTTP/HTTPS</strong>, <strong>SFTP/SSH</strong>, or <strong>FTP</strong> via <a class="reference external" href="https://filesystem-spec.readthedocs.io/">fsspec</a>. Just point <code class="docutils literal notranslate"><span class="pre">-d</span></code> at a remote URI:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Public S3 bucket</span>
+gh3_extract<span class="w"> </span>-d<span class="w"> </span>s3://my-bucket/h3_database/<span class="w"> </span>--s3-anon<span class="w"> </span>-r<span class="w"> </span>region.shp<span class="w"> </span>-o<span class="w"> </span>output/
+
+<span class="c1"># SFTP server</span>
+gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>sftp://server.example.com/data/h3_database/<span class="w"> </span>--ssh-key<span class="w"> </span>~/.ssh/id_rsa<span class="w"> </span>-egi<span class="w"> </span><span class="m">6</span><span class="w"> </span>-o<span class="w"> </span>output/
+
+<span class="c1"># local HTTP server</span>
+gh3_extract<span class="w"> </span>-d<span class="w"> </span>http://192.169.0.33/data/h3_database/<span class="w"> </span>-l4a<span class="w"> </span>agbd<span class="w"> </span>-l2a<span class="w"> </span>rh_098<span class="w"> </span>-o<span class="w"> </span>output/
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="cli-reference.html#remote-storage-credentials"><span class="std std-ref">Remote Storage Credentials</span></a> for the full list of credential flags.</p>
+</div>
+<section id="from-nested-hdf5-to-flat-rows">
+<h3>From nested HDF5 to flat rows<a class="headerlink" href="#from-nested-hdf5-to-flat-rows" title="Link to this heading">#</a></h3>
+<p>In a raw GEDI HDF5 file, you navigate a tree: <code class="docutils literal notranslate"><span class="pre">file</span> <span class="pre">→</span> <span class="pre">BEAM0101</span> <span class="pre">→</span> <span class="pre">agbd</span> <span class="pre">→</span> <span class="pre">array</span></code>. Each beam is a separate group. Variables have no consistent names across products. To access even a single variable, you need <code class="docutils literal notranslate"><span class="pre">h5py</span></code> and intimate knowledge of the file structure.</p>
+<p>In the gedih3 database, every shot is a <strong>row</strong> and every variable is a <strong>column</strong>. The beam structure is dissolved — shots from all 8 beams are unified into a single flat table. The file can be read with any tool that handles Parquet: pandas, R’s <code class="docutils literal notranslate"><span class="pre">arrow</span></code>, DuckDB, QGIS, or any dataframe library.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Read a single year partition directly with pandas — no gedih3 required</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="s1">&#39;~/gedih3_db/h3/h3_03=8031fffffffffff/year=2020/8031fffffffffff.2020.0.parquet&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This interoperability is intentional. The database is your data asset — it does not lock you in to any particular processing stack.</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="column-naming-product-suffixes">
+<h2>Column Naming: Product Suffixes<a class="headerlink" href="#column-naming-product-suffixes" title="Link to this heading">#</a></h2>
+<p>Every variable extracted from a GEDI product is stored with a product suffix appended to its HDF5 name:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>HDF5 name</p></th>
+<th class="head"><p>GEDI product</p></th>
+<th class="head"><p>gedih3 column</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">agbd</span></code></p></td>
+<td><p>L4A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">agbd_l4a</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">agbd_se</span></code></p></td>
+<td><p>L4A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">agbd_se_l4a</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">quality_flag</span></code></p></td>
+<td><p>L2A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">quality_flag_l2a</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">l4_quality_flag</span></code></p></td>
+<td><p>L4A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">l4_quality_flag_l4a</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rh[98]</span></code></p></td>
+<td><p>L2A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rh_098_l2a</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rh[50]</span></code></p></td>
+<td><p>L2A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rh_050_l2a</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rh</span></code> (array, 101 elements)</p></td>
+<td><p>L2A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rh_000_l2a</span></code> … <code class="docutils literal notranslate"><span class="pre">rh_100_l2a</span></code> (101 columns)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cover</span></code></p></td>
+<td><p>L2B</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cover_l2b</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">fhd_normal</span></code></p></td>
+<td><p>L2B</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">fhd_normal_l2b</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cover_z</span></code> (array, 30 elements)</p></td>
+<td><p>L2B</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cover_z_000_l2b</span></code> … <code class="docutils literal notranslate"><span class="pre">cover_z_029_l2b</span></code> (30 columns)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rxwaveform</span></code> (array, variable size bins)</p></td>
+<td><p>L1B</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rxwaveform_0000_l1b</span></code> … <code class="docutils literal notranslate"><span class="pre">rxwaveform_1419_l1b</span></code> (1420 columns)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">wsci</span></code></p></td>
+<td><p>L4C</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">wsci_l4c</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The suffix is always the lowercase product code: <code class="docutils literal notranslate"><span class="pre">_l1b</span></code>, <code class="docutils literal notranslate"><span class="pre">_l2a</span></code>, <code class="docutils literal notranslate"><span class="pre">_l2b</span></code>, <code class="docutils literal notranslate"><span class="pre">_l4a</span></code>, <code class="docutils literal notranslate"><span class="pre">_l4c</span></code>.</p>
+<p><strong>Why the suffix?</strong> The same variable name can appear in multiple GEDI products. For example, <code class="docutils literal notranslate"><span class="pre">sensitivity</span></code> exists in both L2A and L4A with subtly different meanings. <code class="docutils literal notranslate"><span class="pre">quality_flag</span></code> exists in L2A, L2B, L4A, and L4C. When building a database with multiple products, suffixing makes every column unambiguous and prevents silent collisions.</p>
+<p><strong>Array variable expansion:</strong> Array variables in GEDI HDF5 files are expanded into individual named columns using zero-padded indices. The index width depends on the variable type: 3 digits for 2d arrays (<code class="docutils literal notranslate"><span class="pre">rh</span></code>, <code class="docutils literal notranslate"><span class="pre">cover_z</span></code>, <code class="docutils literal notranslate"><span class="pre">pavd_z</span></code>) and 4 digits for waveforms (<code class="docutils literal notranslate"><span class="pre">rxwaveform</span></code>).</p>
+<p><strong>L1B waveforms and large databases:</strong> Including <code class="docutils literal notranslate"><span class="pre">rxwaveform</span></code> expands a single variable into 1420 columns. For a database covering millions of shots this produces a table with billions of waveform cells — significant disk usage and severely degraded query performance. L1B waveform data is <strong>strongly discouraged for any area larger than a small study site</strong>. If you need raw waveforms, build a separate small-area database explicitly for that purpose.</p>
+</section>
+<hr class="docutils" />
+<section id="built-in-columns-not-from-hdf5-products">
+<h2>Built-In Columns (Not From HDF5 Products)<a class="headerlink" href="#built-in-columns-not-from-hdf5-products" title="Link to this heading">#</a></h2>
+<p>In addition to the product variables you select, gedih3 adds a set of columns automatically during the build process. These are <strong>not</strong> suffixed and are present in every database regardless of which products were built.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Column</p></th>
+<th class="head"><p>How it is created</p></th>
+<th class="head"><p>Why it matters</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">shot_number</span></code></p></td>
+<td><p>Copied from the HDF5 <code class="docutils literal notranslate"><span class="pre">shot_number</span></code> field (same value across all products for the same shot)</p></td>
+<td><p>The universal shot identifier. Links rows across products and datasets. Used internally to join multi-product tables and to recover provenance.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">geometry</span></code></p></td>
+<td><p>Computed from <code class="docutils literal notranslate"><span class="pre">lat_lowestmode</span></code> and <code class="docutils literal notranslate"><span class="pre">lon_lowestmode</span></code> (L2A)</p></td>
+<td><p>Point geometry (WGS-84/EPSG:4326) for every shot. Required for all spatial operations, GIS output, and spatial joins with vector data.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">datetime</span></code></p></td>
+<td><p>Converted from <code class="docutils literal notranslate"><span class="pre">delta_time</span></code> (seconds since 2018-01-01 J2000 epoch)</p></td>
+<td><p>Human-readable UTC timestamp. Used for temporal filtering in <code class="docutils literal notranslate"><span class="pre">gh3_extract</span></code> and time-series analysis. Avoids the need to decode the raw epoch offset yourself.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">h3_12</span></code> (or <code class="docutils literal notranslate"><span class="pre">h3_XX</span></code> at your chosen index level)</p></td>
+<td><p>Computed from <code class="docutils literal notranslate"><span class="pre">geometry</span></code> at the configured index resolution</p></td>
+<td><p>The primary spatial join key in the H3 system. All aggregations use this column to assign shots to coarser H3 cells. Stored as a string H3 cell ID.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">root_file</span></code></p></td>
+<td><p>The filename of the source HDF5 granule</p></td>
+<td><p>Provenance. Tells you which raw file each shot came from. Useful for debugging, reproducibility, and tracking down anomalous values.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<div><p><strong>L2A is always required.</strong> The <code class="docutils literal notranslate"><span class="pre">geometry</span></code> and <code class="docutils literal notranslate"><span class="pre">datetime</span></code> columns depend on variables from L2A (<code class="docutils literal notranslate"><span class="pre">lat_lowestmode</span></code>, <code class="docutils literal notranslate"><span class="pre">lon_lowestmode</span></code>, <code class="docutils literal notranslate"><span class="pre">delta_time</span></code>). Even if you only want L4A biomass data, gedih3 reads the L2A essentials automatically. You do not need to explicitly request them — this is handled internally.</p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="selecting-variables-the-l-flags">
+<h2>Selecting Variables: The <code class="docutils literal notranslate"><span class="pre">-l</span></code> Flags<a class="headerlink" href="#selecting-variables-the-l-flags" title="Link to this heading">#</a></h2>
+<blockquote>
+<div><p><strong>Variable subsetting is the most impactful build-time decision.</strong> Raw GEDI HDF5 files are large (~1–3 GB each), and variables you include become permanent columns in the database. More columns = larger files, slower queries, longer builds. Two rules of thumb:</p>
+<ul class="simple">
+<li><p><strong>Always use <code class="docutils literal notranslate"><span class="pre">minimal</span></code>, <code class="docutils literal notranslate"><span class="pre">default</span></code> or an explicit variable list.</strong> Never use <code class="docutils literal notranslate"><span class="pre">all</span></code>/<code class="docutils literal notranslate"><span class="pre">*</span></code> unless you have a specific reason — L2A <code class="docutils literal notranslate"><span class="pre">all</span></code> alone exceeds 300 variables, many of them diagnostic outputs with limited research value.</p></li>
+<li><p><strong>Never include L1B waveforms for large areas.</strong> <code class="docutils literal notranslate"><span class="pre">rxwaveform</span></code> expands to 1420 columns per shot. For small sites it is acceptable; for regional or global builds it is impractical.</p></li>
+</ul>
+</div></blockquote>
+<p>Variable selection is the most important build-time decision. The variables you build with are the only variables available for all subsequent extractions and aggregations. You can add variables later, but you cannot remove them without rebuilding.</p>
+<section id="product-flags">
+<h3>Product flags<a class="headerlink" href="#product-flags" title="Link to this heading">#</a></h3>
+<p>Each GEDI footprint product has its own flag:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Product</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-l1b</span></code></p></td>
+<td><p>L1B (raw waveforms)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-l2a</span></code></p></td>
+<td><p>L2A (canopy height, ground elevation)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-l2b</span></code></p></td>
+<td><p>L2B (canopy cover, vertical structure)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-l4a</span></code></p></td>
+<td><p>L4A (aboveground biomass density)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-l4c</span></code></p></td>
+<td><p>L4C (structural complexity)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>At minimum, you must specify at least one product flag. You can combine as many as needed.</p>
+</section>
+<section id="variable-selection-keywords">
+<h3>Variable selection keywords<a class="headerlink" href="#variable-selection-keywords" title="Link to this heading">#</a></h3>
+<p>After each product flag, pass one of the following:</p>
+<p><strong><code class="docutils literal notranslate"><span class="pre">minimal</span></code></strong> — the smallest usable set. Geolocation, timestamp, quality flag, and the primary headline variable for each product. Use this when disk space is very limited or you only need one or few metrics.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>minimal<span class="w"> </span>-l4a<span class="w"> </span>minimal
+</pre></div>
+</div>
+<p><strong><code class="docutils literal notranslate"><span class="pre">default</span></code></strong> — the recommended science-ready set. An expert-curated selection covering all variables needed for common research workflows, including uncertainty estimates, alternative algorithm outputs, and land-cover ancillary data. This is a good choice for most projects.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
+</pre></div>
+</div>
+<p><strong>Explicit variable names</strong> — list specific HDF5 variable names after the flag. Consult the data dictionaries for each GEDI product for reference.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>rh<span class="w"> </span>elev_lowestmode<span class="w"> </span>quality_flag<span class="w"> </span>-l4a<span class="w"> </span>agbd<span class="w"> </span>agbd_se<span class="w"> </span>l4_quality_flag
+</pre></div>
+</div>
+<p><strong><code class="docutils literal notranslate"><span class="pre">all</span></code> or <code class="docutils literal notranslate"><span class="pre">*</span></code> or bare flag</strong> — every variable in the product. Produces very large databases. Use with caution and only if you have a specific reason to need the full variable set.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span><span class="s2">&quot;*&quot;</span><span class="w">  </span><span class="c1"># all L2A variables</span>
+</pre></div>
+</div>
+<p><strong>A text file</strong> — one HDF5 variable name per line. Useful for reproducible builds with large custom variable lists.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>/path/to/my_variables.txt<span class="w"> </span>-l4a<span class="w"> </span>default
+</pre></div>
+</div>
+<blockquote>
+<div><p>See <a class="reference internal" href="../concepts/variable-presets.html"><span class="std std-doc">Variable Presets Reference</span></a> for the exact variable list in each preset for GEDI different products and data versions.</p>
+</div></blockquote>
+</section>
+</section>
+<hr class="docutils" />
+<section id="h3-resolution-settings">
+<h2>H3 Resolution Settings<a class="headerlink" href="#h3-resolution-settings" title="Link to this heading">#</a></h2>
+<p>Two flags control the spatial resolution of the database:</p>
+<p><strong><code class="docutils literal notranslate"><span class="pre">-h3r</span> <span class="pre">INDEX_LEVEL</span></code></strong> (default: <code class="docutils literal notranslate"><span class="pre">12</span></code>) — the H3 resolution at which each shot is indexed. Each shot gets assigned to the H3 cell at this level that contains its coordinates. Level 12 cells are ~307 m² — approximately the size of a GEDI footprint, so each footprint’s center coordinate falls in its own cell.</p>
+<p><strong><code class="docutils literal notranslate"><span class="pre">-h3p</span> <span class="pre">PARTITION_LEVEL</span></code></strong> (default: <code class="docutils literal notranslate"><span class="pre">3</span></code>) — the H3 resolution used to partition files on disk. Level 3 cells are ~12,393 km². All shots within the same level-3 cell are stored in the same partition file. This controls the granularity of spatial skipping during queries.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Default: index at level 12, partition at level 3</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l4a<span class="w"> </span>default
+
+<span class="c1"># Custom: index at level 10, partition at level 5</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-h3r<span class="w"> </span><span class="m">10</span><span class="w"> </span>-h3p<span class="w"> </span><span class="m">5</span>
+</pre></div>
+</div>
+<p><strong>When to change the defaults:</strong></p>
+<ul class="simple">
+<li><p><strong>Smaller region</strong>: Increase <code class="docutils literal notranslate"><span class="pre">-h3p</span></code> (e.g., to 5 or 6) to get more files with lower size each. With the default level-3 partitions, a small region of interest may produce too few partitions with concentrated data.</p></li>
+<li><p><strong>Very coarse analysis</strong>: Lower <code class="docutils literal notranslate"><span class="pre">-h3r</span></code> if you only plan to aggregate to resolutions coarser than level 10, to reduce index column cardinality.</p></li>
+<li><p><strong>Sub-footprint indexing</strong>: Raise <code class="docutils literal notranslate"><span class="pre">-h3r</span></code> above 12 only if you need the finest possible spatial granularity for shot-level EGI mapping.</p></li>
+</ul>
+<p>The defaults are well-calibrated for regional-to-global analyses. If you are unsure, leave them unchanged.</p>
+<blockquote>
+<div><p>See <a class="reference internal" href="../concepts/h3-indexing.html"><span class="std std-doc">H3 Indexing</span></a> for a full explanation of the resolution system and the partition/index dual-level design.</p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="source-modes-where-does-the-data-come-from">
+<h2>Source Modes: Where Does the Data Come From?<a class="headerlink" href="#source-modes-where-does-the-data-come-from" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> supports three modes for sourcing raw GEDI HDF5 data:</p>
+<section id="mode-1-local-hdf5-files-default">
+<h3>Mode 1: Local HDF5 files (default)<a class="headerlink" href="#mode-1-local-hdf5-files-default" title="Link to this heading">#</a></h3>
+<p>The default mode reads HDF5 files that you have already downloaded to disk. As long as the original names of the GEDI files are preserved, no specific file organization standard is required - as long as all GEDI HDF5 files are in the same directory. The file structure layout adopted by <code class="docutils literal notranslate"><span class="pre">gh3_download</span></code> is the SOC (Science Operation Center) directory structure: <code class="docutils literal notranslate"><span class="pre">soc/LXXX/year/doy/*.h5</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download first</span>
+gh3_download<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
+
+<span class="c1"># Then build</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
+</pre></div>
+</div>
+<p><strong>Best for</strong>: workstations and HPC clusters with fast local or network-attached storage, or when you plan to build multiple databases from the same raw files. The raw HDF5 files remain on disk after the build and can be re-used.</p>
+</section>
+<section id="mode-2-embedded-download-dl">
+<h3>Mode 2: Embedded download (<code class="docutils literal notranslate"><span class="pre">-dl</span></code>)<a class="headerlink" href="#mode-2-embedded-download-dl" title="Link to this heading">#</a></h3>
+<p>With <code class="docutils literal notranslate"><span class="pre">-dl</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> automatically calls <code class="docutils literal notranslate"><span class="pre">gh3_download</span></code> as a first step before building. This is a convenience shortcut — it does not change the build behavior, only the workflow.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and build in one command</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-dl
+</pre></div>
+</div>
+<p><strong>Best for</strong>: good network connections where you want a single command to handle the full pipeline. The raw HDF5 files are kept on disk after the build.</p>
+</section>
+<section id="mode-3-s3-etl-s3">
+<h3>Mode 3: S3 ETL (<code class="docutils literal notranslate"><span class="pre">-s3</span></code>)<a class="headerlink" href="#mode-3-s3-etl-s3" title="Link to this heading">#</a></h3>
+<p>With <code class="docutils literal notranslate"><span class="pre">-s3</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> streams GEDI data directly from NASA’s S3 bucket into a temporary location and converts it to Parquet without writing the full HDF5 files to persistent storage. Each granule is streamed, processed, and discarded.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Stream from NASA S3 — no HDF5 files on disk</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-s3
+</pre></div>
+</div>
+<p><strong>Best for</strong>: environments with slow or expensive local disk, cloud computing instances, or any situation where you want to avoid storing the raw HDF5 files (~1–3 GB per granule). S3 mode requires a good network connection to NASA’s servers.</p>
+<blockquote>
+<div><p><strong>Download requires Earthdata credentials for all modes.</strong> If you have not already authenticated, run <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-c</span> <span class="pre">&quot;import</span> <span class="pre">earthaccess;</span> <span class="pre">earthaccess.login()&quot;</span></code> and follow the prompts. Credentials are stored in <code class="docutils literal notranslate"><span class="pre">~/.netrc</span></code>.</p>
+</div></blockquote>
+</section>
+</section>
+<hr class="docutils" />
+<section id="subsetting-strategies">
+<h2>Subsetting Strategies<a class="headerlink" href="#subsetting-strategies" title="Link to this heading">#</a></h2>
+<p>GEDI covers the entire globe from 51.6°S to 51.6°N. Building a global database is possible but can require hundreds of gigabytes of disk and many hours of compute time. <strong>Subsetting at build time</strong> is the most effective way to keep resource usage proportional to your actual needs.</p>
+<p>There are three independent subsetting axes:</p>
+<section id="spatial-subsetting-r">
+<h3>1. Spatial subsetting (<code class="docutils literal notranslate"><span class="pre">-r</span></code>)<a class="headerlink" href="#spatial-subsetting-r" title="Link to this heading">#</a></h3>
+<p>Pass a region specification to restrict the build to shots within your area of interest. Only granules that intersect the region are downloaded/processed, and only shots belonging to H3 hexagons intersecting the region are written to the database.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Bounding box: W,S,E,N (degrees)</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-60,-10,-40,5&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
+
+<span class="c1"># Vector file (any format readable by GeoPandas: Shapefile, GeoPackage, GeoJSON, ...)</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span>/path/to/country_boundary.shp<span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
+
+<span class="c1"># ISO3 country code (polygon fetched automatically)</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span>USA<span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
+</pre></div>
+</div>
+<p>Spatial subsetting is almost always worthwhile unless you genuinely need global coverage. Even a small bounding box can reduce data volume by orders of magnitude.</p>
+</section>
+<section id="temporal-subsetting-t0-t1">
+<h3>2. Temporal subsetting (<code class="docutils literal notranslate"><span class="pre">-t0</span></code> / <code class="docutils literal notranslate"><span class="pre">-t1</span></code>)<a class="headerlink" href="#temporal-subsetting-t0-t1" title="Link to this heading">#</a></h3>
+<p>Pass start and end dates to restrict the build to a specific time window. Granules outside the window are skipped.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Build only data from 2020</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-t0<span class="w"> </span><span class="m">2020</span>-01-01<span class="w"> </span>-t1<span class="w"> </span><span class="m">2020</span>-12-31
+
+<span class="c1"># Build from launch through end of 2021</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-t1<span class="w"> </span><span class="m">2021</span>-12-31
+</pre></div>
+</div>
+<p>GEDI has been collecting data since April 2019. Without temporal subsetting, the build will include all available data — which grows every periodically.</p>
+</section>
+<section id="variable-subsetting-lxx-minimal-vs-default-vs-explicit">
+<h3>3. Variable subsetting (<code class="docutils literal notranslate"><span class="pre">-lXX</span> <span class="pre">minimal</span></code> vs <code class="docutils literal notranslate"><span class="pre">default</span></code> vs explicit)<a class="headerlink" href="#variable-subsetting-lxx-minimal-vs-default-vs-explicit" title="Link to this heading">#</a></h3>
+<p>The number of variables you store has a direct effect on database size and build time. As a rough guide:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Preset / variables</p></th>
+<th class="head"><p>Approximate disk per billion shots</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">minimal</span></code> (any product)</p></td>
+<td><p>10- GB</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">default</span></code> (any product)</p></td>
+<td><p>10+ GB</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">all</span></code> (any product)</p></td>
+<td><p>100+ GB</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rxwaveform</span></code> (L1B, 1420 cols)</p></td>
+<td><p>1000+ GB — avoid for large areas</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>If you are not sure which variables you will need, <strong><code class="docutils literal notranslate"><span class="pre">default</span></code> is a good starting point</strong> — it covers the variables needed for the vast majority of research workflows. You can always add variables later (see Resume and Updates below) without rebuilding from scratch.</p>
+</section>
+<section id="practical-scenarios">
+<h3>Practical scenarios<a class="headerlink" href="#practical-scenarios" title="Link to this heading">#</a></h3>
+<p><strong>Small region study (e.g., a national park or watershed):</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span>study_area.shp<span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
+</pre></div>
+</div>
+<p><strong>Country-level analysis with disk constraints:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span>COL<span class="w"> </span>-l2a<span class="w"> </span>minimal<span class="w"> </span>-l4a<span class="w"> </span>minimal
+</pre></div>
+</div>
+<p><strong>Multi-year time series:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-80,-20,20,20&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-t0<span class="w"> </span><span class="m">2019</span>-01-01<span class="w"> </span>-t1<span class="w"> </span><span class="m">2023</span>-12-31
+</pre></div>
+</div>
+<p><strong>Global build on a cloud instance with limited disk:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-l2a<span class="w"> </span>minimal<span class="w"> </span>-l4a<span class="w"> </span>minimal<span class="w"> </span>-s3<span class="w"> </span>-N<span class="w"> </span><span class="m">16</span><span class="w"> </span>-M<span class="w"> </span>8GB
+</pre></div>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="resume-and-updates">
+<h2>Resume and Updates<a class="headerlink" href="#resume-and-updates" title="Link to this heading">#</a></h2>
+<section id="resuming-an-interrupted-build">
+<h3>Resuming an interrupted build<a class="headerlink" href="#resuming-an-interrupted-build" title="Link to this heading">#</a></h3>
+<p>If a build is interrupted (power loss, time limit, Ctrl-C), simply re-run the exact same command. <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> tracks which HDF5 granules have been successfully processed and skips them on the next run. No data is lost.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Interrupted — re-run the same command to resume</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
+</pre></div>
+</div>
+</section>
+<section id="adding-variables-to-an-existing-database">
+<h3>Adding variables to an existing database<a class="headerlink" href="#adding-variables-to-an-existing-database" title="Link to this heading">#</a></h3>
+<p>You can add new variables to an existing database without re-reading all the HDF5 files. <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> detects that the database already exists and performs a variable-only update — reading only the new columns and appending them to the existing Parquet files.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Add biomass uncertainty columns to an existing database</span>
+gh3_build<span class="w"> </span>-l4a<span class="w"> </span>agbd_se<span class="w"> </span>agbd_pi_lower<span class="w"> </span>agbd_pi_upper
+</pre></div>
+</div>
+</section>
+<section id="expanding-the-spatial-or-temporal-coverage">
+<h3>Expanding the spatial or temporal coverage<a class="headerlink" href="#expanding-the-spatial-or-temporal-coverage" title="Link to this heading">#</a></h3>
+<p>Re-run with a wider region or date range. <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> performs a safe two-phase update: it first processes the new shots (spatial/temporal expansion), then handles any variable additions in a second phase. Existing data is not touched.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Original build covered a small area; extend to a larger region</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span>wider_region.shp<span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
+</pre></div>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="dask-configuration-and-performance">
+<h2>Dask Configuration and Performance<a class="headerlink" href="#dask-configuration-and-performance" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> uses Dask for parallel processing. The defaults work on a laptop with a few cores, but performance scales dramatically with available resources.</p>
+<section id="key-flags">
+<h3>Key flags<a class="headerlink" href="#key-flags" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-N</span></code></p></td>
+<td><p>auto</p></td>
+<td><p>Number of Dask workers</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-T</span></code></p></td>
+<td><p>1</p></td>
+<td><p>Threads per worker</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-M</span></code></p></td>
+<td><p>auto</p></td>
+<td><p>Memory per worker in GB</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-P</span></code></p></td>
+<td><p>—</p></td>
+<td><p>Dask dashboard port</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-s</span></code></p></td>
+<td><p>—</p></td>
+<td><p>Connect to an existing Dask scheduler</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="recommendations">
+<h3>Recommendations<a class="headerlink" href="#recommendations" title="Link to this heading">#</a></h3>
+<p><strong>Laptop or workstation (8–32 cores):</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span>...<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-N<span class="w"> </span><span class="m">8</span><span class="w"> </span>-T<span class="w"> </span><span class="m">2</span><span class="w"> </span>-M<span class="w"> </span><span class="m">8</span>
+</pre></div>
+</div>
+<p><strong>HPC cluster (SLURM etc.) — connect to an existing scheduler:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span>...<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-s<span class="w"> </span>tcp://scheduler-host:8786
+</pre></div>
+</div>
+<p><strong>Very large datasets with memory issues:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span>...<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-N<span class="w"> </span><span class="m">4</span><span class="w"> </span>-M<span class="w"> </span><span class="m">16</span>
+</pre></div>
+</div>
+<p>For multi-day <strong>global or continental builds</strong> (&gt;100K granules, multi-TB outputs), the simple <code class="docutils literal notranslate"><span class="pre">-N</span></code>/<code class="docutils literal notranslate"><span class="pre">-M</span></code> defaults run into Dask’s well-documented unmanaged-memory accumulation problem. Skip down to <a class="reference internal" href="#building-massive-databases"><span class="std std-ref">Building Massive Databases</span></a> for the full runbook.</p>
+<hr class="docutils" />
+</section>
+</section>
+<section id="building-massive-databases">
+<span id="id1"></span><h2>Building Massive Databases<a class="headerlink" href="#building-massive-databases" title="Link to this heading">#</a></h2>
+<p>This section covers the <strong>edge case</strong> of global / continental builds: tens of thousands of granules, multi-day extraction, multi-TB outputs. For typical regional builds (a country, a study site, a few products) you can ignore everything below — <code class="docutils literal notranslate"><span class="pre">gh3_build</span> <span class="pre">-N</span> <span class="pre">...</span> <span class="pre">-M</span> <span class="pre">...</span></code> works fine.</p>
+<section id="when-to-use-this-guide">
+<h3>When to use this guide<a class="headerlink" href="#when-to-use-this-guide" title="Link to this heading">#</a></h3>
+<p>Use this approach when <strong>any</strong> of the following apply:</p>
+<ul class="simple">
+<li><p>The build will run for more than a few hours.</p></li>
+<li><p>Granule count is in the tens of thousands or higher.</p></li>
+<li><p>A previous build OOM-killed during the merge stage, even though stage 1 had been running cleanly.</p></li>
+<li><p>You’re sharing a node with other workloads and need predictable memory behaviour.</p></li>
+</ul>
+<p>For everything else, the inline <code class="docutils literal notranslate"><span class="pre">gh3_build</span> <span class="pre">-N</span> <span class="pre">-T</span> <span class="pre">-M</span> <span class="pre">-P</span></code> flags create a fine <code class="docutils literal notranslate"><span class="pre">LocalCluster</span></code>.</p>
+</section>
+<section id="the-bottleneck-unmanaged-worker-memory">
+<h3>The bottleneck: unmanaged worker memory<a class="headerlink" href="#the-bottleneck-unmanaged-worker-memory" title="Link to this heading">#</a></h3>
+<p>Long-running Dask workers accumulate <strong>unmanaged memory</strong> (RSS that exceeds Dask’s task-tracked footprint). Three sources, in order of severity for HDF5+parquet workloads:</p>
+<ol class="arabic simple">
+<li><p><strong>PyArrow’s memory pool</strong>. PyArrow on Linux defaults to <strong>jemalloc</strong>, which holds dirty/muzzy pages in arenas long after the corresponding <code class="docutils literal notranslate"><span class="pre">pa.Table</span></code> is freed. <code class="docutils literal notranslate"><span class="pre">MALLOC_TRIM_THRESHOLD_=0</span></code> does <strong>not</strong> affect jemalloc — that variable only tunes glibc.</p></li>
+<li><p><strong>glibc fragmentation</strong>. Pandas, numpy small allocations, h5py chunk caches all go through glibc. Without <code class="docutils literal notranslate"><span class="pre">MALLOC_TRIM_THRESHOLD_=0</span></code> (or with the Nanny’s default of 65536), glibc holds freed chunks in the heap top.</p></li>
+<li><p><strong>h5py file-handle / chunk caches</strong>. Per-file cache held until <code class="docutils literal notranslate"><span class="pre">File.close()</span></code>. Dask arrays built from open HDF5 datasets keep handles alive across the cluster.</p></li>
+</ol>
+<p>The mitigation that addresses these at the source is <strong>two pre-spawn environment variables</strong> plus a <strong>per-task trim preload</strong>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ARROW_DEFAULT_MEMORY_POOL=system</span></code> switches PyArrow off jemalloc onto the system allocator (glibc on Linux), so freed buffers can actually be released.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MALLOC_TRIM_THRESHOLD_=0</span></code> makes glibc return freed pages to the OS immediately instead of pooling them in the heap top.</p></li>
+<li><p>The bundled <code class="docutils literal notranslate"><span class="pre">dask-worker-trim.py</span></code> preload calls <code class="docutils literal notranslate"><span class="pre">gc.collect()</span></code> + <code class="docutils literal notranslate"><span class="pre">pyarrow.default_memory_pool().release_unused()</span></code> + <code class="docutils literal notranslate"><span class="pre">libc.malloc_trim(0)</span></code> after every task, ensuring the OS actually sees the freed memory.</p></li>
+</ul>
+<p>Together, these keep RSS bounded at the source over multi-day builds. <strong>Rolling worker restart (<code class="docutils literal notranslate"><span class="pre">--lifetime</span></code>/<code class="docutils literal notranslate"><span class="pre">--lifetime-restart</span></code>) is no longer recommended</strong> — earlier versions of this guide used it as belt-and-suspenders insurance, but the Active-Memory-Manager handoff during retirement can saturate survivor event loops on heavily-loaded clusters and trigger a cascading recompute storm. With the env vars and preload above, you don’t need it. The “unmanaged old” gauge on the dashboard is the canary; if you ever see it climbing past ~30% of <code class="docutils literal notranslate"><span class="pre">--memory-limit</span></code> over many hours, only then consider lifetime — and pick a stagger much wider than your typical AMM handoff time (60–90 min) to avoid the cascade.</p>
+</section>
+<section id="the-external-cluster-pattern">
+<h3>The external-cluster pattern<a class="headerlink" href="#the-external-cluster-pattern" title="Link to this heading">#</a></h3>
+<p>Instead of letting <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> create its own <code class="docutils literal notranslate"><span class="pre">LocalCluster</span></code>, spawn the <strong>scheduler and workers separately</strong> with the right memory tuning, then attach the build via the existing <code class="docutils literal notranslate"><span class="pre">-s/--dask-scheduler</span></code> flag. Three benefits:</p>
+<ol class="arabic simple">
+<li><p>All memory knobs live at the worker spawn (env vars, preload). No code changes inside <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code>.</p></li>
+<li><p>The cluster outlives the build — if the build crashes, the cluster keeps running and you can attach a new <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> (or recovery script) to it.</p></li>
+<li><p>The scheduler’s dashboard at <code class="docutils literal notranslate"><span class="pre">:8787</span></code> is independent of the build’s lifecycle.</p></li>
+</ol>
+<p><code class="docutils literal notranslate"><span class="pre">gedih3</span></code> ships two assets to support this:</p>
+<ul class="simple">
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">dask-config-massive-build.yaml</span></code></strong> — a reference Dask config with the proven knobs. Load it at scheduler/worker spawn or via <code class="docutils literal notranslate"><span class="pre">dask.config.update</span></code>.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">dask-worker-trim.py</span></code></strong> — a Dask worker preload module that registers a per-task plugin calling <code class="docutils literal notranslate"><span class="pre">gc.collect()</span></code>, <code class="docutils literal notranslate"><span class="pre">pyarrow.default_memory_pool().release_unused()</span></code>, and <code class="docutils literal notranslate"><span class="pre">libc.malloc_trim(0)</span></code> after every task transition.</p></li>
+</ul>
+<p>Both ship inside the package; resolve their paths via <code class="docutils literal notranslate"><span class="pre">gedih3.config.get_package_data_path</span></code>.</p>
+</section>
+<section id="recipe">
+<h3>Recipe<a class="headerlink" href="#recipe" title="Link to this heading">#</a></h3>
+<p>Run these in three terminals (or a <code class="docutils literal notranslate"><span class="pre">tmux</span></code> / <code class="docutils literal notranslate"><span class="pre">screen</span></code> session). Adjust paths and worker count to match your node.</p>
+<p><strong>1. Scheduler:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dask<span class="w"> </span>scheduler<span class="w"> </span>--host<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span>--port<span class="w"> </span><span class="m">8786</span><span class="w"> </span>--dashboard-address<span class="w"> </span>:8787
+</pre></div>
+</div>
+<p><strong>2. Workers</strong> (export env vars FIRST in the same shell — they MUST exist before the worker process spawns):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">ARROW_DEFAULT_MEMORY_POOL</span><span class="o">=</span>system
+<span class="nb">export</span><span class="w"> </span><span class="nv">MALLOC_TRIM_THRESHOLD_</span><span class="o">=</span><span class="m">0</span>
+
+<span class="nv">PRELOAD</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from gedih3.config import get_package_data_path; \</span>
+<span class="s2">                     print(get_package_data_path(&#39;dask-worker-trim.py&#39;))&quot;</span><span class="k">)</span>
+
+dask<span class="w"> </span>worker<span class="w"> </span>tcp://localhost:8786<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--nworkers<span class="w"> </span><span class="m">32</span><span class="w"> </span>--nthreads<span class="w"> </span><span class="m">1</span><span class="w"> </span>--memory-limit<span class="w"> </span>25GB<span class="w"> </span>--nanny<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--local-directory<span class="w"> </span>./tmp/dask-worker-space<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--preload<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PRELOAD</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+<p><strong>3. Build</strong> (attach to the existing scheduler):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span>region.shp<span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span><span class="se">\</span>
+<span class="w">          </span>-i<span class="w"> </span>../soc/<span class="w"> </span>-o<span class="w"> </span>database<span class="w"> </span>-t<span class="w"> </span>tmp<span class="w"> </span><span class="se">\</span>
+<span class="w">          </span>-s<span class="w"> </span>tcp://localhost:8786
+</pre></div>
+</div>
+</section>
+<section id="sizing-for-your-node">
+<h3>Sizing for your node<a class="headerlink" href="#sizing-for-your-node" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">--nworkers</span> <span class="pre">×</span> <span class="pre">--memory-limit</span></code> should total <strong>~85% of node RAM</strong>, leaving headroom for the OS page cache (HDF5 reads benefit hugely from caching). Over-committing is the most common cause of stage-2 OOM kills: workers’ soft memory limit is enforced by Dask’s spill mechanism, but the kernel OOM killer fires first if total resident memory exceeds physical RAM. <strong>Sticking under 85% is non-negotiable</strong> — once you cross the line, no Dask threshold can save you because the kernel acts before Dask’s <code class="docutils literal notranslate"><span class="pre">terminate:</span> <span class="pre">0.95</span></code> does.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Node RAM</p></th>
+<th class="head"><p>Recommended</p></th>
+<th class="head"><p>Total</p></th>
+<th class="head"><p>Page cache</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>256 GB</p></td>
+<td><p>16 × 13 GB</p></td>
+<td><p>208 GB</p></td>
+<td><p>~48 GB</p></td>
+</tr>
+<tr class="row-odd"><td><p>512 GB</p></td>
+<td><p>24 × 18 GB</p></td>
+<td><p>432 GB</p></td>
+<td><p>~80 GB</p></td>
+</tr>
+<tr class="row-even"><td><p>1 TB</p></td>
+<td><p>32 × 25 GB</p></td>
+<td><p>800 GB</p></td>
+<td><p>~206 GB</p></td>
+</tr>
+<tr class="row-odd"><td><p>2 TB</p></td>
+<td><p>48 × 32 GB</p></td>
+<td><p>1536 GB</p></td>
+<td><p>~496 GB</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>If you want more parallelism than the table suggests (e.g., 64 workers on a 1 TB node), <strong>lower <code class="docutils literal notranslate"><span class="pre">--memory-limit</span></code> proportionally</strong> so the total still fits. 64 × 14 GB = 896 GB on a 1 TB node is safe; 64 × 25 GB = 1600 GB is not (1.6× over-committed → kernel OOM-kills before Dask reacts).</p>
+</section>
+<section id="verifying-the-cluster">
+<h3>Verifying the cluster<a class="headerlink" href="#verifying-the-cluster" title="Link to this heading">#</a></h3>
+<p>After workers connect, sanity-check that the env vars and preload took effect. Many users discover after running a multi-day job that one of the env vars silently no-op’d:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dask.distributed</span><span class="w"> </span><span class="kn">import</span> <span class="n">Client</span>
+
+<span class="n">c</span> <span class="o">=</span> <span class="n">Client</span><span class="p">(</span><span class="s1">&#39;tcp://localhost:8786&#39;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;workers:&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">scheduler_info</span><span class="p">()[</span><span class="s1">&#39;workers&#39;</span><span class="p">]))</span>
+
+<span class="n">env</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">&#39;MALLOC_TRIM_THRESHOLD_&#39;</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;MALLOC_TRIM_THRESHOLD_&#39;</span><span class="p">),</span>
+    <span class="s1">&#39;ARROW_DEFAULT_MEMORY_POOL&#39;</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;ARROW_DEFAULT_MEMORY_POOL&#39;</span><span class="p">),</span>
+<span class="p">})</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;MALLOC_TRIM_THRESHOLD_:&#39;</span><span class="p">,</span> <span class="n">Counter</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="s1">&#39;MALLOC_TRIM_THRESHOLD_&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;ARROW pool env:        &#39;</span><span class="p">,</span> <span class="n">Counter</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="s1">&#39;ARROW_DEFAULT_MEMORY_POOL&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;arrow pool backend:    &#39;</span><span class="p">,</span> <span class="n">Counter</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="nb">__import__</span><span class="p">(</span><span class="s1">&#39;pyarrow&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">default_memory_pool</span><span class="p">()</span><span class="o">.</span><span class="n">backend_name</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+
+<span class="c1"># Preload registered the per-task trim plugin?</span>
+<span class="n">plugins</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="k">lambda</span> <span class="n">dask_worker</span><span class="o">=</span><span class="kc">None</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">dask_worker</span><span class="o">.</span><span class="n">plugins</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;plugins per worker:    &#39;</span><span class="p">,</span> <span class="n">Counter</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">plugins</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+</pre></div>
+</div>
+<p>Every worker should report <code class="docutils literal notranslate"><span class="pre">'0'</span></code>, <code class="docutils literal notranslate"><span class="pre">'system'</span></code>, backend <code class="docutils literal notranslate"><span class="pre">'system'</span></code>, and <code class="docutils literal notranslate"><span class="pre">gh3-trim</span></code> in the plugin list. If any worker reports <code class="docutils literal notranslate"><span class="pre">None</span></code> or backend <code class="docutils literal notranslate"><span class="pre">'jemalloc'</span></code>, your <code class="docutils literal notranslate"><span class="pre">export</span></code> didn’t reach the worker spawn — restart the worker terminal and put the <code class="docutils literal notranslate"><span class="pre">export</span></code> lines BEFORE <code class="docutils literal notranslate"><span class="pre">dask</span> <span class="pre">worker</span></code>.</p>
+</section>
+<section id="resuming-after-a-crash">
+<h3>Resuming after a crash<a class="headerlink" href="#resuming-after-a-crash" title="Link to this heading">#</a></h3>
+<p><strong>Just re-run the same <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> command</strong> (same instructions as the
+“Resuming an interrupted build” section above — it works at any scale).
+Every <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> start automatically:</p>
+<ul class="simple">
+<li><p>Reconciles granule status from on-disk fragments → stage 1 skips already-extracted granules.</p></li>
+<li><p>Sweeps stale <code class="docutils literal notranslate"><span class="pre">*.merge.tmp</span></code> files in <code class="docutils literal notranslate"><span class="pre">database/</span></code> from killed merges.</p></li>
+<li><p>Picks up stage 2 from <code class="docutils literal notranslate"><span class="pre">_merge_progress.txt</span></code> plus disk state.</p></li>
+</ul>
+<p>No separate recovery step is required. Stage 1 will print
+<code class="docutils literal notranslate"><span class="pre">Skipped</span> <span class="pre">N</span> <span class="pre">granules</span> <span class="pre">(already</span> <span class="pre">indexed,</span> <span class="pre">...)</span></code> and stage 2 will print
+<code class="docutils literal notranslate"><span class="pre">Resuming</span> <span class="pre">merge:</span> <span class="pre">N</span> <span class="pre">partitions</span> <span class="pre">already</span> <span class="pre">merged</span></code>.</p>
+<p>The package also ships an <strong>optional</strong> read-only inspection script,
+<code class="docutils literal notranslate"><span class="pre">scripts/gh3_resume_recovery.py</span></code>, useful in two specific cases:</p>
+<ul class="simple">
+<li><p><strong>Sanity-check before a long rerun.</strong> <code class="docutils literal notranslate"><span class="pre">--dry-run</span></code> prints what <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code>’s
+auto-reconciliation will conclude (granule counts INDEXED vs PENDING,
+stale <code class="docutils literal notranslate"><span class="pre">.merge.tmp</span></code> count, finalized-partition count) without committing to
+a full build. Cheaper than starting a Dask cluster just to look.</p></li>
+<li><p><strong>Legacy tmp trees built before the granule-named naming convention.</strong>
+When tmp fragments use the old <code class="docutils literal notranslate"><span class="pre">part.&lt;i&gt;.parquet</span></code> names, the script’s
+basename-dedup makes the on-disk scan ~30× faster than the in-CLI
+reconciliation that reads every file. Builds started with v0.8.0+ use
+granule-named fragments and don’t benefit from this.</p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Optional: inspect before relaunching</span>
+python<span class="w"> </span>scripts/gh3_resume_recovery.py<span class="w"> </span>-i<span class="w"> </span>/path/to/h3_db<span class="w"> </span>--dry-run
+</pre></div>
+</div>
+<p>The script refuses to run if any <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> process is alive.</p>
+</section>
+<section id="reference-bundled-yaml-config">
+<h3>Reference: bundled YAML config<a class="headerlink" href="#reference-bundled-yaml-config" title="Link to this heading">#</a></h3>
+<p>The package ships a Dask config template with the same knobs as the recipe above:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span><span class="o">,</span><span class="w"> </span><span class="nn">dask</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_package_data_path</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">get_package_data_path</span><span class="p">(</span><span class="s1">&#39;dask-config-massive-build.yaml&#39;</span><span class="p">))</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">dask</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>
+<span class="c1"># Now spawn the cluster — the config is in dask.config for any new Client/LocalCluster</span>
+</pre></div>
+</div>
+<p>Equivalently, point the standalone <code class="docutils literal notranslate"><span class="pre">dask</span> <span class="pre">scheduler</span></code> / <code class="docutils literal notranslate"><span class="pre">dask</span> <span class="pre">worker</span></code> CLIs at the file via the <code class="docutils literal notranslate"><span class="pre">DASK_CONFIG</span></code> env var (Dask reads it at import time; <code class="docutils literal notranslate"><span class="pre">dask</span></code> has no <code class="docutils literal notranslate"><span class="pre">--config-file</span></code> flag):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">DASK_CONFIG</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from gedih3.config import get_package_data_path; \</span>
+<span class="s2">                                print(get_package_data_path(&#39;dask-config-massive-build.yaml&#39;))&quot;</span><span class="k">)</span>
+dask<span class="w"> </span>scheduler<span class="w"> </span>--host<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span>--port<span class="w"> </span><span class="m">8786</span>
+dask<span class="w"> </span>worker<span class="w"> </span>tcp://localhost:8786<span class="w"> </span>--nworkers<span class="w"> </span><span class="m">32</span><span class="w"> </span>--memory-limit<span class="w"> </span>25GB<span class="w"> </span>--preload<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PRELOAD</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+<p>Or copy/symlink the YAML to <code class="docutils literal notranslate"><span class="pre">~/.config/dask/</span></code> so dask auto-loads it for every invocation:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>~/.config/dask
+ln<span class="w"> </span>-s<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from gedih3.config import get_package_data_path; \</span>
+<span class="s2">                    print(get_package_data_path(&#39;dask-config-massive-build.yaml&#39;))&quot;</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">      </span>~/.config/dask/gedih3-massive-build.yaml
+</pre></div>
+</div>
+<p>The YAML sets:</p>
+<ul class="simple">
+<li><p>Worker memory thresholds (<code class="docutils literal notranslate"><span class="pre">target/spill/pause/terminate</span></code> = 0.70/0.80/0.90/0.95) — looser than defaults so transient task working-sets stay in RAM instead of thrashing to spill disk.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">recent-to-old-time:</span> <span class="pre">180s</span></code> so the dashboard’s “unmanaged old” gauge isn’t tripped by normal long-running tasks (keeps the leak canary honest).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">nanny.pre-spawn-environ</span></code> for <code class="docutils literal notranslate"><span class="pre">MALLOC_TRIM_THRESHOLD_=0</span></code> and <code class="docutils literal notranslate"><span class="pre">ARROW_DEFAULT_MEMORY_POOL=system</span></code> (sets them BEFORE worker process spawn — <code class="docutils literal notranslate"><span class="pre">distributed.nanny.environ</span></code> runs after spawn and silently no-ops, <a class="reference external" href="https://github.com/dask/distributed/issues/5279">#5279</a>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">admin.tick.limit:</span> <span class="pre">120s</span></code> to filter routine parquet-flush blips while still surfacing the multi-minute event-loop stalls that signal real GIL trouble.</p></li>
+<li><p><strong>No <code class="docutils literal notranslate"><span class="pre">worker.lifetime</span></code> block.</strong> Earlier versions enabled rolling restart; see the “unmanaged worker memory” section above for why it’s no longer recommended.</p></li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="verifying-the-result">
+<h2>Verifying the Result<a class="headerlink" href="#verifying-the-result" title="Link to this heading">#</a></h2>
+<p>After building, use <code class="docutils literal notranslate"><span class="pre">gh3_read_schema</span></code> to inspect the database schema — it lists every column name and its data type:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_read_schema<span class="w"> </span>~/gedih3_db/h3/
+</pre></div>
+</div>
+<p>This reads a parquet file from the database and prints its column schema. Check the output before running <code class="docutils literal notranslate"><span class="pre">gh3_extract</span></code> or <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code> to confirm the database contains the variables you need. You can also point it at any individual file:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_read_schema<span class="w"> </span>~/gedih3_db/h3/h3_03<span class="o">=</span>8031fffffffffff/year<span class="o">=</span><span class="m">2020</span>/8031fffffffffff.2020.0.parquet
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="quick-reference">
+<h2>Quick Reference<a class="headerlink" href="#quick-reference" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Minimal example — small area, minimal variables</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>minimal<span class="w"> </span>-l4a<span class="w"> </span>minimal
+
+<span class="c1"># Recommended — default variables with download embedded</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span>study_area.shp<span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-dl
+
+<span class="c1"># S3 mode — no persistent HDF5 files</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span>COL<span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-s3
+
+<span class="c1"># Multi-product with temporal filter</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l2b<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span><span class="se">\</span>
+<span class="w">          </span>-t0<span class="w"> </span><span class="m">2020</span>-01-01<span class="w"> </span>-t1<span class="w"> </span><span class="m">2022</span>-12-31
+
+<span class="c1"># Add a missing variable to an existing database</span>
+gh3_build<span class="w"> </span>-l4a<span class="w"> </span>agbd_se<span class="w"> </span>agbd_pi_lower<span class="w"> </span>agbd_pi_upper
+
+<span class="c1"># HPC cluster build</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span>large_region.shp<span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span><span class="se">\</span>
+<span class="w">          </span>-s3<span class="w"> </span>-N<span class="w"> </span><span class="m">32</span><span class="w"> </span>-M<span class="w"> </span>16GB
+
+<span class="c1"># See all options</span>
+gh3_build<span class="w"> </span>--help
+</pre></div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Core Functionality</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="cli-reference.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">CLI Reference</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-gh3-build-does">What <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> Does</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-output-database-structure">The Output Database Structure</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#from-nested-hdf5-to-flat-rows">From nested HDF5 to flat rows</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#column-naming-product-suffixes">Column Naming: Product Suffixes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#built-in-columns-not-from-hdf5-products">Built-In Columns (Not From HDF5 Products)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#selecting-variables-the-l-flags">Selecting Variables: The <code class="docutils literal notranslate"><span class="pre">-l</span></code> Flags</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#product-flags">Product flags</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#variable-selection-keywords">Variable selection keywords</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#h3-resolution-settings">H3 Resolution Settings</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#source-modes-where-does-the-data-come-from">Source Modes: Where Does the Data Come From?</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mode-1-local-hdf5-files-default">Mode 1: Local HDF5 files (default)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mode-2-embedded-download-dl">Mode 2: Embedded download (<code class="docutils literal notranslate"><span class="pre">-dl</span></code>)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mode-3-s3-etl-s3">Mode 3: S3 ETL (<code class="docutils literal notranslate"><span class="pre">-s3</span></code>)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#subsetting-strategies">Subsetting Strategies</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#spatial-subsetting-r">1. Spatial subsetting (<code class="docutils literal notranslate"><span class="pre">-r</span></code>)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#temporal-subsetting-t0-t1">2. Temporal subsetting (<code class="docutils literal notranslate"><span class="pre">-t0</span></code> / <code class="docutils literal notranslate"><span class="pre">-t1</span></code>)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#variable-subsetting-lxx-minimal-vs-default-vs-explicit">3. Variable subsetting (<code class="docutils literal notranslate"><span class="pre">-lXX</span> <span class="pre">minimal</span></code> vs <code class="docutils literal notranslate"><span class="pre">default</span></code> vs explicit)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#practical-scenarios">Practical scenarios</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#resume-and-updates">Resume and Updates</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#resuming-an-interrupted-build">Resuming an interrupted build</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-variables-to-an-existing-database">Adding variables to an existing database</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#expanding-the-spatial-or-temporal-coverage">Expanding the spatial or temporal coverage</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dask-configuration-and-performance">Dask Configuration and Performance</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#key-flags">Key flags</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#recommendations">Recommendations</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#building-massive-databases">Building Massive Databases</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-this-guide">When to use this guide</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-bottleneck-unmanaged-worker-memory">The bottleneck: unmanaged worker memory</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-external-cluster-pattern">The external-cluster pattern</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#recipe">Recipe</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sizing-for-your-node">Sizing for your node</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-the-cluster">Verifying the cluster</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#resuming-after-a-crash">Resuming after a crash</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reference-bundled-yaml-config">Reference: bundled YAML config</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-the-result">Verifying the Result</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-reference">Quick Reference</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  <div class="tocsection sourcelink">
+    <a href="../_sources/user-guide/building-a-database.md.txt">
+      <i class="fa-solid fa-file-lines"></i> Show Source
+    </a>
+  </div>
+</div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, University of Maryland. All Rights Reserved.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

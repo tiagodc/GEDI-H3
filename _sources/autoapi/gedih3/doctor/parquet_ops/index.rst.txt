@@ -1,0 +1,137 @@
+gedih3.doctor.parquet_ops
+=========================
+
+.. py:module:: gedih3.doctor.parquet_ops
+
+.. autoapi-nested-parse::
+
+   Streaming parquet operations specific to gh3_doctor.
+
+   Both functions process parquet files row-group by row-group to bound memory.
+   They live here (not in :mod:`gedih3.utils`) so the doctor introduces no edits
+   to currently-working tools. Promotion to a shared utility is a one-line move
+   if other modules ever need them.
+
+   - :func:`parquet_fill_columns` is the **fill** counterpart of
+     :func:`gedih3.utils.parquet_join_columns`. Where the latter drops columns
+     that already exist in the base file, this one merges them via
+     :meth:`pandas.Series.combine_first` so non-NaN values in the base are
+     preserved and NaN values get filled from the patch.
+   - :func:`parquet_dedup_partition` rewrites a single parquet file dropping
+     duplicate ``shot_number`` rows, keeping the first occurrence.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.doctor.parquet_ops.parquet_fill_columns
+   gedih3.doctor.parquet_ops.parquet_dedup_partition
+
+
+Module Contents
+---------------
+
+.. py:function:: parquet_fill_columns(base_file: str, patch_files: List[str], ofile: Optional[str] = None, key_col: str = 'shot_number', tmp_suffix: str = '.fill.tmp') -> str
+
+   
+   Fill NaN values in ``base_file`` from one or more ``patch_files``.
+
+   For each column shared by the base and patch:
+
+   - existing non-NaN values in the base are preserved.
+   - NaN values in the base are replaced where the patch provides a value
+     for the same ``key_col``.
+
+   Columns present only in the patch are appended (left-join).
+   Columns present only in the base are unchanged.
+
+   The output is streamed row-group by row-group; only one row group plus the
+   full patch frames are held in memory at once. Patches are read in full,
+   indexed by ``key_col``, so callers should pre-restrict patches to one
+   partition's relevant rows.
+
+   :Parameters:
+
+       **base_file** : str
+           Existing parquet file. Determines schema base, row order, row group size.
+
+       **patch_files** : list of str
+           Parquet files containing ``key_col`` plus the columns to merge in.
+
+       **ofile** : str, optional
+           Output path. Defaults to ``base_file`` (in-place rewrite via temp).
+
+       **key_col** : str, default 'shot_number'
+           Join key (column, not index).
+
+       **tmp_suffix** : str
+           Suffix for the temp file used during atomic rewrite.
+
+
+
+   :Returns:
+
+       str
+           Path to the written file.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: parquet_dedup_partition(pq_file: str, key_col: str = 'shot_number', keep: str = 'first', tmp_suffix: str = '.dedup.tmp') -> int
+
+   
+   Rewrite a parquet file dropping duplicate ``key_col`` rows.
+
+   Streams row-group by row-group: only one row group plus the cumulative
+   set of seen keys is held in memory. ``shot_number`` is int64 so the seen-set
+   cost is ~8 bytes/row.
+
+   :Parameters:
+
+       **pq_file** : str
+           Parquet file to rewrite in-place (via temp + atomic rename).
+
+       **key_col** : str, default 'shot_number'
+           Column to deduplicate on.
+
+       **keep** : {'first', 'last'}, default 'first'
+           Which duplicate to keep. ``'last'`` requires a second pass.
+
+       **tmp_suffix** : str
+           Suffix for the temp file used during atomic rewrite.
+
+
+
+   :Returns:
+
+       int
+           Number of rows dropped.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

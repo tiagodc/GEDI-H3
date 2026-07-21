@@ -1,0 +1,498 @@
+gedih3.daac
+===========
+
+.. py:module:: gedih3.daac
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.daac.logger
+   gedih3.daac.DOWNLOAD_CONNECT_TIMEOUT_DEFAULT
+   gedih3.daac.DOWNLOAD_READ_TIMEOUT_DEFAULT
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   gedih3.daac.GEDIAccessor
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.daac.gedi_list_versions
+   gedih3.daac.gedi_latest_version
+   gedih3.daac.download_custom_granule
+   gedih3.daac.download_granule
+   gedih3.daac.gedi_download
+
+
+Module Contents
+---------------
+
+.. py:data:: logger
+
+.. py:data:: DOWNLOAD_CONNECT_TIMEOUT_DEFAULT
+   :value: 60.0
+
+
+.. py:data:: DOWNLOAD_READ_TIMEOUT_DEFAULT
+   :value: 300.0
+
+
+.. py:function:: gedi_list_versions(product: str) -> List[dict]
+
+   
+   Query NASA CMR for all available versions of a GEDI product.
+
+
+   :Parameters:
+
+       **product** : str
+           Product code (e.g., 'L2A', 'L4A')
+
+
+
+   :Returns:
+
+       list of dict
+           Available versions with metadata, sorted by version string.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: gedi_latest_version(product: str) -> str
+
+   
+   Return the latest available version string for a GEDI product.
+
+
+   :Parameters:
+
+       **product** : str
+           Product code (e.g., 'L2A', 'L4A')
+
+
+
+   :Returns:
+
+       str
+           Latest version string (e.g., '002')
+
+
+
+
+   :Raises:
+
+       GediProductError
+           If no versions are found
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:class:: GEDIAccessor(authenticate: bool = True, spatial: Union[List[float], shapely.geometry.Polygon, str, geopandas.GeoDataFrame] = None, temporal: Union[Tuple[str, str], List[str]] = None)
+
+   
+   NASA Earthdata accessor for searching and downloading GEDI granules.
+
+   Provides authentication, spatial/temporal filtering, granule search,
+   and batch download functionality using the earthaccess library.
+
+   :Parameters:
+
+       **authenticate** : bool
+           If True (default), automatically call login() on initialization.
+
+       **spatial** : list, Polygon, str, or GeoDataFrame, optional
+           Spatial filter: bounding box ``[W, S, E, N]``, Shapely geometry,
+           vector file path, or GeoDataFrame.
+
+       **temporal** : tuple or list of str, optional
+           Temporal filter as ``(start_date, end_date)``, e.g.
+           ``('2020-01-01', '2021-01-01')``.
+
+
+
+
+
+
+
+   :Raises:
+
+       GediAuthenticationError
+           If authentication fails on initialization (when ``authenticate=True``).
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> accessor = GEDIAccessor(
+   ...     spatial=[-51, 0, -50, 1],
+   ...     temporal=('2020-01-01', '2021-01-01')
+   ... )
+   >>> granules = accessor.search_data('L4A')
+   >>> paths = accessor.download_all('/path/to/output', product='L4A')
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:attribute:: product_files
+
+
+   .. py:attribute:: authenticated
+      :value: False
+
+
+
+   .. py:method:: login(strategy: str = 'netrc', persist: bool = True, max_attempts: int = 3)
+
+      
+      Authenticate with NASA Earthdata Login.
+
+
+      :Parameters:
+
+          **strategy** : str
+              Authentication strategy ('netrc', 'environment', 'interactive').
+              Default is 'netrc' which reads credentials from ~/.netrc file.
+              Use 'environment' for EDL_USERNAME/EDL_PASSWORD env vars.
+              Use 'interactive' only in interactive terminals (may crash VSCode).
+
+          **persist** : bool
+              Whether to persist credentials
+
+          **max_attempts** : int
+              Maximum authentication attempts
+
+
+
+
+
+
+
+      :Raises:
+
+          GediAuthenticationError
+              If authentication fails after all attempts
+
+
+
+
+      .. rubric:: Notes
+
+      For CLI usage, credentials should be stored in ~/.netrc file:
+
+          machine urs.earthdata.nasa.gov
+              login YOUR_USERNAME
+              password YOUR_PASSWORD
+
+      Create an account at https://urs.earthdata.nasa.gov/ if needed.
+
+      Token-based authentication is also supported by setting the
+      EARTHDATA_TOKEN environment variable. When set, earthaccess
+      uses the token directly regardless of the strategy parameter.
+      This is the recommended approach for HPC environments.
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: search_data(product: str = None, version: str = None, **kwargs) -> List[Any]
+
+      
+      Search for GEDI granules with spatial and temporal filtering.
+
+      Uses short_name + version for GEDI product searches (preferred over DOI).
+      Falls back to DOI if short_name is not available.
+
+      :Parameters:
+
+          **product** : str, optional
+              GEDI product level ('L1B', 'L2A', 'L2B', 'L4A', 'L4C').
+              If None, uses kwargs directly for custom dataset searches.
+
+          **version** : str or int, optional
+              GEDI data version (e.g., '002' or 2). If None, earthaccess
+              returns the latest version by default.
+
+          **\*\*kwargs** : dict
+              Additional search parameters passed to earthaccess.search_data().
+
+
+
+      :Returns:
+
+          list
+              List of granule objects
+
+
+
+
+
+
+
+
+
+
+      .. rubric:: Examples
+
+      >>> accessor.search_data('L4A')
+      >>> accessor.search_data('L4A', version=2)
+      >>> accessor.search_data(short_name='MY_PRIVATE_DATASET', version='001')
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: download_all(download_dir: str = None, product: str = None, **kwargs)
+
+      
+      Download all searched granules.
+
+
+      :Parameters:
+
+          **download_dir** : str, optional
+              Output directory. Defaults to GH3_DEFAULT_DOWNLOAD_DIR.
+
+          **product** : str, optional
+              Product key to download. If None, downloads all granules.
+
+          **show_progress** : bool, optional
+              Whether to display download progress bar. Passed through
+              to earthaccess.download() via ``**kwargs``.
+
+          **\*\*kwargs**
+              Additional arguments passed to earthaccess.download().
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: link_s3(product: str = None)
+
+
+   .. py:method:: merge_paths(open_s3: bool = False)
+
+
+.. py:function:: download_custom_granule(granule, odir: str, resume: bool = False, max_attempts: int = RETRY_DEFAULTS['max_attempts']) -> Optional[str]
+
+   
+   Download a custom (non-GEDI) granule with retry logic.
+
+   This function handles granules from any NASA dataset without requiring
+   GEDI-specific filename parsing. Files are downloaded directly to the
+   output directory without year/doy subdirectory structure.
+
+   :Parameters:
+
+       **granule** : earthaccess.Granule
+           Granule object to download
+
+       **odir** : str
+           Output directory for downloaded files
+
+       **resume** : bool
+           If True, skip already-downloaded files
+
+       **max_attempts** : int
+           Maximum download attempts on failure
+
+
+
+   :Returns:
+
+       str or None
+           Path to downloaded file, or None on failure
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: download_granule(granule, odir: str = None, subset_vars: List[str] = None, resume: bool = False, max_attempts: int = RETRY_DEFAULTS['max_attempts']) -> Optional[str]
+
+   
+   Download a GEDI granule with retry logic and optional variable subsetting.
+
+
+   :Parameters:
+
+       **granule** : earthaccess.Granule
+           Granule object to download
+
+       **odir** : str
+           Base output directory
+
+       **subset_vars** : list of str, optional
+           Variables to extract (subset HDF5 after download)
+
+       **resume** : bool
+           If True, skip already-downloaded files
+
+       **max_attempts** : int
+           Maximum download attempts on failure
+
+
+
+   :Returns:
+
+       str or None
+           Path to downloaded/existing file, or None on failure
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: gedi_download(product_vars: Dict = None, odir: str = None, spatial=None, temporal=None, version=None, n_jobs: int = 5, to_list: bool = False, resume: bool = False, max_attempts: int = RETRY_DEFAULTS['max_attempts'], search_kwargs: Dict = None, granule_names: Optional[Iterable[str]] = None, on_granule_complete: Optional[Callable] = None) -> Union[Dict[str, List[str]], List[str]]
+
+   
+   Download GEDI granules for specified products and variables.
+
+
+   :Parameters:
+
+       **product_vars** : dict, optional
+           Dictionary mapping product codes to variable specifications.
+           If None and search_kwargs is provided, downloads a custom dataset.
+
+       **odir** : str, optional
+           Output directory. If None, returns S3 links instead of downloading.
+
+       **spatial** : various, optional
+           Spatial filter (bbox, file path, or GeoDataFrame)
+
+       **temporal** : tuple, optional
+           Temporal filter as (start_date, end_date)
+
+       **version** : int or str, optional
+           GEDI data version (e.g., 2 or '002'). If None, uses latest available.
+
+       **n_jobs** : int
+           Number of parallel download jobs (when not using Dask)
+
+       **to_list** : bool
+           If True, return flat list instead of dict
+
+       **resume** : bool
+           If True, skip already-downloaded files
+
+       **max_attempts** : int
+           Maximum download attempts per granule
+
+       **search_kwargs** : dict, optional
+           Custom search parameters for non-GEDI datasets.
+
+       **granule_names** : iterable of str, optional
+           Restrict the CMR search to these specific GEDI granule filenames.
+           Trailing ``.h5`` is stripped before forwarding to CMR because
+           ``readable_granule_name`` matches the filename stem, not the full
+           filename. Ignored for ``CUSTOM`` datasets (use ``search_kwargs``
+           with ``granule_name=...`` instead).
+
+       **on_granule_complete** : callable, optional
+           Callback ``(granule_info_dict, status_str) -> None`` called after
+           each granule completes. ``granule_info_dict`` has ``orbit``,
+           ``granule``, ``track``, and ``path`` keys. ``path`` is the target
+           SOC path on ``'PENDING'``, the actual downloaded file path on
+           ``'DOWNLOADED'``, and ``None`` on ``'FAILED'``. ``status_str`` is
+           one of ``'PENDING'``, ``'DOWNLOADED'``, or ``'FAILED'``.
+
+
+
+   :Returns:
+
+       dict or list
+           Downloaded file paths, organized by product or as flat list.
+
+
+
+
+   :Raises:
+
+       GediAuthenticationError
+           If NASA Earthdata authentication fails.
+
+       GediValidationError
+           If neither ``product_vars`` nor ``search_kwargs`` is provided.
+
+       GediDownloadError
+           If downloads fail after all retry attempts.
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> from gedih3.daac import gedi_download
+   >>> paths = gedi_download(
+   ...     product_vars={'L2A': ['default'], 'L4A': ['agbd']},
+   ...     odir='/path/to/output',
+   ...     spatial=[-51, 0, -50, 1],
+   ...     temporal=('2020-01-01', '2021-01-01'),
+   ...     resume=True,
+   ... )
+
+   ..
+       !! processed by numpydoc !!
+

@@ -1,0 +1,643 @@
+gedih3.gedidriver
+=================
+
+.. py:module:: gedih3.gedidriver
+
+.. autoapi-nested-parse::
+
+   GEDI data file operations and HDF5 I/O.
+
+   This module provides classes and functions for working with GEDI HDF5 files,
+   including parsing filenames, extracting data, and building Dask DataFrames.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.gedidriver.logger
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   gedih3.gedidriver.GEDIFile
+   gedih3.gedidriver.GEDIShot
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.gedidriver.soc_prod_from_file
+   gedih3.gedidriver.soc_from_file
+   gedih3.gedidriver.write_soc_manifest
+   gedih3.gedidriver.soc_file_tree
+   gedih3.gedidriver.gedi_subset
+   gedih3.gedidriver.gedi_file_glob
+   gedih3.gedidriver.gedi_vars_expand
+   gedih3.gedidriver.expand_var_wildcards
+   gedih3.gedidriver.gedi_vars_from_h5
+   gedih3.gedidriver.gedi_vars_static
+   gedih3.gedidriver.check_soc_file_vars
+   gedih3.gedidriver.validate_soc_files
+   gedih3.gedidriver.wfm_pad
+   gedih3.gedidriver.process_waveforms
+   gedih3.gedidriver.wfm_extract
+   gedih3.gedidriver.load_h5
+   gedih3.gedidriver.load_h5_merged
+   gedih3.gedidriver.dask_h5_merged
+   gedih3.gedidriver.add_special_columns
+
+
+Module Contents
+---------------
+
+.. py:data:: logger
+
+.. py:function:: soc_prod_from_file(file_path: Union[str, pathlib.Path]) -> str
+
+   
+   Extract GEDI product code from a file path.
+
+
+   :Parameters:
+
+       **file_path** : str or Path
+           Path to a GEDI HDF5 file
+
+
+
+   :Returns:
+
+       str
+           Product code (e.g., 'L2A', 'L4A')
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: soc_from_file(file_path: Union[str, pathlib.Path]) -> str
+
+   
+   Get the SOC root directory from a GEDI file path.
+
+
+   :Parameters:
+
+       **file_path** : str or Path
+           Path to a GEDI HDF5 file
+
+
+
+   :Returns:
+
+       str
+           Path to the SOC root directory
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: write_soc_manifest(soc_dir: str, files=None) -> int
+
+   
+   (Re)generate the SOC manifest sentinel by walking *soc_dir* once.
+
+   Producer-driven refresh (R2): every code path that mutates a SOC
+   tree (`gh3_download`, `gh3_build --download`, `s3_etl_subset`,
+   `gh3_build -i` exit, `gh3_doctor --fix soc_health`) calls this on
+   exit. Cheaper than letting every consumer re-walk the tree.
+
+   Walks the SOC tree in parallel via
+   :func:`gedih3.parallel.walk_soc_parallel` (year/doy fan-out on the
+   registered dask Client). Returns the number of files written to
+   the manifest (0 when *soc_dir* is missing / empty).
+
+   :Parameters:
+
+       **soc_dir**
+           SOC root directory.
+
+       **files** : list[str], optional
+           Pre-computed absolute file list to use instead of walking. When
+           the caller has already enumerated the tree (e.g.
+           `cli/gh3_build.py` after its existing-h5 listing), passing the
+           list here avoids the redundant parallel walk.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: soc_file_tree(file_struct: Union[str, List[str], List[earthaccess.store.EarthAccessFile]], to_list: bool = False, glob_kwargs: Optional[Dict] = None, exclude: Optional[List[str]] = None) -> Union[Dict[str, Dict[str, str]], List[Dict[str, str]]]
+
+   
+   Build a structured tree of GEDI SOC files grouped by orbit/track.
+
+   Organizes GEDI HDF5 files into a nested structure for easy access to
+   related files across different products (L2A, L2B, L4A, etc.).
+
+   :Parameters:
+
+       **file_struct** : str, list of str, or list of EarthAccessFile
+           Either a directory path containing GEDI files, or a list of file
+           paths or EarthAccessFile objects.
+
+       **to_list** : bool, default False
+           If True, return a list of dicts instead of a nested dict.
+
+       **glob_kwargs** : dict, optional
+           Keyword arguments passed to gedi_file_glob() for filtering files
+           (e.g., version, orbit).
+
+       **exclude** : list of str, optional
+           fnmatch-style patterns matched against each file's basename.
+           Any file whose basename matches any pattern is dropped from the
+           result. Useful to exclude internal/SGS variants (e.g.
+           ``['*_SGS.h5']``) that share the SOC tree with public release files.
+
+
+
+   :Returns:
+
+       dict or list
+           If to_list=False: dict keyed by orbit_track identifier, with values
+           being dicts mapping product codes to file paths.
+           If to_list=True: list of product dicts.
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> tree = soc_file_tree('/path/to/soc')
+   >>> tree['O12345_01_T00001']
+   {'L2A': '/path/to/GEDI02_A_...h5', 'L4A': '/path/to/GEDI04_A_...h5'}
+   >>> # Exclude NASA SGS internal files from discovery
+   >>> tree = soc_file_tree('/path/to/soc', exclude=['*_SGS.h5'])
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: gedi_subset(source_file, dest_file, variables, subset_beams=None)
+
+.. py:function:: gedi_file_glob(orbit=None, orbit_granule=None, track=None, product: int = None, level: str = None, ppds: int = None, pge: int = None, generation: int = None, version: int = None)
+
+.. py:function:: gedi_vars_expand(product_vars, version=None)
+
+.. py:function:: expand_var_wildcards(var_specs, available_vars)
+
+   
+   Expand fnmatch-style wildcard patterns in variable specifications.
+
+   Supports ``*``, ``?``, ``[seq]``, ``[!seq]``.  Non-pattern specs pass
+   through unchanged.  Raises :class:`GediValidationError` if a pattern
+   matches nothing.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: gedi_vars_from_h5(gedi_file)
+
+.. py:function:: gedi_vars_static(product, version=None)
+
+   
+   Return the canonical variable list for a GEDI ``(product, version)``
+   from the static manifest shipped in :mod:`gedih3.data` — no I/O on any
+   target file.
+
+   NASA release files of the same ``(product, version)`` always carry an
+   identical dataset schema, so this is equivalent to
+   :func:`gedi_vars_from_h5` for canonical release files but free.
+
+   Returns ``None`` when no static manifest exists for the requested
+   combination; callers should fall back to :func:`gedi_vars_from_h5`.
+
+   Note: the result reflects a NASA release file's schema. Files that
+   were previously subset (e.g. via :func:`gedi_subset` or S3 ETL mode)
+   contain a *subset* of these variables — for those, use
+   :func:`gedi_vars_from_h5` to introspect what is actually present.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: check_soc_file_vars(soc_file, available_products)
+
+.. py:function:: validate_soc_files(product_vars: Dict, soc_dir: str = GH3_DEFAULT_SOC_DIR, version: Optional[int] = None, exclude: Optional[List[str]] = None)
+
+   
+   Validate ``product_vars`` against the shipped static manifests.
+
+   Only authoritative for **canonical NASA release files** validated against
+   the per-product manifest in ``src/gedih3/data/GEDI*_DATASETS_*.txt`` —
+   that is, for the fresh-build ``default`` request (Regime A) or for a
+   resume where the user explicitly re-requests ``default`` for a product
+   (Regime C). On all other resume paths the build log is the contract,
+   and ``gh3_build.py`` bypasses this check entirely. Callers are
+   responsible for filtering ``product_vars`` to only the products they
+   actually want to validate against the static manifest — passing the
+   full union of existing + new vars on a resume will produce false
+   negatives whenever the shipped manifest has drifted relative to the
+   list saved in the build log.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:class:: GEDIFile(file_path: Union[str, pathlib.Path, earthaccess.store.EarthAccessFile])
+
+   
+   Parser for GEDI HDF5 filenames.
+
+   Extracts metadata from GEDI filename convention including orbit, granule,
+   track, version, and date information.
+
+
+   :Attributes:
+
+       **file_path** : str
+           Full path to the GEDI file
+
+       **full_name** : str
+           Basename of the file
+
+       **product** : str
+           Product identifier (e.g., 'GEDI02')
+
+       **level** : str
+           Processing level (e.g., 'A', 'B')
+
+       **date** : datetime
+           Acquisition date and time
+
+       **product_code** : str
+           Combined product code (e.g., 'L2A', 'L4A')
+
+       **orbit** : int
+           Orbit number
+
+       **orbit_granule** : int
+           Granule number within orbit
+
+       **track** : int
+           Ground track number
+
+       **version** : int
+           Data version number
+
+       **year** : str
+           Year string (e.g., '2019')
+
+       **doy** : str
+           Day-of-year string (e.g., '338')
+
+       **mission_week** : int
+           Mission week number since GEDI launch (2018-12-13)
+
+       **suffix** : str or None
+           Extra filename parts after version field, if any
+
+
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> gf = GEDIFile('/path/to/GEDI02_A_2020123120000_O12345_01_T00001_02_003_01_V002.h5')
+   >>> gf.orbit
+   12345
+   >>> gf.version
+   2
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:method:: __str__() -> str
+
+
+   .. py:method:: parse_file(f: str) -> None
+
+
+   .. py:method:: get_glob_pattern(product: int = 1, level: str = 'B', ppds: int = 2)
+
+
+   .. py:method:: from_filename(file_path)
+      :classmethod:
+
+
+
+   .. py:method:: search_file(soc_dir: str = None, product: int = 1, level: str = 'B', other_files=None)
+
+
+.. py:class:: GEDIShot(shot: Union[int, numpy.ndarray], build_glob: bool = False)
+
+   Bases: :py:obj:`GEDIFile`
+
+
+   
+   Decoder for GEDI shot numbers.
+
+   Extracts orbit, beam, track, and other metadata encoded in GEDI shot numbers.
+   The shot number is a 64-bit integer encoding multiple fields.
+
+
+   :Attributes:
+
+       **shot** : int or array
+           The shot number(s)
+
+       **orbit** : int or array
+           Orbit number
+
+       **orbit_granule** : int or array
+           Granule number within orbit
+
+       **track** : int or array
+           Ground track number
+
+       **beam** : int or array
+           Beam number (0-7)
+
+       **beam_str** : str or list
+           Beam identifier string (e.g., 'BEAM0101')
+
+       **power** : bool or array
+           True if power beam (beam > 3)
+
+       **shot_index** : int or array
+           Shot index within the granule
+
+
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> shot = GEDIShot(12345678901234567890)
+   >>> shot.beam_str
+   'BEAM0101'
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:method:: parse_shot(shot: Union[int, numpy.ndarray]) -> None
+
+
+   .. py:method:: get_glob_pattern(product: int = 1, level: str = 'B', ppds: int = 2, pge: int = None, generation: int = None, version: int = None)
+
+
+   .. py:method:: search_file(soc_dir: str)
+
+
+.. py:function:: wfm_pad(wave, n_bins=1420, cval=0)
+
+.. py:function:: process_waveforms(starts, ends, noises, wfs, n_bins=1420)
+
+.. py:function:: wfm_extract(h5_file, beam, idx, tx=False)
+
+.. py:function:: load_h5(fpath: Union[str, pathlib.Path, earthaccess.store.EarthAccessFile], columns: List[str], which_beams: Optional[List[str]] = None, shots: Optional[numpy.ndarray] = None, include_source: bool = True, dropna: bool = True) -> pandas.DataFrame
+
+   
+   Load data from a GEDI HDF5 file into a pandas DataFrame.
+
+
+   :Parameters:
+
+       **fpath** : str, Path, or EarthAccessFile
+           Path to the GEDI HDF5 file
+
+       **columns** : list of str
+           Variable names to extract from the file
+
+       **which_beams** : list of str, optional
+           Specific beams to load (e.g., ['BEAM0101', 'BEAM1000']).
+           If None, loads all beams.
+
+       **shots** : array, optional
+           Specific shot numbers to extract. If None, loads all shots.
+
+       **include_source** : bool, default True
+           Add root_file and root_beam columns to output
+
+       **dropna** : bool, default True
+           Drop rows with NaN values
+
+
+
+   :Returns:
+
+       pd.DataFrame
+           DataFrame indexed by shot_number containing requested variables
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: load_h5_merged(prod_files: Dict[str, str], product_vars: Dict[str, List[str]], which_beams: Optional[List[str]] = None, shots: Optional[numpy.ndarray] = None, dropna: bool = True, suffix_all: bool = False) -> Optional[pandas.DataFrame]
+
+   
+   Load and merge data from multiple GEDI product files.
+
+   Combines data from different GEDI products (L2A, L2B, L4A, etc.) into a
+   single DataFrame, joining on shot_number.
+
+   :Parameters:
+
+       **prod_files** : dict
+           Mapping of product codes to file paths (e.g., {'L2A': '/path/to/l2a.h5'})
+
+       **product_vars** : dict
+           Mapping of product codes to lists of variable names to extract
+
+       **which_beams** : list of str, optional
+           Specific beams to load
+
+       **shots** : array, optional
+           Specific shot numbers to extract
+
+       **dropna** : bool, default True
+           Drop rows with NaN values
+
+       **suffix_all** : bool, default False
+           If True, suffix all columns with product code (e.g., 'rh_l2a').
+           Required when variables have the same name across products.
+
+
+
+   :Returns:
+
+       pd.DataFrame or None
+           Merged DataFrame indexed by shot_number, or None if no data
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: dask_h5_merged(prod_files_list: List[Dict[str, str]], product_vars: Dict[str, List[str]], which_beams: Optional[List[str]] = None, shots: Optional[numpy.ndarray] = None, dropna: bool = True, suffix_all: bool = False, by_beam: bool = False) -> dask.dataframe.DataFrame
+
+   
+   Create a Dask DataFrame from multiple GEDI product file sets.
+
+   Lazily loads and merges GEDI data for distributed processing.
+
+   :Parameters:
+
+       **prod_files_list** : list of dict
+           List of product file dictionaries from soc_file_tree()
+
+       **product_vars** : dict
+           Mapping of product codes to variable lists
+
+       **which_beams** : list of str, optional
+           Specific beams to load
+
+       **shots** : array, optional
+           Specific shot numbers to extract
+
+       **dropna** : bool, default True
+           Drop rows with NaN values
+
+       **suffix_all** : bool, default False
+           Suffix all columns with product code
+
+       **by_beam** : bool, default False
+           If True, create separate partitions for each beam (more parallelism)
+
+
+
+   :Returns:
+
+       dask.dataframe.DataFrame
+           Lazy Dask DataFrame for distributed processing
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: add_special_columns(df, lon_col: str = None, lat_col: str = None, dat_col: str = None)
+

@@ -1,0 +1,317 @@
+gedih3.imgutils
+===============
+
+.. py:module:: gedih3.imgutils
+
+.. autoapi-nested-parse::
+
+   Raster Image Sampling at GEDI Shot Locations
+
+   Sample raster pixel values at true GEDI shot coordinates (Points), with
+   optional moving-window statistics (sum, mean, median, mode).
+
+   Supports single raster files, VRT mosaics, and tile directories (auto-mosaicked
+   via VRT). Works with both H3 databases and simplified datasets from gh3_extract.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.imgutils.logger
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.imgutils.resolve_raster_source
+   gedih3.imgutils.get_raster_info
+   gedih3.imgutils.parse_window_specs
+   gedih3.imgutils.sample_raster_at_points
+   gedih3.imgutils.from_image
+
+
+Module Contents
+---------------
+
+.. py:data:: logger
+
+.. py:function:: resolve_raster_source(image_path, file_format='tif', odir=None)
+
+   
+   Resolve image input to a single raster source.
+
+   - Single file (.tif, .vrt, etc.) -> return as-is
+   - Directory of tiles -> build VRT mosaic, return VRT path
+
+   :Parameters:
+
+       **image_path** : str
+           Path to raster file, VRT file, or directory of tiles
+
+       **file_format** : str
+           File extension to glob when image_path is a directory
+
+       **odir** : str, optional
+           Output directory for saving VRT beside output. If provided, VRT is
+           saved as ``{odir}/{tiles_dirname}.vrt`` instead of inside the tiles
+           directory.
+
+
+
+   :Returns:
+
+       tuple
+           (raster_path, is_temp_vrt, tile_count)
+
+
+
+
+   :Raises:
+
+       GediImageSamplingError
+           If no valid raster found
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_raster_info(raster_path)
+
+   
+   Read raster metadata (CRS, bounds, resolution, bands, nodata).
+
+   Also computes bounds in WGS84 (EPSG:4326) for spatial filtering of GEDI data.
+
+   :Parameters:
+
+       **raster_path** : str
+           Path to raster file or VRT
+
+
+
+   :Returns:
+
+       dict
+           Keys: crs, bounds, bounds_wgs84, resolution, shape, band_count,
+                 band_names, nodata
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: parse_window_specs(specs)
+
+   
+   Parse legacy 3-digit format for window operations.
+
+   Format: each spec is a 3-character string 'BZO' where:
+   - B = band number (0-indexed)
+   - Z = window size (1-9, must be odd)
+   - O = operation ID (0=sum, 1=mean, 2=median, 3=mode, 4=std, 5=min, 6=max, 7=count, 8=range)
+
+   :Parameters:
+
+       **specs** : list of str
+           Window spec strings, e.g. ['033', '151']
+
+
+
+   :Returns:
+
+       list of dict
+           Each dict has: band (int), size (int), op (str), name (str)
+
+
+
+
+   :Raises:
+
+       GediImageSamplingError
+           If any spec is invalid
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: sample_raster_at_points(df, raster_path, band_names=None, window_ops=None, fillna=None, dropna=False, geo=False, partition_col=None, band_indices=None, all_band_names=None, pixel_distance=False)
+
+   
+   Sample raster values at GEDI shot locations within a single partition.
+
+   Designed to be called via Dask map_partitions. For each partition:
+   1. Extract true point coordinates from geometry column
+   2. Compute partition bbox with buffer for window operations
+   3. Open raster, clip to bbox (reads only relevant VRT tiles)
+   4. Reproject points to raster CRS if needed
+   5. Sample nearest pixel for each shot
+   6. Compute relative_pixel_distance (if pixel_distance=True)
+   7. Apply window operations if specified
+
+   :Parameters:
+
+       **df** : DataFrame or GeoDataFrame
+           Input partition with geometry column (Point geometries)
+
+       **raster_path** : str
+           Path to raster file or VRT
+
+       **band_names** : list of str, optional
+           Names for the output band columns. When ``band_indices`` is provided,
+           should have length == len(band_indices).
+
+       **window_ops** : list of dict, optional
+           Parsed window operation specs from parse_window_specs().
+           Band indices in window_ops refer to original raster bands (0-indexed).
+
+       **fillna** : float, optional
+           Value to fill raster NaN/NoData before sampling
+
+       **dropna** : bool
+           Drop rows where all band columns are NaN
+
+       **geo** : bool
+           Include geometry in output
+
+       **partition_col** : str, optional
+           Partition column name to preserve in output
+
+       **band_indices** : list of int, optional
+           0-based indices of raster bands to sample. If None, all bands are sampled.
+
+       **all_band_names** : list of str, optional
+           Full list of raster band names (all bands). Used for resolving window
+           operation column names when ``band_indices`` selects a subset. If None,
+           defaults to ``band_names``.
+
+       **pixel_distance** : bool
+           If True, include ``relative_pixel_distance`` column in output.
+           Defaults to False.
+
+
+
+   :Returns:
+
+       DataFrame or GeoDataFrame
+           Sampled data with band columns, optional relative_pixel_distance,
+           and optional window operation columns
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: from_image(image_path, data_source=None, region=None, query=None, band_names=None, band_indices=None, window_ops=None, fillna=None, dropna=False, geo=False, file_format='tif', pixel_distance=False)
+
+   
+   Sample raster values at GEDI shot locations.
+
+   Supports two input modes with different ROI logic:
+
+   Mode 1 - H3 database (via data_source pointing to an H3 database):
+     ROI = image boundaries (intersected with user region if provided).
+     Only H3 partitions overlapping the image are loaded.
+
+   Mode 2 - Simplified dataset (via data_source pointing to a simplified dataset):
+     ROI = entire dataset (all tiles loaded regardless of image coverage).
+     Shots outside image bounds get NaN values.
+
+   In both cases, uses TRUE shot geometry for coordinate extraction.
+
+   :Parameters:
+
+       **image_path** : str
+           Path to raster file, VRT, or tile directory
+
+       **data_source** : str, optional
+           Path to H3 database or simplified dataset directory
+
+       **region** : GeoDataFrame or bbox, optional
+           Additional spatial filter
+
+       **query** : str, optional
+           Pandas query string for filtering shots
+
+       **band_names** : list of str, optional
+           Custom band names for output columns. When ``band_indices`` is
+           provided, should have length == len(band_indices).
+
+       **band_indices** : list of int, optional
+           0-based indices of raster bands to sample. If None, all bands.
+
+       **window_ops** : list of dict, optional
+           Parsed window specs from parse_window_specs()
+
+       **fillna** : float, optional
+           Value to fill raster NaN/NoData
+
+       **dropna** : bool
+           Drop rows where all band columns are NaN
+
+       **geo** : bool
+           Include geometry in output
+
+       **file_format** : str
+           Tile file extension for directory input
+
+       **pixel_distance** : bool
+           If True, include ``relative_pixel_distance`` column in output.
+           Defaults to False.
+
+
+
+   :Returns:
+
+       dask.dataframe.DataFrame
+           Sampled data as Dask DataFrame
+
+
+
+
+   :Raises:
+
+       GediImageSamplingError
+           If inputs are invalid or sampling fails
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

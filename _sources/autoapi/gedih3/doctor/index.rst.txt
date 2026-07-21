@@ -1,0 +1,54 @@
+gedih3.doctor
+=============
+
+.. py:module:: gedih3.doctor
+
+.. autoapi-nested-parse::
+
+   
+   gh3_doctor — audit and (optionally) heal a gedih3 database.
+
+   Public API:
+
+   - :class:`DoctorContext`   — pre-loaded shared state passed to every diagnosis.
+   - :class:`Report`          — uniform diagnosis output.
+   - :func:`get_diagnoses`    — registry lookup.
+   - :func:`run_diagnoses`    — orchestrator (Dask futures for partition-scope work).
+
+   Diagnoses register themselves on import via :func:`register`. Importing
+   ``gedih3.doctor.diagnoses`` is sufficient to populate the registry.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /autoapi/gedih3/doctor/diagnoses/index
+   /autoapi/gedih3/doctor/fused/index
+   /autoapi/gedih3/doctor/inspect/index
+   /autoapi/gedih3/doctor/parallel/index
+   /autoapi/gedih3/doctor/parquet_ops/index
+   /autoapi/gedih3/doctor/report/index
+   /autoapi/gedih3/doctor/runner/index
+   /autoapi/gedih3/doctor/upstream/index
+
+

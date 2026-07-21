@@ -1,0 +1,55 @@
+gedih3.cli.gh3_read_schema
+==========================
+
+.. py:module:: gedih3.cli.gh3_read_schema
+
+.. autoapi-nested-parse::
+
+   Inspect schema of parquet, feather, geopackage, HDF5 files, or H3 databases.
+
+   Read and display column names and data types from output datasets,
+   useful for understanding extracted data structure. Supports single
+   files, dataset directories, and H3 databases (auto-detects format).
+   When no path is given, reads from the default H3 database.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.cli.gh3_read_schema.get_cmd_args
+   gedih3.cli.gh3_read_schema.main
+
+
+Module Contents
+---------------
+
+.. py:function:: get_cmd_args()
+
+   
+   Parse command line arguments
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: main()
+

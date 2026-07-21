@@ -1,0 +1,22 @@
+gedih3.cli.gh3_download
+=======================
+
+.. py:module:: gedih3.cli.gh3_download
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.cli.gh3_download.get_cmd_args
+   gedih3.cli.gh3_download.main
+
+
+Module Contents
+---------------
+
+.. py:function:: get_cmd_args()
+
+.. py:function:: main()
+

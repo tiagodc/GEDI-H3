@@ -1,0 +1,383 @@
+gedih3.raster.timeseries
+========================
+
+.. py:module:: gedih3.raster.timeseries
+
+.. autoapi-nested-parse::
+
+   Time-Series Raster Generation Module
+
+   This module provides functions for generating time-series raster products
+   from GEDI data. It supports:
+   - Temporal filtering by date range
+   - Time-windowed aggregation (years, months, weeks, days)
+   - Batch raster generation for time intervals
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.raster.timeseries.GEDI_START_DATE
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   gedih3.raster.timeseries.TimeSeriesRasterizer
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.raster.timeseries.parse_datetime_column
+   gedih3.raster.timeseries.convert_delta_time_to_datetime
+   gedih3.raster.timeseries.generate_time_windows
+   gedih3.raster.timeseries.filter_by_time_range
+   gedih3.raster.timeseries.build_temporal_query
+
+
+Module Contents
+---------------
+
+.. py:data:: GEDI_START_DATE
+
+.. py:function:: parse_datetime_column(df: Union[pandas.DataFrame, geopandas.GeoDataFrame], time_col: Optional[str] = None) -> Optional[str]
+
+   
+   Find and identify the datetime column in a DataFrame.
+
+
+   :Parameters:
+
+       **df** : DataFrame or GeoDataFrame
+           Input data
+
+       **time_col** : str, optional
+           Explicit column name to use
+
+
+
+   :Returns:
+
+       str or None
+           Name of the datetime column, or None if not found
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: convert_delta_time_to_datetime(df: Union[pandas.DataFrame, geopandas.GeoDataFrame], delta_time_col: str = 'delta_time', output_col: str = 'datetime') -> Union[pandas.DataFrame, geopandas.GeoDataFrame]
+
+   
+   Convert GEDI delta_time (seconds since epoch) to datetime.
+
+   GEDI delta_time is seconds since 2018-01-01 00:00:00 UTC.
+
+   :Parameters:
+
+       **df** : DataFrame or GeoDataFrame
+           Input data with delta_time column
+
+       **delta_time_col** : str
+           Name of the delta_time column
+
+       **output_col** : str
+           Name for the output datetime column
+
+
+
+   :Returns:
+
+       DataFrame or GeoDataFrame
+           Data with new datetime column added
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: generate_time_windows(start_date: Union[str, datetime.datetime], end_date: Union[str, datetime.datetime], interval: int, units: str = 'years') -> Generator[Tuple[datetime.datetime, datetime.datetime, str], None, None]
+
+   
+   Generate time windows for temporal aggregation.
+
+
+   :Parameters:
+
+       **start_date** : str or datetime
+           Start date (YYYY-MM-DD format if string)
+
+       **end_date** : str or datetime
+           End date (YYYY-MM-DD format if string)
+
+       **interval** : int
+           Number of time units per window
+
+       **units** : str
+           Time unit: 'years', 'months', 'weeks', 'days'
+
+
+
+
+   :Yields:
+
+       tuple
+           (window_start, window_end, suffix_string)
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> # Generate yearly windows
+   >>> for t0, t1, suffix in generate_time_windows('2020-01-01', '2023-01-01', 1, 'years'):
+   ...     print(f"{suffix}: {t0} to {t1}")
+   2020-01-01-to-2021-01-01: 2020-01-01 00:00:00 to 2021-01-01 00:00:00
+   2021-01-01-to-2022-01-01: 2021-01-01 00:00:00 to 2022-01-01 00:00:00
+   2022-01-01-to-2023-01-01: 2022-01-01 00:00:00 to 2023-01-01 00:00:00
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: filter_by_time_range(df: Union[pandas.DataFrame, geopandas.GeoDataFrame], start_date: Optional[Union[str, datetime.datetime]] = None, end_date: Optional[Union[str, datetime.datetime]] = None, time_col: str = 'datetime') -> Union[pandas.DataFrame, geopandas.GeoDataFrame]
+
+   
+   Filter DataFrame by time range.
+
+
+   :Parameters:
+
+       **df** : DataFrame or GeoDataFrame
+           Input data with datetime column
+
+       **start_date** : str or datetime, optional
+           Start date for filtering (inclusive)
+
+       **end_date** : str or datetime, optional
+           End date for filtering (exclusive)
+
+       **time_col** : str
+           Name of the datetime column
+
+
+
+   :Returns:
+
+       DataFrame or GeoDataFrame
+           Filtered data
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: build_temporal_query(start_date: Optional[str] = None, end_date: Optional[str] = None, time_col: str = 'datetime') -> Optional[str]
+
+   
+   Build a pandas query string for temporal filtering.
+
+
+   :Parameters:
+
+       **start_date** : str, optional
+           Start date (YYYY-MM-DD)
+
+       **end_date** : str, optional
+           End date (YYYY-MM-DD)
+
+       **time_col** : str
+           Name of the datetime column
+
+
+
+   :Returns:
+
+       str or None
+           Query string for pandas.query(), or None if no filters
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:class:: TimeSeriesRasterizer(gdf: Union[pandas.DataFrame, geopandas.GeoDataFrame], time_col: str = 'datetime', aggregation: Union[str, List, dict, Callable] = 'mean', target_level: int = 6, use_egi: bool = False, columns: Optional[List[str]] = None)
+
+   
+   Class for generating time-series raster products.
+
+   This class provides a convenient interface for generating multiple
+   raster outputs for different time windows from a single dataset.
+
+   :Parameters:
+
+       **gdf** : GeoDataFrame or dask GeoDataFrame
+           Input H3 or EGI-indexed data
+
+       **time_col** : str
+           Name of the datetime column
+
+       **aggregation** : str, list, dict, or callable
+           Aggregation specification for spatial aggregation
+
+       **target_level** : int
+           Target spatial resolution level (H3 or EGI)
+
+       **use_egi** : bool
+           If True, use EGI; if False, use H3
+
+       **columns** : list, optional
+           Columns to include in output
+
+
+
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> rasterizer = TimeSeriesRasterizer(
+   ...     gdf=data,
+   ...     time_col='datetime',
+   ...     aggregation='mean',
+   ...     target_level=6,
+   ...     use_egi=True
+   ... )
+   >>>
+   >>> # Generate yearly rasters
+   >>> for raster, suffix in rasterizer.generate(
+   ...     start_date='2020-01-01',
+   ...     end_date='2023-01-01',
+   ...     interval=1,
+   ...     units='years'
+   ... ):
+   ...     raster.rio.to_raster(f"output_{suffix}.tif")
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:attribute:: gdf
+
+
+   .. py:attribute:: time_col
+      :value: 'datetime'
+
+
+
+   .. py:attribute:: aggregation
+      :value: 'mean'
+
+
+
+   .. py:attribute:: target_level
+      :value: 6
+
+
+
+   .. py:attribute:: use_egi
+      :value: False
+
+
+
+   .. py:attribute:: columns
+      :value: None
+
+
+
+   .. py:method:: generate(start_date: str, end_date: str, interval: int, units: str = 'years', to_raster: bool = True) -> Generator[Tuple[Union[geopandas.GeoDataFrame, xarray.Dataset], str], None, None]
+
+      
+      Generate time-series outputs.
+
+
+      :Parameters:
+
+          **start_date** : str
+              Start date (YYYY-MM-DD)
+
+          **end_date** : str
+              End date (YYYY-MM-DD)
+
+          **interval** : int
+              Number of time units per window
+
+          **units** : str
+              Time unit: 'years', 'months', 'weeks', 'days'
+
+          **to_raster** : bool
+              If True, convert to raster; if False, return GeoDataFrame
+
+
+
+
+      :Yields:
+
+          tuple
+              (output_data, time_suffix)
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+

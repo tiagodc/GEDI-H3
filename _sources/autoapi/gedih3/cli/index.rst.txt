@@ -1,0 +1,26 @@
+gedih3.cli
+==========
+
+.. py:module:: gedih3.cli
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /autoapi/gedih3/cli/gh3_aggregate/index
+   /autoapi/gedih3/cli/gh3_build/index
+   /autoapi/gedih3/cli/gh3_build_ducklake/index
+   /autoapi/gedih3/cli/gh3_doctor/index
+   /autoapi/gedih3/cli/gh3_download/index
+   /autoapi/gedih3/cli/gh3_extract/index
+   /autoapi/gedih3/cli/gh3_from_img/index
+   /autoapi/gedih3/cli/gh3_from_polygon/index
+   /autoapi/gedih3/cli/gh3_list_resolutions/index
+   /autoapi/gedih3/cli/gh3_rasterize/index
+   /autoapi/gedih3/cli/gh3_read_schema/index
+   /autoapi/gedih3/cli/gh3_update/index
+
+

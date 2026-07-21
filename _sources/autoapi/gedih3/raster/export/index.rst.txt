@@ -1,0 +1,280 @@
+gedih3.raster.export
+====================
+
+.. py:module:: gedih3.raster.export
+
+.. autoapi-nested-parse::
+
+   Raster Export Module
+
+   This module provides utilities for exporting raster data to various formats,
+   with support for GeoTIFF compression, tiling, and batch operations.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.raster.export.export_raster
+   gedih3.raster.export.export_raster_partition
+   gedih3.raster.export.rasterize_and_export_partitions
+   gedih3.raster.export.build_vrt
+   gedih3.raster.export.merge_and_export_rasters
+   gedih3.raster.export.compute_raster_stats
+
+
+Module Contents
+---------------
+
+.. py:function:: export_raster(xras: xarray.Dataset, output_path: str, compress: str = 'LZW', tiled: bool = True, blocksize: int = 256, bigtiff: bool = True) -> str
+
+   
+   Export xarray Dataset to GeoTIFF file.
+
+
+   :Parameters:
+
+       **xras** : xr.Dataset
+           Raster dataset to export
+
+       **output_path** : str
+           Output file path
+
+       **compress** : str
+           Compression method ('LZW', 'ZSTD', 'DEFLATE', 'NONE')
+
+       **tiled** : bool
+           Use tiled output format
+
+       **blocksize** : int
+           Tile block size in pixels
+
+       **bigtiff** : bool
+           Use BigTIFF format for large files
+
+
+
+   :Returns:
+
+       str
+           Output file path
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: export_raster_partition(data: Union[pandas.Series, xarray.Dataset], output_dir: str, fmt: str = 'tif', compress: str = 'LZW', partition_id_attr: Optional[str] = None) -> str
+
+   
+   Export raster partition(s) to file(s).
+
+   This function handles the case where a Series may contain multiple
+   rasters from different spatial tiles. Each raster is exported to
+   its own file based on its tile ID attribute.
+
+   :Parameters:
+
+       **data** : pd.Series or xr.Dataset
+           Raster data (Series of DataArrays/Datasets or single Dataset)
+
+       **output_dir** : str
+           Output directory
+
+       **fmt** : str
+           Output format ('tif', 'nc')
+
+       **compress** : str
+           Compression method for GeoTIFF
+
+       **partition_id_attr** : str, optional
+           Attribute name containing partition ID for filename
+
+
+
+   :Returns:
+
+       str
+           Output file path(s), comma-separated if multiple files written
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: rasterize_and_export_partitions(gdf: Union[geopandas.GeoDataFrame, dask.dataframe.DataFrame], output_dir: str, rasterize_func, columns: Optional[List[str]] = None, fmt: str = 'tif', compress: str = 'LZW', show_progress: bool = True, **rasterize_kwargs) -> List[str]
+
+   
+   Rasterize and export GeoDataFrame partitions to individual files.
+
+
+   :Parameters:
+
+       **gdf** : GeoDataFrame or dask GeoDataFrame
+           Input spatially-indexed data
+
+       **output_dir** : str
+           Output directory for raster files
+
+       **rasterize_func** : callable
+           Function to rasterize each partition (e.g., rasterize_h3_partition)
+
+       **columns** : list of str, optional
+           Columns to include in rasterization
+
+       **fmt** : str
+           Output format ('tif', 'nc')
+
+       **compress** : str
+           Compression method for GeoTIFF
+
+       **show_progress** : bool
+           Show Dask progress bar
+
+
+
+   :Returns:
+
+       list of str
+           Paths to output files
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: build_vrt(tif_files, vrt_path)
+
+   
+   Build a GDAL VRT file mosaicking a list of GeoTIFF tiles.
+
+
+   :Parameters:
+
+       **tif_files** : list of str
+           Paths to input GeoTIFF files
+
+       **vrt_path** : str
+           Output VRT file path
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: merge_and_export_rasters(gdf: Union[geopandas.GeoDataFrame, dask.dataframe.DataFrame], output_path: str, rasterize_func, columns: Optional[List[str]] = None, compress: str = 'LZW', show_progress: bool = True, **rasterize_kwargs) -> str
+
+   
+   Rasterize all partitions and merge into a single output file.
+
+
+   :Parameters:
+
+       **gdf** : GeoDataFrame or dask GeoDataFrame
+           Input spatially-indexed data
+
+       **output_path** : str
+           Output file path
+
+       **rasterize_func** : callable
+           Function to rasterize each partition
+
+       **columns** : list of str, optional
+           Columns to include in rasterization
+
+       **compress** : str
+           Compression method for GeoTIFF
+
+       **show_progress** : bool
+           Show Dask progress bar
+
+
+
+   :Returns:
+
+       str
+           Path to output file
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: compute_raster_stats(xras: xarray.Dataset) -> Dict[str, Dict[str, float]]
+
+   
+   Compute basic statistics for each variable in a raster dataset.
+
+
+   :Parameters:
+
+       **xras** : xr.Dataset
+           Input raster dataset
+
+
+
+   :Returns:
+
+       dict
+           Statistics for each variable: {var_name: {min, max, mean, std, count}}
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

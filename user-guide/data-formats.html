@@ -1,0 +1,841 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Data Formats &#8212; gedih3 0.12.9 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=8bafde03" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../_static/documentation_options.js?v=54dfaa76"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'user-guide/data-formats';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="author" title="About these documents" href="../about.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Python API" href="python-api.html" />
+    <link rel="prev" title="CLI Reference" href="cli-reference.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+     
+  
+
+<a class="navbar-brand logo" href="/GEDI-H3/">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.12.9 documentation - Home"/>
+    <img src="../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.12.9 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../autoapi/index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../autoapi/index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="building-a-database.html">Building a Database</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli-reference.html">CLI Reference</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Data Formats</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python-api.html">Python API</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link">Core Functionality</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Data Formats</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="data-formats">
+<h1>Data Formats<a class="headerlink" href="#data-formats" title="Link to this heading">#</a></h1>
+<p>gedih3 produces and consumes several data formats throughout the pipeline. This page describes each format, its structure, and when to use it.</p>
+<hr class="docutils" />
+<section id="h3-database-internal-format">
+<h2>H3 Database (Internal Format)<a class="headerlink" href="#h3-database-internal-format" title="Link to this heading">#</a></h2>
+<p>Created by <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code>. Optimized for repeated queries with Dask and DuckDB.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>h3_database/
+├── h3_03=838041fffffffff/
+│   ├── 838041fffffffff.metadata.json
+│   ├── year=2019/
+│   │   ├── 838041fffffffff.2019.0.parquet
+│   │   └── 838041fffffffff.2019.0.metadata.json
+│   ├── year=2020/
+│   │   ├── 838041fffffffff.2020.0.parquet
+│   │   └── 838041fffffffff.2020.0.metadata.json
+│   │   ...
+├── h3_03=83804cfffffffff/
+│   ├── 83804cfffffffff.metadata.json
+│   ├── year=2019/
+│   │   ...
+│   ...
+├── gedih3_build_log.json
+└── _manifest.txt
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><strong>Nested hive-partitioned</strong> — first by H3 cell at the partition level (default: level 3, ~12,000 km²), then by year</p></li>
+<li><p>Each H3 directory contains a cell-level metadata file and yearly sub-directories; each year holds a <code class="docutils literal notranslate"><span class="pre">.parquet</span></code> data file and a companion <code class="docutils literal notranslate"><span class="pre">.metadata.json</span></code></p></li>
+<li><p>This two-level scheme caps file size and makes it easy to append new data without touching existing files</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">gedih3_build_log.json</span></code> records build metadata (products, variables, region, resolution levels); <code class="docutils literal notranslate"><span class="pre">_manifest.txt</span></code> lists all partition paths</p></li>
+<li><p><strong>Not designed for direct use with external tools</strong> — use <code class="docutils literal notranslate"><span class="pre">gh3_extract</span></code> to produce user-friendly flat files. If you must read the partition files directly, select them with <code class="docutils literal notranslate"><span class="pre">gedih3.gh3_select_partitions(source,</span> <span class="pre">region)</span></code> rather than intersecting the cell polygons yourself (see the selection-safety note below)</p></li>
+</ul>
+<section id="partition-metadata-sidecar-metadata-json">
+<h3>Partition metadata sidecar (<code class="docutils literal notranslate"><span class="pre">*.metadata.json</span></code>)<a class="headerlink" href="#partition-metadata-sidecar-metadata-json" title="Link to this heading">#</a></h3>
+<p>Each partition’s sidecar carries two spatial fields that are <strong>not interchangeable</strong>:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Meaning</p></th>
+<th class="head"><p>Safe for partition selection?</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">h3_geometry</span></code></p></td>
+<td><p>The <em>exact</em> H3 cell polygon (GeoJSON)</p></td>
+<td><p><strong>No</strong> — H3 children overhang their parent, so a region that clips this polygon silently misses boundary shots</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">bbox</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[minlon,</span> <span class="pre">minlat,</span> <span class="pre">maxlon,</span> <span class="pre">maxlat]</span></code>, <strong>overhang-padded</strong> to enclose every shot actually stored in the partition</p></td>
+<td><p><strong>Yes</strong> — intersect ROIs against this</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The same overhang-padded bbox is also embedded in each parquet file’s GeoParquet footer (<code class="docutils literal notranslate"><span class="pre">columns.geometry.bbox</span></code>). To compute the padded extent for any cell ID directly, use <code class="docutils literal notranslate"><span class="pre">gedih3.h3_partition_bbox(cell_id,</span> <span class="pre">partition_level)</span></code>.</p>
+</section>
+<section id="build-log-keys">
+<h3>Build Log Keys<a class="headerlink" href="#build-log-keys" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">h3_index_level</span></code></p></td>
+<td><p>Fine H3 resolution used for shot-level indexing</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">h3_partition_level</span></code></p></td>
+<td><p>Coarse H3 resolution used for partitioning (directory names)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">products</span></code></p></td>
+<td><p>GEDI products included</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">columns</span></code></p></td>
+<td><p>Column schema</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">region</span></code></p></td>
+<td><p>Spatial extent</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="h3-dual-level-structure">
+<h3>H3 Dual-Level Structure<a class="headerlink" href="#h3-dual-level-structure" title="Link to this heading">#</a></h3>
+<p>The H3 database uses two H3 resolution levels simultaneously:</p>
+<ul class="simple">
+<li><p><strong>Partition level</strong> (default: 3) — determines the directory structure. A query for a specific region only reads tiles that overlap that region.</p></li>
+<li><p><strong>Index level</strong> (default: 12) — the H3 cell ID assigned to each individual GEDI shot, stored as a column/index in every parquet file.</p></li>
+</ul>
+<blockquote>
+<div><p><strong>Parent/child caveat</strong>: H3 parent hexagons are not perfectly geometrically inclusive of their children. When aggregating across resolution levels, <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code> uses <code class="docutils literal notranslate"><span class="pre">h3.cell_to_parent()</span></code> which assigns each shot to its closest parent, which is consistent and fast but not a strict geometric containment. The same property means a partition’s stored shots can fall slightly outside the partition’s own cell polygon — so selecting partition files by exact polygon intersection silently drops boundary shots. Use <code class="docutils literal notranslate"><span class="pre">gh3_select_partitions</span></code> (or the padded <code class="docutils literal notranslate"><span class="pre">bbox</span></code>) for direct access. See <a class="reference internal" href="../concepts/h3-indexing.html"><span class="std std-doc">H3 Indexing</span></a> for details.</p>
+</div></blockquote>
+</section>
+</section>
+<hr class="docutils" />
+<section id="simplified-dataset-user-friendly-format">
+<h2>Simplified Dataset (User-Friendly Format)<a class="headerlink" href="#simplified-dataset-user-friendly-format" title="Link to this heading">#</a></h2>
+<p>Created by <code class="docutils literal notranslate"><span class="pre">gh3_extract</span></code> and <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code>. Flat Parquet files for use with any tool.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>output/
+├── 838041fffffffff.parquet
+├── 83804cfffffffff.parquet
+├── 83804efffffffff.parquet
+└── gedih3_dataset.json
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>Files named by H3 or EGI partition ID</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">gedih3_dataset.json</span></code> describes the whole dataset (index type, columns, aggregation, etc.)</p></li>
+<li><p>Readable with <strong>pandas, R, QGIS, DuckDB</strong>, and any other Parquet-compatible tool</p></li>
+<li><p>Used as input for <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_rasterize</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_from_img</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_from_polygon</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_update</span></code></p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Read with pandas</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="s1">&#39;/path/to/output/838041fffffffff.parquet&#39;</span><span class="p">)</span>
+
+<span class="c1"># Load all files with gedih3</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gh3</span>
+<span class="n">gdf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">&#39;/path/to/output/&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
+</pre></div>
+</div>
+<section id="dataset-metadata-gedih3-dataset-json">
+<h3>Dataset Metadata (<code class="docutils literal notranslate"><span class="pre">gedih3_dataset.json</span></code>)<a class="headerlink" href="#dataset-metadata-gedih3-dataset-json" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Key</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">index_type</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;h3&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;egi&quot;</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">index_level</span></code></p></td>
+<td><p>Spatial resolution level</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">partition_level</span></code></p></td>
+<td><p>Partition tile size</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">columns</span></code></p></td>
+<td><p>Data columns included</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">agg</span></code></p></td>
+<td><p>Aggregation method (if from <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code>)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="geotiff-raster-output">
+<h2>GeoTIFF (Raster Output)<a class="headerlink" href="#geotiff-raster-output" title="Link to this heading">#</a></h2>
+<p>Created by <code class="docutils literal notranslate"><span class="pre">gh3_rasterize</span></code> or the <code class="docutils literal notranslate"><span class="pre">-R</span></code> flag in <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code>. Standard GeoTIFF files compatible with GDAL, QGIS, R (<code class="docutils literal notranslate"><span class="pre">terra</span></code>), Python (<code class="docutils literal notranslate"><span class="pre">rasterio</span></code>,<code class="docutils literal notranslate"><span class="pre">rioxarray</span></code>), and virtually any GIS tool.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Tiled output (one file per partition)</span>
+gh3_rasterize<span class="w"> </span>-d<span class="w"> </span>aggregated/<span class="w"> </span>-o<span class="w"> </span>rasters/<span class="w"> </span>--compress<span class="w"> </span>LZW
+
+<span class="c1"># Single merged raster</span>
+gh3_rasterize<span class="w"> </span>-d<span class="w"> </span>aggregated/<span class="w"> </span>-m<span class="w"> </span>-o<span class="w"> </span>output.tif<span class="w"> </span>--compress<span class="w"> </span>LZW
+
+<span class="c1"># Select specific variables</span>
+gh3_rasterize<span class="w"> </span>-d<span class="w"> </span>aggregated/<span class="w"> </span>-l<span class="w"> </span>agbd_l4a_mean<span class="w"> </span>-o<span class="w"> </span>rasters/
+</pre></div>
+</div>
+<p>Key properties:</p>
+<ul class="simple">
+<li><p><strong>Tiled by default</strong> — output is split by spatial partition for efficient access</p></li>
+<li><p><strong>Compression support</strong> — <code class="docutils literal notranslate"><span class="pre">LZW</span></code>, <code class="docutils literal notranslate"><span class="pre">DEFLATE</span></code>, <code class="docutils literal notranslate"><span class="pre">ZSTD</span></code>, <code class="docutils literal notranslate"><span class="pre">NONE</span></code></p></li>
+<li><p><strong>BIGTIFF support</strong> — for files exceeding 4 GB</p></li>
+<li><p><strong>Time-series naming</strong> — when produced from time-windowed data, files are named after their temporal windows</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Load GeoTIFF output in Python</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">rioxarray</span>
+<span class="n">xds</span> <span class="o">=</span> <span class="n">rioxarray</span><span class="o">.</span><span class="n">open_rasterio</span><span class="p">(</span><span class="s1">&#39;agbd_mean.tif&#39;</span><span class="p">)</span>
+<span class="n">xds</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="other-supported-formats">
+<h2>Other Supported Formats<a class="headerlink" href="#other-supported-formats" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">gh3_export</span></code> (Python API) and <code class="docutils literal notranslate"><span class="pre">gh3_extract</span></code> support additional output formats beyond Parquet:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Format</p></th>
+<th class="head"><p>Extension</p></th>
+<th class="head"><p>Notes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>GeoParquet</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.parquet</span></code></p></td>
+<td><p>Default; includes geometry for spatial tools</p></td>
+</tr>
+<tr class="row-odd"><td><p>Feather</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.feather</span></code></p></td>
+<td><p>Fast in-memory format</p></td>
+</tr>
+<tr class="row-even"><td><p>GeoPackage</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.gpkg</span></code></p></td>
+<td><p>OGC standard vector format; QGIS native</p></td>
+</tr>
+<tr class="row-odd"><td><p>HDF5</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.h5</span></code></p></td>
+<td><p>For compatibility with scientific workflows; no geometry</p></td>
+</tr>
+<tr class="row-even"><td><p>Shapefile</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.shp</span></code></p></td>
+<td><p>Legacy vector format; column name length limited</p></td>
+</tr>
+<tr class="row-odd"><td><p>CSV</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.csv</span></code></p></td>
+<td><p>Tabular export; no geometry</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<hr class="docutils" />
+<section id="parquet-schema">
+<h2>Parquet Schema<a class="headerlink" href="#parquet-schema" title="Link to this heading">#</a></h2>
+<p>Each simplified dataset Parquet file contains:</p>
+<ul class="simple">
+<li><p><strong>Index column</strong>: <code class="docutils literal notranslate"><span class="pre">h3_XX</span></code> (H3 cell ID, string) or <code class="docutils literal notranslate"><span class="pre">egiXX</span></code> (EGI hash, uint64)</p></li>
+<li><p><strong>Data columns</strong>: product variables (e.g., <code class="docutils literal notranslate"><span class="pre">agbd_l4a</span></code>, <code class="docutils literal notranslate"><span class="pre">rh_098_l2a</span></code>)</p></li>
+<li><p><strong>Geometry</strong> (optional): <code class="docutils literal notranslate"><span class="pre">geometry</span></code> column (WKB Point geometries in EPSG:4326)</p></li>
+<li><p><strong>Metadata</strong>: stored in Parquet file metadata (accessible via <code class="docutils literal notranslate"><span class="pre">pyarrow</span></code>)</p></li>
+</ul>
+<section id="inspecting-files">
+<h3>Inspecting Files<a class="headerlink" href="#inspecting-files" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Inspect schema from CLI</span>
+gh3_read_schema<span class="w"> </span>/path/to/output/abc123.parquet
+gh3_read_schema<span class="w"> </span>/path/to/database/
+</pre></div>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="choosing-between-h3-and-egi">
+<h2>Choosing Between H3 and EGI<a class="headerlink" href="#choosing-between-h3-and-egi" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Consideration</p></th>
+<th class="head"><p>H3</p></th>
+<th class="head"><p>EGI</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Grid shape</p></td>
+<td><p>Hexagonal</p></td>
+<td><p>Square</p></td>
+</tr>
+<tr class="row-odd"><td><p>Coordinate system</p></td>
+<td><p>WGS84 (EPSG:4326)</p></td>
+<td><p>EASE-Grid 2.0 (EPSG:6933)</p></td>
+</tr>
+<tr class="row-even"><td><p>Rasterization</p></td>
+<td><p>Requires hex-to-pixel interpolation</p></td>
+<td><p>Direct 1:1 mapping</p></td>
+</tr>
+<tr class="row-odd"><td><p>GEDI L4B compatible</p></td>
+<td><p>No</p></td>
+<td><p>Yes</p></td>
+</tr>
+<tr class="row-even"><td><p>Parent/child nesting</p></td>
+<td><p>Approximate (see above)</p></td>
+<td><p>Exact</p></td>
+</tr>
+<tr class="row-odd"><td><p>Default in gedih3</p></td>
+<td><p>Yes</p></td>
+<td><p>No</p></td>
+</tr>
+<tr class="row-even"><td><p>Support by external software</p></td>
+<td><p>Yes</p></td>
+<td><p>No</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>EGI is the right choice when you need perfect pixel alignment or when producing gridded datasets for interoperability with raster-native workflows. For general analysis and exploratory work, H3 is simpler and faster. See <a class="reference internal" href="../concepts/egi-indexing.html"><span class="std std-doc">EGI Indexing</span></a> for a detailed comparison.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="cli-reference.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">CLI Reference</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="python-api.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Python API</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#h3-database-internal-format">H3 Database (Internal Format)</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#partition-metadata-sidecar-metadata-json">Partition metadata sidecar (<code class="docutils literal notranslate"><span class="pre">*.metadata.json</span></code>)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#build-log-keys">Build Log Keys</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#h3-dual-level-structure">H3 Dual-Level Structure</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#simplified-dataset-user-friendly-format">Simplified Dataset (User-Friendly Format)</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-metadata-gedih3-dataset-json">Dataset Metadata (<code class="docutils literal notranslate"><span class="pre">gedih3_dataset.json</span></code>)</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#geotiff-raster-output">GeoTIFF (Raster Output)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#other-supported-formats">Other Supported Formats</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#parquet-schema">Parquet Schema</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#inspecting-files">Inspecting Files</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#choosing-between-h3-and-egi">Choosing Between H3 and EGI</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  <div class="tocsection sourcelink">
+    <a href="../_sources/user-guide/data-formats.md.txt">
+      <i class="fa-solid fa-file-lines"></i> Show Source
+    </a>
+  </div>
+</div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, University of Maryland. All Rights Reserved.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,261 @@
+gedih3.doctor.report
+====================
+
+.. py:module:: gedih3.doctor.report
+
+.. autoapi-nested-parse::
+
+   Report and DoctorContext dataclasses shared by all diagnoses.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   gedih3.doctor.report.Severity
+   gedih3.doctor.report.Report
+   gedih3.doctor.report.DoctorContext
+
+
+Module Contents
+---------------
+
+.. py:class:: Severity
+
+   Bases: :py:obj:`str`, :py:obj:`enum.Enum`
+
+
+   
+   str(object='') -> str
+   str(bytes_or_buffer[, encoding[, errors]]) -> str
+
+   Create a new string object from the given object. If encoding or
+   errors is specified, then the object must expose a data buffer
+   that will be decoded using the given encoding and error handler.
+   Otherwise, returns the result of object.__str__() (if defined)
+   or repr(object).
+   encoding defaults to sys.getdefaultencoding().
+   errors defaults to 'strict'.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:attribute:: INFO
+      :value: 'info'
+
+
+
+   .. py:attribute:: WARN
+      :value: 'warn'
+
+
+
+   .. py:attribute:: ERROR
+      :value: 'error'
+
+
+
+.. py:class:: Report
+
+   
+   Uniform output from a diagnosis check or fix.
+
+
+
+   :Attributes:
+
+       **name** : str
+           Diagnosis identifier (e.g. 'backfill', 'orphans').
+
+       **severity** : Severity
+           Worst severity across all findings.
+
+       **findings** : list of dict
+           Each finding describes one issue with enough context to remediate.
+
+       **applied** : bool
+           True when produced by a ``fix()``; False for a ``check()``.
+
+       **summary** : str
+           One-line human-readable summary.
+
+       **recommendations** : list of str
+           Suggested next-step CLI commands (printed verbatim, never executed).
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:attribute:: name
+      :type:  str
+
+
+   .. py:attribute:: severity
+      :type:  Severity
+
+
+   .. py:attribute:: findings
+      :type:  List[Dict[str, Any]]
+      :value: []
+
+
+
+   .. py:attribute:: applied
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: summary
+      :type:  str
+      :value: ''
+
+
+
+   .. py:attribute:: recommendations
+      :type:  List[str]
+      :value: []
+
+
+
+   .. py:property:: has_findings
+      :type: bool
+
+
+
+   .. py:property:: is_clean
+      :type: bool
+
+
+
+   .. py:method:: to_dict() -> Dict[str, Any]
+
+
+.. py:class:: DoctorContext
+
+   
+   Pre-loaded state passed to every diagnosis.
+
+   The runner constructs this once per invocation and shares it across all
+   diagnoses to avoid redundant filesystem walks and log re-reads.
+
+
+   :Attributes:
+
+       **h3_dir** : str
+           Root directory of the gedih3 database.
+
+       **soc_dir** : str or None
+           Root directory of downloaded SOC HDF5 files. None when running the
+           doctor against a database whose source files are not local.
+
+       **tmp_dir** : str or None
+           Configured temp directory (for orphan scans and S3 ETL).
+
+       **h3_logger** : H3BuildLogger
+           Loaded build log (lazy-upgraded on construction).
+
+       **soc_logger** : SOCDownloadLogger or None
+           Loaded download log when ``soc_dir`` is set.
+
+       **partition_dirs** : list of str
+           Discovered ``h3_*/`` directories under ``h3_dir``.
+
+       **args** : object
+           Parsed argparse namespace (CLI args). Diagnoses read flags such as
+           ``--orphan-age-hours``, ``--s3``, ``--online`` from here.
+
+       **upstream** : dict or None
+           Populated by :mod:`gedih3.doctor.upstream` when ``--online`` is set;
+           keyed by product code.
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+   .. py:attribute:: h3_dir
+      :type:  str
+
+
+   .. py:attribute:: soc_dir
+      :type:  Optional[str]
+      :value: None
+
+
+
+   .. py:attribute:: tmp_dir
+      :type:  Optional[str]
+      :value: None
+
+
+
+   .. py:attribute:: h3_logger
+      :type:  Optional[Any]
+      :value: None
+
+
+
+   .. py:attribute:: soc_logger
+      :type:  Optional[Any]
+      :value: None
+
+
+
+   .. py:attribute:: partition_dirs
+      :type:  List[str]
+      :value: []
+
+
+
+   .. py:attribute:: args
+      :type:  Optional[Any]
+      :value: None
+
+
+
+   .. py:attribute:: upstream
+      :type:  Optional[Dict[str, Any]]
+      :value: None
+
+
+

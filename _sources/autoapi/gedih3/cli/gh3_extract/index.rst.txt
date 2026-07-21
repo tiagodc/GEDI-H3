@@ -1,0 +1,53 @@
+gedih3.cli.gh3_extract
+======================
+
+.. py:module:: gedih3.cli.gh3_extract
+
+.. autoapi-nested-parse::
+
+   GEDI H3/EGI Data Extraction Tool
+
+   Extract and filter GEDI shots from H3-indexed parquet database with spatial,
+   temporal, and quality filters. Supports H3 or EGI output indexing/partitioning.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.cli.gh3_extract.get_cmd_args
+   gedih3.cli.gh3_extract.main
+
+
+Module Contents
+---------------
+
+.. py:function:: get_cmd_args()
+
+   
+   Parse command line arguments for GEDI data extraction
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: main()
+

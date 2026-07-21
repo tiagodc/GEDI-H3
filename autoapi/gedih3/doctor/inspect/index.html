@@ -1,0 +1,757 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>gedih3.doctor.inspect &#8212; gedih3 0.12.9 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/custom.css?v=8bafde03" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../../../_static/documentation_options.js?v=54dfaa76"></script>
+    <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'autoapi/gedih3/doctor/inspect/index';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="author" title="About these documents" href="../../../../about.html" />
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+    <link rel="next" title="gedih3.doctor.parallel" href="../parallel/index.html" />
+    <link rel="prev" title="gedih3.doctor.fused" href="../fused/index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../../../_static/searchtools.js"></script>
+    <script src="../../../../_static/language_data.js"></script>
+    <script src="../../../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+     
+  
+
+<a class="navbar-brand logo" href="/GEDI-H3/">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.12.9 documentation - Home"/>
+    <img src="../../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.12.9 documentation - Home"/>
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../user-guide/index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../../index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../getting-started/index.html">
+    Getting Started
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../concepts/index.html">
+    Concepts
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../user-guide/index.html">
+    Core Functionality
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../../../index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../about.html">
+    About
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/tiagodc/GEDI-H3" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="../../index.html">gedih3</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../cli/index.html">gedih3.cli</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../cli/gh3_aggregate/index.html">gedih3.cli.gh3_aggregate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../cli/gh3_build/index.html">gedih3.cli.gh3_build</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../cli/gh3_build_ducklake/index.html">gedih3.cli.gh3_build_ducklake</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../cli/gh3_doctor/index.html">gedih3.cli.gh3_doctor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../cli/gh3_download/index.html">gedih3.cli.gh3_download</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../cli/gh3_extract/index.html">gedih3.cli.gh3_extract</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../cli/gh3_from_img/index.html">gedih3.cli.gh3_from_img</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../cli/gh3_from_polygon/index.html">gedih3.cli.gh3_from_polygon</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../cli/gh3_list_resolutions/index.html">gedih3.cli.gh3_list_resolutions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../cli/gh3_rasterize/index.html">gedih3.cli.gh3_rasterize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../cli/gh3_read_schema/index.html">gedih3.cli.gh3_read_schema</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../cli/gh3_update/index.html">gedih3.cli.gh3_update</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../../cliutils/index.html">gedih3.cliutils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../config/index.html">gedih3.config</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../daac/index.html">gedih3.daac</a></li>
+<li class="toctree-l2 current active has-children"><a class="reference internal" href="../index.html">gedih3.doctor</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l3 has-children"><a class="reference internal" href="../diagnoses/index.html">gedih3.doctor.diagnoses</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l4"><a class="reference internal" href="../diagnoses/backfill/index.html">gedih3.doctor.diagnoses.backfill</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../diagnoses/geoparquet_bbox/index.html">gedih3.doctor.diagnoses.geoparquet_bbox</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../diagnoses/log_state/index.html">gedih3.doctor.diagnoses.log_state</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../diagnoses/metadata/index.html">gedih3.doctor.diagnoses.metadata</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../diagnoses/orphans/index.html">gedih3.doctor.diagnoses.orphans</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../diagnoses/parquet_health/index.html">gedih3.doctor.diagnoses.parquet_health</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../diagnoses/soc_health/index.html">gedih3.doctor.diagnoses.soc_health</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../diagnoses/tmp_partitions_health/index.html">gedih3.doctor.diagnoses.tmp_partitions_health</a></li>
+</ul>
+</details></li>
+<li class="toctree-l3"><a class="reference internal" href="../fused/index.html">gedih3.doctor.fused</a></li>
+<li class="toctree-l3 current active"><a class="current reference internal" href="#">gedih3.doctor.inspect</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parallel/index.html">gedih3.doctor.parallel</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parquet_ops/index.html">gedih3.doctor.parquet_ops</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../report/index.html">gedih3.doctor.report</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../runner/index.html">gedih3.doctor.runner</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../upstream/index.html">gedih3.doctor.upstream</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../egi/index.html">gedih3.egi</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../egi/config/index.html">gedih3.egi.config</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../egi/core/index.html">gedih3.egi.core</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../egi/dataframe/index.html">gedih3.egi.dataframe</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../egi/raster/index.html">gedih3.egi.raster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../egi/spatial/index.html">gedih3.egi.spatial</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../../exceptions/index.html">gedih3.exceptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../gedidriver/index.html">gedih3.gedidriver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../gh3builder/index.html">gedih3.gh3builder</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../gh3driver/index.html">gedih3.gh3driver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../h3utils/index.html">gedih3.h3utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../imgutils/index.html">gedih3.imgutils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../logger/index.html">gedih3.logger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../logging_config/index.html">gedih3.logging_config</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../parallel/index.html">gedih3.parallel</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../raster/index.html">gedih3.raster</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../raster/config/index.html">gedih3.raster.config</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../raster/export/index.html">gedih3.raster.export</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../raster/h3_raster/index.html">gedih3.raster.h3_raster</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../raster/timeseries/index.html">gedih3.raster.timeseries</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="../../sqlutils/index.html">gedih3.sqlutils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../utils/index.html">gedih3.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../validation/index.html">gedih3.validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../vecutils/index.html">gedih3.vecutils</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../../index.html" class="nav-link">API Reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">gedih3</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link">gedih3.doctor</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">gedih3.doctor.inspect</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-gedih3.doctor.inspect">
+<span id="gedih3-doctor-inspect"></span><h1>gedih3.doctor.inspect<a class="headerlink" href="#module-gedih3.doctor.inspect" title="Link to this heading">#</a></h1>
+<p>Read-only inspectors shared across diagnoses.</p>
+<p>These helpers do not mutate the database. They consolidate filesystem and
+parquet I/O so individual diagnoses don’t re-walk the same directories.</p>
+<section id="attributes">
+<h2>Attributes<a class="headerlink" href="#attributes" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.doctor.inspect.GranuleKey" title="gedih3.doctor.inspect.GranuleKey"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GranuleKey</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.doctor.inspect.discover_partition_dirs" title="gedih3.doctor.inspect.discover_partition_dirs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">discover_partition_dirs</span></code></a>(→ List[str])</p></td>
+<td><p>List <code class="docutils literal notranslate"><span class="pre">h3_*/</span></code> directories under the database root.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.doctor.inspect.partition_meta_file" title="gedih3.doctor.inspect.partition_meta_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">partition_meta_file</span></code></a>(→ Optional[str])</p></td>
+<td><p>Locate the merged partition-level metadata file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.doctor.inspect.load_partition_meta" title="gedih3.doctor.inspect.load_partition_meta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_partition_meta</span></code></a>(→ Optional[dict])</p></td>
+<td><p>Read the merged partition meta JSON (or None if missing).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.doctor.inspect.partition_parquet_files" title="gedih3.doctor.inspect.partition_parquet_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">partition_parquet_files</span></code></a>(→ List[str])</p></td>
+<td><p>List the per-year parquet files for one partition.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.doctor.inspect.per_granule_null_counts" title="gedih3.doctor.inspect.per_granule_null_counts"><code class="xref py py-obj docutils literal notranslate"><span class="pre">per_granule_null_counts</span></code></a>(→ Dict[GranuleKey, Dict[str, int]])</p></td>
+<td><p>Count nulls per (granule, product) pair within one parquet file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.doctor.inspect.product_columns_in_schema" title="gedih3.doctor.inspect.product_columns_in_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">product_columns_in_schema</span></code></a>(→ Dict[str, List[str]])</p></td>
+<td><p>Group columns by product suffix.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="module-contents">
+<h2>Module Contents<a class="headerlink" href="#module-contents" title="Link to this heading">#</a></h2>
+<dl class="py data">
+<dt class="sig sig-object py" id="gedih3.doctor.inspect.GranuleKey">
+<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.inspect.</span></span><span class="sig-name descname"><span class="pre">GranuleKey</span></span><a class="headerlink" href="#gedih3.doctor.inspect.GranuleKey" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.doctor.inspect.discover_partition_dirs">
+<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.inspect.</span></span><span class="sig-name descname"><span class="pre">discover_partition_dirs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h3_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../../_modules/gedih3/doctor/inspect.html#discover_partition_dirs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.inspect.discover_partition_dirs" title="Link to this definition">#</a></dt>
+<dd><p>List <code class="docutils literal notranslate"><span class="pre">h3_*/</span></code> directories under the database root.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.doctor.inspect.partition_meta_file">
+<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.inspect.</span></span><span class="sig-name descname"><span class="pre">partition_meta_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">partition_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../../_modules/gedih3/doctor/inspect.html#partition_meta_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.inspect.partition_meta_file" title="Link to this definition">#</a></dt>
+<dd><p>Locate the merged partition-level metadata file.</p>
+<p>Per <code class="docutils literal notranslate"><span class="pre">h3_merge_metadata</span></code> (gh3builder.py:475), each partition has a single
+<code class="docutils literal notranslate"><span class="pre">&lt;h3_part&gt;_gedih3_partition_meta.json</span></code> at its root. Returns None if absent.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.doctor.inspect.load_partition_meta">
+<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.inspect.</span></span><span class="sig-name descname"><span class="pre">load_partition_meta</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">partition_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../../_modules/gedih3/doctor/inspect.html#load_partition_meta"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.inspect.load_partition_meta" title="Link to this definition">#</a></dt>
+<dd><p>Read the merged partition meta JSON (or None if missing).</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.doctor.inspect.partition_parquet_files">
+<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.inspect.</span></span><span class="sig-name descname"><span class="pre">partition_parquet_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">partition_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../../_modules/gedih3/doctor/inspect.html#partition_parquet_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.inspect.partition_parquet_files" title="Link to this definition">#</a></dt>
+<dd><p>List the per-year parquet files for one partition.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.doctor.inspect.per_granule_null_counts">
+<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.inspect.</span></span><span class="sig-name descname"><span class="pre">per_granule_null_counts</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parquet_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">product_columns</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">granule_lookup</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#gedih3.doctor.inspect.GranuleKey" title="gedih3.doctor.inspect.GranuleKey"><span class="pre">GranuleKey</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#gedih3.doctor.inspect.GranuleKey" title="gedih3.doctor.inspect.GranuleKey"><span class="pre">GranuleKey</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../../_modules/gedih3/doctor/inspect.html#per_granule_null_counts"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.inspect.per_granule_null_counts" title="Link to this definition">#</a></dt>
+<dd><p>Count nulls per (granule, product) pair within one parquet file.</p>
+<p>Granule grouping uses the <code class="docutils literal notranslate"><span class="pre">root_file_l2a</span></code> column (the canonical source-
+granule pointer written by <code class="docutils literal notranslate"><span class="pre">h3_write_metadata</span></code>). This matches the granule
+identifiers stored in partition metadata exactly, avoiding any shot_number
+decoding ambiguity.</p>
+<dl class="simple">
+<dt>Memory pillar (v0.8.x lessons applied):</dt><dd><ul class="simple">
+<li><p><strong>Streamed row-group at a time</strong> via <code class="docutils literal notranslate"><span class="pre">pq.ParquetFile.iter_batches</span></code>
+with <code class="docutils literal notranslate"><span class="pre">pre_buffer=True</span></code> and a small <code class="docutils literal notranslate"><span class="pre">batch_size</span></code> — not the full
+<code class="docutils literal notranslate"><span class="pre">pd.read_parquet(columns=cols_to_read)</span></code> that used to materialize
+every product column × millions of rows in one shot (multiple GB
+per file on continental partitions).</p></li>
+<li><p>Each batch’s null counts are aggregated into a small accumulator
+dict (<code class="docutils literal notranslate"><span class="pre">O(num_granules</span> <span class="pre">×</span> <span class="pre">num_products)</span></code>) and the batch is dropped
+before the next is read — so worker RSS is bounded by one batch
+regardless of file size.</p></li>
+<li><p>Native arrow null counting + <code class="docutils literal notranslate"><span class="pre">groupby</span></code> on a per-batch
+DataFrame; no full-file <code class="docutils literal notranslate"><span class="pre">isnull().any(axis=1)</span></code> allocation.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pa.default_memory_pool().release_unused()</span></code> at end so the
+worker doesn’t drag transient buffers into the next task.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>parquet_file</strong><span class="classifier">str</span></dt><dd><p>Path to a partition parquet file.</p>
+</dd>
+<dt><strong>product_columns</strong><span class="classifier">dict</span></dt><dd><p>Map of product code → list of product-suffixed column names to scan.</p>
+</dd>
+<dt><strong>granule_lookup</strong><span class="classifier">dict, optional</span></dt><dd><p>Precomputed map <code class="docutils literal notranslate"><span class="pre">{root_file_l2a_basename:</span> <span class="pre">(orbit,</span> <span class="pre">granule,</span> <span class="pre">track)}</span></code>.
+If omitted, GEDIFile is invoked once per unique filename.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>dict</dt><dd><p><code class="docutils literal notranslate"><span class="pre">{(orbit,</span> <span class="pre">orbit_granule,</span> <span class="pre">track):</span> <span class="pre">{product_code:</span> <span class="pre">null_count}}</span></code>. Only
+granule × product combos with at least one null are returned.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.doctor.inspect.product_columns_in_schema">
+<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.inspect.</span></span><span class="sig-name descname"><span class="pre">product_columns_in_schema</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Iterable</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">products</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Iterable</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../../_modules/gedih3/doctor/inspect.html#product_columns_in_schema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.inspect.product_columns_in_schema" title="Link to this definition">#</a></dt>
+<dd><p>Group columns by product suffix.</p>
+<p>Returns <code class="docutils literal notranslate"><span class="pre">{product_code:</span> <span class="pre">[columns...]}</span></code> for each product whose suffix
+appears at least once. Products with no matching column are omitted.</p>
+</dd></dl>
+
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../fused/index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">gedih3.doctor.fused</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../parallel/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">gedih3.doctor.parallel</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#attributes">Attributes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.doctor.inspect.GranuleKey"><code class="docutils literal notranslate"><span class="pre">GranuleKey</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.doctor.inspect.discover_partition_dirs"><code class="docutils literal notranslate"><span class="pre">discover_partition_dirs()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.doctor.inspect.partition_meta_file"><code class="docutils literal notranslate"><span class="pre">partition_meta_file()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.doctor.inspect.load_partition_meta"><code class="docutils literal notranslate"><span class="pre">load_partition_meta()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.doctor.inspect.partition_parquet_files"><code class="docutils literal notranslate"><span class="pre">partition_parquet_files()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.doctor.inspect.per_granule_null_counts"><code class="docutils literal notranslate"><span class="pre">per_granule_null_counts()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.doctor.inspect.product_columns_in_schema"><code class="docutils literal notranslate"><span class="pre">product_columns_in_schema()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  <div class="tocsection sourcelink">
+    <a href="../../../../_sources/autoapi/gedih3/doctor/inspect/index.rst.txt">
+      <i class="fa-solid fa-file-lines"></i> Show Source
+    </a>
+  </div>
+</div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, University of Maryland. All Rights Reserved.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

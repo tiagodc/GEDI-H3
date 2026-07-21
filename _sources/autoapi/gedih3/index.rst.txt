@@ -1,0 +1,98 @@
+gedih3
+======
+
+.. py:module:: gedih3
+
+.. autoapi-nested-parse::
+
+   
+   gedih3: GEDI Data Access and H3 Indexing Library
+
+   A comprehensive Python library for accessing GEDI (Global Ecosystem Dynamics Investigation)
+   data from NASA's ORNL DAAC with H3 spatial indexing support, multiple access methods,
+   spatial/temporal filtering, and on-the-fly subsetting.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> import gedih3
+   >>> print(gedih3.__version__)
+   >>> ddf = gedih3.gh3_load(source='/path/to/database', columns=['agbd_l4a'])
+   >>> agg = gedih3.gh3_aggregate(ddf, target_res=6, agg='mean')
+   >>> gedih3.egi.egi_dataframe(shots_df, level=6)
+   >>> gedih3.raster.h3_to_raster(agg_gdf)
+
+   ..
+       !! processed by numpydoc !!
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /autoapi/gedih3/cli/index
+   /autoapi/gedih3/cliutils/index
+   /autoapi/gedih3/config/index
+   /autoapi/gedih3/daac/index
+   /autoapi/gedih3/doctor/index
+   /autoapi/gedih3/egi/index
+   /autoapi/gedih3/exceptions/index
+   /autoapi/gedih3/gedidriver/index
+   /autoapi/gedih3/gh3builder/index
+   /autoapi/gedih3/gh3driver/index
+   /autoapi/gedih3/h3utils/index
+   /autoapi/gedih3/imgutils/index
+   /autoapi/gedih3/logger/index
+   /autoapi/gedih3/logging_config/index
+   /autoapi/gedih3/parallel/index
+   /autoapi/gedih3/raster/index
+   /autoapi/gedih3/sqlutils/index
+   /autoapi/gedih3/utils/index
+   /autoapi/gedih3/validation/index
+   /autoapi/gedih3/vecutils/index
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.__version__
+   gedih3.__author__
+   gedih3.__email__
+   gedih3.__copyright__
+
+
+Package Contents
+----------------
+
+.. py:data:: __version__
+   :value: '0.12.9'
+
+
+.. py:data:: __author__
+   :value: 'Tiago de Conto and Amelia Grace Holcomb'
+
+
+.. py:data:: __email__
+   :value: 'tiagodc@umd.edu'
+
+
+.. py:data:: __copyright__
+   :value: '(C) 2026, University of Maryland. All Rights Reserved.'
+
+

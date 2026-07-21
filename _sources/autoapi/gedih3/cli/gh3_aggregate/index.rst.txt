@@ -1,0 +1,66 @@
+gedih3.cli.gh3_aggregate
+========================
+
+.. py:module:: gedih3.cli.gh3_aggregate
+
+.. autoapi-nested-parse::
+
+   GEDI H3/EGI Data Aggregation Tool
+
+   Aggregate GEDI shots from H3-indexed parquet database to coarser spatial
+   resolutions. Supports H3 hexagonal aggregation or EGI (EASE Grid Index)
+   square pixel aggregation for GEDI L4B compatibility.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.cli.gh3_aggregate.TIME_UNITS
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.cli.gh3_aggregate.get_cmd_args
+   gedih3.cli.gh3_aggregate.main
+
+
+Module Contents
+---------------
+
+.. py:data:: TIME_UNITS
+   :value: ['years', 'months', 'weeks', 'days']
+
+
+.. py:function:: get_cmd_args()
+
+   
+   Parse command line arguments for GEDI data aggregation
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: main()
+

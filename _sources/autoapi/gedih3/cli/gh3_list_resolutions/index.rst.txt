@@ -1,0 +1,248 @@
+gedih3.cli.gh3_list_resolutions
+===============================
+
+.. py:module:: gedih3.cli.gh3_list_resolutions
+
+.. autoapi-nested-parse::
+
+   Display H3 hexagon or EGI (EASE Grid Index) resolution levels and their characteristics.
+
+   Shows average edge length, area, and number of cells for each H3 resolution,
+   or pixel size and description for each EGI level, helping users choose
+   appropriate resolution and partition levels.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.cli.gh3_list_resolutions.EGI_DESCRIPTIONS
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.cli.gh3_list_resolutions.format_number
+   gedih3.cli.gh3_list_resolutions.format_area
+   gedih3.cli.gh3_list_resolutions.format_edge
+   gedih3.cli.gh3_list_resolutions.get_h3_resolution_info
+   gedih3.cli.gh3_list_resolutions.get_egi_resolution_info
+   gedih3.cli.gh3_list_resolutions.get_cmd_args
+   gedih3.cli.gh3_list_resolutions.display_h3_resolutions
+   gedih3.cli.gh3_list_resolutions.display_egi_resolutions
+   gedih3.cli.gh3_list_resolutions.main
+
+
+Module Contents
+---------------
+
+.. py:function:: format_number(n)
+
+   
+   Format large numbers with commas
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: format_area(area_km2)
+
+   
+   Format area with appropriate units
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: format_edge(edge_km)
+
+   
+   Format edge length with appropriate units
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_h3_resolution_info(res: int) -> dict
+
+   
+   Get H3 resolution characteristics from h3 library.
+
+
+   :Parameters:
+
+       **res** : int
+           H3 resolution level (0-15)
+
+
+
+   :Returns:
+
+       dict
+           Dictionary with edge_km, area_km2, and cells count
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:data:: EGI_DESCRIPTIONS
+
+.. py:function:: get_egi_resolution_info(level: int) -> dict
+
+   
+   Get EGI resolution characteristics.
+
+
+   :Parameters:
+
+       **level** : int
+           EGI resolution level (1-12)
+
+
+
+   :Returns:
+
+       dict
+           Dictionary with resolution_m and description
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_cmd_args()
+
+   
+   Parse command line arguments
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: display_h3_resolutions(args)
+
+   
+   Display H3 resolution table
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: display_egi_resolutions(args)
+
+   
+   Display EGI resolution table
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: main()
+

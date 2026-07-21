@@ -1,0 +1,58 @@
+gedih3.cli.gh3_update
+=====================
+
+.. py:module:: gedih3.cli.gh3_update
+
+.. autoapi-nested-parse::
+
+   GEDI Dataset Update Tool
+
+   Add new columns to an existing simplified dataset (created by gh3_extract).
+   Two modes:
+
+   Mode 1: Add columns from the source H3 database via shot_number join.
+   Mode 2: Merge columns from another simplified dataset via shot_number join.
+
+   Both modes modify the target dataset in place.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.cli.gh3_update.get_cmd_args
+   gedih3.cli.gh3_update.main
+
+
+Module Contents
+---------------
+
+.. py:function:: get_cmd_args()
+
+   
+   Parse command line arguments for dataset update
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: main()
+

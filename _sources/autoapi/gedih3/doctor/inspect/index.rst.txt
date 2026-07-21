@@ -1,0 +1,219 @@
+gedih3.doctor.inspect
+=====================
+
+.. py:module:: gedih3.doctor.inspect
+
+.. autoapi-nested-parse::
+
+   Read-only inspectors shared across diagnoses.
+
+   These helpers do not mutate the database. They consolidate filesystem and
+   parquet I/O so individual diagnoses don't re-walk the same directories.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.doctor.inspect.GranuleKey
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.doctor.inspect.discover_partition_dirs
+   gedih3.doctor.inspect.partition_meta_file
+   gedih3.doctor.inspect.load_partition_meta
+   gedih3.doctor.inspect.partition_parquet_files
+   gedih3.doctor.inspect.per_granule_null_counts
+   gedih3.doctor.inspect.product_columns_in_schema
+
+
+Module Contents
+---------------
+
+.. py:data:: GranuleKey
+
+.. py:function:: discover_partition_dirs(h3_dir: str) -> List[str]
+
+   
+   List ``h3_*/`` directories under the database root.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: partition_meta_file(partition_dir: str) -> Optional[str]
+
+   
+   Locate the merged partition-level metadata file.
+
+   Per ``h3_merge_metadata`` (gh3builder.py:475), each partition has a single
+   ``<h3_part>_gedih3_partition_meta.json`` at its root. Returns None if absent.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: load_partition_meta(partition_dir: str) -> Optional[dict]
+
+   
+   Read the merged partition meta JSON (or None if missing).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: partition_parquet_files(partition_dir: str) -> List[str]
+
+   
+   List the per-year parquet files for one partition.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: per_granule_null_counts(parquet_file: str, product_columns: Dict[str, List[str]], granule_lookup: Optional[Dict[str, GranuleKey]] = None) -> Dict[GranuleKey, Dict[str, int]]
+
+   
+   Count nulls per (granule, product) pair within one parquet file.
+
+   Granule grouping uses the ``root_file_l2a`` column (the canonical source-
+   granule pointer written by ``h3_write_metadata``). This matches the granule
+   identifiers stored in partition metadata exactly, avoiding any shot_number
+   decoding ambiguity.
+
+   Memory pillar (v0.8.x lessons applied):
+     * **Streamed row-group at a time** via ``pq.ParquetFile.iter_batches``
+       with ``pre_buffer=True`` and a small ``batch_size`` — not the full
+       ``pd.read_parquet(columns=cols_to_read)`` that used to materialize
+       every product column × millions of rows in one shot (multiple GB
+       per file on continental partitions).
+     * Each batch's null counts are aggregated into a small accumulator
+       dict (``O(num_granules × num_products)``) and the batch is dropped
+       before the next is read — so worker RSS is bounded by one batch
+       regardless of file size.
+     * Native arrow null counting + ``groupby`` on a per-batch
+       DataFrame; no full-file ``isnull().any(axis=1)`` allocation.
+     * ``pa.default_memory_pool().release_unused()`` at end so the
+       worker doesn't drag transient buffers into the next task.
+
+   :Parameters:
+
+       **parquet_file** : str
+           Path to a partition parquet file.
+
+       **product_columns** : dict
+           Map of product code → list of product-suffixed column names to scan.
+
+       **granule_lookup** : dict, optional
+           Precomputed map ``{root_file_l2a_basename: (orbit, granule, track)}``.
+           If omitted, GEDIFile is invoked once per unique filename.
+
+
+
+   :Returns:
+
+       dict
+           ``{(orbit, orbit_granule, track): {product_code: null_count}}``. Only
+           granule × product combos with at least one null are returned.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: product_columns_in_schema(columns: Iterable[str], products: Iterable[str]) -> Dict[str, List[str]]
+
+   
+   Group columns by product suffix.
+
+   Returns ``{product_code: [columns...]}`` for each product whose suffix
+   appears at least once. Products with no matching column are omitted.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

@@ -1,0 +1,1023 @@
+gedih3.gh3driver
+================
+
+.. py:module:: gedih3.gh3driver
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.gh3driver.gh3_set_db_path
+   gedih3.gh3driver.gh3_list_files
+   gedih3.gh3driver.gh3_list_parts
+   gedih3.gh3driver.gh3_read_meta
+   gedih3.gh3driver.gh3_select_partitions
+   gedih3.gh3driver.gh3_write_meta
+   gedih3.gh3driver.gh3_write_dataset_meta
+   gedih3.gh3driver.gh3_part_from_df
+   gedih3.gh3driver.gh3_reindex
+   gedih3.gh3driver.gh3_aggregate_func
+   gedih3.gh3driver.gh3_add_geometry
+   gedih3.gh3driver.gh3_load_hex
+   gedih3.gh3driver.gh3_load
+   gedih3.gh3driver.gh3_aggregate
+   gedih3.gh3driver.gh3_export_part
+   gedih3.gh3driver.gh3_export
+   gedih3.gh3driver.egi_load
+   gedih3.gh3driver.egi_aggregate_func
+   gedih3.gh3driver.egi_add_geometry
+   gedih3.gh3driver.egi_aggregate
+   gedih3.gh3driver.egi_extract
+   gedih3.gh3driver.egi_export_part
+   gedih3.gh3driver.is_egi_indexed
+   gedih3.gh3driver.get_spatial_index_type
+   gedih3.gh3driver.gh3_to_raster
+   gedih3.gh3driver.gh3_rasterize_partitions
+   gedih3.gh3driver.gh3_sample_raster
+
+
+Module Contents
+---------------
+
+.. py:function:: gh3_set_db_path(gh3_root_dir=GH3_DEFAULT_H3_DIR)
+
+.. py:function:: gh3_list_files(gh3_root_dir=GH3_DEFAULT_H3_DIR)
+
+.. py:function:: gh3_list_parts(gh3_root_dir=GH3_DEFAULT_H3_DIR)
+
+.. py:function:: gh3_read_meta(var, gh3_root_dir=GH3_DEFAULT_H3_DIR)
+
+.. py:function:: gh3_select_partitions(source, region=None)
+
+   
+   Return the H3 partition cell IDs of a database that may hold shots for ``region``.
+
+   This is the canonical, overhang-safe way to determine which partition
+   files a region touches, and the function external consumers should use
+   when reading the H3 database **directly** (i.e. not through
+   :func:`gh3_load`). It applies the same ring-1 expansion ``gh3_load`` uses
+   internally.
+
+   H3 partitions are *not* geometrically inclusive of the shots stored in
+   them: a shot is filed under ``cell_to_parent(latlng_to_cell(lon, lat,
+   index_res), partition_res)``, whose polygon a boundary shot can sit
+   outside of by up to ~0.18 x the partition's edge length (~11 km at
+   partition level 3). Selecting partitions by an *exact* polygon
+   intersection therefore silently drops boundary shots (~5% of a boundary
+   partition's shots observed in production). The ring-1 expansion applied
+   here closes that gap; it is guaranteed sufficient because the overhang is
+   far smaller than one cell width. See the "Parent/Child Nesting Caveat" in
+   the H3 Indexing docs for the full explanation.
+
+   :Parameters:
+
+       **source** : str
+           Path to an H3 database (the directory holding ``gedih3_build_log.json``).
+
+       **region** : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
+           ROI as a vector-file path / ``"W,S,E,N"`` string, ``[W, S, E, N]``
+           bbox list, geopandas object, or shapely geometry (EPSG:4326). When
+           ``None`` (default), every partition in the database is returned.
+
+
+
+   :Returns:
+
+       list[str]
+           Sorted H3 partition cell IDs at the database's partition level.
+
+
+
+
+   :Raises:
+
+       GediDatabaseNotFoundError
+           If ``source`` has no readable build log / partition list.
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> ids = gh3_select_partitions('/data/h3db', region='roi.shp')
+   >>> ids[:2]
+   ['83804cfffffffff', '838041fffffffff']
+   >>> # Map ids -> files when reading outside gh3_load:
+   >>> import glob
+   >>> files = [f for i in ids
+   ...          for f in glob.glob(f'/data/h3db/h3_03={i}/year=*/*.parquet')]
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: gh3_write_meta(opath, **kwargs)
+
+.. py:function:: gh3_write_dataset_meta(opath, index_type='h3', index_level=None, columns=None, source_database=None, query_filter=None, tool=None, file_format='parquet', **kwargs)
+
+   
+   Write simplified metadata for extracted/aggregated datasets.
+
+   This creates a single metadata file for user-friendly outputs (not hive-partitioned),
+   making it easy to understand and use the data outside of gedih3 tools.
+
+   :Parameters:
+
+       **opath** : str
+           Output directory path
+
+       **index_type** : str
+           Type of spatial index ('h3' or 'egi')
+
+       **index_level** : int
+           Resolution level of the index
+
+       **columns** : list
+           List of data columns
+
+       **source_database** : str
+           Path to source H3 database (if applicable)
+
+       **query_filter** : str
+           Query string used for filtering
+
+       **tool** : str
+           Name of the tool that created this dataset
+
+       **file_format** : str
+           Output file format (e.g. 'parquet', 'feather', 'gpkg')
+
+       **\*\*kwargs**
+           Additional metadata to include
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: gh3_part_from_df(df)
+
+.. py:function:: gh3_reindex(df)
+
+.. py:function:: gh3_aggregate_func(df, res, agg='mean', cols=None, **kwargs)
+
+.. py:function:: gh3_add_geometry(df)
+
+.. py:function:: gh3_load_hex(d, part_col=None, _storage_cfg=None, **kwargs)
+
+.. py:function:: gh3_load(source=None, *, columns=None, region=None, query=None, from_map=True, lazy=True, filters=None)
+
+   
+   Load H3-indexed GEDI data from any source.
+
+   Auto-detects whether the source is an H3 database, simplified dataset,
+   or parquet directory and loads accordingly.
+
+   :Parameters:
+
+       **source** : str, optional
+           Path to data source (H3 database, simplified dataset, or parquet dir).
+           If None, falls back to default H3 directory.
+
+       **columns** : list, optional
+           Columns to load.
+
+       **region** : GeoDataFrame or bbox, optional
+           Spatial filter.
+
+       **query** : str, optional
+           Pandas query string for filtering.
+
+       **from_map** : bool
+           Use from_map loading for H3 databases (default True).
+
+       **lazy** : bool
+           If True (default), return Dask DataFrame. If False, return computed
+           pandas DataFrame.
+
+       **filters** : list, optional
+           PyArrow predicate pushdown filters (conjunctive list of
+           ``(column, op, value)`` tuples), applied as per-file row-group pushdown
+           during the read. Works for H3 databases and simplified parquet datasets,
+           and combines (AND) with ``region`` when both are given.
+
+
+
+   :Returns:
+
+       dask GeoDataFrame or GeoDataFrame
+           Loaded data (lazy by default, eager if lazy=False).
+
+
+
+
+   :Raises:
+
+       GediValidationError
+           If the source is an EGI-indexed dataset (use ``egi_load()`` instead).
+
+       GediDatabaseNotFoundError
+           If no valid data source is found.
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> import gedih3.gh3driver as gh3
+   >>> ddf = gh3.gh3_load(
+   ...     source='/path/to/h3_database',
+   ...     columns=['agbd_l4a', 'rh_098_l2a'],
+   ...     region='region.shp',
+   ... )
+   >>> ddf.compute().head()
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: gh3_aggregate(gh3_df, target_res=5, agg='mean', columns=None, query=None, add_geometry=True, repartition=False, partition_level=None, **kwargs)
+
+   
+   Aggregate H3-indexed GEDI data to a coarser H3 resolution.
+
+   Uses map_partitions for efficient processing when data is loaded with
+   from_map=True (each partition corresponds to a single H3 partition cell).
+
+   :Parameters:
+
+       **gh3_df** : dask GeoDataFrame
+           H3-indexed GEDI data loaded via gh3_load()
+
+       **target_res** : int
+           Target H3 resolution level (0-15, lower = coarser)
+
+       **agg** : str, list, dict, or callable
+           Aggregation specification (same as pandas groupby.agg)
+
+       **columns** : list, optional
+           Columns to aggregate (if None, all numeric columns)
+
+       **query** : str, optional
+           Pandas query string for filtering before aggregation
+
+       **add_geometry** : bool
+           If True, add H3 polygon geometries to output
+
+       **repartition** : bool
+           If True, repartition by H3 partition column for export
+
+       **partition_level** : int, optional
+           Explicit H3 partition level. Used as fallback when the DataFrame
+           lacks h3_XX columns (e.g., loaded from a simplified dataset).
+
+       **\*\*kwargs**
+           Additional arguments passed to aggregation function
+
+
+
+   :Returns:
+
+       dask GeoDataFrame
+           H3-indexed aggregated data.
+
+
+
+
+   :Raises:
+
+       H3ValidationError
+           If ``target_res`` is not a valid H3 resolution (0–15).
+
+       GediAggregationError
+           If spatial aggregation fails.
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None, group_by_partition=False, naming_partition_level=None)
+
+   
+   Export a single partition to file with a simple naming convention.
+
+   Creates user-friendly output files named by partition ID (e.g., 'abc123.parquet'),
+   not hive-style directories.
+
+   :Parameters:
+
+       **df** : DataFrame or GeoDataFrame
+           Data partition to export
+
+       **odir** : str
+           Output directory or file path
+
+       **fmt** : str
+           Output format ('parquet', 'gpkg', 'geojson', 'csv', etc.)
+
+       **is_file_path** : bool
+           If True, odir is treated as a complete file path
+
+       **part_col** : str, optional
+           Partition column name to use for naming. If None, auto-detect.
+
+       **group_by_partition** : bool
+           If True and part_col is specified, group data by partition column
+           and write separate files for each unique partition ID within this
+           Dask partition. Use this after shuffling data by partition column
+           (via set_index) to ensure each unique partition ID is in exactly
+           one Dask partition, avoiding file collision issues.
+
+       **naming_partition_level** : int, optional
+           H3 resolution level for deriving file names via cell_to_parent.
+           Used when no partition column is available (e.g., aggregated data).
+
+
+
+   :Returns:
+
+       str
+           Output file path(s). Comma-separated if multiple files written.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: gh3_export(ddf, output, fmt='parquet', merge=False, show_progress=True, drop_internal=False, write_metadata=True, source_database=None, tool=None, h3_partition_level=None, **metadata_kwargs)
+
+   
+   Export a Dask DataFrame to simplified flat files with metadata.
+
+   This is the high-level export function that encapsulates the full export
+   pipeline: persist, write partition files, and write dataset metadata.
+   It replaces the boilerplate pattern of
+   map_partitions + persist + progress + gh3_write_dataset_meta.
+
+   :Parameters:
+
+       **ddf** : dask DataFrame or GeoDataFrame
+           Data to export. Should already be persisted if it represents
+           an expensive computation (e.g., aggregation result).
+
+       **output** : str
+           Output directory path
+
+       **fmt** : str
+           Output format ('parquet', 'feather', 'gpkg', etc.)
+
+       **merge** : bool
+           If True, compute and write a single merged file instead of
+           per-partition files.
+
+       **show_progress** : bool
+           If True and a Dask distributed client is available, show progress bar.
+
+       **drop_internal** : bool
+           If True, drop internal columns (h3_XX, egiXX, _egi_x/y, shot_number*)
+           before export. Default False — internal columns are kept so downstream
+           tools can join on shot_number or spatial indexes.
+
+       **write_metadata** : bool
+           If True, write dataset metadata file.
+
+       **source_database** : str, optional
+           Path to source H3 database (recorded in metadata).
+
+       **tool** : str, optional
+           Name of the tool creating this dataset (recorded in metadata).
+
+       **h3_partition_level** : int, optional
+           H3 resolution level to use for naming output files. When provided,
+           files are named by the parent cell at this level (via h3.cell_to_parent).
+           Useful for aggregated data where the original partition column was lost.
+           If None, auto-detected from source_database metadata when available.
+
+       **\*\*metadata_kwargs**
+           Additional key-value pairs to include in the dataset metadata.
+           Common keys: query_filter, aggregation, egi_index_level,
+           egi_partition_level, h3_partition_level, image_source, etc.
+
+
+
+   :Returns:
+
+       list of str
+           Paths to output files created.
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> import gedih3.gh3driver as gh3
+   >>> ddf = gh3.gh3_load(source='/db', columns=['agbd_l4a'], region='roi.shp')
+   >>> gh3.gh3_export(ddf, '/tmp/test_export/')
+   >>>
+   >>> # Merged export
+   >>> gh3.gh3_export(ddf, '/tmp/merged/', merge=True)
+   >>>
+   >>> # With metadata
+   >>> gh3.gh3_export(ddf, '/tmp/out/', source_database='/db', tool='my_script',
+   ...               query_filter='quality_flag == 1')
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: egi_load(source=None, *, columns=None, region=None, query=None, index_level=1, partition_level=12, lazy=True)
+
+   
+   Load EGI-indexed GEDI data from any source.
+
+   Auto-detects whether the source is an H3 database (direct EGI loading)
+   or a simplified EGI dataset and loads accordingly.
+
+   :Parameters:
+
+       **source** : str, optional
+           Path to data source (H3 database or EGI dataset).
+           If None, falls back to default H3 directory.
+
+       **columns** : list, optional
+           Columns to load.
+
+       **region** : GeoDataFrame or bbox, optional
+           Spatial filter.
+
+       **query** : str, optional
+           Pandas query string for filtering.
+
+       **index_level** : int
+           EGI resolution level for fine indexing (1-12, default=1 ~1m).
+           Only used when loading from H3 database.
+
+       **partition_level** : int
+           EGI level for output partitioning (1-12, default=12 ~160km).
+           Only used when loading from H3 database.
+
+       **lazy** : bool
+           If True (default), return Dask DataFrame. If False, return computed
+           pandas DataFrame.
+
+
+
+   :Returns:
+
+       dask GeoDataFrame or GeoDataFrame
+           EGI-indexed data (lazy by default, eager if lazy=False).
+
+
+
+
+   :Raises:
+
+       GediValidationError
+           If source is an H3 dataset (use ``gh3_load()`` instead).
+
+       GediDatabaseNotFoundError
+           If no valid data source is found.
+
+       EGIValidationError
+           If ``index_level`` or ``partition_level`` is outside [1, 12].
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> import gedih3.gh3driver as gh3
+   >>> ddf = gh3.egi_load(
+   ...     source='/path/to/h3_database',
+   ...     columns=['agbd_l4a'],
+   ...     region='region.shp',
+   ...     index_level=1,
+   ...     partition_level=12,
+   ... )
+   >>> agg = gh3.egi_aggregate(ddf, target_level=6, agg='mean')
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: egi_aggregate_func(df, level, agg='mean', cols=None, x_col='lon_lowestmode', y_col='lat_lowestmode', **kwargs)
+
+   
+   Aggregate H3-indexed DataFrame to EGI (EASE Grid Index) pixels.
+
+   This function converts H3-indexed GEDI data to EGI square pixels,
+   which are compatible with GEDI L4B products and standard raster formats.
+
+   :Parameters:
+
+       **df** : DataFrame or GeoDataFrame
+           H3-indexed GEDI data (GeoDataFrame with Point geometry preferred)
+
+       **level** : int
+           Target EGI resolution level (1-12)
+
+       **agg** : str, list, dict, or callable
+           Aggregation specification (same as pandas groupby.agg)
+
+       **cols** : list, optional
+           Columns to aggregate (numeric columns only)
+
+       **x_col** : str
+           Longitude column name (default: 'lon_lowestmode'). Only used if df is
+           not a GeoDataFrame with Point geometry.
+
+       **y_col** : str
+           Latitude column name (default: 'lat_lowestmode'). Only used if df is
+           not a GeoDataFrame with Point geometry.
+
+       **\*\*kwargs**
+           Additional arguments passed to aggregation function
+
+
+
+   :Returns:
+
+       DataFrame or GeoDataFrame
+           EGI-indexed aggregated data
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: egi_add_geometry(df, polygons=True)
+
+   
+   Add EGI pixel geometry to an EGI-indexed DataFrame.
+
+
+   :Parameters:
+
+       **df** : DataFrame
+           EGI-indexed DataFrame
+
+       **polygons** : bool
+           If True, use polygon geometries; if False, use centroids
+
+
+
+   :Returns:
+
+       GeoDataFrame
+           GeoDataFrame with geometry column
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: egi_aggregate(gh3_df, target_level=6, agg='mean', columns=None, query=None, add_geometry=True, x_col='lon_lowestmode', y_col='lat_lowestmode', partition_level=12, repartition=False, **kwargs)
+
+   
+   Aggregate GEDI data to EGI (EASE Grid Index) square pixels.
+
+   Supports two input types:
+
+   - **EGI-indexed** (from egi_load()): Fast path — no shuffle needed, aggregation
+     is purely local within each partition.
+   - **H3-indexed** (from gh3_load()): Shuffle path — data is repartitioned by EGI
+     tiles before local aggregation.
+
+   :Parameters:
+
+       **gh3_df** : dask GeoDataFrame
+           GEDI data loaded via egi_load() (EGI-indexed) or gh3_load() (H3-indexed)
+
+       **target_level** : int
+           Target EGI resolution level (1-12):
+           - Level 6 (~1km): GEDI baseline
+           - Level 7 (~2km): GEDI threshold
+           - Level 8 (~10km): GEDI wall-to-wall
+
+       **agg** : str, list, dict, or callable
+           Aggregation specification (same as pandas groupby.agg)
+
+       **columns** : list, optional
+           Columns to aggregate (if None, all numeric columns)
+
+       **query** : str, optional
+           Pandas query string for filtering before aggregation
+
+       **add_geometry** : bool
+           If True, add pixel polygon geometries to output
+
+       **x_col** : str
+           Longitude column name for coordinate lookup (shuffle path only)
+
+       **y_col** : str
+           Latitude column name for coordinate lookup (shuffle path only)
+
+       **partition_level** : int
+           EGI level for output partitioning and data shuffling (1-12, default=12 ~160km).
+           Higher levels = coarser tiles = fewer unique keys = more efficient shuffle.
+           Use smaller values for regions with many variables to reduce file sizes.
+
+       **repartition** : bool
+           If True, add partition column for organized export
+
+       **\*\*kwargs**
+           Additional arguments passed to aggregation function
+
+
+
+   :Returns:
+
+       dask GeoDataFrame
+           EGI-indexed aggregated data
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: egi_extract(gh3_df, index_level=1, partition_level=12, query=None, add_geometry=True, x_col='lon_lowestmode', y_col='lat_lowestmode')
+
+   
+   Extract H3-indexed GEDI data with EGI spatial indexing.
+
+   This function converts H3-indexed GEDI shots to EGI-indexed data without
+   aggregation. It repartitions data by EGI tiles for efficient H3->EGI conversion.
+
+   :Parameters:
+
+       **gh3_df** : dask GeoDataFrame
+           H3-indexed GEDI data loaded via gh3_load()
+
+       **index_level** : int
+           EGI resolution level for fine indexing (1-12, default=1 ~1m)
+
+       **partition_level** : int
+           EGI level for output file partitioning and shuffling (1-12, default=12 ~160km).
+           Higher levels = coarser tiles = fewer unique keys = more efficient shuffle.
+
+       **query** : str, optional
+           Pandas query string for filtering before extraction
+
+       **add_geometry** : bool
+           If True, add Point geometries to output (in WGS84/EPSG:4326)
+
+       **x_col** : str
+           Longitude column name for coordinate lookup
+
+       **y_col** : str
+           Latitude column name for coordinate lookup
+
+
+
+   :Returns:
+
+       dask GeoDataFrame
+           EGI-indexed data with all original columns plus EGI index columns
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: egi_export_part(df, odir, fmt='parquet', is_file_path=False, partition_level=12)
+
+   
+   Export a single EGI partition to file(s).
+
+   Splits the data by partition tile and writes one file per unique tile.
+   File names are the EGI hash of the partition tile at the requested level.
+
+   :Parameters:
+
+       **df** : DataFrame or GeoDataFrame
+           EGI-indexed data partition
+
+       **odir** : str
+           Output directory or file path
+
+       **fmt** : str
+           Output format ('parquet', 'gpkg', 'geojson', 'tif', etc.)
+
+       **is_file_path** : bool
+           If True, odir is treated as a complete file path (single output)
+
+       **partition_level** : int
+           EGI level used for output file naming (1-12, default=12). Used as a
+           fallback when no egiXX column is present in the DataFrame.
+
+
+
+   :Returns:
+
+       str
+           Output file path(s) - comma-separated if multiple files written
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: is_egi_indexed(df)
+
+   
+   Check if a DataFrame is EGI-indexed.
+
+
+   :Parameters:
+
+       **df** : DataFrame or GeoDataFrame
+           DataFrame to check
+
+
+
+   :Returns:
+
+       bool
+           True if EGI-indexed, False otherwise
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_spatial_index_type(df)
+
+   
+   Determine the spatial index type of a DataFrame.
+
+
+   :Parameters:
+
+       **df** : DataFrame or GeoDataFrame
+           DataFrame to check
+
+
+
+   :Returns:
+
+       str
+           'h3', 'egi', or None
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: gh3_to_raster(gdf, columns=None, output_path=None, compress='LZW')
+
+   
+   Convert H3-indexed GeoDataFrame to raster.
+
+   This is a convenience function that wraps the raster module's
+   h3_to_raster function with sensible defaults.
+
+   :Parameters:
+
+       **gdf** : GeoDataFrame
+           H3-indexed GeoDataFrame with polygon geometries
+
+       **columns** : list of str, optional
+           Columns to rasterize. If None, all numeric columns.
+
+       **output_path** : str, optional
+           If provided, save raster to this path
+
+       **compress** : str
+           Compression method for GeoTIFF
+
+
+
+   :Returns:
+
+       xr.Dataset
+           Raster dataset
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> # Rasterize aggregated data
+   >>> raster = gh3_to_raster(agg_gdf)
+   >>> raster.rio.to_raster("output.tif")
+   >>>
+   >>> # Or save directly
+   >>> raster = gh3_to_raster(agg_gdf, output_path="output.tif")
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: gh3_rasterize_partitions(ddf, output_dir, columns=None, compress='LZW', show_progress=True, partition_level=None)
+
+   
+   Rasterize Dask GeoDataFrame partitions to individual GeoTIFF files.
+
+
+   :Parameters:
+
+       **ddf** : dask GeoDataFrame
+           H3-indexed Dask GeoDataFrame
+
+       **output_dir** : str
+           Output directory for raster files
+
+       **columns** : list of str, optional
+           Columns to rasterize
+
+       **compress** : str
+           Compression method for GeoTIFF
+
+       **show_progress** : bool
+           Show Dask progress bar
+
+       **partition_level** : int, optional
+           H3 partition level for grouping/naming tiles. If None, auto-detected
+           from data columns or defaults to treating each partition as one tile.
+
+
+
+   :Returns:
+
+       list of str
+           Paths to output files
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: gh3_sample_raster(image_path, data_source=None, region=None, query=None, band_names=None, band_indices=None, window_ops=None, fillna=None, dropna=False, geo=False, file_format='tif')
+
+   
+   Sample raster pixel values at GEDI shot locations.
+
+   Thin wrapper around ``imgutils.from_image()`` for API discoverability.
+   Returns a Dask DataFrame; use ``gh3_export()`` to save results.
+
+   :Parameters:
+
+       **image_path** : str
+           Path to raster file, VRT, or tile directory
+
+       **data_source** : str, optional
+           Path to H3 database or simplified dataset directory
+
+       **region** : GeoDataFrame or bbox, optional
+           Additional spatial filter
+
+       **query** : str, optional
+           Pandas query string for filtering shots
+
+       **band_names** : list of str, optional
+           Custom names for output band columns
+
+       **band_indices** : list of int, optional
+           Select specific bands by 0-based index
+
+       **window_ops** : list of dict, optional
+           Window operation specifications
+
+       **fillna** : float, optional
+           Fill NaN/NoData with this value
+
+       **dropna** : bool
+           If True, drop rows where all band columns are NaN
+
+       **geo** : bool
+           If True, include geometry in output
+
+       **file_format** : str
+           Raster file extension for tile directory globbing
+
+
+
+   :Returns:
+
+       dask DataFrame or GeoDataFrame
+           Sampled raster values at GEDI shot locations
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> import gedih3.gh3driver as gh3
+   >>> ddf = gh3.gh3_sample_raster(
+   ...     'dem.tif', data_source='/path/to/database',
+   ...     band_names=['elevation'], geo=True
+   ... )
+   >>> gh3.gh3_export(ddf, '/tmp/sampled/')
+
+   ..
+       !! processed by numpydoc !!
+
