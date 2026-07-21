@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.13.2] - 2026-07-21
+
+### Changed
+- CI hardening ahead of the repository becoming public. `.github/workflows/claude.yml` now requires the triggering account's `author_association` to be `OWNER`, `MEMBER`, or `COLLABORATOR` on all four of its events. Unlike `pull_request`, the `issue_comment` / `issues` / `pull_request_review(_comment)` events are not fork-restricted, so on a public repository any user could previously trigger the job — which does have `secrets.CLAUDE_CODE_OAUTH_TOKEN` available — with an arbitrary comment body handed to an agent holding that token.
+- `build.yml`, `ci.yml`, and `lint.yml` now declare `permissions: contents: read` explicitly instead of inheriting the repository-level default, so their privileges cannot change silently if that default is ever loosened.
+
 ## [0.13.1] - 2026-07-21
 
 ### Fixed
