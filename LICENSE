@@ -1,0 +1,290 @@
+UMD SOURCE AVAILABLE NON-COMMERCIAL END USER LICENSE AGREEMENT
+
+THESE LICENSE TERMS ARE A LEGAL AGREEMENT BETWEEN YOU ("You") AND THE
+UNIVERSITY OF MARYLAND, a public agency and instrumentality of the State of
+Maryland, on behalf of UM Ventures, College Park (“US,” “WE,” “UMD,” or
+“University”).
+
+BY INSTALLING, DOWNLOADING, ACCESSING, USING, OR DISTRIBUTING ANY OF THE DATA
+OR MATERIALS, YOU SIGNIFY THAT YOU HAVE READ, UNDERSTAND, ACCEPT, AND AGREE TO
+ALL OF THE TERMS AND CONDITIONS OF THIS AGREEMENT AND THAT THE OBLIGATIONS SET
+FORTH HEREIN SHALL BE BINDING AND ENFORCEABLE AS A MATTER OF CONTRACT,
+REGARDLESS OF WHETHER EACH COMPONENT OF THE DATA OR MATERIALS IS SUBJECT TO
+COPYRIGHT, PATENT, OR ANY OTHER INTELLECTUAL PROPERTY PROTECTION.
+
+TERMS AND CONDITIONS
+
+1. DEFINITIONS
+
+   a. “Agreement” means this License, comprising this document.
+
+   b. “Data,” includes any and all data, graphs, Models (hereinafter defined)
+      and/or documentation, if any (in code or any other form), that may
+      accompany any code made available to You as part of the Materials.
+
+   c. “Materials” means the software or work of authorship, whether in source
+      or object form, made available under this Agreement.
+
+   d. “Models” means any of the Materials provided under this Agreement that
+      may be embodied in an artificial intelligence or machine learning model,
+      which may include, without limitation, a collective or singular work of
+      authorship spanning model architecture, code (in source or object form),
+      parameters (which may include model weights), data descriptions or
+      corresponding labels or metadata, and all related artifacts.
+
+   e. “Use” or “Using” for the purposes of this Agreement means and includes
+      any action taken by You to leverage the Materials in any fashion, but for
+      the presence of a license would constitute infringement on the rights of
+      Us.
+
+   f. “Commercial Purposes” means use of the Materials or Data by any party in
+      the production of products or the rendering of services, including but
+      not limited to any sale or transfer that involves payment of any kind.
+
+2. LICENSE GRANT
+
+   a. University hereby grants You a non-exclusive, non-transferable right and
+      license to download, access, use the Data and the Materials for
+      non-commercial, non-revenue generating, internal purposes (including
+      research). University also grants You the right to modify the Materials
+      for non-commercial and non-revenue-generating purposes, and to share such
+      modifications only for the purpose of contributing them back — including
+      by forking the repository and submitting a pull request, which are then
+      governed by Section 6(b). Distributing modified copies as a separate
+      release is not permitted. Modification of the Data is prohibited, with
+      the exception of routine extraction, filtering, or analyses for the
+      granted license above. Use of the Materials and Data for Commercial
+      Purposes is strictly prohibited. You may reproduce and distribute
+      unmodified copies of the Materials, including through public software
+      package repositories and their mirrors (and the packaging/build recipes
+      used to do so), provided that each copy is accompanied by this Agreement
+      and all notices required by Section 4(a) are preserved.
+
+   b. For the avoidance of doubt, University may also offer the licensed
+      Materials under separate terms or conditions, or stop distributing the
+      Material at any time; however, doing so will not alter or terminate this
+      Agreement to You. For alternative license terms, including Commercial
+      Purposes, please contact the UM Ventures office at
+      umdtechtransfer@umd.edu .
+
+3. LICENSE FEE. There is no fee associated with this license.
+
+4. RESTRICTIONS. The license granted under Section 2 is subject to the
+   following restrictions and conditions:
+
+   a. You will not:
+
+      i.   modify, hide, delete, or interfere with any proprietary and/or
+           restrictive legends and notices that are included on the Materials
+           or any output from the Materials. In the event University adopts and
+           provides you with modified legends or notices, You will promptly
+           incorporate them into the Materials upon receipt;
+
+      ii.  sell, license, sublicense or otherwise distribute the Licensed
+           Materials, in whole or in part, to third parties, except as
+           explicitly allowed for in Section 2;
+
+      iii. publicly post or display the Licensed Materials, in whole or in
+           part, other than as explicitly allowed for in Section 2;
+
+      iv.  use or cause the Licensed Materials to be used to provide services
+           to third parties or for the production or manufacture of products
+           for sale to third parties or any other Commercial Purpose;
+
+      v.   reverse engineer, decompile, or dissemble the Materials;
+
+      vi.  work around any technical limitations in the Materials or any
+           accompanying instructions that currently restrict functionality,
+           purpose, or character of Use;
+
+   b. The license does not include the right to sublicense or to make copies of
+      the Licensed Materials;
+
+   c. All rights not expressly granted to You in this Agreement shall remain
+      with University.
+
+5. SUPPORT AND OPERATION OF THE MATERIALS
+
+   a. You are solely responsible for Your application and implementation of the
+      Materials.
+
+   b. University is not obligated to provide any upgrades or fixes to or
+      otherwise maintain the Materials.
+
+   c. University is not obligated to provide any technical support.
+
+   d. You may, at your sole option, provide feedback about errors or
+      deficiencies found in the Materials through the contact information on
+      the repository where the Materials are made available. University may, at
+      its discretion, choose to address or fix such errors or deficiencies, but
+      has no obligation to do so.
+
+6. INTELLECTUAL PROPERTY
+
+   a. University owns all right, title, and interest in and to the Materials,
+      including any modifications thereof.
+
+   b. Contributions, commits, deposits, modifications, and forks of the
+      Materials provided by You to the repository will become part of the
+      Materials, and may be offered as part of the Materials to future
+      Licensees who accept this Agreement, or other terms applied to the
+      Materials in the future. You acknowledge and agree that contributions,
+      commits, deposits, modifications, and forks of the Materials are
+      derivative work owned by the University, and that You have no right to
+      compensation, any kind of ownership or intellectual property rights, or
+      any recompense for any such modifications, derivatives, or contributions,
+      and in the event that you make such Modifications, you are adding them to
+      the body of the Materials without coercion and with full knowledge of
+      this commitment.
+
+   c. You shall own data files, analyses, and similar outputs that result from
+      your use of the Materials, unless You deposit any such files, analyses,
+      or similar outputs in accordance with Section 6.b., whereby they will
+      become part of the Materials.
+
+   d. Neither party shall use the name or trademarks of the other party or
+      names of employees of the other party for commercial purposes without the
+      prior written approval of the other party.
+
+7. PROPRIETARY AND CONFIDENTIAL UNIVERSITY INFORMATION
+
+   a. You acknowledge that the Materials are proprietary information and
+      property of the University.
+
+   b. You shall take reasonable steps to protect against unauthorized access
+      to, disclosure, and use of the Materials, using at least the same degree
+      of care to protect the Materials that You use to protect your own
+      proprietary information. Specifically, You shall:
+
+      i.   Not make any Materials available for a download, except in
+           accordance with 2(a); and
+
+      ii.  Not interfere with any copyright notices or any warnings to not
+           download or other restrictions on the Materials that are included in
+           the Materials.
+
+   c. The obligations set forth in this Section 7 shall last until such time
+      that all proprietary rights in and to the Materials have expired.
+
+   d. You acknowledge that any breach, threatened or actual, of this Section 7
+      will cause irreparable injury to University that cannot be adequately
+      compensated by monetary damages. As a result, You agree University is
+      entitled, in addition to any other available remedies, to seek and be
+      awarded injunctive relief, without posting a bond.
+
+8. EXPORT CONTROL LAWS
+
+   a. The Materials are subject to United States export control laws and
+      regulations including the Arms Export Control Act and its implementing
+      regulations; the International Traffic in Arms Regulations; and the
+      Export Administration Act and its implementing regulations; the Export
+      Administration Regulations, that govern the export of specific technical
+      data and technologies, including software, to foreign countries and to
+      foreign nationals (“Export Control Laws”). You agree to comply with
+      Export Control Laws and hereby indemnify University with respect to any
+      and all claims arising out of or related to Your violation of Export
+      Control Laws.
+
+9. DISCLAIMER AND LIMITATION ON LIABILITY
+
+   a. MATERIALS ARE MADE AVAILABLE ON AN "AS IS" BASIS. UNIVERSITY DISCLAIMS
+      ANY AND ALL PROMISES, REPRESENTATIONS AND WARRANTIES – WHETHER EXPRESS OR
+      IMPLIED, ORAL OR IN WRITING, IN FACT OR ARISING BY OPERATION OF LAW –
+      WITH RESPECT TO THE MATERIALS, INCLUDING, BUT NOT LIMITED TO, THE
+      WARRANTIES OF MERCHANTABILITY, SATISFACTORY QUALITY, FITNESS FOR A
+      PARTICULAR PURPOSE, NONINFRINGEMENT OF THE INTELLECTUAL PROPERTY OR
+      PROPRIETARY RIGHTS OF ANY THIRD PARTY, OR THOSE ARISING BY LAW, STATUTE,
+      USAGE OF TRADE, OR COURSE OF DEALING. UNIVERSITY ALSO MAKES NO
+      REPRESENTATION OR WARRANTY THAT THE MATERIALS WILL OPERATE ERROR FREE OR
+      IN AN UNINTERRUPTED FASHION OR THAT ANY DOWNLOADABLE FILES OR INFORMATION
+      WILL BE FREE OF VIRUSES OR CONTAMINATION OR DESTRUCTIVE FEATURES.
+
+   b. WITHOUT LIMITING THE FOREGOING, IN NO EVENT SHALL UNIVERSITY BE LIABLE TO
+      YOU FOR ANY BUSINESS EXPENSE OR INTERRUPTION; LOSS OF PROFITS, AND/OR ANY
+      INCIDENTAL, SPECIAL, EXEMPLARY OR CONSEQUENTIAL DAMAGES OF ANY KIND, EVEN
+      IF ADVISED OF THE POSSIBILITY OF SUCH CLAIMS OR DEMANDS, HOWEVER CAUSED,
+      ARISING IN CONNECTION WITH OR OUT OF THE FURNISHING, USE OR PERFORMANCE
+      OF THE MATERIALS PROVIDED HEREUNDER. THIS LIMITATION UPON DAMAGES AND
+      CLAIMS IS INTENDED TO APPLY WITHOUT REGARD TO WHETHER OTHER PROVISIONS OF
+      THIS AGREEMENT HAVE BEEN BREACHED OR HAVE PROVEN INEFFECTIVE.
+
+   c. IN NO EVENT WILL UNIVERSITY’S TOTAL LIABILITY FOR THE BREACH OR
+      NONPERFORMANCE OF THIS AGREEMENT EXCEED THE LICENSE FEE PAID TO
+      UNIVERSITY UNDER THIS AGREEMENT.
+
+10. INDEMNITY
+
+   a. You hereby agree to defend, indemnify, and hold harmless University and
+      its employees, agents, directors, and officers from and against any and
+      all claims, proceedings, damages, injuries, liabilities, losses, costs,
+      and expenses (including reasonable attorneys’ fees and litigation
+      expenses) relating to or arising out of Your use of the Materials or Your
+      breach of any term in this Agreement.
+
+11. TERM AND TERMINATION
+
+   a. This Agreement and Your right to use the Materials will take effect when
+      You accept the terms of this Agreement by accessing and using the
+      Materials. The Agreement is effective until copyright in the Materials
+      expires unless earlier terminated as set forth below.
+
+   b. The University reserves the right at any time to terminate this Agreement
+      when it has any reasonable belief of fraudulent or unlawful activity by
+      You or Your employees or of a violation of any term or condition of this
+      Agreement. Termination will become effective upon Your receipt of written
+      notice of such a default.
+
+   c. You may terminate this Agreement at any time by ceasing to use the
+      Materials and providing written notice of the same to the University.
+
+   d. University may terminate this Agreement at any time upon fifteen (15)
+      days written notice to You.
+
+   e. Within thirty (30) days of any termination of this Agreement, You must
+      certify to the University that You have destroyed all copies of any
+      aspect of the Materials in Your possession.
+
+   f. Sections 1, 5-10, 11e and 12 will survive the termination of this
+      Agreement.
+
+12. MISCELLANEOUS
+
+   a. This Agreement may be amended from time to time only by a written
+      instrument signed by the Parties.
+
+   b. No term or provision in this Agreement will be waived and no breach
+      excused unless such waiver or consent is in writing and signed by the
+      Party claimed to have waived or consented. Failure by either Party to
+      insist on strict performance of any of the terms and conditions of this
+      Agreement will not operate as a waiver by either Party of that or any
+      subsequent default or failure of performance.
+
+   c. If any provision of this Agreement is determined by a court of competent
+      jurisdiction to be void, invalid, or otherwise unenforceable, such
+      determination shall not affect the remaining provisions of this Agreement
+      and the illegal, invalid, or unenforceable clause shall be modified in
+      compliance with applicable law in a manner that most closely matches the
+      intent of the original language.
+
+   d. This Agreement does not create a joint venture, partnership, employment,
+      or agency relationship between the Parties.
+
+   e. No provision herein, express or implied, confers upon any person other
+      than the Parties to this Agreement any rights, remedies, obligations, or
+      liabilities hereunder.
+
+   f. This Agreement shall be binding upon and inure to the benefit of the
+      Parties hereto. You may not assign this Agreement without the
+      University’s prior written approval.
+
+   g. This Agreement shall be governed by and interpreted in accordance with
+      United States copyright law and the laws of the State of Maryland without
+      reference to its conflicts of laws rules. Nothing in this Agreement is or
+      shall be deemed to be a waiver by University of any of its rights or
+      status as an agency and instrumentality of the State of Maryland.
+
+   h. This Agreement represents the entire understanding between You and the
+      University with respect to the Materials and supersedes all prior or
+      contemporaneous communications and proposals, whether electronic, oral,
+      or written between You and University regarding the Materials.
+

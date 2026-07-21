@@ -326,4 +326,11 @@ Copyright (C) 2026, University of Maryland. All Rights Reserved.
 
 Authors: Tiago de Conto, Amelia Grace Holcomb (University of Maryland).
 
-This software is distributed under the terms in the [LICENSE](LICENSE) file. For commercial licensing inquiries, please contact the University of Maryland's UM Ventures office at [umdtechtransfer@umd.edu](mailto:umdtechtransfer@umd.edu).
+`gedih3` is **source available, not open source**. It is distributed under the UMD Source Available Non-Commercial End User License Agreement — see the [LICENSE](LICENSE) and [NOTICE](NOTICE) files for the full terms. In summary:
+
+- **Free for non-commercial use** — research, education, and other non-revenue-generating purposes.
+- **Redistribution of unmodified copies is permitted**, including through public package repositories and their mirrors, provided the LICENSE and all required notices travel with every copy.
+- **Modifications must be contributed back** — fork the repository and open a pull request. Distributing modified copies as a separate release is not permitted.
+- **Commercial use requires a separate license** from the University of Maryland.
+
+For commercial licensing inquiries, please contact the University of Maryland's UM Ventures office at [umdtechtransfer@umd.edu](mailto:umdtechtransfer@umd.edu).

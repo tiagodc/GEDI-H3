@@ -12,6 +12,7 @@ authors = [
     {name = "Amelia Grace Holcomb", email = "ameliah@umd.edu"}
 ]
 license = "LicenseRef-UMD-Source-Available-NonCommercial-1.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.12"
 keywords = [
     "gedi", "lidar", "h3", "spatial-indexing", "remote-sensing",

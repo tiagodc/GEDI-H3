@@ -1,0 +1,43 @@
+NOTICE
+======
+
+gedih3
+Copyright (C) 2026, University of Maryland. All Rights Reserved.
+Authors: Tiago de Conto, Amelia Grace Holcomb (University of Maryland).
+
+Licensed under the UMD Source Available Non-Commercial End User License
+Agreement. See the accompanying LICENSE file for the full terms.
+
+SPDX-License-Identifier: LicenseRef-UMD-Source-Available-NonCommercial-1.0
+
+This software is SOURCE AVAILABLE, not open source. It is free to use for
+research, education, and other non-commercial purposes. Commercial use requires
+a separate license from the University of Maryland. For commercial licensing,
+contact UM Ventures at umdtechtransfer@umd.edu.
+
+
+Licensing history
+-----------------
+
+gedih3 was developed at the University of Maryland and was held in a private
+repository from its inception on 2025-09-13 until the release of version
+0.13.0.
+
+No version of this software was published, distributed, licensed, sold, or
+otherwise made available to any party prior to version 0.13.0, and no license
+to this software was granted to any person before that release.
+
+Accordingly, all use of this software, in any version, is governed solely by
+the terms of the accompanying LICENSE file. Any license text that may appear in
+this repository's commit history was never operative, was never communicated to
+any recipient, and conferred no rights on any person.
+
+
+Third-party components
+----------------------
+
+Third-party components distributed with this project and its documentation
+remain subject to their own licenses and notices, which are preserved with
+those components. This includes, without limitation, components bundled with
+the generated documentation (Bootstrap, Font Awesome, and the PyData Sphinx
+Theme), each of which carries its own license notice alongside the component.

@@ -77,7 +77,9 @@ about:
     queries, extracting/aggregating data, and producing raster outputs.
   license: LicenseRef-UMD-Source-Available-NonCommercial-1.0
   license_family: Proprietary
-  license_file: LICENSE
+  license_file:
+    - LICENSE
+    - NOTICE
   doc_url: https://tiagodc.github.io/GEDI-H3/
   dev_url: https://github.com/tiagodc/GEDI-H3
 
