@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.14.3] - 2026-07-22
+
+First release published to PyPI. `pip install gedih3`.
+
+### Added
+- `.github/workflows/release.yml`: publishes to PyPI via Trusted Publishing (OIDC), so no API token exists anywhere to leak. Kept separate from the Build workflow — which only ever validates — because publishing has to be a deliberate act: a `v*` tag push, or a manual dispatch that defaults to TestPyPI. It builds, runs `twine check --strict`, then refuses to publish when the git tag disagrees with the packaged version, guarding the one mistake that cannot be undone. Every action it pins is node24 or composite, so it does not reintroduce the Node 20 deprecation cleared in 0.14.1.
+
+### Fixed
+- README assets are now absolute URLs. PyPI renders the README as the project page with no repository to resolve against, so the logo `<img src="docs/imgs/…">` and the `[LICENSE](LICENSE)` / `[NOTICE](NOTICE)` links would have shown as a broken image and two dead links — the latter being the pointers to the actual licence terms, which matters for a source-available package.
+- `dist/` added to `.gitignore`. It was the last build-artifact directory still eligible to be committed, and a stale one is how `twine upload dist/*` ends up re-uploading an already-published version.
+
 ## [0.14.2] - 2026-07-22
 
 ### Fixed
