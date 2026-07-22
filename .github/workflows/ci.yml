@@ -10,6 +10,8 @@ permissions:
   contents: read
 
 jobs:
+  # With the GDAL Python bindings present: exercises the osgeo VRT backend and
+  # the tests that assert the pure-Python writer matches it.
   unit-tests:
     runs-on: ubuntu-latest
     strategy:
@@ -25,6 +27,8 @@ jobs:
           cache: pip
 
       - name: Install GDAL system dependencies
+        # PyPI's GDAL is sdist-only and requires an exactly version-matched
+        # libgdal, hence the gdal-config pin rather than a version range.
         run: |
           sudo apt-get update -q
           sudo apt-get install -y libgdal-dev gdal-bin
@@ -46,3 +50,35 @@ jobs:
         with:
           files: coverage.xml
           fail_ci_if_error: false
+
+  # No system libraries, no GDAL bindings — the environment a plain
+  # `pip install gedih3` produces. Guards the invariant that the package
+  # installs and fully works from wheels alone.
+  pip-only-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install from wheels only
+        # --only-binary :all: fails the job if any dependency would need to be
+        # compiled from source, which is what needing system libraries means.
+        run: 'pip install --only-binary :all: -e ".[test]"'
+
+      - name: Assert the GDAL bindings really are absent
+        run: |
+          if python -c "import osgeo" 2>/dev/null; then
+            echo "::error::osgeo is installed; this job must run without it"
+            exit 1
+          fi
+
+      - name: Run unit tests
+        run: pytest tests/ -m "not integration and not slow" --tb=short -q
