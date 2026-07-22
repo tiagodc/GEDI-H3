@@ -707,6 +707,33 @@ def get_system_resources(disk_path:str=None):
     cpus = os.cpu_count()
     return cpus, ram, storage
 
+def object_series(items):
+    """Wrap a list of array-like objects in an object-dtype ``pd.Series``.
+
+    ``pd.Series([...])`` and ``np.empty(..., dtype=object)[:] = items`` both
+    coerce their input through ``np.asarray``, which xarray Datasets refuse
+    ("cannot directly convert an xarray.Dataset into a numpy array"). Assigning
+    positionally into a pre-sized object Series is the construction that keeps
+    the elements intact — use it whenever a ``map_partitions`` result carries
+    Datasets or other array-likes rather than scalars.
+
+    Parameters
+    ----------
+    items : sequence
+        Objects to store as Series elements, kept by reference.
+
+    Returns
+    -------
+    pd.Series
+        Object-dtype Series of ``items``, with a default RangeIndex.
+    """
+    import pandas as pd
+
+    series = pd.Series(index=range(len(items)), dtype=object)
+    for position, item in enumerate(items):
+        series.iat[position] = item
+    return series
+
 def json_write(obj, path, mode='w', rewrite=False):
     if os.path.isfile(path) and not rewrite:
         obj = json_read(path) | obj

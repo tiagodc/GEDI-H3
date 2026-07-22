@@ -22,6 +22,7 @@ from .config import RESOLUTIONS, OUTER_RES, OUTER_LEVEL, EGI_CRS_STRING, get_res
 from .spatial import pixel_shape
 from ..cliutils import filter_raster_columns as _filter_raster_columns
 from ..exceptions import GediRasterizationError
+from ..utils import object_series
 
 logger = logging.getLogger(__name__)
 
@@ -292,10 +293,12 @@ def rasterize_partition(
         if not results:
             return pd.Series(dtype=object)
 
-        return pd.Series(results)
+        return object_series(results)
 
     except Exception as e:
-        logger.debug(f"Rasterization failed: {e}")
+        # Whole-partition failure — never benign, unlike the per-tile skips
+        # above, so it is logged loudly rather than at debug.
+        logger.warning(f"Rasterization failed for the whole partition: {e}")
         return pd.Series(dtype=object)
 
 

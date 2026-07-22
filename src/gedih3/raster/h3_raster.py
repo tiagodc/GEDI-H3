@@ -29,6 +29,7 @@ from geocube.api.core import make_geocube
 from .config import H3_RASTER_CRS
 from ..cliutils import filter_raster_columns as _filter_raster_columns
 from ..exceptions import GediRasterizationError
+from ..utils import object_series
 
 
 def get_h3_resolution_meters(h3_level: int) -> float:
@@ -331,9 +332,9 @@ def rasterize_h3_partition(
                         xras[var] = xras[var].assign_attrs(
                             **{partition_attr: tile_id}
                         )
-                return pd.Series([xras]) if len(xras.data_vars) > 0 else pd.Series(dtype=object)
+                return object_series([xras]) if len(xras.data_vars) > 0 else pd.Series(dtype=object)
             except Exception as e:
-                logger.debug(f"Rasterization failed for partition: {e}")
+                logger.warning(f"Rasterization failed for partition: {e}")
                 return pd.Series(dtype=object)
 
         # Group H3 cells by parent at partition level
@@ -373,9 +374,11 @@ def rasterize_h3_partition(
         if not results:
             return pd.Series(dtype=object)
 
-        return pd.Series(results)
+        return object_series(results)
     except Exception as e:
-        logger.debug(f"Rasterization failed: {e}")
+        # Whole-partition failure — never benign, unlike the per-tile skips
+        # above, so it is logged loudly rather than at debug.
+        logger.warning(f"Rasterization failed for the whole partition: {e}")
         return pd.Series(dtype=object)
 
 
