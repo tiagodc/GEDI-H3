@@ -102,6 +102,38 @@ class TestStreamingHelpers:
         assert 'h3_03' not in names
         assert 'year' not in names
 
+    def test_canonical_schema_has_no_null_typed_fields(self):
+        """String columns must survive inference from the row-less meta frame.
+
+        On pandas < 3 an empty object column infers as pyarrow null, and
+        casting real strings into a null field fails every per-leaf write with
+        ArrowNotImplementedError. Assert on the type rather than the pandas
+        version so this holds on both sides of the dtype change.
+        """
+        import pyarrow as pa
+        from gedih3.gh3builder import _canonical_write_schema
+
+        meta = pd.DataFrame({
+            'shot_number': pd.array([], dtype='uint64'),
+            'root_file': pd.array([], dtype='object'),
+            'agbd_l4a': pd.array([], dtype='float64'),
+            'h3_03': pd.array([], dtype='object'),
+            'year': pd.array([], dtype='int32'),
+        })
+        schema = _canonical_write_schema(meta, part=3)
+
+        null_fields = [f.name for f in schema if pa.types.is_null(f.type)]
+        assert not null_fields, f"null-typed fields would break the cast: {null_fields}"
+
+        # And a real string column must actually cast into it.
+        body = pd.DataFrame({
+            'shot_number': pd.array([1], dtype='uint64'),
+            'root_file': ['GEDI02_A_2019108.h5'],
+            'agbd_l4a': pd.array([12.5], dtype='float64'),
+        })
+        table = pa.Table.from_pandas(body, preserve_index=True).cast(schema)
+        assert table.column('root_file')[0].as_py() == 'GEDI02_A_2019108.h5'
+
     def test_streaming_enabled_env_var(self, monkeypatch):
         from gedih3.gh3builder import _streaming_enabled
         # Streaming is the v0.9.5+ default. Affirmative values and unset

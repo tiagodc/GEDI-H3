@@ -1518,9 +1518,42 @@ def _canonical_write_schema(meta_df, part: int) -> Any:
     body = meta_df.drop(columns=drop_cols, errors='ignore').head(0)
     if isinstance(body, gpd.GeoDataFrame):
         from geopandas.io.arrow import _geopandas_to_arrow
-        return _geopandas_to_arrow(body, index=True).schema
+        schema = _geopandas_to_arrow(body, index=True).schema
+    else:
+        import pyarrow as pa
+        schema = pa.Schema.from_pandas(body, preserve_index=True)
+    return _schema_resolve_null_fields(schema)
+
+
+def _schema_resolve_null_fields(schema):
+    """Retype any ``null`` field in *schema* as ``string``.
+
+    The canonical schema is inferred from a row-less frame, and on pandas < 3
+    an empty object column carries no type information, so pyarrow infers
+    ``null`` where the same column with data infers ``string``. Casting real
+    strings into a null-typed field then fails every per-leaf write with
+    ``ArrowNotImplementedError: Unsupported cast from string to null``.
+
+    pandas 3 keeps its dedicated string dtype through ``head(0)`` and so never
+    produces the null fields this repairs.
+
+    Parameters
+    ----------
+    schema : pyarrow.Schema
+        Schema inferred from the empty meta frame.
+
+    Returns
+    -------
+    pyarrow.Schema
+        Same schema with null-typed fields retyped to ``string``, metadata
+        (including the GeoParquet ``geo`` key) preserved.
+    """
     import pyarrow as pa
-    return pa.Schema.from_pandas(body, preserve_index=True)
+
+    null_positions = [i for i, field in enumerate(schema) if pa.types.is_null(field.type)]
+    for i in null_positions:
+        schema = schema.set(i, schema.field(i).with_type(pa.string()))
+    return schema
 
 
 def _derive_merged_output_paths(merge_progress_file: str, h3_dir: str) -> List[str]:
