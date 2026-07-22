@@ -146,6 +146,14 @@ class TestGetVectorInfo:
         assert -180 <= bounds[0] <= 180
         assert -90 <= bounds[1] <= 90
 
+    def test_empty_vector_raises(self, tmp_dir):
+        """No features → no bounds. pyogrio returns None where fiona raised."""
+        empty = gpd.GeoDataFrame({'name': []}, geometry=[], crs='EPSG:4326')
+        path = os.path.join(tmp_dir, 'empty.gpkg')
+        empty.to_file(path, driver='GPKG')
+        with pytest.raises(GediSpatialJoinError, match='no features'):
+            get_vector_info(path)
+
 
 # =============================================================================
 # Test: load_vector

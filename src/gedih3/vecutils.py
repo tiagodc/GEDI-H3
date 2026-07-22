@@ -110,15 +110,24 @@ def get_vector_info(vector_path):
     dict
         Keys: crs, bounds_wgs84, columns, feature_count, geometry_type
     """
-    import fiona
+    # pyogrio, not fiona: it is geopandas' own OGR backend (so it is already
+    # installed), and unlike fiona it ships wheels for linux-aarch64 and every
+    # CPython via abi3.
+    import pyogrio
 
-    with fiona.open(vector_path) as src:
-        crs = src.crs
-        bounds = src.bounds  # (minx, miny, maxx, maxy)
-        feature_count = len(src)
-        schema = src.schema
-        geometry_type = schema['geometry']
-        columns = list(schema['properties'].keys())
+    info = pyogrio.read_info(vector_path)
+    if info['total_bounds'] is None:
+        # No features to bound. fiona raised DriverError here; be explicit
+        # instead, since a None slips silently into the transform below.
+        raise GediSpatialJoinError(
+            f"Vector file has no features to derive bounds from: {vector_path}"
+        )
+
+    crs = info['crs']
+    bounds = tuple(info['total_bounds'])  # (minx, miny, maxx, maxy)
+    feature_count = int(info['features'])
+    geometry_type = info['geometry_type']
+    columns = list(info['fields'])
 
     # Compute WGS84 bounds for spatial filtering
     from pyproj import CRS, Transformer
