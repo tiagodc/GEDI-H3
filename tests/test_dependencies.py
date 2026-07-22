@@ -73,18 +73,30 @@ def _imported_modules():
 
 
 @functools.lru_cache(maxsize=1)
-def _declared_distributions():
-    """Distribution names in pyproject's [project] dependencies, normalized."""
+def _declared_floors():
+    """Map normalized distribution name -> declared lower bound (None if unpinned).
+
+    Single parse of pyproject's [project] dependencies, shared by every check
+    below so the three files can only be compared against one reading of the
+    source of truth.
+    """
     with open(PYPROJECT, 'rb') as handle:
         pyproject = tomllib.load(handle)
-    declared = set()
+    floors = {}
     for spec in pyproject['project']['dependencies']:
-        # 'duckdb >=1.4.4,<1.5  # comment' -> 'duckdb'
-        name = spec.split('#')[0].strip()
+        # 'duckdb >=1.4.4,<1.5  # comment' -> name 'duckdb', floor '1.4.4'
+        spec = spec.split('#')[0].strip()
+        name = spec
         for delimiter in ('>', '<', '=', '!', '~', '[', ';', ' '):
             name = name.split(delimiter)[0]
-        declared.add(_normalize(name))
-    return frozenset(declared)
+        bound = re.search(r'>=\s*([0-9][^,\s]*)', spec)
+        floors[_normalize(name)] = bound.group(1) if bound else None
+    return floors
+
+
+def _declared_distributions():
+    """Distribution names in pyproject's [project] dependencies, normalized."""
+    return frozenset(_declared_floors())
 
 
 class TestDeclaredDependencies:
@@ -155,17 +167,7 @@ class TestDeclaredDependencies:
                 name, _, version = line.partition('==')
                 pinned[_normalize(name)] = version
 
-        with open(PYPROJECT, 'rb') as handle:
-            specs = tomllib.load(handle)['project']['dependencies']
-
-        floors = {}
-        for spec in specs:
-            spec = spec.split('#')[0].strip()
-            name = spec
-            for delimiter in ('>', '<', '=', '!', '~', '[', ';', ' '):
-                name = name.split(delimiter)[0]
-            match = re.search(r'>=\s*([0-9][^,\s]*)', spec)
-            floors[_normalize(name)] = match.group(1) if match else None
+        floors = _declared_floors()
 
         missing = sorted(set(floors) - set(pinned))
         extra = sorted(set(pinned) - set(floors))
@@ -188,25 +190,43 @@ class TestDeclaredDependencies:
         with open(recipe_path) as handle:
             lines = handle.read().splitlines()
 
-        run_deps, in_run = set(), False
+        # name -> declared lower bound (None when unpinned)
+        run_deps, in_run = {}, False
         for line in lines:
-            if line.strip() == 'run:':
+            stripped = line.strip()
+            if stripped == 'run:':
                 in_run = True
                 continue
             if in_run:
-                if line.strip().startswith('- '):
-                    run_deps.add(_normalize(line.strip()[2:].split()[0]))
-                elif line.strip() and not line.startswith((' ' * 4, '\t')):
+                if stripped.startswith('- '):
+                    body = stripped[2:]
+                    bound = re.search(r'>=\s*([0-9][^,\s]*)', body)
+                    run_deps[_normalize(body.split()[0])] = bound.group(1) if bound else None
+                elif stripped and not stripped.startswith('#') \
+                        and not line.startswith((' ' * 4, '\t')):
                     break
 
         # Names that legitimately differ between PyPI and conda-forge, plus
-        # conda-only extras (python itself, the optional GDAL bindings).
+        # conda-only extras (python itself, and the GDAL bindings — optional on
+        # pip because build_vrt falls back, but cheap on conda where rasterio
+        # already pulls libgdal-core).
         aliases = {'h3': 'h3-py', 'duckdb': 'python-duckdb'}
         conda_only = {'python', 'gdal'}
 
-        expected = {aliases.get(d, d) for d in _declared_distributions()}
-        missing = expected - run_deps
-        extra = run_deps - expected - conda_only
+        floors = {aliases.get(name, name): floor
+                  for name, floor in _declared_floors().items()}
 
+        missing = set(floors) - set(run_deps)
+        extra = set(run_deps) - set(floors) - conda_only
         assert not missing, f"In pyproject but missing from recipe/meta.yaml: {sorted(missing)}"
         assert not extra, f"In recipe/meta.yaml but not in pyproject: {sorted(extra)}"
+
+        # Names alone are not enough: a floor corrected in pyproject and not
+        # mirrored here would let conda resolve a version the project has
+        # declared unsupported, and nothing else would notice.
+        drifted = [
+            f'{name}: pyproject >={floors[name]}  recipe >={run_deps[name]}'
+            for name in sorted(floors)
+            if floors[name] is not None and floors[name] != run_deps[name]
+        ]
+        assert not drifted, 'recipe/meta.yaml floors have drifted:\n  ' + '\n  '.join(drifted)

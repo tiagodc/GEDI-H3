@@ -7,7 +7,12 @@ package:
 
 source:
   url: https://pypi.org/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz
-  # sha256: UPDATE_WITH_ACTUAL_HASH_AFTER_PYPI_UPLOAD
+  # Integrity check, not a secret: PyPI publishes this digest itself. It pins
+  # the exact bytes, so a replaced or tampered sdist fails the build instead of
+  # being packaged silently. Must be updated with every version — a stale hash
+  # fails loudly, which is the point. Once the feedstock exists, conda-forge's
+  # autotick bot updates both fields on each PyPI release.
+  sha256: 7399a4cde45c014aad627d9449bad60acd5258b54fb3c097772c16f2f11579c2
 
 build:
   number: 0
