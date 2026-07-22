@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.14.4] - 2026-07-22
+
+### Fixed
+- CLI `--help` output is now pure ASCII. Several commands embedded non-ASCII characters in their argparse help/epilog text — em dashes in `gh3_build` and `gh3_doctor`, a `->` arrow rendered as U+2192 in `gh3_read_schema`, and a `<->` arrow (U+2194) that reached `gh3_doctor`'s dynamically built epilog from the `log_state` diagnosis registry description. On a Windows cp1252 console this broke `<cli> --help` two ways: characters cp1252 cannot encode (the arrows) raised `UnicodeEncodeError` and exited non-zero, while the em-dash encoded to byte 0x97 — valid cp1252 but invalid UTF-8 — which downstream tooling reading the stream as UTF-8 rejected. Surfaced by the conda-forge Windows build. `tests/test_cli_help_ascii.py` renders every entry point's `--help` and asserts ASCII output so it cannot regress. Text-only change; no behaviour affected.
+
 ## [0.14.3] - 2026-07-22
 
 First release published to PyPI. `pip install gedih3`.
