@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/imgs/gh3_logo.png" alt="gedih3 logo" width="400">
+  <img src="https://raw.githubusercontent.com/tiagodc/GEDI-H3/main/docs/imgs/gh3_logo.png" alt="gedih3 logo" width="400">
 </p>
 
 # gedih3
@@ -336,7 +336,7 @@ Copyright (C) 2026, University of Maryland. All Rights Reserved.
 
 Authors: Tiago de Conto, Amelia Grace Holcomb (University of Maryland).
 
-`gedih3` is **source available, not open source**. It is distributed under the UMD Source Available Non-Commercial End User License Agreement — see the [LICENSE](LICENSE) and [NOTICE](NOTICE) files for the full terms. In summary:
+`gedih3` is **source available, not open source**. It is distributed under the UMD Source Available Non-Commercial End User License Agreement — see the [LICENSE](https://github.com/tiagodc/GEDI-H3/blob/main/LICENSE) and [NOTICE](https://github.com/tiagodc/GEDI-H3/blob/main/NOTICE) files for the full terms. In summary:
 
 - **Free for non-commercial use** — research, education, and other non-revenue-generating purposes.
 - **Redistribution of unmodified copies is permitted**, including through public package repositories and their mirrors, provided the LICENSE and all required notices travel with every copy.

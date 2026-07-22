@@ -7,6 +7,10 @@ gh3_session.sh
 *.config.py.swp
 /dask-*.yaml
 build/
+# Release artifacts. Also keeps a stale build from being picked up by a
+# `twine upload dist/*`, which would try to re-upload an already-published
+# version rather than only the one just built.
+dist/
 docs/_build/
 docs/_site/
 _site/
