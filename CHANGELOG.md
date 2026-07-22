@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.14.0] - 2026-07-22
+
+`pip install gedih3` now works with no system libraries on any platform with wheels, and the dependency metadata is verified rather than asserted. Pinning every declared floor and running the suite surfaced three real defects that current dependency versions had been masking.
+
+### Added
+- `raster.build_vrt_xml`: a rasterio-only VRT mosaic writer, used automatically when the `osgeo` GDAL bindings are absent. Verified equivalent to `gdal.BuildVRT` on shape, transform, CRS, dtype, nodata, bounds and full pixel/mask arrays across contiguous, gapped, ragged and diagonal tile layouts. It covers only what gedih3's own writers emit — north-up tiles sharing one CRS and pixel size — and raises rather than emitting a subtly wrong mosaic outside that.
+- `raster.build_vrt_safe`: builds a VRT mosaic, downgrading any failure to a warning. Used on the export paths, where the `.tif` tiles are the deliverable and must not be discarded over a convenience mosaic.
+- `utils.object_series`: builds an object-dtype `pd.Series` of array-likes. `pd.Series([...])` coerces through `np.asarray` even with `dtype=object`, which xarray Datasets reject.
+- CI job `pip-only-tests`: installs with `--only-binary :all:` (so any dependency needing compilation fails the job) and asserts `osgeo` is absent, on CPython 3.12 and 3.13.
+- CI job `minimum-versions`: installs every declared lower bound pinned with `==` from the new `constraints-min.txt`, asserts the pins are what got installed, and runs the suite on CPython 3.12.
+- `tests/test_dependencies.py`: fails the build when a module imported in `src/` is undeclared, when an optional import lacks a `try`/`except ImportError` guard, or when `recipe/meta.yaml` or `constraints-min.txt` drift from `pyproject.toml`.
+
+### Changed
+- `raster.build_vrt` prefers the `osgeo` GDAL bindings and falls back to `build_vrt_xml`. The bindings have no PyPI wheels and their sdist requires a version-matched system libgdal, so pip-only installs previously hit `ModuleNotFoundError` *after* the rasterization had completed. The GDAL bindings are no longer required by any code path.
+- `vecutils.get_vector_info` reads metadata via `pyogrio` instead of `fiona`. geopandas 1.x dropped fiona for pyogrio, so it was a gedih3-only dependency and the worst-covered wheel in the tree (no linux-aarch64, none for CPython 3.14). Removing it also drops a second, redundant vendored libgdal from pip environments.
+- `pyproject.toml` declares every module imported by name, rather than relying on a transitive edge: `rasterio`, `affine`, `tqdm`, `psutil`, `requests`, `s3fs` and `aiohttp`. `s3fs` and `aiohttp` back the `s3://` and `http(s)://` fsspec protocols that S3 ETL mode and remote databases depend on.
+- Dependency lower bounds are now installable and tested. Ten predated CPython 3.12 entirely — unsatisfiable against the package's own `requires-python` — and three were contradicted by the dependency graph: `dask-geopandas >=0.5` requires `dask >=2025.1`, `earthaccess >=0.16` requires `fsspec`/`s3fs >=2025.2`, and `dask[dataframe] >=2025.1` requires `pyarrow >=14.0.1`. The `geopandas` floor moves to `>=1.0.0`, where pyogrio became the default IO engine.
+- `environment.yml` keeps its higher recommended pins, but four entries that sat *below* the package minimum are raised to at least it — most notably `earthaccess >=0.14` against a declared `>=0.16`.
+- The whole-partition handlers in both tiled rasterizers log at warning instead of debug. Unlike the per-tile skips they wrap, producing nothing at all is never benign — debug level is why the rasterizer bug below went unnoticed.
+- `docs/getting-started/installation.md` documents the pip path: which dependency supplies each native library, per-platform wheel coverage including the gaps (Intel macOS lost `numba` and `h3` wheels; Windows ARM64 is thin), and the two runtime-only requirements — Earthdata credentials and the DuckDB extension download `gh3_build_ducklake` performs on first run, with the air-gapped workaround.
+
+### Fixed
+- Tiled rasterization silently produced nothing on pandas < 3. `egi.rasterize_partition` and both branches of `raster.rasterize_h3_partition` returned `pd.Series(list_of_xarray_Datasets)`, which raises `TypeError`; each sat inside a broad `except Exception` logging at debug, so it surfaced only as zero tiles rasterized. The affected branches include `partition_level >= h3_level`, the path `gh3_rasterize` takes over a `gh3_aggregate` output.
+- The streaming build failed on every fragment on pandas < 3 when a string column was present. `_canonical_write_schema` infers from a row-less frame, where an empty object column infers as pyarrow `null`, and `table.cast(schema)` then raised `ArrowNotImplementedError: Unsupported cast from string to null`. No pyarrow release implements that cast, so no dependency bump could have avoided it. Null-typed fields are now retyped to `string`, matching what the same column with rows infers.
+- `get_vector_info` rejected every GeoJSON on pyogrio < 0.8, where `read_info()` returns `total_bounds=None`. Emptiness is now decided by the feature count, with a geometry-read fallback for any OGR driver that declines a cheap extent.
+- `pd.concat(..., copy=True)` in `gedidriver` emitted a `Pandas4Warning` on every granule load and multi-product merge. `copy=True` has been the default since well before pandas 2.0, so removing it is behaviour-identical.
+- `raster.rasterize_h3_partition` had no test coverage at all, which is why the rasterizer defect above went unseen.
+
 ## [0.13.2] - 2026-07-21
 
 ### Changed
