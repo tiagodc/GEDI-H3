@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.14.1] - 2026-07-22
+
+### Changed
+- CI workflows moved off the deprecated Node.js 20 action runtime, which every run was warning about. `actions/checkout` v4 → v7, `actions/setup-python` v5 → v7, `codecov/codecov-action` v4 → v7 (v5+ is a composite action, so it has no Node runtime at all), and `astral-sh/ruff-action` v3 → v4.1.0 — pinned to an exact release because that project publishes immutable releases only and has no moving `v4` tag. Each target was checked against the inputs this repo actually passes: `checkout@v7` blocks fork-PR checkouts for `pull_request_target`/`workflow_run`, but no workflow here uses either event or overrides `ref:`, and `setup-python@v7`'s removals (the `pip-install` input, EOL Python versions) do not apply. `peaceiris/actions-gh-pages@v4` and `anthropics/claude-code-action@v1` were left alone — they already declare node24 and composite respectively.
+
 ## [0.14.0] - 2026-07-22
 
 `pip install gedih3` now works with no system libraries on any platform with wheels, and the dependency metadata is verified rather than asserted. Pinning every declared floor and running the suite surfaced three real defects that current dependency versions had been masking.
