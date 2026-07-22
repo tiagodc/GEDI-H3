@@ -56,9 +56,16 @@ dependencies:
   # NASA Earthdata access
   - earthaccess[version='>=0.14']
 
+  # Remote I/O — fsspec protocol backends for s3:// and http(s)://
+  - fsspec
+  - s3fs
+  - aiohttp
+  - requests
+
   # Utilities
   - python-dateutil[version='>=2.9']
   - python-dotenv
+  - psutil
   - tqdm
   - pqdm
 
