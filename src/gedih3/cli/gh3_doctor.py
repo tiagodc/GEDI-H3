@@ -32,7 +32,7 @@ def _build_epilog():
             members_str = '<all registered diagnoses>'
         else:
             members_str = ', '.join(members)
-        alias_lines.append(f"  {group:<6} → {members_str}")
+        alias_lines.append(f"  {group:<6} -> {members_str}")
 
     return f"""\
 Available diagnoses (use with --check / --fix):
@@ -82,7 +82,7 @@ def get_cmd_args():
                    help="comma-separated diagnosis names or aliases (db, soc, all). "
                         "Default: 'db' alias. See epilog for the full list.")
     p.add_argument("--fix", dest="fix", type=str, nargs='?', const='__ALL__', default=None,
-                   help="apply safe remedies (only some diagnoses are fixable — see epilog). "
+                   help="apply safe remedies (only some diagnoses are fixable - see epilog). "
                         "Optional comma-separated names; bare flag = all checked.")
 
     p.add_argument("-s3", "--s3", dest="s3", action='store_true',
@@ -311,7 +311,7 @@ def _print_summary(reports, logger):
         status = 'fixed' if r.applied else 'check'
         logger.info(f" [{marker}] {r.name:<18} {status:<5} {len(r.findings):>4} findings  {r.summary}")
         for rec in r.recommendations:
-            logger.info(f"        → {rec}")
+            logger.info(f"        -> {rec}")
     logger.info("=" * 70)
 
 

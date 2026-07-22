@@ -111,9 +111,9 @@ def get_cmd_args():
     # is strictly validated against the existing log on resume to refuse
     # silent layout drift. See H3BuildLogger.__init__.
     p.add_argument("-h3r", "--h3-resolution", dest="h3_resolution", type=int, default=None,
-                   help="H3 index level [0-15, default=12 on fresh build; ignored on resume — must match existing log]")
+                   help="H3 index level [0-15, default=12 on fresh build; ignored on resume - must match existing log]")
     p.add_argument("-h3p", "--h3-partition", dest="h3_partition", type=int, default=None,
-                   help="H3 partition level [0-15, default=3 on fresh build; ignored on resume — must match existing log]")
+                   help="H3 partition level [0-15, default=3 on fresh build; ignored on resume - must match existing log]")
 
     # GEDI product variables
     add_product_args(p)

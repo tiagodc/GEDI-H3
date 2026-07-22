@@ -231,5 +231,5 @@ def log_state_fix(ctx: DoctorContext, report: Report) -> Report:
     return report
 
 
-register('log_state', 'stuck flags + log↔disk partition drift',
+register('log_state', 'stuck flags + log<->disk partition drift',
          scope='global', fix=log_state_fix)(log_state_check)

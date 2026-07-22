@@ -37,7 +37,7 @@ def get_cmd_args():
         dest="product",
         type=str,
         default=None,
-        help="filter columns by product suffix (e.g., L2A → columns ending in _l2a)"
+        help="filter columns by product suffix (e.g., L2A -> columns ending in _l2a)"
     )
 
     p.add_argument(
