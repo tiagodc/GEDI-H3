@@ -828,7 +828,7 @@ def _build_dataframe(
     pd.DataFrame
         Combined DataFrame indexed by shot_number
     """
-    full_df = pd.concat(beam_frames, copy=True)
+    full_df = pd.concat(beam_frames)
     full_df = full_df.set_index('shot_number')
 
     if include_source:
@@ -957,7 +957,7 @@ def load_h5_merged(
         if len(all_cols) != len(set(all_cols)):
             raise GediVariableError("Duplicate columns detected. Remove duplicates or use suffix_all=True to avoid conflicts.")
 
-    df = pd.concat(frames, axis=1, join='inner', copy=True)
+    df = pd.concat(frames, axis=1, join='inner')
     return df
 
 def dask_h5_merged(
