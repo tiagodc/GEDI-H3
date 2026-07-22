@@ -247,8 +247,8 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
             raster_files = globmod.glob(f"{output_dir}/*.tif")
             if len(raster_files) > 1:
                 vrt_path = os.path.join(output_dir, 'mosaic.vrt')
-                raster.build_vrt(raster_files, vrt_path)
-                logger.info(f"  VRT mosaic: {vrt_path}")
+                if raster.build_vrt_safe(raster_files, vrt_path):
+                    logger.info(f"  VRT mosaic: {vrt_path}")
             print_success(f"{len(raster_files)} raster files exported to {output_dir}", logger=logger)
 
     else:

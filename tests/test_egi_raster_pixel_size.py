@@ -108,15 +108,33 @@ class TestGeodfToRasterPixelSize:
         )
 
 
+def _vrt_backends():
+    """Return the VRT writers available here, as (id, callable) pairs.
+
+    ``build_vrt_xml`` is always present; the ``osgeo`` path only on installs
+    that carry the GDAL Python bindings (conda / HPC, not plain pip).
+    """
+    from gedih3.raster.export import build_vrt, build_vrt_xml
+
+    backends = [pytest.param(build_vrt_xml, id='xml')]
+    try:
+        import osgeo.gdal  # noqa: F401
+    except ImportError:
+        pass
+    else:
+        backends.append(pytest.param(build_vrt, id='osgeo'))
+    return backends
+
+
 class TestBuildVRTResolution:
     """build_vrt must not average edge-tile pixel sizes into the VRT."""
 
-    def test_vrt_resolution_matches_tiles(self, tmp_path):
+    @pytest.mark.parametrize('writer', _vrt_backends())
+    def test_vrt_resolution_matches_tiles(self, tmp_path, writer):
         """VRT built from interior + edge tiles keeps the canonical resolution."""
-        from osgeo import gdal
+        import rasterio
         from gedih3 import egi
         from gedih3.egi.config import RESOLUTIONS, LIMITS, OUTER_RES
-        from gedih3.raster.export import build_vrt
 
         edge_px_outer = int((LIMITS['lon_e'] - LIMITS['lon_w']) // OUTER_RES)
         tile_pairs = [
@@ -133,12 +151,12 @@ class TestBuildVRTResolution:
             tif_files.append(out)
 
         vrt_path = str(tmp_path / "mosaic.vrt")
-        build_vrt(tif_files, vrt_path)
+        writer(tif_files, vrt_path)
 
-        gdal.UseExceptions()
-        ds = gdal.Open(vrt_path)
-        vrt_xres = ds.GetGeoTransform()[1]
-        ds = None
+        # Read back through rasterio so the assertion does not itself depend
+        # on the osgeo bindings.
+        with rasterio.open(vrt_path) as src:
+            vrt_xres = src.transform.a
 
         assert abs(vrt_xres - RESOLUTIONS[6]) < 1e-3, (
             f"VRT x_cell={vrt_xres:.9f}, expected {RESOLUTIONS[6]:.9f}. "

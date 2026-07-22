@@ -9,7 +9,9 @@ This module provides utilities for exporting raster data to various formats,
 with support for GeoTIFF compression, tiling, and batch operations.
 """
 from typing import Dict, List, Optional, Union
+import logging
 import os
+import xml.etree.ElementTree as ET
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -20,6 +22,9 @@ from dask.distributed import progress as dask_progress
 
 from .config import get_geotiff_options, is_raster_format
 from ..exceptions import GediRasterizationError
+from ..utils import AtomicFileWriter
+
+logger = logging.getLogger(__name__)
 
 
 def export_raster(
@@ -268,13 +273,29 @@ def rasterize_and_export_partitions(
     tif_files = [p for p in all_paths if p.endswith('.tif')]
     if len(tif_files) > 1:
         vrt_path = os.path.join(output_dir, 'mosaic.vrt')
-        build_vrt(tif_files, vrt_path)
+        build_vrt_safe(tif_files, vrt_path)
 
     return result
 
 
+# numpy dtype name -> GDAL type name, as spelled in VRT XML. Explicit table
+# rather than a rasterio private helper: the mapping is stable and the failure
+# mode of a wrong guess (silently misread pixels) is worse than a KeyError.
+_GDAL_TYPENAME = {
+    'uint8': 'Byte', 'int8': 'Int8', 'uint16': 'UInt16', 'int16': 'Int16',
+    'uint32': 'UInt32', 'int32': 'Int32', 'uint64': 'UInt64', 'int64': 'Int64',
+    'float32': 'Float32', 'float64': 'Float64',
+    'complex_int16': 'CInt16', 'complex64': 'CFloat32', 'complex128': 'CFloat64',
+}
+
+
 def build_vrt(tif_files, vrt_path):
     """Build a GDAL VRT file mosaicking a list of GeoTIFF tiles.
+
+    Uses the ``osgeo.gdal`` bindings when they are importable, and falls back
+    to :func:`build_vrt_xml` otherwise. The GDAL bindings are not pip-installable
+    without a version-matched system libgdal, so pip-only installs take the
+    fallback; conda / HPC installs keep the authoritative backend.
 
     Parameters
     ----------
@@ -282,8 +303,17 @@ def build_vrt(tif_files, vrt_path):
         Paths to input GeoTIFF files
     vrt_path : str
         Output VRT file path
+
+    Returns
+    -------
+    str
+        Path to the written VRT
     """
-    from osgeo import gdal
+    try:
+        from osgeo import gdal
+    except ImportError:
+        return build_vrt_xml(tif_files, vrt_path)
+
     gdal.UseExceptions()
     # Pin the VRT resolution to the first tile's pixel size.  Without an
     # explicit resolution, gdal.BuildVRT defaults to 'average'.
@@ -292,6 +322,151 @@ def build_vrt(tif_files, vrt_path):
     ds = None
     opts = gdal.BuildVRTOptions(resolution='user', xRes=gt[1], yRes=abs(gt[5]))
     gdal.BuildVRT(vrt_path, tif_files, options=opts)
+    return vrt_path
+
+
+def build_vrt_xml(tif_files, vrt_path):
+    """Write a VRT mosaic as XML using rasterio only — no ``osgeo`` bindings.
+
+    Handles the narrow case gedih3's own writers emit: north-up GeoTIFF tiles
+    sharing one CRS and one pixel size. Anything outside that (rotated
+    geotransforms, mixed CRS) raises rather than emitting a subtly wrong
+    mosaic — use the ``osgeo`` backend for the general case.
+
+    As with :func:`build_vrt`, the mosaic resolution is pinned to the first
+    tile so partial edge tiles cannot drag it off the canonical grid.
+
+    Parameters
+    ----------
+    tif_files : list of str
+        Paths to input GeoTIFF files
+    vrt_path : str
+        Output VRT file path
+
+    Returns
+    -------
+    str
+        Path to the written VRT
+
+    Raises
+    ------
+    GediRasterizationError
+        If the tiles are rotated, span multiple CRS, or use a dtype with no
+        GDAL equivalent.
+    """
+    import rasterio
+
+    if not tif_files:
+        raise GediRasterizationError("build_vrt_xml requires at least one input tile")
+
+    profiles = []
+    for path in tif_files:
+        with rasterio.open(path) as src:
+            profiles.append({
+                'path': path, 'transform': src.transform, 'width': src.width,
+                'height': src.height, 'count': src.count, 'dtypes': src.dtypes,
+                'nodata': src.nodata, 'crs': src.crs, 'bounds': src.bounds,
+                'block': src.block_shapes[0],
+                'colorinterp': [ci.name.capitalize() for ci in src.colorinterp],
+            })
+
+    first = profiles[0]
+
+    # Preconditions — refuse loudly instead of writing a wrong mosaic.
+    for p in profiles:
+        if p['transform'].b or p['transform'].d:
+            raise GediRasterizationError(
+                f"build_vrt_xml cannot mosaic rotated rasters [file={p['path']}]; "
+                "install the GDAL Python bindings for the general case"
+            )
+        if p['crs'] != first['crs']:
+            raise GediRasterizationError(
+                f"build_vrt_xml requires a single CRS across tiles: "
+                f"{first['crs']} vs {p['crs']} [file={p['path']}]"
+            )
+    unknown = {d for p in profiles for d in p['dtypes']} - set(_GDAL_TYPENAME)
+    if unknown:
+        raise GediRasterizationError(f"No GDAL type name for dtype(s): {sorted(unknown)}")
+
+    xres = first['transform'].a
+    yres = abs(first['transform'].e)
+
+    left = min(p['bounds'].left for p in profiles)
+    right = max(p['bounds'].right for p in profiles)
+    bottom = min(p['bounds'].bottom for p in profiles)
+    top = max(p['bounds'].top for p in profiles)
+
+    root = ET.Element('VRTDataset',
+                      rasterXSize=str(int(round((right - left) / xres))),
+                      rasterYSize=str(int(round((top - bottom) / yres))))
+    if first['crs'] is not None:
+        ET.SubElement(root, 'SRS').text = first['crs'].to_wkt()
+    ET.SubElement(root, 'GeoTransform').text = ', '.join(
+        f'{v:.16e}' for v in (left, xres, 0.0, top, 0.0, -yres))
+
+    vrt_dir = os.path.dirname(os.path.abspath(vrt_path))
+
+    for band in range(1, first['count'] + 1):
+        vband = ET.SubElement(root, 'VRTRasterBand',
+                              dataType=_GDAL_TYPENAME[first['dtypes'][band - 1]],
+                              band=str(band))
+        if first['nodata'] is not None:
+            ET.SubElement(vband, 'NoDataValue').text = repr(first['nodata'])
+        ET.SubElement(vband, 'ColorInterp').text = first['colorinterp'][band - 1]
+
+        for p in profiles:
+            source = ET.SubElement(vband, 'ComplexSource')
+            filename = ET.SubElement(source, 'SourceFilename', relativeToVRT='1')
+            filename.text = os.path.relpath(os.path.abspath(p['path']), vrt_dir)
+            ET.SubElement(source, 'SourceBand').text = str(band)
+            ET.SubElement(source, 'SourceProperties',
+                          RasterXSize=str(p['width']), RasterYSize=str(p['height']),
+                          DataType=_GDAL_TYPENAME[p['dtypes'][band - 1]],
+                          BlockXSize=str(p['block'][1]), BlockYSize=str(p['block'][0]))
+            ET.SubElement(source, 'SrcRect', xOff='0', yOff='0',
+                          xSize=str(p['width']), ySize=str(p['height']))
+            ET.SubElement(source, 'DstRect',
+                          xOff=str(int(round((p['bounds'].left - left) / xres))),
+                          yOff=str(int(round((top - p['bounds'].top) / yres))),
+                          xSize=str(int(round(p['width'] * p['transform'].a / xres))),
+                          ySize=str(int(round(p['height'] * abs(p['transform'].e) / yres))))
+            if p['nodata'] is not None:
+                ET.SubElement(source, 'NODATA').text = repr(p['nodata'])
+
+    ET.indent(root, space='  ')
+    with AtomicFileWriter(vrt_path) as tmp_path:
+        with open(tmp_path, 'w') as handle:
+            handle.write(ET.tostring(root, encoding='unicode'))
+    return vrt_path
+
+
+def build_vrt_safe(tif_files, vrt_path):
+    """Build a VRT mosaic, downgrading any failure to a warning.
+
+    The ``.tif`` tiles are the deliverable; the VRT is a convenience mosaic
+    over them. A missing GDAL backend or an unmosaicable tile set must not
+    discard a completed rasterization job.
+
+    Parameters
+    ----------
+    tif_files : list of str
+        Paths to input GeoTIFF files
+    vrt_path : str
+        Output VRT file path
+
+    Returns
+    -------
+    str or None
+        Path to the written VRT, or None if it could not be built.
+    """
+    try:
+        return build_vrt(tif_files, vrt_path)
+    except Exception as exc:
+        logger.warning(
+            f"Could not build VRT mosaic: {type(exc).__name__}: {exc} "
+            f"[vrt={vrt_path}] — the {len(tif_files)} GeoTIFF tiles are unaffected"
+        )
+        return None
 
 
 def merge_and_export_rasters(

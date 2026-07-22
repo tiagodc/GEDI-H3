@@ -91,7 +91,16 @@ def resolve_raster_source(image_path, file_format='tif', odir=None):
         vrt_path = os.path.join(odir, f'{tiles_basename}.vrt')
     else:
         vrt_path = os.path.join(image_path, '_gedih3_mosaic.vrt')
-    build_vrt(tiles, vrt_path)
+    # Fatal here, unlike the export paths: the VRT *is* the sampling source,
+    # so there is nothing to fall back to. Externally-supplied tiles are also
+    # the likeliest place to hit the pure-Python writer's preconditions.
+    try:
+        build_vrt(tiles, vrt_path)
+    except Exception as exc:
+        raise GediImageSamplingError(
+            f"Could not mosaic {len(tiles)} tiles from {image_path}: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
     logger.info(f"Built VRT mosaic from {len(tiles)} tiles: {vrt_path}")
     return vrt_path, True, len(tiles)
 

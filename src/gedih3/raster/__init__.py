@@ -72,6 +72,8 @@ from .export import (
     merge_and_export_rasters,
     compute_raster_stats,
     build_vrt,
+    build_vrt_xml,
+    build_vrt_safe,
 )
 
 __all__ = [
@@ -106,4 +108,6 @@ __all__ = [
     'merge_and_export_rasters',
     'compute_raster_stats',
     'build_vrt',
+    'build_vrt_xml',
+    'build_vrt_safe',
 ]
