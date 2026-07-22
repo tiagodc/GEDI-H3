@@ -80,6 +80,13 @@ transitive edge breaks silently when an upstream drops it.
 `tests/test_dependencies.py` enforces this by walking the source AST, and will
 fail the build if a declaration is missing or the two files drift apart.
 
+Give the new dependency a lower bound and pin that same version in
+`constraints-min.txt`. The CI `minimum-versions` job installs from that file
+and runs the suite, so a floor is a tested claim rather than a guess — an
+unverified one tends to be unsatisfiable or simply broken. Raise a floor when
+something *requires* it (record why in the inline comment next to it), and
+never lower one without re-running that job.
+
 ## Reporting Issues
 
 - Use [GitHub Issues](https://github.com/tiagodc/GEDI-H3/issues) to report bugs or request features

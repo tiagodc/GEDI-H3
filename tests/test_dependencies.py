@@ -12,6 +12,7 @@ current interpreter happens to have installed.
 import ast
 import functools
 import os
+import re
 import sys
 import tomllib
 from importlib.metadata import packages_distributions
@@ -134,6 +135,49 @@ class TestDeclaredDependencies:
             "Optional modules imported without an ImportError guard:\n  "
             + "\n  ".join(unguarded)
         )
+
+    def test_constraints_min_matches_declared_floors(self):
+        """constraints-min.txt must pin exactly the declared lower bounds.
+
+        The CI minimum-versions job installs from that file, so any drift means
+        it silently stops testing what pyproject actually claims to support.
+        """
+        constraints_path = os.path.join(REPO_ROOT, 'constraints-min.txt')
+        if not os.path.exists(constraints_path):
+            pytest.skip('no constraints-min.txt')
+
+        with open(constraints_path) as handle:
+            pinned = {}
+            for line in handle:
+                line = line.split('#')[0].strip()
+                if not line:
+                    continue
+                name, _, version = line.partition('==')
+                pinned[_normalize(name)] = version
+
+        with open(PYPROJECT, 'rb') as handle:
+            specs = tomllib.load(handle)['project']['dependencies']
+
+        floors = {}
+        for spec in specs:
+            spec = spec.split('#')[0].strip()
+            name = spec
+            for delimiter in ('>', '<', '=', '!', '~', '[', ';', ' '):
+                name = name.split(delimiter)[0]
+            match = re.search(r'>=\s*([0-9][^,\s]*)', spec)
+            floors[_normalize(name)] = match.group(1) if match else None
+
+        missing = sorted(set(floors) - set(pinned))
+        extra = sorted(set(pinned) - set(floors))
+        assert not missing, f"declared in pyproject but not pinned in constraints-min.txt: {missing}"
+        assert not extra, f"pinned in constraints-min.txt but not a dependency: {extra}"
+
+        mismatched = [
+            f'{name}: pyproject floor {floors[name]} != pinned {pinned[name]}'
+            for name in sorted(floors)
+            if floors[name] is not None and floors[name] != pinned[name]
+        ]
+        assert not mismatched, 'constraints-min.txt has drifted:\n  ' + '\n  '.join(mismatched)
 
     def test_recipe_matches_pyproject(self):
         """The conda recipe's run deps must not drift from pyproject's."""

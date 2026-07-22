@@ -1,0 +1,40 @@
+# Every lower bound from pyproject.toml's [project] dependencies, pinned with
+# ==, so CI can prove the floors are installable and that the suite passes on
+# them. Keep in lockstep with pyproject.toml — tests/test_dependencies.py
+# fails if the two drift.
+#
+# Regenerate intent, not values: a floor moves because something *requires* it
+# (see the inline notes in pyproject.toml), never to make a red job green.
+numpy==1.26.0
+pandas==2.1.1
+geopandas==1.0.0
+shapely==2.0.2
+pyogrio==0.7.2
+pyproj==3.6.1
+h3==4.3.0
+h3pandas==0.3.0
+antimeridian==0.3.0
+fsspec==2025.2.0
+s3fs==2025.2.0
+aiohttp==3.9.0
+requests==2.26.0
+dask==2025.1.0
+dask-geopandas==0.5.0
+distributed==2025.1.0
+psutil==5.9.4
+numba==0.59.0
+pyarrow==14.0.1
+h5py==3.10.0
+xarray==2024.1.0
+rasterio==1.3.8.post1
+rioxarray==0.15.0
+geocube==0.7.1
+affine==2.3.0
+python-dateutil==2.9.0
+python-dotenv==1.0.0
+earthaccess==0.16.0
+pqdm==0.2.0
+tqdm==4.60.0
+pyyaml==6.0.1
+scipy==1.11.2
+duckdb==1.4.4

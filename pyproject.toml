@@ -35,29 +35,35 @@ classifiers = [
 # All of these ship self-contained binary wheels — the native libraries
 # (GDAL, GEOS, PROJ, HDF5) are vendored inside them, so no system packages
 # are required. See docs/getting-started/installation.md.
+#
+# Lower bounds are installable and tested, not aspirational: the ci.yml
+# minimum-versions job pins every one of them with == and runs the suite.
+# Most are set by the first release supporting the requires-python floor of
+# 3.12; the rest are noted inline. Do not lower one without re-running that
+# job — several of these floors were fiction until they were checked.
 dependencies = [
-    "numpy >= 1.24.0",
-    "pandas >= 2.0.0",
+    "numpy >= 1.26.0",   # first release with CPython 3.12 wheels
+    "pandas >= 2.1.1",   # first release with CPython 3.12 wheels
     "geopandas >= 1.0.0",  # >=1.0 for the pyogrio default IO engine (fiona is no longer a dependency)
-    "shapely >= 2.0.0",
+    "shapely >= 2.0.2",  # first release with CPython 3.12 wheels
     "pyogrio >= 0.7.2",  # geopandas' OGR backend; replaces fiona (no linux-aarch64 / cp314 wheels)
-    "pyproj >= 3.6.0",
+    "pyproj >= 3.6.1",  # first release with CPython 3.12 wheels
     "h3 >= 4.3.0",
     "h3pandas >= 0.3.0",
     "antimeridian >= 0.3.0",
-    "fsspec >= 2023.1.0",
-    "s3fs >= 2023.1.0",  # fsspec 's3://' protocol backend — S3 ETL mode and remote databases
+    "fsspec >= 2025.2.0",  # earthaccess >=0.16 requires fsspec/s3fs >=2025.2
+    "s3fs >= 2025.2.0",  # fsspec 's3://' backend; floor from earthaccess — S3 ETL mode and remote databases
     "aiohttp >= 3.9.0",  # fsspec 'http(s)://' protocol backend — remote databases
     "requests >= 2.26.0",
-    "dask >= 2024.1.0",
+    "dask >= 2025.1.0",  # dask-geopandas >=0.5 requires dask >=2025.1
     "dask-geopandas >= 0.5.0",
-    "distributed >= 2024.1.0",
-    "psutil >= 5.8.0",
-    "numba >= 0.58.0",
-    "pyarrow >= 14.0.0",
-    "h5py >= 3.8.0",
+    "distributed >= 2025.1.0",  # tracks the dask floor
+    "psutil >= 5.9.4",  # first release with CPython 3.12 wheels
+    "numba >= 0.59.0",  # first release with CPython 3.12 wheels
+    "pyarrow >= 14.0.1",  # dask[dataframe] >=2025.1 requires pyarrow >=14.0.1
+    "h5py >= 3.10.0",  # first release with CPython 3.12 wheels
     "xarray >= 2024.1.0",
-    "rasterio >= 1.3.0",
+    "rasterio >= 1.3.8.post1",  # first release with CPython 3.12 wheels
     "rioxarray >= 0.15.0",
     "geocube >= 0.7.1",
     "affine >= 2.3.0",
@@ -66,8 +72,8 @@ dependencies = [
     "earthaccess >= 0.16.0",
     "pqdm >= 0.2.0",
     "tqdm >= 4.60.0",
-    "pyyaml >= 6.0",
-    "scipy >= 1.10.0",
+    "pyyaml >= 6.0.1",  # first release with CPython 3.12 wheels
+    "scipy >= 1.11.2",  # first release with CPython 3.12 wheels
     "duckdb >=1.4.4,<1.5",  # pin to 1.4.x LTS: DuckLake catalog format v0.3 is version-locked; 1.5+ writes v0.4 which 1.4 cannot read
 ]
 

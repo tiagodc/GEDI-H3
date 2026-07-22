@@ -82,3 +82,40 @@ jobs:
 
       - name: Run unit tests
         run: pytest tests/ -m "not integration and not slow" --tb=short -q
+
+  # Every declared lower bound, pinned with ==. Floors that nobody installs
+  # drift into fiction: before this job existed, three of them were literally
+  # unsatisfiable and the suite failed on the rest.
+  minimum-versions:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # the requires-python floor
+          cache: pip
+
+      - name: Install dependencies at their declared floors
+        # Installed first and separately: resolving the pins together with the
+        # project makes pip backtrack through unbounded transitives until it
+        # gives up with resolution-too-deep.
+        run: |
+          pip install -r constraints-min.txt
+          pip install --no-deps .
+          pip install pytest pytest-cov
+
+      - name: Assert the floors are what got installed
+        run: |
+          pip freeze | sort > /tmp/frozen.txt
+          while read -r pin; do
+            case "$pin" in ''|'#'*) continue ;; esac
+            grep -qix "$pin" /tmp/frozen.txt || {
+              echo "::error::$pin was not the installed version"
+              exit 1
+            }
+          done < constraints-min.txt
+
+      - name: Run unit tests
+        run: pytest tests/ -m "not integration and not slow" --tb=short -q

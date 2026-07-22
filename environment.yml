@@ -23,17 +23,17 @@ dependencies:
   # Core scientific computing
   - numpy[version='>=2.2']
   - pandas[version='>=2.3']
-  - scipy[version='>=1.11']
+  - scipy[version='>=1.11.2']
 
   # Geospatial libraries
   - geopandas[version='>=1.1']
-  - shapely[version='>=2.0']
+  - shapely[version='>=2.0.2']
   - pyogrio[version='>=0.7.2']
   - pyproj
   - rasterio
   - rioxarray[version='>=0.19']
   - antimeridian
-  - geocube[version='>=0.7']
+  - geocube[version='>=0.7.1']
 
   # H3 geospatial indexing
   - h3[version='>=4.3']
@@ -54,7 +54,7 @@ dependencies:
   - pyyaml
 
   # NASA Earthdata access
-  - earthaccess[version='>=0.14']
+  - earthaccess[version='>=0.16']
 
   # Remote I/O — fsspec protocol backends for s3:// and http(s)://
   - fsspec
