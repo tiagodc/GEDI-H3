@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.14.2] - 2026-07-22
+
+### Fixed
+- `test_fusion_preserves_partition_on_output_cardinality` was intermittently failing the `minimum-versions` CI job with `ValueError: Categorical categories must be unique`, raised from dask's arrow engine (`dask/dataframe/io/parquet/arrow.py`), which rebuilds hive partition columns as `pd.Categorical(categories=<pyarrow's discovered partition dictionary>)` and breaks whenever that dictionary contains a repeat. No dependency floor could fix it — the same code is present unchanged in dask 2026.7.1 — and the coupling was incidental: the test asserts parquet *file cardinality* under graph fusion, and its closing round-trip only has to show no rows were lost or merged. Both trees are now read through one pyarrow helper instead of `dd.read_parquet`, so dtype quirks cancel out of the comparison, with an added assertion that the row count survives the write. The rewrite was checked to still catch corruption (deleting one of the 72 leaf files is detected) rather than passing vacuously. Test-only change; no library code is affected.
+
 ## [0.14.1] - 2026-07-22
 
 ### Changed
