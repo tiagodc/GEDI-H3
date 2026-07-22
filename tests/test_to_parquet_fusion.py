@@ -22,6 +22,7 @@ import pandas as pd
 import pytest
 
 import dask.dataframe as dd
+import pyarrow.dataset as pa_ds
 
 # Reuse the same in-process LocalCluster pattern as test_doctor_parallel.py
 # so the smoke test is hermetic — no dependency on a running scheduler.
@@ -65,6 +66,32 @@ def _list_parquet(root: str) -> list[str]:
         str(p.relative_to(root))
         for p in pathlib.Path(root).rglob('*.parquet')
     )
+
+
+def _read_tree(root: str) -> pd.DataFrame:
+    """Read a hive-partitioned tree back into one pandas frame, via pyarrow.
+
+    Deliberately *not* ``dd.read_parquet``. Dask's arrow engine rebuilds hive
+    partition columns with ``pd.Categorical(categories=<discovered keys>)``
+    (``dask/dataframe/io/parquet/arrow.py``), which raises "Categorical
+    categories must be unique" whenever pyarrow's discovered partition
+    dictionary contains a repeat. That made this test intermittently fail in
+    the minimum-versions CI job, and the code is unchanged in current dask, so
+    there is no floor to raise past it.
+
+    The dependency was incidental: this test is about *file cardinality* under
+    graph fusion, and the round-trip below only needs to prove no rows were
+    lost or merged. Both trees are read through this same function, so any
+    dtype quirk cancels out of the comparison.
+    """
+    table = pa_ds.dataset(root, partitioning='hive', format='parquet').to_table()
+    df = table.to_pandas()
+    # Hive columns come back as dictionary-encoded; normalise so the two trees
+    # compare on values rather than on categorical encoding.
+    for col in ('h3_03', 'year'):
+        if isinstance(df[col].dtype, pd.CategoricalDtype):
+            df[col] = df[col].astype(df[col].cat.categories.dtype)
+    return df.sort_values('value').reset_index(drop=True)
 
 
 def test_fusion_preserves_partition_on_output_cardinality(_local_dask_client, tmp_path):
@@ -114,6 +141,7 @@ def test_fusion_preserves_partition_on_output_cardinality(_local_dask_client, tm
     )
 
     # And the data round-trips identically (no rows lost / merged).
-    rt_off = dd.read_parquet(str(out_off)).compute().sort_values('value').reset_index(drop=True)
-    rt_on  = dd.read_parquet(str(out_on)).compute().sort_values('value').reset_index(drop=True)
+    rt_off = _read_tree(str(out_off))
+    rt_on  = _read_tree(str(out_on))
+    assert len(rt_off) == len(ddf), "rows lost on the optimize_graph=False write"
     pd.testing.assert_frame_equal(rt_off, rt_on, check_like=True)
