@@ -7,6 +7,12 @@ NASA's [GEDI](https://gedi.umd.edu/) has measured forest height, biomass, and ca
 **gedih3** handles all of that. It transforms raw GEDI data into a spatial database you can query by region, filter for quality with a single flag, aggregate to any scale, and export to GeoTIFF, GeoParquet, or any format your tools can read --- from the command line or Python.
 
 ```bash
+pip install gedih3
+```
+
+...or with conda, recommended for HPC and shared clusters:
+
+```bash
 git clone https://github.com/tiagodc/GEDI-H3.git
 cd GEDI-H3
 conda env create -n gedih3 -f environment.yml 

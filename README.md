@@ -72,12 +72,22 @@ gedih3 is designed around a simple principle: **build once, iterate fast**.
 ## Quick Start
 
 ```bash
-# Install
+# Install with pip — self-contained, no system libraries needed
+pip install gedih3
+```
+
+```bash
+# ...or with conda, recommended for HPC and shared clusters
 git clone https://github.com/tiagodc/GEDI-H3.git
 cd GEDI-H3
 conda env create -f environment.yml
 conda activate gedih3
 ```
+
+> GDAL, GEOS, PROJ and HDF5 all ship prebuilt inside the wheels, so `pip install`
+> needs nothing installed system-wide. See the
+> [installation guide](https://tiagodc.github.io/GEDI-H3/getting-started/installation.html)
+> for platform coverage and the optional GDAL Python bindings.
 
 No configuration needed. All outputs default to `~/gedi_data/`.
 

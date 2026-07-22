@@ -36,6 +36,10 @@ Commercial use requires a separate license from the University of Maryland. Cont
    conda activate gedih3
    pip install -e ".[test]"
    ```
+   A plain `pip install -e ".[test]"` into a virtualenv also works and needs no
+   system libraries — see [the installation guide](docs/getting-started/installation.md).
+   The conda environment additionally provides the GDAL Python bindings, which
+   a handful of tests use (they skip cleanly without them).
 3. Create a feature branch from `main`
 
 ## Development Workflow
@@ -46,6 +50,9 @@ Commercial use requires a separate license from the University of Maryland. Cont
    ```bash
    pytest tests/ -m "not integration and not slow"
    ```
+   Some tests invoke the `gh3_*` entry points as subprocesses, so make sure the
+   environment's `bin/` is on `PATH` — otherwise they fail with
+   `FileNotFoundError: 'gh3_build'` rather than a real defect.
 4. Ensure code passes linting:
    ```bash
    ruff check src/
@@ -58,6 +65,20 @@ Commercial use requires a separate license from the University of Maryland. Cont
 - Use [ruff](https://docs.astral.sh/ruff/) for linting (configured in `pyproject.toml`)
 - Line length limit: 120 characters
 - Add docstrings in [numpydoc](https://numpydoc.readthedocs.io/) format for public functions
+
+## Adding a Dependency
+
+`pip install gedih3` must keep working with no system libraries, so a new
+dependency needs to ship self-contained binary wheels for Linux, macOS and
+Windows. If it needs a system package installed first, treat it as optional:
+import it inside a `try`/`except ImportError` with a working fallback, and add
+it to `OPTIONAL_MODULES` in `tests/test_dependencies.py`.
+
+Declare every module you import by name in **both** `pyproject.toml` and
+`recipe/meta.yaml`, even when something else already pulls it in — relying on a
+transitive edge breaks silently when an upstream drops it.
+`tests/test_dependencies.py` enforces this by walking the source AST, and will
+fail the build if a declaration is missing or the two files drift apart.
 
 ## Reporting Issues
 

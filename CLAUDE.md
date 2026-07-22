@@ -44,6 +44,15 @@ conda activate gedih3
 pip install -e .
 ```
 
+**Dependency invariant**: `pip install gedih3` must work with zero system
+libraries — every native dependency ships wheels that vendor its own GDAL /
+GEOS / PROJ / HDF5. Declare every imported module in *both* `pyproject.toml`
+and `recipe/meta.yaml`; never rely on a transitive edge.
+`tests/test_dependencies.py` walks the source AST and fails the build
+otherwise. `osgeo` (GDAL bindings) is the single permitted optional import —
+it has no PyPI wheels — and every call site must guard it with `try`/`except
+ImportError` plus a working fallback.
+
 Configuration via `~/.gedih3.env` or environment variables:
 - `GH3_DEFAULT_DOWNLOAD_DIR` - Base directory for all data
 - `GH3_DEFAULT_TMP_DIR` - Temporary files
@@ -323,6 +332,7 @@ Before writing new helper code, check whether one of these covers your case. Eve
 | `read_parquet_schema` | `utils.py` | Footer-only schema read, returns DataFrame of `column` + `dtype`. |
 | `h5_is_valid` | `utils.py` | Cheap HDF5 header open; the canonical "is this file readable" check on resume. |
 | `h3_partition_bbox` | `utils.py` | H3 cell bbox from the cell ID — no geometry scan. |
+| `build_vrt` / `build_vrt_xml` / `build_vrt_safe` | `raster/export.py` | VRT mosaic writers. `build_vrt` prefers `osgeo.gdal` and falls back to `build_vrt_xml` (rasterio-only, verified pixel-identical to `gdal.BuildVRT`); the fallback refuses rotated or mixed-CRS inputs rather than emit a wrong mosaic. Use `build_vrt_safe` on any path where the `.tif` tiles are the deliverable — it downgrades mosaic failure to a WARNING. `osgeo` is the package's ONLY optional import; keep it that way (see `tests/test_dependencies.py`). |
 | `h3_expand_ring(cells, ring=1, valid=None)` | `h3utils.py` | The shared overhang-safety primitive: grid_disk ring expansion of a cell set, optionally restricted to a valid set (existing partitions). Use for ANY ROI→partition selection — exact polygon intersection alone silently misses boundary shots stored in neighbor partitions (child overhang ≈ 0.18 × edge). Consumers: `intersect_h3_geometries`, `egi_h3_intersection`, `geoseries_to_filter`. |
 | `gh3_read_meta(var)` | `gh3driver.py` | Read fields from the build-log sidecar (`h3_columns`, `h3_columns_dtypes`, `h3_partition_level`, `h3_partition_ids`). Use this before reaching for a parquet open. |
 | `gedi_vars_static(product, version)` | `gedidriver.py` | Cached per-product variable list from shipped manifests in `data/`. Prefer over `gedi_vars_from_h5` for NASA release files. |
