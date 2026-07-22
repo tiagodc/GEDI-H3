@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Turn billions of NASA GEDI footprints into analysis-ready datasets. &#8212; gedih3 0.13.2 documentation</title>
+    <title>Turn billions of NASA GEDI footprints into analysis-ready datasets. &#8212; gedih3 0.14.0 documentation</title>
   
   
   
@@ -41,7 +41,7 @@
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="_static/documentation_options.js?v=5af5502e"></script>
+    <script src="_static/documentation_options.js?v=361a893e"></script>
     <script src="_static/doctools.js?v=fd6eb6e6"></script>
     <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/design-tabs.js?v=f930bc37"></script>
@@ -125,8 +125,8 @@
       
     
     
-    <img src="_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.13.2 documentation - Home"/>
-    <img src="_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.13.2 documentation - Home"/>
+    <img src="_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.14.0 documentation - Home"/>
+    <img src="_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.14.0 documentation - Home"/>
   
   
 </a></div>
@@ -383,6 +383,10 @@
 <h1>Turn billions of NASA GEDI footprints into analysis-ready datasets.<a class="headerlink" href="#turn-billions-of-nasa-gedi-footprints-into-analysis-ready-datasets" title="Link to this heading">#</a></h1>
 <p>NASA’s <a class="reference external" href="https://gedi.umd.edu/">GEDI</a> has measured forest height, biomass, and canopy structure across the planet — billions of individual laser measurements spanning every continent except Antarctica. But the raw data is stored in thousands of complex files organized by orbit, not by location. Getting from “I want a biomass map of my study area” to actually having one requires navigating deeply nested file formats, applying multi-criteria quality filters, and processing terabytes of data.</p>
 <p><strong>gedih3</strong> handles all of that. It transforms raw GEDI data into a spatial database you can query by region, filter for quality with a single flag, aggregate to any scale, and export to GeoTIFF, GeoParquet, or any format your tools can read — from the command line or Python.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>gedih3
+</pre></div>
+</div>
+<p>…or with conda, recommended for HPC and shared clusters:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/tiagodc/GEDI-H3.git
 <span class="nb">cd</span><span class="w"> </span>GEDI-H3
 conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>gedih3<span class="w"> </span>-f<span class="w"> </span>environment.yml<span class="w"> </span>

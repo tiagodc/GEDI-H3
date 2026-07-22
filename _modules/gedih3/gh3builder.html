@@ -7,7 +7,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gedih3.gh3builder &#8212; gedih3 0.13.2 documentation</title>
+    <title>gedih3.gh3builder &#8212; gedih3 0.14.0 documentation</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../_static/documentation_options.js?v=5af5502e"></script>
+    <script src="../../_static/documentation_options.js?v=361a893e"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/design-tabs.js?v=f930bc37"></script>
@@ -479,8 +479,8 @@ window.runMermaid = runMermaid;</script>
       
     
     
-    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.13.2 documentation - Home"/>
-    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.13.2 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.14.0 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.14.0 documentation - Home"/>
   
   
 </a></div>
@@ -2309,9 +2309,42 @@ window.runMermaid = runMermaid;</script>
     <span class="n">body</span> <span class="o">=</span> <span class="n">meta_df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">drop_cols</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">):</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">geopandas.io.arrow</span><span class="w"> </span><span class="kn">import</span> <span class="n">_geopandas_to_arrow</span>
-        <span class="k">return</span> <span class="n">_geopandas_to_arrow</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">schema</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="n">_geopandas_to_arrow</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">schema</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="n">pa</span><span class="o">.</span><span class="n">Schema</span><span class="o">.</span><span class="n">from_pandas</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">preserve_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">_schema_resolve_null_fields</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_schema_resolve_null_fields</span><span class="p">(</span><span class="n">schema</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Retype any ``null`` field in *schema* as ``string``.</span>
+
+<span class="sd">    The canonical schema is inferred from a row-less frame, and on pandas &lt; 3</span>
+<span class="sd">    an empty object column carries no type information, so pyarrow infers</span>
+<span class="sd">    ``null`` where the same column with data infers ``string``. Casting real</span>
+<span class="sd">    strings into a null-typed field then fails every per-leaf write with</span>
+<span class="sd">    ``ArrowNotImplementedError: Unsupported cast from string to null``.</span>
+
+<span class="sd">    pandas 3 keeps its dedicated string dtype through ``head(0)`` and so never</span>
+<span class="sd">    produces the null fields this repairs.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    schema : pyarrow.Schema</span>
+<span class="sd">        Schema inferred from the empty meta frame.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    pyarrow.Schema</span>
+<span class="sd">        Same schema with null-typed fields retyped to ``string``, metadata</span>
+<span class="sd">        (including the GeoParquet ``geo`` key) preserved.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
-    <span class="k">return</span> <span class="n">pa</span><span class="o">.</span><span class="n">Schema</span><span class="o">.</span><span class="n">from_pandas</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">preserve_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">null_positions</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">field</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span> <span class="k">if</span> <span class="n">pa</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">is_null</span><span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">type</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">null_positions</span><span class="p">:</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="o">.</span><span class="n">with_type</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">()))</span>
+    <span class="k">return</span> <span class="n">schema</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_derive_merged_output_paths</span><span class="p">(</span><span class="n">merge_progress_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>

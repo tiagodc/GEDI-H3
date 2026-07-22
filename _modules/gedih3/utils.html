@@ -7,7 +7,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gedih3.utils &#8212; gedih3 0.13.2 documentation</title>
+    <title>gedih3.utils &#8212; gedih3 0.14.0 documentation</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../_static/documentation_options.js?v=5af5502e"></script>
+    <script src="../../_static/documentation_options.js?v=361a893e"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/design-tabs.js?v=f930bc37"></script>
@@ -479,8 +479,8 @@ window.runMermaid = runMermaid;</script>
       
     
     
-    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.13.2 documentation - Home"/>
-    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.13.2 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.14.0 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.14.0 documentation - Home"/>
   
   
 </a></div>
@@ -1499,6 +1499,36 @@ window.runMermaid = runMermaid;</script>
     <span class="n">storage</span> <span class="o">=</span> <span class="n">psutil</span><span class="o">.</span><span class="n">disk_usage</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">()</span> <span class="k">if</span> <span class="n">disk_path</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">disk_path</span><span class="p">)</span><span class="o">.</span><span class="n">free</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1024</span><span class="o">**</span><span class="mi">3</span><span class="p">)</span>
     <span class="n">cpus</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">cpus</span><span class="p">,</span> <span class="n">ram</span><span class="p">,</span> <span class="n">storage</span></div>
+
+
+<div class="viewcode-block" id="object_series">
+<a class="viewcode-back" href="../../autoapi/gedih3/utils/index.html#gedih3.utils.object_series">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">object_series</span><span class="p">(</span><span class="n">items</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Wrap a list of array-like objects in an object-dtype ``pd.Series``.</span>
+
+<span class="sd">    ``pd.Series([...])`` and ``np.empty(..., dtype=object)[:] = items`` both</span>
+<span class="sd">    coerce their input through ``np.asarray``, which xarray Datasets refuse</span>
+<span class="sd">    (&quot;cannot directly convert an xarray.Dataset into a numpy array&quot;). Assigning</span>
+<span class="sd">    positionally into a pre-sized object Series is the construction that keeps</span>
+<span class="sd">    the elements intact — use it whenever a ``map_partitions`` result carries</span>
+<span class="sd">    Datasets or other array-likes rather than scalars.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    items : sequence</span>
+<span class="sd">        Objects to store as Series elements, kept by reference.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    pd.Series</span>
+<span class="sd">        Object-dtype Series of ``items``, with a default RangeIndex.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+    <span class="n">series</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">position</span><span class="p">,</span> <span class="n">item</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">items</span><span class="p">):</span>
+        <span class="n">series</span><span class="o">.</span><span class="n">iat</span><span class="p">[</span><span class="n">position</span><span class="p">]</span> <span class="o">=</span> <span class="n">item</span>
+    <span class="k">return</span> <span class="n">series</span></div>
 
 
 <div class="viewcode-block" id="json_write">

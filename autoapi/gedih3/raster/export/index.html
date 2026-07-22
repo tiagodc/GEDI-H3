@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>gedih3.raster.export &#8212; gedih3 0.13.2 documentation</title>
+    <title>gedih3.raster.export &#8212; gedih3 0.14.0 documentation</title>
   
   
   
@@ -41,7 +41,7 @@
   <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../../../_static/documentation_options.js?v=5af5502e"></script>
+    <script src="../../../../_static/documentation_options.js?v=361a893e"></script>
     <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../../_static/design-tabs.js?v=f930bc37"></script>
@@ -126,8 +126,8 @@
       
     
     
-    <img src="../../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.13.2 documentation - Home"/>
-    <img src="../../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.13.2 documentation - Home"/>
+    <img src="../../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.14.0 documentation - Home"/>
+    <img src="../../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.14.0 documentation - Home"/>
   
   
 </a></div>
@@ -497,6 +497,17 @@
 <p>Raster Export Module</p>
 <p>This module provides utilities for exporting raster data to various formats,
 with support for GeoTIFF compression, tiling, and batch operations.</p>
+<section id="attributes">
+<h2>Attributes<a class="headerlink" href="#attributes" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.raster.export.logger" title="gedih3.raster.export.logger"><code class="xref py py-obj docutils literal notranslate"><span class="pre">logger</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
 <section id="functions">
 <h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table">
@@ -513,6 +524,12 @@ with support for GeoTIFF compression, tiling, and batch operations.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#gedih3.raster.export.build_vrt" title="gedih3.raster.export.build_vrt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">build_vrt</span></code></a>(tif_files, vrt_path)</p></td>
 <td><p>Build a GDAL VRT file mosaicking a list of GeoTIFF tiles.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.raster.export.build_vrt_xml" title="gedih3.raster.export.build_vrt_xml"><code class="xref py py-obj docutils literal notranslate"><span class="pre">build_vrt_xml</span></code></a>(tif_files, vrt_path)</p></td>
+<td><p>Write a VRT mosaic as XML using rasterio only — no <code class="docutils literal notranslate"><span class="pre">osgeo</span></code> bindings.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.raster.export.build_vrt_safe" title="gedih3.raster.export.build_vrt_safe"><code class="xref py py-obj docutils literal notranslate"><span class="pre">build_vrt_safe</span></code></a>(tif_files, vrt_path)</p></td>
+<td><p>Build a VRT mosaic, downgrading any failure to a warning.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.raster.export.merge_and_export_rasters" title="gedih3.raster.export.merge_and_export_rasters"><code class="xref py py-obj docutils literal notranslate"><span class="pre">merge_and_export_rasters</span></code></a>(→ str)</p></td>
 <td><p>Rasterize all partitions and merge into a single output file.</p></td>
 </tr>
@@ -525,6 +542,11 @@ with support for GeoTIFF compression, tiling, and batch operations.</p>
 </section>
 <section id="module-contents">
 <h2>Module Contents<a class="headerlink" href="#module-contents" title="Link to this heading">#</a></h2>
+<dl class="py data">
+<dt class="sig sig-object py" id="gedih3.raster.export.logger">
+<span class="sig-prename descclassname"><span class="pre">gedih3.raster.export.</span></span><span class="sig-name descname"><span class="pre">logger</span></span><a class="headerlink" href="#gedih3.raster.export.logger" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.raster.export.export_raster">
 <span class="sig-prename descclassname"><span class="pre">gedih3.raster.export.</span></span><span class="sig-name descname"><span class="pre">export_raster</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xras</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">xarray.Dataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">compress</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'LZW'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tiled</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">blocksize</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">256</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bigtiff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../../../_modules/gedih3/raster/export.html#export_raster"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.raster.export.export_raster" title="Link to this definition">#</a></dt>
@@ -622,12 +644,82 @@ its own file based on its tile ID attribute.</p>
 <dt class="sig sig-object py" id="gedih3.raster.export.build_vrt">
 <span class="sig-prename descclassname"><span class="pre">gedih3.raster.export.</span></span><span class="sig-name descname"><span class="pre">build_vrt</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tif_files</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vrt_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../../_modules/gedih3/raster/export.html#build_vrt"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.raster.export.build_vrt" title="Link to this definition">#</a></dt>
 <dd><p>Build a GDAL VRT file mosaicking a list of GeoTIFF tiles.</p>
+<p>Uses the <code class="docutils literal notranslate"><span class="pre">osgeo.gdal</span></code> bindings when they are importable, and falls back
+to <a class="reference internal" href="#gedih3.raster.export.build_vrt_xml" title="gedih3.raster.export.build_vrt_xml"><code class="xref py py-func docutils literal notranslate"><span class="pre">build_vrt_xml()</span></code></a> otherwise. The GDAL bindings are not pip-installable
+without a version-matched system libgdal, so pip-only installs take the
+fallback; conda / HPC installs keep the authoritative backend.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
 <dt><strong>tif_files</strong><span class="classifier">list of str</span></dt><dd><p>Paths to input GeoTIFF files</p>
 </dd>
 <dt><strong>vrt_path</strong><span class="classifier">str</span></dt><dd><p>Output VRT file path</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>str</dt><dd><p>Path to the written VRT</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.raster.export.build_vrt_xml">
+<span class="sig-prename descclassname"><span class="pre">gedih3.raster.export.</span></span><span class="sig-name descname"><span class="pre">build_vrt_xml</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tif_files</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vrt_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../../_modules/gedih3/raster/export.html#build_vrt_xml"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.raster.export.build_vrt_xml" title="Link to this definition">#</a></dt>
+<dd><p>Write a VRT mosaic as XML using rasterio only — no <code class="docutils literal notranslate"><span class="pre">osgeo</span></code> bindings.</p>
+<p>Handles the narrow case gedih3’s own writers emit: north-up GeoTIFF tiles
+sharing one CRS and one pixel size. Anything outside that (rotated
+geotransforms, mixed CRS) raises rather than emitting a subtly wrong
+mosaic — use the <code class="docutils literal notranslate"><span class="pre">osgeo</span></code> backend for the general case.</p>
+<p>As with <a class="reference internal" href="#gedih3.raster.export.build_vrt" title="gedih3.raster.export.build_vrt"><code class="xref py py-func docutils literal notranslate"><span class="pre">build_vrt()</span></code></a>, the mosaic resolution is pinned to the first
+tile so partial edge tiles cannot drag it off the canonical grid.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>tif_files</strong><span class="classifier">list of str</span></dt><dd><p>Paths to input GeoTIFF files</p>
+</dd>
+<dt><strong>vrt_path</strong><span class="classifier">str</span></dt><dd><p>Output VRT file path</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>str</dt><dd><p>Path to the written VRT</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>GediRasterizationError</dt><dd><p>If the tiles are rotated, span multiple CRS, or use a dtype with no
+GDAL equivalent.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.raster.export.build_vrt_safe">
+<span class="sig-prename descclassname"><span class="pre">gedih3.raster.export.</span></span><span class="sig-name descname"><span class="pre">build_vrt_safe</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tif_files</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vrt_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../../_modules/gedih3/raster/export.html#build_vrt_safe"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.raster.export.build_vrt_safe" title="Link to this definition">#</a></dt>
+<dd><p>Build a VRT mosaic, downgrading any failure to a warning.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">.tif</span></code> tiles are the deliverable; the VRT is a convenience mosaic
+over them. A missing GDAL backend or an unmosaicable tile set must not
+discard a completed rasterization job.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>tif_files</strong><span class="classifier">list of str</span></dt><dd><p>Paths to input GeoTIFF files</p>
+</dd>
+<dt><strong>vrt_path</strong><span class="classifier">str</span></dt><dd><p>Output VRT file path</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>str or None</dt><dd><p>Path to the written VRT, or None if it could not be built.</p>
 </dd>
 </dl>
 </dd>
@@ -734,12 +826,16 @@ its own file based on its tile ID attribute.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#attributes">Attributes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.export.logger"><code class="docutils literal notranslate"><span class="pre">logger</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.export.export_raster"><code class="docutils literal notranslate"><span class="pre">export_raster()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.export.export_raster_partition"><code class="docutils literal notranslate"><span class="pre">export_raster_partition()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.export.rasterize_and_export_partitions"><code class="docutils literal notranslate"><span class="pre">rasterize_and_export_partitions()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.export.build_vrt"><code class="docutils literal notranslate"><span class="pre">build_vrt()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.export.build_vrt_xml"><code class="docutils literal notranslate"><span class="pre">build_vrt_xml()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.export.build_vrt_safe"><code class="docutils literal notranslate"><span class="pre">build_vrt_safe()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.export.merge_and_export_rasters"><code class="docutils literal notranslate"><span class="pre">merge_and_export_rasters()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.export.compute_raster_stats"><code class="docutils literal notranslate"><span class="pre">compute_raster_stats()</span></code></a></li>
 </ul>

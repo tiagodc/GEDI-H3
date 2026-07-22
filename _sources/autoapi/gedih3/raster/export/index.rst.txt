@@ -14,6 +14,14 @@ gedih3.raster.export
        !! processed by numpydoc !!
 
 
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.raster.export.logger
+
+
 Functions
 ---------
 
@@ -23,12 +31,16 @@ Functions
    gedih3.raster.export.export_raster_partition
    gedih3.raster.export.rasterize_and_export_partitions
    gedih3.raster.export.build_vrt
+   gedih3.raster.export.build_vrt_xml
+   gedih3.raster.export.build_vrt_safe
    gedih3.raster.export.merge_and_export_rasters
    gedih3.raster.export.compute_raster_stats
 
 
 Module Contents
 ---------------
+
+.. py:data:: logger
 
 .. py:function:: export_raster(xras: xarray.Dataset, output_path: str, compress: str = 'LZW', tiled: bool = True, blocksize: int = 256, bigtiff: bool = True) -> str
 
@@ -176,6 +188,10 @@ Module Contents
    
    Build a GDAL VRT file mosaicking a list of GeoTIFF tiles.
 
+   Uses the ``osgeo.gdal`` bindings when they are importable, and falls back
+   to :func:`build_vrt_xml` otherwise. The GDAL bindings are not pip-installable
+   without a version-matched system libgdal, so pip-only installs take the
+   fallback; conda / HPC installs keep the authoritative backend.
 
    :Parameters:
 
@@ -187,6 +203,93 @@ Module Contents
 
 
 
+   :Returns:
+
+       str
+           Path to the written VRT
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: build_vrt_xml(tif_files, vrt_path)
+
+   
+   Write a VRT mosaic as XML using rasterio only — no ``osgeo`` bindings.
+
+   Handles the narrow case gedih3's own writers emit: north-up GeoTIFF tiles
+   sharing one CRS and one pixel size. Anything outside that (rotated
+   geotransforms, mixed CRS) raises rather than emitting a subtly wrong
+   mosaic — use the ``osgeo`` backend for the general case.
+
+   As with :func:`build_vrt`, the mosaic resolution is pinned to the first
+   tile so partial edge tiles cannot drag it off the canonical grid.
+
+   :Parameters:
+
+       **tif_files** : list of str
+           Paths to input GeoTIFF files
+
+       **vrt_path** : str
+           Output VRT file path
+
+
+
+   :Returns:
+
+       str
+           Path to the written VRT
+
+
+
+
+   :Raises:
+
+       GediRasterizationError
+           If the tiles are rotated, span multiple CRS, or use a dtype with no
+           GDAL equivalent.
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: build_vrt_safe(tif_files, vrt_path)
+
+   
+   Build a VRT mosaic, downgrading any failure to a warning.
+
+   The ``.tif`` tiles are the deliverable; the VRT is a convenience mosaic
+   over them. A missing GDAL backend or an unmosaicable tile set must not
+   discard a completed rasterization job.
+
+   :Parameters:
+
+       **tif_files** : list of str
+           Paths to input GeoTIFF files
+
+       **vrt_path** : str
+           Output VRT file path
+
+
+
+   :Returns:
+
+       str or None
+           Path to the written VRT, or None if it could not be built.
 
 
 

@@ -29,6 +29,7 @@ Functions
    gedih3.utils.get_package_version
    gedih3.utils.now
    gedih3.utils.get_system_resources
+   gedih3.utils.object_series
    gedih3.utils.json_write
    gedih3.utils.json_read
    gedih3.utils.check_nan_only_columns
@@ -401,6 +402,43 @@ Module Contents
 .. py:function:: now()
 
 .. py:function:: get_system_resources(disk_path: str = None)
+
+.. py:function:: object_series(items)
+
+   
+   Wrap a list of array-like objects in an object-dtype ``pd.Series``.
+
+   ``pd.Series([...])`` and ``np.empty(..., dtype=object)[:] = items`` both
+   coerce their input through ``np.asarray``, which xarray Datasets refuse
+   ("cannot directly convert an xarray.Dataset into a numpy array"). Assigning
+   positionally into a pre-sized object Series is the construction that keeps
+   the elements intact — use it whenever a ``map_partitions`` result carries
+   Datasets or other array-likes rather than scalars.
+
+   :Parameters:
+
+       **items** : sequence
+           Objects to store as Series elements, kept by reference.
+
+
+
+   :Returns:
+
+       pd.Series
+           Object-dtype Series of ``items``, with a default RangeIndex.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
 
 .. py:function:: json_write(obj, path, mode='w', rewrite=False)
 

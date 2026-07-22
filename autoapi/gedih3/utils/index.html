@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>gedih3.utils &#8212; gedih3 0.13.2 documentation</title>
+    <title>gedih3.utils &#8212; gedih3 0.14.0 documentation</title>
   
   
   
@@ -41,7 +41,7 @@
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../../_static/documentation_options.js?v=5af5502e"></script>
+    <script src="../../../_static/documentation_options.js?v=361a893e"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
@@ -126,8 +126,8 @@
       
     
     
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.13.2 documentation - Home"/>
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.13.2 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.14.0 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.14.0 documentation - Home"/>
   
   
 </a></div>
@@ -542,112 +542,115 @@
 <tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.get_system_resources" title="gedih3.utils.get_system_resources"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_system_resources</span></code></a>([disk_path])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.json_write" title="gedih3.utils.json_write"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json_write</span></code></a>(obj, path[, mode, rewrite])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.object_series" title="gedih3.utils.object_series"><code class="xref py py-obj docutils literal notranslate"><span class="pre">object_series</span></code></a>(items)</p></td>
+<td><p>Wrap a list of array-like objects in an object-dtype <code class="docutils literal notranslate"><span class="pre">pd.Series</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.json_write" title="gedih3.utils.json_write"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json_write</span></code></a>(obj, path[, mode, rewrite])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.json_read" title="gedih3.utils.json_read"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json_read</span></code></a>(path[, mode])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.json_read" title="gedih3.utils.json_read"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json_read</span></code></a>(path[, mode])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.check_nan_only_columns" title="gedih3.utils.check_nan_only_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">check_nan_only_columns</span></code></a>(df[, context, logger])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.check_nan_only_columns" title="gedih3.utils.check_nan_only_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">check_nan_only_columns</span></code></a>(df[, context, logger])</p></td>
 <td><p>Warn about columns that are entirely NaN.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.is_parquet" title="gedih3.utils.is_parquet"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_parquet</span></code></a>(→ bool)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.is_parquet" title="gedih3.utils.is_parquet"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_parquet</span></code></a>(→ bool)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.is_hive_directory" title="gedih3.utils.is_hive_directory"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_hive_directory</span></code></a>(→ bool)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.is_hive_directory" title="gedih3.utils.is_hive_directory"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_hive_directory</span></code></a>(→ bool)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_parquet_schema" title="gedih3.utils.read_parquet_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_parquet_schema</span></code></a>(path)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_parquet_schema" title="gedih3.utils.read_parquet_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_parquet_schema</span></code></a>(path)</p></td>
 <td><p>path: parquet file path</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_geopackage_schema" title="gedih3.utils.read_geopackage_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_geopackage_schema</span></code></a>(path)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_geopackage_schema" title="gedih3.utils.read_geopackage_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_geopackage_schema</span></code></a>(path)</p></td>
 <td><p>path: gpkg file path</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_feather_schema" title="gedih3.utils.read_feather_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_feather_schema</span></code></a>(path)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_feather_schema" title="gedih3.utils.read_feather_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_feather_schema</span></code></a>(path)</p></td>
 <td><p>Read schema from a feather (Arrow IPC) file.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_h3_database_schema" title="gedih3.utils.read_h3_database_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_h3_database_schema</span></code></a>(db_path)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_h3_database_schema" title="gedih3.utils.read_h3_database_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_h3_database_schema</span></code></a>(db_path)</p></td>
 <td><p>Read parquet schema from an H3 hive-partitioned database.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_schema" title="gedih3.utils.read_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_schema</span></code></a>(path[, root])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_schema" title="gedih3.utils.read_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_schema</span></code></a>(path[, root])</p></td>
 <td><p>Read schema from a data file or dataset directory, auto-detecting format.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_is_valid" title="gedih3.utils.h5_is_valid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_is_valid</span></code></a>(file)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h5_is_valid" title="gedih3.utils.h5_is_valid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_is_valid</span></code></a>(file)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.release_arrow_pool" title="gedih3.utils.release_arrow_pool"><code class="xref py py-obj docutils literal notranslate"><span class="pre">release_arrow_pool</span></code></a>(→ None)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.release_arrow_pool" title="gedih3.utils.release_arrow_pool"><code class="xref py py-obj docutils literal notranslate"><span class="pre">release_arrow_pool</span></code></a>(→ None)</p></td>
 <td><p>Best-effort drain of pyarrow's allocator.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_traverse" title="gedih3.utils.h5_traverse"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_traverse</span></code></a>(h5_file[, root])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h5_traverse" title="gedih3.utils.h5_traverse"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_traverse</span></code></a>(h5_file[, root])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h5_info" title="gedih3.utils.h5_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_info</span></code></a>(hdf_file[, root])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_info" title="gedih3.utils.h5_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_info</span></code></a>(hdf_file[, root])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_var" title="gedih3.utils.h5_var"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_var</span></code></a>(file, var[, col])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h5_var" title="gedih3.utils.h5_var"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_var</span></code></a>(file, var[, col])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h5_meta" title="gedih3.utils.h5_meta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_meta</span></code></a>(file[, var])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_meta" title="gedih3.utils.h5_meta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_meta</span></code></a>(file[, var])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_copy_subset" title="gedih3.utils.h5_copy_subset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_copy_subset</span></code></a>(source_file, dest_file, variables)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h5_copy_subset" title="gedih3.utils.h5_copy_subset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_copy_subset</span></code></a>(source_file, dest_file, variables)</p></td>
 <td><p>Copy selected datasets from source to dest HDF5 file.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_vector_file" title="gedih3.utils.read_vector_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_vector_file</span></code></a>(filepath[, crs])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_vector_file" title="gedih3.utils.read_vector_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_vector_file</span></code></a>(filepath[, crs])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_img_bounds" title="gedih3.utils.read_img_bounds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_img_bounds</span></code></a>(filepath[, crs])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_img_bounds" title="gedih3.utils.read_img_bounds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_img_bounds</span></code></a>(filepath[, crs])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.geo_to_umm" title="gedih3.utils.geo_to_umm"><code class="xref py py-obj docutils literal notranslate"><span class="pre">geo_to_umm</span></code></a>(obj)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.geo_to_umm" title="gedih3.utils.geo_to_umm"><code class="xref py py-obj docutils literal notranslate"><span class="pre">geo_to_umm</span></code></a>(obj)</p></td>
 <td><p>Converts a GeoDataFrame, shapely Polygon, or GeoJSON dictionary to a UMM-style</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.to_geojson" title="gedih3.utils.to_geojson"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_geojson</span></code></a>(→ Dict)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.to_geojson" title="gedih3.utils.to_geojson"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_geojson</span></code></a>(→ Dict)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.from_geojson" title="gedih3.utils.from_geojson"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_geojson</span></code></a>(geojson)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.from_geojson" title="gedih3.utils.from_geojson"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_geojson</span></code></a>(geojson)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_append_columns" title="gedih3.utils.parquet_append_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_append_columns</span></code></a>(df, f[, tmp_suffix])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parquet_append_columns" title="gedih3.utils.parquet_append_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_append_columns</span></code></a>(df, f[, tmp_suffix])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parquet_schema_add_bbox" title="gedih3.utils.parquet_schema_add_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_schema_add_bbox</span></code></a>(schema, bbox)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_schema_add_bbox" title="gedih3.utils.parquet_schema_add_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_schema_add_bbox</span></code></a>(schema, bbox)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parse_h3_partition_dirname" title="gedih3.utils.parse_h3_partition_dirname"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_h3_partition_dirname</span></code></a>(h3part)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parse_h3_partition_dirname" title="gedih3.utils.parse_h3_partition_dirname"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_h3_partition_dirname</span></code></a>(h3part)</p></td>
 <td><p>Parse a partition dir name like <code class="docutils literal notranslate"><span class="pre">'h3_03=830e4afffffffff'</span></code> into</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h3_partition_bbox" title="gedih3.utils.h3_partition_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h3_partition_bbox</span></code></a>(h3_cell_id, parent_res[, edge_fraction])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h3_partition_bbox" title="gedih3.utils.h3_partition_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h3_partition_bbox</span></code></a>(h3_cell_id, parent_res[, edge_fraction])</p></td>
 <td><p>Return the EPSG:4326 bbox of an H3 cell, padded to safely contain all</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_backfill_bbox" title="gedih3.utils.parquet_backfill_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_backfill_bbox</span></code></a>(path)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parquet_backfill_bbox" title="gedih3.utils.parquet_backfill_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_backfill_bbox</span></code></a>(path)</p></td>
 <td><p>Rewrite a single parquet file in place so its GeoParquet <code class="docutils literal notranslate"><span class="pre">geo</span></code> metadata</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parquet_merge_files" title="gedih3.utils.parquet_merge_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_merge_files</span></code></a>(ofile, flist[, check_shots, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_merge_files" title="gedih3.utils.parquet_merge_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_merge_files</span></code></a>(ofile, flist[, check_shots, ...])</p></td>
 <td><p>Stream-merge parquet files into a single output with a bounded memory footprint.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_join_columns" title="gedih3.utils.parquet_join_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_join_columns</span></code></a>(flist, ofile[, key_col, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parquet_join_columns" title="gedih3.utils.parquet_join_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_join_columns</span></code></a>(flist, ofile[, key_col, ...])</p></td>
 <td><p>Memory-efficient column-wise join of parquet files. Equivalent to pd.concat(axis=1)</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parse_temporal" title="gedih3.utils.parse_temporal"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_temporal</span></code></a>(temporal)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parse_temporal" title="gedih3.utils.parse_temporal"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_temporal</span></code></a>(temporal)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parse_spatial" title="gedih3.utils.parse_spatial"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_spatial</span></code></a>(spatial)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parse_spatial" title="gedih3.utils.parse_spatial"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_spatial</span></code></a>(spatial)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.merge_spatial" title="gedih3.utils.merge_spatial"><code class="xref py py-obj docutils literal notranslate"><span class="pre">merge_spatial</span></code></a>(existing, new)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.merge_spatial" title="gedih3.utils.merge_spatial"><code class="xref py py-obj docutils literal notranslate"><span class="pre">merge_spatial</span></code></a>(existing, new)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.get_dask_client" title="gedih3.utils.get_dask_client"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_dask_client</span></code></a>()</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.get_dask_client" title="gedih3.utils.get_dask_client"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_dask_client</span></code></a>()</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.dask_safe_wait" title="gedih3.utils.dask_safe_wait"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dask_safe_wait</span></code></a>(persisted[, show_progress])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.dask_safe_wait" title="gedih3.utils.dask_safe_wait"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dask_safe_wait</span></code></a>(persisted[, show_progress])</p></td>
 <td><p>Wait for a persisted Dask collection to finish and re-raise the first</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.dask_safe_collect" title="gedih3.utils.dask_safe_collect"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dask_safe_collect</span></code></a>(collection[, show_progress])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.dask_safe_collect" title="gedih3.utils.dask_safe_collect"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dask_safe_collect</span></code></a>(collection[, show_progress])</p></td>
 <td><p>Persist a Dask DataFrame/Series on the cluster, then gather each</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.atomic_parquet_write" title="gedih3.utils.atomic_parquet_write"><code class="xref py py-obj docutils literal notranslate"><span class="pre">atomic_parquet_write</span></code></a>(df, opath, *[, compression, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.atomic_parquet_write" title="gedih3.utils.atomic_parquet_write"><code class="xref py py-obj docutils literal notranslate"><span class="pre">atomic_parquet_write</span></code></a>(df, opath, *[, compression, ...])</p></td>
 <td><p>Atomic parquet write with post-write page-level integrity check + retry.</p></td>
 </tr>
 </tbody>
@@ -832,6 +835,32 @@ protocol prefix.</p>
 <dt class="sig sig-object py" id="gedih3.utils.get_system_resources">
 <span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">get_system_resources</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">disk_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#get_system_resources"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.get_system_resources" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.object_series">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">object_series</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">items</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#object_series"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.object_series" title="Link to this definition">#</a></dt>
+<dd><p>Wrap a list of array-like objects in an object-dtype <code class="docutils literal notranslate"><span class="pre">pd.Series</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">pd.Series([...])</span></code> and <code class="docutils literal notranslate"><span class="pre">np.empty(...,</span> <span class="pre">dtype=object)[:]</span> <span class="pre">=</span> <span class="pre">items</span></code> both
+coerce their input through <code class="docutils literal notranslate"><span class="pre">np.asarray</span></code>, which xarray Datasets refuse
+(“cannot directly convert an xarray.Dataset into a numpy array”). Assigning
+positionally into a pre-sized object Series is the construction that keeps
+the elements intact — use it whenever a <code class="docutils literal notranslate"><span class="pre">map_partitions</span></code> result carries
+Datasets or other array-likes rather than scalars.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>items</strong><span class="classifier">sequence</span></dt><dd><p>Objects to store as Series elements, kept by reference.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>pd.Series</dt><dd><p>Object-dtype Series of <code class="docutils literal notranslate"><span class="pre">items</span></code>, with a default RangeIndex.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.utils.json_write">
@@ -1430,6 +1459,7 @@ of the whole partition.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.get_package_version"><code class="docutils literal notranslate"><span class="pre">get_package_version()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.now"><code class="docutils literal notranslate"><span class="pre">now()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.get_system_resources"><code class="docutils literal notranslate"><span class="pre">get_system_resources()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.object_series"><code class="docutils literal notranslate"><span class="pre">object_series()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.json_write"><code class="docutils literal notranslate"><span class="pre">json_write()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.json_read"><code class="docutils literal notranslate"><span class="pre">json_read()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.check_nan_only_columns"><code class="docutils literal notranslate"><span class="pre">check_nan_only_columns()</span></code></a></li>

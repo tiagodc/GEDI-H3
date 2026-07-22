@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Installation &#8212; gedih3 0.13.2 documentation</title>
+    <title>Installation &#8212; gedih3 0.14.0 documentation</title>
   
   
   
@@ -41,7 +41,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=5af5502e"></script>
+    <script src="../_static/documentation_options.js?v=361a893e"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
@@ -126,8 +126,8 @@
       
     
     
-    <img src="../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.13.2 documentation - Home"/>
-    <img src="../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.13.2 documentation - Home"/>
+    <img src="../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.14.0 documentation - Home"/>
+    <img src="../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.14.0 documentation - Home"/>
   
   
 </a></div>
@@ -428,6 +428,9 @@
 <li><p>conda (recommended) or pip</p></li>
 <li><p>NASA Earthdata account (for downloading GEDI data)</p></li>
 </ul>
+<p>No system libraries are required by either install path. GDAL, GEOS, PROJ and
+HDF5 all arrive prebuilt — vendored inside the wheels on pip, or as conda
+packages.</p>
 </section>
 <section id="using-conda-recommended">
 <h2>Using conda (recommended)<a class="headerlink" href="#using-conda-recommended" title="Link to this heading">#</a></h2>
@@ -440,10 +443,112 @@ conda<span class="w"> </span>activate<span class="w"> </span>gedih3
 gh3_build<span class="w"> </span>--help
 </pre></div>
 </div>
+<p>Recommended for HPC and shared clusters: conda-forge resolves the full native
+stack as a coherent set, and the environment includes extras that pip does not
+install — JupyterLab, the plotting stack, and the GDAL Python bindings.</p>
 </section>
+<section id="using-pip">
+<h2>Using pip<a class="headerlink" href="#using-pip" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>gedih3
+</pre></div>
+</div>
+<p>This is self-contained. Every dependency with a native component ships binary
+wheels that vendor their own libraries, so nothing needs to be installed
+system-wide beforehand:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Native library</p></th>
+<th class="head"><p>Comes from</p></th>
+<th class="head"><p>Notes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>GDAL</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rasterio</span></code></p></td>
+<td><p>vendored as <code class="docutils literal notranslate"><span class="pre">rasterio.libs/libgdal-*.so</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>GEOS</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">shapely</span></code></p></td>
+<td><p>vendored as <code class="docutils literal notranslate"><span class="pre">shapely.libs/libgeos-*.so</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>PROJ (+ proj-data)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pyproj</span></code></p></td>
+<td><p>vendored, including the datum grids</p></td>
+</tr>
+<tr class="row-odd"><td><p>HDF5</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">h5py</span></code></p></td>
+<td><p>vendored</p></td>
+</tr>
+<tr class="row-even"><td><p>OGR / vector drivers</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pyogrio</span></code></p></td>
+<td><p>geopandas’ IO engine</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>These vendored copies are privately renamed, so they neither require nor
+conflict with any GDAL/GEOS/PROJ already installed on the machine.</p>
+<section id="platform-support">
+<h3>Platform support<a class="headerlink" href="#platform-support" title="Link to this heading">#</a></h3>
+<p>Wheels cover the mainstream targets. Where no wheel matches, pip falls back to
+building from source, which <em>does</em> require a full system toolchain (compilers,
+<code class="docutils literal notranslate"><span class="pre">libgdal-dev</span></code>, <code class="docutils literal notranslate"><span class="pre">libgeos-dev</span></code>, <code class="docutils literal notranslate"><span class="pre">libproj-dev</span></code>, <code class="docutils literal notranslate"><span class="pre">libhdf5-dev</span></code>) — use conda there
+instead.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Platform</p></th>
+<th class="head"><p>CPython 3.12 / 3.13</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Linux x86-64</p></td>
+<td><p>fully supported</p></td>
+</tr>
+<tr class="row-odd"><td><p>Linux aarch64</p></td>
+<td><p>fully supported</p></td>
+</tr>
+<tr class="row-even"><td><p>macOS (Apple Silicon)</p></td>
+<td><p>fully supported</p></td>
+</tr>
+<tr class="row-odd"><td><p>macOS (Intel)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">numba</span></code> and <code class="docutils literal notranslate"><span class="pre">h3</span></code> no longer publish Intel-macOS wheels — use conda</p></td>
+</tr>
+<tr class="row-even"><td><p>Windows x64</p></td>
+<td><p>fully supported</p></td>
+</tr>
+<tr class="row-odd"><td><p>Windows ARM64</p></td>
+<td><p>several dependencies have no wheels — use conda</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="optional-gdal-python-bindings">
+<h3>Optional: GDAL Python bindings<a class="headerlink" href="#optional-gdal-python-bindings" title="Link to this heading">#</a></h3>
+<p>gedih3 does not require the <code class="docutils literal notranslate"><span class="pre">osgeo</span></code> GDAL bindings. They are used for one thing
+— building the VRT mosaic that accompanies tiled raster output — and
+<code class="docutils literal notranslate"><span class="pre">gh3_rasterize</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span> <span class="pre">-R</span></code> and <code class="docutils literal notranslate"><span class="pre">gh3_from_img</span></code> all fall back to a
+rasterio-only VRT writer when they are absent.</p>
+<p>If you want the bindings anyway, note that <strong><code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">gedih3[gdal]</span></code> will
+not work</strong>. PyPI’s GDAL package ships no wheels, only a source distribution,
+and it refuses to build unless a system libgdal of the <em>exact same version</em> is
+already installed — while pip, left to itself, always selects the newest
+release. The version must be matched by hand:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Debian / Ubuntu</span>
+sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>libgdal-dev<span class="w"> </span>gdal-bin
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;GDAL==</span><span class="k">$(</span>gdal-config<span class="w"> </span>--version<span class="k">)</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+<p>Or simply use the conda environment, where <code class="docutils literal notranslate"><span class="pre">gdal</span></code> is included.</p>
+</section>
+</section>
+<section id="runtime-requirements">
+<h2>Runtime requirements<a class="headerlink" href="#runtime-requirements" title="Link to this heading">#</a></h2>
+<p>Two things are needed at run time rather than install time.</p>
 <section id="nasa-earthdata-credentials">
-<h2>NASA Earthdata Credentials<a class="headerlink" href="#nasa-earthdata-credentials" title="Link to this heading">#</a></h2>
-<p>GEDI data is hosted by the NASA DAACs (Distributed Active Archive Centers). Authentication is required for downloads.</p>
+<h3>NASA Earthdata credentials<a class="headerlink" href="#nasa-earthdata-credentials" title="Link to this heading">#</a></h3>
+<p>GEDI data is hosted by the NASA DAACs (Distributed Active Archive Centers).
+Authentication is required for downloads.</p>
 <ol class="arabic simple">
 <li><p>Create an account at <a class="reference external" href="https://urs.earthdata.nasa.gov/">https://urs.earthdata.nasa.gov/</a></p></li>
 <li><p>Create <code class="docutils literal notranslate"><span class="pre">~/.netrc</span></code> with your credentials:</p></li>
@@ -459,6 +564,16 @@ gh3_build<span class="w"> </span>--help
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import earthaccess; earthaccess.login()&quot;</span>
 </pre></div>
 </div>
+</section>
+<section id="duckdb-extensions-gh3-build-ducklake-only">
+<h3>DuckDB extensions (<code class="docutils literal notranslate"><span class="pre">gh3_build_ducklake</span></code> only)<a class="headerlink" href="#duckdb-extensions-gh3-build-ducklake-only" title="Link to this heading">#</a></h3>
+<p>On first run, <code class="docutils literal notranslate"><span class="pre">gh3_build_ducklake</span></code> downloads the DuckDB <code class="docutils literal notranslate"><span class="pre">spatial</span></code> and
+community <code class="docutils literal notranslate"><span class="pre">h3</span></code> extensions from the DuckDB extension repository. This needs
+outbound network access once; the extensions are then cached locally.</p>
+<p>On air-gapped systems, pre-populate an extension directory on a connected
+machine and point DuckDB at it via the <code class="docutils literal notranslate"><span class="pre">extension_directory</span></code> parameter of
+<code class="docutils literal notranslate"><span class="pre">gedih3.sqlutils.init_duckdb</span></code>.</p>
+</section>
 </section>
 <section id="verify-installation">
 <h2>Verify Installation<a class="headerlink" href="#verify-installation" title="Link to this heading">#</a></h2>
@@ -518,7 +633,16 @@ gh3_list_resolutions
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-conda-recommended">Using conda (recommended)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nasa-earthdata-credentials">NASA Earthdata Credentials</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-pip">Using pip</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#platform-support">Platform support</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-gdal-python-bindings">Optional: GDAL Python bindings</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#runtime-requirements">Runtime requirements</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nasa-earthdata-credentials">NASA Earthdata credentials</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#duckdb-extensions-gh3-build-ducklake-only">DuckDB extensions (<code class="docutils literal notranslate"><span class="pre">gh3_build_ducklake</span></code> only)</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verify-installation">Verify Installation</a></li>
 </ul>
   </nav></div>

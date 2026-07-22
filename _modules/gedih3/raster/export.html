@@ -7,7 +7,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gedih3.raster.export &#8212; gedih3 0.13.2 documentation</title>
+    <title>gedih3.raster.export &#8212; gedih3 0.14.0 documentation</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../../_static/documentation_options.js?v=5af5502e"></script>
+    <script src="../../../_static/documentation_options.js?v=361a893e"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
@@ -479,8 +479,8 @@ window.runMermaid = runMermaid;</script>
       
     
     
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.13.2 documentation - Home"/>
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.13.2 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.14.0 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.14.0 documentation - Home"/>
   
   
 </a></div>
@@ -767,7 +767,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">with support for GeoTIFF compression, tiling, and batch operations.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">xml.etree.ElementTree</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ET</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
@@ -778,6 +780,9 @@ window.runMermaid = runMermaid;</script>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_geotiff_options</span><span class="p">,</span> <span class="n">is_raster_format</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">GediRasterizationError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">AtomicFileWriter</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="export_raster">
@@ -1034,10 +1039,21 @@ window.runMermaid = runMermaid;</script>
     <span class="n">tif_files</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">all_paths</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.tif&#39;</span><span class="p">)]</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tif_files</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
         <span class="n">vrt_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s1">&#39;mosaic.vrt&#39;</span><span class="p">)</span>
-        <span class="n">build_vrt</span><span class="p">(</span><span class="n">tif_files</span><span class="p">,</span> <span class="n">vrt_path</span><span class="p">)</span>
+        <span class="n">build_vrt_safe</span><span class="p">(</span><span class="n">tif_files</span><span class="p">,</span> <span class="n">vrt_path</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">result</span></div>
 
+
+
+<span class="c1"># numpy dtype name -&gt; GDAL type name, as spelled in VRT XML. Explicit table</span>
+<span class="c1"># rather than a rasterio private helper: the mapping is stable and the failure</span>
+<span class="c1"># mode of a wrong guess (silently misread pixels) is worse than a KeyError.</span>
+<span class="n">_GDAL_TYPENAME</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;uint8&#39;</span><span class="p">:</span> <span class="s1">&#39;Byte&#39;</span><span class="p">,</span> <span class="s1">&#39;int8&#39;</span><span class="p">:</span> <span class="s1">&#39;Int8&#39;</span><span class="p">,</span> <span class="s1">&#39;uint16&#39;</span><span class="p">:</span> <span class="s1">&#39;UInt16&#39;</span><span class="p">,</span> <span class="s1">&#39;int16&#39;</span><span class="p">:</span> <span class="s1">&#39;Int16&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;uint32&#39;</span><span class="p">:</span> <span class="s1">&#39;UInt32&#39;</span><span class="p">,</span> <span class="s1">&#39;int32&#39;</span><span class="p">:</span> <span class="s1">&#39;Int32&#39;</span><span class="p">,</span> <span class="s1">&#39;uint64&#39;</span><span class="p">:</span> <span class="s1">&#39;UInt64&#39;</span><span class="p">,</span> <span class="s1">&#39;int64&#39;</span><span class="p">:</span> <span class="s1">&#39;Int64&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;float32&#39;</span><span class="p">:</span> <span class="s1">&#39;Float32&#39;</span><span class="p">,</span> <span class="s1">&#39;float64&#39;</span><span class="p">:</span> <span class="s1">&#39;Float64&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;complex_int16&#39;</span><span class="p">:</span> <span class="s1">&#39;CInt16&#39;</span><span class="p">,</span> <span class="s1">&#39;complex64&#39;</span><span class="p">:</span> <span class="s1">&#39;CFloat32&#39;</span><span class="p">,</span> <span class="s1">&#39;complex128&#39;</span><span class="p">:</span> <span class="s1">&#39;CFloat64&#39;</span><span class="p">,</span>
+<span class="p">}</span>
 
 
 <div class="viewcode-block" id="build_vrt">
@@ -1045,14 +1061,28 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">build_vrt</span><span class="p">(</span><span class="n">tif_files</span><span class="p">,</span> <span class="n">vrt_path</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Build a GDAL VRT file mosaicking a list of GeoTIFF tiles.</span>
 
+<span class="sd">    Uses the ``osgeo.gdal`` bindings when they are importable, and falls back</span>
+<span class="sd">    to :func:`build_vrt_xml` otherwise. The GDAL bindings are not pip-installable</span>
+<span class="sd">    without a version-matched system libgdal, so pip-only installs take the</span>
+<span class="sd">    fallback; conda / HPC installs keep the authoritative backend.</span>
+
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    tif_files : list of str</span>
 <span class="sd">        Paths to input GeoTIFF files</span>
 <span class="sd">    vrt_path : str</span>
 <span class="sd">        Output VRT file path</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    str</span>
+<span class="sd">        Path to the written VRT</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">osgeo</span><span class="w"> </span><span class="kn">import</span> <span class="n">gdal</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">osgeo</span><span class="w"> </span><span class="kn">import</span> <span class="n">gdal</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">build_vrt_xml</span><span class="p">(</span><span class="n">tif_files</span><span class="p">,</span> <span class="n">vrt_path</span><span class="p">)</span>
+
     <span class="n">gdal</span><span class="o">.</span><span class="n">UseExceptions</span><span class="p">()</span>
     <span class="c1"># Pin the VRT resolution to the first tile&#39;s pixel size.  Without an</span>
     <span class="c1"># explicit resolution, gdal.BuildVRT defaults to &#39;average&#39;.</span>
@@ -1060,7 +1090,158 @@ window.runMermaid = runMermaid;</script>
     <span class="n">gt</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">GetGeoTransform</span><span class="p">()</span>
     <span class="n">ds</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">opts</span> <span class="o">=</span> <span class="n">gdal</span><span class="o">.</span><span class="n">BuildVRTOptions</span><span class="p">(</span><span class="n">resolution</span><span class="o">=</span><span class="s1">&#39;user&#39;</span><span class="p">,</span> <span class="n">xRes</span><span class="o">=</span><span class="n">gt</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">yRes</span><span class="o">=</span><span class="nb">abs</span><span class="p">(</span><span class="n">gt</span><span class="p">[</span><span class="mi">5</span><span class="p">]))</span>
-    <span class="n">gdal</span><span class="o">.</span><span class="n">BuildVRT</span><span class="p">(</span><span class="n">vrt_path</span><span class="p">,</span> <span class="n">tif_files</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">opts</span><span class="p">)</span></div>
+    <span class="n">gdal</span><span class="o">.</span><span class="n">BuildVRT</span><span class="p">(</span><span class="n">vrt_path</span><span class="p">,</span> <span class="n">tif_files</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">opts</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">vrt_path</span></div>
+
+
+
+<div class="viewcode-block" id="build_vrt_xml">
+<a class="viewcode-back" href="../../../autoapi/gedih3/raster/export/index.html#gedih3.raster.export.build_vrt_xml">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_vrt_xml</span><span class="p">(</span><span class="n">tif_files</span><span class="p">,</span> <span class="n">vrt_path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Write a VRT mosaic as XML using rasterio only — no ``osgeo`` bindings.</span>
+
+<span class="sd">    Handles the narrow case gedih3&#39;s own writers emit: north-up GeoTIFF tiles</span>
+<span class="sd">    sharing one CRS and one pixel size. Anything outside that (rotated</span>
+<span class="sd">    geotransforms, mixed CRS) raises rather than emitting a subtly wrong</span>
+<span class="sd">    mosaic — use the ``osgeo`` backend for the general case.</span>
+
+<span class="sd">    As with :func:`build_vrt`, the mosaic resolution is pinned to the first</span>
+<span class="sd">    tile so partial edge tiles cannot drag it off the canonical grid.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    tif_files : list of str</span>
+<span class="sd">        Paths to input GeoTIFF files</span>
+<span class="sd">    vrt_path : str</span>
+<span class="sd">        Output VRT file path</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    str</span>
+<span class="sd">        Path to the written VRT</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    GediRasterizationError</span>
+<span class="sd">        If the tiles are rotated, span multiple CRS, or use a dtype with no</span>
+<span class="sd">        GDAL equivalent.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">rasterio</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">tif_files</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="s2">&quot;build_vrt_xml requires at least one input tile&quot;</span><span class="p">)</span>
+
+    <span class="n">profiles</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">tif_files</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
+            <span class="n">profiles</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+                <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">path</span><span class="p">,</span> <span class="s1">&#39;transform&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">transform</span><span class="p">,</span> <span class="s1">&#39;width&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">width</span><span class="p">,</span>
+                <span class="s1">&#39;height&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="s1">&#39;count&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="s1">&#39;dtypes&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">dtypes</span><span class="p">,</span>
+                <span class="s1">&#39;nodata&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">nodata</span><span class="p">,</span> <span class="s1">&#39;crs&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">crs</span><span class="p">,</span> <span class="s1">&#39;bounds&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">bounds</span><span class="p">,</span>
+                <span class="s1">&#39;block&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">block_shapes</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                <span class="s1">&#39;colorinterp&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">ci</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">ci</span> <span class="ow">in</span> <span class="n">src</span><span class="o">.</span><span class="n">colorinterp</span><span class="p">],</span>
+            <span class="p">})</span>
+
+    <span class="n">first</span> <span class="o">=</span> <span class="n">profiles</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># Preconditions — refuse loudly instead of writing a wrong mosaic.</span>
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">b</span> <span class="ow">or</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">d</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;build_vrt_xml cannot mosaic rotated rasters [file=</span><span class="si">{</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">]; &quot;</span>
+                <span class="s2">&quot;install the GDAL Python bindings for the general case&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="n">first</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;build_vrt_xml requires a single CRS across tiles: &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">first</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> vs </span><span class="si">{</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> [file=</span><span class="si">{</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">]&quot;</span>
+            <span class="p">)</span>
+    <span class="n">unknown</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;dtypes&#39;</span><span class="p">]}</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">_GDAL_TYPENAME</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">unknown</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No GDAL type name for dtype(s): </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">unknown</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">xres</span> <span class="o">=</span> <span class="n">first</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">a</span>
+    <span class="n">yres</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">first</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">e</span><span class="p">)</span>
+
+    <span class="n">left</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;bounds&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">left</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">)</span>
+    <span class="n">right</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;bounds&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">right</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">)</span>
+    <span class="n">bottom</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;bounds&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">bottom</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">)</span>
+    <span class="n">top</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;bounds&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">top</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">)</span>
+
+    <span class="n">root</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">Element</span><span class="p">(</span><span class="s1">&#39;VRTDataset&#39;</span><span class="p">,</span>
+                      <span class="n">rasterXSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">((</span><span class="n">right</span> <span class="o">-</span> <span class="n">left</span><span class="p">)</span> <span class="o">/</span> <span class="n">xres</span><span class="p">))),</span>
+                      <span class="n">rasterYSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">((</span><span class="n">top</span> <span class="o">-</span> <span class="n">bottom</span><span class="p">)</span> <span class="o">/</span> <span class="n">yres</span><span class="p">))))</span>
+    <span class="k">if</span> <span class="n">first</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;SRS&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="n">first</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_wkt</span><span class="p">()</span>
+    <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;GeoTransform&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">v</span><span class="si">:</span><span class="s1">.16e</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">xres</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">top</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="n">yres</span><span class="p">))</span>
+
+    <span class="n">vrt_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">vrt_path</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">first</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">vband</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;VRTRasterBand&#39;</span><span class="p">,</span>
+                              <span class="n">dataType</span><span class="o">=</span><span class="n">_GDAL_TYPENAME</span><span class="p">[</span><span class="n">first</span><span class="p">[</span><span class="s1">&#39;dtypes&#39;</span><span class="p">][</span><span class="n">band</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]],</span>
+                              <span class="n">band</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">band</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">first</span><span class="p">[</span><span class="s1">&#39;nodata&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">vband</span><span class="p">,</span> <span class="s1">&#39;NoDataValue&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">first</span><span class="p">[</span><span class="s1">&#39;nodata&#39;</span><span class="p">])</span>
+        <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">vband</span><span class="p">,</span> <span class="s1">&#39;ColorInterp&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="n">first</span><span class="p">[</span><span class="s1">&#39;colorinterp&#39;</span><span class="p">][</span><span class="n">band</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">:</span>
+            <span class="n">source</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">vband</span><span class="p">,</span> <span class="s1">&#39;ComplexSource&#39;</span><span class="p">)</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">&#39;SourceFilename&#39;</span><span class="p">,</span> <span class="n">relativeToVRT</span><span class="o">=</span><span class="s1">&#39;1&#39;</span><span class="p">)</span>
+            <span class="n">filename</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">]),</span> <span class="n">vrt_dir</span><span class="p">)</span>
+            <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">&#39;SourceBand&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">band</span><span class="p">)</span>
+            <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">&#39;SourceProperties&#39;</span><span class="p">,</span>
+                          <span class="n">RasterXSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">]),</span> <span class="n">RasterYSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">]),</span>
+                          <span class="n">DataType</span><span class="o">=</span><span class="n">_GDAL_TYPENAME</span><span class="p">[</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;dtypes&#39;</span><span class="p">][</span><span class="n">band</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]],</span>
+                          <span class="n">BlockXSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;block&#39;</span><span class="p">][</span><span class="mi">1</span><span class="p">]),</span> <span class="n">BlockYSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;block&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]))</span>
+            <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">&#39;SrcRect&#39;</span><span class="p">,</span> <span class="n">xOff</span><span class="o">=</span><span class="s1">&#39;0&#39;</span><span class="p">,</span> <span class="n">yOff</span><span class="o">=</span><span class="s1">&#39;0&#39;</span><span class="p">,</span>
+                          <span class="n">xSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">]),</span> <span class="n">ySize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">]))</span>
+            <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">&#39;DstRect&#39;</span><span class="p">,</span>
+                          <span class="n">xOff</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">((</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;bounds&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">left</span> <span class="o">-</span> <span class="n">left</span><span class="p">)</span> <span class="o">/</span> <span class="n">xres</span><span class="p">))),</span>
+                          <span class="n">yOff</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">((</span><span class="n">top</span> <span class="o">-</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;bounds&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">top</span><span class="p">)</span> <span class="o">/</span> <span class="n">yres</span><span class="p">))),</span>
+                          <span class="n">xSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">a</span> <span class="o">/</span> <span class="n">xres</span><span class="p">))),</span>
+                          <span class="n">ySize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="nb">abs</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">e</span><span class="p">)</span> <span class="o">/</span> <span class="n">yres</span><span class="p">))))</span>
+            <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;nodata&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">&#39;NODATA&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;nodata&#39;</span><span class="p">])</span>
+
+    <span class="n">ET</span><span class="o">.</span><span class="n">indent</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">space</span><span class="o">=</span><span class="s1">&#39;  &#39;</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">AtomicFileWriter</span><span class="p">(</span><span class="n">vrt_path</span><span class="p">)</span> <span class="k">as</span> <span class="n">tmp_path</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+            <span class="n">handle</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">ET</span><span class="o">.</span><span class="n">tostring</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;unicode&#39;</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">vrt_path</span></div>
+
+
+
+<div class="viewcode-block" id="build_vrt_safe">
+<a class="viewcode-back" href="../../../autoapi/gedih3/raster/export/index.html#gedih3.raster.export.build_vrt_safe">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_vrt_safe</span><span class="p">(</span><span class="n">tif_files</span><span class="p">,</span> <span class="n">vrt_path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build a VRT mosaic, downgrading any failure to a warning.</span>
+
+<span class="sd">    The ``.tif`` tiles are the deliverable; the VRT is a convenience mosaic</span>
+<span class="sd">    over them. A missing GDAL backend or an unmosaicable tile set must not</span>
+<span class="sd">    discard a completed rasterization job.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    tif_files : list of str</span>
+<span class="sd">        Paths to input GeoTIFF files</span>
+<span class="sd">    vrt_path : str</span>
+<span class="sd">        Output VRT file path</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    str or None</span>
+<span class="sd">        Path to the written VRT, or None if it could not be built.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">build_vrt</span><span class="p">(</span><span class="n">tif_files</span><span class="p">,</span> <span class="n">vrt_path</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Could not build VRT mosaic: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2"> &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;[vrt=</span><span class="si">{</span><span class="n">vrt_path</span><span class="si">}</span><span class="s2">] — the </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">tif_files</span><span class="p">)</span><span class="si">}</span><span class="s2"> GeoTIFF tiles are unaffected&quot;</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
 
 
 

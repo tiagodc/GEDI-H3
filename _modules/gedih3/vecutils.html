@@ -7,7 +7,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gedih3.vecutils &#8212; gedih3 0.13.2 documentation</title>
+    <title>gedih3.vecutils &#8212; gedih3 0.14.0 documentation</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../_static/documentation_options.js?v=5af5502e"></script>
+    <script src="../../_static/documentation_options.js?v=361a893e"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/design-tabs.js?v=f930bc37"></script>
@@ -479,8 +479,8 @@ window.runMermaid = runMermaid;</script>
       
     
     
-    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.13.2 documentation - Home"/>
-    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.13.2 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.14.0 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.14.0 documentation - Home"/>
   
   
 </a></div>
@@ -873,15 +873,31 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    dict</span>
 <span class="sd">        Keys: crs, bounds_wgs84, columns, feature_count, geometry_type</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">import</span><span class="w"> </span><span class="nn">fiona</span>
+    <span class="c1"># pyogrio, not fiona: it is geopandas&#39; own OGR backend (so it is already</span>
+    <span class="c1"># installed), and unlike fiona it ships wheels for linux-aarch64 and every</span>
+    <span class="c1"># CPython via abi3.</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyogrio</span>
 
-    <span class="k">with</span> <span class="n">fiona</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">vector_path</span><span class="p">)</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
-        <span class="n">crs</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">crs</span>
-        <span class="n">bounds</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">bounds</span>  <span class="c1"># (minx, miny, maxx, maxy)</span>
-        <span class="n">feature_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">src</span><span class="p">)</span>
-        <span class="n">schema</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">schema</span>
-        <span class="n">geometry_type</span> <span class="o">=</span> <span class="n">schema</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span>
-        <span class="n">columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">schema</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="n">info</span> <span class="o">=</span> <span class="n">pyogrio</span><span class="o">.</span><span class="n">read_info</span><span class="p">(</span><span class="n">vector_path</span><span class="p">)</span>
+    <span class="n">crs</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span>
+    <span class="n">feature_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;features&#39;</span><span class="p">])</span>
+    <span class="n">geometry_type</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;geometry_type&#39;</span><span class="p">]</span>
+    <span class="n">columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;fields&#39;</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">feature_count</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1"># Nothing to bound. fiona raised DriverError here; be explicit instead,</span>
+        <span class="c1"># since a None would slip silently into the transform below.</span>
+        <span class="k">raise</span> <span class="n">GediSpatialJoinError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Vector file has no features to derive bounds from: </span><span class="si">{</span><span class="n">vector_path</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">bounds</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;total_bounds&#39;</span><span class="p">]</span>  <span class="c1"># (minx, miny, maxx, maxy)</span>
+    <span class="k">if</span> <span class="n">bounds</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Not every OGR driver reports an extent for free — GeoJSON does not on</span>
+        <span class="c1"># pyogrio &lt; 0.8, and a driver can decline at any version. Read just the</span>
+        <span class="c1"># geometries to derive it; still cheaper than loading the attributes.</span>
+        <span class="n">bounds</span> <span class="o">=</span> <span class="n">pyogrio</span><span class="o">.</span><span class="n">read_dataframe</span><span class="p">(</span><span class="n">vector_path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[])</span><span class="o">.</span><span class="n">total_bounds</span>
+    <span class="n">bounds</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">bounds</span><span class="p">)</span>
 
     <span class="c1"># Compute WGS84 bounds for spatial filtering</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">pyproj</span><span class="w"> </span><span class="kn">import</span> <span class="n">CRS</span><span class="p">,</span> <span class="n">Transformer</span>
