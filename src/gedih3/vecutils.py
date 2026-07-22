@@ -116,18 +116,25 @@ def get_vector_info(vector_path):
     import pyogrio
 
     info = pyogrio.read_info(vector_path)
-    if info['total_bounds'] is None:
-        # No features to bound. fiona raised DriverError here; be explicit
-        # instead, since a None slips silently into the transform below.
+    crs = info['crs']
+    feature_count = int(info['features'])
+    geometry_type = info['geometry_type']
+    columns = list(info['fields'])
+
+    if feature_count == 0:
+        # Nothing to bound. fiona raised DriverError here; be explicit instead,
+        # since a None would slip silently into the transform below.
         raise GediSpatialJoinError(
             f"Vector file has no features to derive bounds from: {vector_path}"
         )
 
-    crs = info['crs']
-    bounds = tuple(info['total_bounds'])  # (minx, miny, maxx, maxy)
-    feature_count = int(info['features'])
-    geometry_type = info['geometry_type']
-    columns = list(info['fields'])
+    bounds = info['total_bounds']  # (minx, miny, maxx, maxy)
+    if bounds is None:
+        # Not every OGR driver reports an extent for free — GeoJSON does not on
+        # pyogrio < 0.8, and a driver can decline at any version. Read just the
+        # geometries to derive it; still cheaper than loading the attributes.
+        bounds = pyogrio.read_dataframe(vector_path, columns=[]).total_bounds
+    bounds = tuple(bounds)
 
     # Compute WGS84 bounds for spatial filtering
     from pyproj import CRS, Transformer

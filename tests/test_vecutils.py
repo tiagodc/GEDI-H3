@@ -154,6 +154,27 @@ class TestGetVectorInfo:
         with pytest.raises(GediSpatialJoinError, match='no features'):
             get_vector_info(path)
 
+    def test_bounds_fallback_when_driver_reports_none(self, sample_polygons, monkeypatch):
+        """A driver that declines to report an extent must not lose the bounds.
+
+        GeoJSON returns total_bounds=None on pyogrio < 0.8, and any driver may
+        decline at any version, so force the None rather than pin a version.
+        """
+        import pyogrio
+
+        real_read_info = pyogrio.read_info
+
+        def no_bounds(*args, **kwargs):
+            return {**real_read_info(*args, **kwargs), 'total_bounds': None}
+
+        monkeypatch.setattr(pyogrio, 'read_info', no_bounds)
+
+        info = get_vector_info(sample_polygons)
+        bounds = info['bounds_wgs84']
+        assert info['feature_count'] == 2
+        assert bounds[0] == pytest.approx(-51.0)
+        assert bounds[2] == pytest.approx(-50.0)
+
 
 # =============================================================================
 # Test: load_vector
