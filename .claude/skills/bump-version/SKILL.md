@@ -1,8 +1,8 @@
 ---
 name: bump-version
-description: Bump the gedih3 package version (major, minor, or micro), update all hardcoded version locations, update CHANGELOG.md with a summary of changes, and commit. Also finalizes a release by pinning the conda recipe's sha256 once the sdist is on PyPI.
+description: Bump the gedih3 package version (major, minor, or micro), update all hardcoded version locations, update CHANGELOG.md with a summary of changes, and commit. Also finalizes a release by pinning the conda recipe's sha256 once the sdist is on PyPI. Pass an optional `ship` argument to run the whole release unattended — push, gate on green CI, tag, wait for PyPI, and pin the hash — in one invocation.
 disable-model-invocation: true
-argument-hint: "major | minor | micro"
+argument-hint: "major | minor | micro [ship]"
 allowed-tools: Read, Edit, Write, Bash, Grep, Glob
 ---
 
@@ -38,6 +38,13 @@ never be mistaken for a current one. `tests/test_release_recipe.py` enforces
 this — the offline guards stay green while the marker is present, and the
 integration guard verifies the digest against PyPI's real bytes once it is not.
 
+The `ship` argument does not remove the two phases — the PyPI-upload gap is
+unavoidable — it *automates across* them: it performs Phase A, pushes, waits
+for the artifact to land on PyPI, then performs Phase B, all in one invocation.
+The wait is real (a few minutes); `ship` just polls through it so you issue one
+command instead of three. The only thing it will not do automatically is tag a
+commit whose CI is not fully green.
+
 ## Step 0: Decide which phase to run
 
 Run this first:
@@ -50,14 +57,30 @@ echo "pyproject=$PKG  recipe_sha=$SHA  pypi_latest=$PUBLISHED"
 ```
 
 - **`sha256` is `PENDING_PYPI_UPLOAD`** → a bump is already in flight. Skip to
-  **Phase B**. If `$PKG` is not yet on PyPI, stop and tell the user to push the
-  tag first (Step B0 explains how).
-- **Otherwise** → run **Phase A** below.
+  **Phase B** to finish it — even if the user passed `ship`, since you cannot
+  start a new release while one is half-done. If `$PKG` is not yet on PyPI, stop
+  and tell the user to push the tag first (Step B0 explains how).
+- **Otherwise** → run **Phase A** below (then Ship mode, if `ship` was given).
 
-If `$ARGUMENTS` is not exactly one of `major`, `minor`, or `micro`, stop
-immediately and tell the user:
+### Parse the arguments
 
-> Usage: `/bump-version <major|minor|micro>`
+The first token is the bump level; an optional second token `ship` requests
+the fully automated end-to-end release.
+
+- Level must be exactly one of `major`, `minor`, or `micro`. Otherwise stop:
+  > Usage: `/bump-version <major|minor|micro> [ship]`
+- If the second token is present it must be exactly `ship`; anything else →
+  same usage error.
+
+**Without `ship`** (default): run Phase A, then stop and print the manual
+commands (Step A8). Nothing is pushed or published. This is the safe default
+and is unchanged.
+
+**With `ship`**: the user has consented to an unattended release by typing
+`ship` — no further confirmation is asked. Run Phase A, then **Ship mode**
+below, which pushes, gates on CI, tags, waits for PyPI, and pins the hash in
+one go. The one hard guardrail: it must **not** create the tag unless CI on the
+bump commit is fully green (see Ship Step S2).
 
 ---
 
@@ -219,9 +242,9 @@ git commit -m "bump version to NEW_VERSION"
 The message must be exactly `bump version to X.Y.Z`. No `Co-Authored-By`
 trailer.
 
-## Step A8: Tell the user how to release
+## Step A8: hand off to release
 
-Print this, substituting the real version:
+**If `ship` was NOT given**, print this and stop — nothing is pushed:
 
 ```
 Version bump complete: OLD → NEW
@@ -241,9 +264,93 @@ matches pyproject.toml, and publishes via Trusted Publishing. Watch it:
       --jq '.[0].databaseId') --repo tiagodc/GEDI-H3 --exit-status
 
 THEN — re-run `/bump-version` (any argument) to finalize the conda recipe.
+
+Or next time run `/bump-version NEW_LEVEL ship` to do all of this unattended.
 ```
 
-Stop here. Do not tag or push — publishing is the user's decision.
+Do not tag or push — publishing is the user's decision.
+
+**If `ship` WAS given**, do not print the manual instructions — continue
+straight into Ship mode.
+
+---
+
+# SHIP MODE — automated end-to-end release
+
+Runs only when the user passed `ship`. Typing `ship` is the consent; do not ask
+for further confirmation. Everything here is unattended **except** the CI gate
+in S2, which is a hard stop, not a prompt.
+
+## Ship Step S1: push the bump commit
+
+```bash
+git push origin main
+```
+
+## Ship Step S2: CI-green gate — the one hard guardrail
+
+**Do not create the tag unless every CI run on the bump commit concluded
+`success`.** Wait for them to finish, then check:
+
+```bash
+SHA=$(git rev-parse HEAD)
+# Wait until nothing is still running (cap the wait; don't loop forever).
+for i in $(seq 1 40); do
+  PENDING=$(gh run list --repo tiagodc/GEDI-H3 --commit "$SHA" \
+    --json status --jq '[.[]|select(.status!="completed")]|length')
+  [ "$PENDING" = "0" ] && [ "$(gh run list --repo tiagodc/GEDI-H3 --commit "$SHA" --json databaseId --jq 'length')" -ge 1 ] && break
+  sleep 30
+done
+FAILED=$(gh run list --repo tiagodc/GEDI-H3 --commit "$SHA" \
+  --json name,conclusion --jq '[.[]|select(.conclusion!="success")]')
+echo "non-success runs: $FAILED"
+```
+
+- If `FAILED` is anything other than `[]` → **STOP. Do not tag.** Report which
+  workflow failed and that the bump commit is pushed but unshipped (recoverable:
+  fix, push, re-run `/bump-version LEVEL ship` — Step 0 will detect the pending
+  hash and, since the tag was never made, a fresh ship proceeds from S1).
+- If CI never finishes within the cap → same: stop, do not tag, report that CI
+  did not complete in time.
+- Only when every run is `success` → proceed to S3.
+
+## Ship Step S3: tag and push — the irreversible line
+
+```bash
+git tag -a vNEW -m "gedih3 vNEW" && git push origin vNEW
+```
+
+The Release workflow re-checks the tag against pyproject.toml as a second
+guard; if they somehow disagree it refuses to publish.
+
+## Ship Step S4: wait for PyPI
+
+Watch the Release workflow, then confirm PyPI is serving the new sdist:
+
+```bash
+RUN=$(gh run list --repo tiagodc/GEDI-H3 --workflow Release --event push \
+  --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run watch "$RUN" --repo tiagodc/GEDI-H3 --exit-status --interval 20
+curl -s -o /dev/null -w "%{http_code}\n" https://pypi.org/pypi/gedih3/NEW/json
+```
+
+- If the Release workflow fails → **STOP.** The tag is pushed but PyPI was not
+  updated. Report the failure and where things stand: the recipe still carries
+  `PENDING_PYPI_UPLOAD`, so re-running after a fix will resume at Phase B once
+  the artifact exists (a failed publish may need a follow-up patch release,
+  since the tag is now used). Do not fabricate a hash.
+- Only when the run is `success` and the PyPI check returns `200` → proceed to
+  Phase B below (S5 is just "run Phase B").
+
+## Ship Step S5: finalize
+
+Run **Phase B** (below) to pin the verified hash and commit, then push:
+
+```bash
+git push origin main
+```
+
+Then print the Phase B conda-forge handoff (Step B4).
 
 ---
 
