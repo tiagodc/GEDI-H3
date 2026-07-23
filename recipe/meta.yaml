@@ -15,7 +15,7 @@ source:
   # being packaged silently. Must be updated with every version — a stale hash
   # fails loudly, which is the point. Once the feedstock exists, conda-forge's
   # autotick bot updates both fields on each PyPI release.
-  sha256: PENDING_PYPI_UPLOAD
+  sha256: 9a9eb1b09c0b72b44d3a9268013cff7c2d8d21b61551dd0659a764f5f1b53431
 
 build:
   number: 0
