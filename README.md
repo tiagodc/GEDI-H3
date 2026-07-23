@@ -69,25 +69,41 @@ gedih3 is designed around a simple principle: **build once, iterate fast**.
 
 ---
 
-## Quick Start
+## Install
+
+gedih3 is published on **PyPI** and **conda-forge**. Pick whichever matches your setup:
 
 ```bash
-# Install with pip — self-contained, no system libraries needed
+# pip — self-contained, no system libraries needed
 pip install gedih3
+
+# uv
+uv pip install gedih3          # into the active environment
+uv add gedih3                  # into a uv-managed project
+
+# conda / mamba (recommended for HPC and shared clusters)
+conda install -c conda-forge gedih3
+mamba install -c conda-forge gedih3
 ```
 
+<details>
+<summary>From source (for development)</summary>
+
 ```bash
-# ...or with conda, recommended for HPC and shared clusters
 git clone https://github.com/tiagodc/GEDI-H3.git
 cd GEDI-H3
-conda env create -f environment.yml
+conda env create -f environment.yml   # or: pip install -e ".[test]"
 conda activate gedih3
 ```
+</details>
 
-> GDAL, GEOS, PROJ and HDF5 all ship prebuilt inside the wheels, so `pip install`
-> needs nothing installed system-wide. See the
+> On PyPI, GDAL, GEOS, PROJ and HDF5 all ship prebuilt inside the wheels, so
+> `pip`/`uv` need nothing installed system-wide. On conda-forge these are shared
+> system libraries resolved by the solver. See the
 > [installation guide](https://tiagodc.github.io/GEDI-H3/getting-started/installation.html)
 > for platform coverage and the optional GDAL Python bindings.
+
+## Quick Start
 
 No configuration needed. All outputs default to `~/gedi_data/`.
 

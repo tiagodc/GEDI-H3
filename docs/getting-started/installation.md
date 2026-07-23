@@ -3,38 +3,41 @@
 ## Prerequisites
 
 - Python 3.12+
-- conda (recommended) or pip
 - NASA Earthdata account (for downloading GEDI data)
 
-No system libraries are required by either install path. GDAL, GEOS, PROJ and
-HDF5 all arrive prebuilt — vendored inside the wheels on pip, or as conda
-packages.
+gedih3 is published on [PyPI](https://pypi.org/project/gedih3/) and
+[conda-forge](https://anaconda.org/conda-forge/gedih3). No system libraries are
+required by any install path: GDAL, GEOS, PROJ and HDF5 arrive prebuilt —
+vendored inside the wheels on PyPI, or as shared conda packages resolved by the
+solver on conda-forge.
 
-## Using conda (recommended)
+## conda / mamba (recommended for HPC and shared clusters)
 
 ```bash
-git clone https://github.com/tiagodc/GEDI-H3
-cd GEDI-H3
-
-conda env create -f environment.yml -n gedih3
-conda activate gedih3
-
-gh3_build --help
+conda install -c conda-forge gedih3
+# or
+mamba install -c conda-forge gedih3
 ```
 
-Recommended for HPC and shared clusters: conda-forge resolves the full native
-stack as a coherent set, and the environment includes extras that pip does not
-install — JupyterLab, the plotting stack, and the GDAL Python bindings.
+conda-forge resolves the full native stack as one coherent set of shared
+libraries, which is why it is the recommended choice on HPC and shared systems.
 
-## Using pip
+## pip
 
 ```bash
 pip install gedih3
 ```
 
-This is self-contained. Every dependency with a native component ships binary
-wheels that vendor their own libraries, so nothing needs to be installed
-system-wide beforehand:
+## uv
+
+```bash
+uv pip install gedih3    # into the currently active environment
+uv add gedih3            # add to a uv-managed project (pyproject.toml)
+```
+
+`pip` and `uv` install the same PyPI wheels. This is self-contained: every
+dependency with a native component ships binary wheels that vendor their own
+libraries, so nothing needs to be installed system-wide beforehand:
 
 | Native library | Comes from | Notes |
 |---|---|---|
@@ -82,7 +85,27 @@ sudo apt-get install -y libgdal-dev gdal-bin
 pip install "GDAL==$(gdal-config --version)"
 ```
 
-Or simply use the conda environment, where `gdal` is included.
+Or simply install gedih3 from conda-forge, where the `gdal` bindings are pulled
+in as a dependency.
+
+## From source (development)
+
+To work on gedih3 itself, clone the repository and install in editable mode.
+The bundled conda environment additionally provides JupyterLab, the plotting
+stack, and the GDAL Python bindings:
+
+```bash
+git clone https://github.com/tiagodc/GEDI-H3
+cd GEDI-H3
+
+conda env create -f environment.yml -n gedih3
+conda activate gedih3
+
+# ...or into any virtualenv, no system libraries required:
+# pip install -e ".[test]"
+
+gh3_build --help
+```
 
 ## Runtime requirements
 
