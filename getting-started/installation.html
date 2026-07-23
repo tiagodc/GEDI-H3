@@ -425,36 +425,39 @@
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Python 3.12+</p></li>
-<li><p>conda (recommended) or pip</p></li>
 <li><p>NASA Earthdata account (for downloading GEDI data)</p></li>
 </ul>
-<p>No system libraries are required by either install path. GDAL, GEOS, PROJ and
-HDF5 all arrive prebuilt — vendored inside the wheels on pip, or as conda
-packages.</p>
+<p>gedih3 is published on <a class="reference external" href="https://pypi.org/project/gedih3/">PyPI</a> and
+<a class="reference external" href="https://anaconda.org/conda-forge/gedih3">conda-forge</a>. No system libraries are
+required by any install path: GDAL, GEOS, PROJ and HDF5 arrive prebuilt —
+vendored inside the wheels on PyPI, or as shared conda packages resolved by the
+solver on conda-forge.</p>
 </section>
-<section id="using-conda-recommended">
-<h2>Using conda (recommended)<a class="headerlink" href="#using-conda-recommended" title="Link to this heading">#</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/tiagodc/GEDI-H3
-<span class="nb">cd</span><span class="w"> </span>GEDI-H3
-
-conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>environment.yml<span class="w"> </span>-n<span class="w"> </span>gedih3
-conda<span class="w"> </span>activate<span class="w"> </span>gedih3
-
-gh3_build<span class="w"> </span>--help
+<section id="conda-mamba-recommended-for-hpc-and-shared-clusters">
+<h2>conda / mamba (recommended for HPC and shared clusters)<a class="headerlink" href="#conda-mamba-recommended-for-hpc-and-shared-clusters" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>gedih3
+<span class="c1"># or</span>
+mamba<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>gedih3
 </pre></div>
 </div>
-<p>Recommended for HPC and shared clusters: conda-forge resolves the full native
-stack as a coherent set, and the environment includes extras that pip does not
-install — JupyterLab, the plotting stack, and the GDAL Python bindings.</p>
+<p>conda-forge resolves the full native stack as one coherent set of shared
+libraries, which is why it is the recommended choice on HPC and shared systems.</p>
 </section>
-<section id="using-pip">
-<h2>Using pip<a class="headerlink" href="#using-pip" title="Link to this heading">#</a></h2>
+<section id="pip">
+<h2>pip<a class="headerlink" href="#pip" title="Link to this heading">#</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>gedih3
 </pre></div>
 </div>
-<p>This is self-contained. Every dependency with a native component ships binary
-wheels that vendor their own libraries, so nothing needs to be installed
-system-wide beforehand:</p>
+</section>
+<section id="uv">
+<h2>uv<a class="headerlink" href="#uv" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>gedih3<span class="w">    </span><span class="c1"># into the currently active environment</span>
+uv<span class="w"> </span>add<span class="w"> </span>gedih3<span class="w">            </span><span class="c1"># add to a uv-managed project (pyproject.toml)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">pip</span></code> and <code class="docutils literal notranslate"><span class="pre">uv</span></code> install the same PyPI wheels. This is self-contained: every
+dependency with a native component ships binary wheels that vendor their own
+libraries, so nothing needs to be installed system-wide beforehand:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Native library</p></th>
@@ -539,8 +542,27 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;GDAL==</span><span class="k">$(</span>gdal-config<span class="w"> </span>--version<span class="k">)</span><span class="s2">&quot;</span>
 </pre></div>
 </div>
-<p>Or simply use the conda environment, where <code class="docutils literal notranslate"><span class="pre">gdal</span></code> is included.</p>
+<p>Or simply install gedih3 from conda-forge, where the <code class="docutils literal notranslate"><span class="pre">gdal</span></code> bindings are pulled
+in as a dependency.</p>
 </section>
+</section>
+<section id="from-source-development">
+<h2>From source (development)<a class="headerlink" href="#from-source-development" title="Link to this heading">#</a></h2>
+<p>To work on gedih3 itself, clone the repository and install in editable mode.
+The bundled conda environment additionally provides JupyterLab, the plotting
+stack, and the GDAL Python bindings:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/tiagodc/GEDI-H3
+<span class="nb">cd</span><span class="w"> </span>GEDI-H3
+
+conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>environment.yml<span class="w"> </span>-n<span class="w"> </span>gedih3
+conda<span class="w"> </span>activate<span class="w"> </span>gedih3
+
+<span class="c1"># ...or into any virtualenv, no system libraries required:</span>
+<span class="c1"># pip install -e &quot;.[test]&quot;</span>
+
+gh3_build<span class="w"> </span>--help
+</pre></div>
+</div>
 </section>
 <section id="runtime-requirements">
 <h2>Runtime requirements<a class="headerlink" href="#runtime-requirements" title="Link to this heading">#</a></h2>
@@ -632,12 +654,14 @@ gh3_list_resolutions
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-conda-recommended">Using conda (recommended)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-pip">Using pip</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#conda-mamba-recommended-for-hpc-and-shared-clusters">conda / mamba (recommended for HPC and shared clusters)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pip">pip</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#uv">uv</a><ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#platform-support">Platform support</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-gdal-python-bindings">Optional: GDAL Python bindings</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#from-source-development">From source (development)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#runtime-requirements">Runtime requirements</a><ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nasa-earthdata-credentials">NASA Earthdata credentials</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#duckdb-extensions-gh3-build-ducklake-only">DuckDB extensions (<code class="docutils literal notranslate"><span class="pre">gh3_build_ducklake</span></code> only)</a></li>

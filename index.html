@@ -383,16 +383,13 @@
 <h1>Turn billions of NASA GEDI footprints into analysis-ready datasets.<a class="headerlink" href="#turn-billions-of-nasa-gedi-footprints-into-analysis-ready-datasets" title="Link to this heading">#</a></h1>
 <p>NASA’s <a class="reference external" href="https://gedi.umd.edu/">GEDI</a> has measured forest height, biomass, and canopy structure across the planet — billions of individual laser measurements spanning every continent except Antarctica. But the raw data is stored in thousands of complex files organized by orbit, not by location. Getting from “I want a biomass map of my study area” to actually having one requires navigating deeply nested file formats, applying multi-criteria quality filters, and processing terabytes of data.</p>
 <p><strong>gedih3</strong> handles all of that. It transforms raw GEDI data into a spatial database you can query by region, filter for quality with a single flag, aggregate to any scale, and export to GeoTIFF, GeoParquet, or any format your tools can read — from the command line or Python.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>gedih3
+<p>Install from PyPI or conda-forge:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>gedih3<span class="w">                        </span><span class="c1"># pip</span>
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>gedih3<span class="w">                     </span><span class="c1"># uv</span>
+conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>gedih3<span class="w">       </span><span class="c1"># conda / mamba (recommended for HPC)</span>
 </pre></div>
 </div>
-<p>…or with conda, recommended for HPC and shared clusters:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/tiagodc/GEDI-H3.git
-<span class="nb">cd</span><span class="w"> </span>GEDI-H3
-conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>gedih3<span class="w"> </span>-f<span class="w"> </span>environment.yml<span class="w"> </span>
-conda<span class="w"> </span>activate<span class="w"> </span>gedih3
-</pre></div>
-</div>
+<p>See the <a class="reference internal" href="getting-started/installation.html"><span class="std std-doc">installation guide</span></a> for platform coverage, uv projects, and installing from source.</p>
 <div class="sd-container-fluid sd-sphinx-override sd-mb-4 docutils">
 <div class="sd-row sd-row-cols-2 sd-row-cols-xs-2 sd-row-cols-sm-2 sd-row-cols-md-2 sd-row-cols-lg-2 sd-g-2 sd-g-xs-2 sd-g-sm-2 sd-g-md-2 sd-g-lg-2 docutils">
 <div class="sd-col sd-d-flex-column docutils">
