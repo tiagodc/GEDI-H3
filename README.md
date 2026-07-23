@@ -4,6 +4,14 @@
 
 # gedih3
 
+<p align="center">
+  <a href="https://pypi.org/project/gedih3/"><img src="https://img.shields.io/pypi/v/gedih3.svg" alt="PyPI version"></a>
+  <a href="https://anaconda.org/conda-forge/gedih3"><img src="https://img.shields.io/conda/vn/conda-forge/gedih3.svg" alt="conda-forge version"></a>
+  <a href="https://pypi.org/project/gedih3/"><img src="https://img.shields.io/pypi/pyversions/gedih3.svg" alt="Python versions"></a>
+  <a href="https://tiagodc.github.io/GEDI-H3/"><img src="https://img.shields.io/badge/docs-online-brightgreen.svg" alt="Documentation"></a>
+  <a href="https://github.com/tiagodc/GEDI-H3/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Source--Available%20NonCommercial-blue.svg" alt="License"></a>
+</p>
+
 **Turn billions of NASA GEDI LiDAR footprints into analysis-ready spatial datasets — from the command line or Python.**
 
 GEDI (Global Ecosystem Dynamics Investigation) is NASA's premier spaceborne LiDAR mission, measuring forest structure and carbon stocks globally. Its raw data comprises thousands of large HDF5 files organized by satellite orbit — not by geography. Navigating quality flags, extracting variables of interest, and running spatial queries over billions of footprints requires significant engineering effort and domain expertise.
