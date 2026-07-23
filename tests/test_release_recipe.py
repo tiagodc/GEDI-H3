@@ -71,6 +71,8 @@ class TestRecipeSelfConsistency:
 
     def test_source_url_tracks_the_recipe_version(self):
         """The URL must interpolate the version, not hardcode a stale one."""
+        if not os.path.exists(RECIPE):
+            pytest.skip('no conda recipe')
         raw = open(RECIPE).read()
         # Capture to end of line: the URL embeds `{{ name[0] }}` style
         # expressions, which contain spaces.
