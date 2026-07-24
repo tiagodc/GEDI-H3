@@ -200,8 +200,8 @@ def main():
         # Configure database
         configure_database_path(args, logger=logger)
 
-        from gedih3.utils import smart_exists
-        if not smart_exists(args.database):
+        from gedih3.utils import smart_exists, smart_database_exists
+        if not smart_database_exists(args.database):
             logger.error(f"Database directory not found: {args.database}")
             sys.exit(1)
 
@@ -381,11 +381,12 @@ def main():
 
             # Build image-specific metadata
             from gedih3.imgutils import _resolve_window_col_name
+            from gedih3.utils import NON_LOCAL_PREFIXES
             window_col_names = [_resolve_window_col_name(w, all_band_names) for w in (window_ops or [])]
 
             meta_kwargs = {
                 'query_filter': query_str,
-                'image_source': args.image if args.image.startswith(('http://', 'https://', 's3://', '/vsicurl/', '/vsis3/')) else os.path.abspath(args.image),
+                'image_source': args.image if args.image.startswith(NON_LOCAL_PREFIXES) else os.path.abspath(args.image),
                 'raster_crs': str(raster_info['crs']),
                 'raster_resolution': list(raster_info['resolution']),
                 'raster_bands': band_names,

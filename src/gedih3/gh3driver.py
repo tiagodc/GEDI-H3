@@ -11,8 +11,8 @@ import dask_geopandas
 
 
 from .config import GH3_DEFAULT_H3_DIR, configure_environment, BUILD_LOG_FILENAME, DATASET_META_FILENAME
-from .utils import (json_read, json_write, now, get_package_version, is_parquet,
-                     smart_glob, smart_exists, smart_isdir, is_remote_path,
+from .utils import (json_read, json_read_cached, json_write, now, get_package_version, is_parquet,
+                     smart_glob, smart_exists, smart_isdir, smart_isfile, is_remote_path,
                      smart_open, generate_manifest, check_nan_only_columns,
                      smart_join, AtomicFileWriter, atomic_parquet_write,
                      dask_safe_wait, dask_safe_collect)
@@ -38,7 +38,7 @@ def _resolve_columns(columns, path, info):
     else:
         from .cliutils import detect_dataset_format, read_dataset_schema, list_dataset_files
         fmt = detect_dataset_format(path)
-        if smart_exists(path) and not smart_isdir(path):
+        if smart_isfile(path):
             available, _ = read_dataset_schema(path, fmt)
         else:
             files = list_dataset_files(path, fmt=fmt)
@@ -81,8 +81,7 @@ def gh3_list_parts(gh3_root_dir=GH3_DEFAULT_H3_DIR):
 
 def gh3_read_meta(var, gh3_root_dir=GH3_DEFAULT_H3_DIR):
     meta_path = smart_join(gh3_root_dir, BUILD_LOG_FILENAME)
-    meta = json_read(meta_path)
-    return meta.get(var)
+    return json_read_cached(meta_path).get(var)
 
 
 def gh3_select_partitions(source, region=None):
@@ -259,7 +258,7 @@ def _detect_dataset_index_col(dataset_path):
     if not smart_exists(meta_path):
         return None
 
-    meta = json_read(meta_path)
+    meta = json_read_cached(meta_path)
 
     idx_type = meta.get('index_type')
     idx_level = meta.get('index_level')
@@ -318,7 +317,7 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
     # --- Eager mode ---
     if not lazy:
         # Single file
-        if smart_exists(path) and not smart_isdir(path):
+        if smart_isfile(path):
             ext = os.path.splitext(path)[1].lstrip('.').lower()
             fmt = ext if ext in ('parquet', 'feather', 'gpkg') else 'parquet'
             _, has_geo = read_dataset_schema(path, fmt)

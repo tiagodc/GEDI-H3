@@ -65,16 +65,13 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
 
     Must be called inside a Dask Client context.
     """
-    import json
-
     from gedih3 import raster
     from gedih3.config import DATASET_META_FILENAME
 
     # Read metadata
-    from gedih3.utils import smart_join
+    from gedih3.utils import smart_join, json_read_cached
     dataset_meta_path = smart_join(dataset_path, DATASET_META_FILENAME)
-    with open(dataset_meta_path, 'r') as f:
-        dataset_meta = json.load(f)
+    dataset_meta = json_read_cached(dataset_meta_path)
 
     index_type = dataset_meta.get('index_type')
     index_level = dataset_meta.get('index_level')
@@ -98,14 +95,29 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
     # Build kwargs to forward to rasterize function
     rasterize_kwargs = {}
     if not use_egi:
-        # Detect partition level from filenames (each file = one H3 partition cell)
+        # Partition level: the sidecar knows it; fall back to a partition ID,
+        # then to a (manifest-backed) listing. Avoids os.listdir, which cannot
+        # see a remote dataset at all.
         import h3
-        parquet_files = [f for f in os.listdir(dataset_path) if f.endswith('.parquet')]
-        if parquet_files:
-            partition_id = os.path.splitext(parquet_files[0])[0]
-            partition_level = h3.get_resolution(partition_id)
+        from gedih3.utils import smart_glob
+        partition_level = dataset_meta.get('h3_partition_level')
+        source = 'metadata'
+        if partition_level is None:
+            ids = dataset_meta.get('partition_ids') or []
+            candidates = ids or [
+                os.path.splitext(os.path.basename(f))[0]
+                for f in smart_glob(smart_join(dataset_path, '*.parquet'))
+            ]
+            source = 'partition ids' if ids else 'filenames'
+            for cell in candidates:
+                try:
+                    partition_level = h3.get_resolution(cell)
+                    break
+                except (ValueError, TypeError):
+                    continue
+        if partition_level is not None:
             rasterize_kwargs['partition_level'] = partition_level
-            logger.info(f"  Partition level: H3 {partition_level} (from filenames)")
+            logger.info(f"  Partition level: H3 {partition_level} (from {source})")
 
     # Collect columns to rasterize
     columns = args.list if args.list else None
@@ -179,8 +191,9 @@ def main():
         resolve_path_args(args, ['dataset', 'output'], logger=logger)
 
         # Validate input dataset exists
-        from gedih3.utils import smart_exists, smart_isdir, smart_glob
-        if not smart_exists(args.dataset):
+        from gedih3.utils import (smart_exists, smart_isdir, smart_glob,
+                                  smart_database_exists)
+        if not smart_database_exists(args.dataset):
             logger.error(f"Dataset not found: {args.dataset}")
             sys.exit(1)
 

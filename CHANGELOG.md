@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- Self-hosted S3 endpoints were unusable. Passing `--s3-endpoint` without `--s3-key`/`--s3-secret` silently dropped the anonymous-access default — `get_storage_options` returned the stored options verbatim and only fell back to `{'anon': True}` when *nothing* had been configured. s3fs then walked the botocore credential chain, raised `NoCredentialsError` inside its own `exists()`, which swallows every exception into a bare `False`, and the CLI reported `Database directory not found`. S3 now defaults to anonymous unless a credential-bearing option (`key`, `secret`, `token`, `profile`, `anon`) is configured.
+- `smart_exists` / `smart_isdir` no longer report a remote failure as a plain miss. On a negative result they re-probe with `info()`, which propagates, and log the real exception (wrong endpoint, refused connection, missing credential) instead of leaving the caller to print "not found".
+
+### Added
+- `utils.smart_database_exists`: proves a database/dataset root exists from its root sidecar (`gedih3_dataset.json`, `gedih3_build_log.json`, `_manifest.txt`) with a HEAD, instead of an existence check on a bucket or prefix — which object stores answer with a LIST. `rclone serve s3` answers that LIST by walking the entire tree: measured at over 8 minutes, with no response, on a 12 461-partition dataset, against 43 ms for a direct object GET. Wired into the database gate of `gh3_aggregate`, `gh3_extract`, `gh3_from_img`, `gh3_from_polygon` and `gh3_read_schema`.
+- `utils.smart_isfile`: file-vs-dataset-directory discrimination that answers from the extension on remote paths, replacing `smart_isdir` at the four sites that made that call (`utils.read_schema`, `gh3_read_schema`, `gh3driver` ×2) — the second LIST on the read path.
+- `s3://host:port/bucket/...` URLs configure the endpoint themselves, so a self-hosted server no longer has to be named twice. A bucket name cannot contain `:`, so a netloc with an explicit port is unambiguously a host; port 443 implies https, anything else http. `--s3-endpoint` still wins, and the path is normalized either way (`cliutils.endpoint_from_s3_urls`).
+- `utils.NON_LOCAL_PREFIXES`: the canonical "not a local filesystem path" prefix tuple, now shared by `resolve_path_args` and `imgutils.resolve_raster_source`. The two lists had drifted: `gs://`, `gcs://` and `/vsigs/` survived path resolution but were then rejected by the raster reader as "Image path not found", even though GDAL opens them. `/vsizip/`, `/vsitar/`, `/vsigzip/`, `/vsiaz/`, `/vsiswift/`, `/vsihdfs/` and `/vsimem/` are accepted for raster inputs too.
+
+- `utils.json_read_cached`: memoized reader for the read-only metadata sidecars. The build log answers a dozen questions (`h3_columns`, `h3_columns_dtypes`, `h3_partition_level`, `h3_partition_ids`, `gedi_version`) through two dozen call sites, and every one re-fetched the whole file. That file is **21 MB** on the ISS v3 database, and one `gh3_aggregate` was measured opening it **13 times** over HTTP — ~270 MB of metadata traffic per command, before any data was read. Now read once per process (0.32 s → 0.00 s per repeat on loopback). Local paths revalidate on `(mtime_ns, size, inode)`, so a build rewriting the log in-process still sees fresh state; `json_read` remains for read-modify-write.
+- `gh3_rasterize` works on remote datasets. It opened the dataset sidecar with the builtin `open()` and derived the H3 partition level with `os.listdir` — neither of which can see an `s3://` or `http://` dataset. The level now comes from `h3_partition_level` in the sidecar (a-priori), falling back to `partition_ids`, then a manifest-backed `smart_glob`.
+- `gh3_doctor` rejects remote roots with a clear message instead of `os.path.abspath`-ing the URL into a nonsense local path (`/cwd/http:/host:8898/db`). Every diagnosis walks the tree with `os.scandir` on workers and `--fix` rewrites files in place, so it stays a local tool by design.
+
+### Notes
+- Credentials from `--s3-*` / `--remote-*` still reach fsspec only, never GDAL. `gh3_from_img -i s3://… --s3-endpoint …` configures the parquet reads but leaves the *raster* open to GDAL's ambient `AWS_*` environment. Unchanged here, and worth closing separately.
+
 ## [0.14.4] - 2026-07-22
 
 ### Fixed

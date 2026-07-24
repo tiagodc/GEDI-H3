@@ -85,11 +85,11 @@ def get_cmd_args():
 
 def _detect_file_type(path):
     """Detect display name for the file/directory type."""
-    from gedih3.utils import smart_exists, smart_isdir, smart_join
+    from gedih3.utils import smart_exists, smart_isfile, smart_join
     path_lower = path.lower()
     if path_lower.endswith(('.h5', '.hdf5')):
         return "HDF5"
-    if smart_isdir(path):
+    if not smart_isfile(path):
         from gedih3.config import BUILD_LOG_FILENAME
         build_log = smart_join(path, BUILD_LOG_FILENAME)
         if smart_exists(build_log):
@@ -178,8 +178,8 @@ def main():
 
     resolve_path_args(args, ['path'])
 
-    from gedih3.utils import smart_exists
-    if not smart_exists(args.path):
+    from gedih3.utils import smart_database_exists
+    if not smart_database_exists(args.path):
         print(f"Error: Path not found: {args.path}", file=sys.stderr)
         sys.exit(1)
 

@@ -248,7 +248,7 @@ All tools that accept a database path (`-d`) can read from remote filesystems. P
 
 | Flag | Description |
 |------|-------------|
-| `--s3-endpoint` | S3 endpoint URL (e.g. `http://localhost:7000`) |
+| `--s3-endpoint` | S3 endpoint URL (e.g. `http://localhost:7000`). Optional — see self-hosted note below |
 | `--s3-key` | S3 access key |
 | `--s3-secret` | S3 secret key |
 | `--s3-anon` | Anonymous S3 access (for public buckets) |
@@ -266,4 +266,28 @@ gh3_extract -d s3://my-bucket/h3_database/ --s3-anon -r region.shp -o output/
 # SFTP with SSH key
 gh3_aggregate -d sftp://server.example.com/data/h3/ --ssh-key ~/.ssh/id_rsa -egi 6 -o output/
 ```
+::::
+
+### Self-hosted S3 (MinIO, `rclone serve s3`, Ceph)
+
+Name the server in the URL instead of repeating it in `--s3-endpoint` — a bucket
+name cannot contain `:`, so a netloc with an explicit port is unambiguously a
+host. Port `443` implies `https`, anything else `http`:
+
+```bash
+# These two are equivalent
+gh3_aggregate -d s3://localhost:8855/my_dataset -egi 6 -o output/
+gh3_aggregate -d s3://my_dataset --s3-endpoint http://localhost:8855 -egi 6 -o output/
+```
+
+Access is **anonymous by default**: pass `--s3-key`/`--s3-secret` only when the
+server requires signed requests. An unauthenticated S3 server can equally be
+read over plain HTTP (`-d http://localhost:8855/my_dataset`) — S3 `GetObject` is
+an ordinary HTTP `GET`, gedih3 never issues a `LIST` (it reads `_manifest.txt`),
+and the HTTP backend skips the botocore client bootstrap entirely.
+
+::::{warning} `rclone serve s3` answers a bucket-level `ListObjectsV2` by
+walking the whole tree — minutes, or worse, on a dataset with tens of thousands
+of partitions. gedih3 avoids listing on every read path, but any other S3 client
+you point at such a server will stall.
 ::::

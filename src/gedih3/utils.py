@@ -21,10 +21,28 @@ from .exceptions import (GediDatabaseNotFoundError, GediFileError, GediValidatio
 # Local paths use the standard library (zero overhead for the common case).
 
 def is_remote_path(path):
-    """Check if path is a remote URL (S3, HTTP, FTP, etc.)."""
+    """Check if path is a remote URL handled by fsspec (S3, HTTP, FTP, ...).
+
+    This is the *fsspec* notion of remote, used by every ``smart_*``
+    helper. GDAL's virtual file systems (``/vsicurl/`` and friends) are
+    deliberately excluded — pyarrow/fsspec cannot read them. See
+    :data:`NON_LOCAL_PREFIXES` for the broader set that merely must not
+    be treated as a local filesystem path.
+    """
     return isinstance(path, str) and path.startswith(
         ('s3://', 'http://', 'https://', 'ftp://', 'sftp://', 'ssh://')
     )
+
+
+# Prefixes that must never be absolutized, globbed or stat'd as local paths.
+# Superset of :func:`is_remote_path`: adds the object-store schemes only GDAL
+# reads (``gs://``) and GDAL's virtual file systems, which raster/vector
+# inputs pass straight through to rasterio/OGR.
+NON_LOCAL_PREFIXES = (
+    'http://', 'https://', 's3://', 'gs://', 'gcs://', 'ftp://', 'sftp://', 'ssh://',
+    '/vsicurl/', '/vsis3/', '/vsigs/', '/vsiaz/', '/vsiswift/', '/vsihdfs/',
+    '/vsizip/', '/vsitar/', '/vsigzip/', '/vsimem/',
+)
 
 
 def smart_join(*parts):
@@ -99,11 +117,23 @@ def configure_storage(protocol='s3', **kwargs):
     _storage_options[protocol] = opts
 
 
+# S3 option keys that signal the caller intends authenticated access.
+# When none of these is present, S3 falls back to anonymous access.
+_S3_CREDENTIAL_KEYS = ('key', 'secret', 'token', 'profile', 'anon')
+
+
 def get_storage_options(protocol=None):
     """Return the stored options for *protocol*.
 
-    Returns ``{'anon': True}`` for S3 when nothing has been configured
-    (public-bucket default). Other protocols return ``{}``.
+    S3 defaults to ``anon=True`` (public-bucket / unauthenticated-server
+    default) whenever no credential-bearing option has been configured —
+    including the common case of ``configure_storage('s3',
+    endpoint_url=...)`` with no key/secret, e.g. a read-only
+    ``rclone serve s3`` or MinIO instance with auth disabled. Without the
+    fallback s3fs walks the botocore credential chain and raises
+    ``NoCredentialsError``, which s3fs's own ``exists()`` swallows into a
+    bare ``False`` — surfacing as a misleading "not found". Other
+    protocols return ``{}``.
 
     Parameters
     ----------
@@ -117,12 +147,11 @@ def get_storage_options(protocol=None):
     """
     if protocol is None:
         return {}
-    if protocol in _storage_options:
-        return dict(_storage_options[protocol])
-    # S3 default: anonymous access for public buckets
-    if protocol == 's3':
-        return {'anon': True}
-    return {}
+    opts = dict(_storage_options.get(protocol, {}))
+    # S3 default: anonymous access unless credentials were configured
+    if protocol == 's3' and not any(k in opts for k in _S3_CREDENTIAL_KEYS):
+        opts['anon'] = True
+    return opts
 
 
 def _get_filesystem(path, storage_options=None):
@@ -155,6 +184,35 @@ def _get_filesystem(path, storage_options=None):
     return fsspec.filesystem(protocol, **opts)
 
 
+def _log_remote_check_failure(fs, path):
+    """Log the real cause behind a negative remote existence check.
+
+    ``fsspec`` implementations (s3fs in particular) catch *every*
+    exception inside ``exists()`` / ``isdir()`` and return ``False``, so a
+    bad endpoint, a refused connection or a missing credential is
+    indistinguishable from a genuine miss — callers then report
+    "not found" and send the user hunting the wrong problem. Re-probe
+    with ``info()``, which propagates, and log anything that is not a
+    plain miss. Only runs on the negative path (the caller is about to
+    error out anyway), so it costs nothing in the common case.
+    """
+    import logging
+    for candidate in ([path] if path.endswith('/') else [path, path + '/']):
+        try:
+            fs.info(candidate)
+            return  # exists after all — nothing to report
+        except FileNotFoundError:
+            continue
+        except Exception as exc:
+            logging.getLogger(__name__).error(
+                f"Remote access to {path} failed ({type(exc).__name__}: {exc}) — "
+                f"reported as not found. Check the endpoint URL, credentials "
+                f"(--s3-key/--s3-secret/--s3-anon) and that the server speaks "
+                f"the requested protocol."
+            )
+            return
+
+
 def smart_exists(path):
     """os.path.exists() that works with remote paths."""
     if not is_remote_path(path):
@@ -163,9 +221,40 @@ def smart_exists(path):
     if fs.exists(path):
         return True
     # HTTP/FTP servers may require trailing slash for directories
-    if not path.endswith('/'):
-        return fs.exists(path + '/')
+    if not path.endswith('/') and fs.exists(path + '/'):
+        return True
+    _log_remote_check_failure(fs, path)
     return False
+
+
+def smart_database_exists(path):
+    """:func:`smart_exists` for a gedih3 database / dataset root.
+
+    Object stores have no directories: an existence check on a bucket or
+    prefix degrades to a LIST, which some servers answer only after
+    walking the whole tree (``rclone serve s3`` over a 12k-partition
+    dataset takes minutes; a real S3/MinIO is fast but still pays a
+    round trip). Every gh3 tree carries at least one sidecar at its
+    root, so probe those first — a HeadObject each, and the metadata
+    readers that follow need them anyway. Falls back to the generic
+    directory check so plain parquet directories (no sidecar) still
+    resolve.
+    """
+    if not is_remote_path(path):
+        return os.path.exists(path)
+    from .config import (BUILD_LOG_FILENAME, DATASET_META_FILENAME,
+                         MANIFEST_FILENAME)
+    root = path.rstrip('/')
+    if smart_isfile(path):
+        return smart_exists(path)  # a single file — plain HEAD, no listing
+    fs = _get_filesystem(path)
+    for name in (DATASET_META_FILENAME, BUILD_LOG_FILENAME, MANIFEST_FILENAME):
+        try:
+            if fs.exists(smart_join(root, name)):
+                return True
+        except Exception:
+            break  # connection/credential problem — let smart_exists report it
+    return smart_exists(path)
 
 
 def smart_isdir(path):
@@ -176,9 +265,34 @@ def smart_isdir(path):
     if fs.isdir(path):
         return True
     # HTTP/FTP servers may require trailing slash for directories
-    if not path.endswith('/'):
-        return fs.isdir(path + '/')
+    if not path.endswith('/') and fs.isdir(path + '/'):
+        return True
+    _log_remote_check_failure(fs, path)
     return False
+
+
+# Extensions gedih3 writes for single-file sources (see PIPELINE_FORMATS +
+# the export formats of gh3_extract / gh3_aggregate).
+_DATA_FILE_EXTENSIONS = (
+    '.parquet', '.parq', '.pq', '.feather', '.gpkg', '.geopackage',
+    '.h5', '.hdf5', '.csv', '.txt', '.json', '.geojson', '.shp', '.tif', '.tiff',
+)
+
+
+def smart_isfile(path):
+    """True when *path* is a single data file rather than a dataset directory.
+
+    Remote paths answer from the extension instead of probing: object
+    stores have no directories, so ``isdir()`` on a bucket or prefix
+    degrades to a LIST — the exact O(N) round trip the manifest sentinel
+    exists to avoid, and one that ``rclone serve s3`` answers only after
+    walking the whole tree. Every gh3 single-file output carries one of
+    the known extensions, so the answer is knowable for free. Local
+    paths use ``os.path.isfile``.
+    """
+    if not is_remote_path(path):
+        return os.path.isfile(path)
+    return path.rstrip('/').lower().endswith(_DATA_FILE_EXTENSIONS)
 
 
 # =============================================================================
@@ -746,6 +860,44 @@ def json_read(path, mode='r'):
         obj = json.load(f)
         return obj
 
+
+_json_cache = {}  # path -> (stamp, parsed json); stamp is None for remote paths
+
+
+def json_read_cached(path):
+    """:func:`json_read` memoized per path — for read-only metadata sidecars.
+
+    A single CLI invocation asks the build log a dozen questions
+    (``h3_columns``, ``h3_columns_dtypes``, ``h3_partition_level``,
+    ``h3_partition_ids``, ``gedi_version``) through two dozen call sites,
+    and each one re-fetched the whole file. That log is 21 MB on a
+    continental database, and one ``gh3_aggregate`` was measured opening
+    it 13 times over HTTP — ~270 MB of metadata traffic to answer
+    questions that cannot change mid-query.
+
+    Local paths are validated by ``(mtime_ns, size, inode)``, so a build
+    that rewrites the log in the same process still sees fresh state —
+    the inode covers the case where an :class:`AtomicFileWriter`
+    ``os.replace`` lands inside the filesystem's timestamp granularity.
+    Remote paths are held for the process lifetime: gedih3 never writes
+    to a remote database, and a stat over the network would cost the very
+    round trip the cache exists to avoid. Use :func:`json_read` for
+    anything read-modify-write.
+    """
+    stamp = None
+    if not is_remote_path(path):
+        try:
+            st = os.stat(path)
+            stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
+        except OSError:
+            stamp = None
+    cached = _json_cache.get(path)
+    if cached is not None and cached[0] == stamp:
+        return cached[1]
+    obj = json_read(path)
+    _json_cache[path] = (stamp, obj)
+    return obj
+
 def check_nan_only_columns(df, context='', logger=None):
     """Warn about columns that are entirely NaN.
 
@@ -900,7 +1052,7 @@ def read_schema(path, root=None):
     ValueError
         If format cannot be determined
     """
-    if smart_isdir(path):
+    if not smart_isfile(path):
         # Check for H3 database first (has build log)
         from .config import BUILD_LOG_FILENAME
         build_log = smart_join(path, BUILD_LOG_FILENAME)
