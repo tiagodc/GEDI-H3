@@ -13,7 +13,8 @@ import dask_geopandas
 from .config import GH3_DEFAULT_H3_DIR, configure_environment, BUILD_LOG_FILENAME, DATASET_META_FILENAME
 from .utils import (json_read, json_read_cached, json_write, now, get_package_version, is_parquet,
                      smart_glob, smart_exists, smart_isdir, smart_isfile, is_remote_path,
-                     smart_open, generate_manifest, check_nan_only_columns,
+                     smart_open, smart_open_columnar, read_parquet_coalesced,
+                     generate_manifest, check_nan_only_columns,
                      smart_join, AtomicFileWriter, atomic_parquet_write,
                      dask_safe_wait, dask_safe_collect)
 from .h3utils import intersect_h3_geometries, fix_h3_geometry
@@ -512,7 +513,11 @@ def _read_parquet_files(files, geo=True, **kwargs):
     """Read parquet file(s), handling remote paths correctly.
 
     PyArrow does not recognize http:// URIs natively. For remote paths,
-    we use fsspec (via smart_open) to open files as file-like objects.
+    we use fsspec (via smart_open_columnar) to open files as file-like
+    objects, and let pyarrow coalesce the column-chunk ranges it needs
+    (``pre_buffer=True``) instead of paying fsspec's block read-ahead
+    around every one of them — 358 MB vs 18 MB of server-side reads for a
+    one-column projection of a 1.8 GB partition.
     """
     reader = gpd.read_parquet if geo else pd.read_parquet
 
@@ -524,8 +529,8 @@ def _read_parquet_files(files, geo=True, **kwargs):
     # Single file
     if len(files) == 1:
         if remote:
-            with smart_open(files[0], 'rb') as fobj:
-                return reader(fobj, **kwargs)
+            with smart_open_columnar(files[0]) as fobj:
+                return read_parquet_coalesced(fobj, geo=geo, **kwargs)
         return reader(files[0], **kwargs)
 
     # Multiple local files: pass list directly (PyArrow handles this)
@@ -535,8 +540,8 @@ def _read_parquet_files(files, geo=True, **kwargs):
     # Multiple remote files: read each via fsspec, concat
     dfs = []
     for f in files:
-        with smart_open(f, 'rb') as fobj:
-            dfs.append(reader(fobj, **kwargs))
+        with smart_open_columnar(f) as fobj:
+            dfs.append(read_parquet_coalesced(fobj, geo=geo, **kwargs))
     return pd.concat(dfs)
 
 
@@ -633,35 +638,50 @@ def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat
     bbox-clipped result; the fallback materializes the full column-projected
     file before clipping in memory.
     """
-    if strategy == 'point':
-        return gpd.read_parquet(path, bbox=bbox_4326, columns=columns)
+    from contextlib import nullcontext
 
-    if strategy == 'coord_filter':
-        x0, y0, x1, y1 = bbox_4326
-        filt = [(lon_col, '>=', x0), (lon_col, '<=', x1),
-                (lat_col, '>=', y0), (lat_col, '<=', y1)]
-        # Pyarrow's `filters=` requires the predicate columns to be in the
-        # read column list; append + drop them if the caller didn't ask for
-        # them. The extra column is already on disk in the same row groups
-        # we'd decode anyway, so the I/O cost is negligible.
-        cols = list(columns) if columns else None
-        extras = []
-        if cols is not None:
-            for c in (lat_col, lon_col):
-                if c not in cols:
-                    cols.append(c)
-                    extras.append(c)
-        reader = gpd.read_parquet if geo else pd.read_parquet
-        df = reader(path, columns=cols, filters=filt)
-        if extras and len(df) > 0:
-            df = df.drop(columns=extras)
+    # Remote files go through fsspec with the read-ahead cache off, and
+    # pyarrow coalesces the ranges it actually needs (smart_open_columnar).
+    remote = is_remote_path(path)
+    source_ctx = smart_open_columnar(path) if remote else nullcontext(path)
+
+    with source_ctx as src:
+        if strategy == 'point':
+            if remote:
+                return read_parquet_coalesced(src, columns=columns, geo=True,
+                                              bbox=bbox_4326)
+            return gpd.read_parquet(src, bbox=bbox_4326, columns=columns)
+
+        if strategy == 'coord_filter':
+            x0, y0, x1, y1 = bbox_4326
+            filt = [(lon_col, '>=', x0), (lon_col, '<=', x1),
+                    (lat_col, '>=', y0), (lat_col, '<=', y1)]
+            # Pyarrow's `filters=` requires the predicate columns to be in the
+            # read column list; append + drop them if the caller didn't ask for
+            # them. The extra column is already on disk in the same row groups
+            # we'd decode anyway, so the I/O cost is negligible.
+            cols = list(columns) if columns else None
+            extras = []
+            if cols is not None:
+                for c in (lat_col, lon_col):
+                    if c not in cols:
+                        cols.append(c)
+                        extras.append(c)
+            if remote:
+                df = read_parquet_coalesced(src, columns=cols, geo=geo, filters=filt)
+            else:
+                reader = gpd.read_parquet if geo else pd.read_parquet
+                df = reader(src, columns=cols, filters=filt)
+            if extras and len(df) > 0:
+                df = df.drop(columns=extras)
+            return df
+
+        # 'fallback' — full read + in-memory geometric clip. Last resort.
+        df = (read_parquet_coalesced(src, columns=columns, geo=True) if remote
+              else gpd.read_parquet(src, columns=columns))
+        if len(df) > 0:
+            df = df[df.geometry.intersects(clip_box)]
         return df
-
-    # 'fallback' — full read + in-memory geometric clip. Last resort.
-    df = gpd.read_parquet(path, columns=columns)
-    if len(df) > 0:
-        df = df[df.geometry.intersects(clip_box)]
-    return df
 
 
 def _restore_storage_on_worker(storage_cfg):

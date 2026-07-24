@@ -791,6 +791,49 @@ def smart_open(path, mode='r', storage_options=None):
         opts = {**opts, **storage_options}
     return fsspec.open(path, mode, **opts)
 
+
+def smart_open_columnar(path, storage_options=None):
+    """Open a remote parquet file for pyarrow, with no client-side read-ahead.
+
+    fsspec's default file cache fetches a whole block (5 MB for HTTP)
+    around every read. Pyarrow already knows exactly which byte ranges it
+    wants and coalesces them itself (``pre_buffer=True``), so that block
+    is pure over-fetch — and a column-projected read touches dozens of
+    small, scattered ranges. Measured against ``rclone serve http`` on a
+    1.8 GB GEDI partition, projecting one column (18 MB of column chunks
+    + footer): 358 MB pulled off GPFS with the default cache, 18 MB with
+    ``cache_type='none'`` plus pyarrow's own coalescing.
+
+    Returns an open binary file object (not a context manager wrapper);
+    callers use it with ``with``. Local paths are opened directly — the
+    kernel page cache already does the right thing.
+    """
+    if not is_remote_path(path):
+        return open(path, 'rb')
+    return _get_filesystem(path, storage_options).open(path, 'rb', cache_type='none')
+
+
+def read_parquet_coalesced(source, columns=None, geo=True, **kwargs):
+    """Read a parquet source with pyarrow range coalescing enabled.
+
+    Pair with :func:`smart_open_columnar` on remote reads: that turns off
+    fsspec's block read-ahead, this makes pyarrow fetch the column chunks
+    it needs in as few ranges as possible.
+
+    ``geopandas.read_parquet`` forwards ``**kwargs`` to
+    ``pyarrow.parquet.read_table``, so ``pre_buffer=True`` reaches the
+    reader. ``pandas.read_parquet`` does not coalesce (measured: 50
+    scattered server reads vs 26 for ``read_table`` on the same query),
+    so the non-geo path calls ``read_table`` directly and converts —
+    verified to produce an identical frame, dtypes included, on GEDI
+    partitions.
+    """
+    if geo:
+        import geopandas as gpd
+        return gpd.read_parquet(source, columns=columns, pre_buffer=True, **kwargs)
+    import pyarrow.parquet as pq
+    return pq.read_table(source, columns=columns, pre_buffer=True, **kwargs).to_pandas()
+
 # Heavy imports are moved to lazy loading inside functions:
 # - psutil: used in get_system_resources
 # - pyarrow/pandas: used in parquet and schema functions

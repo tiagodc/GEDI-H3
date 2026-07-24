@@ -178,11 +178,15 @@ def make_dataset_reader(fmt, columns=None, geo=True):
 
     if fmt == 'parquet':
         def reader(f):
-            from .utils import is_remote_path, smart_open
-            read_fn = gpd.read_parquet if geo else pd.read_parquet
+            from .utils import (is_remote_path, smart_open_columnar,
+                                read_parquet_coalesced)
             if is_remote_path(f):
-                with smart_open(f, 'rb') as fobj:
-                    return read_fn(fobj, columns=columns)
+                # No fsspec read-ahead + pyarrow range coalescing: a
+                # column-projected read then transfers the column chunks
+                # and nothing else (see smart_open_columnar).
+                with smart_open_columnar(f) as fobj:
+                    return read_parquet_coalesced(fobj, columns=columns, geo=geo)
+            read_fn = gpd.read_parquet if geo else pd.read_parquet
             return read_fn(f, columns=columns)
         return reader
     elif fmt == 'feather':

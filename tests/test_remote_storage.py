@@ -190,6 +190,58 @@ def test_isfile_local_paths_hit_the_filesystem(tmp_path):
     assert utils.smart_isfile(str(tmp_path)) is False
 
 
+# ------------------------------------------------------ columnar read path
+
+def test_open_columnar_disables_readahead_for_remote(monkeypatch):
+    """fsspec's block cache re-fetches around every range pyarrow asks for."""
+    seen = {}
+
+    class _FS:
+        def open(self, path, mode, **kw):
+            seen.update(path=path, mode=mode, **kw)
+            return 'handle'
+
+    monkeypatch.setattr(utils, '_get_filesystem', lambda *a, **k: _FS())
+    assert utils.smart_open_columnar('s3://bucket/part.parquet') == 'handle'
+    assert seen['cache_type'] == 'none'
+    assert seen['mode'] == 'rb'
+
+
+def test_open_columnar_leaves_local_paths_alone(tmp_path):
+    f = tmp_path / 'a.parquet'
+    f.write_bytes(b'x')
+    with utils.smart_open_columnar(str(f)) as fh:
+        assert fh.read() == b'x'
+
+
+def test_read_parquet_coalesced_round_trips(tmp_path):
+    """Non-geo goes through read_table; the frame must be unchanged."""
+    import pandas as pd
+
+    df = pd.DataFrame({'a': [1, 2, 3], 'b': [1.5, 2.5, 3.5]})
+    p = tmp_path / 'x.parquet'
+    df.to_parquet(p)
+
+    out = utils.read_parquet_coalesced(str(p), columns=['a'], geo=False)
+    assert list(out.columns) == ['a']
+    assert out['a'].tolist() == [1, 2, 3]
+    assert out['a'].dtype == pd.read_parquet(p, columns=['a'])['a'].dtype
+
+
+def test_read_parquet_coalesced_passes_pre_buffer(monkeypatch):
+    captured = {}
+
+    def fake_read_parquet(source, **kw):
+        captured.update(kw)
+        return 'gdf'
+
+    import geopandas as gpd
+    monkeypatch.setattr(gpd, 'read_parquet', fake_read_parquet)
+    assert utils.read_parquet_coalesced('s3://b/x.parquet', columns=['g'], geo=True) == 'gdf'
+    assert captured['pre_buffer'] is True
+    assert captured['columns'] == ['g']
+
+
 def test_json_read_cached_reads_once_for_remote(monkeypatch):
     """The build log is 21 MB on a continental DB — read it once per process."""
     calls = []

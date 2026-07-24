@@ -286,6 +286,12 @@ read over plain HTTP (`-d http://localhost:8855/my_dataset`) — S3 `GetObject` 
 an ordinary HTTP `GET`, gedih3 never issues a `LIST` (it reads `_manifest.txt`),
 and the HTTP backend skips the botocore client bootstrap entirely.
 
+Remote parquet reads transfer only the column chunks the query projects: the
+fsspec read-ahead cache is disabled and pyarrow coalesces its own ranges. On a
+1.8 GB partition, projecting one column moves 18 MB. Dropping `geometry` from a
+selection matters more than any transport setting — it is 18% of a GEDI
+partition against 1% for a single `rh` column.
+
 ::::{warning} `rclone serve s3` answers a bucket-level `ListObjectsV2` by
 walking the whole tree — minutes, or worse, on a dataset with tens of thousands
 of partitions. gedih3 avoids listing on every read path, but any other S3 client
