@@ -1958,6 +1958,46 @@ def parse_temporal(temporal):
     else:
         raise GediTemporalError("Invalid temporal input. Must be a list or tuple of two dates.")
 
+def region_to_geometry(spatial):
+    """Normalize any accepted region argument to one shapely geometry in EPSG:4326.
+
+    Accepts what the CLIs accept — a vector-file path, a ``"W,S,E,N"``
+    string, a ``[W, S, E, N]`` list, a GeoDataFrame/GeoSeries, or a
+    shapely geometry — so every spatial-selection path agrees on what a
+    region *is*. Shared by :func:`~gedih3.h3utils.intersect_h3_geometries`
+    (H3 partition selection) and the EGI partition selection in
+    ``gh3driver``; keeping one normalizer is what stops the two index
+    types from drifting apart on region handling.
+
+    Raises
+    ------
+    TypeError
+        If the input is not one of the accepted forms.
+    """
+    from shapely.geometry import box
+    from shapely.geometry.base import BaseGeometry
+    import geopandas as gpd
+
+    if isinstance(spatial, str):
+        # Mirror the CLI's parse_region semantics so the Python API can
+        # accept "region.shp" / "region.gpkg" / "region.geojson" / "W,S,E,N"
+        # the same way `gh3_extract -r` does. The gh3_load docstring example
+        # advertises this. Without it, sindex.query() raises a misleading
+        # "Array should be of object dtype" downstream.
+        from .cliutils import parse_region
+        spatial = parse_region(spatial)
+    if isinstance(spatial, (list, tuple)):
+        spatial = box(*spatial)
+    elif isinstance(spatial, (gpd.GeoSeries, gpd.GeoDataFrame)):
+        spatial = spatial.to_crs(4326).union_all()
+    elif not isinstance(spatial, BaseGeometry):
+        raise TypeError(
+            f"Unsupported region type {type(spatial).__name__}; "
+            "expected a path/bbox-string, a list [W,S,E,N], a GeoDataFrame/GeoSeries, or a shapely geometry."
+        )
+    return spatial
+
+
 def parse_spatial(spatial):
     if spatial is None:
         return None

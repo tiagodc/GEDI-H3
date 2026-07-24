@@ -3,6 +3,7 @@
 # For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu
 
 import os, re, h3
+import warnings
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -288,6 +289,115 @@ def _find_dataset_files(dataset_path, fmt):
         raise GediDatabaseNotFoundError(f"No data files found in {dataset_path}")
 
 
+def _dataset_partition_kind(part_ids):
+    """Classify dataset partition IDs as ``'h3'``, ``'egi'`` or ``None``.
+
+    A simplified dataset's file basenames *are* its partition IDs
+    (``h3_write_dataset_metadata`` derives ``partition_ids`` from them),
+    so the file list is the authoritative, always-present source — it
+    survives a stale sidecar and works on datasets written by older
+    versions. ``None`` means "these names are not partition IDs" (e.g. a
+    hive-style tree), which callers must treat as "cannot prune".
+    """
+    if not part_ids:
+        return None
+
+    # EGI first: its hashes are decimal uint64 strings, and feeding one to
+    # h3.is_valid_cell raises OverflowError rather than returning False.
+    if all(p.isdigit() for p in part_ids):
+        try:
+            import numpy as _np
+            from . import egi
+            return 'egi' if all(egi.validate_hash(_np.uint64(p)) for p in part_ids) else None
+        except (ValueError, OverflowError, TypeError):
+            return None
+
+    try:
+        import h3
+        return 'h3' if all(h3.is_valid_cell(p) for p in part_ids) else None
+    except (ValueError, OverflowError, TypeError):
+        return None
+
+
+def _select_dataset_files(data_files, region, logger=None):
+    """Subset a dataset's files to those whose partition may hold ``region``.
+
+    A simplified dataset is one file per spatial partition, so the region
+    answers which files can possibly contribute *before* anything is read.
+    Without this a 1-degree query against a global dataset schedules every
+    partition and clips rows afterwards: measured 25 of 12,461 partitions
+    for a real ROI, i.e. ~500x more remote reads than needed. The H3
+    database path has always pruned this way (``_load_h3_database``); this
+    brings datasets — H3 and EGI, local and remote — in line.
+
+    Selection is deliberately conservative, because under-selection is a
+    silent data-loss class:
+
+    * **H3** uses :func:`intersect_h3_geometries`, whose ``expand_ring=1``
+      default covers the parent/child overhang (a shot can sit outside the
+      polygon of the partition it is stored in).
+    * **EGI** intersects the partition squares themselves. EGI is a nested
+      axis-aligned grid and a shot's partition square contains its
+      coordinates by construction, so polygon intersection is exact; the
+      1 m buffer only absorbs the float-boundary rounding documented in
+      ``egi.to_hash``. Degenerate edge-of-grid squares are kept rather than
+      decided against.
+    * Anything else (hive trees, hand-named files) returns the full list.
+
+    Row-level clipping downstream is unchanged — this only removes files
+    that provably cannot contribute.
+    """
+    if region is None or not data_files:
+        return data_files
+
+    if logger is None:
+        import logging
+        logger = logging.getLogger(__name__)
+
+    by_id = {}
+    for f in data_files:
+        by_id.setdefault(os.path.splitext(os.path.basename(f))[0], []).append(f)
+
+    kind = _dataset_partition_kind(list(by_id))
+    if kind is None:
+        if logger:
+            logger.debug("Dataset filenames are not partition IDs; reading all files")
+        return data_files
+
+    if kind == 'h3':
+        keep = set(intersect_h3_geometries(region, h3_ids=list(by_id)))
+    else:
+        import numpy as _np
+        from . import egi
+        from .utils import region_to_geometry
+
+        ids = list(by_id)
+        tiles = egi.to_geodataframe(_np.array(ids, dtype=_np.uint64), return_polygons=True)
+        roi = gpd.GeoSeries([region_to_geometry(region)], crs=4326)
+        roi = roi.to_crs(egi.EGI_CRS_STRING).iloc[0].buffer(1.0)
+        # Undecidable (degenerate / invalid) squares are kept, not dropped.
+        undecidable = ~(tiles.geometry.is_valid & (tiles.geometry.area > 0))
+        hit_pos = tiles.geometry.sindex.query(roi, predicate='intersects')
+        keep = {str(h) for h in tiles.index[hit_pos]}
+        keep |= {str(h) for h in tiles.index[undecidable.to_numpy()]}
+
+    selected = [f for pid in keep if pid in by_id for f in by_id[pid]]
+
+    if not selected:
+        # Nothing intersects. Keep one file so the schema / _meta reads
+        # downstream still have a source and the graph is well-formed; the
+        # row-level clip then yields an empty result, which is the correct
+        # answer.
+        if logger:
+            logger.warning("No dataset partition intersects the region — result will be empty")
+        return data_files[:1]
+
+    if logger and len(selected) < len(data_files):
+        logger.info(f"  Region selects {len(selected)}/{len(data_files)} partitions "
+                    f"({kind.upper()} index)")
+    return sorted(selected)
+
+
 def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filters=None):
     """Internal: load from simplified dataset (H3 or EGI).
 
@@ -327,6 +437,7 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
 
         fmt = detect_dataset_format(path)
         data_files, fmt = _find_dataset_files(path, fmt)
+        data_files = _select_dataset_files(data_files, region)
         _, has_geo = read_dataset_schema(data_files[0], fmt)
 
         if fmt == 'parquet':
@@ -335,7 +446,7 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
                 kwargs['columns'] = columns
             if filters:
                 kwargs['filters'] = filters
-            return _read_parquet_files(data_files, geo=has_geo, **kwargs)
+            result = _read_parquet_files(data_files, geo=has_geo, **kwargs)
         else:
             index_col = _detect_dataset_index_col(path)
             load_columns = columns
@@ -348,7 +459,19 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
 
             if index_col and result.index.name != index_col and index_col in result.columns:
                 result = result.set_index(index_col)
-            return result
+
+        # Partition selection is coarse — clip to the exact region, as the
+        # lazy branch does. Eager loads used to skip this entirely and hand
+        # back unfiltered data.
+        if region is not None:
+            if isinstance(result, gpd.GeoDataFrame):
+                result = result.clip(region)
+            else:
+                warnings.warn(
+                    "region ignored: dataset has no geometry column to clip against",
+                    stacklevel=2,
+                )
+        return result
 
     # --- Lazy mode ---
     fmt = detect_dataset_format(path)
@@ -360,6 +483,11 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         load_columns, query_only_cols = _add_query_columns(columns, query, path, fmt)
 
     data_files, fmt = _find_dataset_files(path, fmt)
+
+    # Drop partitions the region cannot touch before building the graph —
+    # one task per file, so this is the difference between reading a handful
+    # of partitions and reading the whole dataset.
+    data_files = _select_dataset_files(data_files, region)
 
     # Read schema from first file
     col_names, has_geometry = read_dataset_schema(data_files[0], fmt)

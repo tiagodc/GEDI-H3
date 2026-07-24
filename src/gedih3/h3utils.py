@@ -107,26 +107,10 @@ def intersect_h3_geometries(spatial, res=3, h3_ids=None, expand_ring=1):
     expand_ring : int, default 1
         ``grid_disk`` radius for the overhang-safety expansion; 0 disables.
     """
-    from shapely.geometry import box
-    from shapely.geometry.base import BaseGeometry
     import geopandas as gpd
-    if isinstance(spatial, str):
-        # Mirror the CLI's parse_region semantics so the Python API can
-        # accept "region.shp" / "region.gpkg" / "region.geojson" / "W,S,E,N"
-        # the same way `gh3_extract -r` does. The gh3_load docstring example
-        # advertises this. Without it, sindex.query() raises a misleading
-        # "Array should be of object dtype" downstream.
-        from .cliutils import parse_region
-        spatial = parse_region(spatial)
-    if isinstance(spatial, list):
-        spatial = box(*spatial)
-    elif isinstance(spatial, gpd.GeoSeries) or isinstance(spatial, gpd.GeoDataFrame):
-        spatial = spatial.to_crs(4326).union_all()
-    elif not isinstance(spatial, BaseGeometry):
-        raise TypeError(
-            f"Unsupported region type {type(spatial).__name__}; "
-            "expected a path/bbox-string, a list [W,S,E,N], a GeoDataFrame/GeoSeries, or a shapely geometry."
-        )
+    from .utils import region_to_geometry
+
+    spatial = region_to_geometry(spatial)
 
     full_h3_list = h3_ids
     if h3_ids is None:
