@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- **Data-bbox index** (`_bbox_index.parquet` root sidecar): one row per partition year-file with the true data envelope, derived from existing parquet row-group statistics — a footer-only scan (no data read; minutes for a continental database, seconds under a dask client). The GeoParquet bbox each file carries is the *padded partition polygon* (cell math, measured 3.8× taller than the actual shots on a production file), so the database previously stored no information about where the data really sits. Built by the new `gh3_bbox_index` CLI / `gedih3.gh3_build_bbox_index()`; retrofittable to any existing database. Consumers are strictly fail-safe: files missing from the index, NULL bboxes (incomplete stats) and an absent/unreadable sidecar all mean "keep the file / unindexed path". Producer invariant mirrors `_manifest.txt`: `_merge_and_finalize` deletes the index whenever a merge changes data (stale would under-select; absent only costs speed), and variable-only updates leave it alone (adding columns never moves a shot).
+- **Region bbox pushdown in `gh3_load`**: the H3-database polygon/bbox path previously did a full column-projected read of every selected partition and clipped in memory afterwards — no row-level filtering at all. The `from_map` reader now routes each year file through the same `_read_parquet_bbox` machinery the EGI path already used (parquet lat/lon column-stats pushdown), and skips whole files a-priori via the bbox index when present. Both prefilters are strict supersets of the exact `ddf.clip(region)` that still runs — results unchanged, verified row-identical with and without the index. Disabled when the caller passes explicit pyarrow `filters` (the bbox path cannot compose arbitrary predicates on every strategy).
+- **EGI dead-read elimination**: `egi_load`'s per-tile tasks skip year files whose data envelope cannot intersect the tile — on a representative production query, 64% of the scheduled (tile × year-file) reads contain zero rows in the target tile, and the ring-1 partitions they mostly belong to rescue only ~0.03% of rows. Per-task envelope dicts are inlined into the task args (no `client.scatter`, per the established streaming-driver doctrine).
+
+### Changed
+- `_prepare_egi_loading` builds H3 partition geometry only for candidates the selected EGI tiles can reach (ring-1 cell math on the tiles' exact 4326 bounds) instead of constructing polygons for every partition in the database and querying a global sindex — equivalence-preserving (provable superset; pinned by test) with cost proportional to the region instead of the database.
+- `egi.get_children` is vectorized (`to_hash` on the full center grid instead of one scalar call per child — the scalar/array code paths are identical, so this is bit-exact). Expanding an L12 tile to level 4 previously cost 2.56M Python-level calls.
+
+### Fixed
+- `gh3_load(region=...)` on a region that touches no partition crashed with `ValueError: All iterables must have a non-zero length` from `dask.dataframe.from_map`. It now keeps one partition for the schema read and returns the correct empty frame — the same doctrine as the dataset loader.
+
 ## [0.15.0] - 2026-07-25
 
 ### Fixed

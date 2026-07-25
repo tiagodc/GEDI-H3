@@ -384,7 +384,12 @@ def get_children(
     py = np.arange(miny + offset, maxy, children_scale)
 
     center_points = np.stack(np.meshgrid(px, py)).reshape(2, -1).T
-    return [to_hash(x, y, children_level) for x, y in center_points]
+    # Vectorized: to_hash is array-capable and its scalar/array code paths
+    # are identical (same numpy ops), so this is bit-exact with the former
+    # per-child Python loop — which cost 2.56M scalar calls per L12 tile
+    # when expanding to level 4.
+    hashes = to_hash(center_points[:, 0], center_points[:, 1], children_level)
+    return [np.uint64(h) for h in np.atleast_1d(hashes)]
 
 
 def pixels_per_tile(uint_hash_or_level: Union[np.uint64, int]) -> Union[int, float]:
