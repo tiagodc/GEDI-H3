@@ -123,10 +123,13 @@ instructions verbatim in spirit:
    dependencies for obvious drift (new hard deps).
 4. **Gate on feedstock CI** (Azure) going fully green on the final PR state.
 5. **Merge** the PR.
-6. **Confirm the channel**: poll `https://img.shields.io/conda/vn/conda-forge/gedih3.svg`
-   (or the anaconda.org API) until it reports `v$VER` — package upload +
-   channel indexing typically lands within an hour of the merge. Then report
-   completion.
+6. **Confirm the channel**: poll the authoritative anaconda.org API
+   (`https://api.anaconda.org/package/conda-forge/gedih3`, `latest_version`)
+   until it reports `$VER` — package upload + channel indexing typically
+   lands within an hour of the merge. Then report completion. Do NOT check
+   (or purge) the README badges: shields.io + GitHub's camo cache them for
+   up to ~3 hours and they self-refresh; the lag is accepted, not a problem
+   to fix.
 
 While the subagent runs, relay each milestone to the user as it arrives (PR
 found / fixes applied / CI green / merged / channel live). The release cycle
