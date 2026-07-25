@@ -345,3 +345,23 @@ def test_get_children_vectorized_is_consistent():
     # to_parent is bit-exact for levels >= 7: every child folds back
     parents = egi.to_parent(np.array(kids, dtype=np.uint64), 12)
     assert set(int(p) for p in np.atleast_1d(parents)) == {parent}
+
+
+def test_index_write_does_not_stale_the_manifest(mini_db):
+    """Writing the root sidecar bumps the root dir mtime; the builder must
+    refresh the manifest timestamp so check_manifest_freshness stays green
+    (the manifest indexes data files, which are untouched)."""
+    import time
+
+    from gedih3.utils import generate_manifest
+    from gedih3.parallel import check_manifest_freshness
+    from gedih3.config import MANIFEST_FILENAME
+
+    root, cells, _ = mini_db
+    files = [os.path.join(root, f"h3_03={c}", f"year={y}", f"{c}.{y}.0.parquet")
+             for c in cells for y in (2019, 2020)]
+    generate_manifest(root, files=files)
+    time.sleep(0.02)
+    g.gh3_build_bbox_index(root)
+    assert check_manifest_freshness(
+        os.path.join(root, MANIFEST_FILENAME), root) is True

@@ -2971,20 +2971,23 @@ def _merge_and_finalize(
     meta_files = list(dask.compute(*meta_tasks))
     del meta_tasks
 
-    # Generate manifest for accelerated file listing
-    logger.info("Generating file manifest")
-    generate_manifest(h3_dir, tree_shape='h3db')
-
     # A merge changes the data envelope of the touched year files, so any
     # pre-existing bbox index is stale — drop it (producer-driven, same
     # doctrine as the manifest refresh). A stale bbox index would silently
     # under-select in every query; absence just falls back to the
-    # unindexed path. Rebuild with gh3_bbox_index after the build.
+    # unindexed path. Rebuild with gh3_bbox_index after the build. Must
+    # happen BEFORE the manifest write below: unlinking a root sidecar
+    # bumps the root dir mtime, and check_manifest_freshness compares the
+    # manifest against it.
     from .config import BBOX_INDEX_FILENAME
     _bbox_idx_path = os.path.join(h3_dir, BBOX_INDEX_FILENAME)
     if os.path.exists(_bbox_idx_path):
         os.remove(_bbox_idx_path)
         logger.info("Removed stale %s (rebuild with gh3_bbox_index)", BBOX_INDEX_FILENAME)
+
+    # Generate manifest for accelerated file listing
+    logger.info("Generating file manifest")
+    generate_manifest(h3_dir, tree_shape='h3db')
 
     return h3_files
 
