@@ -365,3 +365,17 @@ def test_index_write_does_not_stale_the_manifest(mini_db):
     g.gh3_build_bbox_index(root)
     assert check_manifest_freshness(
         os.path.join(root, MANIFEST_FILENAME), root) is True
+
+
+def test_gh3_load_projected_columns_survive_empty_file_results(mini_db):
+    """A bbox-emptied file must not leak the helper lat/lon predicate
+    columns into the graph (0-row frames previously skipped the drop and
+    desynced the dask meta)."""
+    root, cells, bboxes = mini_db
+    b2019 = bboxes[(cells[0], 2019)]
+    b2020 = bboxes[(cells[0], 2020)]
+    lo = b2019[3] + 1e-6
+    region = [b2020[0] - 0.01, lo, b2020[2] + 0.01, b2020[3] + 0.01]
+    got = g.gh3_load(root, region=region, columns=["rh_098_l2a"], lazy=False)
+    assert len(got) > 0
+    assert "lat_lowestmode_l2a" not in got.columns
