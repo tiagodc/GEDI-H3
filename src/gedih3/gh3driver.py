@@ -64,8 +64,14 @@ def _detect_source(source=None):
         (path, info_dict) where info_dict is from get_dataset_index_info().
     """
     from .cliutils import get_dataset_index_info
+    from .utils import resolve_s3_source
 
     path = source if source is not None else GH3_DEFAULT_H3_DIR
+    # s3://host:port/bucket/... carries its endpoint in the URL — the CLI
+    # normalizes this in setup_storage; doing it here gives the Python API
+    # (gh3_load / egi_load and everything routed through them) the same
+    # capability. An already-configured endpoint always wins.
+    path = resolve_s3_source(path)
     info = get_dataset_index_info(path)
     return path, info
 
@@ -143,6 +149,8 @@ def gh3_select_partitions(source, region=None):
     >>> files = [f for i in ids
     ...          for f in glob.glob(f'/data/h3db/h3_03={i}/year=*/*.parquet')]
     """
+    from .utils import resolve_s3_source
+    source = resolve_s3_source(source)
     try:
         h3_ids = gh3_read_meta("h3_partition_ids", gh3_root_dir=source)
     except (FileNotFoundError, OSError):
@@ -1613,7 +1621,9 @@ def gh3_load(source=None, *, columns=None, region=None, query=None,
     ----------
     source : str, optional
         Path to data source (H3 database, simplified dataset, or parquet dir).
-        If None, falls back to default H3 directory.
+        If None, falls back to default H3 directory. Self-hosted S3 sources
+        may carry their endpoint in the URL (``s3://host:port/bucket/...``);
+        an endpoint already configured via ``configure_storage`` wins.
     columns : list, optional
         Columns to load.
     region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
@@ -2790,7 +2800,9 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
     ----------
     source : str, optional
         Path to data source (H3 database or EGI dataset).
-        If None, falls back to default H3 directory.
+        If None, falls back to default H3 directory. Self-hosted S3 sources
+        may carry their endpoint in the URL (``s3://host:port/bucket/...``);
+        an endpoint already configured via ``configure_storage`` wins.
     columns : list, optional
         Columns to load.
     region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional

@@ -182,6 +182,67 @@ def get_storage_options(protocol=None):
     return opts
 
 
+def split_s3_host_url(url):
+    """Split ``s3://host:port/bucket/...`` into ``(endpoint_url, s3://bucket/...)``.
+
+    A bucket name cannot contain ``:``, so a netloc with an explicit port
+    is unambiguously a server, not a bucket. Port 443 implies https,
+    anything else http (self-hosted servers are overwhelmingly plain
+    http; configure an explicit endpoint for TLS on a non-standard
+    port). Returns ``(None, url)`` for anything that is not the host
+    form — plain-bucket S3 URLs and non-S3 paths pass through untouched.
+
+    The single source of truth for this rule: the CLI's
+    ``endpoint_from_s3_urls`` and the Python API's
+    :func:`resolve_s3_source` both delegate here, so the two layers
+    cannot drift.
+
+    Raises
+    ------
+    GediValidationError
+        If the URL names a server but no bucket (``s3://host:port``).
+    """
+    from urllib.parse import urlparse
+
+    if not isinstance(url, str) or not url.startswith('s3://'):
+        return None, url
+    netloc = urlparse(url).netloc
+    host, _, port = netloc.rpartition(':')
+    if not host or not port.isdigit():
+        return None, url
+    remainder = url[len(f's3://{netloc}'):].lstrip('/')
+    if not remainder:
+        raise GediValidationError(
+            f"S3 URL '{url}' names a server but no bucket — expected "
+            f"s3://host:port/bucket/...")
+    endpoint = f"{'https' if port == '443' else 'http'}://{netloc}"
+    return endpoint, 's3://' + remainder
+
+
+def resolve_s3_source(path):
+    """Normalize an ``s3://host:port/bucket/...`` source for the Python API.
+
+    The CLI layer performs this normalization in ``setup_storage``; the
+    Python entry points (``gh3_load``, ``egi_load``,
+    ``gh3_select_partitions``) call this so the same URL works in both —
+    without it, s3fs treats ``host:port`` as a bucket name. The derived
+    endpoint is applied only when none is configured yet: an explicit
+    ``configure_storage('s3', endpoint_url=...)`` (or a CLI
+    ``--s3-endpoint``) always wins, mirroring the CLI precedence, and the
+    path is normalized to plain ``s3://bucket/...`` either way. Non-S3
+    and plain-bucket paths are returned unchanged.
+    """
+    endpoint, norm = split_s3_host_url(path)
+    if endpoint:
+        s3_opts = dict(_storage_options.get('s3', {}))
+        ck = dict(s3_opts.get('client_kwargs', {}))
+        if 'endpoint_url' not in ck:
+            ck['endpoint_url'] = endpoint
+            s3_opts['client_kwargs'] = ck
+            _storage_options['s3'] = s3_opts
+    return norm
+
+
 def _get_filesystem(path, storage_options=None):
     """Get fsspec filesystem instance for a path.
 

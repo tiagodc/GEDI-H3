@@ -397,3 +397,57 @@ def test_genuine_miss_logs_nothing(monkeypatch, utils_errors):
     assert utils.smart_exists('s3://bucket/missing') is False
     assert not utils_errors
     assert fs.info_calls  # the probe ran, it just found a plain miss
+
+
+# ------------------------------------------ host-URL parsing in the Python API
+
+def test_split_s3_host_url_forms():
+    from gedih3.exceptions import GediValidationError
+
+    assert utils.split_s3_host_url('s3://minio:9000/b/db') == \
+        ('http://minio:9000', 's3://b/db')
+    assert utils.split_s3_host_url('s3://minio.example.org:443/b') == \
+        ('https://minio.example.org:443', 's3://b')
+    assert utils.split_s3_host_url('s3://my.bucket/key') == \
+        (None, 's3://my.bucket/key')
+    assert utils.split_s3_host_url('/local/path') == (None, '/local/path')
+    assert utils.split_s3_host_url(None) == (None, None)
+    with pytest.raises(GediValidationError, match='no bucket'):
+        utils.split_s3_host_url('s3://host:9000')
+
+
+def test_resolve_s3_source_sets_endpoint_once():
+    norm = utils.resolve_s3_source('s3://minio:9000/b/db')
+    assert norm == 's3://b/db'
+    assert utils.get_storage_options('s3')['client_kwargs']['endpoint_url'] == \
+        'http://minio:9000'
+    # an explicitly configured endpoint wins; the path is still normalized
+    utils.configure_storage('s3', endpoint_url='http://other:7000')
+    norm2 = utils.resolve_s3_source('s3://minio:9000/b/db')
+    assert norm2 == 's3://b/db'
+    assert utils.get_storage_options('s3')['client_kwargs']['endpoint_url'] == \
+        'http://other:7000'
+    # non-host forms untouched
+    assert utils.resolve_s3_source('s3://bucket/key') == 's3://bucket/key'
+    assert utils.resolve_s3_source('/local/db') == '/local/db'
+
+
+def test_python_loaders_normalize_host_urls(monkeypatch):
+    """gh3_load / egi_load route through _detect_source; the host URL must
+    arrive at the source detector as a plain bucket path with the endpoint
+    configured — the same behavior the CLI gets from setup_storage."""
+    import gedih3.cliutils as cliutils
+    import gedih3.gh3driver as gh3drv
+
+    captured = {}
+
+    def fake_info(path):
+        captured['path'] = path
+        return {'source_type': 'h3_database', 'index_type': 'h3'}
+
+    monkeypatch.setattr(cliutils, 'get_dataset_index_info', fake_info)
+    path, info = gh3drv._detect_source('s3://minio:9000/bucket/db')
+    assert path == 's3://bucket/db'
+    assert captured['path'] == 's3://bucket/db'
+    assert utils.get_storage_options('s3')['client_kwargs']['endpoint_url'] == \
+        'http://minio:9000'
