@@ -172,3 +172,29 @@ class TestGeoseriesToFilterExpansion:
             "expected the unexpanded filter to omit at least one ring-1 "
             "neighbor for a polygon deep inside a single cell"
         )
+
+
+class TestGeoseriesFilterPropagation:
+    """The DuckDB pre-query selector must accept the same region forms as
+    gh3_load and emit a filter on the column matching its resolution."""
+
+    def test_filter_column_follows_resolution(self):
+        import geopandas as gpd
+        from gedih3.sqlutils import geoseries_to_filter
+
+        small = gpd.GeoSeries([box(-50.6, 0.4, -50.4, 0.6)], crs=4326)
+        assert geoseries_to_filter(small).startswith('h3_03 = ANY(')
+        assert geoseries_to_filter(small, resolution=4).startswith('h3_04 = ANY(')
+
+    def test_projected_crs_and_bbox_forms_agree(self):
+        """A projected GeoSeries used to be fed to h3 as lat/lng degrees."""
+        import geopandas as gpd
+        from gedih3.sqlutils import geoseries_to_cells
+
+        bbox = [-50.6, 0.4, -50.4, 0.6]
+        base = geoseries_to_cells(gpd.GeoSeries([box(*bbox)], crs=4326))
+        projected = geoseries_to_cells(
+            gpd.GeoSeries([box(*bbox)], crs=4326).to_crs(6933))
+        as_list = geoseries_to_cells(bbox)
+        assert set(projected) == set(base)
+        assert set(as_list) == set(base)

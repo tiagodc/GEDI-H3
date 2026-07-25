@@ -3,6 +3,7 @@
 # For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu
 
 import os, re, h3
+import warnings
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -11,9 +12,10 @@ import dask_geopandas
 
 
 from .config import GH3_DEFAULT_H3_DIR, configure_environment, BUILD_LOG_FILENAME, DATASET_META_FILENAME
-from .utils import (json_read, json_write, now, get_package_version, is_parquet,
-                     smart_glob, smart_exists, smart_isdir, is_remote_path,
-                     smart_open, generate_manifest, check_nan_only_columns,
+from .utils import (json_read, json_read_cached, json_write, now, get_package_version, is_parquet,
+                     smart_glob, smart_exists, smart_isfile, is_remote_path,
+                     smart_open, smart_open_columnar, read_parquet_coalesced,
+                     generate_manifest, check_nan_only_columns,
                      smart_join, AtomicFileWriter, atomic_parquet_write,
                      dask_safe_wait, dask_safe_collect)
 from .h3utils import intersect_h3_geometries, fix_h3_geometry
@@ -38,7 +40,7 @@ def _resolve_columns(columns, path, info):
     else:
         from .cliutils import detect_dataset_format, read_dataset_schema, list_dataset_files
         fmt = detect_dataset_format(path)
-        if smart_exists(path) and not smart_isdir(path):
+        if smart_isfile(path):
             available, _ = read_dataset_schema(path, fmt)
         else:
             files = list_dataset_files(path, fmt=fmt)
@@ -81,8 +83,7 @@ def gh3_list_parts(gh3_root_dir=GH3_DEFAULT_H3_DIR):
 
 def gh3_read_meta(var, gh3_root_dir=GH3_DEFAULT_H3_DIR):
     meta_path = smart_join(gh3_root_dir, BUILD_LOG_FILENAME)
-    meta = json_read(meta_path)
-    return meta.get(var)
+    return json_read_cached(meta_path).get(var)
 
 
 def gh3_select_partitions(source, region=None):
@@ -108,16 +109,24 @@ def gh3_select_partitions(source, region=None):
     Parameters
     ----------
     source : str
-        Path to an H3 database (the directory holding ``gedih3_build_log.json``).
+        Path to an H3 database (the directory holding
+        ``gedih3_build_log.json``) or a simplified dataset (the directory
+        holding ``gedih3_dataset.json`` — H3 or EGI). Datasets answer
+        through the same safety-gated selection the loaders use
+        (:func:`_select_dataset_files`): when the sidecar cannot prove the
+        filenames bound their files, every partition is returned rather
+        than risking an under-selection.
     region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
         ROI as a vector-file path / ``"W,S,E,N"`` string, ``[W, S, E, N]``
         bbox list, geopandas object, or shapely geometry (EPSG:4326). When
-        ``None`` (default), every partition in the database is returned.
+        ``None`` (default), every partition is returned.
 
     Returns
     -------
     list[str]
-        Sorted H3 partition cell IDs at the database's partition level.
+        Sorted partition IDs: H3 cell IDs at the database's partition level,
+        or the dataset's file-basename partition IDs (H3 cells / EGI hashes).
+        Empty when no dataset partition intersects the region.
 
     Raises
     ------
@@ -134,8 +143,25 @@ def gh3_select_partitions(source, region=None):
     >>> files = [f for i in ids
     ...          for f in glob.glob(f'/data/h3db/h3_03={i}/year=*/*.parquet')]
     """
-    h3_ids = gh3_read_meta("h3_partition_ids", gh3_root_dir=source)
+    try:
+        h3_ids = gh3_read_meta("h3_partition_ids", gh3_root_dir=source)
+    except (FileNotFoundError, OSError):
+        h3_ids = None
+
     if not h3_ids:
+        # Not an H3 database — maybe a simplified dataset (H3 or EGI).
+        # Answer from the same safety-gated machinery the loaders use, so
+        # this helper and gh3_load/egi_load can never disagree.
+        if smart_exists(smart_join(source, DATASET_META_FILENAME)):
+            from .cliutils import detect_dataset_format
+            fmt = detect_dataset_format(source)
+            data_files, _ = _find_dataset_files(source, fmt)
+            if region is not None:
+                data_files = _select_dataset_files(
+                    data_files, region, dataset_path=source,
+                    keep_schema_file=False)
+            return sorted({os.path.splitext(os.path.basename(f))[0]
+                           for f in data_files})
         raise GediDatabaseNotFoundError(
             f"No H3 partition list found in {source} "
             f"(missing or empty 'h3_partition_ids' in {BUILD_LOG_FILENAME})."
@@ -259,7 +285,7 @@ def _detect_dataset_index_col(dataset_path):
     if not smart_exists(meta_path):
         return None
 
-    meta = json_read(meta_path)
+    meta = json_read_cached(meta_path)
 
     idx_type = meta.get('index_type')
     idx_level = meta.get('index_level')
@@ -288,6 +314,183 @@ def _find_dataset_files(dataset_path, fmt):
         raise GediDatabaseNotFoundError(f"No data files found in {dataset_path}")
 
 
+def _dataset_partition_kind(part_ids):
+    """Classify dataset partition IDs as ``'h3'``, ``'egi'`` or ``None``.
+
+    A simplified dataset's file basenames *are* its partition IDs
+    (``gh3_write_dataset_meta`` derives ``partition_ids`` from them), so
+    the file list is where candidates come from. Parsing alone is NOT
+    proof that a name *bounds* its file's contents — that proof comes
+    from the sidecar level check in :func:`_dataset_prune_is_safe`.
+    ``None`` means "these names are not partition IDs" (e.g. a
+    hive-style tree), which callers must treat as "cannot prune".
+    """
+    if not part_ids:
+        return None
+
+    # EGI first: its hashes are decimal uint64 strings, and feeding one to
+    # h3.is_valid_cell raises OverflowError rather than returning False.
+    if all(p.isdigit() for p in part_ids):
+        try:
+            import numpy as _np
+            from . import egi
+            return 'egi' if all(egi.validate_hash(_np.uint64(p)) for p in part_ids) else None
+        except (ValueError, OverflowError, TypeError):
+            return None
+
+    try:
+        import h3
+        return 'h3' if all(h3.is_valid_cell(p) for p in part_ids) else None
+    except (ValueError, OverflowError, TypeError):
+        return None
+
+
+def _dataset_prune_is_safe(dataset_path, kind, part_ids):
+    """True when each file's basename provably *bounds* its contents.
+
+    A basename that parses as a partition ID is not enough:
+    ``gh3_export_part`` has naming branches that name a file after its
+    FIRST ROW's cell (e.g. when a source without a sidecar collapses the
+    partition level onto the index level), and pruning on such a name
+    silently drops every row outside it. The checkable proof that names
+    are bounding partitions is the dataset sidecar declaring a partition
+    level *strictly coarser* than the index level — then each file is
+    one spatial partition and its rows nest inside the named cell/tile
+    (H3 modulo the child overhang covered by ring-1; EGI exactly).
+
+    Refuses (returns False → caller reads everything) when the sidecar
+    is missing, the levels are absent or not strictly ordered, the IDs
+    are not all at the declared coarser level, or files were renamed /
+    added since the sidecar recorded ``partition_ids``.
+    """
+    if not dataset_path:
+        return False
+    meta_path = smart_join(dataset_path, DATASET_META_FILENAME)
+    if not smart_exists(meta_path):
+        return False
+    meta = json_read_cached(meta_path)
+    if meta.get('index_type') != kind:
+        return False
+    idx_level = meta.get('index_level')
+    if idx_level is None:
+        return False
+    known = meta.get('partition_ids')
+    if known and not set(part_ids).issubset(set(known)):
+        return False
+
+    if kind == 'h3':
+        import h3
+        levels = {h3.get_resolution(p) for p in part_ids}
+        # H3: finer index = higher resolution number
+        return len(levels) == 1 and levels.pop() < int(idx_level)
+
+    import numpy as _np
+    from . import egi
+    levels = {int(v) for v in _np.atleast_1d(
+        egi.get_level(_np.array(part_ids, dtype=_np.uint64)))}
+    # EGI: coarser = higher level number (level 12 ~ 160 km is coarsest)
+    return len(levels) == 1 and levels.pop() > int(idx_level)
+
+
+def _select_dataset_files(data_files, region, logger=None, dataset_path=None,
+                          keep_schema_file=True):
+    """Subset a dataset's files to those whose partition may hold ``region``.
+
+    A simplified dataset is one file per spatial partition, so the region
+    answers which files can possibly contribute *before* anything is read.
+    Without this a 1-degree query against a global dataset schedules every
+    partition and clips rows afterwards: measured 25 of 12,461 partitions
+    for a real ROI, i.e. ~500x more remote reads than needed. The H3
+    database path has always pruned this way (``_load_h3_database``); this
+    brings datasets — H3 and EGI, local and remote — in line.
+
+    Selection is deliberately conservative, because under-selection is a
+    silent data-loss class:
+
+    * **H3** uses :func:`intersect_h3_geometries`, whose ``expand_ring=1``
+      default covers the parent/child overhang (a shot can sit outside the
+      polygon of the partition it is stored in).
+    * **EGI** intersects the partition squares themselves. EGI is a nested
+      axis-aligned grid and a shot's partition square contains its
+      coordinates by construction, so polygon intersection is exact; the
+      ROI is densified before reprojection (EPSG:6933 bends straight
+      lon/lat edges — an un-densified 40-degree edge deviates ~150 km from
+      its chord) and the 1 m buffer absorbs the float-boundary rounding
+      documented in ``egi.to_hash``. Degenerate edge-of-grid squares are
+      kept rather than decided against.
+    * Anything else (hive trees, hand-named files, datasets whose sidecar
+      cannot prove the names bound their files — see
+      :func:`_dataset_prune_is_safe`) returns the full list.
+
+    Row-level clipping downstream is unchanged — this only removes files
+    that provably cannot contribute.
+    """
+    if region is None or not data_files:
+        return data_files
+
+    if logger is None:
+        import logging
+        logger = logging.getLogger(__name__)
+
+    by_id = {}
+    for f in data_files:
+        by_id.setdefault(os.path.splitext(os.path.basename(f))[0], []).append(f)
+
+    kind = _dataset_partition_kind(list(by_id))
+    if kind is None:
+        if logger:
+            logger.debug("Dataset filenames are not partition IDs; reading all files")
+        return data_files
+
+    if not _dataset_prune_is_safe(dataset_path, kind, list(by_id)):
+        if logger:
+            logger.debug("Dataset sidecar cannot prove filenames bound their "
+                         "files (missing/stale sidecar or partition level not "
+                         "coarser than index level); reading all files")
+        return data_files
+
+    if kind == 'h3':
+        keep = set(intersect_h3_geometries(region, h3_ids=list(by_id)))
+    else:
+        import numpy as _np
+        import shapely
+        from . import egi
+        from .utils import region_to_geometry
+
+        ids = list(by_id)
+        tiles = egi.to_geodataframe(_np.array(ids, dtype=_np.uint64), return_polygons=True)
+        # Densify before reprojecting: to_crs moves vertices only, and in
+        # EPSG:6933 y = A*sin(lat), so a straight lon/lat segment bows away
+        # from its chord (~19 km over 20 deg of latitude, ~480 km over 60).
+        # 0.1 deg keeps the residual under the 1 m rounding buffer.
+        roi_geom = shapely.segmentize(region_to_geometry(region), 0.1)
+        roi = gpd.GeoSeries([roi_geom], crs=4326)
+        roi = roi.to_crs(egi.EGI_CRS_STRING).iloc[0].buffer(1.0)
+        # Undecidable (degenerate / invalid) squares are kept, not dropped.
+        undecidable = ~(tiles.geometry.is_valid & (tiles.geometry.area > 0))
+        hit_pos = tiles.geometry.sindex.query(roi, predicate='intersects')
+        keep = {str(h) for h in tiles.index[hit_pos]}
+        keep |= {str(h) for h in tiles.index[undecidable.to_numpy()]}
+
+    selected = [f for pid in keep if pid in by_id for f in by_id[pid]]
+
+    if not selected:
+        if not keep_schema_file:
+            return []  # pure selection query — an empty answer is the answer
+        # Nothing intersects: keep one file so the schema / _meta reads
+        # downstream still have a source and the dask graph is well-formed.
+        # The row-level clip decides what actually comes back.
+        if logger:
+            logger.info("No dataset partition intersects the region; keeping "
+                        "one file for the schema read")
+        return data_files[:1]
+
+    if logger and len(selected) < len(data_files):
+        logger.info(f"  Region selects {len(selected)}/{len(data_files)} partitions "
+                    f"({kind.upper()} index)")
+    return sorted(selected)
+
+
 def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filters=None):
     """Internal: load from simplified dataset (H3 or EGI).
 
@@ -301,7 +504,7 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         Columns to load.
     query : str, optional
         Pandas query string for filtering.
-    region : GeoDataFrame or bbox, optional
+    region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
         Spatial filter for clipping.
     lazy : bool
         If True, return Dask DataFrame. If False, return computed DataFrame.
@@ -318,7 +521,7 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
     # --- Eager mode ---
     if not lazy:
         # Single file
-        if smart_exists(path) and not smart_isdir(path):
+        if smart_isfile(path):
             ext = os.path.splitext(path)[1].lstrip('.').lower()
             fmt = ext if ext in ('parquet', 'feather', 'gpkg') else 'parquet'
             _, has_geo = read_dataset_schema(path, fmt)
@@ -327,6 +530,7 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
 
         fmt = detect_dataset_format(path)
         data_files, fmt = _find_dataset_files(path, fmt)
+        data_files = _select_dataset_files(data_files, region, dataset_path=path)
         _, has_geo = read_dataset_schema(data_files[0], fmt)
 
         if fmt == 'parquet':
@@ -335,7 +539,7 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
                 kwargs['columns'] = columns
             if filters:
                 kwargs['filters'] = filters
-            return _read_parquet_files(data_files, geo=has_geo, **kwargs)
+            result = _read_parquet_files(data_files, geo=has_geo, **kwargs)
         else:
             index_col = _detect_dataset_index_col(path)
             load_columns = columns
@@ -348,7 +552,20 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
 
             if index_col and result.index.name != index_col and index_col in result.columns:
                 result = result.set_index(index_col)
-            return result
+
+        # Partition selection is coarse — clip to the exact region, as the
+        # lazy branch does. Eager loads used to skip this entirely and hand
+        # back unfiltered data.
+        if region is not None:
+            if isinstance(result, gpd.GeoDataFrame):
+                from .utils import region_to_geometry
+                result = result.clip(region_to_geometry(region))
+            else:
+                warnings.warn(
+                    "region ignored: dataset has no geometry column to clip against",
+                    stacklevel=2,
+                )
+        return result
 
     # --- Lazy mode ---
     fmt = detect_dataset_format(path)
@@ -360,6 +577,11 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         load_columns, query_only_cols = _add_query_columns(columns, query, path, fmt)
 
     data_files, fmt = _find_dataset_files(path, fmt)
+
+    # Drop partitions the region cannot touch before building the graph —
+    # one task per file, so this is the difference between reading a handful
+    # of partitions and reading the whole dataset.
+    data_files = _select_dataset_files(data_files, region, dataset_path=path)
 
     # Read schema from first file
     col_names, has_geometry = read_dataset_schema(data_files[0], fmt)
@@ -432,7 +654,16 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         keep = [c for c in ddf.columns if c not in query_only_cols]
         ddf = ddf[keep]
     if region is not None:
-        ddf = ddf.clip(region)
+        if 'geometry' in ddf.columns:
+            from .utils import region_to_geometry
+            ddf = ddf.clip(region_to_geometry(region))
+        else:
+            # Without a geometry column, dask's DataFrame.clip(lower=region)
+            # would numerically clamp every value — never call it here.
+            warnings.warn(
+                "region ignored: dataset has no geometry column to clip against",
+                stacklevel=2,
+            )
 
     return ddf
 
@@ -513,7 +744,11 @@ def _read_parquet_files(files, geo=True, **kwargs):
     """Read parquet file(s), handling remote paths correctly.
 
     PyArrow does not recognize http:// URIs natively. For remote paths,
-    we use fsspec (via smart_open) to open files as file-like objects.
+    we use fsspec (via smart_open_columnar) to open files as file-like
+    objects, and let pyarrow coalesce the column-chunk ranges it needs
+    (``pre_buffer=True``) instead of paying fsspec's block read-ahead
+    around every one of them — 358 MB vs 18 MB of server-side reads for a
+    one-column projection of a 1.8 GB partition.
     """
     reader = gpd.read_parquet if geo else pd.read_parquet
 
@@ -525,8 +760,8 @@ def _read_parquet_files(files, geo=True, **kwargs):
     # Single file
     if len(files) == 1:
         if remote:
-            with smart_open(files[0], 'rb') as fobj:
-                return reader(fobj, **kwargs)
+            with smart_open_columnar(files[0]) as fobj:
+                return read_parquet_coalesced(fobj, geo=geo, **kwargs)
         return reader(files[0], **kwargs)
 
     # Multiple local files: pass list directly (PyArrow handles this)
@@ -536,8 +771,8 @@ def _read_parquet_files(files, geo=True, **kwargs):
     # Multiple remote files: read each via fsspec, concat
     dfs = []
     for f in files:
-        with smart_open(f, 'rb') as fobj:
-            dfs.append(reader(fobj, **kwargs))
+        with smart_open_columnar(f) as fobj:
+            dfs.append(read_parquet_coalesced(fobj, geo=geo, **kwargs))
     return pd.concat(dfs)
 
 
@@ -634,35 +869,50 @@ def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat
     bbox-clipped result; the fallback materializes the full column-projected
     file before clipping in memory.
     """
-    if strategy == 'point':
-        return gpd.read_parquet(path, bbox=bbox_4326, columns=columns)
+    from contextlib import nullcontext
 
-    if strategy == 'coord_filter':
-        x0, y0, x1, y1 = bbox_4326
-        filt = [(lon_col, '>=', x0), (lon_col, '<=', x1),
-                (lat_col, '>=', y0), (lat_col, '<=', y1)]
-        # Pyarrow's `filters=` requires the predicate columns to be in the
-        # read column list; append + drop them if the caller didn't ask for
-        # them. The extra column is already on disk in the same row groups
-        # we'd decode anyway, so the I/O cost is negligible.
-        cols = list(columns) if columns else None
-        extras = []
-        if cols is not None:
-            for c in (lat_col, lon_col):
-                if c not in cols:
-                    cols.append(c)
-                    extras.append(c)
-        reader = gpd.read_parquet if geo else pd.read_parquet
-        df = reader(path, columns=cols, filters=filt)
-        if extras and len(df) > 0:
-            df = df.drop(columns=extras)
+    # Remote files go through fsspec with the read-ahead cache off, and
+    # pyarrow coalesces the ranges it actually needs (smart_open_columnar).
+    remote = is_remote_path(path)
+    source_ctx = smart_open_columnar(path) if remote else nullcontext(path)
+
+    with source_ctx as src:
+        if strategy == 'point':
+            if remote:
+                return read_parquet_coalesced(src, columns=columns, geo=True,
+                                              bbox=bbox_4326)
+            return gpd.read_parquet(src, bbox=bbox_4326, columns=columns)
+
+        if strategy == 'coord_filter':
+            x0, y0, x1, y1 = bbox_4326
+            filt = [(lon_col, '>=', x0), (lon_col, '<=', x1),
+                    (lat_col, '>=', y0), (lat_col, '<=', y1)]
+            # Pyarrow's `filters=` requires the predicate columns to be in the
+            # read column list; append + drop them if the caller didn't ask for
+            # them. The extra column is already on disk in the same row groups
+            # we'd decode anyway, so the I/O cost is negligible.
+            cols = list(columns) if columns else None
+            extras = []
+            if cols is not None:
+                for c in (lat_col, lon_col):
+                    if c not in cols:
+                        cols.append(c)
+                        extras.append(c)
+            if remote:
+                df = read_parquet_coalesced(src, columns=cols, geo=geo, filters=filt)
+            else:
+                reader = gpd.read_parquet if geo else pd.read_parquet
+                df = reader(src, columns=cols, filters=filt)
+            if extras and len(df) > 0:
+                df = df.drop(columns=extras)
+            return df
+
+        # 'fallback' — full read + in-memory geometric clip. Last resort.
+        df = (read_parquet_coalesced(src, columns=columns, geo=True) if remote
+              else gpd.read_parquet(src, columns=columns))
+        if len(df) > 0:
+            df = df[df.geometry.intersects(clip_box)]
         return df
-
-    # 'fallback' — full read + in-memory geometric clip. Last resort.
-    df = gpd.read_parquet(path, columns=columns)
-    if len(df) > 0:
-        df = df[df.geometry.intersects(clip_box)]
-    return df
 
 
 def _restore_storage_on_worker(storage_cfg):
@@ -992,13 +1242,10 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
         ddf = ddf.query(query)
 
     if region is not None and isinstance(ddf, dask_geopandas.GeoDataFrame):
-        from shapely.geometry import box as shapely_box
-        if isinstance(region, list):
-            mask = gpd.GeoDataFrame(geometry=[shapely_box(*region)], crs=4326)
-        elif isinstance(region, (gpd.GeoSeries, gpd.GeoDataFrame)):
-            mask = region.to_crs(4326)
-        else:
-            mask = gpd.GeoDataFrame(geometry=[region], crs=4326)
+        # Same normalizer as the partition selection above — a region that
+        # selects partitions must also be clippable (string/bbox/geo forms).
+        from .utils import region_to_geometry
+        mask = gpd.GeoDataFrame(geometry=[region_to_geometry(region)], crs=4326)
         ddf = ddf.clip(mask)
 
     if query is not None and out_cols is not None:
@@ -1023,7 +1270,7 @@ def gh3_load(source=None, *, columns=None, region=None, query=None,
         If None, falls back to default H3 directory.
     columns : list, optional
         Columns to load.
-    region : GeoDataFrame or bbox, optional
+    region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
         Spatial filter.
     query : str, optional
         Pandas query string for filtering.
@@ -1272,7 +1519,17 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None,
         ext = os.path.splitext(odir)[1]
         opath = odir if ext else f"{odir}.{fmt}"
     else:
-        # Determine output filename from partition ID
+        # Determine output filename from partition ID.
+        #
+        # INVARIANT the naming below relies on: this dask partition holds
+        # rows of exactly ONE spatial partition, so the first row's cell
+        # names them all. That holds for the gedih3 pipeline (from_map
+        # gives one dask partition per H3 partition dir) but NOT for a
+        # repartitioned/shuffled frame — there the name describes only
+        # some rows, and `_select_dataset_files` refuses to prune such
+        # datasets (see `_dataset_prune_is_safe`: it requires the sidecar
+        # partition level to be strictly coarser than the index level).
+        # Use group_by_partition=True for frames that may mix partitions.
         oname = None
 
         # 1. Try partition column (raw data case)
@@ -1625,28 +1882,25 @@ def _prepare_egi_loading(region, gh3_dir, partition_level=12):
     """
     from . import egi
     from .h3utils import h3_parts_to_gdf
-    from shapely.geometry import box
 
     # Get H3 partition info
     h3_part = gh3_read_meta("h3_partition_level", gh3_root_dir=gh3_dir)
     h3_part_col = f"h3_{h3_part:02d}"
     h3_ids = gh3_read_meta("h3_partition_ids", gh3_root_dir=gh3_dir)
 
-    # Convert region to GeoDataFrame if needed
+    # Normalize the region through the shared normalizer so the EGI path
+    # accepts exactly what gh3_load accepts (vector path, "W,S,E,N", bbox
+    # list, GeoDataFrame/GeoSeries, shapely) and is always EPSG:4326 —
+    # keeping the two index types from drifting apart on region handling.
     region_gdf = None
     if region is not None:
-        if isinstance(region, (list, tuple)):
-            # bbox: [W, S, E, N] -> GeoDataFrame
+        from .utils import region_to_geometry
+        try:
             region_gdf = gpd.GeoDataFrame(
-                geometry=[box(*region)],
-                crs=4326
+                geometry=[region_to_geometry(region)], crs=4326
             )
-        elif isinstance(region, gpd.GeoDataFrame):
-            region_gdf = region
-        elif isinstance(region, gpd.GeoSeries):
-            region_gdf = gpd.GeoDataFrame(geometry=region)
-        else:
-            raise GediValidationError(f"region must be GeoDataFrame, bbox list, or None. Got {type(region)}")
+        except TypeError as exc:
+            raise GediValidationError(str(exc))
 
     # Get level-12 outer EGI tiles for region
     egi_tiles = egi.aoi_tiles(region_gdf)
@@ -1900,7 +2154,8 @@ def _get_schema_columns(load_cols, gh3_dir, exclude_geometry=False):
     # Get schema from a parquet file in database
     parquet_file = _find_parquet_file(gh3_dir)
     if is_remote_path(parquet_file):
-        with smart_open(parquet_file, 'rb') as fobj:
+        # Footer-only read: skip fsspec's block read-ahead entirely
+        with smart_open_columnar(parquet_file) as fobj:
             schema = pq.read_schema(fobj)
     else:
         schema = pq.read_schema(parquet_file, memory_map=True)
@@ -2129,7 +2384,7 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
         If None, falls back to default H3 directory.
     columns : list, optional
         Columns to load.
-    region : GeoDataFrame or bbox, optional
+    region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
         Spatial filter.
     query : str, optional
         Pandas query string for filtering.
@@ -3277,7 +3532,7 @@ def gh3_sample_raster(image_path, data_source=None,
         Path to raster file, VRT, or tile directory
     data_source : str, optional
         Path to H3 database or simplified dataset directory
-    region : GeoDataFrame or bbox, optional
+    region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
         Additional spatial filter
     query : str, optional
         Pandas query string for filtering shots

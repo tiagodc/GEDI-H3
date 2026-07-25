@@ -8,7 +8,6 @@ import sys
 import shutil
 import pathlib
 import argparse
-import datetime as dt
 
 
 def get_cmd_args():
@@ -42,7 +41,12 @@ def get_cmd_args():
 
 
 def get_file_list(root_dir):
-    """Generate a list of all expected parquet files in the H3 database.
+    """List the parquet files of the H3 database.
+
+    Uses the manifest-aware ``smart_glob`` (the `_manifest.txt` sentinel is
+    O(1) on the GPFS metadata server) instead of guessing filenames from a
+    year range and the ``<hex>.<year>.0.parquet`` naming contract — the
+    actual listing also catches fragments the guess would miss.
 
     Parameters
     ----------
@@ -52,26 +56,22 @@ def get_file_list(root_dir):
     Returns
     -------
     list of pathlib.Path
-        Paths to parquet files that exist on disk, ordered so the first element
-        is guaranteed to exist (used to infer the table schema).
+        Paths to parquet files, ordered so the first element is guaranteed
+        to exist (used to infer the table schema).
     """
     from gedih3.gh3driver import gh3_read_meta
+    from gedih3.utils import smart_glob, smart_join
 
     root_dir = pathlib.Path(root_dir)
     part_level = gh3_read_meta("h3_partition_level", gh3_root_dir=str(root_dir))
     if part_level is None:
         part_level = 3
 
-    folders = list(root_dir.glob(f"h3_{part_level:02d}=*"))
-    years = range(2019, dt.datetime.now().year + 1)
-    files = []
+    pattern = smart_join(str(root_dir), f"h3_{part_level:02d}=*/year=*/*.parquet")
+    files = [pathlib.Path(f) for f in sorted(smart_glob(pattern))]
 
-    for f in folders:
-        hex_id = f.name.split("=")[1]
-        for y in years:
-            files.append(f / f"year={y}" / f"{hex_id}.{y}.0.parquet")
-
-    # Guarantee the first element exists — it is used to create the table schema.
+    # Guarantee the first element exists — it is used to create the table
+    # schema (a stale manifest may list files that were since removed).
     while files and not files[0].exists():
         files.pop(0)
 

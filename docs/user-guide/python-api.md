@@ -161,6 +161,8 @@ files = [f for i in ids
 
 Each partition's `*.metadata.json` sidecar (and the parquet GeoParquet footer) also carries an overhang-padded `bbox` that is safe to intersect against; its `h3_geometry` is the *exact* cell polygon and is **not**. Compute a padded extent for any cell ID with `gedih3.h3_partition_bbox(cell_id, partition_level)`.
 
+Passing `region=` to `gh3_load` / `egi_load` already does this for you, on databases *and* on simplified datasets (H3 or EGI): only the partition files whose cell can hold data for the region are read, and the rows are clipped exactly afterwards. On a global 12,461-partition dataset a one-degree ROI selects ~4–25 files, so the region argument is worth passing even when you intend to filter again downstream.
+
 ---
 
 ## Aggregation

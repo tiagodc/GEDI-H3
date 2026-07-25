@@ -12,6 +12,7 @@ from contextlib import contextmanager
 
 from .config import GEDI_PRODUCTS, ISO3_COUNTRIES_URL, BUILD_LOG_FILENAME, DATASET_META_FILENAME
 from .utils import read_vector_file, parse_spatial
+from .utils import NON_LOCAL_PREFIXES as _URL_PREFIXES
 from .exceptions import GediValidationError, GediDatabaseNotFoundError
 # Note: gh3driver imports are done lazily to avoid circular imports
 
@@ -47,13 +48,11 @@ def detect_dataset_format(dataset_path):
     GediValidationError
         If detected format is not in PIPELINE_FORMATS
     """
-    import json
-    from .utils import smart_exists, smart_open, smart_glob, smart_join
+    from .utils import smart_exists, json_read_cached, smart_glob, smart_join
 
     meta_path = smart_join(dataset_path, DATASET_META_FILENAME)
     if smart_exists(meta_path):
-        with smart_open(meta_path, 'r') as f:
-            meta = json.load(f)
+        meta = json_read_cached(meta_path)
         fmt = meta.get('file_format')
         if fmt:
             if fmt not in PIPELINE_FORMATS:
@@ -133,9 +132,10 @@ def read_dataset_schema(filepath, fmt):
     """
     if fmt == 'parquet':
         import pyarrow.parquet as pq
-        from .utils import is_remote_path, smart_open
+        from .utils import is_remote_path, smart_open_columnar
         if is_remote_path(filepath):
-            with smart_open(filepath, 'rb') as fobj:
+            # Footer-only read: skip fsspec's block read-ahead entirely
+            with smart_open_columnar(filepath) as fobj:
                 schema = pq.read_schema(fobj)
         else:
             schema = pq.read_schema(filepath, memory_map=True)
@@ -179,11 +179,15 @@ def make_dataset_reader(fmt, columns=None, geo=True):
 
     if fmt == 'parquet':
         def reader(f):
-            from .utils import is_remote_path, smart_open
-            read_fn = gpd.read_parquet if geo else pd.read_parquet
+            from .utils import (is_remote_path, smart_open_columnar,
+                                read_parquet_coalesced)
             if is_remote_path(f):
-                with smart_open(f, 'rb') as fobj:
-                    return read_fn(fobj, columns=columns)
+                # No fsspec read-ahead + pyarrow range coalescing: a
+                # column-projected read then transfers the column chunks
+                # and nothing else (see smart_open_columnar).
+                with smart_open_columnar(f) as fobj:
+                    return read_parquet_coalesced(fobj, columns=columns, geo=geo)
+            read_fn = gpd.read_parquet if geo else pd.read_parquet
             return read_fn(f, columns=columns)
         return reader
     elif fmt == 'feather':
@@ -271,11 +275,17 @@ def add_storage_args(parser):
     """
     g = parser.add_argument_group('remote storage')
     g.add_argument("--s3-endpoint", dest="s3_endpoint", type=str, default=None,
-                   help="S3 endpoint URL (e.g. http://localhost:7000)")
+                   help="S3 endpoint URL (e.g. http://localhost:7000). Optional when the "
+                        "source is given as s3://host:port/bucket/..., which carries the "
+                        "endpoint in the URL itself")
     g.add_argument("--s3-key", dest="s3_key", type=str, default=None,
                    help="S3 access key")
     g.add_argument("--s3-secret", dest="s3_secret", type=str, default=None,
                    help="S3 secret key")
+    g.add_argument("--s3-profile", dest="s3_profile", type=str, default=None,
+                   help="AWS profile name to authenticate with (use to force the "
+                        "botocore credential chain, e.g. when relying on an "
+                        "EC2/ECS instance role)")
     g.add_argument("--s3-anon", dest="s3_anon", action="store_true", default=False,
                    help="use anonymous S3 access (for public buckets)")
     g.add_argument("--remote-user", dest="remote_user", type=str, default=None,
@@ -289,6 +299,54 @@ def add_storage_args(parser):
     return parser
 
 
+def endpoint_from_s3_urls(args, logger=None):
+    """Derive an S3 endpoint from ``s3://host:port/bucket/...`` arguments.
+
+    Self-hosted S3 (MinIO, ``rclone serve s3``, Ceph) otherwise needs the
+    server named twice — once in ``--s3-endpoint`` and once implicitly by
+    the bucket path. A bucket name cannot contain ``:``, so a netloc with
+    an explicit port is unambiguously a host, not a bucket: strip it into
+    the endpoint and leave a plain ``s3://bucket/key`` path behind. Port
+    443 implies https, anything else http (self-hosted servers are
+    overwhelmingly plain http; use ``--s3-endpoint`` for a TLS endpoint
+    on a non-standard port).
+
+    Rewrites the matching ``args`` attributes in place and returns the
+    endpoint URL, or ``None`` when no argument uses the host form.
+    ``s3_endpoint`` itself is never rewritten — it names the server, not
+    a bucket path (``setup_storage`` normalizes its scheme separately).
+    """
+    from urllib.parse import urlparse
+
+    endpoint = None
+    for name, val in list(vars(args).items()):
+        if name == 's3_endpoint':
+            continue
+        if not isinstance(val, str) or not val.startswith('s3://'):
+            continue
+        netloc = urlparse(val).netloc
+        host, _, port = netloc.rpartition(':')
+        if not host or not port.isdigit():
+            continue
+        remainder = val[len(f's3://{netloc}'):].lstrip('/')
+        if not remainder:
+            raise GediValidationError(
+                f"S3 URL '{val}' names a server but no bucket — expected "
+                f"s3://host:port/bucket/..."
+            )
+        found = f"{'https' if port == '443' else 'http'}://{netloc}"
+        if endpoint and found != endpoint:
+            raise GediValidationError(
+                f"Conflicting S3 endpoints in arguments: {endpoint} and {found}"
+            )
+        endpoint = found
+        setattr(args, name, 's3://' + remainder)
+        if logger:
+            logger.info(f"  S3 endpoint from {name} URL: {endpoint} "
+                        f"(bucket path: {getattr(args, name)})")
+    return endpoint
+
+
 def setup_storage(args, logger=None):
     """Call ``configure_storage()`` from parsed CLI arguments.
 
@@ -298,12 +356,24 @@ def setup_storage(args, logger=None):
 
     # S3
     s3_kwargs = {}
-    if getattr(args, 's3_endpoint', None):
-        s3_kwargs['endpoint_url'] = args.s3_endpoint
+    # Always normalize s3://host:port/bucket paths; an explicit flag still wins
+    url_endpoint = endpoint_from_s3_urls(args, logger)
+    endpoint = getattr(args, 's3_endpoint', None) or url_endpoint
+    if endpoint:
+        if endpoint.startswith('s3://'):
+            # An endpoint is an HTTP(S) server, not a bucket URL. Accept the
+            # s3:// spelling and rewrite the scheme by the same port rule
+            # endpoint_from_s3_urls uses (443 -> https, else http).
+            netloc = endpoint[len('s3://'):].strip('/')
+            port = netloc.rpartition(':')[2]
+            endpoint = f"{'https' if port == '443' else 'http'}://{netloc}"
+        s3_kwargs['endpoint_url'] = endpoint
     if getattr(args, 's3_key', None):
         s3_kwargs['key'] = args.s3_key
     if getattr(args, 's3_secret', None):
         s3_kwargs['secret'] = args.s3_secret
+    if getattr(args, 's3_profile', None):
+        s3_kwargs['profile'] = args.s3_profile
     if getattr(args, 's3_anon', False):
         s3_kwargs['anon'] = True
     if s3_kwargs:
@@ -560,10 +630,6 @@ def print_success(message, logger=None):
     out("")
 
 
-_URL_PREFIXES = (
-    'http://', 'https://', 's3://', 'gs://', 'gcs://',
-    '/vsicurl/', '/vsis3/', '/vsigs/',
-)
 
 
 def resolve_path_args(args, names, logger=None):
@@ -696,6 +762,18 @@ def configure_database_path(args, logger=None):
         gh3.gh3_set_db_path(args.database)
     else:
         args.database = GH3_DEFAULT_H3_DIR
+        # setup_storage() runs before the default is filled in, so an
+        # s3://host:port default from ~/.gedih3.env would otherwise miss
+        # the endpoint normalization a -d argument gets. Re-run it now;
+        # an explicitly configured endpoint still wins.
+        endpoint = endpoint_from_s3_urls(args, logger)
+        if endpoint:
+            from .utils import _storage_options
+            s3_opts = dict(_storage_options.get('s3', {}))
+            if 'endpoint_url' not in s3_opts.get('client_kwargs', {}):
+                s3_opts.setdefault('client_kwargs', {})['endpoint_url'] = endpoint
+                _storage_options['s3'] = s3_opts
+            gh3.gh3_set_db_path(args.database)
 
     if logger:
         logger.info(f"Database: {args.database}")
@@ -724,16 +802,14 @@ def get_dataset_index_info(database):
         - 'partition_level': int (or None if not applicable)
         - Other metadata fields from the source
     """
-    import json
-    from .utils import smart_exists, smart_open
+    from .utils import smart_exists, json_read_cached
 
     from .utils import smart_join
     build_log_path = smart_join(database, BUILD_LOG_FILENAME)
     dataset_meta_path = smart_join(database, DATASET_META_FILENAME)
 
     if smart_exists(build_log_path):
-        with smart_open(build_log_path, 'r') as f:
-            meta = json.load(f)
+        meta = json_read_cached(build_log_path)
         return {
             'source_type': 'h3_database',
             'index_type': 'h3',
@@ -742,8 +818,7 @@ def get_dataset_index_info(database):
             **meta
         }
     elif smart_exists(dataset_meta_path):
-        with smart_open(dataset_meta_path, 'r') as f:
-            meta = json.load(f)
+        meta = json_read_cached(dataset_meta_path)
         partition_level = meta.get('egi_partition_level') or meta.get('h3_partition_level')
         # Infer partition level from filenames if not in metadata
         if partition_level is None and meta.get('index_type') == 'h3':

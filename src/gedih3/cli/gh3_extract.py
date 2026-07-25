@@ -107,8 +107,8 @@ def main():
         configure_database_path(args, logger=logger)
 
         # Verify database exists
-        from gedih3.utils import smart_exists
-        if not smart_exists(args.database):
+        from gedih3.utils import smart_exists, smart_database_exists
+        if not smart_database_exists(args.database):
             logger.error(f"Database directory not found: {args.database}")
             logger.error("Please specify a valid database path with -d/--database")
             sys.exit(1)

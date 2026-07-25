@@ -21,10 +21,28 @@ from .exceptions import (GediDatabaseNotFoundError, GediFileError, GediValidatio
 # Local paths use the standard library (zero overhead for the common case).
 
 def is_remote_path(path):
-    """Check if path is a remote URL (S3, HTTP, FTP, etc.)."""
+    """Check if path is a remote URL handled by fsspec (S3, HTTP, FTP, ...).
+
+    This is the *fsspec* notion of remote, used by every ``smart_*``
+    helper. GDAL's virtual file systems (``/vsicurl/`` and friends) are
+    deliberately excluded — pyarrow/fsspec cannot read them. See
+    :data:`NON_LOCAL_PREFIXES` for the broader set that merely must not
+    be treated as a local filesystem path.
+    """
     return isinstance(path, str) and path.startswith(
         ('s3://', 'http://', 'https://', 'ftp://', 'sftp://', 'ssh://')
     )
+
+
+# Prefixes that must never be absolutized, globbed or stat'd as local paths.
+# Superset of :func:`is_remote_path`: adds the object-store schemes only GDAL
+# reads (``gs://``) and GDAL's virtual file systems, which raster/vector
+# inputs pass straight through to rasterio/OGR.
+NON_LOCAL_PREFIXES = (
+    'http://', 'https://', 's3://', 'gs://', 'gcs://', 'ftp://', 'sftp://', 'ssh://',
+    '/vsicurl/', '/vsis3/', '/vsigs/', '/vsiaz/', '/vsiswift/', '/vsihdfs/',
+    '/vsizip/', '/vsitar/', '/vsigzip/', '/vsimem/',
+)
 
 
 def smart_join(*parts):
@@ -99,11 +117,51 @@ def configure_storage(protocol='s3', **kwargs):
     _storage_options[protocol] = opts
 
 
+# S3 option keys that signal the caller intends authenticated access.
+# When none of these is present (and the botocore chain has nothing to
+# offer — see _ambient_aws_credentials), S3 falls back to anonymous access.
+# requester_pays is included because it is meaningless without credentials.
+_S3_CREDENTIAL_KEYS = ('key', 'secret', 'token', 'profile', 'anon', 'requester_pays')
+
+
+def _ambient_aws_credentials():
+    """True when the botocore credential chain plausibly has credentials.
+
+    Covers the sources that can be checked without a network round trip:
+    the AWS environment variables and the shared credentials file. An
+    EC2/ECS instance role is NOT detectable this way — users relying on
+    one must pass ``--s3-profile`` (or any explicit credential option) to
+    suppress the anonymous default.
+    """
+    if any(os.environ.get(v) for v in (
+            'AWS_ACCESS_KEY_ID', 'AWS_PROFILE', 'AWS_DEFAULT_PROFILE',
+            'AWS_ROLE_ARN', 'AWS_WEB_IDENTITY_TOKEN_FILE',
+            'AWS_CONTAINER_CREDENTIALS_RELATIVE_URI')):
+        return True
+    cred_file = os.environ.get('AWS_SHARED_CREDENTIALS_FILE') or \
+        os.path.join(os.path.expanduser('~'), '.aws', 'credentials')
+    return os.path.exists(cred_file)
+
+
 def get_storage_options(protocol=None):
     """Return the stored options for *protocol*.
 
-    Returns ``{'anon': True}`` for S3 when nothing has been configured
-    (public-bucket default). Other protocols return ``{}``.
+    S3 defaults to ``anon=True`` in two cases:
+
+    * nothing at all has been configured for S3 (the long-standing
+      public-bucket default), or
+    * non-credential options (e.g. ``endpoint_url``) were configured, no
+      credential-bearing option is among them, **and** the botocore chain
+      has no ambient credentials (env vars / shared credentials file) to
+      fall back on — e.g. a read-only ``rclone serve s3`` or MinIO with
+      auth disabled. Without this s3fs raises ``NoCredentialsError``,
+      which its own ``exists()`` swallows into a bare ``False`` —
+      surfacing as a misleading "not found".
+
+    When ambient AWS credentials exist and the caller configured only
+    non-credential options, the chain is left to do its job — forcing
+    ``anon=True`` there would break working env-var / profile setups.
+    Other protocols return ``{}``.
 
     Parameters
     ----------
@@ -117,12 +175,11 @@ def get_storage_options(protocol=None):
     """
     if protocol is None:
         return {}
-    if protocol in _storage_options:
-        return dict(_storage_options[protocol])
-    # S3 default: anonymous access for public buckets
-    if protocol == 's3':
-        return {'anon': True}
-    return {}
+    opts = dict(_storage_options.get(protocol, {}))
+    if protocol == 's3' and not any(k in opts for k in _S3_CREDENTIAL_KEYS):
+        if not opts or not _ambient_aws_credentials():
+            opts['anon'] = True
+    return opts
 
 
 def _get_filesystem(path, storage_options=None):
@@ -155,6 +212,44 @@ def _get_filesystem(path, storage_options=None):
     return fsspec.filesystem(protocol, **opts)
 
 
+def _log_remote_check_failure(fs, path, level=None):
+    """Log the real cause behind a negative remote existence check.
+
+    ``fsspec`` implementations (s3fs in particular) catch *every*
+    exception inside ``exists()`` / ``isdir()`` and return ``False``, so a
+    bad endpoint, a refused connection or a missing credential is
+    indistinguishable from a genuine miss — callers then report
+    "not found" and send the user hunting the wrong problem. Re-probe
+    with ``info()``, which propagates, and log anything that is not a
+    plain miss. Only runs on the negative path (the caller is about to
+    error out anyway), so it costs nothing in the common case.
+
+    Defaults to DEBUG: many probes are for *optional* sidecars, and S3
+    answers a missing-key HEAD with 403 when the caller lacks
+    ``s3:ListBucket`` — a loud message there would alarm on every
+    successful load. :func:`smart_database_exists` re-probes at ERROR on
+    the path where the caller is about to fail hard.
+    """
+    import logging
+    if level is None:
+        level = logging.DEBUG
+    for candidate in ([path] if path.endswith('/') else [path, path + '/']):
+        try:
+            fs.info(candidate)
+            return  # exists after all — nothing to report
+        except FileNotFoundError:
+            continue
+        except Exception as exc:
+            logging.getLogger(__name__).log(
+                level,
+                f"Remote access to {path} failed ({type(exc).__name__}: {exc}) — "
+                f"reported as not found. Check the endpoint URL, credentials "
+                f"(--s3-key/--s3-secret/--s3-anon) and that the server speaks "
+                f"the requested protocol."
+            )
+            return
+
+
 def smart_exists(path):
     """os.path.exists() that works with remote paths."""
     if not is_remote_path(path):
@@ -163,8 +258,45 @@ def smart_exists(path):
     if fs.exists(path):
         return True
     # HTTP/FTP servers may require trailing slash for directories
-    if not path.endswith('/'):
-        return fs.exists(path + '/')
+    if not path.endswith('/') and fs.exists(path + '/'):
+        return True
+    _log_remote_check_failure(fs, path)
+    return False
+
+
+def smart_database_exists(path):
+    """:func:`smart_exists` for a gedih3 database / dataset root.
+
+    Object stores have no directories: an existence check on a bucket or
+    prefix degrades to a LIST, which some servers answer only after
+    walking the whole tree (``rclone serve s3`` over a 12k-partition
+    dataset takes minutes; a real S3/MinIO is fast but still pays a
+    round trip). Every gh3 tree carries at least one sidecar at its
+    root, so probe those first — a HeadObject each, and the metadata
+    readers that follow need them anyway. Falls back to the generic
+    directory check so plain parquet directories (no sidecar) still
+    resolve.
+    """
+    if not is_remote_path(path):
+        return os.path.exists(path)
+    from .config import (BUILD_LOG_FILENAME, DATASET_META_FILENAME,
+                         MANIFEST_FILENAME)
+    root = path.rstrip('/')
+    if smart_isfile(path):
+        return smart_exists(path)  # a single file — plain HEAD, no listing
+    fs = _get_filesystem(path)
+    for name in (DATASET_META_FILENAME, BUILD_LOG_FILENAME, MANIFEST_FILENAME):
+        try:
+            if fs.exists(smart_join(root, name)):
+                return True
+        except Exception:
+            break  # connection/credential problem — reported loudly below
+    if smart_exists(path):
+        return True
+    # The caller is about to fail hard on "not found" — surface the real
+    # cause (bad endpoint, refused connection, missing credential) loudly.
+    import logging
+    _log_remote_check_failure(fs, path, level=logging.ERROR)
     return False
 
 
@@ -176,9 +308,39 @@ def smart_isdir(path):
     if fs.isdir(path):
         return True
     # HTTP/FTP servers may require trailing slash for directories
-    if not path.endswith('/'):
-        return fs.isdir(path + '/')
+    if not path.endswith('/') and fs.isdir(path + '/'):
+        return True
+    _log_remote_check_failure(fs, path)
     return False
+
+
+# Extensions gedih3 writes for single-file sources (see PIPELINE_FORMATS +
+# the export formats of gh3_extract / gh3_aggregate).
+_DATA_FILE_EXTENSIONS = (
+    '.parquet', '.parq', '.pq', '.feather', '.gpkg', '.geopackage',
+    '.h5', '.hdf5', '.csv', '.txt', '.json', '.geojson', '.shp', '.tif', '.tiff',
+)
+
+
+def smart_isfile(path):
+    """True when *path* is a single data file rather than a dataset directory.
+
+    Remote paths answer from the extension instead of probing: object
+    stores have no directories, so ``isdir()`` on a bucket or prefix
+    degrades to a LIST — the exact O(N) round trip the manifest sentinel
+    exists to avoid, and one that ``rclone serve s3`` answers only after
+    walking the whole tree. Every gh3 single-file output carries one of
+    the known extensions, so the answer is knowable for free. Local
+    paths use ``os.path.isfile``. A trailing slash is the one unambiguous
+    "this is a directory" signal a URL can carry, so it always answers
+    ``False`` — even when the directory name ends in a data extension
+    (e.g. ``gh3_extract -o s3://bucket/out.parquet`` writes a directory).
+    """
+    if not is_remote_path(path):
+        return os.path.isfile(path)
+    if path.endswith('/'):
+        return False
+    return path.lower().endswith(_DATA_FILE_EXTENSIONS)
 
 
 # =============================================================================
@@ -677,6 +839,54 @@ def smart_open(path, mode='r', storage_options=None):
         opts = {**opts, **storage_options}
     return fsspec.open(path, mode, **opts)
 
+
+def smart_open_columnar(path, storage_options=None):
+    """Open a remote parquet file for pyarrow, with no client-side read-ahead.
+
+    fsspec's default file cache fetches a whole block (5 MB for HTTP)
+    around every read. Pyarrow already knows exactly which byte ranges it
+    wants and coalesces them itself (``pre_buffer=True``), so that block
+    is pure over-fetch — and a column-projected read touches dozens of
+    small, scattered ranges. Measured against ``rclone serve http`` on a
+    1.8 GB GEDI partition, projecting one column (18 MB of column chunks
+    + footer): 358 MB pulled off GPFS with the default cache, 18 MB with
+    ``cache_type='none'`` plus pyarrow's own coalescing.
+
+    Returns an open binary file object (not a context manager wrapper);
+    callers use it with ``with``. Local paths are opened directly — the
+    kernel page cache already does the right thing.
+    """
+    if not is_remote_path(path):
+        return open(path, 'rb')
+    return _get_filesystem(path, storage_options).open(path, 'rb', cache_type='none')
+
+
+def read_parquet_coalesced(source, columns=None, geo=True, **kwargs):
+    """Read a parquet source with pyarrow range coalescing enabled.
+
+    Pair with :func:`smart_open_columnar` on remote reads: that turns off
+    fsspec's block read-ahead, this makes pyarrow fetch the column chunks
+    it needs in as few ranges as possible.
+
+    ``geopandas.read_parquet`` forwards ``**kwargs`` to
+    ``pyarrow.parquet.read_table``, so ``pre_buffer=True`` reaches the
+    reader. ``pandas.read_parquet`` does not coalesce (measured: 50
+    scattered server reads vs 26 for ``read_table`` on the same query),
+    so the non-geo path calls ``read_table`` directly and converts —
+    verified to produce an identical frame, dtypes included, on GEDI
+    partitions. ``use_pandas_metadata=True`` matches what
+    ``pandas.read_parquet`` always sets: without it a column-projected
+    read drops the index column recorded in the pandas metadata and the
+    frame comes back with a RangeIndex instead of e.g. ``h3_12``.
+    """
+    if geo:
+        import geopandas as gpd
+        return gpd.read_parquet(source, columns=columns, pre_buffer=True, **kwargs)
+    import pyarrow.parquet as pq
+    table = pq.read_table(source, columns=columns, pre_buffer=True,
+                          use_pandas_metadata=True, **kwargs)
+    return table.to_pandas()
+
 # Heavy imports are moved to lazy loading inside functions:
 # - psutil: used in get_system_resources
 # - pyarrow/pandas: used in parquet and schema functions
@@ -740,11 +950,58 @@ def json_write(obj, path, mode='w', rewrite=False):
     with AtomicFileWriter(path) as tmp_path:
         with open(tmp_path, mode) as file:
             json.dump(obj, file)
+    # Keep json_read_cached coherent structurally, not by convention: the
+    # local (mtime_ns, size, inode) stamp already catches this, but only
+    # if the filesystem reports a change — dropping the entry is free.
+    _json_cache.pop(path, None)
 
 def json_read(path, mode='r'):
     with smart_open(path, mode) as f:
         obj = json.load(f)
         return obj
+
+
+_json_cache = {}  # path -> (stamp, parsed json); stamp is None for remote paths
+
+
+def json_read_cached(path):
+    """:func:`json_read` memoized per path — for read-only metadata sidecars.
+
+    A single CLI invocation asks the build log a dozen questions
+    (``h3_columns``, ``h3_columns_dtypes``, ``h3_partition_level``,
+    ``h3_partition_ids``, ``gedi_version``) through two dozen call sites,
+    and each one re-fetched the whole file. That log is 21 MB on a
+    continental database, and one ``gh3_aggregate`` was measured opening
+    it 13 times over HTTP — ~270 MB of metadata traffic to answer
+    questions that cannot change mid-query.
+
+    Local paths are validated by ``(mtime_ns, size, inode)``, so a build
+    that rewrites the log in the same process still sees fresh state —
+    the inode covers the case where an :class:`AtomicFileWriter`
+    ``os.replace`` lands inside the filesystem's timestamp granularity.
+    Remote paths are held for the process lifetime: gedih3 never writes
+    to a remote database, and a stat over the network would cost the very
+    round trip the cache exists to avoid. Use :func:`json_read` for
+    anything read-modify-write.
+
+    The returned object IS the shared cache entry — treat it as
+    read-only. Mutating it (e.g. ``.append()`` on a returned list)
+    poisons every later read in the process; copy first if you must
+    modify.
+    """
+    stamp = None
+    if not is_remote_path(path):
+        try:
+            st = os.stat(path)
+            stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
+        except OSError:
+            stamp = None
+    cached = _json_cache.get(path)
+    if cached is not None and cached[0] == stamp:
+        return cached[1]
+    obj = json_read(path)
+    _json_cache[path] = (stamp, obj)
+    return obj
 
 def check_nan_only_columns(df, context='', logger=None):
     """Warn about columns that are entirely NaN.
@@ -803,7 +1060,8 @@ def read_parquet_schema(path):
     import pyarrow.parquet as pq
     import pandas as pd
     if is_remote_path(path):
-        with smart_open(path, 'rb') as fobj:
+        # Footer-only read: skip fsspec's block read-ahead entirely
+        with smart_open_columnar(path) as fobj:
             schema = pq.read_schema(fobj)
     else:
         schema = pq.read_schema(path, memory_map=True)
@@ -900,7 +1158,7 @@ def read_schema(path, root=None):
     ValueError
         If format cannot be determined
     """
-    if smart_isdir(path):
+    if not smart_isfile(path):
         # Check for H3 database first (has build log)
         from .config import BUILD_LOG_FILENAME
         build_log = smart_join(path, BUILD_LOG_FILENAME)
@@ -1762,6 +2020,50 @@ def parse_temporal(temporal):
         return (start, end)
     else:
         raise GediTemporalError("Invalid temporal input. Must be a list or tuple of two dates.")
+
+def region_to_geometry(spatial):
+    """Normalize any accepted region argument to one shapely geometry in EPSG:4326.
+
+    Accepts what the CLIs accept — a vector-file path, a ``"W,S,E,N"``
+    string, a ``[W, S, E, N]`` list, a GeoDataFrame/GeoSeries, or a
+    shapely geometry — so every spatial-selection path agrees on what a
+    region *is*. Shared by :func:`~gedih3.h3utils.intersect_h3_geometries`
+    (H3 partition selection) and the EGI partition selection in
+    ``gh3driver``; keeping one normalizer is what stops the two index
+    types from drifting apart on region handling.
+
+    Raises
+    ------
+    TypeError
+        If the input is not one of the accepted forms.
+    """
+    from shapely.geometry import box
+    from shapely.geometry.base import BaseGeometry
+    import geopandas as gpd
+
+    if isinstance(spatial, str):
+        # Mirror the CLI's parse_region semantics so the Python API can
+        # accept "region.shp" / "region.gpkg" / "region.geojson" / "W,S,E,N"
+        # the same way `gh3_extract -r` does. The gh3_load docstring example
+        # advertises this. Without it, sindex.query() raises a misleading
+        # "Array should be of object dtype" downstream.
+        from .cliutils import parse_region
+        spatial = parse_region(spatial)
+    if isinstance(spatial, (list, tuple)):
+        spatial = box(*spatial)
+    elif isinstance(spatial, (gpd.GeoSeries, gpd.GeoDataFrame)):
+        if spatial.crs is None:
+            # CRS-naive geopandas input: assume EPSG:4326 (the package-wide
+            # convention) instead of raising deep inside to_crs.
+            spatial = spatial.set_crs(4326)
+        spatial = spatial.to_crs(4326).union_all()
+    elif not isinstance(spatial, BaseGeometry):
+        raise TypeError(
+            f"Unsupported region type {type(spatial).__name__}; "
+            "expected a path/bbox-string, a list [W,S,E,N], a GeoDataFrame/GeoSeries, or a shapely geometry."
+        )
+    return spatial
+
 
 def parse_spatial(spatial):
     if spatial is None:

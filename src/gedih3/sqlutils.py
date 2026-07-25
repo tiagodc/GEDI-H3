@@ -66,13 +66,21 @@ def attach_ducklake_db(con, name="gedi_dl", dir=None):
         USE {name};
     """)
 
-def geoseries_to_cells(shp: gpd.GeoSeries, resolution: int = 3, expand_ring: int = 1):
-    """Convert a GeoSeries to a list of overlapping H3 cells at the given resolution."""
-    h3_cells = set()
-    for geom in shp:
-        h3shape = h3.geo_to_h3shape(geom)
-        cells = h3.h3shape_to_cells_experimental(h3shape, resolution, "overlap")
-        h3_cells.update(cells)
+def geoseries_to_cells(shp, resolution: int = 3, expand_ring: int = 1):
+    """Convert a region to a list of overlapping H3 cells at *resolution*.
+
+    Accepts every region form the loaders accept (vector-file path,
+    ``"W,S,E,N"`` string, ``[W, S, E, N]`` list, GeoDataFrame/GeoSeries in
+    any CRS, shapely geometry) via :func:`~gedih3.utils.region_to_geometry`,
+    so the DuckDB pre-query selection cannot drift from ``gh3_load``'s —
+    previously a GeoSeries in a projected CRS was fed to h3 as if it were
+    lat/lng degrees.
+    """
+    from .utils import region_to_geometry
+
+    geom = region_to_geometry(shp)
+    h3shape = h3.geo_to_h3shape(geom)
+    h3_cells = set(h3.h3shape_to_cells_experimental(h3shape, resolution, "overlap"))
     if expand_ring:
         cells_out = h3_expand_ring(h3_cells, ring=expand_ring)
     else:
@@ -80,17 +88,21 @@ def geoseries_to_cells(shp: gpd.GeoSeries, resolution: int = 3, expand_ring: int
     return cells_out
 
 
-def geoseries_to_filter(shp: gpd.GeoSeries, resolution: int = 3, expand_ring: int = 1):
-    """Convert a GeoSeries to an H3 partition filter at the given resolution.
+def geoseries_to_filter(shp, resolution: int = 3, expand_ring: int = 1):
+    """Convert a region to an H3 partition filter at the given resolution.
 
     ``'overlap'`` coverage is exact w.r.t. the cell polygons, but shots are
     stored under their hierarchy partition, which can overhang the polygon
     by ~0.18 x edge length (see ``intersect_h3_geometries``). ``expand_ring``
     adds grid_disk neighbors so boundary shots stored in a non-overlapping
     neighbor partition are not silently filtered out; pass 0 to disable.
+
+    The filter column follows *resolution* (``h3_03`` for the default
+    partition level 3) — pass the database's ``h3_partition_level`` when it
+    differs.
     """
     cells_out = geoseries_to_cells(shp, resolution, expand_ring)
-    return "h3_03 = ANY({})".format(cells_out)
+    return "h3_{:02d} = ANY({})".format(resolution, cells_out)
 
 
 def duck_to_gdf(
