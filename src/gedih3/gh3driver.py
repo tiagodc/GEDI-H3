@@ -1092,6 +1092,32 @@ def gh3_build_bbox_index(source=None):
     return opath
 
 
+def refresh_bbox_index_after_build(gh3_dir, enabled=True, logger=None):
+    """Best-effort bbox-index (re)build for a just-completed build.
+
+    MUST run after the final build-log save: ``_load_bbox_index`` treats
+    any index older than the log as stale, so an index written before the
+    COMPLETED save would be silently ignored. The index is a derived
+    artifact — failure here never fails the build (absence only costs
+    speed); the warning points at the manual ``gh3_bbox_index`` recovery.
+    Returns the index path, or ``None`` when disabled or failed.
+    """
+    if not enabled:
+        return None
+    try:
+        opath = gh3_build_bbox_index(gh3_dir)
+        if logger:
+            logger.info(f"BBox index written to {opath}")
+        return opath
+    except Exception as exc:
+        if logger:
+            logger.warning(
+                f"BBox index build skipped ({type(exc).__name__}: {exc}) — "
+                f"queries fall back to the unindexed path; run gh3_bbox_index "
+                f"manually to restore the speedup.")
+        return None
+
+
 def invalidate_bbox_index(gh3_dir):
     """Delete the bbox-index sidecar when partition data may have changed.
 

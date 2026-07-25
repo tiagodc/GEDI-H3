@@ -120,9 +120,11 @@ gh3_read_schema /path/to/file.h5
 ```bash
 # Build the _bbox_index.parquet root sidecar (footer-only scan; minutes even
 # on a continental DB). Query tools then skip partition files a region/EGI
-# tile provably cannot touch. Rebuild after every gh3_build / gh3_update -
-# the index is auto-invalidated at merge entry and ignored whenever the
-# build log is newer than it (fail-safe: absence only costs speed).
+# tile provably cannot touch. gh3_build (re)creates it automatically after
+# every successful build (--no-bbox-index to skip); this CLI retrofits
+# pre-existing DBs and restores it after gh3_doctor --fix. Auto-invalidated
+# at merge entry and ignored whenever the build log is newer than it
+# (fail-safe: absence only costs speed).
 gh3_bbox_index -d /path/to/db -N 16
 ```
 

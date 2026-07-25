@@ -127,6 +127,11 @@ def get_cmd_args():
                    help="download missing GEDI data before building (embeds gh3_download as pre-step)")
     p.add_argument("-t", '--tmpdir', dest="tmpdir", type=str, default=None,
                    help="temporary directory for intermediate files")
+    p.add_argument("--no-bbox-index", dest="bbox_index", action='store_false',
+                   default=True,
+                   help="skip (re)building the _bbox_index.parquet sidecar after a "
+                        "successful build (footer-only scan; spatial queries use it "
+                        "to skip files a region/EGI tile cannot touch)")
     p.add_argument("-s3", "--s3", dest="s3", action='store_true',
                    help="download from NASA S3 to temp directory (no persistent local download)")
     p.add_argument("--gedi-version", dest="version", type=int, default=None,
@@ -339,6 +344,14 @@ def main():
                 if h3_logger.previous_status != 'COMPLETED':
                     h3_logger.set_post_build_info()
                     h3_logger.save_log('COMPLETED')
+                # Up-to-date DB: create the index only if it is missing
+                # (e.g. first run after upgrading gedih3) — the data is
+                # unchanged, so an existing index remains valid.
+                from gedih3.config import BBOX_INDEX_FILENAME
+                from gedih3.gh3driver import refresh_bbox_index_after_build
+                if args.bbox_index and not os.path.exists(
+                        os.path.join(args.output, BBOX_INDEX_FILENAME)):
+                    refresh_bbox_index_after_build(args.output, logger=logger)
                 logger.info("Database is already up-to-date with requested parameters")
                 print_success("Database is up-to-date, no changes needed", logger=logger)
                 return
@@ -672,6 +685,11 @@ def main():
                 h3_logger.set_post_build_info()
                 h3_logger.log_data.pop('_pending_variable_update', None)
                 h3_logger.save_log('COMPLETED')
+                # AFTER the final log save — an index older than the log is
+                # treated as stale by the loaders.
+                from gedih3.gh3driver import refresh_bbox_index_after_build
+                refresh_bbox_index_after_build(args.output, enabled=args.bbox_index,
+                                               logger=logger)
                 _n = len(h3_files) if h3_files else 0
                 print_success(
                     f"{_n} files exported to {args.output} (merge-only resume)",
@@ -818,6 +836,12 @@ def main():
                 # PROCESSING status with the flag → next run resumes correctly.
                 h3_logger.log_data.pop('_pending_variable_update', None)
                 h3_logger.save_log('COMPLETED')
+
+                # AFTER the final log save — an index older than the log is
+                # treated as stale by the loaders.
+                from gedih3.gh3driver import refresh_bbox_index_after_build
+                refresh_bbox_index_after_build(args.output, enabled=args.bbox_index,
+                                               logger=logger)
 
                 n_files = len(h3_files) if h3_files else 0
                 print_success(f"{n_files} files exported to {args.output}", logger=logger)

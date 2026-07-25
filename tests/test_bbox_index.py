@@ -530,3 +530,31 @@ def test_gh3_load_projected_columns_survive_empty_file_results(mini_db):
     got = g.gh3_load(root, region=region, columns=["rh_098_l2a"], lazy=False)
     assert len(got) > 0
     assert "lat_lowestmode_l2a" not in got.columns
+
+
+# --------------------------------------------------- build-time auto-refresh
+
+def test_refresh_after_build_is_ordered_after_log_save(mini_db):
+    """gh3_build calls this AFTER its final save_log('COMPLETED'); the index
+    must come out NEWER than the log or the staleness guard would silently
+    ignore it. This pins that ordering end to end."""
+    import time
+
+    root, _, _ = mini_db
+    log = os.path.join(root, "gedih3_build_log.json")
+    os.utime(log, None)  # the moment of the final COMPLETED save
+    time.sleep(0.02)
+    opath = gh3.refresh_bbox_index_after_build(root)
+    assert opath and os.path.exists(opath)
+    assert gh3._load_bbox_index(root) is not None  # newer than the log
+
+
+def test_refresh_after_build_is_failsafe(tmp_path, mini_db):
+    root, _, _ = mini_db
+    # disabled -> no-op
+    assert gh3.refresh_bbox_index_after_build(root, enabled=False) is None
+    assert not os.path.exists(os.path.join(root, BBOX_INDEX_FILENAME))
+    # failure (no build log at all) -> swallowed, returns None
+    bare = tmp_path / "not_a_db"
+    bare.mkdir()
+    assert gh3.refresh_bbox_index_after_build(str(bare)) is None
