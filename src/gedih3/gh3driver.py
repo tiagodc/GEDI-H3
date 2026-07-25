@@ -13,7 +13,7 @@ import dask_geopandas
 
 from .config import GH3_DEFAULT_H3_DIR, configure_environment, BUILD_LOG_FILENAME, DATASET_META_FILENAME
 from .utils import (json_read, json_read_cached, json_write, now, get_package_version, is_parquet,
-                     smart_glob, smart_exists, smart_isdir, smart_isfile, is_remote_path,
+                     smart_glob, smart_exists, smart_isfile, is_remote_path,
                      smart_open, smart_open_columnar, read_parquet_coalesced,
                      generate_manifest, check_nan_only_columns,
                      smart_join, AtomicFileWriter, atomic_parquet_write,
@@ -293,10 +293,11 @@ def _dataset_partition_kind(part_ids):
     """Classify dataset partition IDs as ``'h3'``, ``'egi'`` or ``None``.
 
     A simplified dataset's file basenames *are* its partition IDs
-    (``h3_write_dataset_metadata`` derives ``partition_ids`` from them),
-    so the file list is the authoritative, always-present source — it
-    survives a stale sidecar and works on datasets written by older
-    versions. ``None`` means "these names are not partition IDs" (e.g. a
+    (``gh3_write_dataset_meta`` derives ``partition_ids`` from them), so
+    the file list is where candidates come from. Parsing alone is NOT
+    proof that a name *bounds* its file's contents — that proof comes
+    from the sidecar level check in :func:`_dataset_prune_is_safe`.
+    ``None`` means "these names are not partition IDs" (e.g. a
     hive-style tree), which callers must treat as "cannot prune".
     """
     if not part_ids:
@@ -319,7 +320,54 @@ def _dataset_partition_kind(part_ids):
         return None
 
 
-def _select_dataset_files(data_files, region, logger=None):
+def _dataset_prune_is_safe(dataset_path, kind, part_ids):
+    """True when each file's basename provably *bounds* its contents.
+
+    A basename that parses as a partition ID is not enough:
+    ``gh3_export_part`` has naming branches that name a file after its
+    FIRST ROW's cell (e.g. when a source without a sidecar collapses the
+    partition level onto the index level), and pruning on such a name
+    silently drops every row outside it. The checkable proof that names
+    are bounding partitions is the dataset sidecar declaring a partition
+    level *strictly coarser* than the index level — then each file is
+    one spatial partition and its rows nest inside the named cell/tile
+    (H3 modulo the child overhang covered by ring-1; EGI exactly).
+
+    Refuses (returns False → caller reads everything) when the sidecar
+    is missing, the levels are absent or not strictly ordered, the IDs
+    are not all at the declared coarser level, or files were renamed /
+    added since the sidecar recorded ``partition_ids``.
+    """
+    if not dataset_path:
+        return False
+    meta_path = smart_join(dataset_path, DATASET_META_FILENAME)
+    if not smart_exists(meta_path):
+        return False
+    meta = json_read_cached(meta_path)
+    if meta.get('index_type') != kind:
+        return False
+    idx_level = meta.get('index_level')
+    if idx_level is None:
+        return False
+    known = meta.get('partition_ids')
+    if known and not set(part_ids).issubset(set(known)):
+        return False
+
+    if kind == 'h3':
+        import h3
+        levels = {h3.get_resolution(p) for p in part_ids}
+        # H3: finer index = higher resolution number
+        return len(levels) == 1 and levels.pop() < int(idx_level)
+
+    import numpy as _np
+    from . import egi
+    levels = {int(v) for v in _np.atleast_1d(
+        egi.get_level(_np.array(part_ids, dtype=_np.uint64)))}
+    # EGI: coarser = higher level number (level 12 ~ 160 km is coarsest)
+    return len(levels) == 1 and levels.pop() > int(idx_level)
+
+
+def _select_dataset_files(data_files, region, logger=None, dataset_path=None):
     """Subset a dataset's files to those whose partition may hold ``region``.
 
     A simplified dataset is one file per spatial partition, so the region
@@ -339,10 +387,14 @@ def _select_dataset_files(data_files, region, logger=None):
     * **EGI** intersects the partition squares themselves. EGI is a nested
       axis-aligned grid and a shot's partition square contains its
       coordinates by construction, so polygon intersection is exact; the
-      1 m buffer only absorbs the float-boundary rounding documented in
-      ``egi.to_hash``. Degenerate edge-of-grid squares are kept rather than
-      decided against.
-    * Anything else (hive trees, hand-named files) returns the full list.
+      ROI is densified before reprojection (EPSG:6933 bends straight
+      lon/lat edges — an un-densified 40-degree edge deviates ~150 km from
+      its chord) and the 1 m buffer absorbs the float-boundary rounding
+      documented in ``egi.to_hash``. Degenerate edge-of-grid squares are
+      kept rather than decided against.
+    * Anything else (hive trees, hand-named files, datasets whose sidecar
+      cannot prove the names bound their files — see
+      :func:`_dataset_prune_is_safe`) returns the full list.
 
     Row-level clipping downstream is unchanged — this only removes files
     that provably cannot contribute.
@@ -364,16 +416,29 @@ def _select_dataset_files(data_files, region, logger=None):
             logger.debug("Dataset filenames are not partition IDs; reading all files")
         return data_files
 
+    if not _dataset_prune_is_safe(dataset_path, kind, list(by_id)):
+        if logger:
+            logger.debug("Dataset sidecar cannot prove filenames bound their "
+                         "files (missing/stale sidecar or partition level not "
+                         "coarser than index level); reading all files")
+        return data_files
+
     if kind == 'h3':
         keep = set(intersect_h3_geometries(region, h3_ids=list(by_id)))
     else:
         import numpy as _np
+        import shapely
         from . import egi
         from .utils import region_to_geometry
 
         ids = list(by_id)
         tiles = egi.to_geodataframe(_np.array(ids, dtype=_np.uint64), return_polygons=True)
-        roi = gpd.GeoSeries([region_to_geometry(region)], crs=4326)
+        # Densify before reprojecting: to_crs moves vertices only, and in
+        # EPSG:6933 y = A*sin(lat), so a straight lon/lat segment bows away
+        # from its chord (~19 km over 20 deg of latitude, ~480 km over 60).
+        # 0.1 deg keeps the residual under the 1 m rounding buffer.
+        roi_geom = shapely.segmentize(region_to_geometry(region), 0.1)
+        roi = gpd.GeoSeries([roi_geom], crs=4326)
         roi = roi.to_crs(egi.EGI_CRS_STRING).iloc[0].buffer(1.0)
         # Undecidable (degenerate / invalid) squares are kept, not dropped.
         undecidable = ~(tiles.geometry.is_valid & (tiles.geometry.area > 0))
@@ -384,12 +449,12 @@ def _select_dataset_files(data_files, region, logger=None):
     selected = [f for pid in keep if pid in by_id for f in by_id[pid]]
 
     if not selected:
-        # Nothing intersects. Keep one file so the schema / _meta reads
-        # downstream still have a source and the graph is well-formed; the
-        # row-level clip then yields an empty result, which is the correct
-        # answer.
+        # Nothing intersects: keep one file so the schema / _meta reads
+        # downstream still have a source and the dask graph is well-formed.
+        # The row-level clip decides what actually comes back.
         if logger:
-            logger.warning("No dataset partition intersects the region — result will be empty")
+            logger.info("No dataset partition intersects the region; keeping "
+                        "one file for the schema read")
         return data_files[:1]
 
     if logger and len(selected) < len(data_files):
@@ -437,7 +502,7 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
 
         fmt = detect_dataset_format(path)
         data_files, fmt = _find_dataset_files(path, fmt)
-        data_files = _select_dataset_files(data_files, region)
+        data_files = _select_dataset_files(data_files, region, dataset_path=path)
         _, has_geo = read_dataset_schema(data_files[0], fmt)
 
         if fmt == 'parquet':
@@ -465,7 +530,8 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         # back unfiltered data.
         if region is not None:
             if isinstance(result, gpd.GeoDataFrame):
-                result = result.clip(region)
+                from .utils import region_to_geometry
+                result = result.clip(region_to_geometry(region))
             else:
                 warnings.warn(
                     "region ignored: dataset has no geometry column to clip against",
@@ -487,7 +553,7 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
     # Drop partitions the region cannot touch before building the graph —
     # one task per file, so this is the difference between reading a handful
     # of partitions and reading the whole dataset.
-    data_files = _select_dataset_files(data_files, region)
+    data_files = _select_dataset_files(data_files, region, dataset_path=path)
 
     # Read schema from first file
     col_names, has_geometry = read_dataset_schema(data_files[0], fmt)
@@ -560,7 +626,16 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         keep = [c for c in ddf.columns if c not in query_only_cols]
         ddf = ddf[keep]
     if region is not None:
-        ddf = ddf.clip(region)
+        if 'geometry' in ddf.columns:
+            from .utils import region_to_geometry
+            ddf = ddf.clip(region_to_geometry(region))
+        else:
+            # Without a geometry column, dask's DataFrame.clip(lower=region)
+            # would numerically clamp every value — never call it here.
+            warnings.warn(
+                "region ignored: dataset has no geometry column to clip against",
+                stacklevel=2,
+            )
 
     return ddf
 
@@ -1419,7 +1494,17 @@ def gh3_export_part(df, odir, fmt='parquet', is_file_path=False, part_col=None,
         ext = os.path.splitext(odir)[1]
         opath = odir if ext else f"{odir}.{fmt}"
     else:
-        # Determine output filename from partition ID
+        # Determine output filename from partition ID.
+        #
+        # INVARIANT the naming below relies on: this dask partition holds
+        # rows of exactly ONE spatial partition, so the first row's cell
+        # names them all. That holds for the gedih3 pipeline (from_map
+        # gives one dask partition per H3 partition dir) but NOT for a
+        # repartitioned/shuffled frame — there the name describes only
+        # some rows, and `_select_dataset_files` refuses to prune such
+        # datasets (see `_dataset_prune_is_safe`: it requires the sidecar
+        # partition level to be strictly coarser than the index level).
+        # Use group_by_partition=True for frames that may mix partitions.
         oname = None
 
         # 1. Try partition column (raw data case)
@@ -2047,7 +2132,8 @@ def _get_schema_columns(load_cols, gh3_dir, exclude_geometry=False):
     # Get schema from a parquet file in database
     parquet_file = _find_parquet_file(gh3_dir)
     if is_remote_path(parquet_file):
-        with smart_open(parquet_file, 'rb') as fobj:
+        # Footer-only read: skip fsspec's block read-ahead entirely
+        with smart_open_columnar(parquet_file) as fobj:
             schema = pq.read_schema(fobj)
     else:
         schema = pq.read_schema(parquet_file, memory_map=True)

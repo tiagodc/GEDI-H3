@@ -69,7 +69,7 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
     from gedih3.config import DATASET_META_FILENAME
 
     # Read metadata
-    from gedih3.utils import smart_join, json_read_cached
+    from gedih3.utils import smart_join, json_read_cached, is_remote_path
     dataset_meta_path = smart_join(dataset_path, DATASET_META_FILENAME)
     dataset_meta = json_read_cached(dataset_meta_path)
 
@@ -115,6 +115,22 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
                     break
                 except (ValueError, TypeError):
                     continue
+        elif not is_remote_path(dataset_path):
+            # Sidecars can go stale (dataset regenerated in place at another
+            # level); the filenames are ground truth and one local basename
+            # is free to check. Remote stays on the sidecar fast path.
+            for f in smart_glob(smart_join(dataset_path, '*.parquet'))[:1]:
+                cell = os.path.splitext(os.path.basename(f))[0]
+                try:
+                    actual = h3.get_resolution(cell)
+                except (ValueError, TypeError):
+                    break
+                if actual != partition_level:
+                    logger.warning(f"  Sidecar h3_partition_level={partition_level} "
+                                   f"disagrees with filenames (H3 {actual}); using "
+                                   f"the filenames")
+                    partition_level = actual
+                    source = 'filenames (sidecar stale)'
         if partition_level is not None:
             rasterize_kwargs['partition_level'] = partition_level
             logger.info(f"  Partition level: H3 {partition_level} (from {source})")

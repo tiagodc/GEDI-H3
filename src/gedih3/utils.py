@@ -118,22 +118,50 @@ def configure_storage(protocol='s3', **kwargs):
 
 
 # S3 option keys that signal the caller intends authenticated access.
-# When none of these is present, S3 falls back to anonymous access.
-_S3_CREDENTIAL_KEYS = ('key', 'secret', 'token', 'profile', 'anon')
+# When none of these is present (and the botocore chain has nothing to
+# offer — see _ambient_aws_credentials), S3 falls back to anonymous access.
+# requester_pays is included because it is meaningless without credentials.
+_S3_CREDENTIAL_KEYS = ('key', 'secret', 'token', 'profile', 'anon', 'requester_pays')
+
+
+def _ambient_aws_credentials():
+    """True when the botocore credential chain plausibly has credentials.
+
+    Covers the sources that can be checked without a network round trip:
+    the AWS environment variables and the shared credentials file. An
+    EC2/ECS instance role is NOT detectable this way — users relying on
+    one must pass ``--s3-profile`` (or any explicit credential option) to
+    suppress the anonymous default.
+    """
+    if any(os.environ.get(v) for v in (
+            'AWS_ACCESS_KEY_ID', 'AWS_PROFILE', 'AWS_DEFAULT_PROFILE',
+            'AWS_ROLE_ARN', 'AWS_WEB_IDENTITY_TOKEN_FILE',
+            'AWS_CONTAINER_CREDENTIALS_RELATIVE_URI')):
+        return True
+    cred_file = os.environ.get('AWS_SHARED_CREDENTIALS_FILE') or \
+        os.path.join(os.path.expanduser('~'), '.aws', 'credentials')
+    return os.path.exists(cred_file)
 
 
 def get_storage_options(protocol=None):
     """Return the stored options for *protocol*.
 
-    S3 defaults to ``anon=True`` (public-bucket / unauthenticated-server
-    default) whenever no credential-bearing option has been configured —
-    including the common case of ``configure_storage('s3',
-    endpoint_url=...)`` with no key/secret, e.g. a read-only
-    ``rclone serve s3`` or MinIO instance with auth disabled. Without the
-    fallback s3fs walks the botocore credential chain and raises
-    ``NoCredentialsError``, which s3fs's own ``exists()`` swallows into a
-    bare ``False`` — surfacing as a misleading "not found". Other
-    protocols return ``{}``.
+    S3 defaults to ``anon=True`` in two cases:
+
+    * nothing at all has been configured for S3 (the long-standing
+      public-bucket default), or
+    * non-credential options (e.g. ``endpoint_url``) were configured, no
+      credential-bearing option is among them, **and** the botocore chain
+      has no ambient credentials (env vars / shared credentials file) to
+      fall back on — e.g. a read-only ``rclone serve s3`` or MinIO with
+      auth disabled. Without this s3fs raises ``NoCredentialsError``,
+      which its own ``exists()`` swallows into a bare ``False`` —
+      surfacing as a misleading "not found".
+
+    When ambient AWS credentials exist and the caller configured only
+    non-credential options, the chain is left to do its job — forcing
+    ``anon=True`` there would break working env-var / profile setups.
+    Other protocols return ``{}``.
 
     Parameters
     ----------
@@ -148,9 +176,9 @@ def get_storage_options(protocol=None):
     if protocol is None:
         return {}
     opts = dict(_storage_options.get(protocol, {}))
-    # S3 default: anonymous access unless credentials were configured
     if protocol == 's3' and not any(k in opts for k in _S3_CREDENTIAL_KEYS):
-        opts['anon'] = True
+        if not opts or not _ambient_aws_credentials():
+            opts['anon'] = True
     return opts
 
 
@@ -184,7 +212,7 @@ def _get_filesystem(path, storage_options=None):
     return fsspec.filesystem(protocol, **opts)
 
 
-def _log_remote_check_failure(fs, path):
+def _log_remote_check_failure(fs, path, level=None):
     """Log the real cause behind a negative remote existence check.
 
     ``fsspec`` implementations (s3fs in particular) catch *every*
@@ -195,8 +223,16 @@ def _log_remote_check_failure(fs, path):
     with ``info()``, which propagates, and log anything that is not a
     plain miss. Only runs on the negative path (the caller is about to
     error out anyway), so it costs nothing in the common case.
+
+    Defaults to DEBUG: many probes are for *optional* sidecars, and S3
+    answers a missing-key HEAD with 403 when the caller lacks
+    ``s3:ListBucket`` — a loud message there would alarm on every
+    successful load. :func:`smart_database_exists` re-probes at ERROR on
+    the path where the caller is about to fail hard.
     """
     import logging
+    if level is None:
+        level = logging.DEBUG
     for candidate in ([path] if path.endswith('/') else [path, path + '/']):
         try:
             fs.info(candidate)
@@ -204,7 +240,8 @@ def _log_remote_check_failure(fs, path):
         except FileNotFoundError:
             continue
         except Exception as exc:
-            logging.getLogger(__name__).error(
+            logging.getLogger(__name__).log(
+                level,
                 f"Remote access to {path} failed ({type(exc).__name__}: {exc}) — "
                 f"reported as not found. Check the endpoint URL, credentials "
                 f"(--s3-key/--s3-secret/--s3-anon) and that the server speaks "
@@ -253,8 +290,14 @@ def smart_database_exists(path):
             if fs.exists(smart_join(root, name)):
                 return True
         except Exception:
-            break  # connection/credential problem — let smart_exists report it
-    return smart_exists(path)
+            break  # connection/credential problem — reported loudly below
+    if smart_exists(path):
+        return True
+    # The caller is about to fail hard on "not found" — surface the real
+    # cause (bad endpoint, refused connection, missing credential) loudly.
+    import logging
+    _log_remote_check_failure(fs, path, level=logging.ERROR)
+    return False
 
 
 def smart_isdir(path):
@@ -288,11 +331,16 @@ def smart_isfile(path):
     exists to avoid, and one that ``rclone serve s3`` answers only after
     walking the whole tree. Every gh3 single-file output carries one of
     the known extensions, so the answer is knowable for free. Local
-    paths use ``os.path.isfile``.
+    paths use ``os.path.isfile``. A trailing slash is the one unambiguous
+    "this is a directory" signal a URL can carry, so it always answers
+    ``False`` — even when the directory name ends in a data extension
+    (e.g. ``gh3_extract -o s3://bucket/out.parquet`` writes a directory).
     """
     if not is_remote_path(path):
         return os.path.isfile(path)
-    return path.rstrip('/').lower().endswith(_DATA_FILE_EXTENSIONS)
+    if path.endswith('/'):
+        return False
+    return path.lower().endswith(_DATA_FILE_EXTENSIONS)
 
 
 # =============================================================================
@@ -826,13 +874,18 @@ def read_parquet_coalesced(source, columns=None, geo=True, **kwargs):
     scattered server reads vs 26 for ``read_table`` on the same query),
     so the non-geo path calls ``read_table`` directly and converts —
     verified to produce an identical frame, dtypes included, on GEDI
-    partitions.
+    partitions. ``use_pandas_metadata=True`` matches what
+    ``pandas.read_parquet`` always sets: without it a column-projected
+    read drops the index column recorded in the pandas metadata and the
+    frame comes back with a RangeIndex instead of e.g. ``h3_12``.
     """
     if geo:
         import geopandas as gpd
         return gpd.read_parquet(source, columns=columns, pre_buffer=True, **kwargs)
     import pyarrow.parquet as pq
-    return pq.read_table(source, columns=columns, pre_buffer=True, **kwargs).to_pandas()
+    table = pq.read_table(source, columns=columns, pre_buffer=True,
+                          use_pandas_metadata=True, **kwargs)
+    return table.to_pandas()
 
 # Heavy imports are moved to lazy loading inside functions:
 # - psutil: used in get_system_resources
@@ -897,6 +950,10 @@ def json_write(obj, path, mode='w', rewrite=False):
     with AtomicFileWriter(path) as tmp_path:
         with open(tmp_path, mode) as file:
             json.dump(obj, file)
+    # Keep json_read_cached coherent structurally, not by convention: the
+    # local (mtime_ns, size, inode) stamp already catches this, but only
+    # if the filesystem reports a change — dropping the entry is free.
+    _json_cache.pop(path, None)
 
 def json_read(path, mode='r'):
     with smart_open(path, mode) as f:
@@ -926,6 +983,11 @@ def json_read_cached(path):
     to a remote database, and a stat over the network would cost the very
     round trip the cache exists to avoid. Use :func:`json_read` for
     anything read-modify-write.
+
+    The returned object IS the shared cache entry — treat it as
+    read-only. Mutating it (e.g. ``.append()`` on a returned list)
+    poisons every later read in the process; copy first if you must
+    modify.
     """
     stamp = None
     if not is_remote_path(path):
@@ -998,7 +1060,8 @@ def read_parquet_schema(path):
     import pyarrow.parquet as pq
     import pandas as pd
     if is_remote_path(path):
-        with smart_open(path, 'rb') as fobj:
+        # Footer-only read: skip fsspec's block read-ahead entirely
+        with smart_open_columnar(path) as fobj:
             schema = pq.read_schema(fobj)
     else:
         schema = pq.read_schema(path, memory_map=True)

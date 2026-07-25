@@ -154,11 +154,14 @@ def main():
     # os.scandir on dask workers and --fix rewrites files in place. Say so
     # instead of absolutizing the URL into a nonsense local path.
     from gedih3.utils import NON_LOCAL_PREFIXES
-    if str(args.indir).startswith(NON_LOCAL_PREFIXES):
-        logger.error(f"gh3_doctor operates on a local database: {args.indir}")
-        logger.error("Remote roots (s3://, http://, /vsicurl/, ...) are not supported - "
-                     "run the doctor where the database lives.")
-        sys.exit(2)
+    for _name in ('indir', 'soc_dir', 'tmpdir'):
+        _val = getattr(args, _name, None)
+        if _val is not None and str(_val).startswith(NON_LOCAL_PREFIXES):
+            logger.error(f"gh3_doctor operates on local directories only "
+                         f"(--{_name.replace('_', '-')}={_val})")
+            logger.error("Remote roots (s3://, http://, /vsicurl/, ...) are not supported - "
+                         "run the doctor where the database lives.")
+            sys.exit(2)
 
     args.indir = os.path.abspath(args.indir)
     if args.soc_dir is not None:

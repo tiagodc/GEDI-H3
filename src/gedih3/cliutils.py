@@ -132,9 +132,10 @@ def read_dataset_schema(filepath, fmt):
     """
     if fmt == 'parquet':
         import pyarrow.parquet as pq
-        from .utils import is_remote_path, smart_open
+        from .utils import is_remote_path, smart_open_columnar
         if is_remote_path(filepath):
-            with smart_open(filepath, 'rb') as fobj:
+            # Footer-only read: skip fsspec's block read-ahead entirely
+            with smart_open_columnar(filepath) as fobj:
                 schema = pq.read_schema(fobj)
         else:
             schema = pq.read_schema(filepath, memory_map=True)
@@ -281,6 +282,10 @@ def add_storage_args(parser):
                    help="S3 access key")
     g.add_argument("--s3-secret", dest="s3_secret", type=str, default=None,
                    help="S3 secret key")
+    g.add_argument("--s3-profile", dest="s3_profile", type=str, default=None,
+                   help="AWS profile name to authenticate with (use to force the "
+                        "botocore credential chain, e.g. when relying on an "
+                        "EC2/ECS instance role)")
     g.add_argument("--s3-anon", dest="s3_anon", action="store_true", default=False,
                    help="use anonymous S3 access (for public buckets)")
     g.add_argument("--remote-user", dest="remote_user", type=str, default=None,
@@ -308,24 +313,34 @@ def endpoint_from_s3_urls(args, logger=None):
 
     Rewrites the matching ``args`` attributes in place and returns the
     endpoint URL, or ``None`` when no argument uses the host form.
+    ``s3_endpoint`` itself is never rewritten — it names the server, not
+    a bucket path (``setup_storage`` normalizes its scheme separately).
     """
     from urllib.parse import urlparse
 
     endpoint = None
     for name, val in list(vars(args).items()):
+        if name == 's3_endpoint':
+            continue
         if not isinstance(val, str) or not val.startswith('s3://'):
             continue
         netloc = urlparse(val).netloc
         host, _, port = netloc.rpartition(':')
         if not host or not port.isdigit():
             continue
+        remainder = val[len(f's3://{netloc}'):].lstrip('/')
+        if not remainder:
+            raise GediValidationError(
+                f"S3 URL '{val}' names a server but no bucket — expected "
+                f"s3://host:port/bucket/..."
+            )
         found = f"{'https' if port == '443' else 'http'}://{netloc}"
         if endpoint and found != endpoint:
             raise GediValidationError(
                 f"Conflicting S3 endpoints in arguments: {endpoint} and {found}"
             )
         endpoint = found
-        setattr(args, name, 's3://' + val[len(f's3://{netloc}'):].lstrip('/'))
+        setattr(args, name, 's3://' + remainder)
         if logger:
             logger.info(f"  S3 endpoint from {name} URL: {endpoint} "
                         f"(bucket path: {getattr(args, name)})")
@@ -345,11 +360,20 @@ def setup_storage(args, logger=None):
     url_endpoint = endpoint_from_s3_urls(args, logger)
     endpoint = getattr(args, 's3_endpoint', None) or url_endpoint
     if endpoint:
+        if endpoint.startswith('s3://'):
+            # An endpoint is an HTTP(S) server, not a bucket URL. Accept the
+            # s3:// spelling and rewrite the scheme by the same port rule
+            # endpoint_from_s3_urls uses (443 -> https, else http).
+            netloc = endpoint[len('s3://'):].strip('/')
+            port = netloc.rpartition(':')[2]
+            endpoint = f"{'https' if port == '443' else 'http'}://{netloc}"
         s3_kwargs['endpoint_url'] = endpoint
     if getattr(args, 's3_key', None):
         s3_kwargs['key'] = args.s3_key
     if getattr(args, 's3_secret', None):
         s3_kwargs['secret'] = args.s3_secret
+    if getattr(args, 's3_profile', None):
+        s3_kwargs['profile'] = args.s3_profile
     if getattr(args, 's3_anon', False):
         s3_kwargs['anon'] = True
     if s3_kwargs:
@@ -738,6 +762,18 @@ def configure_database_path(args, logger=None):
         gh3.gh3_set_db_path(args.database)
     else:
         args.database = GH3_DEFAULT_H3_DIR
+        # setup_storage() runs before the default is filled in, so an
+        # s3://host:port default from ~/.gedih3.env would otherwise miss
+        # the endpoint normalization a -d argument gets. Re-run it now;
+        # an explicitly configured endpoint still wins.
+        endpoint = endpoint_from_s3_urls(args, logger)
+        if endpoint:
+            from .utils import _storage_options
+            s3_opts = dict(_storage_options.get('s3', {}))
+            if 'endpoint_url' not in s3_opts.get('client_kwargs', {}):
+                s3_opts.setdefault('client_kwargs', {})['endpoint_url'] = endpoint
+                _storage_options['s3'] = s3_opts
+            gh3.gh3_set_db_path(args.database)
 
     if logger:
         logger.info(f"Database: {args.database}")

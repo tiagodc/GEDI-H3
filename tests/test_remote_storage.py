@@ -36,12 +36,34 @@ def test_s3_defaults_to_anonymous_when_unconfigured():
     assert utils.get_storage_options('s3') == {'anon': True}
 
 
-def test_endpoint_only_keeps_anonymous_default():
-    """The regression: an endpoint with no key/secret must stay anonymous."""
+def test_endpoint_only_keeps_anonymous_default(monkeypatch):
+    """The regression: an endpoint with no key/secret must stay anonymous
+    when the botocore chain has nothing to offer either."""
+    monkeypatch.setattr(utils, '_ambient_aws_credentials', lambda: False)
     utils.configure_storage('s3', endpoint_url='http://localhost:8855/')
     opts = utils.get_storage_options('s3')
     assert opts['anon'] is True
     assert opts['client_kwargs']['endpoint_url'] == 'http://localhost:8855/'
+
+
+def test_endpoint_with_ambient_credentials_leaves_the_chain_alone(monkeypatch):
+    """--s3-endpoint must not disable working env-var / profile / IAM auth."""
+    monkeypatch.setattr(utils, '_ambient_aws_credentials', lambda: True)
+    utils.configure_storage('s3', endpoint_url='http://minio:9000')
+    assert 'anon' not in utils.get_storage_options('s3')
+
+
+def test_unconfigured_default_is_anonymous_even_with_ambient_credentials(monkeypatch):
+    """The long-standing public-bucket default is untouched."""
+    monkeypatch.setattr(utils, '_ambient_aws_credentials', lambda: True)
+    assert utils.get_storage_options('s3') == {'anon': True}
+
+
+def test_requester_pays_suppresses_the_anonymous_default(monkeypatch):
+    """requester_pays is meaningless anonymously — never emit both."""
+    monkeypatch.setattr(utils, '_ambient_aws_credentials', lambda: False)
+    utils.configure_storage('s3', requester_pays=True)
+    assert 'anon' not in utils.get_storage_options('s3')
 
 
 def test_credentials_suppress_the_anonymous_default():
@@ -128,8 +150,9 @@ def test_local_paths_bypass_remote_machinery(tmp_path):
 
 def _ns(**kw):
     from argparse import Namespace
-    base = dict(s3_endpoint=None, s3_key=None, s3_secret=None, s3_anon=False,
-                remote_user=None, remote_pass=None, remote_token=None, ssh_key=None)
+    base = dict(s3_endpoint=None, s3_key=None, s3_secret=None, s3_profile=None,
+                s3_anon=False, remote_user=None, remote_pass=None,
+                remote_token=None, ssh_key=None)
     base.update(kw)
     return Namespace(**base)
 
@@ -163,14 +186,44 @@ def test_conflicting_endpoints_are_rejected():
         endpoint_from_s3_urls(args)
 
 
-def test_explicit_flag_wins_but_path_is_still_normalized():
+def test_explicit_flag_wins_but_path_is_still_normalized(monkeypatch):
     from gedih3.cliutils import setup_storage
+    monkeypatch.setattr(utils, '_ambient_aws_credentials', lambda: False)
     args = _ns(database='s3://localhost:8855/bucket', s3_endpoint='http://other:9000')
     setup_storage(args)
     assert args.database == 's3://bucket'
     opts = utils.get_storage_options('s3')
     assert opts['client_kwargs']['endpoint_url'] == 'http://other:9000'
     assert opts['anon'] is True
+
+
+def test_s3_endpoint_flag_itself_is_never_rewritten():
+    """--s3-endpoint s3://minio:9000 used to be mangled into the literal
+    's3://', which then WON over the correctly derived endpoint."""
+    from gedih3.cliutils import setup_storage
+    args = _ns(database='s3://minio:9000/b/db', s3_endpoint='s3://minio:9000')
+    setup_storage(args)
+    assert args.s3_endpoint == 's3://minio:9000'  # untouched
+    assert args.database == 's3://b/db'
+    opts = utils.get_storage_options('s3')
+    assert opts['client_kwargs']['endpoint_url'] == 'http://minio:9000'
+
+
+def test_host_url_without_bucket_is_rejected():
+    from gedih3.cliutils import endpoint_from_s3_urls
+    from gedih3.exceptions import GediValidationError
+    args = _ns(database='s3://host:9000')
+    with pytest.raises(GediValidationError, match='no bucket'):
+        endpoint_from_s3_urls(args)
+
+
+def test_s3_profile_flag_reaches_storage_options():
+    from gedih3.cliutils import setup_storage
+    args = _ns(s3_profile='prod')
+    setup_storage(args)
+    opts = utils.get_storage_options('s3')
+    assert opts['profile'] == 'prod'
+    assert 'anon' not in opts  # a profile IS the credential intent
 
 
 def test_isfile_is_extension_based_for_remote_paths(monkeypatch):
@@ -180,6 +233,9 @@ def test_isfile_is_extension_based_for_remote_paths(monkeypatch):
     assert utils.smart_isfile('http://host/db/part.feather') is True
     assert utils.smart_isfile('s3://bucket/dataset') is False
     assert utils.smart_isfile('s3://bucket/dataset/') is False
+    # A trailing slash is an explicit directory signal — it must win even
+    # over a data extension (gh3_extract -o s3://b/out.parquet writes a dir).
+    assert utils.smart_isfile('s3://bucket/out.parquet/') is False
     assert not fs.exists_calls and not fs.info_calls
 
 
@@ -226,6 +282,23 @@ def test_read_parquet_coalesced_round_trips(tmp_path):
     assert list(out.columns) == ['a']
     assert out['a'].tolist() == [1, 2, 3]
     assert out['a'].dtype == pd.read_parquet(p, columns=['a'])['a'].dtype
+
+
+def test_read_parquet_coalesced_preserves_named_index(tmp_path):
+    """A column-projected read must keep the index recorded in the pandas
+    metadata — dropping it desyncs the Dask meta from the partitions and
+    breaks h3 reindex/aggregation on remote (and only remote) loads."""
+    import pandas as pd
+
+    df = pd.DataFrame({'h3_12': ['8c0e4', '8c0e5', '8c0e6'],
+                       'a': [1, 2, 3], 'b': [1.5, 2.5, 3.5]}).set_index('h3_12')
+    p = tmp_path / 'idx.parquet'
+    df.to_parquet(p)
+
+    out = utils.read_parquet_coalesced(str(p), columns=['a'], geo=False)
+    expected = pd.read_parquet(p, columns=['a'])
+    assert out.index.name == 'h3_12'
+    pd.testing.assert_frame_equal(out, expected)
 
 
 def test_read_parquet_coalesced_passes_pre_buffer(monkeypatch):
@@ -298,11 +371,25 @@ def utils_errors():
 
 
 def test_swallowed_remote_error_is_logged(monkeypatch, utils_errors):
-    """A credential/endpoint failure must not masquerade as 'not found'."""
+    """A credential/endpoint failure must not masquerade as 'not found'.
+
+    The loud (ERROR) probe lives in smart_database_exists — the one place
+    the caller is about to hard-fail. smart_exists itself logs at DEBUG,
+    because it also probes optional sidecars on successful loads (and S3
+    answers a missing-key HEAD with 403 when ListBucket is denied).
+    """
     boom = PermissionError('Unable to locate credentials')
     _patch_fs(monkeypatch, _StubFS(present=[], list_raises=boom))
-    assert utils.smart_exists('s3://gedi_l2a_v3') is False
+    assert utils.smart_database_exists('s3://gedi_l2a_v3') is False
     assert any('Unable to locate credentials' in m for m in utils_errors)
+
+
+def test_optional_sidecar_probe_does_not_log_errors(monkeypatch, utils_errors):
+    """smart_exists on a 403-answering server stays quiet at ERROR level."""
+    boom = PermissionError('AccessDenied')
+    _patch_fs(monkeypatch, _StubFS(present=[], list_raises=boom))
+    assert utils.smart_exists('s3://bucket/db/gedih3_build_log.json') is False
+    assert not utils_errors
 
 
 def test_genuine_miss_logs_nothing(monkeypatch, utils_errors):

@@ -280,8 +280,15 @@ def aoi_tiles(region: Optional[gpd.GeoDataFrame] = None) -> gpd.GeoDataFrame:
         if not region.crs:
             raise ValueError('Input region has no CRS defined')
 
+        # Densify before reprojecting: to_crs moves vertices only, and in
+        # EPSG:6933 y = A*sin(lat) bends straight lon/lat edges — the chord
+        # of a sparse-vertex polygon can cut ~19 km inside the true boundary
+        # over 20 degrees of latitude, silently missing 160 km tiles.
+        reg = region.to_crs(4326)
+        reg = reg.set_geometry(reg.geometry.segmentize(0.1))
+
         # Reproject region to EGI CRS
-        reg = region.to_crs(EGI_CRS_STRING)
+        reg = reg.to_crs(EGI_CRS_STRING)
 
         # Find tiles that intersect the region
         is_in = tiles.geometry.apply(lambda x: reg.intersects(x).any())

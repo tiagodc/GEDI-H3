@@ -99,7 +99,7 @@ def test_partition_kind_detection():
 def test_h3_selection_keeps_only_touched_partitions(h3_dataset):
     path, frames = h3_dataset
     files = sorted(str(p) for p in __import__('pathlib').Path(path).glob('*.parquet'))
-    sel = gh3._select_dataset_files(files, [-52, 0, -51, 1])
+    sel = gh3._select_dataset_files(files, [-52, 0, -51, 1], dataset_path=path)
     assert len(sel) < len(files)
     assert all(os.path.basename(f).startswith('83') for f in sel)
 
@@ -107,7 +107,7 @@ def test_h3_selection_keeps_only_touched_partitions(h3_dataset):
 def test_egi_selection_keeps_only_touched_partitions(egi_dataset):
     path, frames = egi_dataset
     files = sorted(str(p) for p in __import__('pathlib').Path(path).glob('*.parquet'))
-    sel = gh3._select_dataset_files(files, [-52, 0, -51, 1])
+    sel = gh3._select_dataset_files(files, [-52, 0, -51, 1], dataset_path=path)
     assert 0 < len(sel) < len(files)
 
 
@@ -124,8 +124,82 @@ def test_unparseable_names_fall_back_to_all_files():
 def test_empty_intersection_keeps_one_file_for_schema(h3_dataset):
     path, _ = h3_dataset
     files = sorted(str(p) for p in __import__('pathlib').Path(path).glob('*.parquet'))
-    sel = gh3._select_dataset_files(files, [100, -80, 101, -79])
+    sel = gh3._select_dataset_files(files, [100, -80, 101, -79], dataset_path=path)
     assert len(sel) == 1  # graph stays well-formed; the clip yields no rows
+
+
+# ---------------------------------------------------------------- safety gate
+
+def test_pruning_refused_without_sidecar(tmp_path):
+    """No sidecar = no proof the basenames bound their files: read everything."""
+    d = tmp_path / 'bare'
+    d.mkdir()
+    for cell in ('830e41fffffffff', '830e43fffffffff'):
+        (d / f'{cell}.parquet').write_bytes(b'')
+    files = sorted(str(p) for p in d.glob('*.parquet'))
+    assert gh3._select_dataset_files(files, [-52, 0, -51, 1], dataset_path=str(d)) == files
+
+
+def test_pruning_refused_when_partition_level_equals_index_level(tmp_path):
+    """The silent-data-loss hazard: gh3_export_part can name a file after its
+    FIRST ROW's cell when a sidecar-less source collapses partition level onto
+    index level. Names at the index level are not bounding — never prune."""
+    import json as _json
+    import h3
+
+    d = tmp_path / 'collapsed'
+    d.mkdir()
+    cells = [h3.latlng_to_cell(0.5, -51.5, 6), h3.latlng_to_cell(52.8, -111.0, 6)]
+    for cell in cells:
+        (d / f'{cell}.parquet').write_bytes(b'')
+    (d / DATASET_META_FILENAME).write_text(_json.dumps({
+        'index_type': 'h3', 'index_level': 6, 'partition_ids': cells,
+    }))
+    files = sorted(str(p) for p in d.glob('*.parquet'))
+    sel = gh3._select_dataset_files(files, [-52, 0, -51, 1], dataset_path=str(d))
+    assert sel == files
+
+
+def test_pruning_refused_when_files_renamed_since_sidecar(h3_dataset):
+    path, frames = h3_dataset
+    import pathlib
+    root = pathlib.Path(path)
+    src = sorted(root.glob('*.parquet'))[0]
+    # rename to a *different valid cell* the sidecar never recorded
+    import h3
+    rogue = h3.latlng_to_cell(-30.0, 20.0, 3)
+    src.rename(root / f'{rogue}.parquet')
+    files = sorted(str(p) for p in root.glob('*.parquet'))
+    sel = gh3._select_dataset_files(files, [-52, 0, -51, 1], dataset_path=path)
+    assert sel == files
+
+
+def test_egi_sparse_polygon_selection_is_densified(tmp_path):
+    """A straight lon/lat edge bows in EPSG:6933; vertex-only reprojection
+    used to cut inside the true boundary and silently drop tiles."""
+    from shapely.geometry import Polygon
+    from gedih3 import egi
+
+    quad = Polygon([(0, 0), (10, 60), (10.6, 60), (0.6, 0)])
+    ts = np.linspace(0.05, 0.95, 40)
+    pts = [(10 * t + 0.3, 60 * t) for t in ts]  # centered inside the strip
+
+    frames = {}
+    for lon, lat in pts:
+        gser = gpd.GeoSeries([Point(lon, lat)], crs=4326).to_crs(egi.EGI_CRS_STRING)
+        tile = int(egi.to_hash(float(gser.iloc[0].x), float(gser.iloc[0].y), level=12))
+        frames.setdefault(str(tile), []).append((lon, lat))
+    frames = {
+        pid: gpd.GeoDataFrame({'value': np.arange(len(v), dtype='float32')},
+                              geometry=[Point(x, y) for x, y in v], crs=4326)
+        for pid, v in frames.items()
+    }
+    path = _write_dataset(tmp_path / 'egisparse', frames, 'egi', 1)
+
+    files = sorted(str(p) for p in (tmp_path / 'egisparse').glob('*.parquet'))
+    sel = gh3._select_dataset_files(files, quad, dataset_path=path)
+    # every tile holds at least one in-region point -> none may be dropped
+    assert sorted(sel) == sorted(files)
 
 
 # ------------------------------------------------------------- equivalence
@@ -144,7 +218,8 @@ def test_pruning_does_not_change_the_answer(h3_dataset, monkeypatch, lazy):
     if lazy:
         pruned = pruned.compute()
 
-    monkeypatch.setattr(gh3, '_select_dataset_files', lambda files, region, logger=None: files)
+    monkeypatch.setattr(gh3, '_select_dataset_files',
+                        lambda files, region, logger=None, dataset_path=None: files)
     unpruned = gh3._load_dataset(path, region=region, lazy=lazy)
     if lazy:
         unpruned = unpruned.compute()
@@ -162,6 +237,33 @@ def test_eager_mode_applies_the_region_clip(h3_dataset):
     assert 0 < len(clipped) < total
     roi = box(-52, 0, -51, 1)
     assert clipped.geometry.within(roi).all()
+
+
+def test_region_accepts_bbox_string(h3_dataset):
+    """The CLI's "W,S,E,N" spelling must work through the clip too."""
+    path, _ = h3_dataset
+    clipped = gh3._load_dataset(path, region='-52,0,-51,1', lazy=False)
+    assert len(clipped) > 0
+    assert clipped.geometry.within(box(-52, 0, -51, 1)).all()
+
+
+def test_region_on_nongeo_dataset_warns_instead_of_numeric_clip(tmp_path):
+    """dask's DataFrame.clip(lower=region) would clamp every value."""
+    import h3
+    d = tmp_path / 'nongeo'
+    d.mkdir()
+    cell = h3.latlng_to_cell(0.5, -51.5, 3)
+    df = pd.DataFrame({'value': [1.0, 2.0, 3.0],
+                       'h3_12': [h3.latlng_to_cell(0.5, -51.5, 12)] * 3}).set_index('h3_12')
+    df.to_parquet(d / f'{cell}.parquet')
+    (d / DATASET_META_FILENAME).write_text(json.dumps({
+        'file_format': 'parquet', 'index_type': 'h3', 'index_level': 12,
+        'partition_ids': [cell],
+    }))
+
+    with pytest.warns(UserWarning, match='no geometry'):
+        got = gh3._load_dataset(str(d), region=[-52, 0, -51, 1], lazy=True).compute()
+    assert got['value'].tolist() == [1.0, 2.0, 3.0]  # values NOT clamped
 
 
 def test_egi_dataset_load_is_pruned_and_correct(egi_dataset):
