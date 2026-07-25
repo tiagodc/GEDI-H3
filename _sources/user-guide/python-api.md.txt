@@ -118,6 +118,12 @@ ddf = gh3.gh3_load(
 )
 ```
 
+Remote sources work the same way in Python as on the command line — including
+self-hosted S3 with the endpoint carried in the URL itself
+(`source='s3://host:port/bucket/db'`); an endpoint configured explicitly via
+`gedih3.utils.configure_storage('s3', endpoint_url=...)` always wins, matching
+the CLI's `--s3-endpoint` precedence.
+
 ::::{tip} The database can also live on a remote filesystem. Use `configure_storage()` to set credentials, then pass a remote URI to `source=`:
 
 ```python

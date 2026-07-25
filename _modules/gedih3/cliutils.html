@@ -7,7 +7,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gedih3.cliutils &#8212; gedih3 0.16.0 documentation</title>
+    <title>gedih3.cliutils &#8212; gedih3 0.16.1 documentation</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../_static/documentation_options.js?v=ff8529b6"></script>
+    <script src="../../_static/documentation_options.js?v=56c55dd0"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/design-tabs.js?v=f930bc37"></script>
@@ -479,8 +479,8 @@ window.runMermaid = runMermaid;</script>
       
     
     
-    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.0 documentation - Home"/>
-    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.0 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.1 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.1 documentation - Home"/>
   
   
 </a></div>
@@ -1097,31 +1097,21 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ``s3_endpoint`` itself is never rewritten — it names the server, not</span>
 <span class="sd">    a bucket path (``setup_storage`` normalizes its scheme separately).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">urllib.parse</span><span class="w"> </span><span class="kn">import</span> <span class="n">urlparse</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">split_s3_host_url</span>
 
     <span class="n">endpoint</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="nb">vars</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
         <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;s3_endpoint&#39;</span><span class="p">:</span>
             <span class="k">continue</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">val</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;s3://&#39;</span><span class="p">):</span>
+        <span class="n">found</span><span class="p">,</span> <span class="n">normalized</span> <span class="o">=</span> <span class="n">split_s3_host_url</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">found</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">continue</span>
-        <span class="n">netloc</span> <span class="o">=</span> <span class="n">urlparse</span><span class="p">(</span><span class="n">val</span><span class="p">)</span><span class="o">.</span><span class="n">netloc</span>
-        <span class="n">host</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">port</span> <span class="o">=</span> <span class="n">netloc</span><span class="o">.</span><span class="n">rpartition</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">host</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">port</span><span class="o">.</span><span class="n">isdigit</span><span class="p">():</span>
-            <span class="k">continue</span>
-        <span class="n">remainder</span> <span class="o">=</span> <span class="n">val</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;s3://</span><span class="si">{</span><span class="n">netloc</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">):]</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">remainder</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;S3 URL &#39;</span><span class="si">{</span><span class="n">val</span><span class="si">}</span><span class="s2">&#39; names a server but no bucket — expected &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;s3://host:port/bucket/...&quot;</span>
-            <span class="p">)</span>
-        <span class="n">found</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="s1">&#39;https&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">port</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s1">&#39;443&#39;</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;http&#39;</span><span class="si">}</span><span class="s2">://</span><span class="si">{</span><span class="n">netloc</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="k">if</span> <span class="n">endpoint</span> <span class="ow">and</span> <span class="n">found</span> <span class="o">!=</span> <span class="n">endpoint</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">&quot;Conflicting S3 endpoints in arguments: </span><span class="si">{</span><span class="n">endpoint</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">found</span><span class="si">}</span><span class="s2">&quot;</span>
             <span class="p">)</span>
         <span class="n">endpoint</span> <span class="o">=</span> <span class="n">found</span>
-        <span class="nb">setattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="s1">&#39;s3://&#39;</span> <span class="o">+</span> <span class="n">remainder</span><span class="p">)</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">normalized</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">logger</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  S3 endpoint from </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> URL: </span><span class="si">{</span><span class="n">endpoint</span><span class="si">}</span><span class="s2"> &quot;</span>
                         <span class="sa">f</span><span class="s2">&quot;(bucket path: </span><span class="si">{</span><span class="nb">getattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
@@ -1577,13 +1567,10 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># s3://host:port default from ~/.gedih3.env would otherwise miss</span>
         <span class="c1"># the endpoint normalization a -d argument gets. Re-run it now;</span>
         <span class="c1"># an explicitly configured endpoint still wins.</span>
-        <span class="n">endpoint</span> <span class="o">=</span> <span class="n">endpoint_from_s3_urls</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">logger</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">endpoint</span><span class="p">:</span>
-            <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">_storage_options</span>
-            <span class="n">s3_opts</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">_storage_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;s3&#39;</span><span class="p">,</span> <span class="p">{}))</span>
-            <span class="k">if</span> <span class="s1">&#39;endpoint_url&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">s3_opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;client_kwargs&#39;</span><span class="p">,</span> <span class="p">{}):</span>
-                <span class="n">s3_opts</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">&#39;client_kwargs&#39;</span><span class="p">,</span> <span class="p">{})[</span><span class="s1">&#39;endpoint_url&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">endpoint</span>
-                <span class="n">_storage_options</span><span class="p">[</span><span class="s1">&#39;s3&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">s3_opts</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_s3_source</span>
+        <span class="n">normalized</span> <span class="o">=</span> <span class="n">resolve_s3_source</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">database</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">normalized</span> <span class="o">!=</span> <span class="n">args</span><span class="o">.</span><span class="n">database</span><span class="p">:</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">database</span> <span class="o">=</span> <span class="n">normalized</span>
             <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_set_db_path</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">database</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">logger</span><span class="p">:</span>

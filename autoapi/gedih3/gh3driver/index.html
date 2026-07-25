@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>gedih3.gh3driver &#8212; gedih3 0.16.0 documentation</title>
+    <title>gedih3.gh3driver &#8212; gedih3 0.16.1 documentation</title>
   
   
   
@@ -41,7 +41,7 @@
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../../_static/documentation_options.js?v=ff8529b6"></script>
+    <script src="../../../_static/documentation_options.js?v=56c55dd0"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
@@ -126,8 +126,8 @@
       
     
     
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.0 documentation - Home"/>
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.0 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.1 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.1 documentation - Home"/>
   
   
 </a></div>
@@ -532,55 +532,58 @@
 <tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_build_bbox_index" title="gedih3.gh3driver.gh3_build_bbox_index"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_build_bbox_index</span></code></a>([source])</p></td>
 <td><p>Build the <code class="docutils literal notranslate"><span class="pre">_bbox_index.parquet</span></code> root sidecar for an H3 database.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.invalidate_bbox_index" title="gedih3.gh3driver.invalidate_bbox_index"><code class="xref py py-obj docutils literal notranslate"><span class="pre">invalidate_bbox_index</span></code></a>(gh3_dir)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.refresh_bbox_index_after_build" title="gedih3.gh3driver.refresh_bbox_index_after_build"><code class="xref py py-obj docutils literal notranslate"><span class="pre">refresh_bbox_index_after_build</span></code></a>(gh3_dir[, enabled, logger])</p></td>
+<td><p>Best-effort bbox-index (re)build for a just-completed build.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.invalidate_bbox_index" title="gedih3.gh3driver.invalidate_bbox_index"><code class="xref py py-obj docutils literal notranslate"><span class="pre">invalidate_bbox_index</span></code></a>(gh3_dir)</p></td>
 <td><p>Delete the bbox-index sidecar when partition data may have changed.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_load_hex" title="gedih3.gh3driver.gh3_load_hex"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_load_hex</span></code></a>(d[, _bbox_index, part_col, _storage_cfg])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_load_hex" title="gedih3.gh3driver.gh3_load_hex"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_load_hex</span></code></a>(d[, _bbox_index, part_col, _storage_cfg])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_load" title="gedih3.gh3driver.gh3_load"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_load</span></code></a>([source, columns, region, query, from_map, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_load" title="gedih3.gh3driver.gh3_load"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_load</span></code></a>([source, columns, region, query, from_map, ...])</p></td>
 <td><p>Load H3-indexed GEDI data from any source.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_aggregate" title="gedih3.gh3driver.gh3_aggregate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_aggregate</span></code></a>(gh3_df[, target_res, agg, columns, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_aggregate" title="gedih3.gh3driver.gh3_aggregate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_aggregate</span></code></a>(gh3_df[, target_res, agg, columns, ...])</p></td>
 <td><p>Aggregate H3-indexed GEDI data to a coarser H3 resolution.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_export_part" title="gedih3.gh3driver.gh3_export_part"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_export_part</span></code></a>(df, odir[, fmt, is_file_path, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_export_part" title="gedih3.gh3driver.gh3_export_part"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_export_part</span></code></a>(df, odir[, fmt, is_file_path, ...])</p></td>
 <td><p>Export a single partition to file with a simple naming convention.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_export" title="gedih3.gh3driver.gh3_export"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_export</span></code></a>(ddf, output[, fmt, merge, show_progress, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_export" title="gedih3.gh3driver.gh3_export"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_export</span></code></a>(ddf, output[, fmt, merge, show_progress, ...])</p></td>
 <td><p>Export a Dask DataFrame to simplified flat files with metadata.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.egi_load" title="gedih3.gh3driver.egi_load"><code class="xref py py-obj docutils literal notranslate"><span class="pre">egi_load</span></code></a>([source, columns, region, query, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.egi_load" title="gedih3.gh3driver.egi_load"><code class="xref py py-obj docutils literal notranslate"><span class="pre">egi_load</span></code></a>([source, columns, region, query, ...])</p></td>
 <td><p>Load EGI-indexed GEDI data from any source.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.egi_aggregate_func" title="gedih3.gh3driver.egi_aggregate_func"><code class="xref py py-obj docutils literal notranslate"><span class="pre">egi_aggregate_func</span></code></a>(df, level[, agg, cols, x_col, y_col])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.egi_aggregate_func" title="gedih3.gh3driver.egi_aggregate_func"><code class="xref py py-obj docutils literal notranslate"><span class="pre">egi_aggregate_func</span></code></a>(df, level[, agg, cols, x_col, y_col])</p></td>
 <td><p>Aggregate H3-indexed DataFrame to EGI (EASE Grid Index) pixels.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.egi_add_geometry" title="gedih3.gh3driver.egi_add_geometry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">egi_add_geometry</span></code></a>(df[, polygons])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.egi_add_geometry" title="gedih3.gh3driver.egi_add_geometry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">egi_add_geometry</span></code></a>(df[, polygons])</p></td>
 <td><p>Add EGI pixel geometry to an EGI-indexed DataFrame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.egi_aggregate" title="gedih3.gh3driver.egi_aggregate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">egi_aggregate</span></code></a>(gh3_df[, target_level, agg, columns, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.egi_aggregate" title="gedih3.gh3driver.egi_aggregate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">egi_aggregate</span></code></a>(gh3_df[, target_level, agg, columns, ...])</p></td>
 <td><p>Aggregate GEDI data to EGI (EASE Grid Index) square pixels.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.egi_extract" title="gedih3.gh3driver.egi_extract"><code class="xref py py-obj docutils literal notranslate"><span class="pre">egi_extract</span></code></a>(gh3_df[, index_level, partition_level, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.egi_extract" title="gedih3.gh3driver.egi_extract"><code class="xref py py-obj docutils literal notranslate"><span class="pre">egi_extract</span></code></a>(gh3_df[, index_level, partition_level, ...])</p></td>
 <td><p>Extract H3-indexed GEDI data with EGI spatial indexing.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.egi_export_part" title="gedih3.gh3driver.egi_export_part"><code class="xref py py-obj docutils literal notranslate"><span class="pre">egi_export_part</span></code></a>(df, odir[, fmt, is_file_path, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.egi_export_part" title="gedih3.gh3driver.egi_export_part"><code class="xref py py-obj docutils literal notranslate"><span class="pre">egi_export_part</span></code></a>(df, odir[, fmt, is_file_path, ...])</p></td>
 <td><p>Export a single EGI partition to file(s).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.is_egi_indexed" title="gedih3.gh3driver.is_egi_indexed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_egi_indexed</span></code></a>(df)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.is_egi_indexed" title="gedih3.gh3driver.is_egi_indexed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_egi_indexed</span></code></a>(df)</p></td>
 <td><p>Check if a DataFrame is EGI-indexed.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.get_spatial_index_type" title="gedih3.gh3driver.get_spatial_index_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_spatial_index_type</span></code></a>(df)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.get_spatial_index_type" title="gedih3.gh3driver.get_spatial_index_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_spatial_index_type</span></code></a>(df)</p></td>
 <td><p>Determine the spatial index type of a DataFrame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_to_raster" title="gedih3.gh3driver.gh3_to_raster"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_to_raster</span></code></a>(gdf[, columns, output_path, compress])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_to_raster" title="gedih3.gh3driver.gh3_to_raster"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_to_raster</span></code></a>(gdf[, columns, output_path, compress])</p></td>
 <td><p>Convert H3-indexed GeoDataFrame to raster.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_rasterize_partitions" title="gedih3.gh3driver.gh3_rasterize_partitions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_rasterize_partitions</span></code></a>(ddf, output_dir[, columns, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_rasterize_partitions" title="gedih3.gh3driver.gh3_rasterize_partitions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_rasterize_partitions</span></code></a>(ddf, output_dir[, columns, ...])</p></td>
 <td><p>Rasterize Dask GeoDataFrame partitions to individual GeoTIFF files.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_sample_raster" title="gedih3.gh3driver.gh3_sample_raster"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_sample_raster</span></code></a>(image_path[, data_source, region, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_sample_raster" title="gedih3.gh3driver.gh3_sample_raster"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_sample_raster</span></code></a>(image_path[, data_source, region, ...])</p></td>
 <td><p>Sample raster pixel values at GEDI shot locations.</p></td>
 </tr>
 </tbody>
@@ -745,6 +748,18 @@ Local databases only: the index is written at the database root.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3driver.refresh_bbox_index_after_build">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3driver.</span></span><span class="sig-name descname"><span class="pre">refresh_bbox_index_after_build</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gh3_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enabled</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">logger</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3driver.html#refresh_bbox_index_after_build"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3driver.refresh_bbox_index_after_build" title="Link to this definition">#</a></dt>
+<dd><p>Best-effort bbox-index (re)build for a just-completed build.</p>
+<p>MUST run after the final build-log save: <code class="docutils literal notranslate"><span class="pre">_load_bbox_index</span></code> treats
+any index older than the log as stale, so an index written before the
+COMPLETED save would be silently ignored. The index is a derived
+artifact — failure here never fails the build (absence only costs
+speed); the warning points at the manual <code class="docutils literal notranslate"><span class="pre">gh3_bbox_index</span></code> recovery.
+Returns the index path, or <code class="docutils literal notranslate"><span class="pre">None</span></code> when disabled or failed.</p>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="gedih3.gh3driver.invalidate_bbox_index">
 <span class="sig-prename descclassname"><span class="pre">gedih3.gh3driver.</span></span><span class="sig-name descname"><span class="pre">invalidate_bbox_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gh3_dir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3driver.html#invalidate_bbox_index"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3driver.invalidate_bbox_index" title="Link to this definition">#</a></dt>
 <dd><p>Delete the bbox-index sidecar when partition data may have changed.</p>
@@ -771,7 +786,9 @@ or parquet directory and loads accordingly.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
 <dt><strong>source</strong><span class="classifier">str, optional</span></dt><dd><p>Path to data source (H3 database, simplified dataset, or parquet dir).
-If None, falls back to default H3 directory.</p>
+If None, falls back to default H3 directory. Self-hosted S3 sources
+may carry their endpoint in the URL (<code class="docutils literal notranslate"><span class="pre">s3://host:port/bucket/...</span></code>);
+an endpoint already configured via <code class="docutils literal notranslate"><span class="pre">configure_storage</span></code> wins.</p>
 </dd>
 <dt><strong>columns</strong><span class="classifier">list, optional</span></dt><dd><p>Columns to load.</p>
 </dd>
@@ -980,7 +997,9 @@ or a simplified EGI dataset and loads accordingly.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
 <dt><strong>source</strong><span class="classifier">str, optional</span></dt><dd><p>Path to data source (H3 database or EGI dataset).
-If None, falls back to default H3 directory.</p>
+If None, falls back to default H3 directory. Self-hosted S3 sources
+may carry their endpoint in the URL (<code class="docutils literal notranslate"><span class="pre">s3://host:port/bucket/...</span></code>);
+an endpoint already configured via <code class="docutils literal notranslate"><span class="pre">configure_storage</span></code> wins.</p>
 </dd>
 <dt><strong>columns</strong><span class="classifier">list, optional</span></dt><dd><p>Columns to load.</p>
 </dd>
@@ -1429,6 +1448,7 @@ Returns a Dask DataFrame; use <code class="docutils literal notranslate"><span c
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_aggregate_func"><code class="docutils literal notranslate"><span class="pre">gh3_aggregate_func()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_add_geometry"><code class="docutils literal notranslate"><span class="pre">gh3_add_geometry()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_build_bbox_index"><code class="docutils literal notranslate"><span class="pre">gh3_build_bbox_index()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.refresh_bbox_index_after_build"><code class="docutils literal notranslate"><span class="pre">refresh_bbox_index_after_build()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.invalidate_bbox_index"><code class="docutils literal notranslate"><span class="pre">invalidate_bbox_index()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_load_hex"><code class="docutils literal notranslate"><span class="pre">gh3_load_hex()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_load"><code class="docutils literal notranslate"><span class="pre">gh3_load()</span></code></a></li>

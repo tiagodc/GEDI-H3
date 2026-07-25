@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>gedih3.utils &#8212; gedih3 0.16.0 documentation</title>
+    <title>gedih3.utils &#8212; gedih3 0.16.1 documentation</title>
   
   
   
@@ -41,7 +41,7 @@
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../../_static/documentation_options.js?v=ff8529b6"></script>
+    <script src="../../../_static/documentation_options.js?v=56c55dd0"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
@@ -126,8 +126,8 @@
       
     
     
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.0 documentation - Home"/>
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.0 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.1 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.1 documentation - Home"/>
   
   
 </a></div>
@@ -530,6 +530,12 @@
 <tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.get_storage_options" title="gedih3.utils.get_storage_options"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_storage_options</span></code></a>([protocol])</p></td>
 <td><p>Return the stored options for <em>protocol</em>.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.split_s3_host_url" title="gedih3.utils.split_s3_host_url"><code class="xref py py-obj docutils literal notranslate"><span class="pre">split_s3_host_url</span></code></a>(url)</p></td>
+<td><p>Split <code class="docutils literal notranslate"><span class="pre">s3://host:port/bucket/...</span></code> into <code class="docutils literal notranslate"><span class="pre">(endpoint_url,</span> <span class="pre">s3://bucket/...)</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.resolve_s3_source" title="gedih3.utils.resolve_s3_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resolve_s3_source</span></code></a>(path)</p></td>
+<td><p>Normalize an <code class="docutils literal notranslate"><span class="pre">s3://host:port/bucket/...</span></code> source for the Python API.</p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.smart_exists" title="gedih3.utils.smart_exists"><code class="xref py py-obj docutils literal notranslate"><span class="pre">smart_exists</span></code></a>(path)</p></td>
 <td><p>os.path.exists() that works with remote paths.</p></td>
 </tr>
@@ -784,6 +790,47 @@ Other protocols return <code class="docutils literal notranslate"><span class="p
 </dl>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.split_s3_host_url">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">split_s3_host_url</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">url</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#split_s3_host_url"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.split_s3_host_url" title="Link to this definition">#</a></dt>
+<dd><p>Split <code class="docutils literal notranslate"><span class="pre">s3://host:port/bucket/...</span></code> into <code class="docutils literal notranslate"><span class="pre">(endpoint_url,</span> <span class="pre">s3://bucket/...)</span></code>.</p>
+<p>A bucket name cannot contain <code class="docutils literal notranslate"><span class="pre">:</span></code>, so a netloc with an explicit port
+is unambiguously a server, not a bucket. Port 443 implies https,
+anything else http (self-hosted servers are overwhelmingly plain
+http; configure an explicit endpoint for TLS on a non-standard
+port). Returns <code class="docutils literal notranslate"><span class="pre">(None,</span> <span class="pre">url)</span></code> for anything that is not the host
+form — plain-bucket S3 URLs and non-S3 paths pass through untouched.</p>
+<p>The single source of truth for this rule: the CLI’s
+<code class="docutils literal notranslate"><span class="pre">endpoint_from_s3_urls</span></code> and the Python API’s
+<a class="reference internal" href="#gedih3.utils.resolve_s3_source" title="gedih3.utils.resolve_s3_source"><code class="xref py py-func docutils literal notranslate"><span class="pre">resolve_s3_source()</span></code></a> both delegate here, so the two layers
+cannot drift.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>GediValidationError</dt><dd><p>If the URL names a server but no bucket (<code class="docutils literal notranslate"><span class="pre">s3://host:port</span></code>).</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.resolve_s3_source">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">resolve_s3_source</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#resolve_s3_source"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.resolve_s3_source" title="Link to this definition">#</a></dt>
+<dd><p>Normalize an <code class="docutils literal notranslate"><span class="pre">s3://host:port/bucket/...</span></code> source for the Python API.</p>
+<p>The CLI layer performs this normalization in <code class="docutils literal notranslate"><span class="pre">setup_storage</span></code>; the
+Python entry points (<code class="docutils literal notranslate"><span class="pre">gh3_load</span></code>, <code class="docutils literal notranslate"><span class="pre">egi_load</span></code>,
+<code class="docutils literal notranslate"><span class="pre">gh3_select_partitions</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_read_meta</span></code>, …) call this so the
+same URL works in both — without it, s3fs treats <code class="docutils literal notranslate"><span class="pre">host:port</span></code> as a
+bucket name. Precedence mirrors the CLI: an explicit
+<code class="docutils literal notranslate"><span class="pre">configure_storage('s3',</span> <span class="pre">endpoint_url=...)</span></code> / <code class="docutils literal notranslate"><span class="pre">--s3-endpoint</span></code>
+always wins (a differing URL host logs a warning instead of silently
+rerouting); an endpoint this function derived earlier is replaced by
+a later, different host URL — each call names its own server. The
+path is normalized to plain <code class="docutils literal notranslate"><span class="pre">s3://bucket/...</span></code> either way; non-S3
+and plain-bucket paths are returned unchanged.</p>
 </dd></dl>
 
 <dl class="py function">
@@ -1620,6 +1667,8 @@ of the whole partition.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_join"><code class="docutils literal notranslate"><span class="pre">smart_join()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.configure_storage"><code class="docutils literal notranslate"><span class="pre">configure_storage()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.get_storage_options"><code class="docutils literal notranslate"><span class="pre">get_storage_options()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.split_s3_host_url"><code class="docutils literal notranslate"><span class="pre">split_s3_host_url()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.resolve_s3_source"><code class="docutils literal notranslate"><span class="pre">resolve_s3_source()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_exists"><code class="docutils literal notranslate"><span class="pre">smart_exists()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_database_exists"><code class="docutils literal notranslate"><span class="pre">smart_database_exists()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_isdir"><code class="docutils literal notranslate"><span class="pre">smart_isdir()</span></code></a></li>

@@ -7,7 +7,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gedih3.utils &#8212; gedih3 0.16.0 documentation</title>
+    <title>gedih3.utils &#8212; gedih3 0.16.1 documentation</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../_static/documentation_options.js?v=ff8529b6"></script>
+    <script src="../../_static/documentation_options.js?v=56c55dd0"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/design-tabs.js?v=f930bc37"></script>
@@ -479,8 +479,8 @@ window.runMermaid = runMermaid;</script>
       
     
     
-    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.0 documentation - Home"/>
-    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.0 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.1 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.1 documentation - Home"/>
   
   
 </a></div>
@@ -949,6 +949,91 @@ window.runMermaid = runMermaid;</script>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">opts</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">_ambient_aws_credentials</span><span class="p">():</span>
             <span class="n">opts</span><span class="p">[</span><span class="s1">&#39;anon&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="k">return</span> <span class="n">opts</span></div>
+
+
+
+<div class="viewcode-block" id="split_s3_host_url">
+<a class="viewcode-back" href="../../autoapi/gedih3/utils/index.html#gedih3.utils.split_s3_host_url">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">split_s3_host_url</span><span class="p">(</span><span class="n">url</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Split ``s3://host:port/bucket/...`` into ``(endpoint_url, s3://bucket/...)``.</span>
+
+<span class="sd">    A bucket name cannot contain ``:``, so a netloc with an explicit port</span>
+<span class="sd">    is unambiguously a server, not a bucket. Port 443 implies https,</span>
+<span class="sd">    anything else http (self-hosted servers are overwhelmingly plain</span>
+<span class="sd">    http; configure an explicit endpoint for TLS on a non-standard</span>
+<span class="sd">    port). Returns ``(None, url)`` for anything that is not the host</span>
+<span class="sd">    form — plain-bucket S3 URLs and non-S3 paths pass through untouched.</span>
+
+<span class="sd">    The single source of truth for this rule: the CLI&#39;s</span>
+<span class="sd">    ``endpoint_from_s3_urls`` and the Python API&#39;s</span>
+<span class="sd">    :func:`resolve_s3_source` both delegate here, so the two layers</span>
+<span class="sd">    cannot drift.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    GediValidationError</span>
+<span class="sd">        If the URL names a server but no bucket (``s3://host:port``).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">urllib.parse</span><span class="w"> </span><span class="kn">import</span> <span class="n">urlparse</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">url</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;s3://&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="n">url</span>
+    <span class="n">netloc</span> <span class="o">=</span> <span class="n">urlparse</span><span class="p">(</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">netloc</span>
+    <span class="n">host</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">port</span> <span class="o">=</span> <span class="n">netloc</span><span class="o">.</span><span class="n">rpartition</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">host</span> <span class="ow">or</span> <span class="ow">not</span> <span class="p">(</span><span class="n">port</span><span class="o">.</span><span class="n">isascii</span><span class="p">()</span> <span class="ow">and</span> <span class="n">port</span><span class="o">.</span><span class="n">isdigit</span><span class="p">()):</span>
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="n">url</span>
+    <span class="n">remainder</span> <span class="o">=</span> <span class="n">url</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;s3://</span><span class="si">{</span><span class="n">netloc</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">):]</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">remainder</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;S3 URL &#39;</span><span class="si">{</span><span class="n">url</span><span class="si">}</span><span class="s2">&#39; names a server but no bucket — expected &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;s3://host:port/bucket/...&quot;</span><span class="p">)</span>
+    <span class="n">endpoint</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="s1">&#39;https&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">port</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s1">&#39;443&#39;</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;http&#39;</span><span class="si">}</span><span class="s2">://</span><span class="si">{</span><span class="n">netloc</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="k">return</span> <span class="n">endpoint</span><span class="p">,</span> <span class="s1">&#39;s3://&#39;</span> <span class="o">+</span> <span class="n">remainder</span></div>
+
+
+
+<span class="c1"># The last endpoint that resolve_s3_source itself derived from a URL.</span>
+<span class="c1"># Distinguishes &quot;auto&quot; from &quot;explicit&quot; configuration: a later host URL may</span>
+<span class="c1"># override an earlier AUTO endpoint (each call states its server), but an</span>
+<span class="c1"># EXPLICIT endpoint (configure_storage / --s3-endpoint) always wins.</span>
+<span class="n">_AUTO_S3_ENDPOINT</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="resolve_s3_source">
+<a class="viewcode-back" href="../../autoapi/gedih3/utils/index.html#gedih3.utils.resolve_s3_source">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_s3_source</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalize an ``s3://host:port/bucket/...`` source for the Python API.</span>
+
+<span class="sd">    The CLI layer performs this normalization in ``setup_storage``; the</span>
+<span class="sd">    Python entry points (``gh3_load``, ``egi_load``,</span>
+<span class="sd">    ``gh3_select_partitions``, ``gh3_read_meta``, ...) call this so the</span>
+<span class="sd">    same URL works in both — without it, s3fs treats ``host:port`` as a</span>
+<span class="sd">    bucket name. Precedence mirrors the CLI: an explicit</span>
+<span class="sd">    ``configure_storage(&#39;s3&#39;, endpoint_url=...)`` / ``--s3-endpoint``</span>
+<span class="sd">    always wins (a differing URL host logs a warning instead of silently</span>
+<span class="sd">    rerouting); an endpoint this function derived earlier is replaced by</span>
+<span class="sd">    a later, different host URL — each call names its own server. The</span>
+<span class="sd">    path is normalized to plain ``s3://bucket/...`` either way; non-S3</span>
+<span class="sd">    and plain-bucket paths are returned unchanged.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">global</span> <span class="n">_AUTO_S3_ENDPOINT</span>
+    <span class="n">endpoint</span><span class="p">,</span> <span class="n">norm</span> <span class="o">=</span> <span class="n">split_s3_host_url</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">endpoint</span><span class="p">:</span>
+        <span class="n">s3_opts</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">_storage_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;s3&#39;</span><span class="p">,</span> <span class="p">{}))</span>
+        <span class="n">ck</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">s3_opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;client_kwargs&#39;</span><span class="p">,</span> <span class="p">{}))</span>
+        <span class="n">current</span> <span class="o">=</span> <span class="n">ck</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;endpoint_url&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">current</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">current</span> <span class="o">==</span> <span class="n">_AUTO_S3_ENDPOINT</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">current</span> <span class="o">!=</span> <span class="n">endpoint</span><span class="p">:</span>
+                <span class="n">ck</span><span class="p">[</span><span class="s1">&#39;endpoint_url&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">endpoint</span>
+                <span class="n">s3_opts</span><span class="p">[</span><span class="s1">&#39;client_kwargs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ck</span>
+                <span class="n">_storage_options</span><span class="p">[</span><span class="s1">&#39;s3&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">s3_opts</span>
+            <span class="n">_AUTO_S3_ENDPOINT</span> <span class="o">=</span> <span class="n">endpoint</span>
+        <span class="k">elif</span> <span class="n">current</span> <span class="o">!=</span> <span class="n">endpoint</span><span class="p">:</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;S3 URL names endpoint </span><span class="si">{</span><span class="n">endpoint</span><span class="si">}</span><span class="s2"> but </span><span class="si">{</span><span class="n">current</span><span class="si">}</span><span class="s2"> is &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;explicitly configured — the configured endpoint wins.&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">norm</span></div>
 
 
 

@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Python API &#8212; gedih3 0.16.0 documentation</title>
+    <title>Python API &#8212; gedih3 0.16.1 documentation</title>
   
   
   
@@ -41,7 +41,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=ff8529b6"></script>
+    <script src="../_static/documentation_options.js?v=56c55dd0"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
@@ -126,8 +126,8 @@
       
     
     
-    <img src="../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.0 documentation - Home"/>
-    <img src="../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.0 documentation - Home"/>
+    <img src="../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.1 documentation - Home"/>
+    <img src="../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.1 documentation - Home"/>
   
   
 </a></div>
@@ -535,6 +535,11 @@
 <span class="p">)</span>
 </pre></div>
 </div>
+<p>Remote sources work the same way in Python as on the command line — including
+self-hosted S3 with the endpoint carried in the URL itself
+(<code class="docutils literal notranslate"><span class="pre">source='s3://host:port/bucket/db'</span></code>); an endpoint configured explicitly via
+<code class="docutils literal notranslate"><span class="pre">gedih3.utils.configure_storage('s3',</span> <span class="pre">endpoint_url=...)</span></code> always wins, matching
+the CLI’s <code class="docutils literal notranslate"><span class="pre">--s3-endpoint</span></code> precedence.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>The database can also live on a remote filesystem. Use <code class="docutils literal notranslate"><span class="pre">configure_storage()</span></code> to set credentials, then pass a remote URI to <code class="docutils literal notranslate"><span class="pre">source=</span></code>:</p>

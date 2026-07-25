@@ -21,6 +21,7 @@ Functions
    gedih3.gh3driver.gh3_aggregate_func
    gedih3.gh3driver.gh3_add_geometry
    gedih3.gh3driver.gh3_build_bbox_index
+   gedih3.gh3driver.refresh_bbox_index_after_build
    gedih3.gh3driver.invalidate_bbox_index
    gedih3.gh3driver.gh3_load_hex
    gedih3.gh3driver.gh3_load
@@ -221,6 +222,35 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
+.. py:function:: refresh_bbox_index_after_build(gh3_dir, enabled=True, logger=None)
+
+   
+   Best-effort bbox-index (re)build for a just-completed build.
+
+   MUST run after the final build-log save: ``_load_bbox_index`` treats
+   any index older than the log as stale, so an index written before the
+   COMPLETED save would be silently ignored. The index is a derived
+   artifact — failure here never fails the build (absence only costs
+   speed); the warning points at the manual ``gh3_bbox_index`` recovery.
+   Returns the index path, or ``None`` when disabled or failed.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
 .. py:function:: invalidate_bbox_index(gh3_dir)
 
    
@@ -264,7 +294,9 @@ Module Contents
 
        **source** : str, optional
            Path to data source (H3 database, simplified dataset, or parquet dir).
-           If None, falls back to default H3 directory.
+           If None, falls back to default H3 directory. Self-hosted S3 sources
+           may carry their endpoint in the URL (``s3://host:port/bucket/...``);
+           an endpoint already configured via ``configure_storage`` wins.
 
        **columns** : list, optional
            Columns to load.
@@ -543,7 +575,9 @@ Module Contents
 
        **source** : str, optional
            Path to data source (H3 database or EGI dataset).
-           If None, falls back to default H3 directory.
+           If None, falls back to default H3 directory. Self-hosted S3 sources
+           may carry their endpoint in the URL (``s3://host:port/bucket/...``);
+           an endpoint already configured via ``configure_storage`` wins.
 
        **columns** : list, optional
            Columns to load.

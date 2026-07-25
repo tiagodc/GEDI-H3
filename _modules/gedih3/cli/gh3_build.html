@@ -7,7 +7,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gedih3.cli.gh3_build &#8212; gedih3 0.16.0 documentation</title>
+    <title>gedih3.cli.gh3_build &#8212; gedih3 0.16.1 documentation</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../../_static/documentation_options.js?v=ff8529b6"></script>
+    <script src="../../../_static/documentation_options.js?v=56c55dd0"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
@@ -479,8 +479,8 @@ window.runMermaid = runMermaid;</script>
       
     
     
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.0 documentation - Home"/>
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.0 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.1 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.1 documentation - Home"/>
   
   
 </a></div>
@@ -893,6 +893,11 @@ window.runMermaid = runMermaid;</script>
                    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;download missing GEDI data before building (embeds gh3_download as pre-step)&quot;</span><span class="p">)</span>
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-t&quot;</span><span class="p">,</span> <span class="s1">&#39;--tmpdir&#39;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;tmpdir&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;temporary directory for intermediate files&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--no-bbox-index&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;bbox_index&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_false&#39;</span><span class="p">,</span>
+                   <span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;skip (re)building the _bbox_index.parquet sidecar after a &quot;</span>
+                        <span class="s2">&quot;successful build (footer-only scan; spatial queries use it &quot;</span>
+                        <span class="s2">&quot;to skip files a region/EGI tile cannot touch)&quot;</span><span class="p">)</span>
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-s3&quot;</span><span class="p">,</span> <span class="s2">&quot;--s3&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;s3&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
                    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;download from NASA S3 to temp directory (no persistent local download)&quot;</span><span class="p">)</span>
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--gedi-version&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;version&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
@@ -1109,6 +1114,18 @@ window.runMermaid = runMermaid;</script>
                     <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
                     <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;COMPLETED&#39;</span><span class="p">)</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Database is already up-to-date with requested parameters&quot;</span><span class="p">)</span>
+                <span class="c1"># Up-to-date DB: create the index only if it is missing</span>
+                <span class="c1"># (e.g. first run after upgrading gedih3) — the data is</span>
+                <span class="c1"># unchanged, so an existing index remains valid. No client</span>
+                <span class="c1"># exists yet on this early-exit path, so honor -N with a</span>
+                <span class="c1"># short-lived one instead of a silent thread fallback.</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">BBOX_INDEX_FILENAME</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="kn">import</span> <span class="n">refresh_bbox_index_after_build</span>
+                <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">bbox_index</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span>
+                        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">BBOX_INDEX_FILENAME</span><span class="p">)):</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Creating missing bbox index (footer-only scan)&quot;</span><span class="p">)</span>
+                    <span class="k">with</span> <span class="n">Client</span><span class="p">(</span><span class="o">**</span><span class="n">parse_dask_args</span><span class="p">(</span><span class="n">args</span><span class="p">)):</span>
+                        <span class="n">refresh_bbox_index_after_build</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
                 <span class="n">print_success</span><span class="p">(</span><span class="s2">&quot;Database is up-to-date, no changes needed&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
                 <span class="k">return</span>
             <span class="k">else</span><span class="p">:</span>
@@ -1136,6 +1153,10 @@ window.runMermaid = runMermaid;</script>
         <span class="n">tmp_dir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span>
         <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">,</span>
     <span class="p">)</span>
+
+    <span class="c1"># Set right after each final save_log(&#39;COMPLETED&#39;): a Ctrl-C during the</span>
+    <span class="c1"># post-completion bbox-index build must not downgrade a finished build.</span>
+    <span class="n">build_completed</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="k">with</span> <span class="n">Client</span><span class="p">(</span><span class="o">**</span><span class="n">dask_kwargs</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
@@ -1441,6 +1462,12 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;_pending_variable_update&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;COMPLETED&#39;</span><span class="p">)</span>
+                <span class="n">build_completed</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="c1"># AFTER the final log save — an index older than the log is</span>
+                <span class="c1"># treated as stale by the loaders.</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="kn">import</span> <span class="n">refresh_bbox_index_after_build</span>
+                <span class="n">refresh_bbox_index_after_build</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">enabled</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">bbox_index</span><span class="p">,</span>
+                                               <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
                 <span class="n">_n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">h3_files</span><span class="p">)</span> <span class="k">if</span> <span class="n">h3_files</span> <span class="k">else</span> <span class="mi">0</span>
                 <span class="n">print_success</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">_n</span><span class="si">}</span><span class="s2"> files exported to </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2"> (merge-only resume)&quot;</span><span class="p">,</span>
@@ -1587,6 +1614,13 @@ window.runMermaid = runMermaid;</script>
                 <span class="c1"># PROCESSING status with the flag → next run resumes correctly.</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;_pending_variable_update&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;COMPLETED&#39;</span><span class="p">)</span>
+                <span class="n">build_completed</span> <span class="o">=</span> <span class="kc">True</span>
+
+                <span class="c1"># AFTER the final log save — an index older than the log is</span>
+                <span class="c1"># treated as stale by the loaders.</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="kn">import</span> <span class="n">refresh_bbox_index_after_build</span>
+                <span class="n">refresh_bbox_index_after_build</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">enabled</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">bbox_index</span><span class="p">,</span>
+                                               <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
 
                 <span class="n">n_files</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">h3_files</span><span class="p">)</span> <span class="k">if</span> <span class="n">h3_files</span> <span class="k">else</span> <span class="mi">0</span>
                 <span class="n">print_success</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_files</span><span class="si">}</span><span class="s2"> files exported to </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
@@ -1613,8 +1647,12 @@ window.runMermaid = runMermaid;</script>
 
     <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Build interrupted by user&quot;</span><span class="p">)</span>
-        <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
-        <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;INTERRUPTED&#39;</span><span class="p">)</span>
+        <span class="c1"># A Ctrl-C during the post-completion bbox-index build must not</span>
+        <span class="c1"># downgrade a genuinely finished build&#39;s log to INTERRUPTED — the</span>
+        <span class="c1"># index is derived and rebuildable, the COMPLETED status is not.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">build_completed</span><span class="p">:</span>
+            <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
+            <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;INTERRUPTED&#39;</span><span class="p">)</span>
         <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">130</span><span class="p">)</span>
 
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>

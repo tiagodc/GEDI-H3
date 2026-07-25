@@ -29,6 +29,8 @@ Functions
    gedih3.utils.smart_join
    gedih3.utils.configure_storage
    gedih3.utils.get_storage_options
+   gedih3.utils.split_s3_host_url
+   gedih3.utils.resolve_s3_source
    gedih3.utils.smart_exists
    gedih3.utils.smart_database_exists
    gedih3.utils.smart_isdir
@@ -229,6 +231,78 @@ Module Contents
 
        dict
            A **copy** of the stored options (safe to mutate).
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: split_s3_host_url(url)
+
+   
+   Split ``s3://host:port/bucket/...`` into ``(endpoint_url, s3://bucket/...)``.
+
+   A bucket name cannot contain ``:``, so a netloc with an explicit port
+   is unambiguously a server, not a bucket. Port 443 implies https,
+   anything else http (self-hosted servers are overwhelmingly plain
+   http; configure an explicit endpoint for TLS on a non-standard
+   port). Returns ``(None, url)`` for anything that is not the host
+   form — plain-bucket S3 URLs and non-S3 paths pass through untouched.
+
+   The single source of truth for this rule: the CLI's
+   ``endpoint_from_s3_urls`` and the Python API's
+   :func:`resolve_s3_source` both delegate here, so the two layers
+   cannot drift.
+
+
+
+
+
+
+
+
+   :Raises:
+
+       GediValidationError
+           If the URL names a server but no bucket (``s3://host:port``).
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: resolve_s3_source(path)
+
+   
+   Normalize an ``s3://host:port/bucket/...`` source for the Python API.
+
+   The CLI layer performs this normalization in ``setup_storage``; the
+   Python entry points (``gh3_load``, ``egi_load``,
+   ``gh3_select_partitions``, ``gh3_read_meta``, ...) call this so the
+   same URL works in both — without it, s3fs treats ``host:port`` as a
+   bucket name. Precedence mirrors the CLI: an explicit
+   ``configure_storage('s3', endpoint_url=...)`` / ``--s3-endpoint``
+   always wins (a differing URL host logs a warning instead of silently
+   rerouting); an endpoint this function derived earlier is replaced by
+   a later, different host URL — each call names its own server. The
+   path is normalized to plain ``s3://bucket/...`` either way; non-S3
+   and plain-bucket paths are returned unchanged.
+
+
+
+
 
 
 
