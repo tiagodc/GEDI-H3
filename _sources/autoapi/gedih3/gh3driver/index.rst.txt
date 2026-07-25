@@ -20,6 +20,8 @@ Functions
    gedih3.gh3driver.gh3_reindex
    gedih3.gh3driver.gh3_aggregate_func
    gedih3.gh3driver.gh3_add_geometry
+   gedih3.gh3driver.gh3_build_bbox_index
+   gedih3.gh3driver.invalidate_bbox_index
    gedih3.gh3driver.gh3_load_hex
    gedih3.gh3driver.gh3_load
    gedih3.gh3driver.gh3_aggregate
@@ -185,7 +187,70 @@ Module Contents
 
 .. py:function:: gh3_add_geometry(df)
 
-.. py:function:: gh3_load_hex(d, part_col=None, _storage_cfg=None, **kwargs)
+.. py:function:: gh3_build_bbox_index(source=None)
+
+   
+   Build the ``_bbox_index.parquet`` root sidecar for an H3 database.
+
+   One row per partition year-file with the true data envelope derived
+   from existing parquet row-group statistics — footer-only reads, no data
+   scan (~minutes for a continental database; seconds with a dask client).
+   Query paths (`gh3_load` with ``region=``, `egi_load`) then skip files
+   whose envelope cannot intersect the query a-priori.
+
+   Uses the registered dask client when one exists (`parallel_map`);
+   otherwise a local thread pool — footer reads are tiny and I/O bound.
+   Local databases only: the index is written at the database root.
+
+   Returns the index path.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: invalidate_bbox_index(gh3_dir)
+
+   
+   Delete the bbox-index sidecar when partition data may have changed.
+
+   The producer-side half of the index contract: a stale index silently
+   under-selects (the one unacceptable failure), an absent one only costs
+   speed. Called by ``_merge_and_finalize`` (before its manifest write —
+   unlinking a root sidecar bumps the root dir mtime) and by
+   ``gh3_doctor --fix`` after any applied remedy. Idempotent; returns
+   True when a sidecar was actually removed.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: gh3_load_hex(d, _bbox_index=None, part_col=None, _storage_cfg=None, **kwargs)
 
 .. py:function:: gh3_load(source=None, *, columns=None, region=None, query=None, from_map=True, lazy=True, filters=None)
 

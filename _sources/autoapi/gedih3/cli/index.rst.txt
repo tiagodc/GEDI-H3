@@ -11,6 +11,7 @@ Submodules
    :maxdepth: 1
 
    /autoapi/gedih3/cli/gh3_aggregate/index
+   /autoapi/gedih3/cli/gh3_bbox_index/index
    /autoapi/gedih3/cli/gh3_build/index
    /autoapi/gedih3/cli/gh3_build_ducklake/index
    /autoapi/gedih3/cli/gh3_doctor/index

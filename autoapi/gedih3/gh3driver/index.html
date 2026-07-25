@@ -359,6 +359,7 @@
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="../index.html">gedih3</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l2 has-children"><a class="reference internal" href="../cli/index.html">gedih3.cli</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../cli/gh3_aggregate/index.html">gedih3.cli.gh3_aggregate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../cli/gh3_bbox_index/index.html">gedih3.cli.gh3_bbox_index</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../cli/gh3_build/index.html">gedih3.cli.gh3_build</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../cli/gh3_build_ducklake/index.html">gedih3.cli.gh3_build_ducklake</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../cli/gh3_doctor/index.html">gedih3.cli.gh3_doctor</a></li>
@@ -528,7 +529,13 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_add_geometry" title="gedih3.gh3driver.gh3_add_geometry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_add_geometry</span></code></a>(df)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_load_hex" title="gedih3.gh3driver.gh3_load_hex"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_load_hex</span></code></a>(d[, part_col, _storage_cfg])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_build_bbox_index" title="gedih3.gh3driver.gh3_build_bbox_index"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_build_bbox_index</span></code></a>([source])</p></td>
+<td><p>Build the <code class="docutils literal notranslate"><span class="pre">_bbox_index.parquet</span></code> root sidecar for an H3 database.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.invalidate_bbox_index" title="gedih3.gh3driver.invalidate_bbox_index"><code class="xref py py-obj docutils literal notranslate"><span class="pre">invalidate_bbox_index</span></code></a>(gh3_dir)</p></td>
+<td><p>Delete the bbox-index sidecar when partition data may have changed.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_load_hex" title="gedih3.gh3driver.gh3_load_hex"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_load_hex</span></code></a>(d[, _bbox_index, part_col, _storage_cfg])</p></td>
 <td><p></p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_load" title="gedih3.gh3driver.gh3_load"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_load</span></code></a>([source, columns, region, query, from_map, ...])</p></td>
@@ -723,8 +730,35 @@ making it easy to understand and use the data outside of gedih3 tools.</p>
 <dd></dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3driver.gh3_build_bbox_index">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3driver.</span></span><span class="sig-name descname"><span class="pre">gh3_build_bbox_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3driver.html#gh3_build_bbox_index"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3driver.gh3_build_bbox_index" title="Link to this definition">#</a></dt>
+<dd><p>Build the <code class="docutils literal notranslate"><span class="pre">_bbox_index.parquet</span></code> root sidecar for an H3 database.</p>
+<p>One row per partition year-file with the true data envelope derived
+from existing parquet row-group statistics — footer-only reads, no data
+scan (~minutes for a continental database; seconds with a dask client).
+Query paths (<cite>gh3_load</cite> with <code class="docutils literal notranslate"><span class="pre">region=</span></code>, <cite>egi_load</cite>) then skip files
+whose envelope cannot intersect the query a-priori.</p>
+<p>Uses the registered dask client when one exists (<cite>parallel_map</cite>);
+otherwise a local thread pool — footer reads are tiny and I/O bound.
+Local databases only: the index is written at the database root.</p>
+<p>Returns the index path.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3driver.invalidate_bbox_index">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3driver.</span></span><span class="sig-name descname"><span class="pre">invalidate_bbox_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gh3_dir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3driver.html#invalidate_bbox_index"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3driver.invalidate_bbox_index" title="Link to this definition">#</a></dt>
+<dd><p>Delete the bbox-index sidecar when partition data may have changed.</p>
+<p>The producer-side half of the index contract: a stale index silently
+under-selects (the one unacceptable failure), an absent one only costs
+speed. Called by <code class="docutils literal notranslate"><span class="pre">_merge_and_finalize</span></code> (before its manifest write —
+unlinking a root sidecar bumps the root dir mtime) and by
+<code class="docutils literal notranslate"><span class="pre">gh3_doctor</span> <span class="pre">--fix</span></code> after any applied remedy. Idempotent; returns
+True when a sidecar was actually removed.</p>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="gedih3.gh3driver.gh3_load_hex">
-<span class="sig-prename descclassname"><span class="pre">gedih3.gh3driver.</span></span><span class="sig-name descname"><span class="pre">gh3_load_hex</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">d</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">part_col</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_storage_cfg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3driver.html#gh3_load_hex"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3driver.gh3_load_hex" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3driver.</span></span><span class="sig-name descname"><span class="pre">gh3_load_hex</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">d</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_bbox_index</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">part_col</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_storage_cfg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3driver.html#gh3_load_hex"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3driver.gh3_load_hex" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py function">
@@ -1394,6 +1428,8 @@ Returns a Dask DataFrame; use <code class="docutils literal notranslate"><span c
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_reindex"><code class="docutils literal notranslate"><span class="pre">gh3_reindex()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_aggregate_func"><code class="docutils literal notranslate"><span class="pre">gh3_aggregate_func()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_add_geometry"><code class="docutils literal notranslate"><span class="pre">gh3_add_geometry()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_build_bbox_index"><code class="docutils literal notranslate"><span class="pre">gh3_build_bbox_index()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.invalidate_bbox_index"><code class="docutils literal notranslate"><span class="pre">invalidate_bbox_index()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_load_hex"><code class="docutils literal notranslate"><span class="pre">gh3_load_hex()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_load"><code class="docutils literal notranslate"><span class="pre">gh3_load()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_aggregate"><code class="docutils literal notranslate"><span class="pre">gh3_aggregate()</span></code></a></li>

@@ -3586,6 +3586,17 @@ window.runMermaid = runMermaid;</script>
             <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">_pc</span><span class="p">[</span><span class="s1">&#39;partitions_cleaned&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> partition(s).&quot;</span>
         <span class="p">)</span>
 
+    <span class="c1"># Drop any pre-existing bbox index BEFORE the first worker rewrites a</span>
+    <span class="c1"># partition file: the merge changes data envelopes, a stale index</span>
+    <span class="c1"># silently under-selects (the one unacceptable failure), and a crash</span>
+    <span class="c1"># mid-merge must not leave it behind. Deleting at entry (not at the</span>
+    <span class="c1"># tail) also covers concurrent readers during the hours-long merge</span>
+    <span class="c1"># window and every resume path. Rebuild with gh3_bbox_index after the</span>
+    <span class="c1"># build; absence only costs speed.</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.gh3driver</span><span class="w"> </span><span class="kn">import</span> <span class="n">invalidate_bbox_index</span>
+    <span class="k">if</span> <span class="n">invalidate_bbox_index</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Removed stale _bbox_index.parquet (rebuild with gh3_bbox_index)&quot;</span><span class="p">)</span>
+
     <span class="c1"># List candidate tmp partitions. Two-level walk:</span>
     <span class="c1">#   1. Driver-side os.scandir of &lt;tmp_dir&gt; for h3_* — one readdir, fast.</span>
     <span class="c1">#   2. Per-h3 year=*/ listing fanned out across all workers via</span>
@@ -3762,7 +3773,9 @@ window.runMermaid = runMermaid;</script>
     <span class="n">meta_files</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">dask</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="o">*</span><span class="n">meta_tasks</span><span class="p">))</span>
     <span class="k">del</span> <span class="n">meta_tasks</span>
 
-    <span class="c1"># Generate manifest for accelerated file listing</span>
+    <span class="c1"># Generate manifest for accelerated file listing. (The bbox index was</span>
+    <span class="c1"># already invalidated at merge ENTRY — before the first partition</span>
+    <span class="c1"># write — so nothing here can bump the root dir mtime after this.)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Generating file manifest&quot;</span><span class="p">)</span>
     <span class="n">generate_manifest</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">tree_shape</span><span class="o">=</span><span class="s1">&#39;h3db&#39;</span><span class="p">)</span>
 

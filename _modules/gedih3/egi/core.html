@@ -1162,7 +1162,12 @@ window.runMermaid = runMermaid;</script>
     <span class="n">py</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">miny</span> <span class="o">+</span> <span class="n">offset</span><span class="p">,</span> <span class="n">maxy</span><span class="p">,</span> <span class="n">children_scale</span><span class="p">)</span>
 
     <span class="n">center_points</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">px</span><span class="p">,</span> <span class="n">py</span><span class="p">))</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
-    <span class="k">return</span> <span class="p">[</span><span class="n">to_hash</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">children_level</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">center_points</span><span class="p">]</span></div>
+    <span class="c1"># Vectorized: to_hash is array-capable and its scalar/array code paths</span>
+    <span class="c1"># are identical (same numpy ops), so this is bit-exact with the former</span>
+    <span class="c1"># per-child Python loop — which cost 2.56M scalar calls per L12 tile</span>
+    <span class="c1"># when expanding to level 4.</span>
+    <span class="n">hashes</span> <span class="o">=</span> <span class="n">to_hash</span><span class="p">(</span><span class="n">center_points</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">center_points</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">children_level</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="n">h</span><span class="p">)</span> <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">hashes</span><span class="p">)]</span></div>
 
 
 

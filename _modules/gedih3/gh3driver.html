@@ -1689,14 +1689,27 @@ window.runMermaid = runMermaid;</script>
                     <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">:</span>
                         <span class="n">cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
                         <span class="n">extras</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">remote</span><span class="p">:</span>
-                <span class="n">df</span> <span class="o">=</span> <span class="n">read_parquet_coalesced</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">cols</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">geo</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">filt</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">reader</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span> <span class="k">if</span> <span class="n">geo</span> <span class="k">else</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span>
-                <span class="n">df</span> <span class="o">=</span> <span class="n">reader</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">cols</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">filt</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">extras</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">extras</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">df</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">remote</span><span class="p">:</span>
+                    <span class="n">df</span> <span class="o">=</span> <span class="n">read_parquet_coalesced</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">cols</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">geo</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">filt</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">reader</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span> <span class="k">if</span> <span class="n">geo</span> <span class="k">else</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span>
+                    <span class="n">df</span> <span class="o">=</span> <span class="n">reader</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">cols</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">filt</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">extras</span><span class="p">:</span>
+                    <span class="c1"># unconditionally: a 0-row result still carries the helper</span>
+                    <span class="c1"># columns, and leaking them desyncs the dask meta</span>
+                    <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">extras</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">df</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                <span class="c1"># A schema-drifted file may lack the DB-wide predicate</span>
+                <span class="c1"># columns (pyarrow raises ArrowInvalid: &quot;No match for</span>
+                <span class="c1"># FieldRef&quot;). The bbox scanner degrades to a NULL envelope</span>
+                <span class="c1"># for such files; the read path must degrade the same way —</span>
+                <span class="c1"># fall through to the geometric full-read + clip below</span>
+                <span class="c1"># instead of turning a region query into a hard crash.</span>
+                <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">ArrowInvalid</span><span class="p">)):</span>
+                    <span class="k">raise</span>
 
         <span class="c1"># &#39;fallback&#39; — full read + in-memory geometric clip. Last resort.</span>
         <span class="n">df</span> <span class="o">=</span> <span class="p">(</span><span class="n">read_parquet_coalesced</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="n">remote</span>
@@ -1704,6 +1717,245 @@ window.runMermaid = runMermaid;</script>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">intersects</span><span class="p">(</span><span class="n">clip_box</span><span class="p">)]</span>
         <span class="k">return</span> <span class="n">df</span>
+
+
+<span class="c1"># =============================================================================</span>
+<span class="c1"># Data-bbox index — root sidecar `_bbox_index.parquet`</span>
+<span class="c1"># =============================================================================</span>
+<span class="c1"># The GeoParquet bbox each partition file carries is the *padded partition</span>
+<span class="c1"># polygon* bbox (h3_partition_bbox — cell math, no data scan), which is a</span>
+<span class="c1"># geometric worst case, not the data envelope: measured 3.8x taller than the</span>
+<span class="c1"># actual shots on a production file. The database therefore stores no</span>
+<span class="c1"># information about where the data really sits, and every spatial query pays</span>
+<span class="c1"># for it — 64% of the (tile x year-file) reads a representative EGI query</span>
+<span class="c1"># schedules contain zero rows in the target tile.</span>
+<span class="c1">#</span>
+<span class="c1"># The true envelope is already on disk for free: parquet row-group statistics</span>
+<span class="c1"># of the lat/lon columns. This index materializes them once (footer-only</span>
+<span class="c1"># scan, minutes for a continental DB) into one compact root sidecar, and the</span>
+<span class="c1"># query paths use it to skip files a-priori — pillar 4: never do work the</span>
+<span class="c1"># structure of the data already answers.</span>
+<span class="c1">#</span>
+<span class="c1"># Consumers are strictly fail-safe: a file missing from the index, a NULL</span>
+<span class="c1"># bbox (incomplete stats), or a missing/unreadable sidecar all mean &quot;keep</span>
+<span class="c1"># the file / fall back to the unindexed path&quot;. Staleness is impossible by</span>
+<span class="c1"># construction — a stale index would silently under-select (the one</span>
+<span class="c1"># unacceptable failure), absence only costs speed — via three layers:</span>
+<span class="c1"># `_merge_and_finalize` deletes the index at merge ENTRY (before the first</span>
+<span class="c1"># partition write, so a killed build cannot leave one behind),</span>
+<span class="c1"># `gh3_doctor --fix` drops it after any applied remedy, and</span>
+<span class="c1"># `_load_bbox_index` ignores any index older than the build log (every</span>
+<span class="c1"># producer saves the log — the O(1) guard subsumes forgotten hooks).</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_bbox_cols_from_meta</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;lat/lon predicate columns from the cached schema (a-priori, no I/O).&quot;&quot;&quot;</span>
+    <span class="n">names</span> <span class="o">=</span> <span class="n">gh3_read_meta</span><span class="p">(</span><span class="s1">&#39;h3_columns&#39;</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="n">gh3_dir</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">lat</span><span class="p">,</span> <span class="n">lon</span> <span class="ow">in</span> <span class="p">((</span><span class="s1">&#39;lat_lowestmode_l2a&#39;</span><span class="p">,</span> <span class="s1">&#39;lon_lowestmode_l2a&#39;</span><span class="p">),</span>
+                     <span class="p">(</span><span class="s1">&#39;lat_lowestmode&#39;</span><span class="p">,</span> <span class="s1">&#39;lon_lowestmode&#39;</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">lat</span> <span class="ow">in</span> <span class="n">names</span> <span class="ow">and</span> <span class="n">lon</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">lat</span><span class="p">,</span> <span class="n">lon</span>
+    <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_bbox_index_key</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalize a partition parquet path to its index key: the last three</span>
+<span class="sd">    segments (``h3_XX=&lt;cell&gt;/year=&lt;Y&gt;/&lt;file&gt;.parquet``). Stable across local</span>
+<span class="sd">    roots, URLs and OS separators.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="s1">&#39;/&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="p">,</span> <span class="s1">&#39;/&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">3</span><span class="p">:])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_bbox_disjoint</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">bbox</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;True when data bbox ``b`` cannot overlap query bbox ``bbox`` (both</span>
+<span class="sd">    (minx, miny, maxx, maxy), inclusive edges — touching is NOT disjoint).&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="ow">or</span> <span class="n">b</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">or</span> <span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="ow">or</span> <span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_scan_file_bbox</span><span class="p">(</span><span class="n">item</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Worker: one partition file -&gt; bbox-index record (footer-only read).</span>
+
+<span class="sd">    Aggregates row-group min/max statistics of the lat/lon columns. Any row</span>
+<span class="sd">    group without complete stats yields a NULL bbox — consumers treat NULL</span>
+<span class="sd">    as &quot;unknown, keep the file&quot;. NaN coordinates are excluded from parquet</span>
+<span class="sd">    stats by the writer, matching the existing `coord_filter` pushdown</span>
+<span class="sd">    semantics (a NaN-coordinate row never satisfies the predicates today).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">path</span><span class="p">,</span> <span class="n">rel</span><span class="p">,</span> <span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span> <span class="o">=</span> <span class="n">item</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+    <span class="n">rec</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;file&#39;</span><span class="p">:</span> <span class="n">rel</span><span class="p">,</span> <span class="s1">&#39;lon_min&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;lat_min&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+           <span class="s1">&#39;lon_max&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;lat_max&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;n_rows&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">md</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetFile</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">metadata</span>
+        <span class="n">rec</span><span class="p">[</span><span class="s1">&#39;n_rows&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">md</span><span class="o">.</span><span class="n">num_rows</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="p">{</span><span class="n">md</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">md</span><span class="o">.</span><span class="n">num_columns</span><span class="p">)}</span>
+        <span class="k">if</span> <span class="n">lat_col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">names</span> <span class="ow">or</span> <span class="n">lon_col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">rec</span>
+        <span class="n">li</span><span class="p">,</span> <span class="n">oi</span> <span class="o">=</span> <span class="n">names</span><span class="p">[</span><span class="n">lat_col</span><span class="p">],</span> <span class="n">names</span><span class="p">[</span><span class="n">lon_col</span><span class="p">]</span>
+        <span class="n">lat_lo</span> <span class="o">=</span> <span class="n">lat_hi</span> <span class="o">=</span> <span class="n">lon_lo</span> <span class="o">=</span> <span class="n">lon_hi</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">rg</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">md</span><span class="o">.</span><span class="n">num_row_groups</span><span class="p">):</span>
+            <span class="n">s_lat</span> <span class="o">=</span> <span class="n">md</span><span class="o">.</span><span class="n">row_group</span><span class="p">(</span><span class="n">rg</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="n">li</span><span class="p">)</span><span class="o">.</span><span class="n">statistics</span>
+            <span class="n">s_lon</span> <span class="o">=</span> <span class="n">md</span><span class="o">.</span><span class="n">row_group</span><span class="p">(</span><span class="n">rg</span><span class="p">)</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="n">oi</span><span class="p">)</span><span class="o">.</span><span class="n">statistics</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">s_lat</span> <span class="ow">and</span> <span class="n">s_lon</span> <span class="ow">and</span> <span class="n">s_lat</span><span class="o">.</span><span class="n">has_min_max</span> <span class="ow">and</span> <span class="n">s_lon</span><span class="o">.</span><span class="n">has_min_max</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">rec</span>
+            <span class="n">lat_lo</span> <span class="o">=</span> <span class="n">s_lat</span><span class="o">.</span><span class="n">min</span> <span class="k">if</span> <span class="n">lat_lo</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">min</span><span class="p">(</span><span class="n">lat_lo</span><span class="p">,</span> <span class="n">s_lat</span><span class="o">.</span><span class="n">min</span><span class="p">)</span>
+            <span class="n">lat_hi</span> <span class="o">=</span> <span class="n">s_lat</span><span class="o">.</span><span class="n">max</span> <span class="k">if</span> <span class="n">lat_hi</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">max</span><span class="p">(</span><span class="n">lat_hi</span><span class="p">,</span> <span class="n">s_lat</span><span class="o">.</span><span class="n">max</span><span class="p">)</span>
+            <span class="n">lon_lo</span> <span class="o">=</span> <span class="n">s_lon</span><span class="o">.</span><span class="n">min</span> <span class="k">if</span> <span class="n">lon_lo</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">min</span><span class="p">(</span><span class="n">lon_lo</span><span class="p">,</span> <span class="n">s_lon</span><span class="o">.</span><span class="n">min</span><span class="p">)</span>
+            <span class="n">lon_hi</span> <span class="o">=</span> <span class="n">s_lon</span><span class="o">.</span><span class="n">max</span> <span class="k">if</span> <span class="n">lon_hi</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">max</span><span class="p">(</span><span class="n">lon_hi</span><span class="p">,</span> <span class="n">s_lon</span><span class="o">.</span><span class="n">max</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">lat_lo</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">rec</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">lon_min</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">lon_lo</span><span class="p">),</span> <span class="n">lat_min</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">lat_lo</span><span class="p">),</span>
+                       <span class="n">lon_max</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">lon_hi</span><span class="p">),</span> <span class="n">lat_max</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">lat_hi</span><span class="p">))</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="k">pass</span>  <span class="c1"># unreadable footer -&gt; unknown bbox (fail-safe: keep the file)</span>
+    <span class="k">return</span> <span class="n">rec</span>
+
+
+<div class="viewcode-block" id="gh3_build_bbox_index">
+<a class="viewcode-back" href="../../autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_build_bbox_index">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">gh3_build_bbox_index</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build the ``_bbox_index.parquet`` root sidecar for an H3 database.</span>
+
+<span class="sd">    One row per partition year-file with the true data envelope derived</span>
+<span class="sd">    from existing parquet row-group statistics — footer-only reads, no data</span>
+<span class="sd">    scan (~minutes for a continental database; seconds with a dask client).</span>
+<span class="sd">    Query paths (`gh3_load` with ``region=``, `egi_load`) then skip files</span>
+<span class="sd">    whose envelope cannot intersect the query a-priori.</span>
+
+<span class="sd">    Uses the registered dask client when one exists (`parallel_map`);</span>
+<span class="sd">    otherwise a local thread pool — footer reads are tiny and I/O bound.</span>
+<span class="sd">    Local databases only: the index is written at the database root.</span>
+
+<span class="sd">    Returns the index path.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">BBOX_INDEX_FILENAME</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">atomic_parquet_write</span>
+
+    <span class="n">gh3_dir</span> <span class="o">=</span> <span class="n">source</span> <span class="ow">or</span> <span class="n">GH3_DEFAULT_H3_DIR</span>
+    <span class="k">if</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
+            <span class="s2">&quot;The bbox index is written at the database root - build it where &quot;</span>
+            <span class="s2">&quot;the database lives (local path), then read it from anywhere.&quot;</span><span class="p">)</span>
+
+    <span class="n">h3_part</span> <span class="o">=</span> <span class="n">gh3_read_meta</span><span class="p">(</span><span class="s1">&#39;h3_partition_level&#39;</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="n">gh3_dir</span><span class="p">)</span>
+    <span class="n">part_col</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;h3_</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">h3_part</span><span class="p">)</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span> <span class="o">=</span> <span class="n">_bbox_cols_from_meta</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">lat_col</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
+            <span class="s2">&quot;Database schema has no lat/lon predicate columns &quot;</span>
+            <span class="s2">&quot;(lat_lowestmode[_l2a]); cannot build a bbox index.&quot;</span><span class="p">)</span>
+
+    <span class="n">files</span> <span class="o">=</span> <span class="n">smart_glob</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">part_col</span><span class="si">}</span><span class="s1">=*/year=*/*.parquet&#39;</span><span class="p">))</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">files</span><span class="p">:</span>
+        <span class="n">files</span> <span class="o">=</span> <span class="n">smart_glob</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">part_col</span><span class="si">}</span><span class="s1">=*/**/*.parquet&#39;</span><span class="p">),</span>
+                           <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">files</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">GediDatabaseNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No partition parquet files in </span><span class="si">{</span><span class="n">gh3_dir</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">items</span> <span class="o">=</span> <span class="p">[(</span><span class="n">f</span><span class="p">,</span> <span class="n">_bbox_index_key</span><span class="p">(</span><span class="n">f</span><span class="p">),</span> <span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">]</span>
+
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_dask_client</span>
+    <span class="n">client</span> <span class="o">=</span> <span class="n">get_dask_client</span><span class="p">()</span>
+
+    <span class="n">records</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">client</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.parallel</span><span class="w"> </span><span class="kn">import</span> <span class="n">parallel_map</span>
+        <span class="c1"># batch: one task per file would swamp the scheduler at 10^5+ files</span>
+        <span class="k">for</span> <span class="n">_item</span><span class="p">,</span> <span class="n">res</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="n">_scan_file_bbox</span><span class="p">,</span>
+                                       <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;bbox index&#39;</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;file&#39;</span><span class="p">,</span>
+                                       <span class="n">batch_size</span><span class="o">=</span><span class="mi">256</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="n">res</span>
+            <span class="n">records</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="kn">import</span> <span class="n">ThreadPoolExecutor</span>
+        <span class="k">with</span> <span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="nb">min</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span> <span class="ow">or</span> <span class="mi">4</span><span class="p">))</span> <span class="k">as</span> <span class="n">ex</span><span class="p">:</span>
+            <span class="n">records</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ex</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">_scan_file_bbox</span><span class="p">,</span> <span class="n">items</span><span class="p">))</span>
+
+    <span class="n">index_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">.</span><span class="n">from_records</span><span class="p">(</span><span class="n">records</span><span class="p">)</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="s1">&#39;file&#39;</span><span class="p">)</span>
+    <span class="n">index_df</span> <span class="o">=</span> <span class="n">index_df</span><span class="o">.</span><span class="n">astype</span><span class="p">({</span><span class="s1">&#39;file&#39;</span><span class="p">:</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span> <span class="s1">&#39;n_rows&#39;</span><span class="p">:</span> <span class="s1">&#39;int64&#39;</span><span class="p">})</span>
+    <span class="n">opath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">,</span> <span class="n">BBOX_INDEX_FILENAME</span><span class="p">)</span>
+    <span class="n">atomic_parquet_write</span><span class="p">(</span><span class="n">index_df</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">opath</span><span class="p">)</span>
+    <span class="n">_BBOX_INDEX_CACHE</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">opath</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">opath</span></div>
+
+
+
+<div class="viewcode-block" id="invalidate_bbox_index">
+<a class="viewcode-back" href="../../autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.invalidate_bbox_index">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">invalidate_bbox_index</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Delete the bbox-index sidecar when partition data may have changed.</span>
+
+<span class="sd">    The producer-side half of the index contract: a stale index silently</span>
+<span class="sd">    under-selects (the one unacceptable failure), an absent one only costs</span>
+<span class="sd">    speed. Called by ``_merge_and_finalize`` (before its manifest write —</span>
+<span class="sd">    unlinking a root sidecar bumps the root dir mtime) and by</span>
+<span class="sd">    ``gh3_doctor --fix`` after any applied remedy. Idempotent; returns</span>
+<span class="sd">    True when a sidecar was actually removed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">BBOX_INDEX_FILENAME</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">,</span> <span class="n">BBOX_INDEX_FILENAME</span><span class="p">)</span>
+    <span class="n">_BBOX_INDEX_CACHE</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">return</span> <span class="kc">False</span></div>
+
+
+
+<span class="n">_BBOX_INDEX_CACHE</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># index path -&gt; (stamp, mapping-or-None)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_load_bbox_index</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Read the bbox-index sidecar -&gt; ``{rel_key: (lon0, lat0, lon1, lat1)}``.</span>
+
+<span class="sd">    Rows with a NULL bbox are omitted (unknown -&gt; caller keeps the file).</span>
+<span class="sd">    Returns ``None`` when the sidecar is absent or unreadable — callers fall</span>
+<span class="sd">    back to the unindexed path — or when the build log is NEWER than the</span>
+<span class="sd">    index (local roots): every producer that changes the database saves the</span>
+<span class="sd">    log, so this O(1) stat self-guards against any invalidation hook a</span>
+<span class="sd">    future writer forgets. Rebuild with ``gh3_bbox_index`` after any build</span>
+<span class="sd">    or update. Cached per root: local entries revalidate on</span>
+<span class="sd">    ``(mtime_ns, size, inode)``; remote entries (including absence) are held</span>
+<span class="sd">    for the process, same doctrine as ``json_read_cached``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">BBOX_INDEX_FILENAME</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">,</span> <span class="n">BBOX_INDEX_FILENAME</span><span class="p">)</span>
+    <span class="n">remote</span> <span class="o">=</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="n">stamp</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">remote</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">st</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+            <span class="n">stamp</span> <span class="o">=</span> <span class="p">(</span><span class="n">st</span><span class="o">.</span><span class="n">st_mtime_ns</span><span class="p">,</span> <span class="n">st</span><span class="o">.</span><span class="n">st_size</span><span class="p">,</span> <span class="n">st</span><span class="o">.</span><span class="n">st_ino</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="n">_BBOX_INDEX_CACHE</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="c1"># Self-guard (O(1)): every producer that changes the database saves</span>
+        <span class="c1"># the build log, so an index older than the log may describe stale</span>
+        <span class="c1"># envelopes — treat it as absent rather than risk under-selection.</span>
+        <span class="c1"># This subsumes any invalidation hook a future writer forgets.</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">log_mtime</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">))</span><span class="o">.</span><span class="n">st_mtime_ns</span>
+            <span class="k">if</span> <span class="n">log_mtime</span> <span class="o">&gt;</span> <span class="n">st</span><span class="o">.</span><span class="n">st_mtime_ns</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="k">pass</span>  <span class="c1"># no build log locally — nothing to compare against</span>
+    <span class="n">cached</span> <span class="o">=</span> <span class="n">_BBOX_INDEX_CACHE</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cached</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">stamp</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">cached</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">mapping</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">remote</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_open_columnar</span>
+            <span class="k">with</span> <span class="n">smart_open_columnar</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">idx</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">idx</span><span class="o">.</span><span class="n">dropna</span><span class="p">(</span><span class="n">subset</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;lon_min&#39;</span><span class="p">,</span> <span class="s1">&#39;lat_min&#39;</span><span class="p">,</span> <span class="s1">&#39;lon_max&#39;</span><span class="p">,</span> <span class="s1">&#39;lat_max&#39;</span><span class="p">])</span>
+        <span class="n">mapping</span> <span class="o">=</span> <span class="p">{</span><span class="n">r</span><span class="o">.</span><span class="n">file</span><span class="p">:</span> <span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">lon_min</span><span class="p">,</span> <span class="n">r</span><span class="o">.</span><span class="n">lat_min</span><span class="p">,</span> <span class="n">r</span><span class="o">.</span><span class="n">lon_max</span><span class="p">,</span> <span class="n">r</span><span class="o">.</span><span class="n">lat_max</span><span class="p">)</span>
+                   <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">idx</span><span class="o">.</span><span class="n">itertuples</span><span class="p">()}</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="n">mapping</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># absent/unreadable -&gt; unindexed path</span>
+    <span class="n">_BBOX_INDEX_CACHE</span><span class="p">[</span><span class="n">path</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">stamp</span><span class="p">,</span> <span class="n">mapping</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">mapping</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_restore_storage_on_worker</span><span class="p">(</span><span class="n">storage_cfg</span><span class="p">):</span>
@@ -1869,11 +2121,41 @@ window.runMermaid = runMermaid;</script>
 
 <div class="viewcode-block" id="gh3_load_hex">
 <a class="viewcode-back" href="../../autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_load_hex">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">gh3_load_hex</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">part_col</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">_storage_cfg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">gh3_load_hex</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">_bbox_index</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">part_col</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">_storage_cfg</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="n">_restore_storage_on_worker</span><span class="p">(</span><span class="n">_storage_cfg</span><span class="p">)</span>
+
+    <span class="c1"># Region pushdown plumbing (driver-set, see _load_h3_database):</span>
+    <span class="c1"># `_bbox_4326` switches the per-file read to _read_parquet_bbox so the</span>
+    <span class="c1"># region prefilter happens at the parquet-stats layer instead of after a</span>
+    <span class="c1"># full read; `_bbox_index` (data-envelope per year file, from the</span>
+    <span class="c1"># `_bbox_index.parquet` sidecar) skips files that provably cannot</span>
+    <span class="c1"># intersect the region without opening them at all. Both are strict</span>
+    <span class="c1"># supersets of the exact clip applied downstream — results unchanged.</span>
+    <span class="c1"># `_bbox_index` is the SECOND from_map iterable (one small per-partition</span>
+    <span class="c1"># dict per task), never a broadcast kwarg — from_map re-serializes</span>
+    <span class="c1"># kwargs into every task, which would ship the whole index N times on</span>
+    <span class="c1"># continental queries (pillar 1: no driver-side fan-out cost).</span>
+    <span class="n">bbox4326</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;_bbox_4326&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">bbox_strategy</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;_bbox_strategy&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="s1">&#39;fallback&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">bbox_index</span> <span class="o">=</span> <span class="n">_bbox_index</span> <span class="k">if</span> <span class="n">_bbox_index</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;_bbox_index&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
     <span class="n">files</span> <span class="o">=</span> <span class="n">smart_glob</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="s1">&#39;**/*.parquet&#39;</span><span class="p">),</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">cols</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;columns&#39;</span><span class="p">)</span>
     <span class="n">use_geo</span> <span class="o">=</span> <span class="n">cols</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="s1">&#39;geometry&#39;</span> <span class="ow">in</span> <span class="n">cols</span>
+
+    <span class="n">clip_geom</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">bbox4326</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">box</span> <span class="k">as</span> <span class="n">_box</span>
+        <span class="n">clip_geom</span> <span class="o">=</span> <span class="n">_box</span><span class="p">(</span><span class="o">*</span><span class="n">bbox4326</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_read_one</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">bbox4326</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">strategy</span><span class="p">,</span> <span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span> <span class="o">=</span> <span class="n">bbox_strategy</span>
+            <span class="k">return</span> <span class="n">_read_parquet_bbox</span><span class="p">(</span>
+                <span class="n">f</span><span class="p">,</span> <span class="n">bbox_4326</span><span class="o">=</span><span class="n">bbox4326</span><span class="p">,</span> <span class="n">clip_box</span><span class="o">=</span><span class="n">clip_geom</span><span class="p">,</span>
+                <span class="n">columns</span><span class="o">=</span><span class="n">cols</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">use_geo</span><span class="p">,</span>
+                <span class="n">strategy</span><span class="o">=</span><span class="n">strategy</span><span class="p">,</span> <span class="n">lat_col</span><span class="o">=</span><span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="o">=</span><span class="n">lon_col</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_read_parquet_files</span><span class="p">([</span><span class="n">f</span><span class="p">],</span> <span class="n">geo</span><span class="o">=</span><span class="n">use_geo</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="c1"># Per-file read so we can attach the `year` hive partition column from</span>
     <span class="c1"># each file&#39;s path. pd.read_parquet on a LIST of files does NOT</span>
@@ -1884,12 +2166,31 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># every .compute(). Reading per file is the same I/O the list-read</span>
     <span class="c1"># would do internally; the only overhead is N small open() calls.</span>
     <span class="n">parts</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">skipped</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
-        <span class="n">sub</span> <span class="o">=</span> <span class="n">_read_parquet_files</span><span class="p">([</span><span class="n">f</span><span class="p">],</span> <span class="n">geo</span><span class="o">=</span><span class="n">use_geo</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">bbox4326</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">bbox_index</span><span class="p">:</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">bbox_index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">_bbox_index_key</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">b</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">_bbox_disjoint</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">bbox4326</span><span class="p">):</span>
+                <span class="n">skipped</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+                <span class="k">continue</span>
+        <span class="n">sub</span> <span class="o">=</span> <span class="n">_read_one</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
         <span class="k">if</span> <span class="s1">&#39;year&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sub</span><span class="o">.</span><span class="n">columns</span> <span class="ow">and</span> <span class="n">sub</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="s1">&#39;year&#39;</span><span class="p">:</span>
             <span class="n">m</span> <span class="o">=</span> <span class="n">_YEAR_HIVE_RE</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>
             <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
                 <span class="n">sub</span><span class="p">[</span><span class="s1">&#39;year&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sub</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">skipped</span><span class="p">:</span>
+        <span class="c1"># Every file was index-skipped. Produce the correct EMPTY frame by</span>
+        <span class="c1"># reading one skipped file through the same bbox path — its row</span>
+        <span class="c1"># groups all prune, so this is a footer-only read with the right</span>
+        <span class="c1"># schema (columns, dtypes, index).</span>
+        <span class="n">sub</span> <span class="o">=</span> <span class="n">_read_one</span><span class="p">(</span><span class="n">skipped</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">_YEAR_HIVE_RE</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">skipped</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+        <span class="k">if</span> <span class="s1">&#39;year&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sub</span><span class="o">.</span><span class="n">columns</span> <span class="ow">and</span> <span class="n">sub</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="s1">&#39;year&#39;</span> <span class="ow">and</span> <span class="n">m</span><span class="p">:</span>
+            <span class="c1"># explicit dtype: scalar assignment on a 0-row frame does not</span>
+            <span class="c1"># reliably preserve int32, and the dask meta expects it</span>
+            <span class="n">sub</span><span class="p">[</span><span class="s1">&#39;year&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sub</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)),</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;int32&#39;</span><span class="p">)</span>
         <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sub</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
@@ -1952,6 +2253,16 @@ window.runMermaid = runMermaid;</script>
     <span class="n">region_filters</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">if</span> <span class="n">region</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">h3_ids</span> <span class="o">=</span> <span class="n">intersect_h3_geometries</span><span class="p">(</span><span class="n">region</span><span class="p">,</span> <span class="n">h3_ids</span><span class="o">=</span><span class="n">h3_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">h3_ids</span><span class="p">:</span>
+            <span class="c1"># Region touches no partition. Keep one so the schema read and</span>
+            <span class="c1"># the dask graph stay well-formed (from_map rejects an empty</span>
+            <span class="c1"># list); the bbox pushdown + exact clip below then produce the</span>
+            <span class="c1"># correct empty result — same doctrine as _select_dataset_files.</span>
+            <span class="n">_all_ids</span> <span class="o">=</span> <span class="n">gh3_read_meta</span><span class="p">(</span><span class="s2">&quot;h3_partition_ids&quot;</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="n">gh3_dir</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">_all_ids</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">GediDatabaseNotFoundError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;No partitions listed in the build log of </span><span class="si">{</span><span class="n">gh3_dir</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">h3_ids</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">_all_ids</span><span class="p">)[:</span><span class="mi">1</span><span class="p">]</span>
         <span class="n">region_filters</span> <span class="o">=</span> <span class="p">[(</span><span class="n">h3_part_col</span><span class="p">,</span><span class="s1">&#39;in&#39;</span><span class="p">,</span><span class="n">h3_ids</span><span class="p">)]</span>
 
         <span class="k">if</span> <span class="s1">&#39;columns&#39;</span> <span class="ow">in</span> <span class="n">h3_filter</span><span class="p">:</span>
@@ -1994,6 +2305,38 @@ window.runMermaid = runMermaid;</script>
         <span class="k">if</span> <span class="n">filters</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">fm_filter</span><span class="p">[</span><span class="s1">&#39;filters&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">filters</span><span class="p">)</span>
 
+        <span class="c1"># Region bbox pushdown: filter rows at the parquet-stats layer inside</span>
+        <span class="c1"># each partition read instead of full-read + clip-later, and skip</span>
+        <span class="c1"># whole year files a-priori via the `_bbox_index.parquet` data</span>
+        <span class="c1"># envelopes when the sidecar exists. Both are supersets of the exact</span>
+        <span class="c1"># `ddf.clip(region)` applied below, so results are unchanged.</span>
+        <span class="c1"># Disabled when the caller passed their own pyarrow `filters` — the</span>
+        <span class="c1"># bbox read path cannot compose arbitrary predicates with the bbox</span>
+        <span class="c1"># ones on every strategy, and dropping user filters would change</span>
+        <span class="c1"># results; that combination keeps the legacy read.</span>
+        <span class="n">_per_dir_bbox</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">region</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">filters</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">region_to_geometry</span>
+            <span class="n">_bbox</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">region_to_geometry</span><span class="p">(</span><span class="n">region</span><span class="p">)</span><span class="o">.</span><span class="n">bounds</span><span class="p">)</span>
+            <span class="n">_lat</span><span class="p">,</span> <span class="n">_lon</span> <span class="o">=</span> <span class="n">_bbox_cols_from_meta</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">)</span>
+            <span class="n">fm_filter</span><span class="p">[</span><span class="s1">&#39;_bbox_4326&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_bbox</span>
+            <span class="n">fm_filter</span><span class="p">[</span><span class="s1">&#39;_bbox_strategy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="p">(</span><span class="s1">&#39;coord_filter&#39;</span><span class="p">,</span> <span class="n">_lat</span><span class="p">,</span> <span class="n">_lon</span><span class="p">)</span> <span class="k">if</span> <span class="n">_lat</span> <span class="k">else</span> <span class="p">(</span><span class="s1">&#39;fallback&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+            <span class="n">_idx</span> <span class="o">=</span> <span class="n">_load_bbox_index</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">_idx</span><span class="p">:</span>
+                <span class="c1"># Group by partition dir and align one small dict per task</span>
+                <span class="c1"># (second from_map iterable). A kwarg would be re-serialized</span>
+                <span class="c1"># into EVERY task — the whole index x N on continental</span>
+                <span class="c1"># queries, the exact driver fan-out cost pillar 1 forbids.</span>
+                <span class="n">_by_dir</span> <span class="o">=</span> <span class="p">{}</span>
+                <span class="k">for</span> <span class="n">_k</span><span class="p">,</span> <span class="n">_v</span> <span class="ow">in</span> <span class="n">_idx</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">_by_dir</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">_k</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="p">{})[</span><span class="n">_k</span><span class="p">]</span> <span class="o">=</span> <span class="n">_v</span>
+                <span class="n">_per_dir_bbox</span> <span class="o">=</span> <span class="p">[</span>
+                    <span class="n">_by_dir</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">_d</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)))</span> <span class="ow">or</span> <span class="kc">None</span>
+                    <span class="k">for</span> <span class="n">_d</span> <span class="ow">in</span> <span class="n">h3_dirs</span><span class="p">]</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">_per_dir_bbox</span><span class="p">):</span>
+                    <span class="n">_per_dir_bbox</span> <span class="o">=</span> <span class="kc">None</span>
+
         <span class="c1"># Pass storage credentials so Dask workers (separate processes) can</span>
         <span class="c1"># authenticate against remote filesystems.</span>
         <span class="k">if</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">):</span>
@@ -2011,8 +2354,17 @@ window.runMermaid = runMermaid;</script>
             <span class="n">index_name</span><span class="o">=</span><span class="n">h3_index_col</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="k">if</span> <span class="n">_meta</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">_meta</span> <span class="o">=</span> <span class="n">gh3_load_hex</span><span class="p">(</span><span class="n">h3_dirs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">part_col</span><span class="o">=</span><span class="n">h3_part_col</span><span class="p">,</span> <span class="o">**</span><span class="n">fm_filter</span><span class="p">)</span>
-        <span class="n">ddf</span> <span class="o">=</span> <span class="n">dask</span><span class="o">.</span><span class="n">dataframe</span><span class="o">.</span><span class="n">from_map</span><span class="p">(</span><span class="n">gh3_load_hex</span><span class="p">,</span> <span class="n">h3_dirs</span><span class="p">,</span> <span class="n">part_col</span><span class="o">=</span><span class="n">h3_part_col</span><span class="p">,</span> <span class="o">**</span><span class="n">fm_filter</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="n">_meta</span><span class="p">)</span>
+            <span class="n">_meta</span> <span class="o">=</span> <span class="n">gh3_load_hex</span><span class="p">(</span><span class="n">h3_dirs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                                 <span class="n">_per_dir_bbox</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">_per_dir_bbox</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                                 <span class="n">part_col</span><span class="o">=</span><span class="n">h3_part_col</span><span class="p">,</span> <span class="o">**</span><span class="n">fm_filter</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">_per_dir_bbox</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ddf</span> <span class="o">=</span> <span class="n">dask</span><span class="o">.</span><span class="n">dataframe</span><span class="o">.</span><span class="n">from_map</span><span class="p">(</span><span class="n">gh3_load_hex</span><span class="p">,</span> <span class="n">h3_dirs</span><span class="p">,</span> <span class="n">_per_dir_bbox</span><span class="p">,</span>
+                                          <span class="n">part_col</span><span class="o">=</span><span class="n">h3_part_col</span><span class="p">,</span> <span class="o">**</span><span class="n">fm_filter</span><span class="p">,</span>
+                                          <span class="n">meta</span><span class="o">=</span><span class="n">_meta</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ddf</span> <span class="o">=</span> <span class="n">dask</span><span class="o">.</span><span class="n">dataframe</span><span class="o">.</span><span class="n">from_map</span><span class="p">(</span><span class="n">gh3_load_hex</span><span class="p">,</span> <span class="n">h3_dirs</span><span class="p">,</span>
+                                          <span class="n">part_col</span><span class="o">=</span><span class="n">h3_part_col</span><span class="p">,</span> <span class="o">**</span><span class="n">fm_filter</span><span class="p">,</span>
+                                          <span class="n">meta</span><span class="o">=</span><span class="n">_meta</span><span class="p">)</span>
         <span class="k">if</span> <span class="s1">&#39;geometry&#39;</span> <span class="ow">in</span> <span class="n">ddf</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
             <span class="n">ddf</span> <span class="o">=</span> <span class="n">dask_geopandas</span><span class="o">.</span><span class="n">from_dask_dataframe</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="s1">&#39;geometry&#39;</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
@@ -2724,6 +3076,34 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># Drop degenerate edge-of-grid tiles (clamped to zero area by check_crs_limits)</span>
         <span class="n">egi_tiles</span> <span class="o">=</span> <span class="n">egi_tiles</span><span class="p">[</span><span class="n">egi_tiles</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">is_valid</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">egi_tiles</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">area</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)]</span>
 
+    <span class="c1"># Restrict the H3 geometry build to partitions the selected tiles can</span>
+    <span class="c1"># possibly touch (a-priori cell math instead of constructing 10k+</span>
+    <span class="c1"># polygons and a global sindex). EPSG:6933 is per-axis monotonic in</span>
+    <span class="c1"># lon/lat, so the tiles&#39; axis-aligned total_bounds maps to an EXACT</span>
+    <span class="c1"># axis-aligned 4326 box; intersect_h3_geometries&#39; ring-1 then yields a</span>
+    <span class="c1"># provable superset of everything egi_h3_intersection can select —</span>
+    <span class="c1"># tile-intersecting cells are box-intersecting cells, their ring-1</span>
+    <span class="c1"># neighbors are within ring-1 of the box set, and both are restricted</span>
+    <span class="c1"># to the same DB partition list. Result identical, cost proportional</span>
+    <span class="c1"># to the region instead of the database.</span>
+    <span class="k">if</span> <span class="n">region_gdf</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">h3_ids</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">egi_tiles</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">box</span> <span class="k">as</span> <span class="n">_box</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">pyproj</span><span class="w"> </span><span class="kn">import</span> <span class="n">Transformer</span> <span class="k">as</span> <span class="n">_Transformer</span>
+            <span class="n">_t</span> <span class="o">=</span> <span class="n">_Transformer</span><span class="o">.</span><span class="n">from_crs</span><span class="p">(</span><span class="s1">&#39;EPSG:6933&#39;</span><span class="p">,</span> <span class="s1">&#39;EPSG:4326&#39;</span><span class="p">,</span> <span class="n">always_xy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">_x0</span><span class="p">,</span> <span class="n">_y0</span><span class="p">,</span> <span class="n">_x1</span><span class="p">,</span> <span class="n">_y1</span> <span class="o">=</span> <span class="n">egi_tiles</span><span class="o">.</span><span class="n">total_bounds</span>
+            <span class="n">_lon0</span><span class="p">,</span> <span class="n">_lat0</span> <span class="o">=</span> <span class="n">_t</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">_x0</span><span class="p">,</span> <span class="n">_y0</span><span class="p">)</span>
+            <span class="n">_lon1</span><span class="p">,</span> <span class="n">_lat1</span> <span class="o">=</span> <span class="n">_t</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">_x1</span><span class="p">,</span> <span class="n">_y1</span><span class="p">)</span>
+            <span class="n">_cand</span> <span class="o">=</span> <span class="n">intersect_h3_geometries</span><span class="p">(</span><span class="n">_box</span><span class="p">(</span><span class="n">_lon0</span><span class="p">,</span> <span class="n">_lat0</span><span class="p">,</span> <span class="n">_lon1</span><span class="p">,</span> <span class="n">_lat1</span><span class="p">),</span>
+                                            <span class="n">h3_ids</span><span class="o">=</span><span class="n">h3_ids</span><span class="p">,</span> <span class="n">expand_ring</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">_cand</span><span class="p">:</span>
+                <span class="n">h3_ids</span> <span class="o">=</span> <span class="n">_cand</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="c1"># Pure optimization: degenerate tile sets (all-clamped at the</span>
+            <span class="c1"># grid edge -&gt; NaN bounds) must not turn into a GEOSException;</span>
+            <span class="c1"># fall back to the full partition list.</span>
+            <span class="k">pass</span>
+
     <span class="c1"># Get H3 partitions as GeoDataFrame</span>
     <span class="n">h3_gdf</span> <span class="o">=</span> <span class="n">h3_parts_to_gdf</span><span class="p">(</span><span class="n">h3_ids</span><span class="p">)</span>
 
@@ -2738,7 +3118,8 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">_load_egi_tile_from_h3</span><span class="p">(</span><span class="n">egi_bbox</span><span class="p">,</span> <span class="n">h3_list</span><span class="p">,</span> <span class="n">gh3_dir</span><span class="p">,</span> <span class="n">h3_part_col</span><span class="p">,</span> <span class="n">load_cols</span><span class="p">,</span>
                             <span class="n">query</span><span class="p">,</span> <span class="n">index_level</span><span class="p">,</span> <span class="n">partition_level</span><span class="p">,</span> <span class="n">set_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                             <span class="n">tile_egi_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                            <span class="n">bbox_strategy</span><span class="o">=</span><span class="s1">&#39;fallback&#39;</span><span class="p">,</span> <span class="n">bbox_lat_col</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bbox_lon_col</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+                            <span class="n">bbox_strategy</span><span class="o">=</span><span class="s1">&#39;fallback&#39;</span><span class="p">,</span> <span class="n">bbox_lat_col</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bbox_lon_col</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                            <span class="n">file_bboxes</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Load data for a single EGI tile from its intersecting H3 partitions.</span>
 
@@ -2779,6 +3160,12 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        prevents the boundary-edge race where two neighbor tasks both write</span>
 <span class="sd">        to the same canonical filename (last-writer-wins). When ``None``,</span>
 <span class="sd">        no filter is applied (legacy behavior).</span>
+<span class="sd">    file_bboxes : dict, optional</span>
+<span class="sd">        ``{rel_key: (lon0, lat0, lon1, lat1)}`` data envelopes from the</span>
+<span class="sd">        ``_bbox_index.parquet`` sidecar, restricted to this task&#39;s</span>
+<span class="sd">        partitions. Year files whose envelope cannot intersect the tile are</span>
+<span class="sd">        skipped without being opened. Files absent from the dict (or the</span>
+<span class="sd">        dict being ``None``) are always read — fail-safe.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -2834,6 +3221,15 @@ window.runMermaid = runMermaid;</script>
 
         <span class="n">sub_chunks</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">pf</span> <span class="ow">in</span> <span class="n">parquet_files</span><span class="p">:</span>
+            <span class="c1"># A-priori skip: the bbox-index data envelope proves this year</span>
+            <span class="c1"># file holds no shot inside the tile — don&#39;t even open it.</span>
+            <span class="c1"># (64% of the reads a representative EGI query schedules are</span>
+            <span class="c1"># such dead reads; the ring-1 partitions they mostly belong to</span>
+            <span class="c1"># rescue only ~0.03% of rows.)</span>
+            <span class="k">if</span> <span class="n">file_bboxes</span><span class="p">:</span>
+                <span class="n">b</span> <span class="o">=</span> <span class="n">file_bboxes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">_bbox_index_key</span><span class="p">(</span><span class="n">pf</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">b</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">_bbox_disjoint</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">wgs84_bbox</span><span class="p">):</span>
+                    <span class="k">continue</span>
             <span class="c1"># One year file at a time. Encoding-aware routing: avoids the</span>
             <span class="c1"># try/except cost when we already know bbox-pushdown won&#39;t work</span>
             <span class="c1"># on this file&#39;s encoding, and uses parquet column-stats pushdown</span>
@@ -3101,9 +3497,27 @@ window.runMermaid = runMermaid;</script>
     <span class="n">egi_index_col</span> <span class="o">=</span> <span class="n">egi</span><span class="o">.</span><span class="n">egi_col_name</span><span class="p">(</span><span class="n">index_level</span><span class="p">)</span>
     <span class="n">egi_part_col</span> <span class="o">=</span> <span class="n">egi</span><span class="o">.</span><span class="n">egi_col_name</span><span class="p">(</span><span class="n">partition_level</span><span class="p">)</span>
 
-    <span class="c1"># Build list of (egi_id, h3_list, egi_bbox) tuples for from_map</span>
+    <span class="c1"># Per-task data envelopes from the bbox-index sidecar (None when absent).</span>
+    <span class="c1"># Group once by partition dir, then hand each task ONLY its partitions&#39;</span>
+    <span class="c1"># entries — tiny inlined dicts, no client.scatter (established doctrine:</span>
+    <span class="c1"># see the streaming-build driver and _build_add_variables).</span>
+    <span class="n">_bbox_idx</span> <span class="o">=</span> <span class="n">_load_bbox_index</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">)</span>
+    <span class="n">_idx_by_dir</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">_k</span><span class="p">,</span> <span class="n">_v</span> <span class="ow">in</span> <span class="p">(</span><span class="n">_bbox_idx</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">_idx_by_dir</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">_k</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="p">{})[</span><span class="n">_k</span><span class="p">]</span> <span class="o">=</span> <span class="n">_v</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_task_bboxes</span><span class="p">(</span><span class="n">h3_list</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_bbox_idx</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">_h</span> <span class="ow">in</span> <span class="n">h3_list</span><span class="p">:</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">_idx_by_dir</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">h3_part_col</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">_h</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="p">{}))</span>
+        <span class="k">return</span> <span class="n">out</span> <span class="ow">or</span> <span class="kc">None</span>
+
+    <span class="c1"># Build list of (egi_id, h3_list, egi_bbox, file_bboxes) tuples for from_map</span>
     <span class="n">tile_args</span> <span class="o">=</span> <span class="p">[</span>
-        <span class="p">(</span><span class="n">egi_id</span><span class="p">,</span> <span class="n">h3_list</span><span class="p">,</span> <span class="n">egi_tiles</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">egi_id</span><span class="p">,</span> <span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">bounds</span><span class="p">)</span>
+        <span class="p">(</span><span class="n">egi_id</span><span class="p">,</span> <span class="n">h3_list</span><span class="p">,</span> <span class="n">egi_tiles</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">egi_id</span><span class="p">,</span> <span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">bounds</span><span class="p">,</span>
+         <span class="n">_task_bboxes</span><span class="p">(</span><span class="n">h3_list</span><span class="p">))</span>
         <span class="k">for</span> <span class="n">egi_id</span><span class="p">,</span> <span class="n">h3_list</span> <span class="ow">in</span> <span class="n">egi_to_h3</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
     <span class="p">]</span>
 
@@ -3137,7 +3551,7 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># ring-1 expansion would OOM workers on dense tropical L12 tiles).</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">load_tile</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
         <span class="n">_restore_storage_on_worker</span><span class="p">(</span><span class="n">_scfg</span><span class="p">)</span>
-        <span class="n">egi_id</span><span class="p">,</span> <span class="n">h3_list</span><span class="p">,</span> <span class="n">egi_bbox</span> <span class="o">=</span> <span class="n">args</span>
+        <span class="n">egi_id</span><span class="p">,</span> <span class="n">h3_list</span><span class="p">,</span> <span class="n">egi_bbox</span><span class="p">,</span> <span class="n">file_bboxes</span> <span class="o">=</span> <span class="n">args</span>
         <span class="k">return</span> <span class="n">_load_egi_tile_from_h3</span><span class="p">(</span>
             <span class="n">egi_bbox</span><span class="p">,</span> <span class="n">h3_list</span><span class="p">,</span> <span class="n">gh3_dir</span><span class="p">,</span> <span class="n">h3_part_col</span><span class="p">,</span> <span class="n">load_cols</span><span class="p">,</span>
             <span class="n">query</span><span class="p">,</span> <span class="n">index_level</span><span class="p">,</span> <span class="n">partition_level</span><span class="p">,</span> <span class="n">set_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
@@ -3145,6 +3559,7 @@ window.runMermaid = runMermaid;</script>
             <span class="n">bbox_strategy</span><span class="o">=</span><span class="n">bbox_strategy</span><span class="p">,</span>
             <span class="n">bbox_lat_col</span><span class="o">=</span><span class="n">bbox_lat_col</span><span class="p">,</span>
             <span class="n">bbox_lon_col</span><span class="o">=</span><span class="n">bbox_lon_col</span><span class="p">,</span>
+            <span class="n">file_bboxes</span><span class="o">=</span><span class="n">file_bboxes</span><span class="p">,</span>
         <span class="p">)</span>
 
     <span class="c1"># Build metadata from schema (avoids empty sample issue)</span>

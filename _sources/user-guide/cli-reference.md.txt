@@ -223,6 +223,34 @@ gh3_read_schema --grep agbd            # grep filter
 | `--grep` | Filter columns by keyword (case-insensitive) |
 | `-g` | HDF5 group/beam filter (e.g., `BEAM0101`) |
 
+### `gh3_bbox_index`
+
+Build the `_bbox_index.parquet` root sidecar for an H3 database: one row per
+partition year-file with the true data envelope, derived from existing parquet
+row-group statistics. A footer-only scan — no data is read — so it takes
+minutes even on a continental database. Once present, `gh3_extract`,
+`gh3_aggregate` and every other query tool skip partition files a region or
+EGI tile provably cannot touch, instead of reading and discarding them.
+
+```bash
+gh3_bbox_index                      # default H3 database
+gh3_bbox_index -d /path/to/db -N 16 # explicit database, 16 dask workers
+```
+
+| Flag | Description |
+|------|-------------|
+| `-d` | H3 database directory (must be local — the index is written at the root) |
+
+Also accepts the standard dask (`-N`, `-T`, `-M`, `-P`) and verbosity flags.
+
+Safe to re-run at any time, and self-guarding: a stale index could silently
+under-select, a missing one only costs speed, so staleness is impossible by
+construction — `gh3_build` deletes the index at merge **entry** (before the
+first partition write, so even a killed build cannot leave one behind),
+`gh3_doctor --fix` drops it after any applied remedy, and query tools ignore
+any index older than the build log. Re-run `gh3_bbox_index` after each build
+or update to restore the speedup.
+
 ---
 
 ## Common Flags

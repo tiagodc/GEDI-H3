@@ -19,6 +19,7 @@ Attributes
    gedih3.config.PARTITION_META_FILENAME
    gedih3.config.MANIFEST_FILENAME
    gedih3.config.SOC_MANIFEST_FILENAME
+   gedih3.config.BBOX_INDEX_FILENAME
    gedih3.config.GEDI_START_DATE
    gedih3.config.GEDI_MISSION_START
    gedih3.config.GEDI_BEAMS
@@ -72,6 +73,10 @@ Module Contents
 
 .. py:data:: SOC_MANIFEST_FILENAME
    :value: '_soc_manifest.txt'
+
+
+.. py:data:: BBOX_INDEX_FILENAME
+   :value: '_bbox_index.parquet'
 
 
 .. py:function:: configure_environment(mkdirs=False)

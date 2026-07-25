@@ -1,0 +1,22 @@
+gedih3.cli.gh3_bbox_index
+=========================
+
+.. py:module:: gedih3.cli.gh3_bbox_index
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.cli.gh3_bbox_index.get_cmd_args
+   gedih3.cli.gh3_bbox_index.main
+
+
+Module Contents
+---------------
+
+.. py:function:: get_cmd_args()
+
+.. py:function:: main()
+

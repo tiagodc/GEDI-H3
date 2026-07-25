@@ -1597,12 +1597,37 @@ window.runMermaid = runMermaid;</script>
             <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">matched</span><span class="p">)</span>
 
     <span class="c1"># No manifest — fall back to filesystem globbing</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_drop_root_sidecars</span><span class="p">(</span><span class="n">paths</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Never let a data glob sweep in root sidecars.</span>
+
+<span class="sd">        `_manifest.txt`, `_bbox_index.parquet`, ... are metadata living at</span>
+<span class="sd">        the tree root; `**/*.parquet` (recursive matches zero directories)</span>
+<span class="sd">        and `*.parquet` both match them, and a consumer treating the bbox</span>
+<span class="sd">        index as a data partition is a silent-corruption class. Underscore</span>
+<span class="sd">        files directly under the glob root are dropped — unless the</span>
+<span class="sd">        pattern itself asks for underscore names.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">pat_base</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">pattern</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="p">,</span> <span class="s1">&#39;/&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">pat_base</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">paths</span>
+        <span class="n">root_norm</span> <span class="o">=</span> <span class="p">(</span><span class="n">root</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="p">,</span> <span class="s1">&#39;/&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span>
+        <span class="n">kept</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
+            <span class="n">q</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="p">,</span> <span class="s1">&#39;/&#39;</span><span class="p">)</span>
+            <span class="n">parent</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">base</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">rpartition</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">base</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">parent</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="n">root_norm</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">kept</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">kept</span>
+
     <span class="k">if</span> <span class="ow">not</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">pattern</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">_glob_mod</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="n">recursive</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">_drop_root_sidecars</span><span class="p">(</span>
+            <span class="n">_glob_mod</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="n">recursive</span><span class="p">)))</span>
 
     <span class="n">fs</span> <span class="o">=</span> <span class="n">_get_filesystem</span><span class="p">(</span><span class="n">pattern</span><span class="p">)</span>
     <span class="n">protocol</span> <span class="o">=</span> <span class="n">pattern</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;://&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="k">return</span> <span class="n">_remote_glob</span><span class="p">(</span><span class="n">fs</span><span class="p">,</span> <span class="n">protocol</span><span class="p">,</span> <span class="n">pattern</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="n">recursive</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">_drop_root_sidecars</span><span class="p">(</span>
+        <span class="n">_remote_glob</span><span class="p">(</span><span class="n">fs</span><span class="p">,</span> <span class="n">protocol</span><span class="p">,</span> <span class="n">pattern</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="n">recursive</span><span class="p">)))</span></div>
 
 
 
