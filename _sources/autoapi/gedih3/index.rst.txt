@@ -81,7 +81,7 @@ Package Contents
 ----------------
 
 .. py:data:: __version__
-   :value: '0.15.0'
+   :value: '0.16.0'
 
 
 .. py:data:: __author__
