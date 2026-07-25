@@ -64,3 +64,49 @@ def test_missing_partition_list_raises(tmp_path):
     (tmp_path / BUILD_LOG_FILENAME).write_text(json.dumps({'h3_partition_level': PART_RES}))
     with pytest.raises(GediDatabaseNotFoundError):
         gh3_select_partitions(str(tmp_path), region=None)
+
+
+# ------------------------------------------------------- dataset sources
+
+def _make_dataset(tmp_path, index_level=12):
+    """A simplified dataset: one (empty) parquet per partition + sidecar."""
+    from gedih3.config import DATASET_META_FILENAME
+    d = tmp_path / 'ds'
+    d.mkdir()
+    for pid in _PART_IDS:
+        (d / f'{pid}.parquet').write_bytes(b'')
+    meta = {'file_format': 'parquet', 'index_type': 'h3',
+            'index_level': index_level, 'partition_ids': list(_PART_IDS)}
+    (d / DATASET_META_FILENAME).write_text(json.dumps(meta))
+    return str(d)
+
+
+def test_dataset_source_selects_by_region(tmp_path):
+    """Datasets answer through the same safety-gated machinery the loaders use."""
+    ds = _make_dataset(tmp_path)
+    centroid_cell = h3.latlng_to_cell(0.5, -50.5, PART_RES)
+    lat, lon = h3.cell_to_latlng(centroid_cell)
+    ids = gh3_select_partitions(ds, region=[lon - 0.05, lat - 0.05,
+                                            lon + 0.05, lat + 0.05])
+    assert centroid_cell in ids
+    assert set(ids).issubset(set(_PART_IDS))
+
+
+def test_dataset_source_region_none_returns_all(tmp_path):
+    ds = _make_dataset(tmp_path)
+    assert gh3_select_partitions(ds, region=None) == sorted(_PART_IDS)
+
+
+def test_dataset_source_empty_intersection_returns_empty(tmp_path):
+    """Unlike the loader (which keeps one file for the schema read), the
+    selection helper answers the actual question: no partitions."""
+    ds = _make_dataset(tmp_path)
+    assert gh3_select_partitions(ds, region=[100, -80, 101, -79]) == []
+
+
+def test_dataset_unprovable_naming_returns_all(tmp_path):
+    """partition level == index level cannot prove names bound their files;
+    the conservative answer is every partition."""
+    ds = _make_dataset(tmp_path, index_level=PART_RES)
+    ids = gh3_select_partitions(ds, region=[-51, 0, -50, 1])
+    assert set(ids) == set(_PART_IDS)

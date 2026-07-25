@@ -2052,6 +2052,10 @@ def region_to_geometry(spatial):
     if isinstance(spatial, (list, tuple)):
         spatial = box(*spatial)
     elif isinstance(spatial, (gpd.GeoSeries, gpd.GeoDataFrame)):
+        if spatial.crs is None:
+            # CRS-naive geopandas input: assume EPSG:4326 (the package-wide
+            # convention) instead of raising deep inside to_crs.
+            spatial = spatial.set_crs(4326)
         spatial = spatial.to_crs(4326).union_all()
     elif not isinstance(spatial, BaseGeometry):
         raise TypeError(

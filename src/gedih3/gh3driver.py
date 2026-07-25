@@ -109,16 +109,24 @@ def gh3_select_partitions(source, region=None):
     Parameters
     ----------
     source : str
-        Path to an H3 database (the directory holding ``gedih3_build_log.json``).
+        Path to an H3 database (the directory holding
+        ``gedih3_build_log.json``) or a simplified dataset (the directory
+        holding ``gedih3_dataset.json`` — H3 or EGI). Datasets answer
+        through the same safety-gated selection the loaders use
+        (:func:`_select_dataset_files`): when the sidecar cannot prove the
+        filenames bound their files, every partition is returned rather
+        than risking an under-selection.
     region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
         ROI as a vector-file path / ``"W,S,E,N"`` string, ``[W, S, E, N]``
         bbox list, geopandas object, or shapely geometry (EPSG:4326). When
-        ``None`` (default), every partition in the database is returned.
+        ``None`` (default), every partition is returned.
 
     Returns
     -------
     list[str]
-        Sorted H3 partition cell IDs at the database's partition level.
+        Sorted partition IDs: H3 cell IDs at the database's partition level,
+        or the dataset's file-basename partition IDs (H3 cells / EGI hashes).
+        Empty when no dataset partition intersects the region.
 
     Raises
     ------
@@ -135,8 +143,25 @@ def gh3_select_partitions(source, region=None):
     >>> files = [f for i in ids
     ...          for f in glob.glob(f'/data/h3db/h3_03={i}/year=*/*.parquet')]
     """
-    h3_ids = gh3_read_meta("h3_partition_ids", gh3_root_dir=source)
+    try:
+        h3_ids = gh3_read_meta("h3_partition_ids", gh3_root_dir=source)
+    except (FileNotFoundError, OSError):
+        h3_ids = None
+
     if not h3_ids:
+        # Not an H3 database — maybe a simplified dataset (H3 or EGI).
+        # Answer from the same safety-gated machinery the loaders use, so
+        # this helper and gh3_load/egi_load can never disagree.
+        if smart_exists(smart_join(source, DATASET_META_FILENAME)):
+            from .cliutils import detect_dataset_format
+            fmt = detect_dataset_format(source)
+            data_files, _ = _find_dataset_files(source, fmt)
+            if region is not None:
+                data_files = _select_dataset_files(
+                    data_files, region, dataset_path=source,
+                    keep_schema_file=False)
+            return sorted({os.path.splitext(os.path.basename(f))[0]
+                           for f in data_files})
         raise GediDatabaseNotFoundError(
             f"No H3 partition list found in {source} "
             f"(missing or empty 'h3_partition_ids' in {BUILD_LOG_FILENAME})."
@@ -367,7 +392,8 @@ def _dataset_prune_is_safe(dataset_path, kind, part_ids):
     return len(levels) == 1 and levels.pop() > int(idx_level)
 
 
-def _select_dataset_files(data_files, region, logger=None, dataset_path=None):
+def _select_dataset_files(data_files, region, logger=None, dataset_path=None,
+                          keep_schema_file=True):
     """Subset a dataset's files to those whose partition may hold ``region``.
 
     A simplified dataset is one file per spatial partition, so the region
@@ -449,6 +475,8 @@ def _select_dataset_files(data_files, region, logger=None, dataset_path=None):
     selected = [f for pid in keep if pid in by_id for f in by_id[pid]]
 
     if not selected:
+        if not keep_schema_file:
+            return []  # pure selection query — an empty answer is the answer
         # Nothing intersects: keep one file so the schema / _meta reads
         # downstream still have a source and the dask graph is well-formed.
         # The row-level clip decides what actually comes back.
@@ -476,7 +504,7 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         Columns to load.
     query : str, optional
         Pandas query string for filtering.
-    region : GeoDataFrame or bbox, optional
+    region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
         Spatial filter for clipping.
     lazy : bool
         If True, return Dask DataFrame. If False, return computed DataFrame.
@@ -1214,13 +1242,10 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
         ddf = ddf.query(query)
 
     if region is not None and isinstance(ddf, dask_geopandas.GeoDataFrame):
-        from shapely.geometry import box as shapely_box
-        if isinstance(region, list):
-            mask = gpd.GeoDataFrame(geometry=[shapely_box(*region)], crs=4326)
-        elif isinstance(region, (gpd.GeoSeries, gpd.GeoDataFrame)):
-            mask = region.to_crs(4326)
-        else:
-            mask = gpd.GeoDataFrame(geometry=[region], crs=4326)
+        # Same normalizer as the partition selection above — a region that
+        # selects partitions must also be clippable (string/bbox/geo forms).
+        from .utils import region_to_geometry
+        mask = gpd.GeoDataFrame(geometry=[region_to_geometry(region)], crs=4326)
         ddf = ddf.clip(mask)
 
     if query is not None and out_cols is not None:
@@ -1245,7 +1270,7 @@ def gh3_load(source=None, *, columns=None, region=None, query=None,
         If None, falls back to default H3 directory.
     columns : list, optional
         Columns to load.
-    region : GeoDataFrame or bbox, optional
+    region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
         Spatial filter.
     query : str, optional
         Pandas query string for filtering.
@@ -1857,28 +1882,25 @@ def _prepare_egi_loading(region, gh3_dir, partition_level=12):
     """
     from . import egi
     from .h3utils import h3_parts_to_gdf
-    from shapely.geometry import box
 
     # Get H3 partition info
     h3_part = gh3_read_meta("h3_partition_level", gh3_root_dir=gh3_dir)
     h3_part_col = f"h3_{h3_part:02d}"
     h3_ids = gh3_read_meta("h3_partition_ids", gh3_root_dir=gh3_dir)
 
-    # Convert region to GeoDataFrame if needed
+    # Normalize the region through the shared normalizer so the EGI path
+    # accepts exactly what gh3_load accepts (vector path, "W,S,E,N", bbox
+    # list, GeoDataFrame/GeoSeries, shapely) and is always EPSG:4326 —
+    # keeping the two index types from drifting apart on region handling.
     region_gdf = None
     if region is not None:
-        if isinstance(region, (list, tuple)):
-            # bbox: [W, S, E, N] -> GeoDataFrame
+        from .utils import region_to_geometry
+        try:
             region_gdf = gpd.GeoDataFrame(
-                geometry=[box(*region)],
-                crs=4326
+                geometry=[region_to_geometry(region)], crs=4326
             )
-        elif isinstance(region, gpd.GeoDataFrame):
-            region_gdf = region
-        elif isinstance(region, gpd.GeoSeries):
-            region_gdf = gpd.GeoDataFrame(geometry=region)
-        else:
-            raise GediValidationError(f"region must be GeoDataFrame, bbox list, or None. Got {type(region)}")
+        except TypeError as exc:
+            raise GediValidationError(str(exc))
 
     # Get level-12 outer EGI tiles for region
     egi_tiles = egi.aoi_tiles(region_gdf)
@@ -2362,7 +2384,7 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
         If None, falls back to default H3 directory.
     columns : list, optional
         Columns to load.
-    region : GeoDataFrame or bbox, optional
+    region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
         Spatial filter.
     query : str, optional
         Pandas query string for filtering.
@@ -3510,7 +3532,7 @@ def gh3_sample_raster(image_path, data_source=None,
         Path to raster file, VRT, or tile directory
     data_source : str, optional
         Path to H3 database or simplified dataset directory
-    region : GeoDataFrame or bbox, optional
+    region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
         Additional spatial filter
     query : str, optional
         Pandas query string for filtering shots
