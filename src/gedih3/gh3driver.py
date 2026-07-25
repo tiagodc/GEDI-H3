@@ -1063,6 +1063,15 @@ def gh3_build_bbox_index(source=None):
     opath = os.path.join(gh3_dir, BBOX_INDEX_FILENAME)
     atomic_parquet_write(index_df.reset_index(drop=True), opath)
     _BBOX_INDEX_CACHE.pop(opath, None)
+
+    # Writing a root sidecar bumps the root dir's mtime, which would trip
+    # check_manifest_freshness on every later load. The manifest's CONTENT
+    # is untouched — it indexes data files, not root sidecars — so refresh
+    # its timestamp instead of leaving a false stale alarm behind.
+    from .config import MANIFEST_FILENAME
+    manifest = os.path.join(gh3_dir, MANIFEST_FILENAME)
+    if os.path.exists(manifest):
+        os.utime(manifest, None)
     return opath
 
 
