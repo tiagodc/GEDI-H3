@@ -903,7 +903,9 @@ def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat
             else:
                 reader = gpd.read_parquet if geo else pd.read_parquet
                 df = reader(src, columns=cols, filters=filt)
-            if extras and len(df) > 0:
+            if extras:
+                # unconditionally: a 0-row result still carries the helper
+                # columns, and leaking them desyncs the dask meta
                 df = df.drop(columns=extras)
             return df
 
