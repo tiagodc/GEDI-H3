@@ -316,31 +316,21 @@ def endpoint_from_s3_urls(args, logger=None):
     ``s3_endpoint`` itself is never rewritten — it names the server, not
     a bucket path (``setup_storage`` normalizes its scheme separately).
     """
-    from urllib.parse import urlparse
+    from .utils import split_s3_host_url
 
     endpoint = None
     for name, val in list(vars(args).items()):
         if name == 's3_endpoint':
             continue
-        if not isinstance(val, str) or not val.startswith('s3://'):
+        found, normalized = split_s3_host_url(val)
+        if found is None:
             continue
-        netloc = urlparse(val).netloc
-        host, _, port = netloc.rpartition(':')
-        if not host or not port.isdigit():
-            continue
-        remainder = val[len(f's3://{netloc}'):].lstrip('/')
-        if not remainder:
-            raise GediValidationError(
-                f"S3 URL '{val}' names a server but no bucket — expected "
-                f"s3://host:port/bucket/..."
-            )
-        found = f"{'https' if port == '443' else 'http'}://{netloc}"
         if endpoint and found != endpoint:
             raise GediValidationError(
                 f"Conflicting S3 endpoints in arguments: {endpoint} and {found}"
             )
         endpoint = found
-        setattr(args, name, 's3://' + remainder)
+        setattr(args, name, normalized)
         if logger:
             logger.info(f"  S3 endpoint from {name} URL: {endpoint} "
                         f"(bucket path: {getattr(args, name)})")

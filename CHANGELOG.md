@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- The Python API accepts `s3://host:port/bucket/...` sources exactly like the CLI: `gh3_load`, `egi_load` and `gh3_select_partitions` derive the endpoint from the URL (port 443 -> https, else http) via the new shared `utils.split_s3_host_url` / `utils.resolve_s3_source` — the CLI's `endpoint_from_s3_urls` now delegates to the same splitter, so the two layers cannot drift. An endpoint configured explicitly (`configure_storage` / `--s3-endpoint`) always wins; plain-bucket URLs and non-S3 paths are untouched.
+
 ## [0.16.0] - 2026-07-25
 
 ### Added
