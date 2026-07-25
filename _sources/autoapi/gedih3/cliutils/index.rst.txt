@@ -27,6 +27,7 @@ Functions
    gedih3.cliutils.add_dask_args
    gedih3.cliutils.add_verbosity_args
    gedih3.cliutils.add_storage_args
+   gedih3.cliutils.endpoint_from_s3_urls
    gedih3.cliutils.setup_storage
    gedih3.cliutils.add_product_args
    gedih3.cliutils.parse_egi_levels
@@ -279,6 +280,42 @@ Module Contents
    Add remote storage credential arguments to an argument parser.
 
    Covers S3, HTTP/HTTPS, FTP, and SFTP/SSH protocols.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: endpoint_from_s3_urls(args, logger=None)
+
+   
+   Derive an S3 endpoint from ``s3://host:port/bucket/...`` arguments.
+
+   Self-hosted S3 (MinIO, ``rclone serve s3``, Ceph) otherwise needs the
+   server named twice — once in ``--s3-endpoint`` and once implicitly by
+   the bucket path. A bucket name cannot contain ``:``, so a netloc with
+   an explicit port is unambiguously a host, not a bucket: strip it into
+   the endpoint and leave a plain ``s3://bucket/key`` path behind. Port
+   443 implies https, anything else http (self-hosted servers are
+   overwhelmingly plain http; use ``--s3-endpoint`` for a TLS endpoint
+   on a non-standard port).
+
+   Rewrites the matching ``args`` attributes in place and returns the
+   endpoint URL, or ``None`` when no argument uses the host form.
+   ``s3_endpoint`` itself is never rewritten — it names the server, not
+   a bucket path (``setup_storage`` normalizes its scheme separately).
 
 
 

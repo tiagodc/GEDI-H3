@@ -574,6 +574,7 @@
 </pre></div>
 </div>
 <p>Each partition’s <code class="docutils literal notranslate"><span class="pre">*.metadata.json</span></code> sidecar (and the parquet GeoParquet footer) also carries an overhang-padded <code class="docutils literal notranslate"><span class="pre">bbox</span></code> that is safe to intersect against; its <code class="docutils literal notranslate"><span class="pre">h3_geometry</span></code> is the <em>exact</em> cell polygon and is <strong>not</strong>. Compute a padded extent for any cell ID with <code class="docutils literal notranslate"><span class="pre">gedih3.h3_partition_bbox(cell_id,</span> <span class="pre">partition_level)</span></code>.</p>
+<p>Passing <code class="docutils literal notranslate"><span class="pre">region=</span></code> to <code class="docutils literal notranslate"><span class="pre">gh3_load</span></code> / <code class="docutils literal notranslate"><span class="pre">egi_load</span></code> already does this for you, on databases <em>and</em> on simplified datasets (H3 or EGI): only the partition files whose cell can hold data for the region are read, and the rows are clipped exactly afterwards. On a global 12,461-partition dataset a one-degree ROI selects ~4–25 files, so the region argument is worth passing even when you intend to filter again downstream.</p>
 </section>
 </section>
 <hr class="docutils" />

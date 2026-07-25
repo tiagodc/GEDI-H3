@@ -841,7 +841,7 @@ gh3_read_schema<span class="w"> </span>--grep<span class="w"> </span>agbd<span c
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--s3-endpoint</span></code></p></td>
-<td><p>S3 endpoint URL (e.g. <code class="docutils literal notranslate"><span class="pre">http://localhost:7000</span></code>)</p></td>
+<td><p>S3 endpoint URL (e.g. <code class="docutils literal notranslate"><span class="pre">http://localhost:7000</span></code>). Optional — see self-hosted note below</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--s3-key</span></code></p></td>
 <td><p>S3 access key</p></td>
@@ -849,19 +849,22 @@ gh3_read_schema<span class="w"> </span>--grep<span class="w"> </span>agbd<span c
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--s3-secret</span></code></p></td>
 <td><p>S3 secret key</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--s3-anon</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--s3-profile</span></code></p></td>
+<td><p>AWS profile name; forces the botocore credential chain (use for EC2/ECS instance roles)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--s3-anon</span></code></p></td>
 <td><p>Anonymous S3 access (for public buckets)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--remote-user</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--remote-user</span></code></p></td>
 <td><p>Username for HTTP basic auth / FTP / SFTP</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--remote-pass</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--remote-pass</span></code></p></td>
 <td><p>Password for HTTP basic auth / FTP / SFTP</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--remote-token</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--remote-token</span></code></p></td>
 <td><p>Bearer token for HTTP(S) auth</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--ssh-key</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--ssh-key</span></code></p></td>
 <td><p>Path to SSH/SFTP private key file</p></td>
 </tr>
 </tbody>
@@ -878,6 +881,39 @@ gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>sftp://server.exa
 </pre></div>
 </div>
 </div>
+<section id="self-hosted-s3-minio-rclone-serve-s3-ceph">
+<h3>Self-hosted S3 (MinIO, <code class="docutils literal notranslate"><span class="pre">rclone</span> <span class="pre">serve</span> <span class="pre">s3</span></code>, Ceph)<a class="headerlink" href="#self-hosted-s3-minio-rclone-serve-s3-ceph" title="Link to this heading">#</a></h3>
+<p>Name the server in the URL instead of repeating it in <code class="docutils literal notranslate"><span class="pre">--s3-endpoint</span></code> — a bucket
+name cannot contain <code class="docutils literal notranslate"><span class="pre">:</span></code>, so a netloc with an explicit port is unambiguously a
+host. Port <code class="docutils literal notranslate"><span class="pre">443</span></code> implies <code class="docutils literal notranslate"><span class="pre">https</span></code>, anything else <code class="docutils literal notranslate"><span class="pre">http</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># These two are equivalent</span>
+gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>s3://localhost:8855/my_dataset<span class="w"> </span>-egi<span class="w"> </span><span class="m">6</span><span class="w"> </span>-o<span class="w"> </span>output/
+gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>s3://my_dataset<span class="w"> </span>--s3-endpoint<span class="w"> </span>http://localhost:8855<span class="w"> </span>-egi<span class="w"> </span><span class="m">6</span><span class="w"> </span>-o<span class="w"> </span>output/
+</pre></div>
+</div>
+<p>Access defaults to <strong>anonymous</strong> when you pass no credentials <em>and</em> the
+standard AWS credential sources (env vars, <code class="docutils literal notranslate"><span class="pre">~/.aws/credentials</span></code>) are empty —
+so an unauthenticated server just works. When ambient AWS credentials exist
+they are used as usual; pass <code class="docutils literal notranslate"><span class="pre">--s3-anon</span></code> to force anonymous access anyway, or
+<code class="docutils literal notranslate"><span class="pre">--s3-profile</span></code> to force a specific profile (also the escape hatch for EC2/ECS
+instance roles, which cannot be auto-detected). An unauthenticated S3 server
+can equally be read over plain HTTP (<code class="docutils literal notranslate"><span class="pre">-d</span> <span class="pre">http://localhost:8855/my_dataset</span></code>) —
+S3 <code class="docutils literal notranslate"><span class="pre">GetObject</span></code> is an ordinary HTTP <code class="docutils literal notranslate"><span class="pre">GET</span></code>, gedih3 avoids <code class="docutils literal notranslate"><span class="pre">LIST</span></code> on every
+read path that has a <code class="docutils literal notranslate"><span class="pre">_manifest.txt</span></code> / root sidecar, and the HTTP backend
+skips the botocore client bootstrap entirely.</p>
+<p>Remote parquet reads transfer only the column chunks the query projects: the
+fsspec read-ahead cache is disabled and pyarrow coalesces its own ranges. On a
+1.8 GB partition, projecting one column moves 18 MB. Dropping <code class="docutils literal notranslate"><span class="pre">geometry</span></code> from a
+selection matters more than any transport setting — it is 18% of a GEDI
+partition against 1% for a single <code class="docutils literal notranslate"><span class="pre">rh</span></code> column.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><code class="docutils literal notranslate"><span class="pre">rclone</span> <span class="pre">serve</span> <span class="pre">s3</span></code> answers a bucket-level <code class="docutils literal notranslate"><span class="pre">ListObjectsV2</span></code> by
+walking the whole tree — minutes, or worse, on a dataset with tens of thousands
+of partitions. gedih3 avoids listing on every read path, but any other S3 client
+you point at such a server will stall.</p>
+</div>
+</section>
 </section>
 </section>
 
@@ -953,7 +989,10 @@ gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>sftp://server.exa
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#common-flags">Common Flags</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-storage-credentials">Remote Storage Credentials</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-storage-credentials">Remote Storage Credentials</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#self-hosted-s3-minio-rclone-serve-s3-ceph">Self-hosted S3 (MinIO, <code class="docutils literal notranslate"><span class="pre">rclone</span> <span class="pre">serve</span> <span class="pre">s3</span></code>, Ceph)</a></li>
+</ul>
+</li>
 </ul>
   </nav></div>
 

@@ -879,26 +879,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    expand_ring : int, default 1</span>
 <span class="sd">        ``grid_disk`` radius for the overhang-safety expansion; 0 disables.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">box</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseGeometry</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">spatial</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-        <span class="c1"># Mirror the CLI&#39;s parse_region semantics so the Python API can</span>
-        <span class="c1"># accept &quot;region.shp&quot; / &quot;region.gpkg&quot; / &quot;region.geojson&quot; / &quot;W,S,E,N&quot;</span>
-        <span class="c1"># the same way `gh3_extract -r` does. The gh3_load docstring example</span>
-        <span class="c1"># advertises this. Without it, sindex.query() raises a misleading</span>
-        <span class="c1"># &quot;Array should be of object dtype&quot; downstream.</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_region</span>
-        <span class="n">spatial</span> <span class="o">=</span> <span class="n">parse_region</span><span class="p">(</span><span class="n">spatial</span><span class="p">)</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">spatial</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-        <span class="n">spatial</span> <span class="o">=</span> <span class="n">box</span><span class="p">(</span><span class="o">*</span><span class="n">spatial</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">spatial</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoSeries</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">spatial</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">):</span>
-        <span class="n">spatial</span> <span class="o">=</span> <span class="n">spatial</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="mi">4326</span><span class="p">)</span><span class="o">.</span><span class="n">union_all</span><span class="p">()</span>
-    <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">spatial</span><span class="p">,</span> <span class="n">BaseGeometry</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Unsupported region type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">spatial</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">; &quot;</span>
-            <span class="s2">&quot;expected a path/bbox-string, a list [W,S,E,N], a GeoDataFrame/GeoSeries, or a shapely geometry.&quot;</span>
-        <span class="p">)</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">region_to_geometry</span>
+
+    <span class="n">spatial</span> <span class="o">=</span> <span class="n">region_to_geometry</span><span class="p">(</span><span class="n">spatial</span><span class="p">)</span>
 
     <span class="n">full_h3_list</span> <span class="o">=</span> <span class="n">h3_ids</span>
     <span class="k">if</span> <span class="n">h3_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>

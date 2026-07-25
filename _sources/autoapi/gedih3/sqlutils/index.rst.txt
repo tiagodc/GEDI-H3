@@ -48,11 +48,17 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
-.. py:function:: geoseries_to_cells(shp: geopandas.GeoSeries, resolution: int = 3, expand_ring: int = 1)
+.. py:function:: geoseries_to_cells(shp, resolution: int = 3, expand_ring: int = 1)
 
    
-   Convert a GeoSeries to a list of overlapping H3 cells at the given resolution.
+   Convert a region to a list of overlapping H3 cells at *resolution*.
 
+   Accepts every region form the loaders accept (vector-file path,
+   ``"W,S,E,N"`` string, ``[W, S, E, N]`` list, GeoDataFrame/GeoSeries in
+   any CRS, shapely geometry) via :func:`~gedih3.utils.region_to_geometry`,
+   so the DuckDB pre-query selection cannot drift from ``gh3_load``'s —
+   previously a GeoSeries in a projected CRS was fed to h3 as if it were
+   lat/lng degrees.
 
 
 
@@ -71,16 +77,20 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
-.. py:function:: geoseries_to_filter(shp: geopandas.GeoSeries, resolution: int = 3, expand_ring: int = 1)
+.. py:function:: geoseries_to_filter(shp, resolution: int = 3, expand_ring: int = 1)
 
    
-   Convert a GeoSeries to an H3 partition filter at the given resolution.
+   Convert a region to an H3 partition filter at the given resolution.
 
    ``'overlap'`` coverage is exact w.r.t. the cell polygons, but shots are
    stored under their hierarchy partition, which can overhang the polygon
    by ~0.18 x edge length (see ``intersect_h3_geometries``). ``expand_ring``
    adds grid_disk neighbors so boundary shots stored in a non-overlapping
    neighbor partition are not silently filtered out; pass 0 to disable.
+
+   The filter column follows *resolution* (``h3_03`` for the default
+   partition level 3) — pass the database's ``h3_partition_level`` when it
+   differs.
 
 
 

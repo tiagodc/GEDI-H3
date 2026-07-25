@@ -761,6 +761,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">re</span><span class="o">,</span><span class="w"> </span><span class="nn">h3</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
@@ -769,9 +770,10 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">GH3_DEFAULT_H3_DIR</span><span class="p">,</span> <span class="n">configure_environment</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">,</span> <span class="n">DATASET_META_FILENAME</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">json_read</span><span class="p">,</span> <span class="n">json_write</span><span class="p">,</span> <span class="n">now</span><span class="p">,</span> <span class="n">get_package_version</span><span class="p">,</span> <span class="n">is_parquet</span><span class="p">,</span>
-                     <span class="n">smart_glob</span><span class="p">,</span> <span class="n">smart_exists</span><span class="p">,</span> <span class="n">smart_isdir</span><span class="p">,</span> <span class="n">is_remote_path</span><span class="p">,</span>
-                     <span class="n">smart_open</span><span class="p">,</span> <span class="n">generate_manifest</span><span class="p">,</span> <span class="n">check_nan_only_columns</span><span class="p">,</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">json_read</span><span class="p">,</span> <span class="n">json_read_cached</span><span class="p">,</span> <span class="n">json_write</span><span class="p">,</span> <span class="n">now</span><span class="p">,</span> <span class="n">get_package_version</span><span class="p">,</span> <span class="n">is_parquet</span><span class="p">,</span>
+                     <span class="n">smart_glob</span><span class="p">,</span> <span class="n">smart_exists</span><span class="p">,</span> <span class="n">smart_isfile</span><span class="p">,</span> <span class="n">is_remote_path</span><span class="p">,</span>
+                     <span class="n">smart_open</span><span class="p">,</span> <span class="n">smart_open_columnar</span><span class="p">,</span> <span class="n">read_parquet_coalesced</span><span class="p">,</span>
+                     <span class="n">generate_manifest</span><span class="p">,</span> <span class="n">check_nan_only_columns</span><span class="p">,</span>
                      <span class="n">smart_join</span><span class="p">,</span> <span class="n">AtomicFileWriter</span><span class="p">,</span> <span class="n">atomic_parquet_write</span><span class="p">,</span>
                      <span class="n">dask_safe_wait</span><span class="p">,</span> <span class="n">dask_safe_collect</span><span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.h3utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">intersect_h3_geometries</span><span class="p">,</span> <span class="n">fix_h3_geometry</span>
@@ -796,7 +798,7 @@ window.runMermaid = runMermaid;</script>
     <span class="k">else</span><span class="p">:</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">detect_dataset_format</span><span class="p">,</span> <span class="n">read_dataset_schema</span><span class="p">,</span> <span class="n">list_dataset_files</span>
         <span class="n">fmt</span> <span class="o">=</span> <span class="n">detect_dataset_format</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">smart_isdir</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">smart_isfile</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
             <span class="n">available</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">read_dataset_schema</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">fmt</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">files</span> <span class="o">=</span> <span class="n">list_dataset_files</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">)</span>
@@ -850,8 +852,7 @@ window.runMermaid = runMermaid;</script>
 <a class="viewcode-back" href="../../autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_read_meta">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">gh3_read_meta</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="n">GH3_DEFAULT_H3_DIR</span><span class="p">):</span>
     <span class="n">meta_path</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">gh3_root_dir</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">)</span>
-    <span class="n">meta</span> <span class="o">=</span> <span class="n">json_read</span><span class="p">(</span><span class="n">meta_path</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">var</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">json_read_cached</span><span class="p">(</span><span class="n">meta_path</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">var</span><span class="p">)</span></div>
 
 
 
@@ -880,16 +881,24 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    source : str</span>
-<span class="sd">        Path to an H3 database (the directory holding ``gedih3_build_log.json``).</span>
+<span class="sd">        Path to an H3 database (the directory holding</span>
+<span class="sd">        ``gedih3_build_log.json``) or a simplified dataset (the directory</span>
+<span class="sd">        holding ``gedih3_dataset.json`` — H3 or EGI). Datasets answer</span>
+<span class="sd">        through the same safety-gated selection the loaders use</span>
+<span class="sd">        (:func:`_select_dataset_files`): when the sidecar cannot prove the</span>
+<span class="sd">        filenames bound their files, every partition is returned rather</span>
+<span class="sd">        than risking an under-selection.</span>
 <span class="sd">    region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional</span>
 <span class="sd">        ROI as a vector-file path / ``&quot;W,S,E,N&quot;`` string, ``[W, S, E, N]``</span>
 <span class="sd">        bbox list, geopandas object, or shapely geometry (EPSG:4326). When</span>
-<span class="sd">        ``None`` (default), every partition in the database is returned.</span>
+<span class="sd">        ``None`` (default), every partition is returned.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    list[str]</span>
-<span class="sd">        Sorted H3 partition cell IDs at the database&#39;s partition level.</span>
+<span class="sd">        Sorted partition IDs: H3 cell IDs at the database&#39;s partition level,</span>
+<span class="sd">        or the dataset&#39;s file-basename partition IDs (H3 cells / EGI hashes).</span>
+<span class="sd">        Empty when no dataset partition intersects the region.</span>
 
 <span class="sd">    Raises</span>
 <span class="sd">    ------</span>
@@ -906,8 +915,25 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    &gt;&gt;&gt; files = [f for i in ids</span>
 <span class="sd">    ...          for f in glob.glob(f&#39;/data/h3db/h3_03={i}/year=*/*.parquet&#39;)]</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">h3_ids</span> <span class="o">=</span> <span class="n">gh3_read_meta</span><span class="p">(</span><span class="s2">&quot;h3_partition_ids&quot;</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">h3_ids</span> <span class="o">=</span> <span class="n">gh3_read_meta</span><span class="p">(</span><span class="s2">&quot;h3_partition_ids&quot;</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">FileNotFoundError</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">):</span>
+        <span class="n">h3_ids</span> <span class="o">=</span> <span class="kc">None</span>
+
     <span class="k">if</span> <span class="ow">not</span> <span class="n">h3_ids</span><span class="p">:</span>
+        <span class="c1"># Not an H3 database — maybe a simplified dataset (H3 or EGI).</span>
+        <span class="c1"># Answer from the same safety-gated machinery the loaders use, so</span>
+        <span class="c1"># this helper and gh3_load/egi_load can never disagree.</span>
+        <span class="k">if</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">DATASET_META_FILENAME</span><span class="p">)):</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">detect_dataset_format</span>
+            <span class="n">fmt</span> <span class="o">=</span> <span class="n">detect_dataset_format</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+            <span class="n">data_files</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_find_dataset_files</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">fmt</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">region</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">data_files</span> <span class="o">=</span> <span class="n">_select_dataset_files</span><span class="p">(</span>
+                    <span class="n">data_files</span><span class="p">,</span> <span class="n">region</span><span class="p">,</span> <span class="n">dataset_path</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
+                    <span class="n">keep_schema_file</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">return</span> <span class="nb">sorted</span><span class="p">({</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">f</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+                           <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">data_files</span><span class="p">})</span>
         <span class="k">raise</span> <span class="n">GediDatabaseNotFoundError</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">&quot;No H3 partition list found in </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2"> &quot;</span>
             <span class="sa">f</span><span class="s2">&quot;(missing or empty &#39;h3_partition_ids&#39; in </span><span class="si">{</span><span class="n">BUILD_LOG_FILENAME</span><span class="si">}</span><span class="s2">).&quot;</span>
@@ -1038,7 +1064,7 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">meta_path</span><span class="p">):</span>
         <span class="k">return</span> <span class="kc">None</span>
 
-    <span class="n">meta</span> <span class="o">=</span> <span class="n">json_read</span><span class="p">(</span><span class="n">meta_path</span><span class="p">)</span>
+    <span class="n">meta</span> <span class="o">=</span> <span class="n">json_read_cached</span><span class="p">(</span><span class="n">meta_path</span><span class="p">)</span>
 
     <span class="n">idx_type</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_type&#39;</span><span class="p">)</span>
     <span class="n">idx_level</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_level&#39;</span><span class="p">)</span>
@@ -1067,6 +1093,183 @@ window.runMermaid = runMermaid;</script>
         <span class="k">raise</span> <span class="n">GediDatabaseNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No data files found in </span><span class="si">{</span><span class="n">dataset_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_dataset_partition_kind</span><span class="p">(</span><span class="n">part_ids</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Classify dataset partition IDs as ``&#39;h3&#39;``, ``&#39;egi&#39;`` or ``None``.</span>
+
+<span class="sd">    A simplified dataset&#39;s file basenames *are* its partition IDs</span>
+<span class="sd">    (``gh3_write_dataset_meta`` derives ``partition_ids`` from them), so</span>
+<span class="sd">    the file list is where candidates come from. Parsing alone is NOT</span>
+<span class="sd">    proof that a name *bounds* its file&#39;s contents — that proof comes</span>
+<span class="sd">    from the sidecar level check in :func:`_dataset_prune_is_safe`.</span>
+<span class="sd">    ``None`` means &quot;these names are not partition IDs&quot; (e.g. a</span>
+<span class="sd">    hive-style tree), which callers must treat as &quot;cannot prune&quot;.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">part_ids</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="c1"># EGI first: its hashes are decimal uint64 strings, and feeding one to</span>
+    <span class="c1"># h3.is_valid_cell raises OverflowError rather than returning False.</span>
+    <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">isdigit</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">part_ids</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_np</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">egi</span>
+            <span class="k">return</span> <span class="s1">&#39;egi&#39;</span> <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">egi</span><span class="o">.</span><span class="n">validate_hash</span><span class="p">(</span><span class="n">_np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="n">p</span><span class="p">))</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">part_ids</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">OverflowError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">h3</span>
+        <span class="k">return</span> <span class="s1">&#39;h3&#39;</span> <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">h3</span><span class="o">.</span><span class="n">is_valid_cell</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">part_ids</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">OverflowError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_dataset_prune_is_safe</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">,</span> <span class="n">kind</span><span class="p">,</span> <span class="n">part_ids</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;True when each file&#39;s basename provably *bounds* its contents.</span>
+
+<span class="sd">    A basename that parses as a partition ID is not enough:</span>
+<span class="sd">    ``gh3_export_part`` has naming branches that name a file after its</span>
+<span class="sd">    FIRST ROW&#39;s cell (e.g. when a source without a sidecar collapses the</span>
+<span class="sd">    partition level onto the index level), and pruning on such a name</span>
+<span class="sd">    silently drops every row outside it. The checkable proof that names</span>
+<span class="sd">    are bounding partitions is the dataset sidecar declaring a partition</span>
+<span class="sd">    level *strictly coarser* than the index level — then each file is</span>
+<span class="sd">    one spatial partition and its rows nest inside the named cell/tile</span>
+<span class="sd">    (H3 modulo the child overhang covered by ring-1; EGI exactly).</span>
+
+<span class="sd">    Refuses (returns False → caller reads everything) when the sidecar</span>
+<span class="sd">    is missing, the levels are absent or not strictly ordered, the IDs</span>
+<span class="sd">    are not all at the declared coarser level, or files were renamed /</span>
+<span class="sd">    added since the sidecar recorded ``partition_ids``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">dataset_path</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">meta_path</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">,</span> <span class="n">DATASET_META_FILENAME</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">meta_path</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">meta</span> <span class="o">=</span> <span class="n">json_read_cached</span><span class="p">(</span><span class="n">meta_path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_type&#39;</span><span class="p">)</span> <span class="o">!=</span> <span class="n">kind</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">idx_level</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_level&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">idx_level</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">known</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;partition_ids&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">known</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">set</span><span class="p">(</span><span class="n">part_ids</span><span class="p">)</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">known</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;h3&#39;</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">h3</span>
+        <span class="n">levels</span> <span class="o">=</span> <span class="p">{</span><span class="n">h3</span><span class="o">.</span><span class="n">get_resolution</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">part_ids</span><span class="p">}</span>
+        <span class="c1"># H3: finer index = higher resolution number</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">levels</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">levels</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span> <span class="o">&lt;</span> <span class="nb">int</span><span class="p">(</span><span class="n">idx_level</span><span class="p">)</span>
+
+    <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_np</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">egi</span>
+    <span class="n">levels</span> <span class="o">=</span> <span class="p">{</span><span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">_np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span>
+        <span class="n">egi</span><span class="o">.</span><span class="n">get_level</span><span class="p">(</span><span class="n">_np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">part_ids</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">_np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)))}</span>
+    <span class="c1"># EGI: coarser = higher level number (level 12 ~ 160 km is coarsest)</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">levels</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">levels</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span> <span class="o">&gt;</span> <span class="nb">int</span><span class="p">(</span><span class="n">idx_level</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_select_dataset_files</span><span class="p">(</span><span class="n">data_files</span><span class="p">,</span> <span class="n">region</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dataset_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                          <span class="n">keep_schema_file</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Subset a dataset&#39;s files to those whose partition may hold ``region``.</span>
+
+<span class="sd">    A simplified dataset is one file per spatial partition, so the region</span>
+<span class="sd">    answers which files can possibly contribute *before* anything is read.</span>
+<span class="sd">    Without this a 1-degree query against a global dataset schedules every</span>
+<span class="sd">    partition and clips rows afterwards: measured 25 of 12,461 partitions</span>
+<span class="sd">    for a real ROI, i.e. ~500x more remote reads than needed. The H3</span>
+<span class="sd">    database path has always pruned this way (``_load_h3_database``); this</span>
+<span class="sd">    brings datasets — H3 and EGI, local and remote — in line.</span>
+
+<span class="sd">    Selection is deliberately conservative, because under-selection is a</span>
+<span class="sd">    silent data-loss class:</span>
+
+<span class="sd">    * **H3** uses :func:`intersect_h3_geometries`, whose ``expand_ring=1``</span>
+<span class="sd">      default covers the parent/child overhang (a shot can sit outside the</span>
+<span class="sd">      polygon of the partition it is stored in).</span>
+<span class="sd">    * **EGI** intersects the partition squares themselves. EGI is a nested</span>
+<span class="sd">      axis-aligned grid and a shot&#39;s partition square contains its</span>
+<span class="sd">      coordinates by construction, so polygon intersection is exact; the</span>
+<span class="sd">      ROI is densified before reprojection (EPSG:6933 bends straight</span>
+<span class="sd">      lon/lat edges — an un-densified 40-degree edge deviates ~150 km from</span>
+<span class="sd">      its chord) and the 1 m buffer absorbs the float-boundary rounding</span>
+<span class="sd">      documented in ``egi.to_hash``. Degenerate edge-of-grid squares are</span>
+<span class="sd">      kept rather than decided against.</span>
+<span class="sd">    * Anything else (hive trees, hand-named files, datasets whose sidecar</span>
+<span class="sd">      cannot prove the names bound their files — see</span>
+<span class="sd">      :func:`_dataset_prune_is_safe`) returns the full list.</span>
+
+<span class="sd">    Row-level clipping downstream is unchanged — this only removes files</span>
+<span class="sd">    that provably cannot contribute.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">region</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">data_files</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data_files</span>
+
+    <span class="k">if</span> <span class="n">logger</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+        <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+    <span class="n">by_id</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">data_files</span><span class="p">:</span>
+        <span class="n">by_id</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">f</span><span class="p">))[</span><span class="mi">0</span><span class="p">],</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+
+    <span class="n">kind</span> <span class="o">=</span> <span class="n">_dataset_partition_kind</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">by_id</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">kind</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">logger</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Dataset filenames are not partition IDs; reading all files&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">data_files</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_dataset_prune_is_safe</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">,</span> <span class="n">kind</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">by_id</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">logger</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Dataset sidecar cannot prove filenames bound their &quot;</span>
+                         <span class="s2">&quot;files (missing/stale sidecar or partition level not &quot;</span>
+                         <span class="s2">&quot;coarser than index level); reading all files&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">data_files</span>
+
+    <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;h3&#39;</span><span class="p">:</span>
+        <span class="n">keep</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">intersect_h3_geometries</span><span class="p">(</span><span class="n">region</span><span class="p">,</span> <span class="n">h3_ids</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">by_id</span><span class="p">)))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_np</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">shapely</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">egi</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">region_to_geometry</span>
+
+        <span class="n">ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">by_id</span><span class="p">)</span>
+        <span class="n">tiles</span> <span class="o">=</span> <span class="n">egi</span><span class="o">.</span><span class="n">to_geodataframe</span><span class="p">(</span><span class="n">_np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ids</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">_np</span><span class="o">.</span><span class="n">uint64</span><span class="p">),</span> <span class="n">return_polygons</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># Densify before reprojecting: to_crs moves vertices only, and in</span>
+        <span class="c1"># EPSG:6933 y = A*sin(lat), so a straight lon/lat segment bows away</span>
+        <span class="c1"># from its chord (~19 km over 20 deg of latitude, ~480 km over 60).</span>
+        <span class="c1"># 0.1 deg keeps the residual under the 1 m rounding buffer.</span>
+        <span class="n">roi_geom</span> <span class="o">=</span> <span class="n">shapely</span><span class="o">.</span><span class="n">segmentize</span><span class="p">(</span><span class="n">region_to_geometry</span><span class="p">(</span><span class="n">region</span><span class="p">),</span> <span class="mf">0.1</span><span class="p">)</span>
+        <span class="n">roi</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoSeries</span><span class="p">([</span><span class="n">roi_geom</span><span class="p">],</span> <span class="n">crs</span><span class="o">=</span><span class="mi">4326</span><span class="p">)</span>
+        <span class="n">roi</span> <span class="o">=</span> <span class="n">roi</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="n">egi</span><span class="o">.</span><span class="n">EGI_CRS_STRING</span><span class="p">)</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">buffer</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+        <span class="c1"># Undecidable (degenerate / invalid) squares are kept, not dropped.</span>
+        <span class="n">undecidable</span> <span class="o">=</span> <span class="o">~</span><span class="p">(</span><span class="n">tiles</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">is_valid</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">tiles</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">area</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">))</span>
+        <span class="n">hit_pos</span> <span class="o">=</span> <span class="n">tiles</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">sindex</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">roi</span><span class="p">,</span> <span class="n">predicate</span><span class="o">=</span><span class="s1">&#39;intersects&#39;</span><span class="p">)</span>
+        <span class="n">keep</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">h</span><span class="p">)</span> <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="n">tiles</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="n">hit_pos</span><span class="p">]}</span>
+        <span class="n">keep</span> <span class="o">|=</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">h</span><span class="p">)</span> <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="n">tiles</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="n">undecidable</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()]}</span>
+
+    <span class="n">selected</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">pid</span> <span class="ow">in</span> <span class="n">keep</span> <span class="k">if</span> <span class="n">pid</span> <span class="ow">in</span> <span class="n">by_id</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">by_id</span><span class="p">[</span><span class="n">pid</span><span class="p">]]</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">selected</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">keep_schema_file</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>  <span class="c1"># pure selection query — an empty answer is the answer</span>
+        <span class="c1"># Nothing intersects: keep one file so the schema / _meta reads</span>
+        <span class="c1"># downstream still have a source and the dask graph is well-formed.</span>
+        <span class="c1"># The row-level clip decides what actually comes back.</span>
+        <span class="k">if</span> <span class="n">logger</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;No dataset partition intersects the region; keeping &quot;</span>
+                        <span class="s2">&quot;one file for the schema read&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">data_files</span><span class="p">[:</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">logger</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">selected</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">data_files</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Region selects </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">selected</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">data_files</span><span class="p">)</span><span class="si">}</span><span class="s2"> partitions &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="n">kind</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span><span class="si">}</span><span class="s2"> index)&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">selected</span><span class="p">)</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_load_dataset</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Internal: load from simplified dataset (H3 or EGI).</span>
 
@@ -1080,7 +1283,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Columns to load.</span>
 <span class="sd">    query : str, optional</span>
 <span class="sd">        Pandas query string for filtering.</span>
-<span class="sd">    region : GeoDataFrame or bbox, optional</span>
+<span class="sd">    region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional</span>
 <span class="sd">        Spatial filter for clipping.</span>
 <span class="sd">    lazy : bool</span>
 <span class="sd">        If True, return Dask DataFrame. If False, return computed DataFrame.</span>
@@ -1097,7 +1300,7 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># --- Eager mode ---</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">lazy</span><span class="p">:</span>
         <span class="c1"># Single file</span>
-        <span class="k">if</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">smart_isdir</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">smart_isfile</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
             <span class="n">ext</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">path</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
             <span class="n">fmt</span> <span class="o">=</span> <span class="n">ext</span> <span class="k">if</span> <span class="n">ext</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;parquet&#39;</span><span class="p">,</span> <span class="s1">&#39;feather&#39;</span><span class="p">,</span> <span class="s1">&#39;gpkg&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="s1">&#39;parquet&#39;</span>
             <span class="n">_</span><span class="p">,</span> <span class="n">has_geo</span> <span class="o">=</span> <span class="n">read_dataset_schema</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">fmt</span><span class="p">)</span>
@@ -1106,6 +1309,7 @@ window.runMermaid = runMermaid;</script>
 
         <span class="n">fmt</span> <span class="o">=</span> <span class="n">detect_dataset_format</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
         <span class="n">data_files</span><span class="p">,</span> <span class="n">fmt</span> <span class="o">=</span> <span class="n">_find_dataset_files</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">fmt</span><span class="p">)</span>
+        <span class="n">data_files</span> <span class="o">=</span> <span class="n">_select_dataset_files</span><span class="p">(</span><span class="n">data_files</span><span class="p">,</span> <span class="n">region</span><span class="p">,</span> <span class="n">dataset_path</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
         <span class="n">_</span><span class="p">,</span> <span class="n">has_geo</span> <span class="o">=</span> <span class="n">read_dataset_schema</span><span class="p">(</span><span class="n">data_files</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fmt</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">fmt</span> <span class="o">==</span> <span class="s1">&#39;parquet&#39;</span><span class="p">:</span>
@@ -1114,7 +1318,7 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;columns&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">columns</span>
             <span class="k">if</span> <span class="n">filters</span><span class="p">:</span>
                 <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;filters&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">filters</span>
-            <span class="k">return</span> <span class="n">_read_parquet_files</span><span class="p">(</span><span class="n">data_files</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">has_geo</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">_read_parquet_files</span><span class="p">(</span><span class="n">data_files</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">has_geo</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">index_col</span> <span class="o">=</span> <span class="n">_detect_dataset_index_col</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
             <span class="n">load_columns</span> <span class="o">=</span> <span class="n">columns</span>
@@ -1127,7 +1331,20 @@ window.runMermaid = runMermaid;</script>
 
             <span class="k">if</span> <span class="n">index_col</span> <span class="ow">and</span> <span class="n">result</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="n">index_col</span> <span class="ow">and</span> <span class="n">index_col</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
                 <span class="n">result</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="n">index_col</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">result</span>
+
+        <span class="c1"># Partition selection is coarse — clip to the exact region, as the</span>
+        <span class="c1"># lazy branch does. Eager loads used to skip this entirely and hand</span>
+        <span class="c1"># back unfiltered data.</span>
+        <span class="k">if</span> <span class="n">region</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">):</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">region_to_geometry</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">region_to_geometry</span><span class="p">(</span><span class="n">region</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                    <span class="s2">&quot;region ignored: dataset has no geometry column to clip against&quot;</span><span class="p">,</span>
+                    <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+                <span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
 
     <span class="c1"># --- Lazy mode ---</span>
     <span class="n">fmt</span> <span class="o">=</span> <span class="n">detect_dataset_format</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
@@ -1139,6 +1356,11 @@ window.runMermaid = runMermaid;</script>
         <span class="n">load_columns</span><span class="p">,</span> <span class="n">query_only_cols</span> <span class="o">=</span> <span class="n">_add_query_columns</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">fmt</span><span class="p">)</span>
 
     <span class="n">data_files</span><span class="p">,</span> <span class="n">fmt</span> <span class="o">=</span> <span class="n">_find_dataset_files</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">fmt</span><span class="p">)</span>
+
+    <span class="c1"># Drop partitions the region cannot touch before building the graph —</span>
+    <span class="c1"># one task per file, so this is the difference between reading a handful</span>
+    <span class="c1"># of partitions and reading the whole dataset.</span>
+    <span class="n">data_files</span> <span class="o">=</span> <span class="n">_select_dataset_files</span><span class="p">(</span><span class="n">data_files</span><span class="p">,</span> <span class="n">region</span><span class="p">,</span> <span class="n">dataset_path</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
 
     <span class="c1"># Read schema from first file</span>
     <span class="n">col_names</span><span class="p">,</span> <span class="n">has_geometry</span> <span class="o">=</span> <span class="n">read_dataset_schema</span><span class="p">(</span><span class="n">data_files</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fmt</span><span class="p">)</span>
@@ -1211,7 +1433,16 @@ window.runMermaid = runMermaid;</script>
         <span class="n">keep</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">ddf</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">query_only_cols</span><span class="p">]</span>
         <span class="n">ddf</span> <span class="o">=</span> <span class="n">ddf</span><span class="p">[</span><span class="n">keep</span><span class="p">]</span>
     <span class="k">if</span> <span class="n">region</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">ddf</span> <span class="o">=</span> <span class="n">ddf</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">region</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s1">&#39;geometry&#39;</span> <span class="ow">in</span> <span class="n">ddf</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">region_to_geometry</span>
+            <span class="n">ddf</span> <span class="o">=</span> <span class="n">ddf</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">region_to_geometry</span><span class="p">(</span><span class="n">region</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Without a geometry column, dask&#39;s DataFrame.clip(lower=region)</span>
+            <span class="c1"># would numerically clamp every value — never call it here.</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s2">&quot;region ignored: dataset has no geometry column to clip against&quot;</span><span class="p">,</span>
+                <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+            <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">ddf</span>
 
@@ -1304,7 +1535,11 @@ window.runMermaid = runMermaid;</script>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Read parquet file(s), handling remote paths correctly.</span>
 
 <span class="sd">    PyArrow does not recognize http:// URIs natively. For remote paths,</span>
-<span class="sd">    we use fsspec (via smart_open) to open files as file-like objects.</span>
+<span class="sd">    we use fsspec (via smart_open_columnar) to open files as file-like</span>
+<span class="sd">    objects, and let pyarrow coalesce the column-chunk ranges it needs</span>
+<span class="sd">    (``pre_buffer=True``) instead of paying fsspec&#39;s block read-ahead</span>
+<span class="sd">    around every one of them — 358 MB vs 18 MB of server-side reads for a</span>
+<span class="sd">    one-column projection of a 1.8 GB partition.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">reader</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span> <span class="k">if</span> <span class="n">geo</span> <span class="k">else</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span>
 
@@ -1316,8 +1551,8 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># Single file</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">remote</span><span class="p">:</span>
-            <span class="k">with</span> <span class="n">smart_open</span><span class="p">(</span><span class="n">files</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fobj</span><span class="p">:</span>
-                <span class="k">return</span> <span class="n">reader</span><span class="p">(</span><span class="n">fobj</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">smart_open_columnar</span><span class="p">(</span><span class="n">files</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">as</span> <span class="n">fobj</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">read_parquet_coalesced</span><span class="p">(</span><span class="n">fobj</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">geo</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">reader</span><span class="p">(</span><span class="n">files</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="c1"># Multiple local files: pass list directly (PyArrow handles this)</span>
@@ -1327,8 +1562,8 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># Multiple remote files: read each via fsspec, concat</span>
     <span class="n">dfs</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
-        <span class="k">with</span> <span class="n">smart_open</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fobj</span><span class="p">:</span>
-            <span class="n">dfs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">reader</span><span class="p">(</span><span class="n">fobj</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+        <span class="k">with</span> <span class="n">smart_open_columnar</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">as</span> <span class="n">fobj</span><span class="p">:</span>
+            <span class="n">dfs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">read_parquet_coalesced</span><span class="p">(</span><span class="n">fobj</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">geo</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
     <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">dfs</span><span class="p">)</span>
 
 
@@ -1425,35 +1660,50 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    bbox-clipped result; the fallback materializes the full column-projected</span>
 <span class="sd">    file before clipping in memory.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s1">&#39;point&#39;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">bbox_4326</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">)</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">nullcontext</span>
 
-    <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s1">&#39;coord_filter&#39;</span><span class="p">:</span>
-        <span class="n">x0</span><span class="p">,</span> <span class="n">y0</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">y1</span> <span class="o">=</span> <span class="n">bbox_4326</span>
-        <span class="n">filt</span> <span class="o">=</span> <span class="p">[(</span><span class="n">lon_col</span><span class="p">,</span> <span class="s1">&#39;&gt;=&#39;</span><span class="p">,</span> <span class="n">x0</span><span class="p">),</span> <span class="p">(</span><span class="n">lon_col</span><span class="p">,</span> <span class="s1">&#39;&lt;=&#39;</span><span class="p">,</span> <span class="n">x1</span><span class="p">),</span>
-                <span class="p">(</span><span class="n">lat_col</span><span class="p">,</span> <span class="s1">&#39;&gt;=&#39;</span><span class="p">,</span> <span class="n">y0</span><span class="p">),</span> <span class="p">(</span><span class="n">lat_col</span><span class="p">,</span> <span class="s1">&#39;&lt;=&#39;</span><span class="p">,</span> <span class="n">y1</span><span class="p">)]</span>
-        <span class="c1"># Pyarrow&#39;s `filters=` requires the predicate columns to be in the</span>
-        <span class="c1"># read column list; append + drop them if the caller didn&#39;t ask for</span>
-        <span class="c1"># them. The extra column is already on disk in the same row groups</span>
-        <span class="c1"># we&#39;d decode anyway, so the I/O cost is negligible.</span>
-        <span class="n">cols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span> <span class="k">if</span> <span class="n">columns</span> <span class="k">else</span> <span class="kc">None</span>
-        <span class="n">extras</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">if</span> <span class="n">cols</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">(</span><span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="p">):</span>
-                <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">:</span>
-                    <span class="n">cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
-                    <span class="n">extras</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
-        <span class="n">reader</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span> <span class="k">if</span> <span class="n">geo</span> <span class="k">else</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span>
-        <span class="n">df</span> <span class="o">=</span> <span class="n">reader</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">cols</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">filt</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">extras</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">extras</span><span class="p">)</span>
+    <span class="c1"># Remote files go through fsspec with the read-ahead cache off, and</span>
+    <span class="c1"># pyarrow coalesces the ranges it actually needs (smart_open_columnar).</span>
+    <span class="n">remote</span> <span class="o">=</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="n">source_ctx</span> <span class="o">=</span> <span class="n">smart_open_columnar</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">if</span> <span class="n">remote</span> <span class="k">else</span> <span class="n">nullcontext</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">source_ctx</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s1">&#39;point&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">remote</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">read_parquet_coalesced</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                                              <span class="n">bbox</span><span class="o">=</span><span class="n">bbox_4326</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">bbox_4326</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s1">&#39;coord_filter&#39;</span><span class="p">:</span>
+            <span class="n">x0</span><span class="p">,</span> <span class="n">y0</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">y1</span> <span class="o">=</span> <span class="n">bbox_4326</span>
+            <span class="n">filt</span> <span class="o">=</span> <span class="p">[(</span><span class="n">lon_col</span><span class="p">,</span> <span class="s1">&#39;&gt;=&#39;</span><span class="p">,</span> <span class="n">x0</span><span class="p">),</span> <span class="p">(</span><span class="n">lon_col</span><span class="p">,</span> <span class="s1">&#39;&lt;=&#39;</span><span class="p">,</span> <span class="n">x1</span><span class="p">),</span>
+                    <span class="p">(</span><span class="n">lat_col</span><span class="p">,</span> <span class="s1">&#39;&gt;=&#39;</span><span class="p">,</span> <span class="n">y0</span><span class="p">),</span> <span class="p">(</span><span class="n">lat_col</span><span class="p">,</span> <span class="s1">&#39;&lt;=&#39;</span><span class="p">,</span> <span class="n">y1</span><span class="p">)]</span>
+            <span class="c1"># Pyarrow&#39;s `filters=` requires the predicate columns to be in the</span>
+            <span class="c1"># read column list; append + drop them if the caller didn&#39;t ask for</span>
+            <span class="c1"># them. The extra column is already on disk in the same row groups</span>
+            <span class="c1"># we&#39;d decode anyway, so the I/O cost is negligible.</span>
+            <span class="n">cols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span> <span class="k">if</span> <span class="n">columns</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">extras</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">if</span> <span class="n">cols</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">(</span><span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">:</span>
+                        <span class="n">cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+                        <span class="n">extras</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">remote</span><span class="p">:</span>
+                <span class="n">df</span> <span class="o">=</span> <span class="n">read_parquet_coalesced</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">cols</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">geo</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">filt</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">reader</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span> <span class="k">if</span> <span class="n">geo</span> <span class="k">else</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span>
+                <span class="n">df</span> <span class="o">=</span> <span class="n">reader</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">cols</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">filt</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">extras</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">extras</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">df</span>
+
+        <span class="c1"># &#39;fallback&#39; — full read + in-memory geometric clip. Last resort.</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="p">(</span><span class="n">read_parquet_coalesced</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="n">remote</span>
+              <span class="k">else</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">intersects</span><span class="p">(</span><span class="n">clip_box</span><span class="p">)]</span>
         <span class="k">return</span> <span class="n">df</span>
-
-    <span class="c1"># &#39;fallback&#39; — full read + in-memory geometric clip. Last resort.</span>
-    <span class="n">df</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">)</span>
-    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">intersects</span><span class="p">(</span><span class="n">clip_box</span><span class="p">)]</span>
-    <span class="k">return</span> <span class="n">df</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_restore_storage_on_worker</span><span class="p">(</span><span class="n">storage_cfg</span><span class="p">):</span>
@@ -1786,13 +2036,10 @@ window.runMermaid = runMermaid;</script>
         <span class="n">ddf</span> <span class="o">=</span> <span class="n">ddf</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">region</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">dask_geopandas</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">):</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">box</span> <span class="k">as</span> <span class="n">shapely_box</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">region</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-            <span class="n">mask</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">geometry</span><span class="o">=</span><span class="p">[</span><span class="n">shapely_box</span><span class="p">(</span><span class="o">*</span><span class="n">region</span><span class="p">)],</span> <span class="n">crs</span><span class="o">=</span><span class="mi">4326</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">region</span><span class="p">,</span> <span class="p">(</span><span class="n">gpd</span><span class="o">.</span><span class="n">GeoSeries</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">)):</span>
-            <span class="n">mask</span> <span class="o">=</span> <span class="n">region</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="mi">4326</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">mask</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">geometry</span><span class="o">=</span><span class="p">[</span><span class="n">region</span><span class="p">],</span> <span class="n">crs</span><span class="o">=</span><span class="mi">4326</span><span class="p">)</span>
+        <span class="c1"># Same normalizer as the partition selection above — a region that</span>
+        <span class="c1"># selects partitions must also be clippable (string/bbox/geo forms).</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">region_to_geometry</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">geometry</span><span class="o">=</span><span class="p">[</span><span class="n">region_to_geometry</span><span class="p">(</span><span class="n">region</span><span class="p">)],</span> <span class="n">crs</span><span class="o">=</span><span class="mi">4326</span><span class="p">)</span>
         <span class="n">ddf</span> <span class="o">=</span> <span class="n">ddf</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">query</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">out_cols</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1819,7 +2066,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        If None, falls back to default H3 directory.</span>
 <span class="sd">    columns : list, optional</span>
 <span class="sd">        Columns to load.</span>
-<span class="sd">    region : GeoDataFrame or bbox, optional</span>
+<span class="sd">    region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional</span>
 <span class="sd">        Spatial filter.</span>
 <span class="sd">    query : str, optional</span>
 <span class="sd">        Pandas query string for filtering.</span>
@@ -2074,7 +2321,17 @@ window.runMermaid = runMermaid;</script>
         <span class="n">ext</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">odir</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
         <span class="n">opath</span> <span class="o">=</span> <span class="n">odir</span> <span class="k">if</span> <span class="n">ext</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">odir</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">&quot;</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="c1"># Determine output filename from partition ID</span>
+        <span class="c1"># Determine output filename from partition ID.</span>
+        <span class="c1">#</span>
+        <span class="c1"># INVARIANT the naming below relies on: this dask partition holds</span>
+        <span class="c1"># rows of exactly ONE spatial partition, so the first row&#39;s cell</span>
+        <span class="c1"># names them all. That holds for the gedih3 pipeline (from_map</span>
+        <span class="c1"># gives one dask partition per H3 partition dir) but NOT for a</span>
+        <span class="c1"># repartitioned/shuffled frame — there the name describes only</span>
+        <span class="c1"># some rows, and `_select_dataset_files` refuses to prune such</span>
+        <span class="c1"># datasets (see `_dataset_prune_is_safe`: it requires the sidecar</span>
+        <span class="c1"># partition level to be strictly coarser than the index level).</span>
+        <span class="c1"># Use group_by_partition=True for frames that may mix partitions.</span>
         <span class="n">oname</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="c1"># 1. Try partition column (raw data case)</span>
@@ -2431,28 +2688,25 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">egi</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.h3utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">h3_parts_to_gdf</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">box</span>
 
     <span class="c1"># Get H3 partition info</span>
     <span class="n">h3_part</span> <span class="o">=</span> <span class="n">gh3_read_meta</span><span class="p">(</span><span class="s2">&quot;h3_partition_level&quot;</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="n">gh3_dir</span><span class="p">)</span>
     <span class="n">h3_part_col</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;h3_</span><span class="si">{</span><span class="n">h3_part</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">&quot;</span>
     <span class="n">h3_ids</span> <span class="o">=</span> <span class="n">gh3_read_meta</span><span class="p">(</span><span class="s2">&quot;h3_partition_ids&quot;</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="n">gh3_dir</span><span class="p">)</span>
 
-    <span class="c1"># Convert region to GeoDataFrame if needed</span>
+    <span class="c1"># Normalize the region through the shared normalizer so the EGI path</span>
+    <span class="c1"># accepts exactly what gh3_load accepts (vector path, &quot;W,S,E,N&quot;, bbox</span>
+    <span class="c1"># list, GeoDataFrame/GeoSeries, shapely) and is always EPSG:4326 —</span>
+    <span class="c1"># keeping the two index types from drifting apart on region handling.</span>
     <span class="n">region_gdf</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">if</span> <span class="n">region</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">region</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
-            <span class="c1"># bbox: [W, S, E, N] -&gt; GeoDataFrame</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">region_to_geometry</span>
+        <span class="k">try</span><span class="p">:</span>
             <span class="n">region_gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span>
-                <span class="n">geometry</span><span class="o">=</span><span class="p">[</span><span class="n">box</span><span class="p">(</span><span class="o">*</span><span class="n">region</span><span class="p">)],</span>
-                <span class="n">crs</span><span class="o">=</span><span class="mi">4326</span>
+                <span class="n">geometry</span><span class="o">=</span><span class="p">[</span><span class="n">region_to_geometry</span><span class="p">(</span><span class="n">region</span><span class="p">)],</span> <span class="n">crs</span><span class="o">=</span><span class="mi">4326</span>
             <span class="p">)</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">region</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">):</span>
-            <span class="n">region_gdf</span> <span class="o">=</span> <span class="n">region</span>
-        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">region</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoSeries</span><span class="p">):</span>
-            <span class="n">region_gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">geometry</span><span class="o">=</span><span class="n">region</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;region must be GeoDataFrame, bbox list, or None. Got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">region</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">))</span>
 
     <span class="c1"># Get level-12 outer EGI tiles for region</span>
     <span class="n">egi_tiles</span> <span class="o">=</span> <span class="n">egi</span><span class="o">.</span><span class="n">aoi_tiles</span><span class="p">(</span><span class="n">region_gdf</span><span class="p">)</span>
@@ -2706,7 +2960,8 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># Get schema from a parquet file in database</span>
     <span class="n">parquet_file</span> <span class="o">=</span> <span class="n">_find_parquet_file</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">parquet_file</span><span class="p">):</span>
-        <span class="k">with</span> <span class="n">smart_open</span><span class="p">(</span><span class="n">parquet_file</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fobj</span><span class="p">:</span>
+        <span class="c1"># Footer-only read: skip fsspec&#39;s block read-ahead entirely</span>
+        <span class="k">with</span> <span class="n">smart_open_columnar</span><span class="p">(</span><span class="n">parquet_file</span><span class="p">)</span> <span class="k">as</span> <span class="n">fobj</span><span class="p">:</span>
             <span class="n">schema</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">read_schema</span><span class="p">(</span><span class="n">fobj</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">schema</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">read_schema</span><span class="p">(</span><span class="n">parquet_file</span><span class="p">,</span> <span class="n">memory_map</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -2937,7 +3192,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        If None, falls back to default H3 directory.</span>
 <span class="sd">    columns : list, optional</span>
 <span class="sd">        Columns to load.</span>
-<span class="sd">    region : GeoDataFrame or bbox, optional</span>
+<span class="sd">    region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional</span>
 <span class="sd">        Spatial filter.</span>
 <span class="sd">    query : str, optional</span>
 <span class="sd">        Pandas query string for filtering.</span>
@@ -4115,7 +4370,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Path to raster file, VRT, or tile directory</span>
 <span class="sd">    data_source : str, optional</span>
 <span class="sd">        Path to H3 database or simplified dataset directory</span>
-<span class="sd">    region : GeoDataFrame or bbox, optional</span>
+<span class="sd">    region : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional</span>
 <span class="sd">        Additional spatial filter</span>
 <span class="sd">    query : str, optional</span>
 <span class="sd">        Pandas query string for filtering shots</span>

@@ -1003,10 +1003,10 @@ window.runMermaid = runMermaid;</script>
 </li>
       <li><a href="autoapi/gedih3/egi/spatial/index.html#gedih3.egi.spatial.egi_h3_intersection">egi_h3_intersection() (in module gedih3.egi.spatial)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.egi_load">egi_load() (in module gedih3.gh3driver)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.EGI_MAX_LEVEL">EGI_MAX_LEVEL (in module gedih3.validation)</a>
 </li>
       <li><a href="autoapi/gedih3/validation/index.html#gedih3.validation.EGI_MIN_LEVEL">EGI_MIN_LEVEL (in module gedih3.validation)</a>
@@ -1022,6 +1022,8 @@ window.runMermaid = runMermaid;</script>
       <li><a href="autoapi/gedih3/exceptions/index.html#gedih3.exceptions.EGIValidationError">EGIValidationError</a>
 </li>
       <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.enable_debug">enable_debug() (in module gedih3.logging_config)</a>
+</li>
+      <li><a href="autoapi/gedih3/cliutils/index.html#gedih3.cliutils.endpoint_from_s3_urls">endpoint_from_s3_urls() (in module gedih3.cliutils)</a>
 </li>
       <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Severity.ERROR">ERROR (gedih3.doctor.report.Severity attribute)</a>
 </li>
@@ -1909,9 +1911,11 @@ window.runMermaid = runMermaid;</script>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="autoapi/gedih3/vecutils/index.html#gedih3.vecutils.join_polygons_to_points">join_polygons_to_points() (in module gedih3.vecutils)</a>
 </li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.json_read">json_read() (in module gedih3.utils)</a>
+</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.json_read">json_read() (in module gedih3.utils)</a>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.json_read_cached">json_read_cached() (in module gedih3.utils)</a>
 </li>
       <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.json_write">json_write() (in module gedih3.utils)</a>
 </li>
@@ -2182,20 +2186,22 @@ window.runMermaid = runMermaid;</script>
         <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.new_product_vars">(gedih3.logger.SOCDownloadLogger attribute)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.new_spatial">new_spatial (gedih3.logger.H3BuildLogger attribute)</a>
 
       <ul>
         <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.new_spatial">(gedih3.logger.SOCDownloadLogger attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.new_temporal">new_temporal (gedih3.logger.H3BuildLogger attribute)</a>
 
       <ul>
         <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger.new_temporal">(gedih3.logger.SOCDownloadLogger attribute)</a>
 </li>
       </ul></li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.NON_LOCAL_PREFIXES">NON_LOCAL_PREFIXES (in module gedih3.utils)</a>
+</li>
       <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.now">now() (in module gedih3.utils)</a>
 </li>
   </ul></td>
@@ -2362,6 +2368,8 @@ window.runMermaid = runMermaid;</script>
 </li>
       <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.read_img_bounds">read_img_bounds() (in module gedih3.utils)</a>
 </li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.read_parquet_coalesced">read_parquet_coalesced() (in module gedih3.utils)</a>
+</li>
       <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.read_parquet_schema">read_parquet_schema() (in module gedih3.utils)</a>
 </li>
       <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.read_schema">read_schema() (in module gedih3.utils)</a>
@@ -2378,6 +2386,8 @@ window.runMermaid = runMermaid;</script>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.region_to_geometry">region_to_geometry() (in module gedih3.utils)</a>
+</li>
       <li><a href="autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.register">register() (in module gedih3.doctor.runner)</a>
 </li>
       <li><a href="autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.register_pending_granules">register_pending_granules() (gedih3.logger.H3BuildLogger method)</a>
@@ -2454,19 +2464,25 @@ window.runMermaid = runMermaid;</script>
 </li>
       <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Report.severity">severity (gedih3.doctor.report.Report attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="autoapi/gedih3/logging_config/index.html#gedih3.logging_config.silence">silence() (in module gedih3.logging_config)</a>
 </li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.smart_database_exists">smart_database_exists() (in module gedih3.utils)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.smart_exists">smart_exists() (in module gedih3.utils)</a>
 </li>
       <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.smart_glob">smart_glob() (in module gedih3.utils)</a>
 </li>
       <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.smart_isdir">smart_isdir() (in module gedih3.utils)</a>
 </li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.smart_isfile">smart_isfile() (in module gedih3.utils)</a>
+</li>
       <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.smart_join">smart_join() (in module gedih3.utils)</a>
 </li>
       <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.smart_open">smart_open() (in module gedih3.utils)</a>
+</li>
+      <li><a href="autoapi/gedih3/utils/index.html#gedih3.utils.smart_open_columnar">smart_open_columnar() (in module gedih3.utils)</a>
 </li>
       <li><a href="autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.DoctorContext.soc_dir">soc_dir (gedih3.doctor.report.DoctorContext attribute)</a>
 </li>

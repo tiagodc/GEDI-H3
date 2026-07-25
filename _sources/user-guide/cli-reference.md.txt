@@ -248,9 +248,10 @@ All tools that accept a database path (`-d`) can read from remote filesystems. P
 
 | Flag | Description |
 |------|-------------|
-| `--s3-endpoint` | S3 endpoint URL (e.g. `http://localhost:7000`) |
+| `--s3-endpoint` | S3 endpoint URL (e.g. `http://localhost:7000`). Optional — see self-hosted note below |
 | `--s3-key` | S3 access key |
 | `--s3-secret` | S3 secret key |
+| `--s3-profile` | AWS profile name; forces the botocore credential chain (use for EC2/ECS instance roles) |
 | `--s3-anon` | Anonymous S3 access (for public buckets) |
 | `--remote-user` | Username for HTTP basic auth / FTP / SFTP |
 | `--remote-pass` | Password for HTTP basic auth / FTP / SFTP |
@@ -266,4 +267,39 @@ gh3_extract -d s3://my-bucket/h3_database/ --s3-anon -r region.shp -o output/
 # SFTP with SSH key
 gh3_aggregate -d sftp://server.example.com/data/h3/ --ssh-key ~/.ssh/id_rsa -egi 6 -o output/
 ```
+::::
+
+### Self-hosted S3 (MinIO, `rclone serve s3`, Ceph)
+
+Name the server in the URL instead of repeating it in `--s3-endpoint` — a bucket
+name cannot contain `:`, so a netloc with an explicit port is unambiguously a
+host. Port `443` implies `https`, anything else `http`:
+
+```bash
+# These two are equivalent
+gh3_aggregate -d s3://localhost:8855/my_dataset -egi 6 -o output/
+gh3_aggregate -d s3://my_dataset --s3-endpoint http://localhost:8855 -egi 6 -o output/
+```
+
+Access defaults to **anonymous** when you pass no credentials *and* the
+standard AWS credential sources (env vars, `~/.aws/credentials`) are empty —
+so an unauthenticated server just works. When ambient AWS credentials exist
+they are used as usual; pass `--s3-anon` to force anonymous access anyway, or
+`--s3-profile` to force a specific profile (also the escape hatch for EC2/ECS
+instance roles, which cannot be auto-detected). An unauthenticated S3 server
+can equally be read over plain HTTP (`-d http://localhost:8855/my_dataset`) —
+S3 `GetObject` is an ordinary HTTP `GET`, gedih3 avoids `LIST` on every
+read path that has a `_manifest.txt` / root sidecar, and the HTTP backend
+skips the botocore client bootstrap entirely.
+
+Remote parquet reads transfer only the column chunks the query projects: the
+fsspec read-ahead cache is disabled and pyarrow coalesces its own ranges. On a
+1.8 GB partition, projecting one column moves 18 MB. Dropping `geometry` from a
+selection matters more than any transport setting — it is 18% of a GEDI
+partition against 1% for a single `rh` column.
+
+::::{warning} `rclone serve s3` answers a bucket-level `ListObjectsV2` by
+walking the whole tree — minutes, or worse, on a dataset with tens of thousands
+of partitions. gedih3 avoids listing on every read path, but any other S3 client
+you point at such a server will stall.
 ::::

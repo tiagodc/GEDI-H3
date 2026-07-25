@@ -832,13 +832,21 @@ window.runMermaid = runMermaid;</script>
 
 <div class="viewcode-block" id="geoseries_to_cells">
 <a class="viewcode-back" href="../../autoapi/gedih3/sqlutils/index.html#gedih3.sqlutils.geoseries_to_cells">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">geoseries_to_cells</span><span class="p">(</span><span class="n">shp</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoSeries</span><span class="p">,</span> <span class="n">resolution</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span> <span class="n">expand_ring</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert a GeoSeries to a list of overlapping H3 cells at the given resolution.&quot;&quot;&quot;</span>
-    <span class="n">h3_cells</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
-    <span class="k">for</span> <span class="n">geom</span> <span class="ow">in</span> <span class="n">shp</span><span class="p">:</span>
-        <span class="n">h3shape</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">geo_to_h3shape</span><span class="p">(</span><span class="n">geom</span><span class="p">)</span>
-        <span class="n">cells</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">h3shape_to_cells_experimental</span><span class="p">(</span><span class="n">h3shape</span><span class="p">,</span> <span class="n">resolution</span><span class="p">,</span> <span class="s2">&quot;overlap&quot;</span><span class="p">)</span>
-        <span class="n">h3_cells</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">cells</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">geoseries_to_cells</span><span class="p">(</span><span class="n">shp</span><span class="p">,</span> <span class="n">resolution</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span> <span class="n">expand_ring</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert a region to a list of overlapping H3 cells at *resolution*.</span>
+
+<span class="sd">    Accepts every region form the loaders accept (vector-file path,</span>
+<span class="sd">    ``&quot;W,S,E,N&quot;`` string, ``[W, S, E, N]`` list, GeoDataFrame/GeoSeries in</span>
+<span class="sd">    any CRS, shapely geometry) via :func:`~gedih3.utils.region_to_geometry`,</span>
+<span class="sd">    so the DuckDB pre-query selection cannot drift from ``gh3_load``&#39;s —</span>
+<span class="sd">    previously a GeoSeries in a projected CRS was fed to h3 as if it were</span>
+<span class="sd">    lat/lng degrees.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">region_to_geometry</span>
+
+    <span class="n">geom</span> <span class="o">=</span> <span class="n">region_to_geometry</span><span class="p">(</span><span class="n">shp</span><span class="p">)</span>
+    <span class="n">h3shape</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">geo_to_h3shape</span><span class="p">(</span><span class="n">geom</span><span class="p">)</span>
+    <span class="n">h3_cells</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">h3</span><span class="o">.</span><span class="n">h3shape_to_cells_experimental</span><span class="p">(</span><span class="n">h3shape</span><span class="p">,</span> <span class="n">resolution</span><span class="p">,</span> <span class="s2">&quot;overlap&quot;</span><span class="p">))</span>
     <span class="k">if</span> <span class="n">expand_ring</span><span class="p">:</span>
         <span class="n">cells_out</span> <span class="o">=</span> <span class="n">h3_expand_ring</span><span class="p">(</span><span class="n">h3_cells</span><span class="p">,</span> <span class="n">ring</span><span class="o">=</span><span class="n">expand_ring</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
@@ -849,17 +857,21 @@ window.runMermaid = runMermaid;</script>
 
 <div class="viewcode-block" id="geoseries_to_filter">
 <a class="viewcode-back" href="../../autoapi/gedih3/sqlutils/index.html#gedih3.sqlutils.geoseries_to_filter">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">geoseries_to_filter</span><span class="p">(</span><span class="n">shp</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoSeries</span><span class="p">,</span> <span class="n">resolution</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span> <span class="n">expand_ring</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert a GeoSeries to an H3 partition filter at the given resolution.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">geoseries_to_filter</span><span class="p">(</span><span class="n">shp</span><span class="p">,</span> <span class="n">resolution</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span> <span class="n">expand_ring</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert a region to an H3 partition filter at the given resolution.</span>
 
 <span class="sd">    ``&#39;overlap&#39;`` coverage is exact w.r.t. the cell polygons, but shots are</span>
 <span class="sd">    stored under their hierarchy partition, which can overhang the polygon</span>
 <span class="sd">    by ~0.18 x edge length (see ``intersect_h3_geometries``). ``expand_ring``</span>
 <span class="sd">    adds grid_disk neighbors so boundary shots stored in a non-overlapping</span>
 <span class="sd">    neighbor partition are not silently filtered out; pass 0 to disable.</span>
+
+<span class="sd">    The filter column follows *resolution* (``h3_03`` for the default</span>
+<span class="sd">    partition level 3) — pass the database&#39;s ``h3_partition_level`` when it</span>
+<span class="sd">    differs.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">cells_out</span> <span class="o">=</span> <span class="n">geoseries_to_cells</span><span class="p">(</span><span class="n">shp</span><span class="p">,</span> <span class="n">resolution</span><span class="p">,</span> <span class="n">expand_ring</span><span class="p">)</span>
-    <span class="k">return</span> <span class="s2">&quot;h3_03 = ANY(</span><span class="si">{}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">cells_out</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="s2">&quot;h3_</span><span class="si">{:02d}</span><span class="s2"> = ANY(</span><span class="si">{}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">resolution</span><span class="p">,</span> <span class="n">cells_out</span><span class="p">)</span></div>
 
 
 

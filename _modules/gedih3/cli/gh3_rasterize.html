@@ -826,16 +826,13 @@ window.runMermaid = runMermaid;</script>
 
 <span class="sd">    Must be called inside a Dask Client context.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3</span><span class="w"> </span><span class="kn">import</span> <span class="n">raster</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">DATASET_META_FILENAME</span>
 
     <span class="c1"># Read metadata</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_join</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_join</span><span class="p">,</span> <span class="n">json_read_cached</span><span class="p">,</span> <span class="n">is_remote_path</span>
     <span class="n">dataset_meta_path</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">,</span> <span class="n">DATASET_META_FILENAME</span><span class="p">)</span>
-    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">dataset_meta_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-        <span class="n">dataset_meta</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="n">dataset_meta</span> <span class="o">=</span> <span class="n">json_read_cached</span><span class="p">(</span><span class="n">dataset_meta_path</span><span class="p">)</span>
 
     <span class="n">index_type</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_type&#39;</span><span class="p">)</span>
     <span class="n">index_level</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_level&#39;</span><span class="p">)</span>
@@ -859,14 +856,45 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># Build kwargs to forward to rasterize function</span>
     <span class="n">rasterize_kwargs</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">use_egi</span><span class="p">:</span>
-        <span class="c1"># Detect partition level from filenames (each file = one H3 partition cell)</span>
+        <span class="c1"># Partition level: the sidecar knows it; fall back to a partition ID,</span>
+        <span class="c1"># then to a (manifest-backed) listing. Avoids os.listdir, which cannot</span>
+        <span class="c1"># see a remote dataset at all.</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">h3</span>
-        <span class="n">parquet_files</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">)</span> <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.parquet&#39;</span><span class="p">)]</span>
-        <span class="k">if</span> <span class="n">parquet_files</span><span class="p">:</span>
-            <span class="n">partition_id</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">parquet_files</span><span class="p">[</span><span class="mi">0</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
-            <span class="n">partition_level</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">get_resolution</span><span class="p">(</span><span class="n">partition_id</span><span class="p">)</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_glob</span>
+        <span class="n">partition_level</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;h3_partition_level&#39;</span><span class="p">)</span>
+        <span class="n">source</span> <span class="o">=</span> <span class="s1">&#39;metadata&#39;</span>
+        <span class="k">if</span> <span class="n">partition_level</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ids</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;partition_ids&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+            <span class="n">candidates</span> <span class="o">=</span> <span class="n">ids</span> <span class="ow">or</span> <span class="p">[</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">f</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">smart_glob</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">,</span> <span class="s1">&#39;*.parquet&#39;</span><span class="p">))</span>
+            <span class="p">]</span>
+            <span class="n">source</span> <span class="o">=</span> <span class="s1">&#39;partition ids&#39;</span> <span class="k">if</span> <span class="n">ids</span> <span class="k">else</span> <span class="s1">&#39;filenames&#39;</span>
+            <span class="k">for</span> <span class="n">cell</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">partition_level</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">get_resolution</span><span class="p">(</span><span class="n">cell</span><span class="p">)</span>
+                    <span class="k">break</span>
+                <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+                    <span class="k">continue</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">):</span>
+            <span class="c1"># Sidecars can go stale (dataset regenerated in place at another</span>
+            <span class="c1"># level); the filenames are ground truth and one local basename</span>
+            <span class="c1"># is free to check. Remote stays on the sidecar fast path.</span>
+            <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">smart_glob</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">,</span> <span class="s1">&#39;*.parquet&#39;</span><span class="p">))[:</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="n">cell</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">f</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">actual</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">get_resolution</span><span class="p">(</span><span class="n">cell</span><span class="p">)</span>
+                <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+                    <span class="k">break</span>
+                <span class="k">if</span> <span class="n">actual</span> <span class="o">!=</span> <span class="n">partition_level</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Sidecar h3_partition_level=</span><span class="si">{</span><span class="n">partition_level</span><span class="si">}</span><span class="s2"> &quot;</span>
+                                   <span class="sa">f</span><span class="s2">&quot;disagrees with filenames (H3 </span><span class="si">{</span><span class="n">actual</span><span class="si">}</span><span class="s2">); using &quot;</span>
+                                   <span class="sa">f</span><span class="s2">&quot;the filenames&quot;</span><span class="p">)</span>
+                    <span class="n">partition_level</span> <span class="o">=</span> <span class="n">actual</span>
+                    <span class="n">source</span> <span class="o">=</span> <span class="s1">&#39;filenames (sidecar stale)&#39;</span>
+        <span class="k">if</span> <span class="n">partition_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">rasterize_kwargs</span><span class="p">[</span><span class="s1">&#39;partition_level&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">partition_level</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Partition level: H3 </span><span class="si">{</span><span class="n">partition_level</span><span class="si">}</span><span class="s2"> (from filenames)&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Partition level: H3 </span><span class="si">{</span><span class="n">partition_level</span><span class="si">}</span><span class="s2"> (from </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
 
     <span class="c1"># Collect columns to rasterize</span>
     <span class="n">columns</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">list</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">list</span> <span class="k">else</span> <span class="kc">None</span>
@@ -942,8 +970,9 @@ window.runMermaid = runMermaid;</script>
         <span class="n">resolve_path_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;dataset&#39;</span><span class="p">,</span> <span class="s1">&#39;output&#39;</span><span class="p">],</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
 
         <span class="c1"># Validate input dataset exists</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_exists</span><span class="p">,</span> <span class="n">smart_isdir</span><span class="p">,</span> <span class="n">smart_glob</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">dataset</span><span class="p">):</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">smart_exists</span><span class="p">,</span> <span class="n">smart_isdir</span><span class="p">,</span> <span class="n">smart_glob</span><span class="p">,</span>
+                                  <span class="n">smart_database_exists</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">smart_database_exists</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">dataset</span><span class="p">):</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dataset not found: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">dataset</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 

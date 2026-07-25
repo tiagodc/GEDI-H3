@@ -770,6 +770,7 @@ window.runMermaid = runMermaid;</script>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEDI_PRODUCTS</span><span class="p">,</span> <span class="n">ISO3_COUNTRIES_URL</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">,</span> <span class="n">DATASET_META_FILENAME</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">read_vector_file</span><span class="p">,</span> <span class="n">parse_spatial</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">NON_LOCAL_PREFIXES</span> <span class="k">as</span> <span class="n">_URL_PREFIXES</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">GediValidationError</span><span class="p">,</span> <span class="n">GediDatabaseNotFoundError</span>
 <span class="c1"># Note: gh3driver imports are done lazily to avoid circular imports</span>
 
@@ -807,13 +808,11 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    GediValidationError</span>
 <span class="sd">        If detected format is not in PIPELINE_FORMATS</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_exists</span><span class="p">,</span> <span class="n">smart_open</span><span class="p">,</span> <span class="n">smart_glob</span><span class="p">,</span> <span class="n">smart_join</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_exists</span><span class="p">,</span> <span class="n">json_read_cached</span><span class="p">,</span> <span class="n">smart_glob</span><span class="p">,</span> <span class="n">smart_join</span>
 
     <span class="n">meta_path</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">,</span> <span class="n">DATASET_META_FILENAME</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">meta_path</span><span class="p">):</span>
-        <span class="k">with</span> <span class="n">smart_open</span><span class="p">(</span><span class="n">meta_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-            <span class="n">meta</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="n">json_read_cached</span><span class="p">(</span><span class="n">meta_path</span><span class="p">)</span>
         <span class="n">fmt</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;file_format&#39;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">fmt</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">fmt</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">PIPELINE_FORMATS</span><span class="p">:</span>
@@ -899,9 +898,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">fmt</span> <span class="o">==</span> <span class="s1">&#39;parquet&#39;</span><span class="p">:</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">is_remote_path</span><span class="p">,</span> <span class="n">smart_open</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">is_remote_path</span><span class="p">,</span> <span class="n">smart_open_columnar</span>
         <span class="k">if</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">filepath</span><span class="p">):</span>
-            <span class="k">with</span> <span class="n">smart_open</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fobj</span><span class="p">:</span>
+            <span class="c1"># Footer-only read: skip fsspec&#39;s block read-ahead entirely</span>
+            <span class="k">with</span> <span class="n">smart_open_columnar</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span> <span class="k">as</span> <span class="n">fobj</span><span class="p">:</span>
                 <span class="n">schema</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">read_schema</span><span class="p">(</span><span class="n">fobj</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">schema</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">read_schema</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="n">memory_map</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -948,11 +948,15 @@ window.runMermaid = runMermaid;</script>
 
     <span class="k">if</span> <span class="n">fmt</span> <span class="o">==</span> <span class="s1">&#39;parquet&#39;</span><span class="p">:</span>
         <span class="k">def</span><span class="w"> </span><span class="nf">reader</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
-            <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">is_remote_path</span><span class="p">,</span> <span class="n">smart_open</span>
-            <span class="n">read_fn</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span> <span class="k">if</span> <span class="n">geo</span> <span class="k">else</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">is_remote_path</span><span class="p">,</span> <span class="n">smart_open_columnar</span><span class="p">,</span>
+                                <span class="n">read_parquet_coalesced</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
-                <span class="k">with</span> <span class="n">smart_open</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fobj</span><span class="p">:</span>
-                    <span class="k">return</span> <span class="n">read_fn</span><span class="p">(</span><span class="n">fobj</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">)</span>
+                <span class="c1"># No fsspec read-ahead + pyarrow range coalescing: a</span>
+                <span class="c1"># column-projected read then transfers the column chunks</span>
+                <span class="c1"># and nothing else (see smart_open_columnar).</span>
+                <span class="k">with</span> <span class="n">smart_open_columnar</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">as</span> <span class="n">fobj</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">read_parquet_coalesced</span><span class="p">(</span><span class="n">fobj</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">geo</span><span class="p">)</span>
+            <span class="n">read_fn</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span> <span class="k">if</span> <span class="n">geo</span> <span class="k">else</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span>
             <span class="k">return</span> <span class="n">read_fn</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">reader</span>
     <span class="k">elif</span> <span class="n">fmt</span> <span class="o">==</span> <span class="s1">&#39;feather&#39;</span><span class="p">:</span>
@@ -1049,11 +1053,17 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">g</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">add_argument_group</span><span class="p">(</span><span class="s1">&#39;remote storage&#39;</span><span class="p">)</span>
     <span class="n">g</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--s3-endpoint&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;s3_endpoint&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;S3 endpoint URL (e.g. http://localhost:7000)&quot;</span><span class="p">)</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;S3 endpoint URL (e.g. http://localhost:7000). Optional when the &quot;</span>
+                        <span class="s2">&quot;source is given as s3://host:port/bucket/..., which carries the &quot;</span>
+                        <span class="s2">&quot;endpoint in the URL itself&quot;</span><span class="p">)</span>
     <span class="n">g</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--s3-key&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;s3_key&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;S3 access key&quot;</span><span class="p">)</span>
     <span class="n">g</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--s3-secret&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;s3_secret&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;S3 secret key&quot;</span><span class="p">)</span>
+    <span class="n">g</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--s3-profile&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;s3_profile&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;AWS profile name to authenticate with (use to force the &quot;</span>
+                        <span class="s2">&quot;botocore credential chain, e.g. when relying on an &quot;</span>
+                        <span class="s2">&quot;EC2/ECS instance role)&quot;</span><span class="p">)</span>
     <span class="n">g</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--s3-anon&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;s3_anon&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;use anonymous S3 access (for public buckets)&quot;</span><span class="p">)</span>
     <span class="n">g</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--remote-user&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;remote_user&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
@@ -1068,6 +1078,57 @@ window.runMermaid = runMermaid;</script>
 
 
 
+<div class="viewcode-block" id="endpoint_from_s3_urls">
+<a class="viewcode-back" href="../../autoapi/gedih3/cliutils/index.html#gedih3.cliutils.endpoint_from_s3_urls">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">endpoint_from_s3_urls</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Derive an S3 endpoint from ``s3://host:port/bucket/...`` arguments.</span>
+
+<span class="sd">    Self-hosted S3 (MinIO, ``rclone serve s3``, Ceph) otherwise needs the</span>
+<span class="sd">    server named twice — once in ``--s3-endpoint`` and once implicitly by</span>
+<span class="sd">    the bucket path. A bucket name cannot contain ``:``, so a netloc with</span>
+<span class="sd">    an explicit port is unambiguously a host, not a bucket: strip it into</span>
+<span class="sd">    the endpoint and leave a plain ``s3://bucket/key`` path behind. Port</span>
+<span class="sd">    443 implies https, anything else http (self-hosted servers are</span>
+<span class="sd">    overwhelmingly plain http; use ``--s3-endpoint`` for a TLS endpoint</span>
+<span class="sd">    on a non-standard port).</span>
+
+<span class="sd">    Rewrites the matching ``args`` attributes in place and returns the</span>
+<span class="sd">    endpoint URL, or ``None`` when no argument uses the host form.</span>
+<span class="sd">    ``s3_endpoint`` itself is never rewritten — it names the server, not</span>
+<span class="sd">    a bucket path (``setup_storage`` normalizes its scheme separately).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">urllib.parse</span><span class="w"> </span><span class="kn">import</span> <span class="n">urlparse</span>
+
+    <span class="n">endpoint</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="nb">vars</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;s3_endpoint&#39;</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">val</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;s3://&#39;</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="n">netloc</span> <span class="o">=</span> <span class="n">urlparse</span><span class="p">(</span><span class="n">val</span><span class="p">)</span><span class="o">.</span><span class="n">netloc</span>
+        <span class="n">host</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">port</span> <span class="o">=</span> <span class="n">netloc</span><span class="o">.</span><span class="n">rpartition</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">host</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">port</span><span class="o">.</span><span class="n">isdigit</span><span class="p">():</span>
+            <span class="k">continue</span>
+        <span class="n">remainder</span> <span class="o">=</span> <span class="n">val</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;s3://</span><span class="si">{</span><span class="n">netloc</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">):]</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">remainder</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;S3 URL &#39;</span><span class="si">{</span><span class="n">val</span><span class="si">}</span><span class="s2">&#39; names a server but no bucket — expected &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;s3://host:port/bucket/...&quot;</span>
+            <span class="p">)</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="s1">&#39;https&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">port</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s1">&#39;443&#39;</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;http&#39;</span><span class="si">}</span><span class="s2">://</span><span class="si">{</span><span class="n">netloc</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">if</span> <span class="n">endpoint</span> <span class="ow">and</span> <span class="n">found</span> <span class="o">!=</span> <span class="n">endpoint</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Conflicting S3 endpoints in arguments: </span><span class="si">{</span><span class="n">endpoint</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">found</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="n">endpoint</span> <span class="o">=</span> <span class="n">found</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="s1">&#39;s3://&#39;</span> <span class="o">+</span> <span class="n">remainder</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">logger</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  S3 endpoint from </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> URL: </span><span class="si">{</span><span class="n">endpoint</span><span class="si">}</span><span class="s2"> &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;(bucket path: </span><span class="si">{</span><span class="nb">getattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">endpoint</span></div>
+
+
+
 <div class="viewcode-block" id="setup_storage">
 <a class="viewcode-back" href="../../autoapi/gedih3/cliutils/index.html#gedih3.cliutils.setup_storage">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">setup_storage</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -1079,12 +1140,24 @@ window.runMermaid = runMermaid;</script>
 
     <span class="c1"># S3</span>
     <span class="n">s3_kwargs</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="s1">&#39;s3_endpoint&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
-        <span class="n">s3_kwargs</span><span class="p">[</span><span class="s1">&#39;endpoint_url&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">s3_endpoint</span>
+    <span class="c1"># Always normalize s3://host:port/bucket paths; an explicit flag still wins</span>
+    <span class="n">url_endpoint</span> <span class="o">=</span> <span class="n">endpoint_from_s3_urls</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">logger</span><span class="p">)</span>
+    <span class="n">endpoint</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="s1">&#39;s3_endpoint&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="n">url_endpoint</span>
+    <span class="k">if</span> <span class="n">endpoint</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">endpoint</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;s3://&#39;</span><span class="p">):</span>
+            <span class="c1"># An endpoint is an HTTP(S) server, not a bucket URL. Accept the</span>
+            <span class="c1"># s3:// spelling and rewrite the scheme by the same port rule</span>
+            <span class="c1"># endpoint_from_s3_urls uses (443 -&gt; https, else http).</span>
+            <span class="n">netloc</span> <span class="o">=</span> <span class="n">endpoint</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="s1">&#39;s3://&#39;</span><span class="p">):]</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span>
+            <span class="n">port</span> <span class="o">=</span> <span class="n">netloc</span><span class="o">.</span><span class="n">rpartition</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)[</span><span class="mi">2</span><span class="p">]</span>
+            <span class="n">endpoint</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="s1">&#39;https&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">port</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s1">&#39;443&#39;</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;http&#39;</span><span class="si">}</span><span class="s2">://</span><span class="si">{</span><span class="n">netloc</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">s3_kwargs</span><span class="p">[</span><span class="s1">&#39;endpoint_url&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">endpoint</span>
     <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="s1">&#39;s3_key&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
         <span class="n">s3_kwargs</span><span class="p">[</span><span class="s1">&#39;key&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">s3_key</span>
     <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="s1">&#39;s3_secret&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
         <span class="n">s3_kwargs</span><span class="p">[</span><span class="s1">&#39;secret&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">s3_secret</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="s1">&#39;s3_profile&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="n">s3_kwargs</span><span class="p">[</span><span class="s1">&#39;profile&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">s3_profile</span>
     <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="s1">&#39;s3_anon&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
         <span class="n">s3_kwargs</span><span class="p">[</span><span class="s1">&#39;anon&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="k">if</span> <span class="n">s3_kwargs</span><span class="p">:</span>
@@ -1357,10 +1430,6 @@ window.runMermaid = runMermaid;</script>
 
 
 
-<span class="n">_URL_PREFIXES</span> <span class="o">=</span> <span class="p">(</span>
-    <span class="s1">&#39;http://&#39;</span><span class="p">,</span> <span class="s1">&#39;https://&#39;</span><span class="p">,</span> <span class="s1">&#39;s3://&#39;</span><span class="p">,</span> <span class="s1">&#39;gs://&#39;</span><span class="p">,</span> <span class="s1">&#39;gcs://&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;/vsicurl/&#39;</span><span class="p">,</span> <span class="s1">&#39;/vsis3/&#39;</span><span class="p">,</span> <span class="s1">&#39;/vsigs/&#39;</span><span class="p">,</span>
-<span class="p">)</span>
 
 
 <div class="viewcode-block" id="resolve_path_args">
@@ -1504,6 +1573,18 @@ window.runMermaid = runMermaid;</script>
         <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_set_db_path</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">database</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">args</span><span class="o">.</span><span class="n">database</span> <span class="o">=</span> <span class="n">GH3_DEFAULT_H3_DIR</span>
+        <span class="c1"># setup_storage() runs before the default is filled in, so an</span>
+        <span class="c1"># s3://host:port default from ~/.gedih3.env would otherwise miss</span>
+        <span class="c1"># the endpoint normalization a -d argument gets. Re-run it now;</span>
+        <span class="c1"># an explicitly configured endpoint still wins.</span>
+        <span class="n">endpoint</span> <span class="o">=</span> <span class="n">endpoint_from_s3_urls</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">logger</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">endpoint</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">_storage_options</span>
+            <span class="n">s3_opts</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">_storage_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;s3&#39;</span><span class="p">,</span> <span class="p">{}))</span>
+            <span class="k">if</span> <span class="s1">&#39;endpoint_url&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">s3_opts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;client_kwargs&#39;</span><span class="p">,</span> <span class="p">{}):</span>
+                <span class="n">s3_opts</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">&#39;client_kwargs&#39;</span><span class="p">,</span> <span class="p">{})[</span><span class="s1">&#39;endpoint_url&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">endpoint</span>
+                <span class="n">_storage_options</span><span class="p">[</span><span class="s1">&#39;s3&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">s3_opts</span>
+            <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_set_db_path</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">database</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">logger</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Database: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">database</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -1535,16 +1616,14 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        - &#39;partition_level&#39;: int (or None if not applicable)</span>
 <span class="sd">        - Other metadata fields from the source</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_exists</span><span class="p">,</span> <span class="n">smart_open</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_exists</span><span class="p">,</span> <span class="n">json_read_cached</span>
 
     <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_join</span>
     <span class="n">build_log_path</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">)</span>
     <span class="n">dataset_meta_path</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">DATASET_META_FILENAME</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">build_log_path</span><span class="p">):</span>
-        <span class="k">with</span> <span class="n">smart_open</span><span class="p">(</span><span class="n">build_log_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-            <span class="n">meta</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="n">json_read_cached</span><span class="p">(</span><span class="n">build_log_path</span><span class="p">)</span>
         <span class="k">return</span> <span class="p">{</span>
             <span class="s1">&#39;source_type&#39;</span><span class="p">:</span> <span class="s1">&#39;h3_database&#39;</span><span class="p">,</span>
             <span class="s1">&#39;index_type&#39;</span><span class="p">:</span> <span class="s1">&#39;h3&#39;</span><span class="p">,</span>
@@ -1553,8 +1632,7 @@ window.runMermaid = runMermaid;</script>
             <span class="o">**</span><span class="n">meta</span>
         <span class="p">}</span>
     <span class="k">elif</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">dataset_meta_path</span><span class="p">):</span>
-        <span class="k">with</span> <span class="n">smart_open</span><span class="p">(</span><span class="n">dataset_meta_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-            <span class="n">meta</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="n">json_read_cached</span><span class="p">(</span><span class="n">dataset_meta_path</span><span class="p">)</span>
         <span class="n">partition_level</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;egi_partition_level&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;h3_partition_level&#39;</span><span class="p">)</span>
         <span class="c1"># Infer partition level from filenames if not in metadata</span>
         <span class="k">if</span> <span class="n">partition_level</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;h3&#39;</span><span class="p">:</span>

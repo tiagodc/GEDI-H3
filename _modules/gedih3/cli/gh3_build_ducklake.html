@@ -766,7 +766,6 @@ window.runMermaid = runMermaid;</script>
 <span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pathlib</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">dt</span>
 
 
 <div class="viewcode-block" id="get_cmd_args">
@@ -805,7 +804,12 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="get_file_list">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_build_ducklake/index.html#gedih3.cli.gh3_build_ducklake.get_file_list">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_file_list</span><span class="p">(</span><span class="n">root_dir</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate a list of all expected parquet files in the H3 database.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;List the parquet files of the H3 database.</span>
+
+<span class="sd">    Uses the manifest-aware ``smart_glob`` (the `_manifest.txt` sentinel is</span>
+<span class="sd">    O(1) on the GPFS metadata server) instead of guessing filenames from a</span>
+<span class="sd">    year range and the ``&lt;hex&gt;.&lt;year&gt;.0.parquet`` naming contract — the</span>
+<span class="sd">    actual listing also catches fragments the guess would miss.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -815,26 +819,22 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    list of pathlib.Path</span>
-<span class="sd">        Paths to parquet files that exist on disk, ordered so the first element</span>
-<span class="sd">        is guaranteed to exist (used to infer the table schema).</span>
+<span class="sd">        Paths to parquet files, ordered so the first element is guaranteed</span>
+<span class="sd">        to exist (used to infer the table schema).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="kn">import</span> <span class="n">gh3_read_meta</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_glob</span><span class="p">,</span> <span class="n">smart_join</span>
 
     <span class="n">root_dir</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">root_dir</span><span class="p">)</span>
     <span class="n">part_level</span> <span class="o">=</span> <span class="n">gh3_read_meta</span><span class="p">(</span><span class="s2">&quot;h3_partition_level&quot;</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">root_dir</span><span class="p">))</span>
     <span class="k">if</span> <span class="n">part_level</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">part_level</span> <span class="o">=</span> <span class="mi">3</span>
 
-    <span class="n">folders</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">root_dir</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;h3_</span><span class="si">{</span><span class="n">part_level</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">=*&quot;</span><span class="p">))</span>
-    <span class="n">years</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2019</span><span class="p">,</span> <span class="n">dt</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">year</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
-    <span class="n">files</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">pattern</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">root_dir</span><span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;h3_</span><span class="si">{</span><span class="n">part_level</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">=*/year=*/*.parquet&quot;</span><span class="p">)</span>
+    <span class="n">files</span> <span class="o">=</span> <span class="p">[</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">smart_glob</span><span class="p">(</span><span class="n">pattern</span><span class="p">))]</span>
 
-    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">folders</span><span class="p">:</span>
-        <span class="n">hex_id</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;=&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
-        <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">years</span><span class="p">:</span>
-            <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;year=</span><span class="si">{</span><span class="n">y</span><span class="si">}</span><span class="s2">&quot;</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">hex_id</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">y</span><span class="si">}</span><span class="s2">.0.parquet&quot;</span><span class="p">)</span>
-
-    <span class="c1"># Guarantee the first element exists — it is used to create the table schema.</span>
+    <span class="c1"># Guarantee the first element exists — it is used to create the table</span>
+    <span class="c1"># schema (a stale manifest may list files that were since removed).</span>
     <span class="k">while</span> <span class="n">files</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">files</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
         <span class="n">files</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
 

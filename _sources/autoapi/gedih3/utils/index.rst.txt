@@ -4,6 +4,14 @@ gedih3.utils
 .. py:module:: gedih3.utils
 
 
+Attributes
+----------
+
+.. autoapisummary::
+
+   gedih3.utils.NON_LOCAL_PREFIXES
+
+
 Classes
 -------
 
@@ -22,16 +30,21 @@ Functions
    gedih3.utils.configure_storage
    gedih3.utils.get_storage_options
    gedih3.utils.smart_exists
+   gedih3.utils.smart_database_exists
    gedih3.utils.smart_isdir
+   gedih3.utils.smart_isfile
    gedih3.utils.generate_manifest
    gedih3.utils.smart_glob
    gedih3.utils.smart_open
+   gedih3.utils.smart_open_columnar
+   gedih3.utils.read_parquet_coalesced
    gedih3.utils.get_package_version
    gedih3.utils.now
    gedih3.utils.get_system_resources
    gedih3.utils.object_series
    gedih3.utils.json_write
    gedih3.utils.json_read
+   gedih3.utils.json_read_cached
    gedih3.utils.check_nan_only_columns
    gedih3.utils.is_parquet
    gedih3.utils.is_hive_directory
@@ -60,6 +73,7 @@ Functions
    gedih3.utils.parquet_merge_files
    gedih3.utils.parquet_join_columns
    gedih3.utils.parse_temporal
+   gedih3.utils.region_to_geometry
    gedih3.utils.parse_spatial
    gedih3.utils.merge_spatial
    gedih3.utils.get_dask_client
@@ -74,8 +88,13 @@ Module Contents
 .. py:function:: is_remote_path(path)
 
    
-   Check if path is a remote URL (S3, HTTP, FTP, etc.).
+   Check if path is a remote URL handled by fsspec (S3, HTTP, FTP, ...).
 
+   This is the *fsspec* notion of remote, used by every ``smart_*``
+   helper. GDAL's virtual file systems (``/vsicurl/`` and friends) are
+   deliberately excluded — pyarrow/fsspec cannot read them. See
+   :data:`NON_LOCAL_PREFIXES` for the broader set that merely must not
+   be treated as a local filesystem path.
 
 
 
@@ -93,6 +112,10 @@ Module Contents
 
    ..
        !! processed by numpydoc !!
+
+.. py:data:: NON_LOCAL_PREFIXES
+   :value: ('http://', 'https://', 's3://', 'gs://', 'gcs://', 'ftp://', 'sftp://', 'ssh://', '/vsicurl/',...
+
 
 .. py:function:: smart_join(*parts)
 
@@ -178,8 +201,22 @@ Module Contents
    
    Return the stored options for *protocol*.
 
-   Returns ``{'anon': True}`` for S3 when nothing has been configured
-   (public-bucket default). Other protocols return ``{}``.
+   S3 defaults to ``anon=True`` in two cases:
+
+   * nothing at all has been configured for S3 (the long-standing
+     public-bucket default), or
+   * non-credential options (e.g. ``endpoint_url``) were configured, no
+     credential-bearing option is among them, **and** the botocore chain
+     has no ambient credentials (env vars / shared credentials file) to
+     fall back on — e.g. a read-only ``rclone serve s3`` or MinIO with
+     auth disabled. Without this s3fs raises ``NoCredentialsError``,
+     which its own ``exists()`` swallows into a bare ``False`` —
+     surfacing as a misleading "not found".
+
+   When ambient AWS credentials exist and the caller configured only
+   non-credential options, the chain is left to do its job — forcing
+   ``anon=True`` there would break working env-var / profile setups.
+   Other protocols return ``{}``.
 
    :Parameters:
 
@@ -229,11 +266,76 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
+.. py:function:: smart_database_exists(path)
+
+   
+   :func:`smart_exists` for a gedih3 database / dataset root.
+
+   Object stores have no directories: an existence check on a bucket or
+   prefix degrades to a LIST, which some servers answer only after
+   walking the whole tree (``rclone serve s3`` over a 12k-partition
+   dataset takes minutes; a real S3/MinIO is fast but still pays a
+   round trip). Every gh3 tree carries at least one sidecar at its
+   root, so probe those first — a HeadObject each, and the metadata
+   readers that follow need them anyway. Falls back to the generic
+   directory check so plain parquet directories (no sidecar) still
+   resolve.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
 .. py:function:: smart_isdir(path)
 
    
    os.path.isdir() that works with remote paths.
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: smart_isfile(path)
+
+   
+   True when *path* is a single data file rather than a dataset directory.
+
+   Remote paths answer from the extension instead of probing: object
+   stores have no directories, so ``isdir()`` on a bucket or prefix
+   degrades to a LIST — the exact O(N) round trip the manifest sentinel
+   exists to avoid, and one that ``rclone serve s3`` answers only after
+   walking the whole tree. Every gh3 single-file output carries one of
+   the known extensions, so the answer is knowable for free. Local
+   paths use ``os.path.isfile``. A trailing slash is the one unambiguous
+   "this is a directory" signal a URL can carry, so it always answers
+   ``False`` — even when the directory name ends in a data extension
+   (e.g. ``gh3_extract -o s3://bucket/out.parquet`` writes a directory).
 
 
 
@@ -376,6 +478,78 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
+.. py:function:: smart_open_columnar(path, storage_options=None)
+
+   
+   Open a remote parquet file for pyarrow, with no client-side read-ahead.
+
+   fsspec's default file cache fetches a whole block (5 MB for HTTP)
+   around every read. Pyarrow already knows exactly which byte ranges it
+   wants and coalesces them itself (``pre_buffer=True``), so that block
+   is pure over-fetch — and a column-projected read touches dozens of
+   small, scattered ranges. Measured against ``rclone serve http`` on a
+   1.8 GB GEDI partition, projecting one column (18 MB of column chunks
+   + footer): 358 MB pulled off GPFS with the default cache, 18 MB with
+   ``cache_type='none'`` plus pyarrow's own coalescing.
+
+   Returns an open binary file object (not a context manager wrapper);
+   callers use it with ``with``. Local paths are opened directly — the
+   kernel page cache already does the right thing.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: read_parquet_coalesced(source, columns=None, geo=True, **kwargs)
+
+   
+   Read a parquet source with pyarrow range coalescing enabled.
+
+   Pair with :func:`smart_open_columnar` on remote reads: that turns off
+   fsspec's block read-ahead, this makes pyarrow fetch the column chunks
+   it needs in as few ranges as possible.
+
+   ``geopandas.read_parquet`` forwards ``**kwargs`` to
+   ``pyarrow.parquet.read_table``, so ``pre_buffer=True`` reaches the
+   reader. ``pandas.read_parquet`` does not coalesce (measured: 50
+   scattered server reads vs 26 for ``read_table`` on the same query),
+   so the non-geo path calls ``read_table`` directly and converts —
+   verified to produce an identical frame, dtypes included, on GEDI
+   partitions. ``use_pandas_metadata=True`` matches what
+   ``pandas.read_parquet`` always sets: without it a column-projected
+   read drops the index column recorded in the pandas metadata and the
+   frame comes back with a RangeIndex instead of e.g. ``h3_12``.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
 .. py:function:: get_package_version()
 
    
@@ -443,6 +617,50 @@ Module Contents
 .. py:function:: json_write(obj, path, mode='w', rewrite=False)
 
 .. py:function:: json_read(path, mode='r')
+
+.. py:function:: json_read_cached(path)
+
+   
+   :func:`json_read` memoized per path — for read-only metadata sidecars.
+
+   A single CLI invocation asks the build log a dozen questions
+   (``h3_columns``, ``h3_columns_dtypes``, ``h3_partition_level``,
+   ``h3_partition_ids``, ``gedi_version``) through two dozen call sites,
+   and each one re-fetched the whole file. That log is 21 MB on a
+   continental database, and one ``gh3_aggregate`` was measured opening
+   it 13 times over HTTP — ~270 MB of metadata traffic to answer
+   questions that cannot change mid-query.
+
+   Local paths are validated by ``(mtime_ns, size, inode)``, so a build
+   that rewrites the log in the same process still sees fresh state —
+   the inode covers the case where an :class:`AtomicFileWriter`
+   ``os.replace`` lands inside the filesystem's timestamp granularity.
+   Remote paths are held for the process lifetime: gedih3 never writes
+   to a remote database, and a stat over the network would cost the very
+   round trip the cache exists to avoid. Use :func:`json_read` for
+   anything read-modify-write.
+
+   The returned object IS the shared cache entry — treat it as
+   read-only. Mutating it (e.g. ``.append()`` on a returned list)
+   poisons every later read in the process; copy first if you must
+   modify.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
 
 .. py:function:: check_nan_only_columns(df, context='', logger=None)
 
@@ -997,6 +1215,40 @@ Module Contents
        !! processed by numpydoc !!
 
 .. py:function:: parse_temporal(temporal)
+
+.. py:function:: region_to_geometry(spatial)
+
+   
+   Normalize any accepted region argument to one shapely geometry in EPSG:4326.
+
+   Accepts what the CLIs accept — a vector-file path, a ``"W,S,E,N"``
+   string, a ``[W, S, E, N]`` list, a GeoDataFrame/GeoSeries, or a
+   shapely geometry — so every spatial-selection path agrees on what a
+   region *is*. Shared by :func:`~gedih3.h3utils.intersect_h3_geometries`
+   (H3 partition selection) and the EGI partition selection in
+   ``gh3driver``; keeping one normalizer is what stops the two index
+   types from drifting apart on region handling.
+
+
+
+
+
+
+
+
+   :Raises:
+
+       TypeError
+           If the input is not one of the accepted forms.
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
 
 .. py:function:: parse_spatial(spatial)
 

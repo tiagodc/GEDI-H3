@@ -502,7 +502,7 @@
 <td><p></p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cli.gh3_build_ducklake.get_file_list" title="gedih3.cli.gh3_build_ducklake.get_file_list"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_file_list</span></code></a>(root_dir)</p></td>
-<td><p>Generate a list of all expected parquet files in the H3 database.</p></td>
+<td><p>List the parquet files of the H3 database.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cli.gh3_build_ducklake.main" title="gedih3.cli.gh3_build_ducklake.main"><code class="xref py py-obj docutils literal notranslate"><span class="pre">main</span></code></a>()</p></td>
 <td><p></p></td>
@@ -521,7 +521,11 @@
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.cli.gh3_build_ducklake.get_file_list">
 <span class="sig-prename descclassname"><span class="pre">gedih3.cli.gh3_build_ducklake.</span></span><span class="sig-name descname"><span class="pre">get_file_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">root_dir</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../../_modules/gedih3/cli/gh3_build_ducklake.html#get_file_list"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.cli.gh3_build_ducklake.get_file_list" title="Link to this definition">#</a></dt>
-<dd><p>Generate a list of all expected parquet files in the H3 database.</p>
+<dd><p>List the parquet files of the H3 database.</p>
+<p>Uses the manifest-aware <code class="docutils literal notranslate"><span class="pre">smart_glob</span></code> (the <cite>_manifest.txt</cite> sentinel is
+O(1) on the GPFS metadata server) instead of guessing filenames from a
+year range and the <code class="docutils literal notranslate"><span class="pre">&lt;hex&gt;.&lt;year&gt;.0.parquet</span></code> naming contract — the
+actual listing also catches fragments the guess would miss.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
@@ -531,8 +535,8 @@
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><dl class="simple">
-<dt>list of pathlib.Path</dt><dd><p>Paths to parquet files that exist on disk, ordered so the first element
-is guaranteed to exist (used to infer the table schema).</p>
+<dt>list of pathlib.Path</dt><dd><p>Paths to parquet files, ordered so the first element is guaranteed
+to exist (used to infer the table schema).</p>
 </dd>
 </dl>
 </dd>

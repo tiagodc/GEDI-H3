@@ -624,17 +624,25 @@ the H3 Indexing docs for the full explanation.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
-<dt><strong>source</strong><span class="classifier">str</span></dt><dd><p>Path to an H3 database (the directory holding <code class="docutils literal notranslate"><span class="pre">gedih3_build_log.json</span></code>).</p>
+<dt><strong>source</strong><span class="classifier">str</span></dt><dd><p>Path to an H3 database (the directory holding
+<code class="docutils literal notranslate"><span class="pre">gedih3_build_log.json</span></code>) or a simplified dataset (the directory
+holding <code class="docutils literal notranslate"><span class="pre">gedih3_dataset.json</span></code> — H3 or EGI). Datasets answer
+through the same safety-gated selection the loaders use
+(<code class="xref py py-func docutils literal notranslate"><span class="pre">_select_dataset_files()</span></code>): when the sidecar cannot prove the
+filenames bound their files, every partition is returned rather
+than risking an under-selection.</p>
 </dd>
 <dt><strong>region</strong><span class="classifier">str | list | GeoDataFrame | GeoSeries | shapely geometry, optional</span></dt><dd><p>ROI as a vector-file path / <code class="docutils literal notranslate"><span class="pre">&quot;W,S,E,N&quot;</span></code> string, <code class="docutils literal notranslate"><span class="pre">[W,</span> <span class="pre">S,</span> <span class="pre">E,</span> <span class="pre">N]</span></code>
 bbox list, geopandas object, or shapely geometry (EPSG:4326). When
-<code class="docutils literal notranslate"><span class="pre">None</span></code> (default), every partition in the database is returned.</p>
+<code class="docutils literal notranslate"><span class="pre">None</span></code> (default), every partition is returned.</p>
 </dd>
 </dl>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><dl class="simple">
-<dt>list[str]</dt><dd><p>Sorted H3 partition cell IDs at the database’s partition level.</p>
+<dt>list[str]</dt><dd><p>Sorted partition IDs: H3 cell IDs at the database’s partition level,
+or the dataset’s file-basename partition IDs (H3 cells / EGI hashes).
+Empty when no dataset partition intersects the region.</p>
 </dd>
 </dl>
 </dd>
@@ -733,7 +741,7 @@ If None, falls back to default H3 directory.</p>
 </dd>
 <dt><strong>columns</strong><span class="classifier">list, optional</span></dt><dd><p>Columns to load.</p>
 </dd>
-<dt><strong>region</strong><span class="classifier">GeoDataFrame or bbox, optional</span></dt><dd><p>Spatial filter.</p>
+<dt><strong>region</strong><span class="classifier">str | list | GeoDataFrame | GeoSeries | shapely geometry, optional</span></dt><dd><p>Spatial filter.</p>
 </dd>
 <dt><strong>query</strong><span class="classifier">str, optional</span></dt><dd><p>Pandas query string for filtering.</p>
 </dd>
@@ -942,7 +950,7 @@ If None, falls back to default H3 directory.</p>
 </dd>
 <dt><strong>columns</strong><span class="classifier">list, optional</span></dt><dd><p>Columns to load.</p>
 </dd>
-<dt><strong>region</strong><span class="classifier">GeoDataFrame or bbox, optional</span></dt><dd><p>Spatial filter.</p>
+<dt><strong>region</strong><span class="classifier">str | list | GeoDataFrame | GeoSeries | shapely geometry, optional</span></dt><dd><p>Spatial filter.</p>
 </dd>
 <dt><strong>query</strong><span class="classifier">str, optional</span></dt><dd><p>Pandas query string for filtering.</p>
 </dd>
@@ -1285,7 +1293,7 @@ Returns a Dask DataFrame; use <code class="docutils literal notranslate"><span c
 </dd>
 <dt><strong>data_source</strong><span class="classifier">str, optional</span></dt><dd><p>Path to H3 database or simplified dataset directory</p>
 </dd>
-<dt><strong>region</strong><span class="classifier">GeoDataFrame or bbox, optional</span></dt><dd><p>Additional spatial filter</p>
+<dt><strong>region</strong><span class="classifier">str | list | GeoDataFrame | GeoSeries | shapely geometry, optional</span></dt><dd><p>Additional spatial filter</p>
 </dd>
 <dt><strong>query</strong><span class="classifier">str, optional</span></dt><dd><p>Pandas query string for filtering shots</p>
 </dd>

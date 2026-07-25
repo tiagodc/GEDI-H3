@@ -491,6 +491,17 @@
                   
   <section id="module-gedih3.utils">
 <span id="gedih3-utils"></span><h1>gedih3.utils<a class="headerlink" href="#module-gedih3.utils" title="Link to this heading">#</a></h1>
+<section id="attributes">
+<h2>Attributes<a class="headerlink" href="#attributes" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.NON_LOCAL_PREFIXES" title="gedih3.utils.NON_LOCAL_PREFIXES"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NON_LOCAL_PREFIXES</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
 <section id="classes">
 <h2>Classes<a class="headerlink" href="#classes" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table">
@@ -507,7 +518,7 @@
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.is_remote_path" title="gedih3.utils.is_remote_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_remote_path</span></code></a>(path)</p></td>
-<td><p>Check if path is a remote URL (S3, HTTP, FTP, etc.).</p></td>
+<td><p>Check if path is a remote URL handled by fsspec (S3, HTTP, FTP, ...).</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.smart_join" title="gedih3.utils.smart_join"><code class="xref py py-obj docutils literal notranslate"><span class="pre">smart_join</span></code></a>(*parts)</p></td>
 <td><p>os.path.join() that uses forward slashes for remote URLs.</p></td>
@@ -521,8 +532,14 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.smart_exists" title="gedih3.utils.smart_exists"><code class="xref py py-obj docutils literal notranslate"><span class="pre">smart_exists</span></code></a>(path)</p></td>
 <td><p>os.path.exists() that works with remote paths.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.smart_isdir" title="gedih3.utils.smart_isdir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">smart_isdir</span></code></a>(path)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.smart_database_exists" title="gedih3.utils.smart_database_exists"><code class="xref py py-obj docutils literal notranslate"><span class="pre">smart_database_exists</span></code></a>(path)</p></td>
+<td><p><a class="reference internal" href="#gedih3.utils.smart_exists" title="gedih3.utils.smart_exists"><code class="xref py py-func docutils literal notranslate"><span class="pre">smart_exists()</span></code></a> for a gedih3 database / dataset root.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.smart_isdir" title="gedih3.utils.smart_isdir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">smart_isdir</span></code></a>(path)</p></td>
 <td><p>os.path.isdir() that works with remote paths.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.smart_isfile" title="gedih3.utils.smart_isfile"><code class="xref py py-obj docutils literal notranslate"><span class="pre">smart_isfile</span></code></a>(path)</p></td>
+<td><p>True when <em>path</em> is a single data file rather than a dataset directory.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.generate_manifest" title="gedih3.utils.generate_manifest"><code class="xref py py-obj docutils literal notranslate"><span class="pre">generate_manifest</span></code></a>(root_path[, pattern, ...])</p></td>
 <td><p>Atomically write a manifest file listing all matching files.</p></td>
@@ -532,6 +549,12 @@
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.smart_open" title="gedih3.utils.smart_open"><code class="xref py py-obj docutils literal notranslate"><span class="pre">smart_open</span></code></a>(path[, mode, storage_options])</p></td>
 <td><p>open() that works with remote paths. Use as context manager.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.smart_open_columnar" title="gedih3.utils.smart_open_columnar"><code class="xref py py-obj docutils literal notranslate"><span class="pre">smart_open_columnar</span></code></a>(path[, storage_options])</p></td>
+<td><p>Open a remote parquet file for pyarrow, with no client-side read-ahead.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_parquet_coalesced" title="gedih3.utils.read_parquet_coalesced"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_parquet_coalesced</span></code></a>(source[, columns, geo])</p></td>
+<td><p>Read a parquet source with pyarrow range coalescing enabled.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.get_package_version" title="gedih3.utils.get_package_version"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_package_version</span></code></a>()</p></td>
 <td><p>Get the current package version</p></td>
@@ -551,89 +574,95 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.json_read" title="gedih3.utils.json_read"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json_read</span></code></a>(path[, mode])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.check_nan_only_columns" title="gedih3.utils.check_nan_only_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">check_nan_only_columns</span></code></a>(df[, context, logger])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.json_read_cached" title="gedih3.utils.json_read_cached"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json_read_cached</span></code></a>(path)</p></td>
+<td><p><a class="reference internal" href="#gedih3.utils.json_read" title="gedih3.utils.json_read"><code class="xref py py-func docutils literal notranslate"><span class="pre">json_read()</span></code></a> memoized per path — for read-only metadata sidecars.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.check_nan_only_columns" title="gedih3.utils.check_nan_only_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">check_nan_only_columns</span></code></a>(df[, context, logger])</p></td>
 <td><p>Warn about columns that are entirely NaN.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.is_parquet" title="gedih3.utils.is_parquet"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_parquet</span></code></a>(→ bool)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.is_parquet" title="gedih3.utils.is_parquet"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_parquet</span></code></a>(→ bool)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.is_hive_directory" title="gedih3.utils.is_hive_directory"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_hive_directory</span></code></a>(→ bool)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.is_hive_directory" title="gedih3.utils.is_hive_directory"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_hive_directory</span></code></a>(→ bool)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_parquet_schema" title="gedih3.utils.read_parquet_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_parquet_schema</span></code></a>(path)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_parquet_schema" title="gedih3.utils.read_parquet_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_parquet_schema</span></code></a>(path)</p></td>
 <td><p>path: parquet file path</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_geopackage_schema" title="gedih3.utils.read_geopackage_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_geopackage_schema</span></code></a>(path)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_geopackage_schema" title="gedih3.utils.read_geopackage_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_geopackage_schema</span></code></a>(path)</p></td>
 <td><p>path: gpkg file path</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_feather_schema" title="gedih3.utils.read_feather_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_feather_schema</span></code></a>(path)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_feather_schema" title="gedih3.utils.read_feather_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_feather_schema</span></code></a>(path)</p></td>
 <td><p>Read schema from a feather (Arrow IPC) file.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_h3_database_schema" title="gedih3.utils.read_h3_database_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_h3_database_schema</span></code></a>(db_path)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_h3_database_schema" title="gedih3.utils.read_h3_database_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_h3_database_schema</span></code></a>(db_path)</p></td>
 <td><p>Read parquet schema from an H3 hive-partitioned database.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_schema" title="gedih3.utils.read_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_schema</span></code></a>(path[, root])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_schema" title="gedih3.utils.read_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_schema</span></code></a>(path[, root])</p></td>
 <td><p>Read schema from a data file or dataset directory, auto-detecting format.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h5_is_valid" title="gedih3.utils.h5_is_valid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_is_valid</span></code></a>(file)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_is_valid" title="gedih3.utils.h5_is_valid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_is_valid</span></code></a>(file)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.release_arrow_pool" title="gedih3.utils.release_arrow_pool"><code class="xref py py-obj docutils literal notranslate"><span class="pre">release_arrow_pool</span></code></a>(→ None)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.release_arrow_pool" title="gedih3.utils.release_arrow_pool"><code class="xref py py-obj docutils literal notranslate"><span class="pre">release_arrow_pool</span></code></a>(→ None)</p></td>
 <td><p>Best-effort drain of pyarrow's allocator.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h5_traverse" title="gedih3.utils.h5_traverse"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_traverse</span></code></a>(h5_file[, root])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_traverse" title="gedih3.utils.h5_traverse"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_traverse</span></code></a>(h5_file[, root])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_info" title="gedih3.utils.h5_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_info</span></code></a>(hdf_file[, root])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h5_info" title="gedih3.utils.h5_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_info</span></code></a>(hdf_file[, root])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h5_var" title="gedih3.utils.h5_var"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_var</span></code></a>(file, var[, col])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_var" title="gedih3.utils.h5_var"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_var</span></code></a>(file, var[, col])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_meta" title="gedih3.utils.h5_meta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_meta</span></code></a>(file[, var])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h5_meta" title="gedih3.utils.h5_meta"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_meta</span></code></a>(file[, var])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h5_copy_subset" title="gedih3.utils.h5_copy_subset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_copy_subset</span></code></a>(source_file, dest_file, variables)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h5_copy_subset" title="gedih3.utils.h5_copy_subset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h5_copy_subset</span></code></a>(source_file, dest_file, variables)</p></td>
 <td><p>Copy selected datasets from source to dest HDF5 file.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_vector_file" title="gedih3.utils.read_vector_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_vector_file</span></code></a>(filepath[, crs])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_vector_file" title="gedih3.utils.read_vector_file"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_vector_file</span></code></a>(filepath[, crs])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.read_img_bounds" title="gedih3.utils.read_img_bounds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_img_bounds</span></code></a>(filepath[, crs])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.read_img_bounds" title="gedih3.utils.read_img_bounds"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_img_bounds</span></code></a>(filepath[, crs])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.geo_to_umm" title="gedih3.utils.geo_to_umm"><code class="xref py py-obj docutils literal notranslate"><span class="pre">geo_to_umm</span></code></a>(obj)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.geo_to_umm" title="gedih3.utils.geo_to_umm"><code class="xref py py-obj docutils literal notranslate"><span class="pre">geo_to_umm</span></code></a>(obj)</p></td>
 <td><p>Converts a GeoDataFrame, shapely Polygon, or GeoJSON dictionary to a UMM-style</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.to_geojson" title="gedih3.utils.to_geojson"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_geojson</span></code></a>(→ Dict)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.to_geojson" title="gedih3.utils.to_geojson"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_geojson</span></code></a>(→ Dict)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.from_geojson" title="gedih3.utils.from_geojson"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_geojson</span></code></a>(geojson)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.from_geojson" title="gedih3.utils.from_geojson"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_geojson</span></code></a>(geojson)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parquet_append_columns" title="gedih3.utils.parquet_append_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_append_columns</span></code></a>(df, f[, tmp_suffix])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_append_columns" title="gedih3.utils.parquet_append_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_append_columns</span></code></a>(df, f[, tmp_suffix])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_schema_add_bbox" title="gedih3.utils.parquet_schema_add_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_schema_add_bbox</span></code></a>(schema, bbox)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parquet_schema_add_bbox" title="gedih3.utils.parquet_schema_add_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_schema_add_bbox</span></code></a>(schema, bbox)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parse_h3_partition_dirname" title="gedih3.utils.parse_h3_partition_dirname"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_h3_partition_dirname</span></code></a>(h3part)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parse_h3_partition_dirname" title="gedih3.utils.parse_h3_partition_dirname"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_h3_partition_dirname</span></code></a>(h3part)</p></td>
 <td><p>Parse a partition dir name like <code class="docutils literal notranslate"><span class="pre">'h3_03=830e4afffffffff'</span></code> into</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.h3_partition_bbox" title="gedih3.utils.h3_partition_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h3_partition_bbox</span></code></a>(h3_cell_id, parent_res[, edge_fraction])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.h3_partition_bbox" title="gedih3.utils.h3_partition_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h3_partition_bbox</span></code></a>(h3_cell_id, parent_res[, edge_fraction])</p></td>
 <td><p>Return the EPSG:4326 bbox of an H3 cell, padded to safely contain all</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parquet_backfill_bbox" title="gedih3.utils.parquet_backfill_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_backfill_bbox</span></code></a>(path)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_backfill_bbox" title="gedih3.utils.parquet_backfill_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_backfill_bbox</span></code></a>(path)</p></td>
 <td><p>Rewrite a single parquet file in place so its GeoParquet <code class="docutils literal notranslate"><span class="pre">geo</span></code> metadata</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_merge_files" title="gedih3.utils.parquet_merge_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_merge_files</span></code></a>(ofile, flist[, check_shots, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parquet_merge_files" title="gedih3.utils.parquet_merge_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_merge_files</span></code></a>(ofile, flist[, check_shots, ...])</p></td>
 <td><p>Stream-merge parquet files into a single output with a bounded memory footprint.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parquet_join_columns" title="gedih3.utils.parquet_join_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_join_columns</span></code></a>(flist, ofile[, key_col, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_join_columns" title="gedih3.utils.parquet_join_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_join_columns</span></code></a>(flist, ofile[, key_col, ...])</p></td>
 <td><p>Memory-efficient column-wise join of parquet files. Equivalent to pd.concat(axis=1)</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parse_temporal" title="gedih3.utils.parse_temporal"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_temporal</span></code></a>(temporal)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parse_temporal" title="gedih3.utils.parse_temporal"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_temporal</span></code></a>(temporal)</p></td>
 <td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.region_to_geometry" title="gedih3.utils.region_to_geometry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">region_to_geometry</span></code></a>(spatial)</p></td>
+<td><p>Normalize any accepted region argument to one shapely geometry in EPSG:4326.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parse_spatial" title="gedih3.utils.parse_spatial"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_spatial</span></code></a>(spatial)</p></td>
 <td><p></p></td>
@@ -662,8 +691,18 @@
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.utils.is_remote_path">
 <span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">is_remote_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#is_remote_path"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.is_remote_path" title="Link to this definition">#</a></dt>
-<dd><p>Check if path is a remote URL (S3, HTTP, FTP, etc.).</p>
+<dd><p>Check if path is a remote URL handled by fsspec (S3, HTTP, FTP, …).</p>
+<p>This is the <em>fsspec</em> notion of remote, used by every <code class="docutils literal notranslate"><span class="pre">smart_*</span></code>
+helper. GDAL’s virtual file systems (<code class="docutils literal notranslate"><span class="pre">/vsicurl/</span></code> and friends) are
+deliberately excluded — pyarrow/fsspec cannot read them. See
+<a class="reference internal" href="#gedih3.utils.NON_LOCAL_PREFIXES" title="gedih3.utils.NON_LOCAL_PREFIXES"><code class="xref py py-data docutils literal notranslate"><span class="pre">NON_LOCAL_PREFIXES</span></code></a> for the broader set that merely must not
+be treated as a local filesystem path.</p>
 </dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="gedih3.utils.NON_LOCAL_PREFIXES">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">NON_LOCAL_PREFIXES</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">('http://',</span> <span class="pre">'https://',</span> <span class="pre">'s3://',</span> <span class="pre">'gs://',</span> <span class="pre">'gcs://',</span> <span class="pre">'ftp://',</span> <span class="pre">'sftp://',</span> <span class="pre">'ssh://',</span> <span class="pre">'/vsicurl/',...</span></span><a class="headerlink" href="#gedih3.utils.NON_LOCAL_PREFIXES" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.utils.smart_join">
@@ -714,8 +753,22 @@ keys).</p>
 <dt class="sig sig-object py" id="gedih3.utils.get_storage_options">
 <span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">get_storage_options</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">protocol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#get_storage_options"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.get_storage_options" title="Link to this definition">#</a></dt>
 <dd><p>Return the stored options for <em>protocol</em>.</p>
-<p>Returns <code class="docutils literal notranslate"><span class="pre">{'anon':</span> <span class="pre">True}</span></code> for S3 when nothing has been configured
-(public-bucket default). Other protocols return <code class="docutils literal notranslate"><span class="pre">{}</span></code>.</p>
+<p>S3 defaults to <code class="docutils literal notranslate"><span class="pre">anon=True</span></code> in two cases:</p>
+<ul class="simple">
+<li><p>nothing at all has been configured for S3 (the long-standing
+public-bucket default), or</p></li>
+<li><p>non-credential options (e.g. <code class="docutils literal notranslate"><span class="pre">endpoint_url</span></code>) were configured, no
+credential-bearing option is among them, <strong>and</strong> the botocore chain
+has no ambient credentials (env vars / shared credentials file) to
+fall back on — e.g. a read-only <code class="docutils literal notranslate"><span class="pre">rclone</span> <span class="pre">serve</span> <span class="pre">s3</span></code> or MinIO with
+auth disabled. Without this s3fs raises <code class="docutils literal notranslate"><span class="pre">NoCredentialsError</span></code>,
+which its own <code class="docutils literal notranslate"><span class="pre">exists()</span></code> swallows into a bare <code class="docutils literal notranslate"><span class="pre">False</span></code> —
+surfacing as a misleading “not found”.</p></li>
+</ul>
+<p>When ambient AWS credentials exist and the caller configured only
+non-credential options, the chain is left to do its job — forcing
+<code class="docutils literal notranslate"><span class="pre">anon=True</span></code> there would break working env-var / profile setups.
+Other protocols return <code class="docutils literal notranslate"><span class="pre">{}</span></code>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
@@ -739,9 +792,40 @@ keys).</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.smart_database_exists">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">smart_database_exists</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#smart_database_exists"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.smart_database_exists" title="Link to this definition">#</a></dt>
+<dd><p><a class="reference internal" href="#gedih3.utils.smart_exists" title="gedih3.utils.smart_exists"><code class="xref py py-func docutils literal notranslate"><span class="pre">smart_exists()</span></code></a> for a gedih3 database / dataset root.</p>
+<p>Object stores have no directories: an existence check on a bucket or
+prefix degrades to a LIST, which some servers answer only after
+walking the whole tree (<code class="docutils literal notranslate"><span class="pre">rclone</span> <span class="pre">serve</span> <span class="pre">s3</span></code> over a 12k-partition
+dataset takes minutes; a real S3/MinIO is fast but still pays a
+round trip). Every gh3 tree carries at least one sidecar at its
+root, so probe those first — a HeadObject each, and the metadata
+readers that follow need them anyway. Falls back to the generic
+directory check so plain parquet directories (no sidecar) still
+resolve.</p>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="gedih3.utils.smart_isdir">
 <span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">smart_isdir</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#smart_isdir"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.smart_isdir" title="Link to this definition">#</a></dt>
 <dd><p>os.path.isdir() that works with remote paths.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.smart_isfile">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">smart_isfile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#smart_isfile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.smart_isfile" title="Link to this definition">#</a></dt>
+<dd><p>True when <em>path</em> is a single data file rather than a dataset directory.</p>
+<p>Remote paths answer from the extension instead of probing: object
+stores have no directories, so <code class="docutils literal notranslate"><span class="pre">isdir()</span></code> on a bucket or prefix
+degrades to a LIST — the exact O(N) round trip the manifest sentinel
+exists to avoid, and one that <code class="docutils literal notranslate"><span class="pre">rclone</span> <span class="pre">serve</span> <span class="pre">s3</span></code> answers only after
+walking the whole tree. Every gh3 single-file output carries one of
+the known extensions, so the answer is knowable for free. Local
+paths use <code class="docutils literal notranslate"><span class="pre">os.path.isfile</span></code>. A trailing slash is the one unambiguous
+“this is a directory” signal a URL can carry, so it always answers
+<code class="docutils literal notranslate"><span class="pre">False</span></code> — even when the directory name ends in a data extension
+(e.g. <code class="docutils literal notranslate"><span class="pre">gh3_extract</span> <span class="pre">-o</span> <span class="pre">s3://bucket/out.parquet</span></code> writes a directory).</p>
 </dd></dl>
 
 <dl class="py function">
@@ -821,6 +905,42 @@ protocol prefix.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.smart_open_columnar">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">smart_open_columnar</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">storage_options</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#smart_open_columnar"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.smart_open_columnar" title="Link to this definition">#</a></dt>
+<dd><p>Open a remote parquet file for pyarrow, with no client-side read-ahead.</p>
+<p>fsspec’s default file cache fetches a whole block (5 MB for HTTP)
+around every read. Pyarrow already knows exactly which byte ranges it
+wants and coalesces them itself (<code class="docutils literal notranslate"><span class="pre">pre_buffer=True</span></code>), so that block
+is pure over-fetch — and a column-projected read touches dozens of
+small, scattered ranges. Measured against <code class="docutils literal notranslate"><span class="pre">rclone</span> <span class="pre">serve</span> <span class="pre">http</span></code> on a
+1.8 GB GEDI partition, projecting one column (18 MB of column chunks
++ footer): 358 MB pulled off GPFS with the default cache, 18 MB with
+<code class="docutils literal notranslate"><span class="pre">cache_type='none'</span></code> plus pyarrow’s own coalescing.</p>
+<p>Returns an open binary file object (not a context manager wrapper);
+callers use it with <code class="docutils literal notranslate"><span class="pre">with</span></code>. Local paths are opened directly — the
+kernel page cache already does the right thing.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.read_parquet_coalesced">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">read_parquet_coalesced</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#read_parquet_coalesced"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.read_parquet_coalesced" title="Link to this definition">#</a></dt>
+<dd><p>Read a parquet source with pyarrow range coalescing enabled.</p>
+<p>Pair with <a class="reference internal" href="#gedih3.utils.smart_open_columnar" title="gedih3.utils.smart_open_columnar"><code class="xref py py-func docutils literal notranslate"><span class="pre">smart_open_columnar()</span></code></a> on remote reads: that turns off
+fsspec’s block read-ahead, this makes pyarrow fetch the column chunks
+it needs in as few ranges as possible.</p>
+<p><code class="docutils literal notranslate"><span class="pre">geopandas.read_parquet</span></code> forwards <code class="docutils literal notranslate"><span class="pre">**kwargs</span></code> to
+<code class="docutils literal notranslate"><span class="pre">pyarrow.parquet.read_table</span></code>, so <code class="docutils literal notranslate"><span class="pre">pre_buffer=True</span></code> reaches the
+reader. <code class="docutils literal notranslate"><span class="pre">pandas.read_parquet</span></code> does not coalesce (measured: 50
+scattered server reads vs 26 for <code class="docutils literal notranslate"><span class="pre">read_table</span></code> on the same query),
+so the non-geo path calls <code class="docutils literal notranslate"><span class="pre">read_table</span></code> directly and converts —
+verified to produce an identical frame, dtypes included, on GEDI
+partitions. <code class="docutils literal notranslate"><span class="pre">use_pandas_metadata=True</span></code> matches what
+<code class="docutils literal notranslate"><span class="pre">pandas.read_parquet</span></code> always sets: without it a column-projected
+read drops the index column recorded in the pandas metadata and the
+frame comes back with a RangeIndex instead of e.g. <code class="docutils literal notranslate"><span class="pre">h3_12</span></code>.</p>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="gedih3.utils.get_package_version">
 <span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">get_package_version</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#get_package_version"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.get_package_version" title="Link to this definition">#</a></dt>
 <dd><p>Get the current package version</p>
@@ -871,6 +991,31 @@ Datasets or other array-likes rather than scalars.</p>
 <dt class="sig sig-object py" id="gedih3.utils.json_read">
 <span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">json_read</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'r'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#json_read"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.json_read" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.json_read_cached">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">json_read_cached</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#json_read_cached"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.json_read_cached" title="Link to this definition">#</a></dt>
+<dd><p><a class="reference internal" href="#gedih3.utils.json_read" title="gedih3.utils.json_read"><code class="xref py py-func docutils literal notranslate"><span class="pre">json_read()</span></code></a> memoized per path — for read-only metadata sidecars.</p>
+<p>A single CLI invocation asks the build log a dozen questions
+(<code class="docutils literal notranslate"><span class="pre">h3_columns</span></code>, <code class="docutils literal notranslate"><span class="pre">h3_columns_dtypes</span></code>, <code class="docutils literal notranslate"><span class="pre">h3_partition_level</span></code>,
+<code class="docutils literal notranslate"><span class="pre">h3_partition_ids</span></code>, <code class="docutils literal notranslate"><span class="pre">gedi_version</span></code>) through two dozen call sites,
+and each one re-fetched the whole file. That log is 21 MB on a
+continental database, and one <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code> was measured opening
+it 13 times over HTTP — ~270 MB of metadata traffic to answer
+questions that cannot change mid-query.</p>
+<p>Local paths are validated by <code class="docutils literal notranslate"><span class="pre">(mtime_ns,</span> <span class="pre">size,</span> <span class="pre">inode)</span></code>, so a build
+that rewrites the log in the same process still sees fresh state —
+the inode covers the case where an <a class="reference internal" href="#gedih3.utils.AtomicFileWriter" title="gedih3.utils.AtomicFileWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">AtomicFileWriter</span></code></a>
+<code class="docutils literal notranslate"><span class="pre">os.replace</span></code> lands inside the filesystem’s timestamp granularity.
+Remote paths are held for the process lifetime: gedih3 never writes
+to a remote database, and a stat over the network would cost the very
+round trip the cache exists to avoid. Use <a class="reference internal" href="#gedih3.utils.json_read" title="gedih3.utils.json_read"><code class="xref py py-func docutils literal notranslate"><span class="pre">json_read()</span></code></a> for
+anything read-modify-write.</p>
+<p>The returned object IS the shared cache entry — treat it as
+read-only. Mutating it (e.g. <code class="docutils literal notranslate"><span class="pre">.append()</span></code> on a returned list)
+poisons every later read in the process; copy first if you must
+modify.</p>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.utils.check_nan_only_columns">
@@ -1260,6 +1405,27 @@ regardless of the base file’s existing row-group shape.</p>
 <dd></dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.region_to_geometry">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">region_to_geometry</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spatial</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#region_to_geometry"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.region_to_geometry" title="Link to this definition">#</a></dt>
+<dd><p>Normalize any accepted region argument to one shapely geometry in EPSG:4326.</p>
+<p>Accepts what the CLIs accept — a vector-file path, a <code class="docutils literal notranslate"><span class="pre">&quot;W,S,E,N&quot;</span></code>
+string, a <code class="docutils literal notranslate"><span class="pre">[W,</span> <span class="pre">S,</span> <span class="pre">E,</span> <span class="pre">N]</span></code> list, a GeoDataFrame/GeoSeries, or a
+shapely geometry — so every spatial-selection path agrees on what a
+region <em>is</em>. Shared by <a class="reference internal" href="../h3utils/index.html#gedih3.h3utils.intersect_h3_geometries" title="gedih3.h3utils.intersect_h3_geometries"><code class="xref py py-func docutils literal notranslate"><span class="pre">intersect_h3_geometries()</span></code></a>
+(H3 partition selection) and the EGI partition selection in
+<code class="docutils literal notranslate"><span class="pre">gh3driver</span></code>; keeping one normalizer is what stops the two index
+types from drifting apart on region handling.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>TypeError</dt><dd><p>If the input is not one of the accepted forms.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="gedih3.utils.parse_spatial">
 <span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">parse_spatial</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spatial</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#parse_spatial"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.parse_spatial" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
@@ -1444,24 +1610,31 @@ of the whole partition.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#attributes">Attributes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#classes">Classes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.is_remote_path"><code class="docutils literal notranslate"><span class="pre">is_remote_path()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.NON_LOCAL_PREFIXES"><code class="docutils literal notranslate"><span class="pre">NON_LOCAL_PREFIXES</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_join"><code class="docutils literal notranslate"><span class="pre">smart_join()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.configure_storage"><code class="docutils literal notranslate"><span class="pre">configure_storage()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.get_storage_options"><code class="docutils literal notranslate"><span class="pre">get_storage_options()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_exists"><code class="docutils literal notranslate"><span class="pre">smart_exists()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_database_exists"><code class="docutils literal notranslate"><span class="pre">smart_database_exists()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_isdir"><code class="docutils literal notranslate"><span class="pre">smart_isdir()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_isfile"><code class="docutils literal notranslate"><span class="pre">smart_isfile()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.generate_manifest"><code class="docutils literal notranslate"><span class="pre">generate_manifest()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_glob"><code class="docutils literal notranslate"><span class="pre">smart_glob()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_open"><code class="docutils literal notranslate"><span class="pre">smart_open()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.smart_open_columnar"><code class="docutils literal notranslate"><span class="pre">smart_open_columnar()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.read_parquet_coalesced"><code class="docutils literal notranslate"><span class="pre">read_parquet_coalesced()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.get_package_version"><code class="docutils literal notranslate"><span class="pre">get_package_version()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.now"><code class="docutils literal notranslate"><span class="pre">now()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.get_system_resources"><code class="docutils literal notranslate"><span class="pre">get_system_resources()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.object_series"><code class="docutils literal notranslate"><span class="pre">object_series()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.json_write"><code class="docutils literal notranslate"><span class="pre">json_write()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.json_read"><code class="docutils literal notranslate"><span class="pre">json_read()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.json_read_cached"><code class="docutils literal notranslate"><span class="pre">json_read_cached()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.check_nan_only_columns"><code class="docutils literal notranslate"><span class="pre">check_nan_only_columns()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.is_parquet"><code class="docutils literal notranslate"><span class="pre">is_parquet()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.is_hive_directory"><code class="docutils literal notranslate"><span class="pre">is_hive_directory()</span></code></a></li>
@@ -1490,6 +1663,7 @@ of the whole partition.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parquet_merge_files"><code class="docutils literal notranslate"><span class="pre">parquet_merge_files()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parquet_join_columns"><code class="docutils literal notranslate"><span class="pre">parquet_join_columns()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parse_temporal"><code class="docutils literal notranslate"><span class="pre">parse_temporal()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.region_to_geometry"><code class="docutils literal notranslate"><span class="pre">region_to_geometry()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parse_spatial"><code class="docutils literal notranslate"><span class="pre">parse_spatial()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.merge_spatial"><code class="docutils literal notranslate"><span class="pre">merge_spatial()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.get_dask_client"><code class="docutils literal notranslate"><span class="pre">get_dask_client()</span></code></a></li>

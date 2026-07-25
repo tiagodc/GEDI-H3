@@ -781,11 +781,29 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="is_remote_path">
 <a class="viewcode-back" href="../../autoapi/gedih3/utils/index.html#gedih3.utils.is_remote_path">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">is_remote_path</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Check if path is a remote URL (S3, HTTP, FTP, etc.).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Check if path is a remote URL handled by fsspec (S3, HTTP, FTP, ...).</span>
+
+<span class="sd">    This is the *fsspec* notion of remote, used by every ``smart_*``</span>
+<span class="sd">    helper. GDAL&#39;s virtual file systems (``/vsicurl/`` and friends) are</span>
+<span class="sd">    deliberately excluded — pyarrow/fsspec cannot read them. See</span>
+<span class="sd">    :data:`NON_LOCAL_PREFIXES` for the broader set that merely must not</span>
+<span class="sd">    be treated as a local filesystem path.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span>
         <span class="p">(</span><span class="s1">&#39;s3://&#39;</span><span class="p">,</span> <span class="s1">&#39;http://&#39;</span><span class="p">,</span> <span class="s1">&#39;https://&#39;</span><span class="p">,</span> <span class="s1">&#39;ftp://&#39;</span><span class="p">,</span> <span class="s1">&#39;sftp://&#39;</span><span class="p">,</span> <span class="s1">&#39;ssh://&#39;</span><span class="p">)</span>
     <span class="p">)</span></div>
 
+
+
+<span class="c1"># Prefixes that must never be absolutized, globbed or stat&#39;d as local paths.</span>
+<span class="c1"># Superset of :func:`is_remote_path`: adds the object-store schemes only GDAL</span>
+<span class="c1"># reads (``gs://``) and GDAL&#39;s virtual file systems, which raster/vector</span>
+<span class="c1"># inputs pass straight through to rasterio/OGR.</span>
+<span class="n">NON_LOCAL_PREFIXES</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s1">&#39;http://&#39;</span><span class="p">,</span> <span class="s1">&#39;https://&#39;</span><span class="p">,</span> <span class="s1">&#39;s3://&#39;</span><span class="p">,</span> <span class="s1">&#39;gs://&#39;</span><span class="p">,</span> <span class="s1">&#39;gcs://&#39;</span><span class="p">,</span> <span class="s1">&#39;ftp://&#39;</span><span class="p">,</span> <span class="s1">&#39;sftp://&#39;</span><span class="p">,</span> <span class="s1">&#39;ssh://&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;/vsicurl/&#39;</span><span class="p">,</span> <span class="s1">&#39;/vsis3/&#39;</span><span class="p">,</span> <span class="s1">&#39;/vsigs/&#39;</span><span class="p">,</span> <span class="s1">&#39;/vsiaz/&#39;</span><span class="p">,</span> <span class="s1">&#39;/vsiswift/&#39;</span><span class="p">,</span> <span class="s1">&#39;/vsihdfs/&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;/vsizip/&#39;</span><span class="p">,</span> <span class="s1">&#39;/vsitar/&#39;</span><span class="p">,</span> <span class="s1">&#39;/vsigzip/&#39;</span><span class="p">,</span> <span class="s1">&#39;/vsimem/&#39;</span><span class="p">,</span>
+<span class="p">)</span>
 
 
 <div class="viewcode-block" id="smart_join">
@@ -866,13 +884,53 @@ window.runMermaid = runMermaid;</script>
 
 
 
+<span class="c1"># S3 option keys that signal the caller intends authenticated access.</span>
+<span class="c1"># When none of these is present (and the botocore chain has nothing to</span>
+<span class="c1"># offer — see _ambient_aws_credentials), S3 falls back to anonymous access.</span>
+<span class="c1"># requester_pays is included because it is meaningless without credentials.</span>
+<span class="n">_S3_CREDENTIAL_KEYS</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;key&#39;</span><span class="p">,</span> <span class="s1">&#39;secret&#39;</span><span class="p">,</span> <span class="s1">&#39;token&#39;</span><span class="p">,</span> <span class="s1">&#39;profile&#39;</span><span class="p">,</span> <span class="s1">&#39;anon&#39;</span><span class="p">,</span> <span class="s1">&#39;requester_pays&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_ambient_aws_credentials</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;True when the botocore credential chain plausibly has credentials.</span>
+
+<span class="sd">    Covers the sources that can be checked without a network round trip:</span>
+<span class="sd">    the AWS environment variables and the shared credentials file. An</span>
+<span class="sd">    EC2/ECS instance role is NOT detectable this way — users relying on</span>
+<span class="sd">    one must pass ``--s3-profile`` (or any explicit credential option) to</span>
+<span class="sd">    suppress the anonymous default.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="s1">&#39;AWS_ACCESS_KEY_ID&#39;</span><span class="p">,</span> <span class="s1">&#39;AWS_PROFILE&#39;</span><span class="p">,</span> <span class="s1">&#39;AWS_DEFAULT_PROFILE&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;AWS_ROLE_ARN&#39;</span><span class="p">,</span> <span class="s1">&#39;AWS_WEB_IDENTITY_TOKEN_FILE&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;AWS_CONTAINER_CREDENTIALS_RELATIVE_URI&#39;</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="n">cred_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;AWS_SHARED_CREDENTIALS_FILE&#39;</span><span class="p">)</span> <span class="ow">or</span> \
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s1">&#39;~&#39;</span><span class="p">),</span> <span class="s1">&#39;.aws&#39;</span><span class="p">,</span> <span class="s1">&#39;credentials&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">cred_file</span><span class="p">)</span>
+
+
 <div class="viewcode-block" id="get_storage_options">
 <a class="viewcode-back" href="../../autoapi/gedih3/utils/index.html#gedih3.utils.get_storage_options">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_storage_options</span><span class="p">(</span><span class="n">protocol</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the stored options for *protocol*.</span>
 
-<span class="sd">    Returns ``{&#39;anon&#39;: True}`` for S3 when nothing has been configured</span>
-<span class="sd">    (public-bucket default). Other protocols return ``{}``.</span>
+<span class="sd">    S3 defaults to ``anon=True`` in two cases:</span>
+
+<span class="sd">    * nothing at all has been configured for S3 (the long-standing</span>
+<span class="sd">      public-bucket default), or</span>
+<span class="sd">    * non-credential options (e.g. ``endpoint_url``) were configured, no</span>
+<span class="sd">      credential-bearing option is among them, **and** the botocore chain</span>
+<span class="sd">      has no ambient credentials (env vars / shared credentials file) to</span>
+<span class="sd">      fall back on — e.g. a read-only ``rclone serve s3`` or MinIO with</span>
+<span class="sd">      auth disabled. Without this s3fs raises ``NoCredentialsError``,</span>
+<span class="sd">      which its own ``exists()`` swallows into a bare ``False`` —</span>
+<span class="sd">      surfacing as a misleading &quot;not found&quot;.</span>
+
+<span class="sd">    When ambient AWS credentials exist and the caller configured only</span>
+<span class="sd">    non-credential options, the chain is left to do its job — forcing</span>
+<span class="sd">    ``anon=True`` there would break working env-var / profile setups.</span>
+<span class="sd">    Other protocols return ``{}``.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -886,12 +944,11 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">protocol</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="p">{}</span>
-    <span class="k">if</span> <span class="n">protocol</span> <span class="ow">in</span> <span class="n">_storage_options</span><span class="p">:</span>
-        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">_storage_options</span><span class="p">[</span><span class="n">protocol</span><span class="p">])</span>
-    <span class="c1"># S3 default: anonymous access for public buckets</span>
-    <span class="k">if</span> <span class="n">protocol</span> <span class="o">==</span> <span class="s1">&#39;s3&#39;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;anon&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
-    <span class="k">return</span> <span class="p">{}</span></div>
+    <span class="n">opts</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">_storage_options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">protocol</span><span class="p">,</span> <span class="p">{}))</span>
+    <span class="k">if</span> <span class="n">protocol</span> <span class="o">==</span> <span class="s1">&#39;s3&#39;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">k</span> <span class="ow">in</span> <span class="n">opts</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">_S3_CREDENTIAL_KEYS</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">opts</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">_ambient_aws_credentials</span><span class="p">():</span>
+            <span class="n">opts</span><span class="p">[</span><span class="s1">&#39;anon&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">return</span> <span class="n">opts</span></div>
 
 
 
@@ -925,6 +982,44 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">filesystem</span><span class="p">(</span><span class="n">protocol</span><span class="p">,</span> <span class="o">**</span><span class="n">opts</span><span class="p">)</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_log_remote_check_failure</span><span class="p">(</span><span class="n">fs</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Log the real cause behind a negative remote existence check.</span>
+
+<span class="sd">    ``fsspec`` implementations (s3fs in particular) catch *every*</span>
+<span class="sd">    exception inside ``exists()`` / ``isdir()`` and return ``False``, so a</span>
+<span class="sd">    bad endpoint, a refused connection or a missing credential is</span>
+<span class="sd">    indistinguishable from a genuine miss — callers then report</span>
+<span class="sd">    &quot;not found&quot; and send the user hunting the wrong problem. Re-probe</span>
+<span class="sd">    with ``info()``, which propagates, and log anything that is not a</span>
+<span class="sd">    plain miss. Only runs on the negative path (the caller is about to</span>
+<span class="sd">    error out anyway), so it costs nothing in the common case.</span>
+
+<span class="sd">    Defaults to DEBUG: many probes are for *optional* sidecars, and S3</span>
+<span class="sd">    answers a missing-key HEAD with 403 when the caller lacks</span>
+<span class="sd">    ``s3:ListBucket`` — a loud message there would alarm on every</span>
+<span class="sd">    successful load. :func:`smart_database_exists` re-probes at ERROR on</span>
+<span class="sd">    the path where the caller is about to fail hard.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+    <span class="k">if</span> <span class="n">level</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">level</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span>
+    <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="p">([</span><span class="n">path</span><span class="p">]</span> <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">path</span><span class="p">,</span> <span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span><span class="p">]):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">fs</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span>
+            <span class="k">return</span>  <span class="c1"># exists after all — nothing to report</span>
+        <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span><span class="o">.</span><span class="n">log</span><span class="p">(</span>
+                <span class="n">level</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">&quot;Remote access to </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2"> failed (</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">) — &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;reported as not found. Check the endpoint URL, credentials &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;(--s3-key/--s3-secret/--s3-anon) and that the server speaks &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;the requested protocol.&quot;</span>
+            <span class="p">)</span>
+            <span class="k">return</span>
+
+
 <div class="viewcode-block" id="smart_exists">
 <a class="viewcode-back" href="../../autoapi/gedih3/utils/index.html#gedih3.utils.smart_exists">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">smart_exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
@@ -935,8 +1030,48 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="n">fs</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
         <span class="k">return</span> <span class="kc">True</span>
     <span class="c1"># HTTP/FTP servers may require trailing slash for directories</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">fs</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">fs</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="n">_log_remote_check_failure</span><span class="p">(</span><span class="n">fs</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">False</span></div>
+
+
+
+<div class="viewcode-block" id="smart_database_exists">
+<a class="viewcode-back" href="../../autoapi/gedih3/utils/index.html#gedih3.utils.smart_database_exists">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">smart_database_exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;:func:`smart_exists` for a gedih3 database / dataset root.</span>
+
+<span class="sd">    Object stores have no directories: an existence check on a bucket or</span>
+<span class="sd">    prefix degrades to a LIST, which some servers answer only after</span>
+<span class="sd">    walking the whole tree (``rclone serve s3`` over a 12k-partition</span>
+<span class="sd">    dataset takes minutes; a real S3/MinIO is fast but still pays a</span>
+<span class="sd">    round trip). Every gh3 tree carries at least one sidecar at its</span>
+<span class="sd">    root, so probe those first — a HeadObject each, and the metadata</span>
+<span class="sd">    readers that follow need them anyway. Falls back to the generic</span>
+<span class="sd">    directory check so plain parquet directories (no sidecar) still</span>
+<span class="sd">    resolve.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">BUILD_LOG_FILENAME</span><span class="p">,</span> <span class="n">DATASET_META_FILENAME</span><span class="p">,</span>
+                         <span class="n">MANIFEST_FILENAME</span><span class="p">)</span>
+    <span class="n">root</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">smart_isfile</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>  <span class="c1"># a single file — plain HEAD, no listing</span>
+    <span class="n">fs</span> <span class="o">=</span> <span class="n">_get_filesystem</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="n">DATASET_META_FILENAME</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">,</span> <span class="n">MANIFEST_FILENAME</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">fs</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">name</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">break</span>  <span class="c1"># connection/credential problem — reported loudly below</span>
+    <span class="k">if</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="c1"># The caller is about to fail hard on &quot;not found&quot; — surface the real</span>
+    <span class="c1"># cause (bad endpoint, refused connection, missing credential) loudly.</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+    <span class="n">_log_remote_check_failure</span><span class="p">(</span><span class="n">fs</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">ERROR</span><span class="p">)</span>
     <span class="k">return</span> <span class="kc">False</span></div>
 
 
@@ -951,9 +1086,42 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="n">fs</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
         <span class="k">return</span> <span class="kc">True</span>
     <span class="c1"># HTTP/FTP servers may require trailing slash for directories</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">fs</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">fs</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="n">_log_remote_check_failure</span><span class="p">(</span><span class="n">fs</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
     <span class="k">return</span> <span class="kc">False</span></div>
+
+
+
+<span class="c1"># Extensions gedih3 writes for single-file sources (see PIPELINE_FORMATS +</span>
+<span class="c1"># the export formats of gh3_extract / gh3_aggregate).</span>
+<span class="n">_DATA_FILE_EXTENSIONS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s1">&#39;.parquet&#39;</span><span class="p">,</span> <span class="s1">&#39;.parq&#39;</span><span class="p">,</span> <span class="s1">&#39;.pq&#39;</span><span class="p">,</span> <span class="s1">&#39;.feather&#39;</span><span class="p">,</span> <span class="s1">&#39;.gpkg&#39;</span><span class="p">,</span> <span class="s1">&#39;.geopackage&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;.h5&#39;</span><span class="p">,</span> <span class="s1">&#39;.hdf5&#39;</span><span class="p">,</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="s1">&#39;.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;.json&#39;</span><span class="p">,</span> <span class="s1">&#39;.geojson&#39;</span><span class="p">,</span> <span class="s1">&#39;.shp&#39;</span><span class="p">,</span> <span class="s1">&#39;.tif&#39;</span><span class="p">,</span> <span class="s1">&#39;.tiff&#39;</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="smart_isfile">
+<a class="viewcode-back" href="../../autoapi/gedih3/utils/index.html#gedih3.utils.smart_isfile">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">smart_isfile</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;True when *path* is a single data file rather than a dataset directory.</span>
+
+<span class="sd">    Remote paths answer from the extension instead of probing: object</span>
+<span class="sd">    stores have no directories, so ``isdir()`` on a bucket or prefix</span>
+<span class="sd">    degrades to a LIST — the exact O(N) round trip the manifest sentinel</span>
+<span class="sd">    exists to avoid, and one that ``rclone serve s3`` answers only after</span>
+<span class="sd">    walking the whole tree. Every gh3 single-file output carries one of</span>
+<span class="sd">    the known extensions, so the answer is knowable for free. Local</span>
+<span class="sd">    paths use ``os.path.isfile``. A trailing slash is the one unambiguous</span>
+<span class="sd">    &quot;this is a directory&quot; signal a URL can carry, so it always answers</span>
+<span class="sd">    ``False`` — even when the directory name ends in a data extension</span>
+<span class="sd">    (e.g. ``gh3_extract -o s3://bucket/out.parquet`` writes a directory).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="n">path</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">_DATA_FILE_EXTENSIONS</span><span class="p">)</span></div>
 
 
 
@@ -1462,6 +1630,60 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="o">**</span><span class="n">opts</span><span class="p">)</span></div>
 
 
+
+<div class="viewcode-block" id="smart_open_columnar">
+<a class="viewcode-back" href="../../autoapi/gedih3/utils/index.html#gedih3.utils.smart_open_columnar">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">smart_open_columnar</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">storage_options</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Open a remote parquet file for pyarrow, with no client-side read-ahead.</span>
+
+<span class="sd">    fsspec&#39;s default file cache fetches a whole block (5 MB for HTTP)</span>
+<span class="sd">    around every read. Pyarrow already knows exactly which byte ranges it</span>
+<span class="sd">    wants and coalesces them itself (``pre_buffer=True``), so that block</span>
+<span class="sd">    is pure over-fetch — and a column-projected read touches dozens of</span>
+<span class="sd">    small, scattered ranges. Measured against ``rclone serve http`` on a</span>
+<span class="sd">    1.8 GB GEDI partition, projecting one column (18 MB of column chunks</span>
+<span class="sd">    + footer): 358 MB pulled off GPFS with the default cache, 18 MB with</span>
+<span class="sd">    ``cache_type=&#39;none&#39;`` plus pyarrow&#39;s own coalescing.</span>
+
+<span class="sd">    Returns an open binary file object (not a context manager wrapper);</span>
+<span class="sd">    callers use it with ``with``. Local paths are opened directly — the</span>
+<span class="sd">    kernel page cache already does the right thing.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">_get_filesystem</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">storage_options</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">,</span> <span class="n">cache_type</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="read_parquet_coalesced">
+<a class="viewcode-back" href="../../autoapi/gedih3/utils/index.html#gedih3.utils.read_parquet_coalesced">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">read_parquet_coalesced</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Read a parquet source with pyarrow range coalescing enabled.</span>
+
+<span class="sd">    Pair with :func:`smart_open_columnar` on remote reads: that turns off</span>
+<span class="sd">    fsspec&#39;s block read-ahead, this makes pyarrow fetch the column chunks</span>
+<span class="sd">    it needs in as few ranges as possible.</span>
+
+<span class="sd">    ``geopandas.read_parquet`` forwards ``**kwargs`` to</span>
+<span class="sd">    ``pyarrow.parquet.read_table``, so ``pre_buffer=True`` reaches the</span>
+<span class="sd">    reader. ``pandas.read_parquet`` does not coalesce (measured: 50</span>
+<span class="sd">    scattered server reads vs 26 for ``read_table`` on the same query),</span>
+<span class="sd">    so the non-geo path calls ``read_table`` directly and converts —</span>
+<span class="sd">    verified to produce an identical frame, dtypes included, on GEDI</span>
+<span class="sd">    partitions. ``use_pandas_metadata=True`` matches what</span>
+<span class="sd">    ``pandas.read_parquet`` always sets: without it a column-projected</span>
+<span class="sd">    read drops the index column recorded in the pandas metadata and the</span>
+<span class="sd">    frame comes back with a RangeIndex instead of e.g. ``h3_12``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">geo</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
+        <span class="k">return</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">pre_buffer</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+    <span class="n">table</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">read_table</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">pre_buffer</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                          <span class="n">use_pandas_metadata</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">table</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span></div>
+
+
 <span class="c1"># Heavy imports are moved to lazy loading inside functions:</span>
 <span class="c1"># - psutil: used in get_system_resources</span>
 <span class="c1"># - pyarrow/pandas: used in parquet and schema functions</span>
@@ -1538,7 +1760,11 @@ window.runMermaid = runMermaid;</script>
         <span class="n">obj</span> <span class="o">=</span> <span class="n">json_read</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">|</span> <span class="n">obj</span>
     <span class="k">with</span> <span class="n">AtomicFileWriter</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">as</span> <span class="n">tmp_path</span><span class="p">:</span>
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="n">mode</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
-            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span></div>
+            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>
+    <span class="c1"># Keep json_read_cached coherent structurally, not by convention: the</span>
+    <span class="c1"># local (mtime_ns, size, inode) stamp already catches this, but only</span>
+    <span class="c1"># if the filesystem reports a change — dropping the entry is free.</span>
+    <span class="n">_json_cache</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="json_read">
@@ -1547,6 +1773,52 @@ window.runMermaid = runMermaid;</script>
     <span class="k">with</span> <span class="n">smart_open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">mode</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">obj</span></div>
+
+
+
+<span class="n">_json_cache</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># path -&gt; (stamp, parsed json); stamp is None for remote paths</span>
+
+
+<div class="viewcode-block" id="json_read_cached">
+<a class="viewcode-back" href="../../autoapi/gedih3/utils/index.html#gedih3.utils.json_read_cached">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">json_read_cached</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;:func:`json_read` memoized per path — for read-only metadata sidecars.</span>
+
+<span class="sd">    A single CLI invocation asks the build log a dozen questions</span>
+<span class="sd">    (``h3_columns``, ``h3_columns_dtypes``, ``h3_partition_level``,</span>
+<span class="sd">    ``h3_partition_ids``, ``gedi_version``) through two dozen call sites,</span>
+<span class="sd">    and each one re-fetched the whole file. That log is 21 MB on a</span>
+<span class="sd">    continental database, and one ``gh3_aggregate`` was measured opening</span>
+<span class="sd">    it 13 times over HTTP — ~270 MB of metadata traffic to answer</span>
+<span class="sd">    questions that cannot change mid-query.</span>
+
+<span class="sd">    Local paths are validated by ``(mtime_ns, size, inode)``, so a build</span>
+<span class="sd">    that rewrites the log in the same process still sees fresh state —</span>
+<span class="sd">    the inode covers the case where an :class:`AtomicFileWriter`</span>
+<span class="sd">    ``os.replace`` lands inside the filesystem&#39;s timestamp granularity.</span>
+<span class="sd">    Remote paths are held for the process lifetime: gedih3 never writes</span>
+<span class="sd">    to a remote database, and a stat over the network would cost the very</span>
+<span class="sd">    round trip the cache exists to avoid. Use :func:`json_read` for</span>
+<span class="sd">    anything read-modify-write.</span>
+
+<span class="sd">    The returned object IS the shared cache entry — treat it as</span>
+<span class="sd">    read-only. Mutating it (e.g. ``.append()`` on a returned list)</span>
+<span class="sd">    poisons every later read in the process; copy first if you must</span>
+<span class="sd">    modify.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">stamp</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">st</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+            <span class="n">stamp</span> <span class="o">=</span> <span class="p">(</span><span class="n">st</span><span class="o">.</span><span class="n">st_mtime_ns</span><span class="p">,</span> <span class="n">st</span><span class="o">.</span><span class="n">st_size</span><span class="p">,</span> <span class="n">st</span><span class="o">.</span><span class="n">st_ino</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="n">stamp</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">cached</span> <span class="o">=</span> <span class="n">_json_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cached</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">stamp</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">cached</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">obj</span> <span class="o">=</span> <span class="n">json_read</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="n">_json_cache</span><span class="p">[</span><span class="n">path</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">stamp</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">obj</span></div>
 
 
 <div class="viewcode-block" id="check_nan_only_columns">
@@ -1617,7 +1889,8 @@ window.runMermaid = runMermaid;</script>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
     <span class="k">if</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
-        <span class="k">with</span> <span class="n">smart_open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fobj</span><span class="p">:</span>
+        <span class="c1"># Footer-only read: skip fsspec&#39;s block read-ahead entirely</span>
+        <span class="k">with</span> <span class="n">smart_open_columnar</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">as</span> <span class="n">fobj</span><span class="p">:</span>
             <span class="n">schema</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">read_schema</span><span class="p">(</span><span class="n">fobj</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">schema</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">read_schema</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">memory_map</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -1726,7 +1999,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ValueError</span>
 <span class="sd">        If format cannot be determined</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">smart_isdir</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">smart_isfile</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
         <span class="c1"># Check for H3 database first (has build log)</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">BUILD_LOG_FILENAME</span>
         <span class="n">build_log</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">)</span>
@@ -2648,6 +2921,53 @@ window.runMermaid = runMermaid;</script>
         <span class="k">return</span> <span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">GediTemporalError</span><span class="p">(</span><span class="s2">&quot;Invalid temporal input. Must be a list or tuple of two dates.&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="region_to_geometry">
+<a class="viewcode-back" href="../../autoapi/gedih3/utils/index.html#gedih3.utils.region_to_geometry">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">region_to_geometry</span><span class="p">(</span><span class="n">spatial</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalize any accepted region argument to one shapely geometry in EPSG:4326.</span>
+
+<span class="sd">    Accepts what the CLIs accept — a vector-file path, a ``&quot;W,S,E,N&quot;``</span>
+<span class="sd">    string, a ``[W, S, E, N]`` list, a GeoDataFrame/GeoSeries, or a</span>
+<span class="sd">    shapely geometry — so every spatial-selection path agrees on what a</span>
+<span class="sd">    region *is*. Shared by :func:`~gedih3.h3utils.intersect_h3_geometries`</span>
+<span class="sd">    (H3 partition selection) and the EGI partition selection in</span>
+<span class="sd">    ``gh3driver``; keeping one normalizer is what stops the two index</span>
+<span class="sd">    types from drifting apart on region handling.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    TypeError</span>
+<span class="sd">        If the input is not one of the accepted forms.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">box</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseGeometry</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">spatial</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="c1"># Mirror the CLI&#39;s parse_region semantics so the Python API can</span>
+        <span class="c1"># accept &quot;region.shp&quot; / &quot;region.gpkg&quot; / &quot;region.geojson&quot; / &quot;W,S,E,N&quot;</span>
+        <span class="c1"># the same way `gh3_extract -r` does. The gh3_load docstring example</span>
+        <span class="c1"># advertises this. Without it, sindex.query() raises a misleading</span>
+        <span class="c1"># &quot;Array should be of object dtype&quot; downstream.</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_region</span>
+        <span class="n">spatial</span> <span class="o">=</span> <span class="n">parse_region</span><span class="p">(</span><span class="n">spatial</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">spatial</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+        <span class="n">spatial</span> <span class="o">=</span> <span class="n">box</span><span class="p">(</span><span class="o">*</span><span class="n">spatial</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">spatial</span><span class="p">,</span> <span class="p">(</span><span class="n">gpd</span><span class="o">.</span><span class="n">GeoSeries</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">spatial</span><span class="o">.</span><span class="n">crs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># CRS-naive geopandas input: assume EPSG:4326 (the package-wide</span>
+            <span class="c1"># convention) instead of raising deep inside to_crs.</span>
+            <span class="n">spatial</span> <span class="o">=</span> <span class="n">spatial</span><span class="o">.</span><span class="n">set_crs</span><span class="p">(</span><span class="mi">4326</span><span class="p">)</span>
+        <span class="n">spatial</span> <span class="o">=</span> <span class="n">spatial</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="mi">4326</span><span class="p">)</span><span class="o">.</span><span class="n">union_all</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">spatial</span><span class="p">,</span> <span class="n">BaseGeometry</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Unsupported region type </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">spatial</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">; &quot;</span>
+            <span class="s2">&quot;expected a path/bbox-string, a list [W,S,E,N], a GeoDataFrame/GeoSeries, or a shapely geometry.&quot;</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">spatial</span></div>
+
 
 
 <div class="viewcode-block" id="parse_spatial">

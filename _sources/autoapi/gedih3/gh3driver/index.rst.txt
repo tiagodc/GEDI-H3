@@ -74,19 +74,27 @@ Module Contents
    :Parameters:
 
        **source** : str
-           Path to an H3 database (the directory holding ``gedih3_build_log.json``).
+           Path to an H3 database (the directory holding
+           ``gedih3_build_log.json``) or a simplified dataset (the directory
+           holding ``gedih3_dataset.json`` — H3 or EGI). Datasets answer
+           through the same safety-gated selection the loaders use
+           (:func:`_select_dataset_files`): when the sidecar cannot prove the
+           filenames bound their files, every partition is returned rather
+           than risking an under-selection.
 
        **region** : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
            ROI as a vector-file path / ``"W,S,E,N"`` string, ``[W, S, E, N]``
            bbox list, geopandas object, or shapely geometry (EPSG:4326). When
-           ``None`` (default), every partition in the database is returned.
+           ``None`` (default), every partition is returned.
 
 
 
    :Returns:
 
        list[str]
-           Sorted H3 partition cell IDs at the database's partition level.
+           Sorted partition IDs: H3 cell IDs at the database's partition level,
+           or the dataset's file-basename partition IDs (H3 cells / EGI hashes).
+           Empty when no dataset partition intersects the region.
 
 
 
@@ -196,7 +204,7 @@ Module Contents
        **columns** : list, optional
            Columns to load.
 
-       **region** : GeoDataFrame or bbox, optional
+       **region** : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
            Spatial filter.
 
        **query** : str, optional
@@ -475,7 +483,7 @@ Module Contents
        **columns** : list, optional
            Columns to load.
 
-       **region** : GeoDataFrame or bbox, optional
+       **region** : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
            Spatial filter.
 
        **query** : str, optional
@@ -966,7 +974,7 @@ Module Contents
        **data_source** : str, optional
            Path to H3 database or simplified dataset directory
 
-       **region** : GeoDataFrame or bbox, optional
+       **region** : str | list | GeoDataFrame | GeoSeries | shapely geometry, optional
            Additional spatial filter
 
        **query** : str, optional
