@@ -49,6 +49,7 @@ gh3_build --s3 -r region.shp -l4a agbd  # Build directly from S3
 | `-h3p` | H3 partition resolution (default: 3, ~12,393 km²) |
 | `-i` | Input directory where GEDI HDF5 files are stored (default: `GH3_DEFAULT_SOC_DIR`) |
 | `-d` | Output H3 database directory |
+| `--no-bbox-index` | Skip the automatic `_bbox_index.parquet` build after a successful build (see [`gh3_bbox_index`](#gh3_bbox_index)) |
 
 ---
 

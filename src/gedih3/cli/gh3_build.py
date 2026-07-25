@@ -344,15 +344,19 @@ def main():
                 if h3_logger.previous_status != 'COMPLETED':
                     h3_logger.set_post_build_info()
                     h3_logger.save_log('COMPLETED')
+                logger.info("Database is already up-to-date with requested parameters")
                 # Up-to-date DB: create the index only if it is missing
                 # (e.g. first run after upgrading gedih3) — the data is
-                # unchanged, so an existing index remains valid.
+                # unchanged, so an existing index remains valid. No client
+                # exists yet on this early-exit path, so honor -N with a
+                # short-lived one instead of a silent thread fallback.
                 from gedih3.config import BBOX_INDEX_FILENAME
                 from gedih3.gh3driver import refresh_bbox_index_after_build
                 if args.bbox_index and not os.path.exists(
                         os.path.join(args.output, BBOX_INDEX_FILENAME)):
-                    refresh_bbox_index_after_build(args.output, logger=logger)
-                logger.info("Database is already up-to-date with requested parameters")
+                    logger.info("Creating missing bbox index (footer-only scan)")
+                    with Client(**parse_dask_args(args)):
+                        refresh_bbox_index_after_build(args.output, logger=logger)
                 print_success("Database is up-to-date, no changes needed", logger=logger)
                 return
             else:
@@ -380,6 +384,10 @@ def main():
         tmp_dir=args.tmpdir,
         exclude=args.exclude,
     )
+
+    # Set right after each final save_log('COMPLETED'): a Ctrl-C during the
+    # post-completion bbox-index build must not downgrade a finished build.
+    build_completed = False
 
     try:
         with Client(**dask_kwargs) as client:
@@ -685,6 +693,7 @@ def main():
                 h3_logger.set_post_build_info()
                 h3_logger.log_data.pop('_pending_variable_update', None)
                 h3_logger.save_log('COMPLETED')
+                build_completed = True
                 # AFTER the final log save — an index older than the log is
                 # treated as stale by the loaders.
                 from gedih3.gh3driver import refresh_bbox_index_after_build
@@ -836,6 +845,7 @@ def main():
                 # PROCESSING status with the flag → next run resumes correctly.
                 h3_logger.log_data.pop('_pending_variable_update', None)
                 h3_logger.save_log('COMPLETED')
+                build_completed = True
 
                 # AFTER the final log save — an index older than the log is
                 # treated as stale by the loaders.
@@ -868,8 +878,12 @@ def main():
 
     except KeyboardInterrupt:
         logger.warning("\nBuild interrupted by user")
-        h3_logger.set_post_build_info()
-        h3_logger.save_log('INTERRUPTED')
+        # A Ctrl-C during the post-completion bbox-index build must not
+        # downgrade a genuinely finished build's log to INTERRUPTED — the
+        # index is derived and rebuildable, the COMPLETED status is not.
+        if not build_completed:
+            h3_logger.set_post_build_info()
+            h3_logger.save_log('INTERRUPTED')
         sys.exit(130)
 
     except Exception as e:

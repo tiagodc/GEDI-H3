@@ -88,6 +88,8 @@ def gh3_list_parts(gh3_root_dir=GH3_DEFAULT_H3_DIR):
     return h3_ids
 
 def gh3_read_meta(var, gh3_root_dir=GH3_DEFAULT_H3_DIR):
+    from .utils import resolve_s3_source
+    gh3_root_dir = resolve_s3_source(gh3_root_dir)
     meta_path = smart_join(gh3_root_dir, BUILD_LOG_FILENAME)
     return json_read_cached(meta_path).get(var)
 
