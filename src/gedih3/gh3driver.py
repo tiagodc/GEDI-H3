@@ -898,16 +898,27 @@ def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat
                     if c not in cols:
                         cols.append(c)
                         extras.append(c)
-            if remote:
-                df = read_parquet_coalesced(src, columns=cols, geo=geo, filters=filt)
-            else:
-                reader = gpd.read_parquet if geo else pd.read_parquet
-                df = reader(src, columns=cols, filters=filt)
-            if extras:
-                # unconditionally: a 0-row result still carries the helper
-                # columns, and leaking them desyncs the dask meta
-                df = df.drop(columns=extras)
-            return df
+            try:
+                if remote:
+                    df = read_parquet_coalesced(src, columns=cols, geo=geo, filters=filt)
+                else:
+                    reader = gpd.read_parquet if geo else pd.read_parquet
+                    df = reader(src, columns=cols, filters=filt)
+                if extras:
+                    # unconditionally: a 0-row result still carries the helper
+                    # columns, and leaking them desyncs the dask meta
+                    df = df.drop(columns=extras, errors='ignore')
+                return df
+            except Exception as exc:
+                # A schema-drifted file may lack the DB-wide predicate
+                # columns (pyarrow raises ArrowInvalid: "No match for
+                # FieldRef"). The bbox scanner degrades to a NULL envelope
+                # for such files; the read path must degrade the same way —
+                # fall through to the geometric full-read + clip below
+                # instead of turning a region query into a hard crash.
+                import pyarrow as pa
+                if not isinstance(exc, (KeyError, pa.lib.ArrowInvalid)):
+                    raise
 
         # 'fallback' — full read + in-memory geometric clip. Last resort.
         df = (read_parquet_coalesced(src, columns=columns, geo=True) if remote
@@ -936,11 +947,14 @@ def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat
 #
 # Consumers are strictly fail-safe: a file missing from the index, a NULL
 # bbox (incomplete stats), or a missing/unreadable sidecar all mean "keep
-# the file / fall back to the unindexed path". The producer-side invariant
-# mirrors `_manifest.txt`: `_merge_and_finalize` deletes the index whenever
-# a merge changes data (a stale index could under-select; an absent one
-# only costs speed), and variable-only updates leave it alone (adding
-# columns never moves a shot).
+# the file / fall back to the unindexed path". Staleness is impossible by
+# construction — a stale index would silently under-select (the one
+# unacceptable failure), absence only costs speed — via three layers:
+# `_merge_and_finalize` deletes the index at merge ENTRY (before the first
+# partition write, so a killed build cannot leave one behind),
+# `gh3_doctor --fix` drops it after any applied remedy, and
+# `_load_bbox_index` ignores any index older than the build log (every
+# producer saves the log — the O(1) guard subsumes forgotten hooks).
 
 def _bbox_cols_from_meta(gh3_dir):
     """lat/lon predicate columns from the cached schema (a-priori, no I/O)."""
@@ -1050,8 +1064,10 @@ def gh3_build_bbox_index(source=None):
     records = []
     if client is not None:
         from .parallel import parallel_map
+        # batch: one task per file would swamp the scheduler at 10^5+ files
         for _item, res in parallel_map(items, _scan_file_bbox,
-                                       desc='bbox index', unit='file'):
+                                       desc='bbox index', unit='file',
+                                       batch_size=256):
             if isinstance(res, Exception):
                 raise res
             records.append(res)
@@ -1065,16 +1081,26 @@ def gh3_build_bbox_index(source=None):
     opath = os.path.join(gh3_dir, BBOX_INDEX_FILENAME)
     atomic_parquet_write(index_df.reset_index(drop=True), opath)
     _BBOX_INDEX_CACHE.pop(opath, None)
-
-    # Writing a root sidecar bumps the root dir's mtime, which would trip
-    # check_manifest_freshness on every later load. The manifest's CONTENT
-    # is untouched — it indexes data files, not root sidecars — so refresh
-    # its timestamp instead of leaving a false stale alarm behind.
-    from .config import MANIFEST_FILENAME
-    manifest = os.path.join(gh3_dir, MANIFEST_FILENAME)
-    if os.path.exists(manifest):
-        os.utime(manifest, None)
     return opath
+
+
+def invalidate_bbox_index(gh3_dir):
+    """Delete the bbox-index sidecar when partition data may have changed.
+
+    The producer-side half of the index contract: a stale index silently
+    under-selects (the one unacceptable failure), an absent one only costs
+    speed. Called by ``_merge_and_finalize`` (before its manifest write —
+    unlinking a root sidecar bumps the root dir mtime) and by
+    ``gh3_doctor --fix`` after any applied remedy. Idempotent; returns
+    True when a sidecar was actually removed.
+    """
+    from .config import BBOX_INDEX_FILENAME
+    path = os.path.join(gh3_dir, BBOX_INDEX_FILENAME)
+    _BBOX_INDEX_CACHE.pop(path, None)
+    if os.path.exists(path):
+        os.remove(path)
+        return True
+    return False
 
 
 _BBOX_INDEX_CACHE = {}  # index path -> (stamp, mapping-or-None)
@@ -1085,11 +1111,15 @@ def _load_bbox_index(gh3_dir):
 
     Rows with a NULL bbox are omitted (unknown -> caller keeps the file).
     Returns ``None`` when the sidecar is absent or unreadable — callers fall
-    back to the unindexed path. Cached per root: local entries revalidate on
+    back to the unindexed path — or when the build log is NEWER than the
+    index (local roots): every producer that changes the database saves the
+    log, so this O(1) stat self-guards against any invalidation hook a
+    future writer forgets. Rebuild with ``gh3_bbox_index`` after any build
+    or update. Cached per root: local entries revalidate on
     ``(mtime_ns, size, inode)``; remote entries (including absence) are held
     for the process, same doctrine as ``json_read_cached``.
     """
-    from .config import BBOX_INDEX_FILENAME
+    from .config import BBOX_INDEX_FILENAME, BUILD_LOG_FILENAME
     path = smart_join(gh3_dir, BBOX_INDEX_FILENAME)
     remote = is_remote_path(path)
     stamp = None
@@ -1100,6 +1130,16 @@ def _load_bbox_index(gh3_dir):
         except OSError:
             _BBOX_INDEX_CACHE.pop(path, None)
             return None
+        # Self-guard (O(1)): every producer that changes the database saves
+        # the build log, so an index older than the log may describe stale
+        # envelopes — treat it as absent rather than risk under-selection.
+        # This subsumes any invalidation hook a future writer forgets.
+        try:
+            log_mtime = os.stat(os.path.join(gh3_dir, BUILD_LOG_FILENAME)).st_mtime_ns
+            if log_mtime > st.st_mtime_ns:
+                return None
+        except OSError:
+            pass  # no build log locally — nothing to compare against
     cached = _BBOX_INDEX_CACHE.get(path)
     if cached is not None and cached[0] == stamp:
         return cached[1]
@@ -1282,7 +1322,7 @@ def _meta_from_dtype_dict(col_dtypes, *, columns=None, part_col=None, index_name
 _YEAR_HIVE_RE = re.compile(r'year=(\d{4})')
 
 
-def gh3_load_hex(d, part_col=None, _storage_cfg=None, **kwargs):
+def gh3_load_hex(d, _bbox_index=None, part_col=None, _storage_cfg=None, **kwargs):
     _restore_storage_on_worker(_storage_cfg)
 
     # Region pushdown plumbing (driver-set, see _load_h3_database):
@@ -1292,9 +1332,13 @@ def gh3_load_hex(d, part_col=None, _storage_cfg=None, **kwargs):
     # `_bbox_index.parquet` sidecar) skips files that provably cannot
     # intersect the region without opening them at all. Both are strict
     # supersets of the exact clip applied downstream — results unchanged.
+    # `_bbox_index` is the SECOND from_map iterable (one small per-partition
+    # dict per task), never a broadcast kwarg — from_map re-serializes
+    # kwargs into every task, which would ship the whole index N times on
+    # continental queries (pillar 1: no driver-side fan-out cost).
     bbox4326 = kwargs.pop('_bbox_4326', None)
     bbox_strategy = kwargs.pop('_bbox_strategy', None) or ('fallback', None, None)
-    bbox_index = kwargs.pop('_bbox_index', None)
+    bbox_index = _bbox_index if _bbox_index is not None else kwargs.pop('_bbox_index', None)
 
     files = smart_glob(smart_join(d, '**/*.parquet'), recursive=True)
     cols = kwargs.get('columns')
@@ -1414,8 +1458,11 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
             # the dask graph stay well-formed (from_map rejects an empty
             # list); the bbox pushdown + exact clip below then produce the
             # correct empty result — same doctrine as _select_dataset_files.
-            h3_ids = sorted(gh3_read_meta("h3_partition_ids",
-                                          gh3_root_dir=gh3_dir))[:1]
+            _all_ids = gh3_read_meta("h3_partition_ids", gh3_root_dir=gh3_dir) or []
+            if not _all_ids:
+                raise GediDatabaseNotFoundError(
+                    f"No partitions listed in the build log of {gh3_dir}")
+            h3_ids = sorted(_all_ids)[:1]
         region_filters = [(h3_part_col,'in',h3_ids)]
 
         if 'columns' in h3_filter:
@@ -1467,6 +1514,7 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
         # bbox read path cannot compose arbitrary predicates with the bbox
         # ones on every strategy, and dropping user filters would change
         # results; that combination keeps the legacy read.
+        _per_dir_bbox = None
         if region is not None and filters is None:
             from .utils import region_to_geometry
             _bbox = tuple(region_to_geometry(region).bounds)
@@ -1476,10 +1524,18 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
                 ('coord_filter', _lat, _lon) if _lat else ('fallback', None, None))
             _idx = _load_bbox_index(gh3_dir)
             if _idx:
-                _sel = set(h3_ids)
-                fm_filter['_bbox_index'] = {
-                    k: v for k, v in _idx.items()
-                    if k.split('/', 1)[0].split('=')[-1] in _sel}
+                # Group by partition dir and align one small dict per task
+                # (second from_map iterable). A kwarg would be re-serialized
+                # into EVERY task — the whole index x N on continental
+                # queries, the exact driver fan-out cost pillar 1 forbids.
+                _by_dir = {}
+                for _k, _v in _idx.items():
+                    _by_dir.setdefault(_k.split('/', 1)[0], {})[_k] = _v
+                _per_dir_bbox = [
+                    _by_dir.get(os.path.basename(_d.rstrip('/'))) or None
+                    for _d in h3_dirs]
+                if not any(_per_dir_bbox):
+                    _per_dir_bbox = None
 
         # Pass storage credentials so Dask workers (separate processes) can
         # authenticate against remote filesystems.
@@ -1498,8 +1554,17 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
             index_name=h3_index_col,
         )
         if _meta is None:
-            _meta = gh3_load_hex(h3_dirs[0], part_col=h3_part_col, **fm_filter)
-        ddf = dask.dataframe.from_map(gh3_load_hex, h3_dirs, part_col=h3_part_col, **fm_filter, meta=_meta)
+            _meta = gh3_load_hex(h3_dirs[0],
+                                 _per_dir_bbox[0] if _per_dir_bbox else None,
+                                 part_col=h3_part_col, **fm_filter)
+        if _per_dir_bbox is not None:
+            ddf = dask.dataframe.from_map(gh3_load_hex, h3_dirs, _per_dir_bbox,
+                                          part_col=h3_part_col, **fm_filter,
+                                          meta=_meta)
+        else:
+            ddf = dask.dataframe.from_map(gh3_load_hex, h3_dirs,
+                                          part_col=h3_part_col, **fm_filter,
+                                          meta=_meta)
         if 'geometry' in ddf.columns:
             ddf = dask_geopandas.from_dask_dataframe(ddf, geometry='geometry')
     else:
@@ -2209,17 +2274,23 @@ def _prepare_egi_loading(region, gh3_dir, partition_level=12):
     # neighbors are within ring-1 of the box set, and both are restricted
     # to the same DB partition list. Result identical, cost proportional
     # to the region instead of the database.
-    if region_gdf is not None and h3_ids:
-        from shapely.geometry import box as _box
-        from pyproj import Transformer as _Transformer
-        _t = _Transformer.from_crs('EPSG:6933', 'EPSG:4326', always_xy=True)
-        _x0, _y0, _x1, _y1 = egi_tiles.total_bounds
-        _lon0, _lat0 = _t.transform(_x0, _y0)
-        _lon1, _lat1 = _t.transform(_x1, _y1)
-        _cand = intersect_h3_geometries(_box(_lon0, _lat0, _lon1, _lat1),
-                                        h3_ids=h3_ids, expand_ring=1)
-        if _cand:
-            h3_ids = _cand
+    if region_gdf is not None and h3_ids and len(egi_tiles):
+        try:
+            from shapely.geometry import box as _box
+            from pyproj import Transformer as _Transformer
+            _t = _Transformer.from_crs('EPSG:6933', 'EPSG:4326', always_xy=True)
+            _x0, _y0, _x1, _y1 = egi_tiles.total_bounds
+            _lon0, _lat0 = _t.transform(_x0, _y0)
+            _lon1, _lat1 = _t.transform(_x1, _y1)
+            _cand = intersect_h3_geometries(_box(_lon0, _lat0, _lon1, _lat1),
+                                            h3_ids=h3_ids, expand_ring=1)
+            if _cand:
+                h3_ids = _cand
+        except Exception:
+            # Pure optimization: degenerate tile sets (all-clamped at the
+            # grid edge -> NaN bounds) must not turn into a GEOSException;
+            # fall back to the full partition list.
+            pass
 
     # Get H3 partitions as GeoDataFrame
     h3_gdf = h3_parts_to_gdf(h3_ids)

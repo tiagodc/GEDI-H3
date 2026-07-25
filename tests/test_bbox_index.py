@@ -37,6 +37,30 @@ def _neighbor_cell():
     return sorted(c for c in h3.grid_disk(_CELL_A, 1) if c != _CELL_A)[0]
 
 
+def _cell_points(cell, n=80):
+    """~n level-12 cells inside `cell` via a lat/lng grid probe.
+
+    Deliberately avoids `h3.cell_to_children(cell, 12)` — that enumerates
+    ~40M descendants of a level-3 cell (~18 s per call) just to slice off
+    80 of them, which made every fixture instantiation cost ~35 s.
+    """
+    import h3
+    boundary = h3.cell_to_boundary(cell)
+    la0, la1 = min(p[0] for p in boundary), max(p[0] for p in boundary)
+    lo0, lo1 = min(p[1] for p in boundary), max(p[1] for p in boundary)
+    out, seen = [], set()
+    steps = 14
+    for i in range(1, steps):
+        for j in range(1, steps):
+            la = la0 + (la1 - la0) * i / steps
+            lo = lo0 + (lo1 - lo0) * j / steps
+            c12 = h3.latlng_to_cell(la, lo, 12)
+            if c12 not in seen and h3.cell_to_parent(c12, 3) == cell:
+                seen.add(c12)
+                out.append(c12)
+    return out[:n]
+
+
 def _write_year_file(root, cell, year, children):
     import h3
     lat = np.array([h3.cell_to_latlng(c)[0] for c in children])
@@ -72,7 +96,7 @@ def mini_db(tmp_path):
     bboxes = {}
     sample = None
     for cell in cells:
-        children = sorted(h3.cell_to_children(cell, 12))[:2000:25]  # ~80 pts
+        children = _cell_points(cell)
         children.sort(key=lambda c: h3.cell_to_latlng(c)[0])  # by latitude
         south, north = children[: len(children) // 2], children[len(children) // 2:]
         p1, b1 = _write_year_file(root, cell, 2019, south)
@@ -337,8 +361,12 @@ def test_prepare_egi_loading_restriction_is_equivalent(mini_db):
 def test_get_children_vectorized_is_consistent():
     from gedih3 import egi
 
+    from gedih3.egi.config import OUTER_RES, RESOLUTIONS
+
     parent = int(egi.to_hash(1000000.0, 2000000.0, level=12))
     kids = egi.get_children(np.uint64(parent), children_level=7)
+    expected = round(OUTER_RES / RESOLUTIONS[7]) ** 2
+    assert len(kids) == expected  # silently-fewer children would be a loss
     assert len(kids) == len(set(int(k) for k in kids))
     levels = {int(egi.get_level(np.uint64(k))) for k in kids}
     assert levels == {7}
@@ -347,24 +375,147 @@ def test_get_children_vectorized_is_consistent():
     assert set(int(p) for p in np.atleast_1d(parents)) == {parent}
 
 
-def test_index_write_does_not_stale_the_manifest(mini_db):
-    """Writing the root sidecar bumps the root dir mtime; the builder must
-    refresh the manifest timestamp so check_manifest_freshness stays green
-    (the manifest indexes data files, which are untouched)."""
+def test_index_ignored_when_build_log_is_newer(mini_db):
+    """The self-guard: every producer saves the build log, so an index
+    older than the log may describe stale envelopes — it must be treated
+    as absent (fail-safe), never trusted."""
     import time
 
-    from gedih3.utils import generate_manifest
-    from gedih3.parallel import check_manifest_freshness
-    from gedih3.config import MANIFEST_FILENAME
-
-    root, cells, _ = mini_db
-    files = [os.path.join(root, f"h3_03={c}", f"year={y}", f"{c}.{y}.0.parquet")
-             for c in cells for y in (2019, 2020)]
-    generate_manifest(root, files=files)
-    time.sleep(0.02)
+    root, _, _ = mini_db
     g.gh3_build_bbox_index(root)
-    assert check_manifest_freshness(
-        os.path.join(root, MANIFEST_FILENAME), root) is True
+    assert gh3._load_bbox_index(root) is not None
+
+    time.sleep(0.02)
+    log = os.path.join(root, "gedih3_build_log.json")
+    os.utime(log, None)  # a producer touched the database after the index
+    assert gh3._load_bbox_index(root) is None
+
+    g.gh3_build_bbox_index(root)  # rebuild -> trusted again
+    assert gh3._load_bbox_index(root) is not None
+
+
+def test_invalidate_bbox_index_helper(mini_db):
+    """The producer-side invalidation used by _merge_and_finalize (at merge
+    ENTRY, before any partition write) and gh3_doctor --fix."""
+    root, _, _ = mini_db
+    g.gh3_build_bbox_index(root)
+    assert gh3.invalidate_bbox_index(root) is True
+    assert not os.path.exists(os.path.join(root, BBOX_INDEX_FILENAME))
+    assert gh3._load_bbox_index(root) is None
+    assert gh3.invalidate_bbox_index(root) is False  # idempotent
+
+
+def test_smart_glob_never_sweeps_root_sidecars(mini_db):
+    """`**/*.parquet` matches root files (recursive matches zero dirs); a
+    consumer treating the bbox index as a data partition is a silent-
+    corruption class. smart_glob's fallback must drop root sidecars."""
+    from gedih3.utils import smart_glob
+
+    root, _, _ = mini_db
+    g.gh3_build_bbox_index(root)
+    hits = smart_glob(os.path.join(root, "**/*.parquet"), recursive=True)
+    assert hits, "expected data files"
+    assert not any(os.path.basename(h).startswith("_") for h in hits)
+    # explicit requests for underscore names still work
+    direct = smart_glob(os.path.join(root, "_bbox_index.parquet"))
+    assert len(direct) == 1
+
+
+def test_coord_filter_degrades_on_schema_drifted_file(mini_db):
+    """A file lacking the DB-wide predicate columns must not turn a region
+    query into a hard crash — the read degrades to the geometric fallback
+    for that file, matching the scanner's NULL-envelope degradation."""
+    import h3 as h3lib
+    root, cells, bboxes = mini_db
+
+    # strip the predicate columns from one year file (plain pyarrow file
+    # rewrite — gpd/pandas would hive-infer h3_03/year into the file)
+    import pyarrow.parquet as pq
+    p = os.path.join(root, f"h3_03={cells[0]}", "year=2019",
+                     f"{cells[0]}.2019.0.parquet")
+    t = pq.ParquetFile(p).read()  # physical columns only, no hive inference
+    t = t.drop_columns(["lat_lowestmode_l2a", "lon_lowestmode_l2a"])
+    pq.write_table(t, p)
+
+    # Explicit projection: full-schema loads of a drifted DB already fail
+    # on main (uniform-schema invariant — concat order/columns diverge);
+    # the contract here is only that the REGION path must not crash where
+    # the projected non-region path works.
+    lat, lng = h3lib.cell_to_latlng(cells[0])
+    region = [lng - 0.4, lat - 0.4, lng + 0.4, lat + 0.4]
+    got = g.gh3_load(root, region=region, columns=["rh_098_l2a"], lazy=False)
+    ref = g.gh3_load(root, columns=["rh_098_l2a", "geometry"], lazy=False).clip(
+        gpd.GeoDataFrame(geometry=[__import__("shapely.geometry",
+                                              fromlist=["box"]).box(*region)],
+                         crs=4326))
+    assert _rows(got) == _rows(ref)
+    assert len(got) > 0
+
+
+def test_fallback_strategy_when_db_has_no_predicate_columns(tmp_path):
+    """A DB without lat/lon_lowestmode columns takes the 'fallback' bbox
+    strategy (full read + geometric clip) and still answers correctly."""
+    import json as _json
+    import h3 as h3lib
+    import pyarrow.parquet as pq
+    from shapely.geometry import box as _box
+
+    root = str(tmp_path / "nolatlon")
+    os.makedirs(root)
+    cell = _CELL_A
+    children = _cell_points(cell)
+    lat = np.array([h3lib.cell_to_latlng(c)[0] for c in children])
+    lng = np.array([h3lib.cell_to_latlng(c)[1] for c in children])
+    ydir = os.path.join(root, f"h3_03={cell}", "year=2020")
+    os.makedirs(ydir)
+    path = os.path.join(ydir, f"{cell}.2020.0.parquet")
+    gpd.GeoDataFrame(
+        {"rh_098_l2a": np.linspace(1.0, 9.0, len(children))},
+        geometry=[Point(x, y) for x, y in zip(lng, lat)],
+        index=pd.Index(list(children), name="h3_12"), crs=4326,
+    ).to_parquet(path)
+    schema = pq.read_schema(path)
+    with open(os.path.join(root, "gedih3_build_log.json"), "w") as fh:
+        _json.dump({
+            "h3_resolution_level": 12, "h3_partition_level": 3,
+            "h3_partition_ids": [cell],
+            "h3_columns": list(schema.names),
+            "h3_columns_dtypes": {n: str(schema.field(n).type)
+                                  for n in schema.names},
+        }, fh)
+
+    la, lo = h3lib.cell_to_latlng(cell)
+    region = [lo - 0.2, la - 0.2, lo + 0.2, la + 0.2]
+    got = g.gh3_load(root, region=region, lazy=False)
+    ref = g.gh3_load(root, lazy=False).clip(
+        gpd.GeoDataFrame(geometry=[_box(*region)], crs=4326))
+    assert len(got) > 0
+    assert _rows(got) == _rows(ref)
+
+
+def test_egi_load_wires_task_bboxes(mini_db, monkeypatch):
+    """The driver must hand each EGI tile task its per-partition envelope
+    dict — equality alone cannot distinguish working skips from a silent
+    no-op in the wiring."""
+    import h3 as h3lib
+    root, cells, _ = mini_db
+    g.gh3_build_bbox_index(root)
+
+    captured = []
+    orig = gh3._load_egi_tile_from_h3
+
+    def spy(*args, **kw):
+        captured.append(kw.get("file_bboxes"))
+        return orig(*args, **kw)
+
+    monkeypatch.setattr(gh3, "_load_egi_tile_from_h3", spy)
+    lat, lng = h3lib.cell_to_latlng(cells[0])
+    region = [lng - 0.4, lat - 0.4, lng + 0.4, lat + 0.4]
+    out = g.egi_load(source=root, region=region, index_level=6,
+                     partition_level=12, lazy=True).compute()
+    assert len(out) > 0
+    assert captured and all(fb for fb in captured), \
+        "tile tasks did not receive their envelope dicts"
 
 
 def test_gh3_load_projected_columns_survive_empty_file_results(mini_db):
