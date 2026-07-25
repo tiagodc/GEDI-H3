@@ -243,13 +243,17 @@ gh3_bbox_index -d /path/to/db -N 16 # explicit database, 16 dask workers
 
 Also accepts the standard dask (`-N`, `-T`, `-M`, `-P`) and verbosity flags.
 
+`gh3_build` creates or refreshes the index automatically after every
+successful build (skip with `--no-bbox-index`), so this tool is needed for:
+retrofitting databases built before the index existed, restoring it after a
+`gh3_doctor --fix` remedy, or opting back in after a `--no-bbox-index` build.
+
 Safe to re-run at any time, and self-guarding: a stale index could silently
 under-select, a missing one only costs speed, so staleness is impossible by
 construction — `gh3_build` deletes the index at merge **entry** (before the
 first partition write, so even a killed build cannot leave one behind),
 `gh3_doctor --fix` drops it after any applied remedy, and query tools ignore
-any index older than the build log. Re-run `gh3_bbox_index` after each build
-or update to restore the speedup.
+any index older than the build log.
 
 ---
 
