@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.15.0] - 2026-07-25
 
 ### Fixed
 - Self-hosted S3 endpoints were unusable. Passing `--s3-endpoint` without `--s3-key`/`--s3-secret` silently dropped the anonymous-access default — `get_storage_options` returned the stored options verbatim and only fell back to `{'anon': True}` when *nothing* had been configured. s3fs then walked the botocore credential chain, raised `NoCredentialsError` inside its own `exists()`, which swallows every exception into a bare `False`, and the CLI reported `Database directory not found`. S3 now defaults to anonymous when no credential-bearing option (`key`, `secret`, `token`, `profile`, `anon`, `requester_pays`) is configured **and** the botocore chain has no ambient credentials to offer (AWS env vars / shared credentials file) — so an endpoint-only setup against an unauthenticated server just works, while a working env-var / profile setup keeps authenticating exactly as before. A new `--s3-profile` flag forces the chain explicitly (the escape hatch for EC2/ECS instance roles, which cannot be detected without a network round trip).
