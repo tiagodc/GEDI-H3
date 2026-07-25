@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.16.0] - 2026-07-25
 
 ### Added
 - **Data-bbox index** (`_bbox_index.parquet` root sidecar): one row per partition year-file with the true data envelope, derived from existing parquet row-group statistics — a footer-only scan (no data read; minutes for a continental database, seconds under a dask client). The GeoParquet bbox each file carries is the *padded partition polygon* (cell math, measured 3.8× taller than the actual shots on a production file), so the database previously stored no information about where the data really sits. Built by the new `gh3_bbox_index` CLI / `gedih3.gh3_build_bbox_index()`; retrofittable to any existing database. Consumers are strictly fail-safe: files missing from the index, NULL bboxes (incomplete stats) and an absent/unreadable sidecar all mean "keep the file / unindexed path". Staleness is impossible by construction (a stale index would silently under-select — the one unacceptable failure; absence only costs speed): `_merge_and_finalize` deletes the index at merge **entry**, before the first partition write, so even a SIGKILLed build cannot leave one behind; `gh3_doctor --fix` drops it after any applied remedy; and `_load_bbox_index` ignores any index older than the build log (O(1) stat — every producer saves the log, so this subsumes any hook a future writer forgets). Rebuild after each build/update to restore the speedup.
