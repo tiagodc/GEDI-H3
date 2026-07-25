@@ -2975,6 +2975,17 @@ def _merge_and_finalize(
     logger.info("Generating file manifest")
     generate_manifest(h3_dir, tree_shape='h3db')
 
+    # A merge changes the data envelope of the touched year files, so any
+    # pre-existing bbox index is stale — drop it (producer-driven, same
+    # doctrine as the manifest refresh). A stale bbox index would silently
+    # under-select in every query; absence just falls back to the
+    # unindexed path. Rebuild with gh3_bbox_index after the build.
+    from .config import BBOX_INDEX_FILENAME
+    _bbox_idx_path = os.path.join(h3_dir, BBOX_INDEX_FILENAME)
+    if os.path.exists(_bbox_idx_path):
+        os.remove(_bbox_idx_path)
+        logger.info("Removed stale %s (rebuild with gh3_bbox_index)", BBOX_INDEX_FILENAME)
+
     return h3_files
 
 

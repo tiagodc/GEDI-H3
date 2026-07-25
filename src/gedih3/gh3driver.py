@@ -915,6 +915,201 @@ def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat
         return df
 
 
+# =============================================================================
+# Data-bbox index — root sidecar `_bbox_index.parquet`
+# =============================================================================
+# The GeoParquet bbox each partition file carries is the *padded partition
+# polygon* bbox (h3_partition_bbox — cell math, no data scan), which is a
+# geometric worst case, not the data envelope: measured 3.8x taller than the
+# actual shots on a production file. The database therefore stores no
+# information about where the data really sits, and every spatial query pays
+# for it — 64% of the (tile x year-file) reads a representative EGI query
+# schedules contain zero rows in the target tile.
+#
+# The true envelope is already on disk for free: parquet row-group statistics
+# of the lat/lon columns. This index materializes them once (footer-only
+# scan, minutes for a continental DB) into one compact root sidecar, and the
+# query paths use it to skip files a-priori — pillar 4: never do work the
+# structure of the data already answers.
+#
+# Consumers are strictly fail-safe: a file missing from the index, a NULL
+# bbox (incomplete stats), or a missing/unreadable sidecar all mean "keep
+# the file / fall back to the unindexed path". The producer-side invariant
+# mirrors `_manifest.txt`: `_merge_and_finalize` deletes the index whenever
+# a merge changes data (a stale index could under-select; an absent one
+# only costs speed), and variable-only updates leave it alone (adding
+# columns never moves a shot).
+
+def _bbox_cols_from_meta(gh3_dir):
+    """lat/lon predicate columns from the cached schema (a-priori, no I/O)."""
+    names = gh3_read_meta('h3_columns', gh3_root_dir=gh3_dir) or []
+    for lat, lon in (('lat_lowestmode_l2a', 'lon_lowestmode_l2a'),
+                     ('lat_lowestmode', 'lon_lowestmode')):
+        if lat in names and lon in names:
+            return lat, lon
+    return None, None
+
+
+def _bbox_index_key(path):
+    """Normalize a partition parquet path to its index key: the last three
+    segments (``h3_XX=<cell>/year=<Y>/<file>.parquet``). Stable across local
+    roots, URLs and OS separators."""
+    return '/'.join(str(path).replace(os.sep, '/').rstrip('/').split('/')[-3:])
+
+
+def _bbox_disjoint(b, bbox):
+    """True when data bbox ``b`` cannot overlap query bbox ``bbox`` (both
+    (minx, miny, maxx, maxy), inclusive edges — touching is NOT disjoint)."""
+    return b[0] > bbox[2] or b[2] < bbox[0] or b[1] > bbox[3] or b[3] < bbox[1]
+
+
+def _scan_file_bbox(item):
+    """Worker: one partition file -> bbox-index record (footer-only read).
+
+    Aggregates row-group min/max statistics of the lat/lon columns. Any row
+    group without complete stats yields a NULL bbox — consumers treat NULL
+    as "unknown, keep the file". NaN coordinates are excluded from parquet
+    stats by the writer, matching the existing `coord_filter` pushdown
+    semantics (a NaN-coordinate row never satisfies the predicates today).
+    """
+    path, rel, lat_col, lon_col = item
+    import pyarrow.parquet as pq
+    rec = {'file': rel, 'lon_min': None, 'lat_min': None,
+           'lon_max': None, 'lat_max': None, 'n_rows': 0}
+    try:
+        md = pq.ParquetFile(path).metadata
+        rec['n_rows'] = md.num_rows
+        names = {md.schema.column(i).name: i for i in range(md.num_columns)}
+        if lat_col not in names or lon_col not in names:
+            return rec
+        li, oi = names[lat_col], names[lon_col]
+        lat_lo = lat_hi = lon_lo = lon_hi = None
+        for rg in range(md.num_row_groups):
+            s_lat = md.row_group(rg).column(li).statistics
+            s_lon = md.row_group(rg).column(oi).statistics
+            if not (s_lat and s_lon and s_lat.has_min_max and s_lon.has_min_max):
+                return rec
+            lat_lo = s_lat.min if lat_lo is None else min(lat_lo, s_lat.min)
+            lat_hi = s_lat.max if lat_hi is None else max(lat_hi, s_lat.max)
+            lon_lo = s_lon.min if lon_lo is None else min(lon_lo, s_lon.min)
+            lon_hi = s_lon.max if lon_hi is None else max(lon_hi, s_lon.max)
+        if lat_lo is not None:
+            rec.update(lon_min=float(lon_lo), lat_min=float(lat_lo),
+                       lon_max=float(lon_hi), lat_max=float(lat_hi))
+    except Exception:
+        pass  # unreadable footer -> unknown bbox (fail-safe: keep the file)
+    return rec
+
+
+def gh3_build_bbox_index(source=None):
+    """Build the ``_bbox_index.parquet`` root sidecar for an H3 database.
+
+    One row per partition year-file with the true data envelope derived
+    from existing parquet row-group statistics — footer-only reads, no data
+    scan (~minutes for a continental database; seconds with a dask client).
+    Query paths (`gh3_load` with ``region=``, `egi_load`) then skip files
+    whose envelope cannot intersect the query a-priori.
+
+    Uses the registered dask client when one exists (`parallel_map`);
+    otherwise a local thread pool — footer reads are tiny and I/O bound.
+    Local databases only: the index is written at the database root.
+
+    Returns the index path.
+    """
+    from .config import BBOX_INDEX_FILENAME
+    from .utils import atomic_parquet_write
+
+    gh3_dir = source or GH3_DEFAULT_H3_DIR
+    if is_remote_path(gh3_dir):
+        raise GediValidationError(
+            "The bbox index is written at the database root - build it where "
+            "the database lives (local path), then read it from anywhere.")
+
+    h3_part = gh3_read_meta('h3_partition_level', gh3_root_dir=gh3_dir)
+    part_col = f"h3_{int(h3_part):02d}"
+    lat_col, lon_col = _bbox_cols_from_meta(gh3_dir)
+    if not lat_col:
+        raise GediValidationError(
+            "Database schema has no lat/lon predicate columns "
+            "(lat_lowestmode[_l2a]); cannot build a bbox index.")
+
+    files = smart_glob(smart_join(gh3_dir, f'{part_col}=*/year=*/*.parquet'))
+    if not files:
+        files = smart_glob(smart_join(gh3_dir, f'{part_col}=*/**/*.parquet'),
+                           recursive=True)
+    if not files:
+        raise GediDatabaseNotFoundError(f"No partition parquet files in {gh3_dir}")
+
+    items = [(f, _bbox_index_key(f), lat_col, lon_col) for f in files]
+
+    from .utils import get_dask_client
+    client = get_dask_client()
+
+    records = []
+    if client is not None:
+        from .parallel import parallel_map
+        for _item, res in parallel_map(items, _scan_file_bbox,
+                                       desc='bbox index', unit='file'):
+            if isinstance(res, Exception):
+                raise res
+            records.append(res)
+    else:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(32, os.cpu_count() or 4)) as ex:
+            records = list(ex.map(_scan_file_bbox, items))
+
+    index_df = pd.DataFrame.from_records(records).sort_values('file')
+    index_df = index_df.astype({'file': 'string', 'n_rows': 'int64'})
+    opath = os.path.join(gh3_dir, BBOX_INDEX_FILENAME)
+    atomic_parquet_write(index_df.reset_index(drop=True), opath)
+    _BBOX_INDEX_CACHE.pop(opath, None)
+    return opath
+
+
+_BBOX_INDEX_CACHE = {}  # index path -> (stamp, mapping-or-None)
+
+
+def _load_bbox_index(gh3_dir):
+    """Read the bbox-index sidecar -> ``{rel_key: (lon0, lat0, lon1, lat1)}``.
+
+    Rows with a NULL bbox are omitted (unknown -> caller keeps the file).
+    Returns ``None`` when the sidecar is absent or unreadable — callers fall
+    back to the unindexed path. Cached per root: local entries revalidate on
+    ``(mtime_ns, size, inode)``; remote entries (including absence) are held
+    for the process, same doctrine as ``json_read_cached``.
+    """
+    from .config import BBOX_INDEX_FILENAME
+    path = smart_join(gh3_dir, BBOX_INDEX_FILENAME)
+    remote = is_remote_path(path)
+    stamp = None
+    if not remote:
+        try:
+            st = os.stat(path)
+            stamp = (st.st_mtime_ns, st.st_size, st.st_ino)
+        except OSError:
+            _BBOX_INDEX_CACHE.pop(path, None)
+            return None
+    cached = _BBOX_INDEX_CACHE.get(path)
+    if cached is not None and cached[0] == stamp:
+        return cached[1]
+
+    mapping = None
+    try:
+        if remote:
+            from .utils import smart_open_columnar
+            with smart_open_columnar(path) as f:
+                idx = pd.read_parquet(f)
+        else:
+            idx = pd.read_parquet(path)
+        idx = idx.dropna(subset=['lon_min', 'lat_min', 'lon_max', 'lat_max'])
+        mapping = {r.file: (r.lon_min, r.lat_min, r.lon_max, r.lat_max)
+                   for r in idx.itertuples()}
+    except Exception:
+        mapping = None  # absent/unreadable -> unindexed path
+    _BBOX_INDEX_CACHE[path] = (stamp, mapping)
+    return mapping
+
+
 def _restore_storage_on_worker(storage_cfg):
     """Restore storage credentials on Dask worker processes.
 
@@ -1078,9 +1273,35 @@ _YEAR_HIVE_RE = re.compile(r'year=(\d{4})')
 
 def gh3_load_hex(d, part_col=None, _storage_cfg=None, **kwargs):
     _restore_storage_on_worker(_storage_cfg)
+
+    # Region pushdown plumbing (driver-set, see _load_h3_database):
+    # `_bbox_4326` switches the per-file read to _read_parquet_bbox so the
+    # region prefilter happens at the parquet-stats layer instead of after a
+    # full read; `_bbox_index` (data-envelope per year file, from the
+    # `_bbox_index.parquet` sidecar) skips files that provably cannot
+    # intersect the region without opening them at all. Both are strict
+    # supersets of the exact clip applied downstream — results unchanged.
+    bbox4326 = kwargs.pop('_bbox_4326', None)
+    bbox_strategy = kwargs.pop('_bbox_strategy', None) or ('fallback', None, None)
+    bbox_index = kwargs.pop('_bbox_index', None)
+
     files = smart_glob(smart_join(d, '**/*.parquet'), recursive=True)
     cols = kwargs.get('columns')
     use_geo = cols is None or 'geometry' in cols
+
+    clip_geom = None
+    if bbox4326 is not None:
+        from shapely.geometry import box as _box
+        clip_geom = _box(*bbox4326)
+
+    def _read_one(f):
+        if bbox4326 is not None:
+            strategy, lat_col, lon_col = bbox_strategy
+            return _read_parquet_bbox(
+                f, bbox_4326=bbox4326, clip_box=clip_geom,
+                columns=cols, geo=use_geo,
+                strategy=strategy, lat_col=lat_col, lon_col=lon_col)
+        return _read_parquet_files([f], geo=use_geo, **kwargs)
 
     # Per-file read so we can attach the `year` hive partition column from
     # each file's path. pd.read_parquet on a LIST of files does NOT
@@ -1091,12 +1312,31 @@ def gh3_load_hex(d, part_col=None, _storage_cfg=None, **kwargs):
     # every .compute(). Reading per file is the same I/O the list-read
     # would do internally; the only overhead is N small open() calls.
     parts = []
+    skipped = []
     for f in files:
-        sub = _read_parquet_files([f], geo=use_geo, **kwargs)
+        if bbox4326 is not None and bbox_index:
+            b = bbox_index.get(_bbox_index_key(f))
+            if b is not None and _bbox_disjoint(b, bbox4326):
+                skipped.append(f)
+                continue
+        sub = _read_one(f)
         if 'year' not in sub.columns and sub.index.name != 'year':
             m = _YEAR_HIVE_RE.search(str(f))
             if m:
                 sub['year'] = np.int32(m.group(1))
+        parts.append(sub)
+
+    if len(parts) == 0 and skipped:
+        # Every file was index-skipped. Produce the correct EMPTY frame by
+        # reading one skipped file through the same bbox path — its row
+        # groups all prune, so this is a footer-only read with the right
+        # schema (columns, dtypes, index).
+        sub = _read_one(skipped[0])
+        m = _YEAR_HIVE_RE.search(str(skipped[0]))
+        if 'year' not in sub.columns and sub.index.name != 'year' and m:
+            # explicit dtype: scalar assignment on a 0-row frame does not
+            # reliably preserve int32, and the dask meta expects it
+            sub['year'] = np.full(len(sub), np.int32(m.group(1)), dtype='int32')
         parts.append(sub)
 
     if len(parts) == 0:
@@ -1158,6 +1398,13 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
     region_filters = None
     if region is not None:
         h3_ids = intersect_h3_geometries(region, h3_ids=h3_ids)
+        if not h3_ids:
+            # Region touches no partition. Keep one so the schema read and
+            # the dask graph stay well-formed (from_map rejects an empty
+            # list); the bbox pushdown + exact clip below then produce the
+            # correct empty result — same doctrine as _select_dataset_files.
+            h3_ids = sorted(gh3_read_meta("h3_partition_ids",
+                                          gh3_root_dir=gh3_dir))[:1]
         region_filters = [(h3_part_col,'in',h3_ids)]
 
         if 'columns' in h3_filter:
@@ -1199,6 +1446,29 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
         # and is already honored by the h3_dirs selection above.
         if filters is not None:
             fm_filter['filters'] = list(filters)
+
+        # Region bbox pushdown: filter rows at the parquet-stats layer inside
+        # each partition read instead of full-read + clip-later, and skip
+        # whole year files a-priori via the `_bbox_index.parquet` data
+        # envelopes when the sidecar exists. Both are supersets of the exact
+        # `ddf.clip(region)` applied below, so results are unchanged.
+        # Disabled when the caller passed their own pyarrow `filters` — the
+        # bbox read path cannot compose arbitrary predicates with the bbox
+        # ones on every strategy, and dropping user filters would change
+        # results; that combination keeps the legacy read.
+        if region is not None and filters is None:
+            from .utils import region_to_geometry
+            _bbox = tuple(region_to_geometry(region).bounds)
+            _lat, _lon = _bbox_cols_from_meta(gh3_dir)
+            fm_filter['_bbox_4326'] = _bbox
+            fm_filter['_bbox_strategy'] = (
+                ('coord_filter', _lat, _lon) if _lat else ('fallback', None, None))
+            _idx = _load_bbox_index(gh3_dir)
+            if _idx:
+                _sel = set(h3_ids)
+                fm_filter['_bbox_index'] = {
+                    k: v for k, v in _idx.items()
+                    if k.split('/', 1)[0].split('=')[-1] in _sel}
 
         # Pass storage credentials so Dask workers (separate processes) can
         # authenticate against remote filesystems.
@@ -1918,6 +2188,28 @@ def _prepare_egi_loading(region, gh3_dir, partition_level=12):
         # Drop degenerate edge-of-grid tiles (clamped to zero area by check_crs_limits)
         egi_tiles = egi_tiles[egi_tiles.geometry.is_valid & (egi_tiles.geometry.area > 0)]
 
+    # Restrict the H3 geometry build to partitions the selected tiles can
+    # possibly touch (a-priori cell math instead of constructing 10k+
+    # polygons and a global sindex). EPSG:6933 is per-axis monotonic in
+    # lon/lat, so the tiles' axis-aligned total_bounds maps to an EXACT
+    # axis-aligned 4326 box; intersect_h3_geometries' ring-1 then yields a
+    # provable superset of everything egi_h3_intersection can select —
+    # tile-intersecting cells are box-intersecting cells, their ring-1
+    # neighbors are within ring-1 of the box set, and both are restricted
+    # to the same DB partition list. Result identical, cost proportional
+    # to the region instead of the database.
+    if region_gdf is not None and h3_ids:
+        from shapely.geometry import box as _box
+        from pyproj import Transformer as _Transformer
+        _t = _Transformer.from_crs('EPSG:6933', 'EPSG:4326', always_xy=True)
+        _x0, _y0, _x1, _y1 = egi_tiles.total_bounds
+        _lon0, _lat0 = _t.transform(_x0, _y0)
+        _lon1, _lat1 = _t.transform(_x1, _y1)
+        _cand = intersect_h3_geometries(_box(_lon0, _lat0, _lon1, _lat1),
+                                        h3_ids=h3_ids, expand_ring=1)
+        if _cand:
+            h3_ids = _cand
+
     # Get H3 partitions as GeoDataFrame
     h3_gdf = h3_parts_to_gdf(h3_ids)
 
@@ -1932,7 +2224,8 @@ def _prepare_egi_loading(region, gh3_dir, partition_level=12):
 def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
                             query, index_level, partition_level, set_index=True,
                             tile_egi_id=None,
-                            bbox_strategy='fallback', bbox_lat_col=None, bbox_lon_col=None):
+                            bbox_strategy='fallback', bbox_lat_col=None, bbox_lon_col=None,
+                            file_bboxes=None):
     """
     Load data for a single EGI tile from its intersecting H3 partitions.
 
@@ -1973,6 +2266,12 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
         prevents the boundary-edge race where two neighbor tasks both write
         to the same canonical filename (last-writer-wins). When ``None``,
         no filter is applied (legacy behavior).
+    file_bboxes : dict, optional
+        ``{rel_key: (lon0, lat0, lon1, lat1)}`` data envelopes from the
+        ``_bbox_index.parquet`` sidecar, restricted to this task's
+        partitions. Year files whose envelope cannot intersect the tile are
+        skipped without being opened. Files absent from the dict (or the
+        dict being ``None``) are always read — fail-safe.
 
     Returns
     -------
@@ -2028,6 +2327,15 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
 
         sub_chunks = []
         for pf in parquet_files:
+            # A-priori skip: the bbox-index data envelope proves this year
+            # file holds no shot inside the tile — don't even open it.
+            # (64% of the reads a representative EGI query schedules are
+            # such dead reads; the ring-1 partitions they mostly belong to
+            # rescue only ~0.03% of rows.)
+            if file_bboxes:
+                b = file_bboxes.get(_bbox_index_key(pf))
+                if b is not None and _bbox_disjoint(b, wgs84_bbox):
+                    continue
             # One year file at a time. Encoding-aware routing: avoids the
             # try/except cost when we already know bbox-pushdown won't work
             # on this file's encoding, and uses parquet column-stats pushdown
@@ -2295,9 +2603,27 @@ def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH
     egi_index_col = egi.egi_col_name(index_level)
     egi_part_col = egi.egi_col_name(partition_level)
 
-    # Build list of (egi_id, h3_list, egi_bbox) tuples for from_map
+    # Per-task data envelopes from the bbox-index sidecar (None when absent).
+    # Group once by partition dir, then hand each task ONLY its partitions'
+    # entries — tiny inlined dicts, no client.scatter (established doctrine:
+    # see the streaming-build driver and _build_add_variables).
+    _bbox_idx = _load_bbox_index(gh3_dir)
+    _idx_by_dir = {}
+    for _k, _v in (_bbox_idx or {}).items():
+        _idx_by_dir.setdefault(_k.split('/', 1)[0], {})[_k] = _v
+
+    def _task_bboxes(h3_list):
+        if not _bbox_idx:
+            return None
+        out = {}
+        for _h in h3_list:
+            out.update(_idx_by_dir.get(f"{h3_part_col}={_h}", {}))
+        return out or None
+
+    # Build list of (egi_id, h3_list, egi_bbox, file_bboxes) tuples for from_map
     tile_args = [
-        (egi_id, h3_list, egi_tiles.loc[egi_id, 'geometry'].bounds)
+        (egi_id, h3_list, egi_tiles.loc[egi_id, 'geometry'].bounds,
+         _task_bboxes(h3_list))
         for egi_id, h3_list in egi_to_h3.items()
     ]
 
@@ -2331,7 +2657,7 @@ def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH
     # ring-1 expansion would OOM workers on dense tropical L12 tiles).
     def load_tile(args):
         _restore_storage_on_worker(_scfg)
-        egi_id, h3_list, egi_bbox = args
+        egi_id, h3_list, egi_bbox, file_bboxes = args
         return _load_egi_tile_from_h3(
             egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
             query, index_level, partition_level, set_index=True,
@@ -2339,6 +2665,7 @@ def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH
             bbox_strategy=bbox_strategy,
             bbox_lat_col=bbox_lat_col,
             bbox_lon_col=bbox_lon_col,
+            file_bboxes=file_bboxes,
         )
 
     # Build metadata from schema (avoids empty sample issue)

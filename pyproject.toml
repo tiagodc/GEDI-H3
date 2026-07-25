@@ -96,6 +96,7 @@ gh3_from_img = "gedih3.cli.gh3_from_img:main"
 gh3_from_polygon = "gedih3.cli.gh3_from_polygon:main"
 gh3_build_ducklake = "gedih3.cli.gh3_build_ducklake:main"
 gh3_doctor = "gedih3.cli.gh3_doctor:main"
+gh3_bbox_index = "gedih3.cli.gh3_bbox_index:main"
 
 [project.optional-dependencies]
 docs = [

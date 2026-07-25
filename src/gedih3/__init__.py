@@ -98,6 +98,7 @@ from .gh3builder import (
 from .gh3driver import (
     gh3_load,
     gh3_select_partitions,
+    gh3_build_bbox_index,
     gh3_aggregate,
     gh3_export,
     egi_load,
@@ -180,6 +181,7 @@ __all__ = [
     # database querying
     "gh3_load",
     "gh3_select_partitions",
+    "gh3_build_bbox_index",
     "gh3_aggregate",
     "gh3_export",
     "egi_load",
