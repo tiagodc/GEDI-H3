@@ -756,13 +756,10 @@ def configure_database_path(args, logger=None):
         # s3://host:port default from ~/.gedih3.env would otherwise miss
         # the endpoint normalization a -d argument gets. Re-run it now;
         # an explicitly configured endpoint still wins.
-        endpoint = endpoint_from_s3_urls(args, logger)
-        if endpoint:
-            from .utils import _storage_options
-            s3_opts = dict(_storage_options.get('s3', {}))
-            if 'endpoint_url' not in s3_opts.get('client_kwargs', {}):
-                s3_opts.setdefault('client_kwargs', {})['endpoint_url'] = endpoint
-                _storage_options['s3'] = s3_opts
+        from .utils import resolve_s3_source
+        normalized = resolve_s3_source(args.database)
+        if normalized != args.database:
+            args.database = normalized
             gh3.gh3_set_db_path(args.database)
 
     if logger:

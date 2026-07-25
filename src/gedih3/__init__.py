@@ -38,7 +38,7 @@ from .config import (
 )
 
 # --- Remote storage ---------------------------------------------------------
-from .utils import configure_storage, get_storage_options
+from .utils import configure_storage, get_storage_options, resolve_s3_source
 
 # --- Exceptions -------------------------------------------------------------
 from .exceptions import (
@@ -135,6 +135,7 @@ __all__ = [
     "get_package_data_path",
     # storage
     "configure_storage",
+    "resolve_s3_source",
     "get_storage_options",
     # exceptions
     "GediError",

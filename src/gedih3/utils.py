@@ -208,7 +208,7 @@ def split_s3_host_url(url):
         return None, url
     netloc = urlparse(url).netloc
     host, _, port = netloc.rpartition(':')
-    if not host or not port.isdigit():
+    if not host or not (port.isascii() and port.isdigit()):
         return None, url
     remainder = url[len(f's3://{netloc}'):].lstrip('/')
     if not remainder:
@@ -219,27 +219,45 @@ def split_s3_host_url(url):
     return endpoint, 's3://' + remainder
 
 
+# The last endpoint that resolve_s3_source itself derived from a URL.
+# Distinguishes "auto" from "explicit" configuration: a later host URL may
+# override an earlier AUTO endpoint (each call states its server), but an
+# EXPLICIT endpoint (configure_storage / --s3-endpoint) always wins.
+_AUTO_S3_ENDPOINT = None
+
+
 def resolve_s3_source(path):
     """Normalize an ``s3://host:port/bucket/...`` source for the Python API.
 
     The CLI layer performs this normalization in ``setup_storage``; the
     Python entry points (``gh3_load``, ``egi_load``,
-    ``gh3_select_partitions``) call this so the same URL works in both —
-    without it, s3fs treats ``host:port`` as a bucket name. The derived
-    endpoint is applied only when none is configured yet: an explicit
-    ``configure_storage('s3', endpoint_url=...)`` (or a CLI
-    ``--s3-endpoint``) always wins, mirroring the CLI precedence, and the
-    path is normalized to plain ``s3://bucket/...`` either way. Non-S3
+    ``gh3_select_partitions``, ``gh3_read_meta``, ...) call this so the
+    same URL works in both — without it, s3fs treats ``host:port`` as a
+    bucket name. Precedence mirrors the CLI: an explicit
+    ``configure_storage('s3', endpoint_url=...)`` / ``--s3-endpoint``
+    always wins (a differing URL host logs a warning instead of silently
+    rerouting); an endpoint this function derived earlier is replaced by
+    a later, different host URL — each call names its own server. The
+    path is normalized to plain ``s3://bucket/...`` either way; non-S3
     and plain-bucket paths are returned unchanged.
     """
+    global _AUTO_S3_ENDPOINT
     endpoint, norm = split_s3_host_url(path)
     if endpoint:
         s3_opts = dict(_storage_options.get('s3', {}))
         ck = dict(s3_opts.get('client_kwargs', {}))
-        if 'endpoint_url' not in ck:
-            ck['endpoint_url'] = endpoint
-            s3_opts['client_kwargs'] = ck
-            _storage_options['s3'] = s3_opts
+        current = ck.get('endpoint_url')
+        if current is None or current == _AUTO_S3_ENDPOINT:
+            if current != endpoint:
+                ck['endpoint_url'] = endpoint
+                s3_opts['client_kwargs'] = ck
+                _storage_options['s3'] = s3_opts
+            _AUTO_S3_ENDPOINT = endpoint
+        elif current != endpoint:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"S3 URL names endpoint {endpoint} but {current} is "
+                f"explicitly configured — the configured endpoint wins.")
     return norm
 
 

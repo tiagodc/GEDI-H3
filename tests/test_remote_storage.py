@@ -451,3 +451,42 @@ def test_python_loaders_normalize_host_urls(monkeypatch):
     assert captured['path'] == 's3://bucket/db'
     assert utils.get_storage_options('s3')['client_kwargs']['endpoint_url'] == \
         'http://minio:9000'
+
+
+def test_second_host_url_overrides_earlier_auto_endpoint(monkeypatch):
+    """Two different servers in one process: each host URL names its own
+    endpoint, so a later auto-derived endpoint replaces an earlier AUTO one
+    (an EXPLICIT endpoint still wins, with a warning)."""
+    monkeypatch.setattr(utils, '_AUTO_S3_ENDPOINT', None)
+    assert utils.resolve_s3_source('s3://minioA:9000/bucketA/db') == 's3://bucketA/db'
+    assert utils.get_storage_options('s3')['client_kwargs']['endpoint_url'] == \
+        'http://minioA:9000'
+    assert utils.resolve_s3_source('s3://minioB:9000/bucketB/db') == 's3://bucketB/db'
+    assert utils.get_storage_options('s3')['client_kwargs']['endpoint_url'] == \
+        'http://minioB:9000'
+    # explicit endpoint always wins over any URL host
+    utils.configure_storage('s3', endpoint_url='http://explicit:7000')
+    utils.resolve_s3_source('s3://minioC:9000/bucketC/db')
+    assert utils.get_storage_options('s3')['client_kwargs']['endpoint_url'] == \
+        'http://explicit:7000'
+
+
+def test_gh3_read_meta_accepts_host_urls(monkeypatch):
+    """gh3_read_meta is the funnel for the remaining path-taking helpers;
+    the same host-form URL must work there too."""
+    import gedih3.gh3driver as gh3drv
+
+    captured = {}
+
+    def fake_json_read_cached(path):
+        captured['path'] = path
+        return {'h3_partition_level': 3}
+
+    monkeypatch.setattr(gh3drv, 'json_read_cached', fake_json_read_cached)
+    monkeypatch.setattr(utils, '_AUTO_S3_ENDPOINT', None)
+    val = gh3drv.gh3_read_meta('h3_partition_level',
+                               gh3_root_dir='s3://minio:9000/bucket/db')
+    assert val == 3
+    assert captured['path'].startswith('s3://bucket/db')
+    assert utils.get_storage_options('s3')['client_kwargs']['endpoint_url'] == \
+        'http://minio:9000'
