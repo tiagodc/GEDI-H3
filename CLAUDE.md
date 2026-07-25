@@ -115,6 +115,17 @@ gh3_read_schema /path/to/file.parquet
 gh3_read_schema /path/to/file.h5
 ```
 
+### BBox Index
+
+```bash
+# Build the _bbox_index.parquet root sidecar (footer-only scan; minutes even
+# on a continental DB). Query tools then skip partition files a region/EGI
+# tile provably cannot touch. Rebuild after every gh3_build / gh3_update -
+# the index is auto-invalidated at merge entry and ignored whenever the
+# build log is newer than it (fail-safe: absence only costs speed).
+gh3_bbox_index -d /path/to/db -N 16
+```
+
 ### Database Doctor
 
 ```bash
@@ -343,7 +354,7 @@ Before writing new helper code, check whether one of these covers your case. Eve
 | `object_series(items)` | `utils.py` | Build an object-dtype `pd.Series` of array-likes (xarray Datasets, ndarrays). `pd.Series([...])` — even with `dtype=object` — coerces through `np.asarray`, which xarray Datasets reject; this assigns positionally instead. Use for ANY `map_partitions` result carrying non-scalars. |
 | `build_vrt` / `build_vrt_xml` / `build_vrt_safe` | `raster/export.py` | VRT mosaic writers. `build_vrt` prefers `osgeo.gdal` and falls back to `build_vrt_xml` (rasterio-only, verified pixel-identical to `gdal.BuildVRT`); the fallback refuses rotated or mixed-CRS inputs rather than emit a wrong mosaic. Use `build_vrt_safe` on any path where the `.tif` tiles are the deliverable — it downgrades mosaic failure to a WARNING. `osgeo` is the package's ONLY optional import; keep it that way (see `tests/test_dependencies.py`). |
 | `h3_expand_ring(cells, ring=1, valid=None)` | `h3utils.py` | The shared overhang-safety primitive: grid_disk ring expansion of a cell set, optionally restricted to a valid set (existing partitions). Use for ANY ROI→partition selection — exact polygon intersection alone silently misses boundary shots stored in neighbor partitions (child overhang ≈ 0.18 × edge). Consumers: `intersect_h3_geometries`, `egi_h3_intersection`, `geoseries_to_filter`. |
-| `gh3_build_bbox_index(source)` / `_load_bbox_index(gh3_dir)` | `gh3driver.py` | The data-bbox index pair: builder materializes the true data envelope of every partition year-file from existing row-group statistics (footer-only) into the `_bbox_index.parquet` root sidecar; loader returns `{rel_key: (lon0,lat0,lon1,lat1)}` (cached, fail-safe `None` when absent). Consumers skip files a region/EGI tile provably cannot touch. Producer invariant: `_merge_and_finalize` deletes it when a merge changes data; var-updates leave it (columns never move shots). |
+| `gh3_build_bbox_index(source)` / `_load_bbox_index(gh3_dir)` | `gh3driver.py` | The data-bbox index pair: builder materializes the true data envelope of every partition year-file from existing row-group statistics (footer-only) into the `_bbox_index.parquet` root sidecar; loader returns `{rel_key: (lon0,lat0,lon1,lat1)}` (cached, fail-safe `None` when absent). Consumers skip files a region/EGI tile provably cannot touch. Staleness impossible by construction: `_merge_and_finalize` deletes it at merge ENTRY, `gh3_doctor --fix` drops it after applied remedies, and the loader ignores any index older than the build log. |
 | `_bbox_index_key(path)` / `_bbox_disjoint(b, bbox)` | `gh3driver.py` | Index key normalizer (last 3 path segments) and the inclusive-edge disjointness test. Use these — never re-derive keys or overlap logic inline. |
 | `gh3_read_meta(var)` | `gh3driver.py` | Read fields from the build-log sidecar (`h3_columns`, `h3_columns_dtypes`, `h3_partition_level`, `h3_partition_ids`). Use this before reaching for a parquet open. |
 | `gedi_vars_static(product, version)` | `gedidriver.py` | Cached per-product variable list from shipped manifests in `data/`. Prefer over `gedi_vars_from_h5` for NASA release files. |

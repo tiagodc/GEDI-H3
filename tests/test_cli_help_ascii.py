@@ -35,6 +35,7 @@ CLI_MODULES = [
     'gedih3.cli.gh3_from_polygon',
     'gedih3.cli.gh3_build_ducklake',
     'gedih3.cli.gh3_doctor',
+    'gedih3.cli.gh3_bbox_index',
 ]
 
 

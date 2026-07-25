@@ -2795,6 +2795,17 @@ def _merge_and_finalize(
             f"{_pc['partitions_cleaned']} partition(s)."
         )
 
+    # Drop any pre-existing bbox index BEFORE the first worker rewrites a
+    # partition file: the merge changes data envelopes, a stale index
+    # silently under-selects (the one unacceptable failure), and a crash
+    # mid-merge must not leave it behind. Deleting at entry (not at the
+    # tail) also covers concurrent readers during the hours-long merge
+    # window and every resume path. Rebuild with gh3_bbox_index after the
+    # build; absence only costs speed.
+    from .gh3driver import invalidate_bbox_index
+    if invalidate_bbox_index(h3_dir):
+        logger.info("Removed stale _bbox_index.parquet (rebuild with gh3_bbox_index)")
+
     # List candidate tmp partitions. Two-level walk:
     #   1. Driver-side os.scandir of <tmp_dir> for h3_* — one readdir, fast.
     #   2. Per-h3 year=*/ listing fanned out across all workers via
@@ -2971,21 +2982,9 @@ def _merge_and_finalize(
     meta_files = list(dask.compute(*meta_tasks))
     del meta_tasks
 
-    # A merge changes the data envelope of the touched year files, so any
-    # pre-existing bbox index is stale — drop it (producer-driven, same
-    # doctrine as the manifest refresh). A stale bbox index would silently
-    # under-select in every query; absence just falls back to the
-    # unindexed path. Rebuild with gh3_bbox_index after the build. Must
-    # happen BEFORE the manifest write below: unlinking a root sidecar
-    # bumps the root dir mtime, and check_manifest_freshness compares the
-    # manifest against it.
-    from .config import BBOX_INDEX_FILENAME
-    _bbox_idx_path = os.path.join(h3_dir, BBOX_INDEX_FILENAME)
-    if os.path.exists(_bbox_idx_path):
-        os.remove(_bbox_idx_path)
-        logger.info("Removed stale %s (rebuild with gh3_bbox_index)", BBOX_INDEX_FILENAME)
-
-    # Generate manifest for accelerated file listing
+    # Generate manifest for accelerated file listing. (The bbox index was
+    # already invalidated at merge ENTRY — before the first partition
+    # write — so nothing here can bump the root dir mtime after this.)
     logger.info("Generating file manifest")
     generate_manifest(h3_dir, tree_shape='h3db')
 

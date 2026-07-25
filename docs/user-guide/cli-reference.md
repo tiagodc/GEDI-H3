@@ -241,10 +241,15 @@ gh3_bbox_index -d /path/to/db -N 16 # explicit database, 16 dask workers
 |------|-------------|
 | `-d` | H3 database directory (must be local — the index is written at the root) |
 
-Safe to re-run at any time. `gh3_build` removes the index automatically when a
-merge changes the data (a stale index could silently under-select; a missing
-one only costs speed) — re-run `gh3_bbox_index` after each build. Variable-only
-updates (`gh3_update`) do not invalidate it: adding columns never moves a shot.
+Also accepts the standard dask (`-N`, `-T`, `-M`, `-P`) and verbosity flags.
+
+Safe to re-run at any time, and self-guarding: a stale index could silently
+under-select, a missing one only costs speed, so staleness is impossible by
+construction — `gh3_build` deletes the index at merge **entry** (before the
+first partition write, so even a killed build cannot leave one behind),
+`gh3_doctor --fix` drops it after any applied remedy, and query tools ignore
+any index older than the build log. Re-run `gh3_bbox_index` after each build
+or update to restore the speedup.
 
 ---
 

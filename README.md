@@ -123,6 +123,8 @@ gh3_download -r "-51,0,-50,1" -l2a minimal -l4a minimal
 gh3_build -r "-51,0,-50,1" -l2a minimal -l4a minimal
 ## Optionally build DuckDB metadata table (Ducklake)
 gh3_build_ducklake
+## Optionally build the bbox index (skips files spatial queries cannot touch)
+gh3_bbox_index
 
 # 3. See which variables are available
 gh3_read_schema
@@ -152,6 +154,7 @@ gh3_rasterize -d aggregated/ -o rasters/ --compress LZW
 | `gh3_download` | Download GEDI HDF5 data from NASA DAACs |
 | `gh3_build` | Build H3-indexed Parquet database from HDF5 files |
 | `gh3_build_ducklake` | Build DuckDB metadata database for SQL queries |
+| `gh3_bbox_index` | Build the data-bbox index so spatial queries skip untouched files |
 | `gh3_extract` | Extract and filter shots to flat Parquet files |
 | `gh3_aggregate` | Aggregate to coarser H3 resolution |
 | `gh3_rasterize` | Export aggregated data as GeoTIFF |

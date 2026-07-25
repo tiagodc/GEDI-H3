@@ -272,6 +272,13 @@ def main():
                     h3_logger.save_log(h3_logger.previous_status or 'COMPLETED')
                 except Exception as e:
                     logger.warning(f"Failed to persist build log updates: {e}")
+            # Any applied remedy may have touched partition data; a stale
+            # bbox index would silently under-select, absence only costs
+            # speed. Drop it whenever a fix actually changed something.
+            if fix_reports and any(getattr(r, 'applied', False) for r in fix_reports):
+                from gedih3.gh3driver import invalidate_bbox_index
+                if invalidate_bbox_index(args.indir):
+                    logger.info("Removed _bbox_index.parquet (rebuild with gh3_bbox_index)")
 
         reports_to_emit = fix_reports if fix_reports is not None else check_reports
         _print_summary(reports_to_emit, logger)

@@ -810,12 +810,37 @@ def smart_glob(pattern, recursive=False):
             return sorted(matched)
 
     # No manifest — fall back to filesystem globbing
+    def _drop_root_sidecars(paths):
+        """Never let a data glob sweep in root sidecars.
+
+        `_manifest.txt`, `_bbox_index.parquet`, ... are metadata living at
+        the tree root; `**/*.parquet` (recursive matches zero directories)
+        and `*.parquet` both match them, and a consumer treating the bbox
+        index as a data partition is a silent-corruption class. Underscore
+        files directly under the glob root are dropped — unless the
+        pattern itself asks for underscore names.
+        """
+        pat_base = os.path.basename(pattern.replace(os.sep, '/').rstrip('/'))
+        if pat_base.startswith('_'):
+            return paths
+        root_norm = (root or '').replace(os.sep, '/').rstrip('/')
+        kept = []
+        for p in paths:
+            q = str(p).replace(os.sep, '/')
+            parent, _, base = q.rpartition('/')
+            if base.startswith('_') and parent.rstrip('/') == root_norm:
+                continue
+            kept.append(p)
+        return kept
+
     if not is_remote_path(pattern):
-        return sorted(_glob_mod.glob(pattern, recursive=recursive))
+        return sorted(_drop_root_sidecars(
+            _glob_mod.glob(pattern, recursive=recursive)))
 
     fs = _get_filesystem(pattern)
     protocol = pattern.split('://')[0]
-    return _remote_glob(fs, protocol, pattern, recursive=recursive)
+    return sorted(_drop_root_sidecars(
+        _remote_glob(fs, protocol, pattern, recursive=recursive)))
 
 
 def smart_open(path, mode='r', storage_options=None):
