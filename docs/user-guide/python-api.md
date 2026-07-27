@@ -221,12 +221,37 @@ agg = gh3.gh3_aggregate(ddf, target_res=6, agg=my_custom_function)
 
 ## Rasterization
 
+`gh3_rasterize()` is the one-call form: it detects the spatial index type, picks the
+matching rasterizer, and fans the work across every Dask partition. It accepts either a
+loaded frame or a dataset directory written by `gh3_extract` / `gh3_aggregate` — the
+`gh3_rasterize` CLI delegates to it, so both behave identically.
+
+```python
+# EGI or H3, Dask or in-memory — one call, one GeoTIFF per spatial tile
+# (plus a mosaic.vrt), returning the written paths
+ddf = gh3.egi_load(source=db, region='region.shp', level=6)
+paths = gh3.gh3_rasterize(ddf, 'tiles/')
+
+# Straight from a dataset directory, merged into a single file
+gh3.gh3_rasterize('/data/agbd_egi_agg', 'agbd.tif', merge=True)
+
+# Narrow it down: column wildcards and a row filter (dataset input)
+gh3.gh3_rasterize('/data/agbd_egi_agg', 'tiles/',
+                  columns=['agbd_*'], query='agbd_mean > 50')
+```
+
+EGI output stays in **EPSG:6933** (EASE-Grid 2.0) so it stacks with GEDI L4B; H3 output is
+EPSG:4326. EGI rasters are never reprojected — that alignment is the reason EGI exists.
+
+For a single in-memory frame, `gh3_to_raster()` returns the `xarray.Dataset` directly,
+dispatching on index type the same way:
+
 ```python
 from gedih3 import raster
 
-# H3 hexagon GeoDataFrame → xarray Dataset
 gdf = gh3.gh3_aggregate(ddf, target_res=6, agg='mean').compute()
-xras = raster.h3_to_raster(gdf, columns=['agbd_l4a_mean'])
+xras = gh3.gh3_to_raster(gdf, columns=['agbd_l4a_mean'])   # H3 → EPSG:4326
+                                                            # EGI → EPSG:6933
 
 # Export to GeoTIFF
 raster.export_raster(xras, 'agbd.tif', compress='LZW')
@@ -234,6 +259,14 @@ raster.export_raster(xras, 'agbd.tif', compress='LZW')
 # Visualize in-memory
 xras['agbd_l4a_mean'].plot()
 ```
+
+:::{note} **One partition, one tile, one file.** An EGI partition nests in exactly one
+level-12 outer tile by construction, so it produces exactly one raster. A partition
+spanning several tiles means the source dataset is inconsistent: it is reported with a
+`WARNING`, and the tile holding the most rows is rasterized. If you genuinely hold a
+multi-tile frame — an aggregate over an arbitrary ROI, say — split it first with
+`egi.split_by_outer_tile(gdf)`.
+:::
 
 ### Time-Series Rasterization
 
@@ -243,6 +276,17 @@ from gedih3.raster import TimeSeriesRasterizer
 ts = TimeSeriesRasterizer(gdf, time_col='datetime', target_level=6)
 for xras, suffix in ts.generate('2020-01-01', '2023-01-01', 1, 'years'):
     raster.export_raster(xras, f'agbd_{suffix}.tif')
+```
+
+To rasterize a directory of per-window datasets (what `gh3_rasterize` does when handed a
+time-series tree), loop the windows yourself:
+
+```python
+import os, glob
+
+for window in sorted(glob.glob('/data/windows/*')):
+    name = os.path.basename(window)
+    gh3.gh3_rasterize(window, f'/out/{name}.tif', merge=True)
 ```
 
 ---

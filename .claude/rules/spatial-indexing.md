@@ -72,6 +72,20 @@ then fall back to product-suffixed coordinate columns (e.g. `lon_lowestmode_l2a`
 `h3_to_raster` / `geodf_to_raster` produce the arrays; `export_raster` writes GeoTIFF;
 `generate_time_windows` drives time-series output (see `TimeSeriesRasterizer`).
 
+**`gh3_rasterize(data, output, ...)` is the one entry point for anything larger than a
+single frame** — a dataset directory or a Dask frame, either index type, tiled or merged.
+Both `gh3_rasterize` and `gh3_aggregate -R` delegate to it. Do not re-derive the
+index-type → rasterizer mapping in a CLI; that duplication is what it was written to
+remove.
+
+**One partition = one outer tile = one file.** An EGI partition nests in exactly one
+level-12 tile by construction (`egi_export_part`, `_prepare_egi_loading`), so
+`egi.rasterize_partition` returns a Series of length 0 or 1. A multi-tile partition is
+upstream corruption: it is reported with a WARNING and the majority tile is rasterized —
+never silently split into several files. Callers that legitimately hold a multi-tile
+frame (an arbitrary-ROI aggregate, e.g. `TimeSeriesRasterizer`) must split explicitly via
+`egi.split_by_outer_tile` first.
+
 Mosaics go through **`build_vrt_safe`**, never `gdal.BuildVRT` directly. `build_vrt`
 prefers `osgeo.gdal` and falls back to `build_vrt_xml`, a rasterio-only writer verified
 pixel-identical to GDAL's; the fallback refuses rotated or mixed-CRS inputs rather than

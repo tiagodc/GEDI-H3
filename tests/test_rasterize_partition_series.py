@@ -99,13 +99,22 @@ class TestEGIRasterizePartition:
         assert all(isinstance(r, xr.Dataset) for r in rasters)
         assert 'val' in rasters.iat[0].data_vars
 
-    def test_one_element_per_outer_tile(self):
+    def test_multi_tile_partition_yields_one_raster(self, caplog):
+        """A partition nests in ONE outer tile; more is a reported violation."""
+        import logging
         from gedih3 import egi
 
-        rasters = egi.rasterize_partition(_egi_gdf({(100, 50): 5, (101, 50): 2}))
+        lg = logging.getLogger('gedih3.egi.raster')
+        lg.addHandler(caplog.handler)
+        try:
+            with caplog.at_level(logging.WARNING, logger='gedih3.egi.raster'):
+                rasters = egi.rasterize_partition(_egi_gdf({(100, 50): 5, (101, 50): 2}))
+        finally:
+            lg.removeHandler(caplog.handler)
 
-        assert len(rasters) == 2
-        assert all(isinstance(r, xr.Dataset) for r in rasters)
+        assert len(rasters) == 1
+        assert isinstance(rasters.iat[0], xr.Dataset)
+        assert 'spans 2 outer tiles' in caplog.text
 
     def test_empty_input_returns_empty_series(self):
         from gedih3 import egi

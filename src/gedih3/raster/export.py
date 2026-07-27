@@ -545,8 +545,22 @@ def merge_and_export_rasters(
     else:
         # Single GeoDataFrame
         merged = rasterize_func(gdf, columns=columns, **rasterize_kwargs)
-        if isinstance(merged, pd.Series) and len(merged) > 0:
-            merged = merged.iloc[0]
+        if isinstance(merged, pd.Series):
+            valid_rasters = [r for r in merged
+                             if hasattr(r, 'data_vars') and len(r.data_vars) > 0]
+            if not valid_rasters:
+                raise GediRasterizationError("No valid rasters to merge")
+            if len(valid_rasters) == 1:
+                merged = valid_rasters[0]
+            else:
+                # Keeping only the first would silently discard tiles. EGI
+                # partitions never reach here (one partition = one tile); an H3
+                # partition holding cells from several parents can.
+                logger.warning(
+                    f"Rasterizing a single frame produced {len(valid_rasters)} tiles; "
+                    f"merging all of them into {output_path}."
+                )
+                merged = merge_datasets(valid_rasters, nodata=np.nan)
 
     # Export
     return export_raster(merged, output_path, compress=compress)

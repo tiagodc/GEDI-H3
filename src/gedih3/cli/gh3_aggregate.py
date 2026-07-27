@@ -181,9 +181,6 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
 
     Handles raster, merge, and simplified flat file export modes.
     """
-    import glob as globmod
-    import pandas as pd
-
     import gedih3.gh3driver as gh3
     from gedih3.cliutils import is_internal_column, print_success
 
@@ -203,53 +200,20 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
         # Raster-only export (no vector files)
         logger.info("Rasterizing aggregated data to GeoTIFF...")
 
-        from gedih3 import raster
-
-        if use_egi:
-            from gedih3 import egi
-            rasterize_func = egi.rasterize_partition
-        else:
-            rasterize_func = raster.rasterize_h3_partition
+        # Index-type dispatch, VRT mosaic and partition-level detection all
+        # live in gh3_rasterize() — same code path as the gh3_rasterize CLI.
+        # partition_level is deliberately not passed: leaving it None keeps
+        # rasterize_h3_partition detecting it from the surviving h3_NN column.
+        result = gh3.gh3_rasterize(
+            aggdf, output_dir, columns=None, merge=args.merge,
+            compress=args.compress, show_progress=not args.quiet
+        )
 
         if args.merge:
-            # Merged raster output (single .tif file)
-            merged_path = output_dir if output_dir.endswith('.tif') else f"{output_dir}.tif"
-            os.makedirs(os.path.dirname(os.path.abspath(merged_path)), exist_ok=True)
-
-            raster.merge_and_export_rasters(
-                aggdf, merged_path, rasterize_func,
-                columns=None,
-                compress=args.compress,
-                show_progress=not args.quiet
-            )
-            print_success(f"Merged raster exported to {merged_path}", logger=logger)
-
+            print_success(f"Merged raster exported to {result}", logger=logger)
         else:
-            # Tiled raster output (directory of .tif files)
-            os.makedirs(output_dir, exist_ok=True)
-
-            if hasattr(aggdf, 'compute'):
-                raster.rasterize_and_export_partitions(
-                    aggdf, output_dir, rasterize_func,
-                    columns=None,
-                    compress=args.compress,
-                    show_progress=not args.quiet
-                )
-            else:
-                xras = rasterize_func(aggdf, columns=None)
-                if isinstance(xras, pd.Series) and len(xras) > 0:
-                    for i, tile_xras in enumerate(xras):
-                        if hasattr(tile_xras, 'data_vars') and len(tile_xras.data_vars) > 0:
-                            raster.export_raster(tile_xras, os.path.join(output_dir, f'tile_{i}.tif'), compress=args.compress)
-                elif hasattr(xras, 'data_vars') and len(xras.data_vars) > 0:
-                    raster.export_raster(xras, os.path.join(output_dir, 'merged.tif'), compress=args.compress)
-
-            raster_files = globmod.glob(f"{output_dir}/*.tif")
-            if len(raster_files) > 1:
-                vrt_path = os.path.join(output_dir, 'mosaic.vrt')
-                if raster.build_vrt_safe(raster_files, vrt_path):
-                    logger.info(f"  VRT mosaic: {vrt_path}")
-            print_success(f"{len(raster_files)} raster files exported to {output_dir}", logger=logger)
+            print_success(f"{len(result)} raster files exported to {output_dir}",
+                          logger=logger)
 
     else:
         # Simplified flat file export (merge or tiled) via gh3_export()

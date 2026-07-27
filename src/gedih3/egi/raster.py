@@ -218,6 +218,48 @@ def geodf_to_raster(
     return ds
 
 
+def _outer_ids(egi_hashes: np.ndarray) -> np.ndarray:
+    """Pack px_outer*1000 + py_outer for every hash (the layout from_hash decodes)."""
+    return (egi_hashes % np.uint64(10**18)) // np.uint64(10**12)
+
+
+def _egi12_id(outer_id) -> int:
+    """Level-12 outer tile hash from a packed ``px_outer*1000 + py_outer`` id."""
+    return int(np.uint64(OUTER_LEVEL) * np.uint64(10**18)
+               + np.uint64(outer_id) * np.uint64(10**12))
+
+
+def split_by_outer_tile(gdf: gpd.GeoDataFrame) -> List[tuple]:
+    """Split an EGI-indexed frame into one sub-frame per level-12 outer tile.
+
+    For the callers that *legitimately* hold a multi-tile frame — an aggregate
+    over an arbitrary ROI, say. A Dask partition is not one of them: it nests
+    in exactly one outer tile by construction, which is why
+    :func:`rasterize_partition` treats a multi-tile partition as an error to
+    report rather than a shape to accommodate.
+
+    Parameters
+    ----------
+    gdf : GeoDataFrame
+        EGI-indexed GeoDataFrame (index holds EGI hashes).
+
+    Returns
+    -------
+    list of tuple
+        ``(egi12_id, sub_gdf)`` pairs, largest sub-frame first. Empty input
+        yields an empty list.
+    """
+    if len(gdf) == 0:
+        return []
+
+    egi_hashes = np.asarray(gdf.index.values, dtype=np.uint64)
+    outer_ids = _outer_ids(egi_hashes)
+    uniq, counts = np.unique(outer_ids, return_counts=True)
+    order = np.argsort(-counts)
+
+    return [(_egi12_id(uniq[i]), gdf.iloc[outer_ids == uniq[i]]) for i in order]
+
+
 def rasterize_partition(
     gdf: gpd.GeoDataFrame,
     columns: Optional[List[str]] = None,
@@ -226,9 +268,13 @@ def rasterize_partition(
     """
     Rasterize a single EGI partition (for use with Dask map_partitions).
 
-    This function splits the partition by outer tile and rasterizes each
-    tile separately to ensure proper alignment and avoid mixing data from
-    different tiles.
+    One partition is one raster. An EGI partition at any level <= 12 nests in
+    exactly one level-12 outer tile, so a partition spanning several tiles is
+    a violation of that invariant, not a case to accommodate: it is reported
+    with a WARNING, and the tile holding the most rows is the one rasterized.
+    That keeps the "one partition = one output file" contract every consumer
+    downstream relies on (``export_raster_partition`` file naming,
+    ``merge_and_export_rasters``, ``gh3_rasterize``).
 
     Parameters
     ----------
@@ -242,7 +288,8 @@ def rasterize_partition(
     Returns
     -------
     pd.Series
-        Series containing xarray Dataset(s), one per outer tile
+        Object-dtype Series of length 0 (empty / unrasterizable partition) or
+        1 (the partition's raster). Never longer — see the invariant above.
 
     Examples
     --------
@@ -252,52 +299,41 @@ def rasterize_partition(
     if len(gdf) == 0:
         return pd.Series(dtype=object)
 
-    import logging
-    logger = logging.getLogger(__name__)
-
     try:
-        # Split data by outer tile to ensure proper rasterization
-        # Each outer tile will be rasterized separately
+        # ``outer_ids`` packs px_outer*1000 + py_outer, the same digit layout
+        # geodf_to_raster decodes. Partitions nest in exactly one outer tile;
+        # anything else is upstream corruption and must not pass silently.
         egi_hashes = np.asarray(gdf.index.values, dtype=np.uint64)
-        outer_tiles = (egi_hashes // np.uint64(1e12)) * np.uint64(1e12)
-        unique_outer = np.unique(outer_tiles)
+        uniq_outer, outer_counts = np.unique(_outer_ids(egi_hashes), return_counts=True)
 
-        results = []
-        for outer_tile in unique_outer:
-            # Filter data for this outer tile
-            mask = outer_tiles == outer_tile
-            tile_gdf = gdf.iloc[mask]
+        if len(uniq_outer) > 1:
+            logger.warning(
+                f"rasterize_partition: EGI partition spans {len(uniq_outer)} outer tiles "
+                f"(px_outer*1000+py_outer {[int(t) for t in uniq_outer]}, rows "
+                f"{[int(c) for c in outer_counts]}). Partitions must nest in exactly one "
+                f"level-12 tile — rasterizing the largest and dropping the rest. Check the "
+                f"source dataset / egi_load() partitioning."
+            )
 
-            if len(tile_gdf) == 0:
-                continue
+        # Tile ID at level 12 (consistent regardless of data level) — passed to
+        # geodf_to_raster as the explicit target so no tile inference happens,
+        # and reused as the raster attribute. geodf_to_raster emits its own
+        # WARNING for the stray pixels it skips.
+        egi12_id = _egi12_id(uniq_outer[int(np.argmax(outer_counts))])
 
-            try:
-                # Tile ID at level 12 (consistent regardless of data level) —
-                # passed to geodf_to_raster as the explicit target so no
-                # tile inference happens, and reused as the raster attribute.
-                p_outer = outer_tile % np.uint64(1e18) // np.uint64(1e12)
-                egi12_id = int(np.uint64(OUTER_LEVEL * 1e18) + np.uint64(p_outer * 1e12))
+        xras = geodf_to_raster(gdf, columns=columns, outer_tile=egi12_id)
 
-                # Rasterize this tile's data
-                xras = geodf_to_raster(tile_gdf, columns=columns, outer_tile=egi12_id)
-
-                if len(xras.data_vars) > 0:
-                    for var in list(xras.data_vars):
-                        xras[var] = xras[var].assign_attrs(egi12_id=egi12_id)
-
-                    results.append(xras)
-            except Exception as e:
-                logger.debug(f"Rasterization failed for tile {outer_tile}: {e}")
-                continue
-
-        if not results:
+        if len(xras.data_vars) == 0:
             return pd.Series(dtype=object)
 
-        return object_series(results)
+        for var in list(xras.data_vars):
+            xras[var] = xras[var].assign_attrs(egi12_id=egi12_id)
+
+        return object_series([xras])
 
     except Exception as e:
-        # Whole-partition failure — never benign, unlike the per-tile skips
-        # above, so it is logged loudly rather than at debug.
+        # Whole-partition failure — never benign, so it is logged loudly and
+        # the partition is skipped rather than failing the whole graph.
         logger.warning(f"Rasterization failed for the whole partition: {e}")
         return pd.Series(dtype=object)
 

@@ -63,126 +63,44 @@ def get_cmd_args():
 def _rasterize_dataset(dataset_path, output_path, args, logger):
     """Rasterize a single dataset directory to raster output.
 
+    Thin delegate to ``gh3.gh3_rasterize()`` — index-type dispatch, column
+    resolution and partition-level derivation all live in the library so the
+    CLI and the Python API cannot diverge.
+
     Must be called inside a Dask Client context.
     """
-    from gedih3 import raster
-    from gedih3.config import DATASET_META_FILENAME
+    import gedih3 as gh3
+    from gedih3.cliutils import get_dataset_index_info
 
-    # Read metadata
-    from gedih3.utils import smart_join, json_read_cached, is_remote_path
-    dataset_meta_path = smart_join(dataset_path, DATASET_META_FILENAME)
-    dataset_meta = json_read_cached(dataset_meta_path)
-
-    index_type = dataset_meta.get('index_type')
-    index_level = dataset_meta.get('index_level')
-
-    if not index_type or not index_level:
-        logger.error(f"Dataset metadata missing index_type or index_level in {dataset_path}")
-        sys.exit(1)
-
-    use_egi = index_type == 'egi'
-
-    if use_egi:
+    # Informational only — gh3_rasterize() does its own resolution and
+    # validation. json_read_cached makes this sidecar read free.
+    info = get_dataset_index_info(dataset_path)
+    index_type, index_level = info.get('index_type'), info.get('index_level')
+    if index_type == 'egi' and index_level is not None:
         from gedih3 import egi
-        logger.info(f"Dataset type: EGI level {index_level} (~{egi.get_resolution(index_level):.0f}m)")
-        rasterize_func = egi.rasterize_partition
-    else:
+        logger.info(f"Dataset type: EGI level {index_level} "
+                    f"(~{egi.get_resolution(index_level):.0f}m)")
+    elif index_type == 'h3':
         logger.info(f"Dataset type: H3 level {index_level}")
-        rasterize_func = raster.rasterize_h3_partition
 
     logger.info(f"Input: {dataset_path}")
+    if args.list:
+        logger.info(f"Variables to rasterize: {args.list}")
+    if args.query:
+        logger.info(f"Query filter: {args.query}")
 
-    # Build kwargs to forward to rasterize function
-    rasterize_kwargs = {}
-    if not use_egi:
-        # Partition level: the sidecar knows it; fall back to a partition ID,
-        # then to a (manifest-backed) listing. Avoids os.listdir, which cannot
-        # see a remote dataset at all.
-        import h3
-        from gedih3.utils import smart_glob
-        partition_level = dataset_meta.get('h3_partition_level')
-        source = 'metadata'
-        if partition_level is None:
-            ids = dataset_meta.get('partition_ids') or []
-            candidates = ids or [
-                os.path.splitext(os.path.basename(f))[0]
-                for f in smart_glob(smart_join(dataset_path, '*.parquet'))
-            ]
-            source = 'partition ids' if ids else 'filenames'
-            for cell in candidates:
-                try:
-                    partition_level = h3.get_resolution(cell)
-                    break
-                except (ValueError, TypeError):
-                    continue
-        elif not is_remote_path(dataset_path):
-            # Sidecars can go stale (dataset regenerated in place at another
-            # level); the filenames are ground truth and one local basename
-            # is free to check. Remote stays on the sidecar fast path.
-            for f in smart_glob(smart_join(dataset_path, '*.parquet'))[:1]:
-                cell = os.path.splitext(os.path.basename(f))[0]
-                try:
-                    actual = h3.get_resolution(cell)
-                except (ValueError, TypeError):
-                    break
-                if actual != partition_level:
-                    logger.warning(f"  Sidecar h3_partition_level={partition_level} "
-                                   f"disagrees with filenames (H3 {actual}); using "
-                                   f"the filenames")
-                    partition_level = actual
-                    source = 'filenames (sidecar stale)'
-        if partition_level is not None:
-            rasterize_kwargs['partition_level'] = partition_level
-            logger.info(f"  Partition level: H3 {partition_level} (from {source})")
-
-    # Collect columns to rasterize
-    columns = args.list if args.list else None
-    if columns:
-        logger.info(f"Variables to rasterize: {columns}")
-
-    # Build query
-    query_str = args.query
-    if query_str:
-        logger.info(f"Query filter: {query_str}")
-
-    # Load the dataset (use _load_dataset directly to bypass EGI check in gh3_load)
-    logger.info("Loading dataset...")
-    from gedih3.gh3driver import _load_dataset
-    ddf = _load_dataset(dataset_path, columns=columns)
-    logger.info(f"  Loaded {ddf.npartitions} partitions")
-
-    # Apply query filter if provided
-    if query_str:
-        logger.info("Applying filter...")
-        ddf = ddf.query(query_str)
-
-    # Rasterize
     logger.info("Rasterizing...")
-
-    # Let rasterize functions auto-detect columns from data
-    raster_columns = columns
+    result = gh3.gh3_rasterize(
+        dataset_path, output_path,
+        columns=args.list if args.list else None,
+        merge=args.merge, query=args.query,
+        compress=args.compress, show_progress=not args.quiet
+    )
 
     if args.merge:
-        merged_output = output_path if output_path.endswith('.tif') else f"{output_path}.tif"
-        os.makedirs(os.path.dirname(os.path.abspath(merged_output)), exist_ok=True)
-
-        raster.merge_and_export_rasters(
-            ddf, merged_output, rasterize_func,
-            columns=raster_columns, compress=args.compress,
-            show_progress=not args.quiet, **rasterize_kwargs
-        )
-        logger.info(f"Merged raster exported to {merged_output}")
-
+        logger.info(f"Merged raster exported to {result}")
     else:
-        os.makedirs(output_path, exist_ok=True)
-
-        paths = raster.rasterize_and_export_partitions(
-            ddf, output_path, rasterize_func,
-            columns=raster_columns, compress=args.compress,
-            show_progress=not args.quiet, **rasterize_kwargs
-        )
-        valid_paths = [p for p in paths if p]
-        logger.info(f"Exported {len(valid_paths)} raster files to {output_path}")
+        logger.info(f"Exported {len(result)} raster files to {output_path}")
 
 
 def main():
