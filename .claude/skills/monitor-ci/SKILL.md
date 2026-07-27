@@ -9,8 +9,7 @@ allowed-tools: Read, Edit, Write, Bash, Grep, Glob
 
 Monitor GitHub Actions for the most recent push, wait for completion, and fix any failures or warnings found.
 
-**Always use the gh3_dev conda environment:**
-- `GH=/gpfs/data1/vclgp/decontot/environments/gh3_dev/bin/gh`
+Requires the GitHub CLI on `PATH` and authenticated (`gh auth status`).
 
 ---
 
@@ -29,8 +28,7 @@ git rev-parse HEAD
 Poll every 30 seconds until every run triggered by HEAD is no longer `in_progress` or `queued`.
 
 ```bash
-GH=/gpfs/data1/vclgp/decontot/environments/gh3_dev/bin/gh
-$GH run list --repo tiagodc/GEDI-H3 --commit $(git rev-parse HEAD) --json databaseId,name,status,conclusion
+gh run list --repo tiagodc/GEDI-H3 --commit $(git rev-parse HEAD) --json databaseId,name,status,conclusion
 ```
 
 While any run has `status != "completed"`, print a one-line status summary and wait. Once all are complete, proceed.
@@ -55,7 +53,7 @@ Deploy Docs         completed   success
 ## Step 4: For each failed or warning run, collect the full log
 
 ```bash
-$GH run view <run_id> --repo tiagodc/GEDI-H3 --log-failed 2>&1
+gh run view <run_id> --repo tiagodc/GEDI-H3 --log-failed 2>&1
 ```
 
 Parse the output to extract:
@@ -122,6 +120,6 @@ All CI checks passed. ✓
 ## Notes
 
 - The `pages build and deployment` workflow is triggered by GitHub Pages internally and cannot be influenced directly — ignore it unless it fails.
-- Ruff is not installed in the gh3_dev environment locally; lint errors must be inferred from the CI log and fixed by reading/editing source directly.
+- Reproduce lint failures locally with `ruff check src/` before pushing a fix. If ruff is not available in the active environment, infer the fault from the CI log and edit the source directly — but say which of the two you did.
 - Do **not** add `# noqa` blanket suppressions — always use the specific rule code.
 - Do **not** use `--no-verify` or skip hooks.
