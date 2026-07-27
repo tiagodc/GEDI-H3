@@ -793,6 +793,9 @@ window.runMermaid = runMermaid;</script>
                    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;output format [default=parquet]&quot;</span><span class="p">)</span>
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-m&quot;</span><span class="p">,</span> <span class="s2">&quot;--merge&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;merge&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
                    <span class="n">help</span><span class="o">=</span><span class="s2">&quot;merge all partitions into single file&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--no-cog&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;cog&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_false&#39;</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;for raster formats, write plain GeoTIFFs instead of &quot;</span>
+                        <span class="s2">&quot;Cloud Optimized GeoTIFFs&quot;</span><span class="p">)</span>
 
     <span class="c1"># Indexing options</span>
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-egi&quot;</span><span class="p">,</span> <span class="s2">&quot;--egi&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;egi&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">parse_egi_levels</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
@@ -892,9 +895,11 @@ window.runMermaid = runMermaid;</script>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Collecting variables...&quot;</span><span class="p">)</span>
         <span class="n">columns</span> <span class="o">=</span> <span class="n">collect_columns</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
 
-        <span class="c1"># EGI indexing works best with Point geometry from GeoDataFrame</span>
-        <span class="c1"># Ensure geometry column is loaded so we have coordinate information</span>
-        <span class="k">if</span> <span class="n">use_egi</span> <span class="ow">and</span> <span class="s1">&#39;geometry&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">:</span>
+        <span class="c1"># EGI indexing works best with Point geometry from GeoDataFrame.</span>
+        <span class="c1"># Raster output needs it too, for both index types — rasterizing a</span>
+        <span class="c1"># plain DataFrame fails on the missing .crs and yields no files.</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.raster</span><span class="w"> </span><span class="kn">import</span> <span class="n">is_raster_format</span>
+        <span class="k">if</span> <span class="s1">&#39;geometry&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">columns</span> <span class="ow">and</span> <span class="p">(</span><span class="n">use_egi</span> <span class="ow">or</span> <span class="n">is_raster_format</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">format</span><span class="p">)):</span>
             <span class="n">columns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;geometry&#39;</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
@@ -984,7 +989,7 @@ window.runMermaid = runMermaid;</script>
             <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span>
                 <span class="n">ddf</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">format</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">merge</span><span class="p">,</span>
                 <span class="n">show_progress</span><span class="o">=</span><span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="s1">&#39;quiet&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
-                <span class="n">drop_internal</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">drop_internal</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">cog</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="s1">&#39;cog&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">),</span>
                 <span class="n">source_database</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">database</span><span class="p">,</span> <span class="n">tool</span><span class="o">=</span><span class="s1">&#39;gh3_extract&#39;</span><span class="p">,</span>
                 <span class="o">**</span><span class="n">meta_kwargs</span>
             <span class="p">)</span>

@@ -578,12 +578,15 @@
 <td><p>Determine the spatial index type of a DataFrame.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_to_raster" title="gedih3.gh3driver.gh3_to_raster"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_to_raster</span></code></a>(gdf[, columns, output_path, compress])</p></td>
-<td><p>Convert H3-indexed GeoDataFrame to raster.</p></td>
+<td><p>Convert a single spatially-indexed GeoDataFrame to raster.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_rasterize_partitions" title="gedih3.gh3driver.gh3_rasterize_partitions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_rasterize_partitions</span></code></a>(ddf, output_dir[, columns, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_rasterize" title="gedih3.gh3driver.gh3_rasterize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_rasterize</span></code></a>(data, output[, columns, merge, query, ...])</p></td>
+<td><p>Rasterize a dataset or Dask DataFrame to GeoTIFF in a single call.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_rasterize_partitions" title="gedih3.gh3driver.gh3_rasterize_partitions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_rasterize_partitions</span></code></a>(ddf, output_dir[, columns, ...])</p></td>
 <td><p>Rasterize Dask GeoDataFrame partitions to individual GeoTIFF files.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_sample_raster" title="gedih3.gh3driver.gh3_sample_raster"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_sample_raster</span></code></a>(image_path[, data_source, region, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3driver.gh3_sample_raster" title="gedih3.gh3driver.gh3_sample_raster"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_sample_raster</span></code></a>(image_path[, data_source, region, ...])</p></td>
 <td><p>Sample raster pixel values at GEDI shot locations.</p></td>
 </tr>
 </tbody>
@@ -931,7 +934,7 @@ Used when no partition column is available (e.g., aggregated data).</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.gh3driver.gh3_export">
-<span class="sig-prename descclassname"><span class="pre">gedih3.gh3driver.</span></span><span class="sig-name descname"><span class="pre">gh3_export</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ddf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fmt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'parquet'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">merge</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">show_progress</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">drop_internal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_metadata</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">source_database</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tool</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h3_partition_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">metadata_kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3driver.html#gh3_export"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3driver.gh3_export" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3driver.</span></span><span class="sig-name descname"><span class="pre">gh3_export</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ddf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fmt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'parquet'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">merge</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">show_progress</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">drop_internal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_metadata</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">source_database</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tool</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h3_partition_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cog</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">metadata_kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3driver.html#gh3_export"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3driver.gh3_export" title="Link to this definition">#</a></dt>
 <dd><p>Export a Dask DataFrame to simplified flat files with metadata.</p>
 <p>This is the high-level export function that encapsulates the full export
 pipeline: persist, write partition files, and write dataset metadata.
@@ -966,6 +969,9 @@ tools can join on shot_number or spatial indexes.</p>
 files are named by the parent cell at this level (via h3.cell_to_parent).
 Useful for aggregated data where the original partition column was lost.
 If None, auto-detected from source_database metadata when available.</p>
+</dd>
+<dt><strong>cog</strong><span class="classifier">bool</span></dt><dd><p>For raster formats, write Cloud Optimized GeoTIFFs (default). Ignored
+for every other format.</p>
 </dd>
 <dt><strong>**metadata_kwargs</strong></dt><dd><p>Additional key-value pairs to include in the dataset metadata.
 Common keys: query_filter, aggregation, egi_index_level,
@@ -1297,13 +1303,16 @@ fallback when no egiXX column is present in the DataFrame.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.gh3driver.gh3_to_raster">
 <span class="sig-prename descclassname"><span class="pre">gedih3.gh3driver.</span></span><span class="sig-name descname"><span class="pre">gh3_to_raster</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gdf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compress</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'LZW'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3driver.html#gh3_to_raster"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3driver.gh3_to_raster" title="Link to this definition">#</a></dt>
-<dd><p>Convert H3-indexed GeoDataFrame to raster.</p>
-<p>This is a convenience function that wraps the raster module’s
-h3_to_raster function with sensible defaults.</p>
+<dd><p>Convert a single spatially-indexed GeoDataFrame to raster.</p>
+<p>Dispatches on the frame’s spatial index: H3 frames go through
+<code class="docutils literal notranslate"><span class="pre">raster.h3_to_raster</span></code>, EGI frames through <code class="docutils literal notranslate"><span class="pre">egi.geodf_to_raster</span></code>.</p>
+<p>This handles ONE in-memory frame. To rasterize every partition of a Dask
+DataFrame — or a dataset directory — in a single call, use
+<a class="reference internal" href="#gedih3.gh3driver.gh3_rasterize" title="gedih3.gh3driver.gh3_rasterize"><code class="xref py py-func docutils literal notranslate"><span class="pre">gh3_rasterize()</span></code></a>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
-<dt><strong>gdf</strong><span class="classifier">GeoDataFrame</span></dt><dd><p>H3-indexed GeoDataFrame with polygon geometries</p>
+<dt><strong>gdf</strong><span class="classifier">GeoDataFrame</span></dt><dd><p>H3- or EGI-indexed GeoDataFrame.</p>
 </dd>
 <dt><strong>columns</strong><span class="classifier">list of str, optional</span></dt><dd><p>Columns to rasterize. If None, all numeric columns.</p>
 </dd>
@@ -1315,11 +1324,30 @@ h3_to_raster function with sensible defaults.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><dl class="simple">
-<dt>xr.Dataset</dt><dd><p>Raster dataset</p>
+<dt>xr.Dataset</dt><dd><p>Raster dataset. The CRS follows the index type: EPSG:4326 for H3,
+EPSG:6933 (EASE-Grid 2.0) for EGI. EGI rasters are never reprojected
+— that alignment is the reason EGI exists.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>GediValidationError</dt><dd><p>If the spatial index type cannot be determined from the frame.</p>
+</dd>
+<dt>GediRasterizationError</dt><dd><p>Propagated from the rasterizer. Notably, an EGI frame spanning more
+than one level-12 outer tile is refused rather than silently reduced
+— use <code class="docutils literal notranslate"><span class="pre">gh3_rasterize(...,</span> <span class="pre">merge=True)</span></code> for that.</p>
 </dd>
 </dl>
 </dd>
 </dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<dl class="simple">
+<dt><a class="reference internal" href="#gedih3.gh3driver.gh3_rasterize" title="gedih3.gh3driver.gh3_rasterize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_rasterize</span></code></a></dt><dd><p>Dask DataFrame or dataset directory to rasters, one call.</p>
+</dd>
+</dl>
+</div>
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Rasterize aggregated data</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">raster</span> <span class="o">=</span> <span class="n">gh3_to_raster</span><span class="p">(</span><span class="n">agg_gdf</span><span class="p">)</span>
@@ -1327,6 +1355,93 @@ h3_to_raster function with sensible defaults.</p>
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Or save directly</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">raster</span> <span class="o">=</span> <span class="n">gh3_to_raster</span><span class="p">(</span><span class="n">agg_gdf</span><span class="p">,</span> <span class="n">output_path</span><span class="o">=</span><span class="s2">&quot;output.tif&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3driver.gh3_rasterize">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3driver.</span></span><span class="sig-name descname"><span class="pre">gh3_rasterize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">merge</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">index_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partition_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fmt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'tif'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compress</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'LZW'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cog</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">show_progress</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3driver.html#gh3_rasterize"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3driver.gh3_rasterize" title="Link to this definition">#</a></dt>
+<dd><p>Rasterize a dataset or Dask DataFrame to GeoTIFF in a single call.</p>
+<p>Works for both spatial index types: EGI partitions are rasterized with
+<code class="docutils literal notranslate"><span class="pre">egi.rasterize_partition</span></code> (EASE-Grid 2.0 aligned, EPSG:6933) and H3
+partitions with <code class="docutils literal notranslate"><span class="pre">raster.rasterize_h3_partition</span></code> (EPSG:4326). The index
+type is detected, so callers do not pick a rasterizer.</p>
+<p>This is the library form of the <code class="docutils literal notranslate"><span class="pre">gh3_rasterize</span></code> CLI, which delegates to
+it — the two cannot diverge.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>data</strong><span class="classifier">str or DataFrame</span></dt><dd><p>Either a dataset directory written by <code class="docutils literal notranslate"><span class="pre">gh3_extract</span></code> / <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code>
+(i.e. holding a <code class="docutils literal notranslate"><span class="pre">gedih3_dataset.json</span></code> sidecar), or an already-loaded
+Dask / in-memory (Geo)DataFrame. A raw H3 <em>database</em> is not accepted —
+aggregate or extract from it first.</p>
+</dd>
+<dt><strong>output</strong><span class="classifier">str</span></dt><dd><p>Output directory (<code class="docutils literal notranslate"><span class="pre">merge=False</span></code>) or output file path (<code class="docutils literal notranslate"><span class="pre">merge=True</span></code>,
+a missing <code class="docutils literal notranslate"><span class="pre">.tif</span></code> suffix is appended).</p>
+</dd>
+<dt><strong>columns</strong><span class="classifier">list of str, optional</span></dt><dd><p>Columns to rasterize; None means every numeric column. fnmatch
+wildcards (e.g. <code class="docutils literal notranslate"><span class="pre">'agbd_*'</span></code>) are expanded for dataset-path input; for
+a frame the caller already knows its columns.</p>
+</dd>
+<dt><strong>merge</strong><span class="classifier">bool</span></dt><dd><p>False (default) writes one GeoTIFF per spatial tile plus a
+<code class="docutils literal notranslate"><span class="pre">mosaic.vrt</span></code>. True merges every tile into a single GeoTIFF (no VRT);
+note this gathers all tiles on the driver.</p>
+</dd>
+<dt><strong>query</strong><span class="classifier">str, optional</span></dt><dd><p>Pandas query applied at load time. Dataset-path input only — for a
+frame, call <code class="docutils literal notranslate"><span class="pre">.query()</span></code> before passing it in.</p>
+</dd>
+<dt><strong>index_type</strong><span class="classifier">{‘h3’, ‘egi’}, optional</span></dt><dd><p>Override the detected index type.</p>
+</dd>
+<dt><strong>partition_level</strong><span class="classifier">int, optional</span></dt><dd><p>H3 tiling level. Ignored for EGI, which always tiles at level 12. When
+None it is resolved from the dataset (path input) or from the frame’s
+<code class="docutils literal notranslate"><span class="pre">h3_NN</span></code> columns.</p>
+</dd>
+<dt><strong>fmt</strong><span class="classifier">str</span></dt><dd><p>Tile format (‘tif’, ‘nc’). Ignored when <code class="docutils literal notranslate"><span class="pre">merge=True</span></code>, which always
+writes GeoTIFF.</p>
+</dd>
+<dt><strong>compress</strong><span class="classifier">str</span></dt><dd><p>GeoTIFF compression (default LZW).</p>
+</dd>
+<dt><strong>cog</strong><span class="classifier">bool</span></dt><dd><p>Write Cloud Optimized GeoTIFFs — internally tiled, with an overview
+pyramid (default). A COG is a valid GeoTIFF, so readers are unaffected;
+pass False for a plain GeoTIFF with no overviews.</p>
+</dd>
+<dt><strong>show_progress</strong><span class="classifier">bool</span></dt><dd><p>Show the Dask progress bar.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>str or list of str</dt><dd><p>The written file path when <code class="docutils literal notranslate"><span class="pre">merge=True</span></code>; otherwise a flat list of
+the written tile paths (<code class="docutils literal notranslate"><span class="pre">mosaic.vrt</span></code> is not included).</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>GediValidationError</dt><dd><p>If <code class="docutils literal notranslate"><span class="pre">data</span></code> is an H3 database, if the index type cannot be determined,
+or if <code class="docutils literal notranslate"><span class="pre">query</span></code> is given with an already-loaded frame.</p>
+</dd>
+<dt>GediRasterizationError</dt><dd><p>Propagated from the rasterizers (e.g. nothing valid to merge).</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<dl class="simple">
+<dt><a class="reference internal" href="#gedih3.gh3driver.gh3_to_raster" title="gedih3.gh3driver.gh3_to_raster"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_to_raster</span></code></a></dt><dd><p>single in-memory frame to an <code class="docutils literal notranslate"><span class="pre">xr.Dataset</span></code>.</p>
+</dd>
+<dt><a class="reference internal" href="#gedih3.gh3driver.gh3_rasterize_partitions" title="gedih3.gh3driver.gh3_rasterize_partitions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_rasterize_partitions</span></code></a></dt><dd><p>H3-only variant returning per-partition results.</p>
+</dd>
+</dl>
+</div>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">ddf</span> <span class="o">=</span> <span class="n">egi_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">db</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="s1">&#39;region.shp&#39;</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">paths</span> <span class="o">=</span> <span class="n">gh3_rasterize</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;tiles/&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># From a dataset directory, merged into one file</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="s1">&#39;/data/agg_egi&#39;</span><span class="p">,</span> <span class="s1">&#39;agbd.tif&#39;</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -1355,11 +1470,19 @@ from data columns or defaults to treating each partition as one tile.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><dl class="simple">
-<dt>list of str</dt><dd><p>Paths to output files</p>
+<dt>list of str</dt><dd><p>One entry per Dask partition, comma-joined when a partition produced
+several tiles. Use <a class="reference internal" href="#gedih3.gh3driver.gh3_rasterize" title="gedih3.gh3driver.gh3_rasterize"><code class="xref py py-func docutils literal notranslate"><span class="pre">gh3_rasterize()</span></code></a> for a flat list of paths.</p>
 </dd>
 </dl>
 </dd>
 </dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<dl class="simple">
+<dt><a class="reference internal" href="#gedih3.gh3driver.gh3_rasterize" title="gedih3.gh3driver.gh3_rasterize"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gh3_rasterize</span></code></a></dt><dd><p>index-aware equivalent; also handles EGI, dataset directories and merged output.</p>
+</dd>
+</dl>
+</div>
 </dd></dl>
 
 <dl class="py function">
@@ -1493,6 +1616,7 @@ Returns a Dask DataFrame; use <code class="docutils literal notranslate"><span c
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.is_egi_indexed"><code class="docutils literal notranslate"><span class="pre">is_egi_indexed()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.get_spatial_index_type"><code class="docutils literal notranslate"><span class="pre">get_spatial_index_type()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_to_raster"><code class="docutils literal notranslate"><span class="pre">gh3_to_raster()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_rasterize"><code class="docutils literal notranslate"><span class="pre">gh3_rasterize()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_rasterize_partitions"><code class="docutils literal notranslate"><span class="pre">gh3_rasterize_partitions()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3driver.gh3_sample_raster"><code class="docutils literal notranslate"><span class="pre">gh3_sample_raster()</span></code></a></li>
 </ul>

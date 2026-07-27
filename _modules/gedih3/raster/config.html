@@ -775,6 +775,17 @@ window.runMermaid = runMermaid;</script>
     <span class="s1">&#39;blockxsize&#39;</span><span class="p">:</span> <span class="mi">256</span><span class="p">,</span>
     <span class="s1">&#39;blockysize&#39;</span><span class="p">:</span> <span class="mi">256</span><span class="p">,</span>
     <span class="s1">&#39;bigtiff&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s1">&#39;cog&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="c1"># Cloud Optimized GeoTIFF is the default layout for image output: internal</span>
+<span class="c1"># tiling plus overviews, so a viewer or a range-reading client fetches only</span>
+<span class="c1"># the bytes it needs. A COG is a valid GeoTIFF, so nothing that could read</span>
+<span class="c1"># the old output stops working; the cost is the overview pyramid on disk</span>
+<span class="c1"># (~30% on a dense tile).</span>
+<span class="n">COG_DEFAULTS</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;overviews&#39;</span><span class="p">:</span> <span class="s1">&#39;AUTO&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;resampling&#39;</span><span class="p">:</span> <span class="s1">&#39;AVERAGE&#39;</span><span class="p">,</span>
 <span class="p">}</span>
 
 <span class="c1"># Compression options (for user selection)</span>
@@ -826,6 +837,54 @@ window.runMermaid = runMermaid;</script>
         <span class="s1">&#39;BLOCKXSIZE&#39;</span><span class="p">:</span> <span class="n">blocksize</span><span class="p">,</span>
         <span class="s1">&#39;BLOCKYSIZE&#39;</span><span class="p">:</span> <span class="n">blocksize</span><span class="p">,</span>
         <span class="s1">&#39;BIGTIFF&#39;</span><span class="p">:</span> <span class="s1">&#39;YES&#39;</span> <span class="k">if</span> <span class="n">bigtiff</span> <span class="k">else</span> <span class="s1">&#39;NO&#39;</span><span class="p">,</span>
+    <span class="p">}</span></div>
+
+
+
+<div class="viewcode-block" id="get_cog_options">
+<a class="viewcode-back" href="../../../autoapi/gedih3/raster/config/index.html#gedih3.raster.config.get_cog_options">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_cog_options</span><span class="p">(</span>
+    <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;LZW&#39;</span><span class="p">,</span>
+    <span class="n">blocksize</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">256</span><span class="p">,</span>
+    <span class="n">bigtiff</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">overviews</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;AUTO&#39;</span><span class="p">,</span>
+    <span class="n">resampling</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;AVERAGE&#39;</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Generate rasterio creation options for the GDAL COG driver.</span>
+
+<span class="sd">    The COG driver takes its own option names — ``BLOCKSIZE`` rather than</span>
+<span class="sd">    ``TILED``/``BLOCKXSIZE``, and it is always tiled. Passing the GeoTIFF</span>
+<span class="sd">    option names instead is silently ignored and you get the driver defaults</span>
+<span class="sd">    (512-pixel blocks), which is why this is a separate builder rather than a</span>
+<span class="sd">    flag on :func:`get_geotiff_options`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    compress : str</span>
+<span class="sd">        Compression method (&#39;LZW&#39;, &#39;ZSTD&#39;, &#39;DEFLATE&#39;, &#39;PACKBITS&#39;, &#39;NONE&#39;)</span>
+<span class="sd">    blocksize : int</span>
+<span class="sd">        Internal tile size in pixels</span>
+<span class="sd">    bigtiff : bool</span>
+<span class="sd">        Use BigTIFF for large files</span>
+<span class="sd">    overviews : str</span>
+<span class="sd">        COG ``OVERVIEWS`` policy — &#39;AUTO&#39; builds the pyramid when the image is</span>
+<span class="sd">        larger than one block, &#39;NONE&#39; skips it</span>
+<span class="sd">    resampling : str</span>
+<span class="sd">        Resampling used to build the overviews</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        Options for ``rio.to_raster()``, including ``driver=&#39;COG&#39;``</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s1">&#39;driver&#39;</span><span class="p">:</span> <span class="s1">&#39;COG&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;COMPRESS&#39;</span><span class="p">:</span> <span class="n">compress</span><span class="p">,</span>
+        <span class="s1">&#39;BLOCKSIZE&#39;</span><span class="p">:</span> <span class="n">blocksize</span><span class="p">,</span>
+        <span class="s1">&#39;BIGTIFF&#39;</span><span class="p">:</span> <span class="s1">&#39;YES&#39;</span> <span class="k">if</span> <span class="n">bigtiff</span> <span class="k">else</span> <span class="s1">&#39;NO&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;OVERVIEWS&#39;</span><span class="p">:</span> <span class="n">overviews</span><span class="p">,</span>
+        <span class="s1">&#39;RESAMPLING&#39;</span><span class="p">:</span> <span class="n">resampling</span><span class="p">,</span>
     <span class="p">}</span></div>
 
 

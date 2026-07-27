@@ -42,11 +42,15 @@ Module Contents
 
 .. py:data:: logger
 
-.. py:function:: export_raster(xras: xarray.Dataset, output_path: str, compress: str = 'LZW', tiled: bool = True, blocksize: int = 256, bigtiff: bool = True) -> str
+.. py:function:: export_raster(xras: xarray.Dataset, output_path: str, compress: str = 'LZW', tiled: bool = True, blocksize: int = 256, bigtiff: bool = True, cog: bool = True) -> str
 
    
    Export xarray Dataset to GeoTIFF file.
 
+   Writes a Cloud Optimized GeoTIFF by default: internally tiled with an
+   overview pyramid, so viewers and range-reading clients fetch only the
+   bytes they need. A COG is a valid GeoTIFF, so every reader that handled
+   the previous output still does; the cost is the pyramid on disk.
 
    :Parameters:
 
@@ -60,13 +64,18 @@ Module Contents
            Compression method ('LZW', 'ZSTD', 'DEFLATE', 'NONE')
 
        **tiled** : bool
-           Use tiled output format
+           Use tiled output format. Ignored when ``cog`` is True — a COG is
+           always tiled.
 
        **blocksize** : int
            Tile block size in pixels
 
        **bigtiff** : bool
            Use BigTIFF format for large files
+
+       **cog** : bool
+           Write a Cloud Optimized GeoTIFF (default). False falls back to a
+           plain GeoTIFF with no overviews.
 
 
 
@@ -88,7 +97,7 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
-.. py:function:: export_raster_partition(data: Union[pandas.Series, xarray.Dataset], output_dir: str, fmt: str = 'tif', compress: str = 'LZW', partition_id_attr: Optional[str] = None) -> str
+.. py:function:: export_raster_partition(data: Union[pandas.Series, xarray.Dataset], output_dir: str, fmt: str = 'tif', compress: str = 'LZW', partition_id_attr: Optional[str] = None, cog: bool = True) -> str
 
    
    Export raster partition(s) to file(s).
@@ -114,6 +123,9 @@ Module Contents
        **partition_id_attr** : str, optional
            Attribute name containing partition ID for filename
 
+       **cog** : bool
+           Write GeoTIFF output as a Cloud Optimized GeoTIFF (default)
+
 
 
    :Returns:
@@ -134,7 +146,7 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
-.. py:function:: rasterize_and_export_partitions(gdf: Union[geopandas.GeoDataFrame, dask.dataframe.DataFrame], output_dir: str, rasterize_func, columns: Optional[List[str]] = None, fmt: str = 'tif', compress: str = 'LZW', show_progress: bool = True, **rasterize_kwargs) -> List[str]
+.. py:function:: rasterize_and_export_partitions(gdf: Union[geopandas.GeoDataFrame, dask.dataframe.DataFrame], output_dir: str, rasterize_func, columns: Optional[List[str]] = None, fmt: str = 'tif', compress: str = 'LZW', show_progress: bool = True, cog: bool = True, **rasterize_kwargs) -> List[str]
 
    
    Rasterize and export GeoDataFrame partitions to individual files.
@@ -304,7 +316,7 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
-.. py:function:: merge_and_export_rasters(gdf: Union[geopandas.GeoDataFrame, dask.dataframe.DataFrame], output_path: str, rasterize_func, columns: Optional[List[str]] = None, compress: str = 'LZW', show_progress: bool = True, **rasterize_kwargs) -> str
+.. py:function:: merge_and_export_rasters(gdf: Union[geopandas.GeoDataFrame, dask.dataframe.DataFrame], output_path: str, rasterize_func, columns: Optional[List[str]] = None, compress: str = 'LZW', show_progress: bool = True, cog: bool = True, **rasterize_kwargs) -> str
 
    
    Rasterize all partitions and merge into a single output file.

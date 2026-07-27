@@ -1159,16 +1159,20 @@ window.runMermaid = runMermaid;</script>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert aggregated data to raster.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_egi</span><span class="p">:</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">..</span><span class="w"> </span><span class="kn">import</span> <span class="n">egi</span>
-            <span class="c1"># A time-window aggregate over an arbitrary ROI legitimately</span>
-            <span class="c1"># spans multiple 160-km outer tiles — split per tile and merge,</span>
-            <span class="c1"># instead of relying on geodf_to_raster&#39;s single-tile fallback</span>
-            <span class="c1"># (which rasterizes only the dominant tile and drops the rest).</span>
-            <span class="n">rasters</span> <span class="o">=</span> <span class="n">egi</span><span class="o">.</span><span class="n">rasterize_partition</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">..utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">object_series</span>
+            <span class="c1"># A time-window aggregate over an arbitrary ROI legitimately spans</span>
+            <span class="c1"># multiple 160-km outer tiles — so split explicitly and merge.</span>
+            <span class="c1"># rasterize_partition does NOT split: a Dask partition nests in one</span>
+            <span class="c1"># outer tile by construction, and it reports anything else as the</span>
+            <span class="c1"># invariant violation it is. This caller is not a partition.</span>
+            <span class="n">rasters</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">tile_gdf</span> <span class="ow">in</span> <span class="n">egi</span><span class="o">.</span><span class="n">split_by_outer_tile</span><span class="p">(</span><span class="n">gdf</span><span class="p">):</span>
+                <span class="n">rasters</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">egi</span><span class="o">.</span><span class="n">rasterize_partition</span><span class="p">(</span><span class="n">tile_gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">))</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">rasters</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">xr</span><span class="o">.</span><span class="n">Dataset</span><span class="p">()</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">rasters</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="k">return</span> <span class="n">rasters</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-            <span class="k">return</span> <span class="n">egi</span><span class="o">.</span><span class="n">merge_raster_partitions</span><span class="p">(</span><span class="n">rasters</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">rasters</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">egi</span><span class="o">.</span><span class="n">merge_raster_partitions</span><span class="p">(</span><span class="n">object_series</span><span class="p">(</span><span class="n">rasters</span><span class="p">))</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">.h3_raster</span><span class="w"> </span><span class="kn">import</span> <span class="n">h3_to_raster</span>
             <span class="k">return</span> <span class="n">h3_to_raster</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span></div>

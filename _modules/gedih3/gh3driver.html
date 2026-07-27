@@ -2967,7 +2967,8 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;parquet&#39;</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                <span class="n">show_progress</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">drop_internal</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                <span class="n">write_metadata</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">source_database</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-               <span class="n">tool</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">h3_partition_level</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">metadata_kwargs</span><span class="p">):</span>
+               <span class="n">tool</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">h3_partition_level</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cog</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+               <span class="o">**</span><span class="n">metadata_kwargs</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Export a Dask DataFrame to simplified flat files with metadata.</span>
 
@@ -3005,6 +3006,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        files are named by the parent cell at this level (via h3.cell_to_parent).</span>
 <span class="sd">        Useful for aggregated data where the original partition column was lost.</span>
 <span class="sd">        If None, auto-detected from source_database metadata when available.</span>
+<span class="sd">    cog : bool</span>
+<span class="sd">        For raster formats, write Cloud Optimized GeoTIFFs (default). Ignored</span>
+<span class="sd">        for every other format.</span>
 <span class="sd">    **metadata_kwargs</span>
 <span class="sd">        Additional key-value pairs to include in the dataset metadata.</span>
 <span class="sd">        Common keys: query_filter, aggregation, egi_index_level,</span>
@@ -3066,6 +3070,33 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">naming_partition_level</span> <span class="o">=</span> <span class="n">gh3_read_meta</span><span class="p">(</span><span class="s2">&quot;h3_partition_level&quot;</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="n">source_database</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
                 <span class="k">pass</span>
+
+    <span class="c1"># Raster formats go through the rasterization pipeline rather than the</span>
+    <span class="c1"># per-format file writers. There is one rasterization implementation, so</span>
+    <span class="c1"># both index types behave the same: EGI used to have its own raster branch</span>
+    <span class="c1"># inside _write_egi_file (bypassing the outer-tile invariant and the VRT)</span>
+    <span class="c1"># while H3 had none at all and raised &quot;Unsupported export format: tif&quot;.</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.raster</span><span class="w"> </span><span class="kn">import</span> <span class="n">RASTER_FORMATS</span>
+    <span class="k">if</span> <span class="n">fmt</span> <span class="ow">in</span> <span class="n">RASTER_FORMATS</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">gh3_rasterize</span><span class="p">(</span>
+            <span class="n">ddf</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="n">merge</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">,</span> <span class="n">index_type</span><span class="o">=</span><span class="n">index_type</span><span class="p">,</span>
+            <span class="n">partition_level</span><span class="o">=</span><span class="p">(</span><span class="n">h3_partition_level</span> <span class="ow">or</span> <span class="n">naming_partition_level</span>
+                             <span class="k">if</span> <span class="n">index_type</span> <span class="o">==</span> <span class="s1">&#39;h3&#39;</span> <span class="k">else</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="n">cog</span><span class="o">=</span><span class="n">cog</span><span class="p">,</span> <span class="n">show_progress</span><span class="o">=</span><span class="n">show_progress</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">ofiles</span> <span class="o">=</span> <span class="p">[</span><span class="n">result</span><span class="p">]</span> <span class="k">if</span> <span class="n">merge</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">ofiles</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">GediProcessingError</span><span class="p">(</span><span class="s2">&quot;No output files were created.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">write_metadata</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">merge</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">h3_partition_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">metadata_kwargs</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">&#39;h3_partition_level&#39;</span><span class="p">,</span> <span class="n">h3_partition_level</span><span class="p">)</span>
+            <span class="n">gh3_write_dataset_meta</span><span class="p">(</span>
+                <span class="n">opath</span><span class="o">=</span><span class="n">output</span><span class="p">,</span> <span class="n">index_type</span><span class="o">=</span><span class="n">index_type</span> <span class="ow">or</span> <span class="s1">&#39;unknown&#39;</span><span class="p">,</span>
+                <span class="n">index_level</span><span class="o">=</span><span class="n">index_level</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">ddf</span><span class="o">.</span><span class="n">columns</span><span class="p">),</span>
+                <span class="n">source_database</span><span class="o">=</span><span class="n">source_database</span><span class="p">,</span> <span class="n">tool</span><span class="o">=</span><span class="n">tool</span><span class="p">,</span> <span class="n">file_format</span><span class="o">=</span><span class="n">fmt</span><span class="p">,</span>
+                <span class="o">**</span><span class="n">metadata_kwargs</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">ofiles</span>
 
     <span class="c1"># Export data</span>
     <span class="k">if</span> <span class="n">merge</span><span class="p">:</span>
@@ -4832,15 +4863,19 @@ window.runMermaid = runMermaid;</script>
     <span class="n">compress</span><span class="o">=</span><span class="s1">&#39;LZW&#39;</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Convert H3-indexed GeoDataFrame to raster.</span>
+<span class="sd">    Convert a single spatially-indexed GeoDataFrame to raster.</span>
 
-<span class="sd">    This is a convenience function that wraps the raster module&#39;s</span>
-<span class="sd">    h3_to_raster function with sensible defaults.</span>
+<span class="sd">    Dispatches on the frame&#39;s spatial index: H3 frames go through</span>
+<span class="sd">    ``raster.h3_to_raster``, EGI frames through ``egi.geodf_to_raster``.</span>
+
+<span class="sd">    This handles ONE in-memory frame. To rasterize every partition of a Dask</span>
+<span class="sd">    DataFrame — or a dataset directory — in a single call, use</span>
+<span class="sd">    :func:`gh3_rasterize`.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    gdf : GeoDataFrame</span>
-<span class="sd">        H3-indexed GeoDataFrame with polygon geometries</span>
+<span class="sd">        H3- or EGI-indexed GeoDataFrame.</span>
 <span class="sd">    columns : list of str, optional</span>
 <span class="sd">        Columns to rasterize. If None, all numeric columns.</span>
 <span class="sd">    output_path : str, optional</span>
@@ -4851,7 +4886,18 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    xr.Dataset</span>
-<span class="sd">        Raster dataset</span>
+<span class="sd">        Raster dataset. The CRS follows the index type: EPSG:4326 for H3,</span>
+<span class="sd">        EPSG:6933 (EASE-Grid 2.0) for EGI. EGI rasters are never reprojected</span>
+<span class="sd">        — that alignment is the reason EGI exists.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    GediValidationError</span>
+<span class="sd">        If the spatial index type cannot be determined from the frame.</span>
+<span class="sd">    GediRasterizationError</span>
+<span class="sd">        Propagated from the rasterizer. Notably, an EGI frame spanning more</span>
+<span class="sd">        than one level-12 outer tile is refused rather than silently reduced</span>
+<span class="sd">        — use ``gh3_rasterize(..., merge=True)`` for that.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
@@ -4861,15 +4907,317 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    &gt;&gt;&gt;</span>
 <span class="sd">    &gt;&gt;&gt; # Or save directly</span>
 <span class="sd">    &gt;&gt;&gt; raster = gh3_to_raster(agg_gdf, output_path=&quot;output.tif&quot;)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">.raster</span><span class="w"> </span><span class="kn">import</span> <span class="n">h3_to_raster</span><span class="p">,</span> <span class="n">export_raster</span>
 
-    <span class="n">xras</span> <span class="o">=</span> <span class="n">h3_to_raster</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">)</span>
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    gh3_rasterize : Dask DataFrame or dataset directory to rasters, one call.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">index_type</span> <span class="o">=</span> <span class="n">get_spatial_index_type</span><span class="p">(</span><span class="n">gdf</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">index_type</span> <span class="o">==</span> <span class="s1">&#39;egi&#39;</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">egi</span>
+        <span class="n">xras</span> <span class="o">=</span> <span class="n">egi</span><span class="o">.</span><span class="n">geodf_to_raster</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">index_type</span> <span class="o">==</span> <span class="s1">&#39;h3&#39;</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.raster</span><span class="w"> </span><span class="kn">import</span> <span class="n">h3_to_raster</span>
+        <span class="n">xras</span> <span class="o">=</span> <span class="n">h3_to_raster</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
+            <span class="s2">&quot;Cannot determine the spatial index type of the input frame: no &#39;h3_*&#39; or &quot;</span>
+            <span class="s2">&quot;&#39;egi*&#39; index name or column found. Pass an H3- or EGI-indexed GeoDataFrame.&quot;</span>
+        <span class="p">)</span>
 
     <span class="k">if</span> <span class="n">output_path</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.raster</span><span class="w"> </span><span class="kn">import</span> <span class="n">export_raster</span>
         <span class="n">export_raster</span><span class="p">(</span><span class="n">xras</span><span class="p">,</span> <span class="n">output_path</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="n">compress</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">xras</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_h3_partition_level_from_dataset</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">info</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the H3 partition level of a simplified dataset directory.</span>
+
+<span class="sd">    ``cliutils.get_dataset_index_info`` already covers the sidecar</span>
+<span class="sd">    ``h3_partition_level`` and the ``partition_ids[0]`` fallback; this adds the</span>
+<span class="sd">    two steps it does not: deriving the level from the parquet filenames, and</span>
+<span class="sd">    cross-checking a sidecar value against them.</span>
+
+<span class="sd">    Filenames are ground truth — a sidecar can go stale when a dataset is</span>
+<span class="sd">    regenerated in place at another level, and a wrong partition level produces</span>
+<span class="sd">    silently wrong tiling rather than an error. One local basename is free to</span>
+<span class="sd">    check; remote paths keep the sidecar fast path.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    path : str</span>
+<span class="sd">        Dataset directory.</span>
+<span class="sd">    info : dict</span>
+<span class="sd">        The ``get_dataset_index_info`` result for ``path``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple</span>
+<span class="sd">        ``(level, source_label)``. ``level`` is None when undeterminable, in</span>
+<span class="sd">        which case the rasterizer falls back to detecting it from the frame&#39;s</span>
+<span class="sd">        ``h3_NN`` columns.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+    <span class="n">partition_level</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;partition_level&#39;</span><span class="p">)</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="s1">&#39;metadata&#39;</span>
+
+    <span class="k">if</span> <span class="n">partition_level</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">f</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">smart_glob</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;*.parquet&#39;</span><span class="p">))</span>
+        <span class="p">]</span>
+        <span class="n">source</span> <span class="o">=</span> <span class="s1">&#39;filenames&#39;</span>
+        <span class="k">for</span> <span class="n">cell</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">partition_level</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">get_resolution</span><span class="p">(</span><span class="n">cell</span><span class="p">)</span>
+                <span class="k">break</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+                <span class="k">continue</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">smart_glob</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;*.parquet&#39;</span><span class="p">))[:</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="n">cell</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">f</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">actual</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">get_resolution</span><span class="p">(</span><span class="n">cell</span><span class="p">)</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+                <span class="k">break</span>
+            <span class="k">if</span> <span class="n">actual</span> <span class="o">!=</span> <span class="n">partition_level</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Sidecar h3_partition_level=</span><span class="si">{</span><span class="n">partition_level</span><span class="si">}</span><span class="s2"> disagrees with &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;filenames (H3 </span><span class="si">{</span><span class="n">actual</span><span class="si">}</span><span class="s2">); using the filenames&quot;</span>
+                <span class="p">)</span>
+                <span class="n">partition_level</span> <span class="o">=</span> <span class="n">actual</span>
+                <span class="n">source</span> <span class="o">=</span> <span class="s1">&#39;filenames (sidecar stale)&#39;</span>
+
+    <span class="k">return</span> <span class="n">partition_level</span><span class="p">,</span> <span class="n">source</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_egi_partition_level</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">info</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve the EGI level a frame or dataset is partitioned at.</span>
+
+<span class="sd">    The sidecar knows it for a dataset; for a bare frame the coarsest ``egiNN``</span>
+<span class="sd">    column is the partition column (see ``_detect_export_params``). Returns</span>
+<span class="sd">    None when neither is available, which leaves the rasterizer on its</span>
+<span class="sd">    level-12 default.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ddf : DataFrame</span>
+<span class="sd">        Dask or in-memory EGI-indexed frame.</span>
+<span class="sd">    info : dict</span>
+<span class="sd">        ``get_dataset_index_info`` result, or ``{}`` for frame input.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    int or None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">level</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;egi_partition_level&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;partition_level&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
+
+    <span class="n">_</span><span class="p">,</span> <span class="n">part_col</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_detect_export_params</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">index_type</span><span class="o">=</span><span class="s1">&#39;egi&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">part_col</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">part_col</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;egi&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">))</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="gh3_rasterize">
+<a class="viewcode-back" href="../../autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.gh3_rasterize">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">gh3_rasterize</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">index_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">partition_level</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;tif&#39;</span><span class="p">,</span>
+                  <span class="n">compress</span><span class="o">=</span><span class="s1">&#39;LZW&#39;</span><span class="p">,</span> <span class="n">cog</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">show_progress</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Rasterize a dataset or Dask DataFrame to GeoTIFF in a single call.</span>
+
+<span class="sd">    Works for both spatial index types: EGI partitions are rasterized with</span>
+<span class="sd">    ``egi.rasterize_partition`` (EASE-Grid 2.0 aligned, EPSG:6933) and H3</span>
+<span class="sd">    partitions with ``raster.rasterize_h3_partition`` (EPSG:4326). The index</span>
+<span class="sd">    type is detected, so callers do not pick a rasterizer.</span>
+
+<span class="sd">    This is the library form of the ``gh3_rasterize`` CLI, which delegates to</span>
+<span class="sd">    it — the two cannot diverge.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : str or DataFrame</span>
+<span class="sd">        Either a dataset directory written by ``gh3_extract`` / ``gh3_aggregate``</span>
+<span class="sd">        (i.e. holding a ``gedih3_dataset.json`` sidecar), or an already-loaded</span>
+<span class="sd">        Dask / in-memory (Geo)DataFrame. A raw H3 *database* is not accepted —</span>
+<span class="sd">        aggregate or extract from it first.</span>
+<span class="sd">    output : str</span>
+<span class="sd">        Output directory (``merge=False``) or output file path (``merge=True``,</span>
+<span class="sd">        a missing ``.tif`` suffix is appended).</span>
+<span class="sd">    columns : list of str, optional</span>
+<span class="sd">        Columns to rasterize; None means every numeric column. fnmatch</span>
+<span class="sd">        wildcards (e.g. ``&#39;agbd_*&#39;``) are expanded for dataset-path input; for</span>
+<span class="sd">        a frame the caller already knows its columns.</span>
+<span class="sd">    merge : bool</span>
+<span class="sd">        False (default) writes one GeoTIFF per spatial tile plus a</span>
+<span class="sd">        ``mosaic.vrt``. True merges every tile into a single GeoTIFF (no VRT);</span>
+<span class="sd">        note this gathers all tiles on the driver.</span>
+<span class="sd">    query : str, optional</span>
+<span class="sd">        Pandas query applied at load time. Dataset-path input only — for a</span>
+<span class="sd">        frame, call ``.query()`` before passing it in.</span>
+<span class="sd">    index_type : {&#39;h3&#39;, &#39;egi&#39;}, optional</span>
+<span class="sd">        Override the detected index type.</span>
+<span class="sd">    partition_level : int, optional</span>
+<span class="sd">        H3 tiling level. Ignored for EGI, which always tiles at level 12. When</span>
+<span class="sd">        None it is resolved from the dataset (path input) or from the frame&#39;s</span>
+<span class="sd">        ``h3_NN`` columns.</span>
+<span class="sd">    fmt : str</span>
+<span class="sd">        Tile format (&#39;tif&#39;, &#39;nc&#39;). Ignored when ``merge=True``, which always</span>
+<span class="sd">        writes GeoTIFF.</span>
+<span class="sd">    compress : str</span>
+<span class="sd">        GeoTIFF compression (default LZW).</span>
+<span class="sd">    cog : bool</span>
+<span class="sd">        Write Cloud Optimized GeoTIFFs — internally tiled, with an overview</span>
+<span class="sd">        pyramid (default). A COG is a valid GeoTIFF, so readers are unaffected;</span>
+<span class="sd">        pass False for a plain GeoTIFF with no overviews.</span>
+<span class="sd">    show_progress : bool</span>
+<span class="sd">        Show the Dask progress bar.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    str or list of str</span>
+<span class="sd">        The written file path when ``merge=True``; otherwise a flat list of</span>
+<span class="sd">        the written tile paths (``mosaic.vrt`` is not included).</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    GediValidationError</span>
+<span class="sd">        If ``data`` is an H3 database, if the index type cannot be determined,</span>
+<span class="sd">        or if ``query`` is given with an already-loaded frame.</span>
+<span class="sd">    GediRasterizationError</span>
+<span class="sd">        Propagated from the rasterizers (e.g. nothing valid to merge).</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; ddf = egi_load(source=db, region=&#39;region.shp&#39;, level=6)</span>
+<span class="sd">    &gt;&gt;&gt; paths = gh3_rasterize(ddf, &#39;tiles/&#39;)</span>
+<span class="sd">    &gt;&gt;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; # From a dataset directory, merged into one file</span>
+<span class="sd">    &gt;&gt;&gt; gh3_rasterize(&#39;/data/agg_egi&#39;, &#39;agbd.tif&#39;, merge=True)</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    gh3_to_raster : single in-memory frame to an ``xr.Dataset``.</span>
+<span class="sd">    gh3_rasterize_partitions : H3-only variant returning per-partition results.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">raster</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">path</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">_detect_source</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;source_type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;h3_database&#39;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&#39; is an H3 database, not a rasterizable dataset. Rasterization &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;needs a dataset produced by gh3_aggregate or gh3_extract — run one of &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;those on the database first.&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">index_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">index_type</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_type&#39;</span><span class="p">)</span>
+        <span class="n">columns</span> <span class="o">=</span> <span class="n">_resolve_columns</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">info</span><span class="p">)</span>
+        <span class="c1"># _load_dataset, not gh3_load: the latter refuses EGI-indexed datasets.</span>
+        <span class="n">ddf</span> <span class="o">=</span> <span class="n">_load_dataset</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">query</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
+                <span class="s2">&quot;query= applies to dataset-path input only. Call .query() on the frame &quot;</span>
+                <span class="s2">&quot;before passing it to gh3_rasterize().&quot;</span>
+            <span class="p">)</span>
+        <span class="n">path</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="p">{}</span>
+        <span class="n">ddf</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="k">if</span> <span class="n">index_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">index_type</span> <span class="o">=</span> <span class="n">get_spatial_index_type</span><span class="p">(</span><span class="n">ddf</span><span class="o">.</span><span class="n">_meta</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;_meta&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="n">ddf</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">index_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;h3&#39;</span><span class="p">,</span> <span class="s1">&#39;egi&#39;</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
+            <span class="s2">&quot;Cannot determine the spatial index type to rasterize. Pass index_type=&#39;h3&#39; &quot;</span>
+            <span class="s2">&quot;or index_type=&#39;egi&#39;, or supply data carrying an &#39;h3_*&#39; / &#39;egi*&#39; index.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Rasterizing needs geometry: the rasterizers reproject and burn polygons,</span>
+    <span class="c1"># and a plain DataFrame fails on the missing .crs deep inside a worker,</span>
+    <span class="c1"># where the per-partition handler swallows it and the run ends with the</span>
+    <span class="c1"># unhelpful &quot;No output files were created&quot;.</span>
+    <span class="n">meta</span> <span class="o">=</span> <span class="n">ddf</span><span class="o">.</span><span class="n">_meta</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;_meta&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="n">ddf</span>
+    <span class="k">if</span> <span class="s1">&#39;geometry&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">meta</span><span class="p">,</span> <span class="s1">&#39;columns&#39;</span><span class="p">,</span> <span class="p">[]):</span>
+        <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
+            <span class="s2">&quot;Rasterization needs a &#39;geometry&#39; column and this data has none. Re-run the &quot;</span>
+            <span class="s2">&quot;extract/aggregate step including geometry (add it to -l/--list), or load the &quot;</span>
+            <span class="s2">&quot;dataset with geometry before calling gh3_rasterize().&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">rasterize_kwargs</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">index_type</span> <span class="o">==</span> <span class="s1">&#39;egi&#39;</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">egi</span>
+        <span class="n">rasterize_func</span> <span class="o">=</span> <span class="n">egi</span><span class="o">.</span><span class="n">rasterize_partition</span>
+        <span class="c1"># Output files are named from the partition id. Below level 12 several</span>
+        <span class="c1"># partitions share an outer tile, so the rasterizer needs the level to</span>
+        <span class="c1"># name them apart — otherwise they all collide on the tile id.</span>
+        <span class="k">if</span> <span class="n">partition_level</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">partition_level</span> <span class="o">=</span> <span class="n">_egi_partition_level</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">info</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">partition_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">rasterize_kwargs</span><span class="p">[</span><span class="s1">&#39;partition_level&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">partition_level</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rasterizing EGI-indexed data (</span><span class="si">{</span><span class="n">ddf</span><span class="o">.</span><span class="n">npartitions</span><span class="si">}</span><span class="s2"> partitions)&quot;</span>
+                    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;npartitions&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="s2">&quot;Rasterizing EGI-indexed data&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">rasterize_func</span> <span class="o">=</span> <span class="n">raster</span><span class="o">.</span><span class="n">rasterize_h3_partition</span>
+        <span class="k">if</span> <span class="n">partition_level</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">partition_level</span><span class="p">,</span> <span class="n">source</span> <span class="o">=</span> <span class="n">_h3_partition_level_from_dataset</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">info</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">partition_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Partition level: H3 </span><span class="si">{</span><span class="n">partition_level</span><span class="si">}</span><span class="s2"> (from </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">partition_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">rasterize_kwargs</span><span class="p">[</span><span class="s1">&#39;partition_level&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">partition_level</span>
+
+    <span class="k">if</span> <span class="n">merge</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">fmt</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;tif&#39;</span><span class="p">,</span> <span class="s1">&#39;tiff&#39;</span><span class="p">,</span> <span class="s1">&#39;geotiff&#39;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;merge=True writes GeoTIFF only; fmt=&#39;</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">&#39; is not supported there. &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Use merge=False for tiled </span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2"> output, or fmt=&#39;tif&#39; to merge.&quot;</span>
+            <span class="p">)</span>
+        <span class="n">merged_output</span> <span class="o">=</span> <span class="n">output</span> <span class="k">if</span> <span class="n">output</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.tif&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="s2">.tif&quot;</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">merged_output</span><span class="p">)),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">raster</span><span class="o">.</span><span class="n">merge_and_export_rasters</span><span class="p">(</span>
+            <span class="n">ddf</span><span class="p">,</span> <span class="n">merged_output</span><span class="p">,</span> <span class="n">rasterize_func</span><span class="p">,</span>
+            <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="n">compress</span><span class="p">,</span> <span class="n">cog</span><span class="o">=</span><span class="n">cog</span><span class="p">,</span>
+            <span class="n">show_progress</span><span class="o">=</span><span class="n">show_progress</span><span class="p">,</span> <span class="o">**</span><span class="n">rasterize_kwargs</span>
+        <span class="p">)</span>
+
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">raster</span><span class="o">.</span><span class="n">rasterize_and_export_partitions</span><span class="p">(</span>
+        <span class="n">ddf</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">rasterize_func</span><span class="p">,</span>
+        <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="n">compress</span><span class="p">,</span> <span class="n">cog</span><span class="o">=</span><span class="n">cog</span><span class="p">,</span>
+        <span class="n">show_progress</span><span class="o">=</span><span class="n">show_progress</span><span class="p">,</span> <span class="o">**</span><span class="n">rasterize_kwargs</span>
+    <span class="p">)</span>
+    <span class="c1"># export_raster_partition comma-joins when a partition yields several tiles.</span>
+    <span class="c1"># EGI never does (one partition = one tile); H3 can when a partition holds</span>
+    <span class="c1"># cells from several parents. Flatten so the return is always file paths.</span>
+    <span class="n">paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">result</span> <span class="k">if</span> <span class="n">entry</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">entry</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="n">p</span><span class="p">]</span>
+
+    <span class="c1"># Tiles are named from the partition id carried in the raster attributes.</span>
+    <span class="c1"># If two partitions resolve to the same id they write to the same path and</span>
+    <span class="c1"># the last one silently replaces the rest — never let that pass quietly.</span>
+    <span class="c1"># The usual cause is EGI partitions finer than level 12 on a frame that</span>
+    <span class="c1"># carries no egiNN partition column, so the level cannot be recovered.</span>
+    <span class="n">duplicates</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">paths</span> <span class="k">if</span> <span class="n">paths</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">duplicates</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">paths</span><span class="p">))</span><span class="si">}</span><span class="s2"> raster tile(s) were overwritten: &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">duplicates</span><span class="p">)[:</span><span class="mi">3</span><span class="p">]</span><span class="si">}{</span><span class="s1">&#39;...&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="n">duplicates</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s2">. Several &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;partitions resolved to the same output name, so only the last write &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;survives. Pass partition_level= explicitly, or rasterize data that &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;still carries its partition column.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">paths</span></div>
 
 
 
@@ -4905,7 +5253,13 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    list of str</span>
-<span class="sd">        Paths to output files</span>
+<span class="sd">        One entry per Dask partition, comma-joined when a partition produced</span>
+<span class="sd">        several tiles. Use :func:`gh3_rasterize` for a flat list of paths.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    gh3_rasterize : index-aware equivalent; also handles EGI, dataset</span>
+<span class="sd">        directories and merged output.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.raster</span><span class="w"> </span><span class="kn">import</span> <span class="n">rasterize_and_export_partitions</span><span class="p">,</span> <span class="n">rasterize_h3_partition</span>
 

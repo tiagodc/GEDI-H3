@@ -979,19 +979,69 @@ window.runMermaid = runMermaid;</script>
 
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_outer_ids</span><span class="p">(</span><span class="n">egi_hashes</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Pack px_outer*1000 + py_outer for every hash (the layout from_hash decodes).&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">egi_hashes</span> <span class="o">%</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="mi">10</span><span class="o">**</span><span class="mi">18</span><span class="p">))</span> <span class="o">//</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="mi">10</span><span class="o">**</span><span class="mi">12</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_egi12_id</span><span class="p">(</span><span class="n">outer_id</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Level-12 outer tile hash from a packed ``px_outer*1000 + py_outer`` id.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="n">OUTER_LEVEL</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="mi">10</span><span class="o">**</span><span class="mi">18</span><span class="p">)</span>
+               <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="n">outer_id</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="mi">10</span><span class="o">**</span><span class="mi">12</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="split_by_outer_tile">
+<a class="viewcode-back" href="../../../autoapi/gedih3/egi/raster/index.html#gedih3.egi.raster.split_by_outer_tile">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">split_by_outer_tile</span><span class="p">(</span><span class="n">gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">tuple</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Split an EGI-indexed frame into one sub-frame per level-12 outer tile.</span>
+
+<span class="sd">    For the callers that *legitimately* hold a multi-tile frame — an aggregate</span>
+<span class="sd">    over an arbitrary ROI, say. A Dask partition is not one of them: it nests</span>
+<span class="sd">    in exactly one outer tile by construction, which is why</span>
+<span class="sd">    :func:`rasterize_partition` treats a multi-tile partition as an error to</span>
+<span class="sd">    report rather than a shape to accommodate.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    gdf : GeoDataFrame</span>
+<span class="sd">        EGI-indexed GeoDataFrame (index holds EGI hashes).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list of tuple</span>
+<span class="sd">        ``(egi12_id, sub_gdf)`` pairs, largest sub-frame first. Empty input</span>
+<span class="sd">        yields an empty list.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">gdf</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[]</span>
+
+    <span class="n">egi_hashes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
+    <span class="n">outer_ids</span> <span class="o">=</span> <span class="n">_outer_ids</span><span class="p">(</span><span class="n">egi_hashes</span><span class="p">)</span>
+    <span class="n">uniq</span><span class="p">,</span> <span class="n">counts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">outer_ids</span><span class="p">,</span> <span class="n">return_counts</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="o">-</span><span class="n">counts</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">[(</span><span class="n">_egi12_id</span><span class="p">(</span><span class="n">uniq</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span> <span class="n">gdf</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">outer_ids</span> <span class="o">==</span> <span class="n">uniq</span><span class="p">[</span><span class="n">i</span><span class="p">]])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">order</span><span class="p">]</span></div>
+
+
+
 <div class="viewcode-block" id="rasterize_partition">
 <a class="viewcode-back" href="../../../autoapi/gedih3/egi/raster/index.html#gedih3.egi.raster.rasterize_partition">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">rasterize_partition</span><span class="p">(</span>
     <span class="n">gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">,</span>
     <span class="n">columns</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">include_egi_id</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">include_egi_id</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">partition_level</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Rasterize a single EGI partition (for use with Dask map_partitions).</span>
 
-<span class="sd">    This function splits the partition by outer tile and rasterizes each</span>
-<span class="sd">    tile separately to ensure proper alignment and avoid mixing data from</span>
-<span class="sd">    different tiles.</span>
+<span class="sd">    One partition is one raster. An EGI partition at any level &lt;= 12 nests in</span>
+<span class="sd">    exactly one level-12 outer tile, so a partition spanning several tiles is</span>
+<span class="sd">    a violation of that invariant, not a case to accommodate: it is reported</span>
+<span class="sd">    with a WARNING, and the tile holding the most rows is the one rasterized.</span>
+<span class="sd">    That keeps the &quot;one partition = one output file&quot; contract every consumer</span>
+<span class="sd">    downstream relies on (``export_raster_partition`` file naming,</span>
+<span class="sd">    ``merge_and_export_rasters``, ``gh3_rasterize``).</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -1001,11 +1051,19 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Columns to rasterize</span>
 <span class="sd">    include_egi_id : bool</span>
 <span class="sd">        If True, include outer tile ID in raster attributes</span>
+<span class="sd">    partition_level : int, optional</span>
+<span class="sd">        EGI level the data is partitioned at. Drives the ``egiNN_id`` attribute</span>
+<span class="sd">        that names the output file, so it must identify the *partition*, not</span>
+<span class="sd">        the raster&#39;s level-12 tile: when partitions are finer than level 12,</span>
+<span class="sd">        several of them share one outer tile and naming by the tile makes them</span>
+<span class="sd">        overwrite each other. None (the default) stamps ``egi12_id``, which is</span>
+<span class="sd">        correct for the standard level-12 partitioning.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    pd.Series</span>
-<span class="sd">        Series containing xarray Dataset(s), one per outer tile</span>
+<span class="sd">        Object-dtype Series of length 0 (empty / unrasterizable partition) or</span>
+<span class="sd">        1 (the partition&#39;s raster). Never longer — see the invariant above.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
@@ -1015,52 +1073,52 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">gdf</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
 
-    <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-    <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
-
     <span class="k">try</span><span class="p">:</span>
-        <span class="c1"># Split data by outer tile to ensure proper rasterization</span>
-        <span class="c1"># Each outer tile will be rasterized separately</span>
+        <span class="c1"># ``outer_ids`` packs px_outer*1000 + py_outer, the same digit layout</span>
+        <span class="c1"># geodf_to_raster decodes. Partitions nest in exactly one outer tile;</span>
+        <span class="c1"># anything else is upstream corruption and must not pass silently.</span>
         <span class="n">egi_hashes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
-        <span class="n">outer_tiles</span> <span class="o">=</span> <span class="p">(</span><span class="n">egi_hashes</span> <span class="o">//</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="mf">1e12</span><span class="p">))</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="mf">1e12</span><span class="p">)</span>
-        <span class="n">unique_outer</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">outer_tiles</span><span class="p">)</span>
+        <span class="n">uniq_outer</span><span class="p">,</span> <span class="n">outer_counts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">_outer_ids</span><span class="p">(</span><span class="n">egi_hashes</span><span class="p">),</span> <span class="n">return_counts</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
-        <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">outer_tile</span> <span class="ow">in</span> <span class="n">unique_outer</span><span class="p">:</span>
-            <span class="c1"># Filter data for this outer tile</span>
-            <span class="n">mask</span> <span class="o">=</span> <span class="n">outer_tiles</span> <span class="o">==</span> <span class="n">outer_tile</span>
-            <span class="n">tile_gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">uniq_outer</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;rasterize_partition: EGI partition spans </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">uniq_outer</span><span class="p">)</span><span class="si">}</span><span class="s2"> outer tiles &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;(px_outer*1000+py_outer </span><span class="si">{</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">uniq_outer</span><span class="p">]</span><span class="si">}</span><span class="s2">, rows &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">outer_counts</span><span class="p">]</span><span class="si">}</span><span class="s2">). Partitions must nest in exactly one &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;level-12 tile — rasterizing the largest and dropping the rest. Check the &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;source dataset / egi_load() partitioning.&quot;</span>
+            <span class="p">)</span>
 
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tile_gdf</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="k">continue</span>
+        <span class="c1"># Tile ID at level 12 (consistent regardless of data level) — passed to</span>
+        <span class="c1"># geodf_to_raster as the explicit target so no tile inference happens,</span>
+        <span class="c1"># and reused as the raster attribute. geodf_to_raster emits its own</span>
+        <span class="c1"># WARNING for the stray pixels it skips.</span>
+        <span class="n">egi12_id</span> <span class="o">=</span> <span class="n">_egi12_id</span><span class="p">(</span><span class="n">uniq_outer</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">outer_counts</span><span class="p">))])</span>
 
-            <span class="k">try</span><span class="p">:</span>
-                <span class="c1"># Tile ID at level 12 (consistent regardless of data level) —</span>
-                <span class="c1"># passed to geodf_to_raster as the explicit target so no</span>
-                <span class="c1"># tile inference happens, and reused as the raster attribute.</span>
-                <span class="n">p_outer</span> <span class="o">=</span> <span class="n">outer_tile</span> <span class="o">%</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="mf">1e18</span><span class="p">)</span> <span class="o">//</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="mf">1e12</span><span class="p">)</span>
-                <span class="n">egi12_id</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="n">OUTER_LEVEL</span> <span class="o">*</span> <span class="mf">1e18</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="n">p_outer</span> <span class="o">*</span> <span class="mf">1e12</span><span class="p">))</span>
+        <span class="n">xras</span> <span class="o">=</span> <span class="n">geodf_to_raster</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">outer_tile</span><span class="o">=</span><span class="n">egi12_id</span><span class="p">)</span>
 
-                <span class="c1"># Rasterize this tile&#39;s data</span>
-                <span class="n">xras</span> <span class="o">=</span> <span class="n">geodf_to_raster</span><span class="p">(</span><span class="n">tile_gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">outer_tile</span><span class="o">=</span><span class="n">egi12_id</span><span class="p">)</span>
-
-                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">xras</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">xras</span><span class="o">.</span><span class="n">data_vars</span><span class="p">):</span>
-                        <span class="n">xras</span><span class="p">[</span><span class="n">var</span><span class="p">]</span> <span class="o">=</span> <span class="n">xras</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">assign_attrs</span><span class="p">(</span><span class="n">egi12_id</span><span class="o">=</span><span class="n">egi12_id</span><span class="p">)</span>
-
-                    <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">xras</span><span class="p">)</span>
-            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rasterization failed for tile </span><span class="si">{</span><span class="n">outer_tile</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="k">continue</span>
-
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">results</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">xras</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
 
-        <span class="k">return</span> <span class="n">object_series</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+        <span class="c1"># Name by PARTITION identity, the way the H3 rasterizer does. Below</span>
+        <span class="c1"># level 12 several partitions share an outer tile, so stamping the</span>
+        <span class="c1"># tile id would give them all the same filename and the last one</span>
+        <span class="c1"># written would silently replace the rest.</span>
+        <span class="k">if</span> <span class="n">partition_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">partition_level</span> <span class="o">&lt;</span> <span class="n">OUTER_LEVEL</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.core</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_parent</span>
+            <span class="n">part_id</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">to_parent</span><span class="p">(</span><span class="n">egi_hashes</span><span class="p">[:</span><span class="mi">1</span><span class="p">],</span> <span class="n">partition_level</span><span class="p">))[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">attrs</span> <span class="o">=</span> <span class="p">{</span><span class="sa">f</span><span class="s1">&#39;egi</span><span class="si">{</span><span class="n">partition_level</span><span class="si">:</span><span class="s1">02d</span><span class="si">}</span><span class="s1">_id&#39;</span><span class="p">:</span> <span class="n">part_id</span><span class="p">}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">attrs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;egi12_id&#39;</span><span class="p">:</span> <span class="n">egi12_id</span><span class="p">}</span>
+
+        <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">xras</span><span class="o">.</span><span class="n">data_vars</span><span class="p">):</span>
+            <span class="n">xras</span><span class="p">[</span><span class="n">var</span><span class="p">]</span> <span class="o">=</span> <span class="n">xras</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">assign_attrs</span><span class="p">(</span><span class="o">**</span><span class="n">attrs</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">object_series</span><span class="p">([</span><span class="n">xras</span><span class="p">])</span>
 
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-        <span class="c1"># Whole-partition failure — never benign, unlike the per-tile skips</span>
-        <span class="c1"># above, so it is logged loudly rather than at debug.</span>
+        <span class="c1"># Whole-partition failure — never benign, so it is logged loudly and</span>
+        <span class="c1"># the partition is skipped rather than failing the whole graph.</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rasterization failed for the whole partition: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span></div>
 
@@ -1074,10 +1132,17 @@ window.runMermaid = runMermaid;</script>
     <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;LZW&#39;</span><span class="p">,</span>
     <span class="n">tiled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">blocksize</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">256</span><span class="p">,</span>
-    <span class="n">bigtiff</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">bigtiff</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">cog</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Export xarray Dataset to GeoTIFF file.</span>
+
+<span class="sd">    Thin alias for :func:`gedih3.raster.export_raster`, kept because</span>
+<span class="sd">    ``egi.export_raster`` is part of the module&#39;s published surface. It used</span>
+<span class="sd">    to be a near-copy that inlined its own creation options, so it silently</span>
+<span class="sd">    missed the parent&#39;s directory creation, its ``compress=&#39;NONE&#39;`` handling</span>
+<span class="sd">    and — latterly — Cloud Optimized GeoTIFF output.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -1086,28 +1151,25 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    output_path : str</span>
 <span class="sd">        Output file path</span>
 <span class="sd">    compress : str</span>
-<span class="sd">        Compression method (&#39;LZW&#39;, &#39;ZSTD&#39;, &#39;DEFLATE&#39;, None)</span>
+<span class="sd">        Compression method (&#39;LZW&#39;, &#39;ZSTD&#39;, &#39;DEFLATE&#39;, &#39;NONE&#39;)</span>
 <span class="sd">    tiled : bool</span>
-<span class="sd">        Use tiled output format</span>
+<span class="sd">        Use tiled output format. Ignored when ``cog`` is True.</span>
 <span class="sd">    blocksize : int</span>
 <span class="sd">        Tile block size in pixels</span>
 <span class="sd">    bigtiff : bool</span>
 <span class="sd">        Use BigTIFF format for large files</span>
+<span class="sd">    cog : bool</span>
+<span class="sd">        Write a Cloud Optimized GeoTIFF (default)</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    str</span>
 <span class="sd">        Output file path</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">xras</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">to_raster</span><span class="p">(</span>
-        <span class="n">output_path</span><span class="p">,</span>
-        <span class="n">compress</span><span class="o">=</span><span class="n">compress</span><span class="p">,</span>
-        <span class="n">TILED</span><span class="o">=</span><span class="s1">&#39;YES&#39;</span> <span class="k">if</span> <span class="n">tiled</span> <span class="k">else</span> <span class="s1">&#39;NO&#39;</span><span class="p">,</span>
-        <span class="n">BLOCKXSIZE</span><span class="o">=</span><span class="n">blocksize</span><span class="p">,</span>
-        <span class="n">BLOCKYSIZE</span><span class="o">=</span><span class="n">blocksize</span><span class="p">,</span>
-        <span class="n">BIGTIFF</span><span class="o">=</span><span class="s1">&#39;YES&#39;</span> <span class="k">if</span> <span class="n">bigtiff</span> <span class="k">else</span> <span class="s1">&#39;NO&#39;</span>
-    <span class="p">)</span>
-    <span class="k">return</span> <span class="n">output_path</span></div>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..raster.export</span><span class="w"> </span><span class="kn">import</span> <span class="n">export_raster</span> <span class="k">as</span> <span class="n">_export_raster</span>
+
+    <span class="k">return</span> <span class="n">_export_raster</span><span class="p">(</span><span class="n">xras</span><span class="p">,</span> <span class="n">output_path</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="n">compress</span><span class="p">,</span> <span class="n">tiled</span><span class="o">=</span><span class="n">tiled</span><span class="p">,</span>
+                          <span class="n">blocksize</span><span class="o">=</span><span class="n">blocksize</span><span class="p">,</span> <span class="n">bigtiff</span><span class="o">=</span><span class="n">bigtiff</span><span class="p">,</span> <span class="n">cog</span><span class="o">=</span><span class="n">cog</span><span class="p">)</span></div>
 
 
 

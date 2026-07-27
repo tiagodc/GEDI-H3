@@ -778,7 +778,7 @@ window.runMermaid = runMermaid;</script>
 <span class="kn">import</span><span class="w"> </span><span class="nn">dask.dataframe</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dask.distributed</span><span class="w"> </span><span class="kn">import</span> <span class="n">progress</span> <span class="k">as</span> <span class="n">dask_progress</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_geotiff_options</span><span class="p">,</span> <span class="n">is_raster_format</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">COG_DEFAULTS</span><span class="p">,</span> <span class="n">get_cog_options</span><span class="p">,</span> <span class="n">get_geotiff_options</span><span class="p">,</span> <span class="n">is_raster_format</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">GediRasterizationError</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">AtomicFileWriter</span>
 
@@ -793,10 +793,16 @@ window.runMermaid = runMermaid;</script>
     <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;LZW&#39;</span><span class="p">,</span>
     <span class="n">tiled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">blocksize</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">256</span><span class="p">,</span>
-    <span class="n">bigtiff</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">bigtiff</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">cog</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Export xarray Dataset to GeoTIFF file.</span>
+
+<span class="sd">    Writes a Cloud Optimized GeoTIFF by default: internally tiled with an</span>
+<span class="sd">    overview pyramid, so viewers and range-reading clients fetch only the</span>
+<span class="sd">    bytes they need. A COG is a valid GeoTIFF, so every reader that handled</span>
+<span class="sd">    the previous output still does; the cost is the pyramid on disk.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -807,18 +813,25 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    compress : str</span>
 <span class="sd">        Compression method (&#39;LZW&#39;, &#39;ZSTD&#39;, &#39;DEFLATE&#39;, &#39;NONE&#39;)</span>
 <span class="sd">    tiled : bool</span>
-<span class="sd">        Use tiled output format</span>
+<span class="sd">        Use tiled output format. Ignored when ``cog`` is True — a COG is</span>
+<span class="sd">        always tiled.</span>
 <span class="sd">    blocksize : int</span>
 <span class="sd">        Tile block size in pixels</span>
 <span class="sd">    bigtiff : bool</span>
 <span class="sd">        Use BigTIFF format for large files</span>
+<span class="sd">    cog : bool</span>
+<span class="sd">        Write a Cloud Optimized GeoTIFF (default). False falls back to a</span>
+<span class="sd">        plain GeoTIFF with no overviews.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    str</span>
 <span class="sd">        Output file path</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">options</span> <span class="o">=</span> <span class="n">get_geotiff_options</span><span class="p">(</span><span class="n">compress</span><span class="p">,</span> <span class="n">tiled</span><span class="p">,</span> <span class="n">blocksize</span><span class="p">,</span> <span class="n">bigtiff</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cog</span><span class="p">:</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="n">get_cog_options</span><span class="p">(</span><span class="n">compress</span><span class="p">,</span> <span class="n">blocksize</span><span class="p">,</span> <span class="n">bigtiff</span><span class="p">,</span> <span class="o">**</span><span class="n">COG_DEFAULTS</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="n">get_geotiff_options</span><span class="p">(</span><span class="n">compress</span><span class="p">,</span> <span class="n">tiled</span><span class="p">,</span> <span class="n">blocksize</span><span class="p">,</span> <span class="n">bigtiff</span><span class="p">)</span>
 
     <span class="c1"># Ensure directory exists</span>
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">output_path</span><span class="p">)),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -835,7 +848,8 @@ window.runMermaid = runMermaid;</script>
     <span class="n">output_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;tif&#39;</span><span class="p">,</span>
     <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;LZW&#39;</span><span class="p">,</span>
-    <span class="n">partition_id_attr</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">partition_id_attr</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">cog</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Export raster partition(s) to file(s).</span>
@@ -856,6 +870,8 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Compression method for GeoTIFF</span>
 <span class="sd">    partition_id_attr : str, optional</span>
 <span class="sd">        Attribute name containing partition ID for filename</span>
+<span class="sd">    cog : bool</span>
+<span class="sd">        Write GeoTIFF output as a Cloud Optimized GeoTIFF (default)</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -876,14 +892,16 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># Export each raster to its own file based on its tile ID</span>
         <span class="n">output_paths</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">xras</span> <span class="ow">in</span> <span class="n">valid_rasters</span><span class="p">:</span>
-            <span class="n">path</span> <span class="o">=</span> <span class="n">_export_single_raster</span><span class="p">(</span><span class="n">xras</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">,</span> <span class="n">fmt</span><span class="p">,</span> <span class="n">compress</span><span class="p">,</span> <span class="n">partition_id_attr</span><span class="p">)</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="n">_export_single_raster</span><span class="p">(</span><span class="n">xras</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">,</span> <span class="n">fmt</span><span class="p">,</span> <span class="n">compress</span><span class="p">,</span>
+                                         <span class="n">partition_id_attr</span><span class="p">,</span> <span class="n">cog</span><span class="o">=</span><span class="n">cog</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">path</span><span class="p">:</span>
                 <span class="n">output_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_paths</span><span class="p">)</span> <span class="k">if</span> <span class="n">output_paths</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
 
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">xr</span><span class="o">.</span><span class="n">Dataset</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">_export_single_raster</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">,</span> <span class="n">fmt</span><span class="p">,</span> <span class="n">compress</span><span class="p">,</span> <span class="n">partition_id_attr</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_export_single_raster</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">,</span> <span class="n">fmt</span><span class="p">,</span> <span class="n">compress</span><span class="p">,</span>
+                                     <span class="n">partition_id_attr</span><span class="p">,</span> <span class="n">cog</span><span class="o">=</span><span class="n">cog</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="s1">&#39;&#39;</span></div>
 
@@ -894,7 +912,8 @@ window.runMermaid = runMermaid;</script>
     <span class="n">output_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">partition_id_attr</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">partition_id_attr</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">cog</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Export a single xarray Dataset to file.</span>
@@ -911,6 +930,8 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Compression method</span>
 <span class="sd">    partition_id_attr : str, optional</span>
 <span class="sd">        Attribute name for partition ID</span>
+<span class="sd">    cog : bool</span>
+<span class="sd">        Write GeoTIFF output as a Cloud Optimized GeoTIFF (default)</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -948,7 +969,8 @@ window.runMermaid = runMermaid;</script>
     <span class="n">output_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">basename</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">fmt</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;tif&#39;</span><span class="p">,</span> <span class="s1">&#39;tiff&#39;</span><span class="p">,</span> <span class="s1">&#39;geotiff&#39;</span><span class="p">):</span>
-        <span class="n">options</span> <span class="o">=</span> <span class="n">get_geotiff_options</span><span class="p">(</span><span class="n">compress</span><span class="p">)</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="p">(</span><span class="n">get_cog_options</span><span class="p">(</span><span class="n">compress</span><span class="p">,</span> <span class="o">**</span><span class="n">COG_DEFAULTS</span><span class="p">)</span> <span class="k">if</span> <span class="n">cog</span>
+                   <span class="k">else</span> <span class="n">get_geotiff_options</span><span class="p">(</span><span class="n">compress</span><span class="p">))</span>
         <span class="n">xras</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">to_raster</span><span class="p">(</span><span class="n">output_path</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">fmt</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;nc&#39;</span><span class="p">,</span> <span class="s1">&#39;netcdf&#39;</span><span class="p">):</span>
         <span class="n">xras</span><span class="o">.</span><span class="n">to_netcdf</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span>
@@ -968,6 +990,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;tif&#39;</span><span class="p">,</span>
     <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;LZW&#39;</span><span class="p">,</span>
     <span class="n">show_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">cog</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="o">**</span><span class="n">rasterize_kwargs</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -1007,7 +1030,7 @@ window.runMermaid = runMermaid;</script>
         <span class="p">)</span>
 
         <span class="n">export_func</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">export_raster_partition</span><span class="p">(</span>
-            <span class="n">x</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="n">compress</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="n">compress</span><span class="p">,</span> <span class="n">cog</span><span class="o">=</span><span class="n">cog</span>
         <span class="p">)</span>
 
         <span class="n">paths</span> <span class="o">=</span> <span class="n">raster_parts</span><span class="o">.</span><span class="n">map_partitions</span><span class="p">(</span>
@@ -1027,7 +1050,8 @@ window.runMermaid = runMermaid;</script>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># Regular GeoDataFrame</span>
         <span class="n">raster</span> <span class="o">=</span> <span class="n">rasterize_func</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="o">**</span><span class="n">rasterize_kwargs</span><span class="p">)</span>
-        <span class="n">path</span> <span class="o">=</span> <span class="n">export_raster_partition</span><span class="p">(</span><span class="n">raster</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="n">compress</span><span class="p">)</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">export_raster_partition</span><span class="p">(</span><span class="n">raster</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="n">compress</span><span class="p">,</span>
+                                       <span class="n">cog</span><span class="o">=</span><span class="n">cog</span><span class="p">)</span>
         <span class="n">result</span> <span class="o">=</span> <span class="p">[</span><span class="n">path</span><span class="p">]</span> <span class="k">if</span> <span class="n">path</span> <span class="k">else</span> <span class="p">[]</span>
 
     <span class="c1"># Build VRT mosaic from output tiles</span>
@@ -1254,6 +1278,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">columns</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;LZW&#39;</span><span class="p">,</span>
     <span class="n">show_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">cog</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="o">**</span><span class="n">rasterize_kwargs</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -1323,11 +1348,25 @@ window.runMermaid = runMermaid;</script>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># Single GeoDataFrame</span>
         <span class="n">merged</span> <span class="o">=</span> <span class="n">rasterize_func</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="o">**</span><span class="n">rasterize_kwargs</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">merged</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">merged</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="n">merged</span> <span class="o">=</span> <span class="n">merged</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">merged</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">):</span>
+            <span class="n">valid_rasters</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">merged</span>
+                             <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="s1">&#39;data_vars&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">valid_rasters</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="s2">&quot;No valid rasters to merge&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">valid_rasters</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">merged</span> <span class="o">=</span> <span class="n">valid_rasters</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Keeping only the first would silently discard tiles. EGI</span>
+                <span class="c1"># partitions never reach here (one partition = one tile); an H3</span>
+                <span class="c1"># partition holding cells from several parents can.</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Rasterizing a single frame produced </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">valid_rasters</span><span class="p">)</span><span class="si">}</span><span class="s2"> tiles; &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;merging all of them into </span><span class="si">{</span><span class="n">output_path</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="p">)</span>
+                <span class="n">merged</span> <span class="o">=</span> <span class="n">merge_datasets</span><span class="p">(</span><span class="n">valid_rasters</span><span class="p">,</span> <span class="n">nodata</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
 
     <span class="c1"># Export</span>
-    <span class="k">return</span> <span class="n">export_raster</span><span class="p">(</span><span class="n">merged</span><span class="p">,</span> <span class="n">output_path</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="n">compress</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">export_raster</span><span class="p">(</span><span class="n">merged</span><span class="p">,</span> <span class="n">output_path</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="n">compress</span><span class="p">,</span> <span class="n">cog</span><span class="o">=</span><span class="n">cog</span><span class="p">)</span></div>
 
 
 

@@ -629,11 +629,41 @@ the CLI’s <code class="docutils literal notranslate"><span class="pre">--s3-en
 <hr class="docutils" />
 <section id="rasterization">
 <h2>Rasterization<a class="headerlink" href="#rasterization" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">gh3_rasterize()</span></code> is the one-call form: it detects the spatial index type, picks the
+matching rasterizer, and fans the work across every Dask partition. It accepts either a
+loaded frame or a dataset directory written by <code class="docutils literal notranslate"><span class="pre">gh3_extract</span></code> / <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code> — the
+<code class="docutils literal notranslate"><span class="pre">gh3_rasterize</span></code> CLI delegates to it, so both behave identically.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># EGI or H3, Dask or in-memory — one call, one GeoTIFF per spatial tile</span>
+<span class="c1"># (plus a mosaic.vrt), returning the written paths</span>
+<span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">egi_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">db</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="s1">&#39;region.shp&#39;</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span>
+<span class="n">paths</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;tiles/&#39;</span><span class="p">)</span>
+
+<span class="c1"># Straight from a dataset directory, merged into a single file</span>
+<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="s1">&#39;/data/agbd_egi_agg&#39;</span><span class="p">,</span> <span class="s1">&#39;agbd.tif&#39;</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="c1"># Narrow it down: column wildcards and a row filter (dataset input)</span>
+<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="s1">&#39;/data/agbd_egi_agg&#39;</span><span class="p">,</span> <span class="s1">&#39;tiles/&#39;</span><span class="p">,</span>
+                  <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_*&#39;</span><span class="p">],</span> <span class="n">query</span><span class="o">=</span><span class="s1">&#39;agbd_mean &gt; 50&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>EGI output stays in <strong>EPSG:6933</strong> (EASE-Grid 2.0) so it stacks with GEDI L4B; H3 output is
+EPSG:4326. EGI rasters are never reprojected — that alignment is the reason EGI exists.</p>
+<p>Image output is a <strong>Cloud Optimized GeoTIFF with LZW compression</strong> by default — internally
+tiled, with an overview pyramid, so a COG reader over HTTP or S3 fetches only the bytes it
+needs. A COG is a valid GeoTIFF, so nothing that read the old output breaks. Pass
+<code class="docutils literal notranslate"><span class="pre">cog=False</span></code> (or <code class="docutils literal notranslate"><span class="pre">--no-cog</span></code> on the CLIs) for a plain GeoTIFF:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;tiles/&#39;</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="s1">&#39;ZSTD&#39;</span><span class="p">)</span>   <span class="c1"># COG + ZSTD</span>
+<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;tiles/&#39;</span><span class="p">,</span> <span class="n">cog</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>         <span class="c1"># plain GeoTIFF, no overviews</span>
+<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;tiles/&#39;</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;tif&#39;</span><span class="p">)</span>            <span class="c1"># same pipeline, from export</span>
+</pre></div>
+</div>
+<p>For a single in-memory frame, <code class="docutils literal notranslate"><span class="pre">gh3_to_raster()</span></code> returns the <code class="docutils literal notranslate"><span class="pre">xarray.Dataset</span></code> directly,
+dispatching on index type the same way:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">gedih3</span><span class="w"> </span><span class="kn">import</span> <span class="n">raster</span>
 
-<span class="c1"># H3 hexagon GeoDataFrame → xarray Dataset</span>
 <span class="n">gdf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_res</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
-<span class="n">xras</span> <span class="o">=</span> <span class="n">raster</span><span class="o">.</span><span class="n">h3_to_raster</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a_mean&#39;</span><span class="p">])</span>
+<span class="n">xras</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_to_raster</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a_mean&#39;</span><span class="p">])</span>   <span class="c1"># H3 → EPSG:4326</span>
+                                                            <span class="c1"># EGI → EPSG:6933</span>
 
 <span class="c1"># Export to GeoTIFF</span>
 <span class="n">raster</span><span class="o">.</span><span class="n">export_raster</span><span class="p">(</span><span class="n">xras</span><span class="p">,</span> <span class="s1">&#39;agbd.tif&#39;</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="s1">&#39;LZW&#39;</span><span class="p">)</span>
@@ -642,6 +672,15 @@ the CLI’s <code class="docutils literal notranslate"><span class="pre">--s3-en
 <span class="n">xras</span><span class="p">[</span><span class="s1">&#39;agbd_l4a_mean&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
 </pre></div>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>One partition, one tile, one file.</strong> An EGI partition nests in exactly one
+level-12 outer tile by construction, so it produces exactly one raster. A partition
+spanning several tiles means the source dataset is inconsistent: it is reported with a
+<code class="docutils literal notranslate"><span class="pre">WARNING</span></code>, and the tile holding the most rows is rasterized. If you genuinely hold a
+multi-tile frame — an aggregate over an arbitrary ROI, say — split it first with
+<code class="docutils literal notranslate"><span class="pre">egi.split_by_outer_tile(gdf)</span></code>.</p>
+</div>
 <section id="time-series-rasterization">
 <h3>Time-Series Rasterization<a class="headerlink" href="#time-series-rasterization" title="Link to this heading">#</a></h3>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.raster</span><span class="w"> </span><span class="kn">import</span> <span class="n">TimeSeriesRasterizer</span>
@@ -649,6 +688,15 @@ the CLI’s <code class="docutils literal notranslate"><span class="pre">--s3-en
 <span class="n">ts</span> <span class="o">=</span> <span class="n">TimeSeriesRasterizer</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">time_col</span><span class="o">=</span><span class="s1">&#39;datetime&#39;</span><span class="p">,</span> <span class="n">target_level</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">xras</span><span class="p">,</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="n">ts</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s1">&#39;2020-01-01&#39;</span><span class="p">,</span> <span class="s1">&#39;2023-01-01&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;years&#39;</span><span class="p">):</span>
     <span class="n">raster</span><span class="o">.</span><span class="n">export_raster</span><span class="p">(</span><span class="n">xras</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;agbd_</span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s1">.tif&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>To rasterize a directory of per-window datasets (what <code class="docutils literal notranslate"><span class="pre">gh3_rasterize</span></code> does when handed a
+time-series tree), loop the windows yourself:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">glob</span>
+
+<span class="k">for</span> <span class="n">window</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s1">&#39;/data/windows/*&#39;</span><span class="p">)):</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">window</span><span class="p">)</span>
+    <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="n">window</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;/out/</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s1">.tif&#39;</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>

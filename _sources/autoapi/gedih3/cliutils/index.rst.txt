@@ -65,7 +65,7 @@ Module Contents
 ---------------
 
 .. py:data:: VALID_FORMATS
-   :value: ['parquet', 'feather', 'shp', 'geojson', 'gpkg', 'txt', 'csv', 'h5', 'hdf5']
+   :value: ['parquet', 'feather', 'shp', 'geojson', 'gpkg', 'txt', 'csv', 'h5', 'hdf5', 'tif', 'tiff',...
 
 
 .. py:data:: PIPELINE_FORMATS

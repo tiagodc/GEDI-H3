@@ -20,6 +20,7 @@ Attributes
 .. autoapisummary::
 
    gedih3.raster.config.GEOTIFF_DEFAULTS
+   gedih3.raster.config.COG_DEFAULTS
    gedih3.raster.config.COMPRESSION_OPTIONS
    gedih3.raster.config.RASTER_FORMATS
    gedih3.raster.config.TIME_UNITS
@@ -33,6 +34,7 @@ Functions
 .. autoapisummary::
 
    gedih3.raster.config.get_geotiff_options
+   gedih3.raster.config.get_cog_options
    gedih3.raster.config.is_raster_format
 
 
@@ -40,6 +42,9 @@ Module Contents
 ---------------
 
 .. py:data:: GEOTIFF_DEFAULTS
+   :type:  Dict[str, Any]
+
+.. py:data:: COG_DEFAULTS
    :type:  Dict[str, Any]
 
 .. py:data:: COMPRESSION_OPTIONS
@@ -88,6 +93,55 @@ Module Contents
 
        dict
            Options dictionary for rio.to_raster()
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: get_cog_options(compress: str = 'LZW', blocksize: int = 256, bigtiff: bool = True, overviews: str = 'AUTO', resampling: str = 'AVERAGE') -> Dict[str, Any]
+
+   
+   Generate rasterio creation options for the GDAL COG driver.
+
+   The COG driver takes its own option names — ``BLOCKSIZE`` rather than
+   ``TILED``/``BLOCKXSIZE``, and it is always tiled. Passing the GeoTIFF
+   option names instead is silently ignored and you get the driver defaults
+   (512-pixel blocks), which is why this is a separate builder rather than a
+   flag on :func:`get_geotiff_options`.
+
+   :Parameters:
+
+       **compress** : str
+           Compression method ('LZW', 'ZSTD', 'DEFLATE', 'PACKBITS', 'NONE')
+
+       **blocksize** : int
+           Internal tile size in pixels
+
+       **bigtiff** : bool
+           Use BigTIFF for large files
+
+       **overviews** : str
+           COG ``OVERVIEWS`` policy — 'AUTO' builds the pyramid when the image is
+           larger than one block, 'NONE' skips it
+
+       **resampling** : str
+           Resampling used to build the overviews
+
+
+
+   :Returns:
+
+       dict
+           Options for ``rio.to_raster()``, including ``driver='COG'``
 
 
 

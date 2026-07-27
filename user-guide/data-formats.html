@@ -575,7 +575,8 @@
 <hr class="docutils" />
 <section id="geotiff-raster-output">
 <h2>GeoTIFF (Raster Output)<a class="headerlink" href="#geotiff-raster-output" title="Link to this heading">#</a></h2>
-<p>Created by <code class="docutils literal notranslate"><span class="pre">gh3_rasterize</span></code> or the <code class="docutils literal notranslate"><span class="pre">-R</span></code> flag in <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code>. Standard GeoTIFF files compatible with GDAL, QGIS, R (<code class="docutils literal notranslate"><span class="pre">terra</span></code>), Python (<code class="docutils literal notranslate"><span class="pre">rasterio</span></code>,<code class="docutils literal notranslate"><span class="pre">rioxarray</span></code>), and virtually any GIS tool.</p>
+<p>Created by <code class="docutils literal notranslate"><span class="pre">gh3_rasterize</span></code>, the <code class="docutils literal notranslate"><span class="pre">-R</span></code> flag in <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code>, or <code class="docutils literal notranslate"><span class="pre">-f</span> <span class="pre">tif</span></code> on
+<code class="docutils literal notranslate"><span class="pre">gh3_extract</span></code> / <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code>. Standard GeoTIFF files compatible with GDAL, QGIS, R (<code class="docutils literal notranslate"><span class="pre">terra</span></code>), Python (<code class="docutils literal notranslate"><span class="pre">rasterio</span></code>,<code class="docutils literal notranslate"><span class="pre">rioxarray</span></code>), and virtually any GIS tool.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Tiled output (one file per partition)</span>
 gh3_rasterize<span class="w"> </span>-d<span class="w"> </span>aggregated/<span class="w"> </span>-o<span class="w"> </span>rasters/<span class="w"> </span>--compress<span class="w"> </span>LZW
 
@@ -584,12 +585,20 @@ gh3_rasterize<span class="w"> </span>-d<span class="w"> </span>aggregated/<span 
 
 <span class="c1"># Select specific variables</span>
 gh3_rasterize<span class="w"> </span>-d<span class="w"> </span>aggregated/<span class="w"> </span>-l<span class="w"> </span>agbd_l4a_mean<span class="w"> </span>-o<span class="w"> </span>rasters/
+
+<span class="c1"># Straight to GeoTIFF from extract/aggregate, no separate rasterize step</span>
+gh3_extract<span class="w"> </span>-r<span class="w"> </span>region.shp<span class="w"> </span>-l4a<span class="w"> </span>agbd<span class="w"> </span>-egi<span class="w"> </span><span class="m">6</span><span class="w"> </span>-f<span class="w"> </span>tif<span class="w"> </span>-o<span class="w"> </span>rasters/
 </pre></div>
 </div>
+<p>All three routes go through the same rasterization pipeline, for both H3 and
+EGI, so they produce identical output.</p>
 <p>Key properties:</p>
 <ul class="simple">
-<li><p><strong>Tiled by default</strong> — output is split by spatial partition for efficient access</p></li>
-<li><p><strong>Compression support</strong> — <code class="docutils literal notranslate"><span class="pre">LZW</span></code>, <code class="docutils literal notranslate"><span class="pre">DEFLATE</span></code>, <code class="docutils literal notranslate"><span class="pre">ZSTD</span></code>, <code class="docutils literal notranslate"><span class="pre">NONE</span></code></p></li>
+<li><p><strong>Cloud Optimized GeoTIFF by default</strong> — internally tiled with an overview pyramid, so viewers and range-reading clients (COG readers over HTTP/S3) fetch only the bytes they need. A COG is a valid GeoTIFF, so every reader still works; pass <code class="docutils literal notranslate"><span class="pre">--no-cog</span></code> for a plain GeoTIFF with no overviews</p></li>
+<li><p><strong>LZW compression by default</strong> — override with <code class="docutils literal notranslate"><span class="pre">--compress</span></code></p></li>
+<li><p><strong>Tiled by default</strong> — one file per spatial partition, named after the partition ID, plus a <code class="docutils literal notranslate"><span class="pre">mosaic.vrt</span></code> covering them</p></li>
+<li><p><strong>CRS follows the index</strong> — EPSG:4326 for H3, EPSG:6933 (EASE-Grid 2.0) for EGI, which is never reprojected</p></li>
+<li><p><strong>Compression support</strong> — <code class="docutils literal notranslate"><span class="pre">LZW</span></code>, <code class="docutils literal notranslate"><span class="pre">DEFLATE</span></code>, <code class="docutils literal notranslate"><span class="pre">ZSTD</span></code>, <code class="docutils literal notranslate"><span class="pre">PACKBITS</span></code>, <code class="docutils literal notranslate"><span class="pre">NONE</span></code></p></li>
 <li><p><strong>BIGTIFF support</strong> — for files exceeding 4 GB</p></li>
 <li><p><strong>Time-series naming</strong> — when produced from time-windowed data, files are named after their temporal windows</p></li>
 </ul>

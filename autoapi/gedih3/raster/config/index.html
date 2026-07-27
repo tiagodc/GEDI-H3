@@ -505,19 +505,22 @@ including GeoTIFF compression, tiling, and format settings.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.raster.config.GEOTIFF_DEFAULTS" title="gedih3.raster.config.GEOTIFF_DEFAULTS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GEOTIFF_DEFAULTS</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.raster.config.COMPRESSION_OPTIONS" title="gedih3.raster.config.COMPRESSION_OPTIONS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">COMPRESSION_OPTIONS</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.raster.config.COG_DEFAULTS" title="gedih3.raster.config.COG_DEFAULTS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">COG_DEFAULTS</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.raster.config.RASTER_FORMATS" title="gedih3.raster.config.RASTER_FORMATS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RASTER_FORMATS</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.raster.config.COMPRESSION_OPTIONS" title="gedih3.raster.config.COMPRESSION_OPTIONS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">COMPRESSION_OPTIONS</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.raster.config.TIME_UNITS" title="gedih3.raster.config.TIME_UNITS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TIME_UNITS</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.raster.config.RASTER_FORMATS" title="gedih3.raster.config.RASTER_FORMATS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RASTER_FORMATS</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.raster.config.H3_RASTER_CRS" title="gedih3.raster.config.H3_RASTER_CRS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">H3_RASTER_CRS</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.raster.config.TIME_UNITS" title="gedih3.raster.config.TIME_UNITS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TIME_UNITS</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.raster.config.GEDI_START_DATE_STR" title="gedih3.raster.config.GEDI_START_DATE_STR"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GEDI_START_DATE_STR</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.raster.config.H3_RASTER_CRS" title="gedih3.raster.config.H3_RASTER_CRS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">H3_RASTER_CRS</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.raster.config.GEDI_START_DATE_STR" title="gedih3.raster.config.GEDI_START_DATE_STR"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GEDI_START_DATE_STR</span></code></a></p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -531,7 +534,10 @@ including GeoTIFF compression, tiling, and format settings.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.raster.config.get_geotiff_options" title="gedih3.raster.config.get_geotiff_options"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_geotiff_options</span></code></a>(→ Dict[str, Any])</p></td>
 <td><p>Generate rasterio GeoTIFF export options.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.raster.config.is_raster_format" title="gedih3.raster.config.is_raster_format"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_raster_format</span></code></a>(→ bool)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.raster.config.get_cog_options" title="gedih3.raster.config.get_cog_options"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_cog_options</span></code></a>(→ Dict[str, Any])</p></td>
+<td><p>Generate rasterio creation options for the GDAL COG driver.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.raster.config.is_raster_format" title="gedih3.raster.config.is_raster_format"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_raster_format</span></code></a>(→ bool)</p></td>
 <td><p>Check if a format string indicates raster output.</p></td>
 </tr>
 </tbody>
@@ -543,6 +549,11 @@ including GeoTIFF compression, tiling, and format settings.</p>
 <dl class="py data">
 <dt class="sig sig-object py" id="gedih3.raster.config.GEOTIFF_DEFAULTS">
 <span class="sig-prename descclassname"><span class="pre">gedih3.raster.config.</span></span><span class="sig-name descname"><span class="pre">GEOTIFF_DEFAULTS</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#gedih3.raster.config.GEOTIFF_DEFAULTS" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="gedih3.raster.config.COG_DEFAULTS">
+<span class="sig-prename descclassname"><span class="pre">gedih3.raster.config.</span></span><span class="sig-name descname"><span class="pre">COG_DEFAULTS</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#gedih3.raster.config.COG_DEFAULTS" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py data">
@@ -590,6 +601,40 @@ including GeoTIFF compression, tiling, and format settings.</p>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><dl class="simple">
 <dt>dict</dt><dd><p>Options dictionary for rio.to_raster()</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.raster.config.get_cog_options">
+<span class="sig-prename descclassname"><span class="pre">gedih3.raster.config.</span></span><span class="sig-name descname"><span class="pre">get_cog_options</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">compress</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'LZW'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">blocksize</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">256</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bigtiff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overviews</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'AUTO'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resampling</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'AVERAGE'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../../_modules/gedih3/raster/config.html#get_cog_options"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.raster.config.get_cog_options" title="Link to this definition">#</a></dt>
+<dd><p>Generate rasterio creation options for the GDAL COG driver.</p>
+<p>The COG driver takes its own option names — <code class="docutils literal notranslate"><span class="pre">BLOCKSIZE</span></code> rather than
+<code class="docutils literal notranslate"><span class="pre">TILED</span></code>/<code class="docutils literal notranslate"><span class="pre">BLOCKXSIZE</span></code>, and it is always tiled. Passing the GeoTIFF
+option names instead is silently ignored and you get the driver defaults
+(512-pixel blocks), which is why this is a separate builder rather than a
+flag on <a class="reference internal" href="#gedih3.raster.config.get_geotiff_options" title="gedih3.raster.config.get_geotiff_options"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_geotiff_options()</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>compress</strong><span class="classifier">str</span></dt><dd><p>Compression method (‘LZW’, ‘ZSTD’, ‘DEFLATE’, ‘PACKBITS’, ‘NONE’)</p>
+</dd>
+<dt><strong>blocksize</strong><span class="classifier">int</span></dt><dd><p>Internal tile size in pixels</p>
+</dd>
+<dt><strong>bigtiff</strong><span class="classifier">bool</span></dt><dd><p>Use BigTIFF for large files</p>
+</dd>
+<dt><strong>overviews</strong><span class="classifier">str</span></dt><dd><p>COG <code class="docutils literal notranslate"><span class="pre">OVERVIEWS</span></code> policy — ‘AUTO’ builds the pyramid when the image is
+larger than one block, ‘NONE’ skips it</p>
+</dd>
+<dt><strong>resampling</strong><span class="classifier">str</span></dt><dd><p>Resampling used to build the overviews</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>dict</dt><dd><p>Options for <code class="docutils literal notranslate"><span class="pre">rio.to_raster()</span></code>, including <code class="docutils literal notranslate"><span class="pre">driver='COG'</span></code></p>
 </dd>
 </dl>
 </dd>
@@ -656,12 +701,14 @@ including GeoTIFF compression, tiling, and format settings.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.config.GEOTIFF_DEFAULTS"><code class="docutils literal notranslate"><span class="pre">GEOTIFF_DEFAULTS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.config.COG_DEFAULTS"><code class="docutils literal notranslate"><span class="pre">COG_DEFAULTS</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.config.COMPRESSION_OPTIONS"><code class="docutils literal notranslate"><span class="pre">COMPRESSION_OPTIONS</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.config.RASTER_FORMATS"><code class="docutils literal notranslate"><span class="pre">RASTER_FORMATS</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.config.TIME_UNITS"><code class="docutils literal notranslate"><span class="pre">TIME_UNITS</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.config.H3_RASTER_CRS"><code class="docutils literal notranslate"><span class="pre">H3_RASTER_CRS</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.config.GEDI_START_DATE_STR"><code class="docutils literal notranslate"><span class="pre">GEDI_START_DATE_STR</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.config.get_geotiff_options"><code class="docutils literal notranslate"><span class="pre">get_geotiff_options()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.config.get_cog_options"><code class="docutils literal notranslate"><span class="pre">get_cog_options()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.raster.config.is_raster_format"><code class="docutils literal notranslate"><span class="pre">is_raster_format()</span></code></a></li>
 </ul>
 </li>

@@ -29,6 +29,7 @@ Functions
 .. autoapisummary::
 
    gedih3.egi.raster.geodf_to_raster
+   gedih3.egi.raster.split_by_outer_tile
    gedih3.egi.raster.rasterize_partition
    gedih3.egi.raster.export_raster
    gedih3.egi.raster.merge_raster_partitions
@@ -120,14 +121,55 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
-.. py:function:: rasterize_partition(gdf: geopandas.GeoDataFrame, columns: Optional[List[str]] = None, include_egi_id: bool = True) -> pandas.Series
+.. py:function:: split_by_outer_tile(gdf: geopandas.GeoDataFrame) -> List[tuple]
+
+   
+   Split an EGI-indexed frame into one sub-frame per level-12 outer tile.
+
+   For the callers that *legitimately* hold a multi-tile frame — an aggregate
+   over an arbitrary ROI, say. A Dask partition is not one of them: it nests
+   in exactly one outer tile by construction, which is why
+   :func:`rasterize_partition` treats a multi-tile partition as an error to
+   report rather than a shape to accommodate.
+
+   :Parameters:
+
+       **gdf** : GeoDataFrame
+           EGI-indexed GeoDataFrame (index holds EGI hashes).
+
+
+
+   :Returns:
+
+       list of tuple
+           ``(egi12_id, sub_gdf)`` pairs, largest sub-frame first. Empty input
+           yields an empty list.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: rasterize_partition(gdf: geopandas.GeoDataFrame, columns: Optional[List[str]] = None, include_egi_id: bool = True, partition_level: Optional[int] = None) -> pandas.Series
 
    
    Rasterize a single EGI partition (for use with Dask map_partitions).
 
-   This function splits the partition by outer tile and rasterizes each
-   tile separately to ensure proper alignment and avoid mixing data from
-   different tiles.
+   One partition is one raster. An EGI partition at any level <= 12 nests in
+   exactly one level-12 outer tile, so a partition spanning several tiles is
+   a violation of that invariant, not a case to accommodate: it is reported
+   with a WARNING, and the tile holding the most rows is the one rasterized.
+   That keeps the "one partition = one output file" contract every consumer
+   downstream relies on (``export_raster_partition`` file naming,
+   ``merge_and_export_rasters``, ``gh3_rasterize``).
 
    :Parameters:
 
@@ -140,12 +182,21 @@ Module Contents
        **include_egi_id** : bool
            If True, include outer tile ID in raster attributes
 
+       **partition_level** : int, optional
+           EGI level the data is partitioned at. Drives the ``egiNN_id`` attribute
+           that names the output file, so it must identify the *partition*, not
+           the raster's level-12 tile: when partitions are finer than level 12,
+           several of them share one outer tile and naming by the tile makes them
+           overwrite each other. None (the default) stamps ``egi12_id``, which is
+           correct for the standard level-12 partitioning.
+
 
 
    :Returns:
 
        pd.Series
-           Series containing xarray Dataset(s), one per outer tile
+           Object-dtype Series of length 0 (empty / unrasterizable partition) or
+           1 (the partition's raster). Never longer — see the invariant above.
 
 
 
@@ -164,11 +215,16 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
-.. py:function:: export_raster(xras: xarray.Dataset, output_path: str, compress: str = 'LZW', tiled: bool = True, blocksize: int = 256, bigtiff: bool = True) -> str
+.. py:function:: export_raster(xras: xarray.Dataset, output_path: str, compress: str = 'LZW', tiled: bool = True, blocksize: int = 256, bigtiff: bool = True, cog: bool = True) -> str
 
    
    Export xarray Dataset to GeoTIFF file.
 
+   Thin alias for :func:`gedih3.raster.export_raster`, kept because
+   ``egi.export_raster`` is part of the module's published surface. It used
+   to be a near-copy that inlined its own creation options, so it silently
+   missed the parent's directory creation, its ``compress='NONE'`` handling
+   and — latterly — Cloud Optimized GeoTIFF output.
 
    :Parameters:
 
@@ -179,16 +235,19 @@ Module Contents
            Output file path
 
        **compress** : str
-           Compression method ('LZW', 'ZSTD', 'DEFLATE', None)
+           Compression method ('LZW', 'ZSTD', 'DEFLATE', 'NONE')
 
        **tiled** : bool
-           Use tiled output format
+           Use tiled output format. Ignored when ``cog`` is True.
 
        **blocksize** : int
            Tile block size in pixels
 
        **bigtiff** : bool
            Use BigTIFF format for large files
+
+       **cog** : bool
+           Write a Cloud Optimized GeoTIFF (default)
 
 
 
