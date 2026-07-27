@@ -38,7 +38,27 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          prompt: |
+            /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+
+            Project-specific checks for this repository, in addition to the
+            standard review. CLAUDE.md states these as invariants; flag any
+            change that violates one.
+
+            - Output writes must go through AtomicFileWriter. The only exception
+              is geo-vector formats (geojson/gpkg/shp).
+            - ROI-to-partition selection must expand by one H3 ring
+              (h3_expand_ring / gh3_select_partitions). Exact polygon
+              intersection silently drops boundary shots.
+            - parallel_map raises when no dask Client is registered; call sites
+              must not assume a serial fallback.
+            - No client.scatter in the build drivers.
+            - New imports must be declared in pyproject.toml. osgeo is the only
+              permitted optional import and needs a guarded call site.
+            - A new [project.scripts] entry point must also be documented in
+              docs/user-guide/cli-reference.md and mirrored in the conda-forge
+              feedstock's entry_points, which CI does not check.
+            - No hand-maintained counts or file inventories in documentation.
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
