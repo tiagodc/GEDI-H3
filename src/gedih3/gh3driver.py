@@ -2253,6 +2253,33 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
             except Exception:
                 pass
 
+    # Raster formats go through the rasterization pipeline rather than the
+    # per-format file writers. There is one rasterization implementation, so
+    # both index types behave the same: EGI used to have its own raster branch
+    # inside _write_egi_file (bypassing the outer-tile invariant and the VRT)
+    # while H3 had none at all and raised "Unsupported export format: tif".
+    from .raster import RASTER_FORMATS
+    if fmt in RASTER_FORMATS:
+        result = gh3_rasterize(
+            ddf, output, merge=merge, fmt=fmt, index_type=index_type,
+            partition_level=(h3_partition_level or naming_partition_level
+                             if index_type == 'h3' else None),
+            show_progress=show_progress,
+        )
+        ofiles = [result] if merge else list(result)
+        if not ofiles:
+            raise GediProcessingError("No output files were created.")
+        if write_metadata and not merge:
+            if h3_partition_level is not None:
+                metadata_kwargs.setdefault('h3_partition_level', h3_partition_level)
+            gh3_write_dataset_meta(
+                opath=output, index_type=index_type or 'unknown',
+                index_level=index_level, columns=list(ddf.columns),
+                source_database=source_database, tool=tool, file_format=fmt,
+                **metadata_kwargs
+            )
+        return ofiles
+
     # Export data
     if merge:
         # Driver-side concat instead of the optimizer's cluster-side collapse
@@ -4287,6 +4314,11 @@ def gh3_rasterize(data, output, columns=None, merge=False, query=None,
             rasterize_kwargs['partition_level'] = partition_level
 
     if merge:
+        if fmt not in ('tif', 'tiff', 'geotiff'):
+            raise GediValidationError(
+                f"merge=True writes GeoTIFF only; fmt='{fmt}' is not supported there. "
+                f"Use merge=False for tiled {fmt} output, or fmt='tif' to merge."
+            )
         merged_output = output if output.endswith('.tif') else f"{output}.tif"
         os.makedirs(os.path.dirname(os.path.abspath(merged_output)), exist_ok=True)
         return raster.merge_and_export_rasters(
