@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.16.2] - 2026-07-27
+
+### Added
+- **`egi_load(filters=...)`**: the pyarrow predicate pushdown `gh3_load` already offered, now on the EGI loader — `query=` was previously the only filtering it accepted, and that runs in pandas *after* each year file is decompressed into worker memory. The predicate rides `egi_load` → `_load_egi_from_h3_database` → `_load_egi_tile_from_h3` → `_read_parquet_bbox`, where it is ANDed with the bbox predicate the strategy builds, on all three read routes: `point` (geopandas splices bbox + filters itself), `coord_filter` (combined with the lat/lon predicates) and `fallback` (still pushed down; only the bbox half degrades to an in-memory clip). The simplified-dataset branch is wired too, so both `egi_load` source types honour it. Conjunctive lists, DNF list-of-lists and `pyarrow.compute.Expression` are all accepted; predicate columns need not appear in `columns=` (pyarrow reads them for the filter and leaves them out of the frame), and a file whose schema lacks one raises rather than degrading to an unfiltered read. Measured on the production continental database, a ~5 km ROI: 4,731 shots unfiltered → 1,062 with a quality-flag predicate, 26.3 s → 11.6 s.
+- `_combine_filters`: ANDs two pyarrow predicate specs by lifting both through `pq.filters_to_expression` and `&`-ing them. Plain concatenation — what the region partition filter does — is only correct between two *conjunctive* lists; a DNF or Expression on either side silently produces a malformed spec.
+
+### Fixed
+- **`gh3_load(region=..., filters=...)` no longer drops the region bbox pushdown.** Passing `filters` disabled it outright (the bbox read path could not compose arbitrary predicates with its own), so that one combination fell back to a full read of every selected partition plus an in-memory clip — `region` alone was fast, `filters` alone was fast, both together were slower than either. With `_combine_filters` in place the guard is gone: `gh3_load_hex` forwards the caller's predicate into `_read_parquet_bbox`, and both pushdowns — plus the a-priori `_bbox_index.parquet` year-file skip — now apply together. Verified row-identical against the legacy path; ~5 km ROIs on the production database, order alternated across two fresh regions so page-cache warmth cannot decide it: 7.3 s → 2.5 s and 5.9 s → 3.0 s.
+- `_load_dataset` accepted `filters` but ignored it in **lazy** mode — the branch every query CLI takes — so the parameter only ever reached the eager parquet reader. It now rides in the `make_dataset_reader` closure, pushing down in every per-file task of the `from_map` graph. Inherited by `gh3_load` and `egi_load` alike on simplified datasets.
+- `filters=` on a format with no pushdown reader (feather, gpkg) silently returned **unfiltered** rows. `_check_filters_supported` raises instead: handing back rows the caller asked to exclude, under a successful-looking query, is the one failure mode worth being loud about.
+
+### Changed
+- `from_map=False` (the original `dask_geopandas.read_parquet` load path) is marked **deprecated** and slated for removal along with the `from_map` argument itself. Comment only, no behaviour change — it reads `_metadata`, has no region bbox pushdown and no `_bbox_index` file skipping, and its region + user filter combination is deliberately left as plain list concatenation because `filters` there also drive dask's own hive partition pruning. Leave `from_map` at its default.
+- Release workflow split in two: `/bump-version` is versioning only (never pushes, tags, or publishes), and the new `/ship` skill owns the irreversible half — CI gating, tagging, the PyPI publish and the conda-forge feedstock cycle — re-verifying the bump independently before acting.
+
 ## [0.16.1] - 2026-07-25
 
 ### Added
