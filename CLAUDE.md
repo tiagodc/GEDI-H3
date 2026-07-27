@@ -46,12 +46,17 @@ pip install -e .
 
 **Dependency invariant**: `pip install gedih3` must work with zero system
 libraries — every native dependency ships wheels that vendor its own GDAL /
-GEOS / PROJ / HDF5. Declare every imported module in *both* `pyproject.toml`
-and `recipe/meta.yaml`; never rely on a transitive edge.
-`tests/test_dependencies.py` walks the source AST and fails the build
-otherwise. `osgeo` (GDAL bindings) is the single permitted optional import —
-it has no PyPI wheels — and every call site must guard it with `try`/`except
-ImportError` plus a working fallback.
+GEOS / PROJ / HDF5. Declare every imported module in `pyproject.toml`; never
+rely on a transitive edge. `tests/test_dependencies.py` walks the source AST
+and fails the build otherwise. `osgeo` (GDAL bindings) is the single permitted
+optional import — it has no PyPI wheels — and every call site must guard it
+with `try`/`except ImportError` plus a working fallback.
+
+The conda recipe is **no longer in this repo** — it lives in
+`conda-forge/gedih3-feedstock` (see `recipe/README.md`). A new dependency, or a
+new `[project.scripts]` entry point, must be mirrored there by hand; the
+autotick bot only bumps version and sha256. `test_recipe_matches_pyproject`
+skips now that `recipe/meta.yaml` is gone, so **CI does not catch this drift.**
 
 Configuration via `~/.gedih3.env` or environment variables:
 - `GH3_DEFAULT_DOWNLOAD_DIR` - Base directory for all data
@@ -131,7 +136,7 @@ gh3_bbox_index -d /path/to/db -N 16
 ### Database Doctor
 
 ```bash
-# Audit DB health (read-only, default = all DB diagnoses)
+# Audit DB health (read-only; default = the `db` alias group, NOT every diagnosis)
 gh3_doctor -i /path/to/db
 
 # Subsets / aliases: db (default), soc, all, or comma-separated names
@@ -149,10 +154,16 @@ gh3_doctor -i /db --online                  # adds gh3_download / gh3_build comm
 gh3_doctor -i /db --report report.json
 ```
 
+Alias groups (`src/gedih3/doctor/runner.py`): `db` (the default) =
+`backfill, orphans, log_state, metadata, parquet_health, geoparquet_bbox`;
+`soc` = `soc_health`; `all` = every registered diagnosis. **`soc_health` and
+`tmp_partitions_health` are not in `db`** — ask for them by name or use `all`.
+
 Diagnoses: `backfill` (NaN gaps in product columns), `orphans` (leftover .tmp +
 empty dirs), `log_state` (stuck flags + log↔disk drift), `metadata` (partition
 JSON + manifest), `parquet_health` (corrupt files + duplicate shots + schema
-drift), `soc_health` (invalid HDF5 + download log drift),
+drift), `geoparquet_bbox` (GeoParquet bbox metadata coverage),
+`soc_health` (invalid HDF5 + download log drift),
 `tmp_partitions_health` (post-build forensics on `tmp/partitions/`:
 `_merge_failures/` sentinels + `_granule_failures.jsonl` summaries +
 progress↔manifest drift; `--fix` calls `preclean_merge_failures` and refuses
@@ -217,7 +228,7 @@ gh3_from_polygon -i landcover.gpkg -x lc_ --dropna -d /path/to/databaset -o outp
 - **Variable expansion**: CLI accepts `default`, `minimal`, `*`, or explicit variable lists/files
 - **Static product variable manifests**: `data/GEDI*_DATASETS_*.txt` ship the canonical variable list per `(product, version)`. `gedi_vars_static(product, version)` is the cached, free lookup; prefer it over `gedi_vars_from_h5` whenever the file under inspection is a NASA release file. Files that may have been previously subset (compact HDF5 from S3 ETL) still need `gedi_vars_from_h5` — the static manifest would over-count them.
 - **Cached H3 schema dtypes** (`h3_columns_dtypes` in the build log): `gh3_load()` builds its Dask `_meta` from the cache (zero parquet I/O) and falls back to sampling `h3_dirs[0]` only when the field is missing (legacy DBs).
-- **Distributed doctor diagnoses**: every diagnosis that scans every partition (`parquet_health`, `backfill`, `geoparquet_bbox`, `metadata`, `orphans`, `soc_health`) ships per-partition work to dask workers via `gedih3.doctor.parallel.parallel_map` when a client is registered, and falls back to a serial `progress_iter` loop otherwise. O(1) emptiness checks (`partition_is_empty`, `year_dir_is_empty`) replace the legacy recursive globs.
+- **Distributed doctor diagnoses**: every diagnosis that scans every partition (`parquet_health`, `backfill`, `geoparquet_bbox`, `metadata`, `orphans`, `soc_health`) ships per-partition work to dask workers via `gedih3.doctor.parallel.parallel_map`. There is no serial fallback — `parallel_map` raises `GediError` when no Client is registered. O(1) emptiness checks (`partition_is_empty`, `year_dir_is_empty`) replace the legacy recursive globs.
 - **Spatial filtering**: Supports vector files, bounding boxes, or ISO3 country codes
 - **S3 ETL mode**: `gh3_build --s3` / `gh3_download --s3` stream from NASA S3 without persistent local download
 - **Retry logic**: Network operations use exponential backoff (3 attempts, 1-60s wait)
@@ -267,7 +278,7 @@ from gedih3.cliutils import (
 - **Parallel reconcile Pass A** (v0.10+): `_reconcile_granules_from_disk` Pass A no longer does two driver-side recursive `glob.glob` calls over the finalized DB tree. It sources partition dirs from the `_manifest.txt` sentinel (or `os.scandir(h3_dir)` for legacy DBs), then dispatches per-partition metadata reads across workers via `parallel_map(_scan_partition_meta_granules, …)` when a client is registered. At continental scale this turns minutes of serial GPFS metadata work into seconds.
 - **Post-merge in-memory derivation** (v0.10+): `_merge_and_finalize`'s tail no longer calls `glob.glob('h3_*/*/*.parquet')` or `glob.glob('h3_*/')`. The final `h3_files` + `h3_subdirs` lists come from `_derive_merged_output_paths(_merge_progress.txt, h3_dir)` — pure in-memory transform via the deterministic `h3_merge_files` naming contract (`<tmp>/h3_<p>=X/year=Y` → `<h3_dir>/h3_<p>=X/year=Y/X.Y.0.parquet`). Zero GPFS metadata ops.
 - **Preventative 0-byte source-fragment drop** (v0.10+): `h3_merge_files` stats each `*.parquet` in `in_dir` and unlinks any 0-byte file before passing to `parquet_merge_files`. One `stat` per fragment, effectively free (the file open hits the same metadata). Catches the SIGKILL-leftover class B before it breaks the merge.
-- **Variable-only update: per-(cell, year) tasks, scatter-free driver** (v0.10.23+): `_build_add_variables` shards work the same way the fresh-build merge phase does — one task per `<cell>/year=YYYY/*.parquet` — and follows the fresh-build streaming-driver's "no `client.scatter`" rule (see `tests/test_write_streaming.py::test_streaming_driver_completes_end_to_end`). The flow: (0) parallel `_list_year_subdirs` to enumerate `(cell, year)` files; (1) `client.map(_scan_year_file_for_update, year_files, new_cols=…)` — each scan task does ONE footer read + ONE sidecar read and returns the granule list (or `None` for already-done / no-sidecar files); (2) driver builds `all_soc` locally via `soc_file_tree(...)` and resolves each task's h5 paths via `all_soc[orb_track][prod]` dict lookups, **inlining** the per-task `[(prod, h5_path, var_list), ...]` list into each `client.map` arg — tiny per-task payloads, one scheduler dep per task, zero broadcast wait; (3) `client.map(_add_variables_to_year_file, year_pfs, h5_specs_per_task, …)` does the parallel join; (4) `client.map(h3_merge_metadata, touched_cells)` aggregates per-year sidecars into per-cell `<cell>.metadata.json`. Earlier per-cell granularity (v0.10.20-) called `soc_file_tree` inside each worker, deadlocking under workers-equal-threads configs. An interim v0.10.21–22 broadcast design used `client.scatter([all_soc], broadcast=True)[0]` (single-future wrap) but the inline-the-args pattern from the fresh-build driver is the established choice — it avoids scatter's tunneled-cluster hangs and the per-key dict-of-futures footgun. Atomicity: `parquet_join_columns` writes via `.join.tmp` + `os.replace` and filters columns already present in the base file, so re-running against a partially-updated year file never duplicates columns.
+- **Variable-only update: inverted granule fan-out, scatter-free driver**: `_build_add_variables` reads each granule h5 **once** and fans its shots to every owning cell, then merges per-`(cell, year)` into the base parquet — `_var_fan_granule` followed by `_var_merge_cell_year`. The granule→cell relationship comes free from the metadata granule lists. The legacy per-`(cell, year)` sharding re-read every granule once per cell that listed it: a 39.75× redundancy measured on the production tree (2.64M reads for 66.5k unique granules), and h5 reads are ~93% of the runtime. Shots are routed by matching `shot_number` against the existing base parquets — never by recomputing H3 from the new product's coordinates. The driver follows the fresh-build streaming-driver's **"no `client.scatter`"** rule (see `tests/test_write_streaming.py::test_streaming_driver_completes_end_to_end`): per-task args are inlined, keeping payloads tiny and avoiding broadcast waits. Atomicity: `parquet_join_columns` writes via `.join.tmp` + `os.replace` and filters columns already present in the base file, so re-running against a partially-updated year file never duplicates columns.
 - **S3 ETL vs DAAC mode selection** (`gh3_download`, May 2026 single-granule L2A bench, clean home link, earthaccess 0.18 / stock `BackgroundBlockCache` + 16 MB blocks):
   - DAAC (full granule download + local subset): **3:04** wall, +323 MB RSS, 2.32 GB on the wire.
   - S3 ETL, *broad* subset (minimal w/ `rh`, ~558 MB output): **2:49** wall — barely faster than DAAC.

@@ -74,11 +74,17 @@ Windows. If it needs a system package installed first, treat it as optional:
 import it inside a `try`/`except ImportError` with a working fallback, and add
 it to `OPTIONAL_MODULES` in `tests/test_dependencies.py`.
 
-Declare every module you import by name in **both** `pyproject.toml` and
-`recipe/meta.yaml`, even when something else already pulls it in — relying on a
-transitive edge breaks silently when an upstream drops it.
-`tests/test_dependencies.py` enforces this by walking the source AST, and will
-fail the build if a declaration is missing or the two files drift apart.
+Declare every module you import by name in `pyproject.toml`, even when
+something else already pulls it in — relying on a transitive edge breaks
+silently when an upstream drops it. `tests/test_dependencies.py` enforces this
+by walking the source AST, and will fail the build if a declaration is missing.
+
+The conda recipe lives in [its own
+feedstock](https://github.com/conda-forge/gedih3-feedstock), not in this repo.
+Its `run:` list and its `entry_points:` list have to be updated there by hand
+when you add a dependency or a new `gh3_*` entry point — the autotick bot only
+bumps the version and the sdist hash, and nothing in this repo's CI checks that
+the two stay in sync.
 
 Give the new dependency a lower bound and pin that same version in
 `constraints-min.txt`. The CI `minimum-versions` job installs from that file
