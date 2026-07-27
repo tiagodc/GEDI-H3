@@ -89,6 +89,7 @@ from .dataframe import (
 from .raster import (
     geodf_to_raster,
     rasterize_partition,
+    split_by_outer_tile,
     export_raster,
     merge_raster_partitions,
     get_raster_profile,
@@ -140,6 +141,7 @@ __all__ = [
     # Raster
     'geodf_to_raster',
     'rasterize_partition',
+    'split_by_outer_tile',
     'export_raster',
     'merge_raster_partitions',
     'get_raster_profile',

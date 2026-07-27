@@ -3991,15 +3991,19 @@ def gh3_to_raster(
     compress='LZW'
 ):
     """
-    Convert H3-indexed GeoDataFrame to raster.
+    Convert a single spatially-indexed GeoDataFrame to raster.
 
-    This is a convenience function that wraps the raster module's
-    h3_to_raster function with sensible defaults.
+    Dispatches on the frame's spatial index: H3 frames go through
+    ``raster.h3_to_raster``, EGI frames through ``egi.geodf_to_raster``.
+
+    This handles ONE in-memory frame. To rasterize every partition of a Dask
+    DataFrame — or a dataset directory — in a single call, use
+    :func:`gh3_rasterize`.
 
     Parameters
     ----------
     gdf : GeoDataFrame
-        H3-indexed GeoDataFrame with polygon geometries
+        H3- or EGI-indexed GeoDataFrame.
     columns : list of str, optional
         Columns to rasterize. If None, all numeric columns.
     output_path : str, optional
@@ -4010,7 +4014,18 @@ def gh3_to_raster(
     Returns
     -------
     xr.Dataset
-        Raster dataset
+        Raster dataset. The CRS follows the index type: EPSG:4326 for H3,
+        EPSG:6933 (EASE-Grid 2.0) for EGI. EGI rasters are never reprojected
+        — that alignment is the reason EGI exists.
+
+    Raises
+    ------
+    GediValidationError
+        If the spatial index type cannot be determined from the frame.
+    GediRasterizationError
+        Propagated from the rasterizer. Notably, an EGI frame spanning more
+        than one level-12 outer tile is refused rather than silently reduced
+        — use ``gh3_rasterize(..., merge=True)`` for that.
 
     Examples
     --------
@@ -4020,15 +4035,240 @@ def gh3_to_raster(
     >>>
     >>> # Or save directly
     >>> raster = gh3_to_raster(agg_gdf, output_path="output.tif")
-    """
-    from .raster import h3_to_raster, export_raster
 
-    xras = h3_to_raster(gdf, columns=columns)
+    See Also
+    --------
+    gh3_rasterize : Dask DataFrame or dataset directory to rasters, one call.
+    """
+    index_type = get_spatial_index_type(gdf)
+
+    if index_type == 'egi':
+        from . import egi
+        xras = egi.geodf_to_raster(gdf, columns=columns)
+    elif index_type == 'h3':
+        from .raster import h3_to_raster
+        xras = h3_to_raster(gdf, columns=columns)
+    else:
+        raise GediValidationError(
+            "Cannot determine the spatial index type of the input frame: no 'h3_*' or "
+            "'egi*' index name or column found. Pass an H3- or EGI-indexed GeoDataFrame."
+        )
 
     if output_path:
+        from .raster import export_raster
         export_raster(xras, output_path, compress=compress)
 
     return xras
+
+
+def _h3_partition_level_from_dataset(path, info):
+    """Resolve the H3 partition level of a simplified dataset directory.
+
+    ``cliutils.get_dataset_index_info`` already covers the sidecar
+    ``h3_partition_level`` and the ``partition_ids[0]`` fallback; this adds the
+    two steps it does not: deriving the level from the parquet filenames, and
+    cross-checking a sidecar value against them.
+
+    Filenames are ground truth — a sidecar can go stale when a dataset is
+    regenerated in place at another level, and a wrong partition level produces
+    silently wrong tiling rather than an error. One local basename is free to
+    check; remote paths keep the sidecar fast path.
+
+    Parameters
+    ----------
+    path : str
+        Dataset directory.
+    info : dict
+        The ``get_dataset_index_info`` result for ``path``.
+
+    Returns
+    -------
+    tuple
+        ``(level, source_label)``. ``level`` is None when undeterminable, in
+        which case the rasterizer falls back to detecting it from the frame's
+        ``h3_NN`` columns.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    partition_level = info.get('partition_level')
+    source = 'metadata'
+
+    if partition_level is None:
+        candidates = [
+            os.path.splitext(os.path.basename(f))[0]
+            for f in smart_glob(smart_join(path, '*.parquet'))
+        ]
+        source = 'filenames'
+        for cell in candidates:
+            try:
+                partition_level = h3.get_resolution(cell)
+                break
+            except (ValueError, TypeError):
+                continue
+    elif not is_remote_path(path):
+        for f in smart_glob(smart_join(path, '*.parquet'))[:1]:
+            cell = os.path.splitext(os.path.basename(f))[0]
+            try:
+                actual = h3.get_resolution(cell)
+            except (ValueError, TypeError):
+                break
+            if actual != partition_level:
+                logger.warning(
+                    f"Sidecar h3_partition_level={partition_level} disagrees with "
+                    f"filenames (H3 {actual}); using the filenames"
+                )
+                partition_level = actual
+                source = 'filenames (sidecar stale)'
+
+    return partition_level, source
+
+
+def gh3_rasterize(data, output, columns=None, merge=False, query=None,
+                  index_type=None, partition_level=None, fmt='tif',
+                  compress='LZW', show_progress=True):
+    """
+    Rasterize a dataset or Dask DataFrame to GeoTIFF in a single call.
+
+    Works for both spatial index types: EGI partitions are rasterized with
+    ``egi.rasterize_partition`` (EASE-Grid 2.0 aligned, EPSG:6933) and H3
+    partitions with ``raster.rasterize_h3_partition`` (EPSG:4326). The index
+    type is detected, so callers do not pick a rasterizer.
+
+    This is the library form of the ``gh3_rasterize`` CLI, which delegates to
+    it — the two cannot diverge.
+
+    Parameters
+    ----------
+    data : str or DataFrame
+        Either a dataset directory written by ``gh3_extract`` / ``gh3_aggregate``
+        (i.e. holding a ``gedih3_dataset.json`` sidecar), or an already-loaded
+        Dask / in-memory (Geo)DataFrame. A raw H3 *database* is not accepted —
+        aggregate or extract from it first.
+    output : str
+        Output directory (``merge=False``) or output file path (``merge=True``,
+        a missing ``.tif`` suffix is appended).
+    columns : list of str, optional
+        Columns to rasterize; None means every numeric column. fnmatch
+        wildcards (e.g. ``'agbd_*'``) are expanded for dataset-path input; for
+        a frame the caller already knows its columns.
+    merge : bool
+        False (default) writes one GeoTIFF per spatial tile plus a
+        ``mosaic.vrt``. True merges every tile into a single GeoTIFF (no VRT);
+        note this gathers all tiles on the driver.
+    query : str, optional
+        Pandas query applied at load time. Dataset-path input only — for a
+        frame, call ``.query()`` before passing it in.
+    index_type : {'h3', 'egi'}, optional
+        Override the detected index type.
+    partition_level : int, optional
+        H3 tiling level. Ignored for EGI, which always tiles at level 12. When
+        None it is resolved from the dataset (path input) or from the frame's
+        ``h3_NN`` columns.
+    fmt : str
+        Tile format ('tif', 'nc'). Ignored when ``merge=True``, which always
+        writes GeoTIFF.
+    compress : str
+        GeoTIFF compression.
+    show_progress : bool
+        Show the Dask progress bar.
+
+    Returns
+    -------
+    str or list of str
+        The written file path when ``merge=True``; otherwise a flat list of
+        the written tile paths (``mosaic.vrt`` is not included).
+
+    Raises
+    ------
+    GediValidationError
+        If ``data`` is an H3 database, if the index type cannot be determined,
+        or if ``query`` is given with an already-loaded frame.
+    GediRasterizationError
+        Propagated from the rasterizers (e.g. nothing valid to merge).
+
+    Examples
+    --------
+    >>> ddf = egi_load(source=db, region='region.shp', level=6)
+    >>> paths = gh3_rasterize(ddf, 'tiles/')
+    >>>
+    >>> # From a dataset directory, merged into one file
+    >>> gh3_rasterize('/data/agg_egi', 'agbd.tif', merge=True)
+
+    See Also
+    --------
+    gh3_to_raster : single in-memory frame to an ``xr.Dataset``.
+    gh3_rasterize_partitions : H3-only variant returning per-partition results.
+    """
+    import logging
+    from . import raster
+
+    logger = logging.getLogger(__name__)
+
+    if isinstance(data, str):
+        path, info = _detect_source(data)
+        if info.get('source_type') == 'h3_database':
+            raise GediValidationError(
+                f"'{path}' is an H3 database, not a rasterizable dataset. Rasterization "
+                f"needs a dataset produced by gh3_aggregate or gh3_extract — run one of "
+                f"those on the database first."
+            )
+        if index_type is None:
+            index_type = info.get('index_type')
+        columns = _resolve_columns(columns, path, info)
+        # _load_dataset, not gh3_load: the latter refuses EGI-indexed datasets.
+        ddf = _load_dataset(path, columns=columns, query=query)
+    else:
+        if query is not None:
+            raise GediValidationError(
+                "query= applies to dataset-path input only. Call .query() on the frame "
+                "before passing it to gh3_rasterize()."
+            )
+        path, info = None, {}
+        ddf = data
+        if index_type is None:
+            index_type = get_spatial_index_type(ddf._meta if hasattr(ddf, '_meta') else ddf)
+
+    if index_type not in ('h3', 'egi'):
+        raise GediValidationError(
+            "Cannot determine the spatial index type to rasterize. Pass index_type='h3' "
+            "or index_type='egi', or supply data carrying an 'h3_*' / 'egi*' index."
+        )
+
+    rasterize_kwargs = {}
+    if index_type == 'egi':
+        from . import egi
+        rasterize_func = egi.rasterize_partition
+        logger.info(f"Rasterizing EGI-indexed data ({ddf.npartitions} partitions)"
+                    if hasattr(ddf, 'npartitions') else "Rasterizing EGI-indexed data")
+    else:
+        rasterize_func = raster.rasterize_h3_partition
+        if partition_level is None and path is not None:
+            partition_level, source = _h3_partition_level_from_dataset(path, info)
+            if partition_level is not None:
+                logger.info(f"  Partition level: H3 {partition_level} (from {source})")
+        if partition_level is not None:
+            rasterize_kwargs['partition_level'] = partition_level
+
+    if merge:
+        merged_output = output if output.endswith('.tif') else f"{output}.tif"
+        os.makedirs(os.path.dirname(os.path.abspath(merged_output)), exist_ok=True)
+        return raster.merge_and_export_rasters(
+            ddf, merged_output, rasterize_func,
+            columns=columns, compress=compress, show_progress=show_progress,
+            **rasterize_kwargs
+        )
+
+    os.makedirs(output, exist_ok=True)
+    result = raster.rasterize_and_export_partitions(
+        ddf, output, rasterize_func,
+        columns=columns, fmt=fmt, compress=compress, show_progress=show_progress,
+        **rasterize_kwargs
+    )
+    # export_raster_partition comma-joins when a partition yields several tiles.
+    # EGI never does (one partition = one tile); H3 can when a partition holds
+    # cells from several parents. Flatten so the return is always file paths.
+    return [p for entry in result if entry for p in entry.split(',') if p]
 
 
 def gh3_rasterize_partitions(
@@ -4061,7 +4301,13 @@ def gh3_rasterize_partitions(
     Returns
     -------
     list of str
-        Paths to output files
+        One entry per Dask partition, comma-joined when a partition produced
+        several tiles. Use :func:`gh3_rasterize` for a flat list of paths.
+
+    See Also
+    --------
+    gh3_rasterize : index-aware equivalent; also handles EGI, dataset
+        directories and merged output.
     """
     from .raster import rasterize_and_export_partitions, rasterize_h3_partition
 

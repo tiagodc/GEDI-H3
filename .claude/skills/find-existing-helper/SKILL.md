@@ -93,6 +93,9 @@ don't build a second one. The second column is the module; it is machine-checked
 
 | Helper | Module | Use for |
 |---|---|---|
+| `gh3_rasterize` | `gh3driver.py` | Dataset dir **or** (Dask) frame -> GeoTIFF tiles + VRT, or a merged file. Index-type dispatch, column wildcards and H3 partition-level derivation all live here; both raster CLIs delegate to it. Never re-pick a rasterize_func in a CLI. |
+| `gh3_to_raster` | `gh3driver.py` | One in-memory frame -> `xr.Dataset`, dispatching H3 (EPSG:4326) vs EGI (EPSG:6933). |
+| `split_by_outer_tile` | `egi/raster.py` | Split a multi-tile EGI frame into one sub-frame per level-12 tile. For callers that legitimately hold many tiles (arbitrary-ROI aggregates) — NOT for partitions, which nest in one tile by construction. |
 | `build_vrt` / `build_vrt_xml` / `build_vrt_safe` | `raster/export.py` | VRT mosaics. Use `build_vrt_safe` when the tiles are the deliverable. |
 | `object_series` | `utils.py` | Object-dtype Series of array-likes (xarray Datasets, ndarrays). |
 | `init_duckdb` / `attach_ducklake_db` | `sqlutils.py` | DuckDB connection + DuckLake catalog attach. |
