@@ -16,7 +16,10 @@ from .utils import NON_LOCAL_PREFIXES as _URL_PREFIXES
 from .exceptions import GediValidationError, GediDatabaseNotFoundError
 # Note: gh3driver imports are done lazily to avoid circular imports
 
-VALID_FORMATS = ['parquet', 'feather', 'shp', 'geojson', 'gpkg', 'txt', 'csv', 'h5', 'hdf5']
+VALID_FORMATS = ['parquet', 'feather', 'shp', 'geojson', 'gpkg', 'txt', 'csv', 'h5', 'hdf5',
+                 # Raster formats: gh3_export routes these through gh3_rasterize,
+                 # for both index types. Keep in sync with raster.RASTER_FORMATS.
+                 'tif', 'tiff', 'geotiff', 'nc', 'netcdf']
 
 # Formats that support downstream processing (column selection at read time, fast schema reading)
 PIPELINE_FORMATS = {'parquet', 'feather', 'gpkg'}

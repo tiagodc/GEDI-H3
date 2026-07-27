@@ -129,9 +129,11 @@ def main():
         logger.info("Collecting variables...")
         columns = collect_columns(args)
 
-        # EGI indexing works best with Point geometry from GeoDataFrame
-        # Ensure geometry column is loaded so we have coordinate information
-        if use_egi and 'geometry' not in columns:
+        # EGI indexing works best with Point geometry from GeoDataFrame.
+        # Raster output needs it too, for both index types — rasterizing a
+        # plain DataFrame fails on the missing .crs and yields no files.
+        from gedih3.raster import is_raster_format
+        if 'geometry' not in columns and (use_egi or is_raster_format(args.format)):
             columns.append('geometry')
 
         if len(columns) > 0:
