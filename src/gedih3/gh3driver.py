@@ -2153,7 +2153,8 @@ def _detect_export_params(ddf, index_type=None):
 def gh3_export(ddf, output, fmt='parquet', merge=False,
                show_progress=True, drop_internal=False,
                write_metadata=True, source_database=None,
-               tool=None, h3_partition_level=None, **metadata_kwargs):
+               tool=None, h3_partition_level=None, cog=True,
+               **metadata_kwargs):
     """
     Export a Dask DataFrame to simplified flat files with metadata.
 
@@ -2191,6 +2192,9 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
         files are named by the parent cell at this level (via h3.cell_to_parent).
         Useful for aggregated data where the original partition column was lost.
         If None, auto-detected from source_database metadata when available.
+    cog : bool
+        For raster formats, write Cloud Optimized GeoTIFFs (default). Ignored
+        for every other format.
     **metadata_kwargs
         Additional key-value pairs to include in the dataset metadata.
         Common keys: query_filter, aggregation, egi_index_level,
@@ -2264,7 +2268,7 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
             ddf, output, merge=merge, fmt=fmt, index_type=index_type,
             partition_level=(h3_partition_level or naming_partition_level
                              if index_type == 'h3' else None),
-            show_progress=show_progress,
+            cog=cog, show_progress=show_progress,
         )
         ofiles = [result] if merge else list(result)
         if not ofiles:
@@ -4182,7 +4186,7 @@ def _egi_partition_level(ddf, info):
 
 def gh3_rasterize(data, output, columns=None, merge=False, query=None,
                   index_type=None, partition_level=None, fmt='tif',
-                  compress='LZW', show_progress=True):
+                  compress='LZW', cog=True, show_progress=True):
     """
     Rasterize a dataset or Dask DataFrame to GeoTIFF in a single call.
 
@@ -4225,7 +4229,11 @@ def gh3_rasterize(data, output, columns=None, merge=False, query=None,
         Tile format ('tif', 'nc'). Ignored when ``merge=True``, which always
         writes GeoTIFF.
     compress : str
-        GeoTIFF compression.
+        GeoTIFF compression (default LZW).
+    cog : bool
+        Write Cloud Optimized GeoTIFFs — internally tiled, with an overview
+        pyramid (default). A COG is a valid GeoTIFF, so readers are unaffected;
+        pass False for a plain GeoTIFF with no overviews.
     show_progress : bool
         Show the Dask progress bar.
 
@@ -4335,15 +4343,15 @@ def gh3_rasterize(data, output, columns=None, merge=False, query=None,
         os.makedirs(os.path.dirname(os.path.abspath(merged_output)), exist_ok=True)
         return raster.merge_and_export_rasters(
             ddf, merged_output, rasterize_func,
-            columns=columns, compress=compress, show_progress=show_progress,
-            **rasterize_kwargs
+            columns=columns, compress=compress, cog=cog,
+            show_progress=show_progress, **rasterize_kwargs
         )
 
     os.makedirs(output, exist_ok=True)
     result = raster.rasterize_and_export_partitions(
         ddf, output, rasterize_func,
-        columns=columns, fmt=fmt, compress=compress, show_progress=show_progress,
-        **rasterize_kwargs
+        columns=columns, fmt=fmt, compress=compress, cog=cog,
+        show_progress=show_progress, **rasterize_kwargs
     )
     # export_raster_partition comma-joins when a partition yields several tiles.
     # EGI never does (one partition = one tile); H3 can when a partition holds

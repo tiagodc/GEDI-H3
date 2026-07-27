@@ -34,12 +34,14 @@ Examples
 # Configuration
 from .config import (
     GEOTIFF_DEFAULTS,
+    COG_DEFAULTS,
     COMPRESSION_OPTIONS,
     RASTER_FORMATS,
     TIME_UNITS,
     H3_RASTER_CRS,
     GEDI_START_DATE_STR,
     get_geotiff_options,
+    get_cog_options,
     is_raster_format,
 )
 
@@ -79,12 +81,14 @@ from .export import (
 __all__ = [
     # Config
     'GEOTIFF_DEFAULTS',
+    'COG_DEFAULTS',
     'COMPRESSION_OPTIONS',
     'RASTER_FORMATS',
     'TIME_UNITS',
     'H3_RASTER_CRS',
     'GEDI_START_DATE_STR',
     'get_geotiff_options',
+    'get_cog_options',
     'is_raster_format',
     # H3 raster
     'get_h3_resolution_meters',

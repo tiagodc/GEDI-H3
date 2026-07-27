@@ -20,7 +20,7 @@ import dask
 import dask.dataframe
 from dask.distributed import progress as dask_progress
 
-from .config import get_geotiff_options, is_raster_format
+from .config import COG_DEFAULTS, get_cog_options, get_geotiff_options, is_raster_format
 from ..exceptions import GediRasterizationError
 from ..utils import AtomicFileWriter
 
@@ -33,10 +33,16 @@ def export_raster(
     compress: str = 'LZW',
     tiled: bool = True,
     blocksize: int = 256,
-    bigtiff: bool = True
+    bigtiff: bool = True,
+    cog: bool = True
 ) -> str:
     """
     Export xarray Dataset to GeoTIFF file.
+
+    Writes a Cloud Optimized GeoTIFF by default: internally tiled with an
+    overview pyramid, so viewers and range-reading clients fetch only the
+    bytes they need. A COG is a valid GeoTIFF, so every reader that handled
+    the previous output still does; the cost is the pyramid on disk.
 
     Parameters
     ----------
@@ -47,18 +53,25 @@ def export_raster(
     compress : str
         Compression method ('LZW', 'ZSTD', 'DEFLATE', 'NONE')
     tiled : bool
-        Use tiled output format
+        Use tiled output format. Ignored when ``cog`` is True — a COG is
+        always tiled.
     blocksize : int
         Tile block size in pixels
     bigtiff : bool
         Use BigTIFF format for large files
+    cog : bool
+        Write a Cloud Optimized GeoTIFF (default). False falls back to a
+        plain GeoTIFF with no overviews.
 
     Returns
     -------
     str
         Output file path
     """
-    options = get_geotiff_options(compress, tiled, blocksize, bigtiff)
+    if cog:
+        options = get_cog_options(compress, blocksize, bigtiff, **COG_DEFAULTS)
+    else:
+        options = get_geotiff_options(compress, tiled, blocksize, bigtiff)
 
     # Ensure directory exists
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
@@ -72,7 +85,8 @@ def export_raster_partition(
     output_dir: str,
     fmt: str = 'tif',
     compress: str = 'LZW',
-    partition_id_attr: Optional[str] = None
+    partition_id_attr: Optional[str] = None,
+    cog: bool = True
 ) -> str:
     """
     Export raster partition(s) to file(s).
@@ -93,6 +107,8 @@ def export_raster_partition(
         Compression method for GeoTIFF
     partition_id_attr : str, optional
         Attribute name containing partition ID for filename
+    cog : bool
+        Write GeoTIFF output as a Cloud Optimized GeoTIFF (default)
 
     Returns
     -------
@@ -113,14 +129,16 @@ def export_raster_partition(
         # Export each raster to its own file based on its tile ID
         output_paths = []
         for xras in valid_rasters:
-            path = _export_single_raster(xras, output_dir, fmt, compress, partition_id_attr)
+            path = _export_single_raster(xras, output_dir, fmt, compress,
+                                         partition_id_attr, cog=cog)
             if path:
                 output_paths.append(path)
 
         return ','.join(output_paths) if output_paths else ''
 
     elif isinstance(data, xr.Dataset):
-        return _export_single_raster(data, output_dir, fmt, compress, partition_id_attr)
+        return _export_single_raster(data, output_dir, fmt, compress,
+                                     partition_id_attr, cog=cog)
 
     return ''
 
@@ -130,7 +148,8 @@ def _export_single_raster(
     output_dir: str,
     fmt: str,
     compress: str,
-    partition_id_attr: Optional[str] = None
+    partition_id_attr: Optional[str] = None,
+    cog: bool = True
 ) -> str:
     """
     Export a single xarray Dataset to file.
@@ -147,6 +166,8 @@ def _export_single_raster(
         Compression method
     partition_id_attr : str, optional
         Attribute name for partition ID
+    cog : bool
+        Write GeoTIFF output as a Cloud Optimized GeoTIFF (default)
 
     Returns
     -------
@@ -184,7 +205,8 @@ def _export_single_raster(
     output_path = os.path.join(output_dir, f"{basename}.{fmt}")
 
     if fmt in ('tif', 'tiff', 'geotiff'):
-        options = get_geotiff_options(compress)
+        options = (get_cog_options(compress, **COG_DEFAULTS) if cog
+                   else get_geotiff_options(compress))
         xras.rio.to_raster(output_path, **options)
     elif fmt in ('nc', 'netcdf'):
         xras.to_netcdf(output_path)
@@ -202,6 +224,7 @@ def rasterize_and_export_partitions(
     fmt: str = 'tif',
     compress: str = 'LZW',
     show_progress: bool = True,
+    cog: bool = True,
     **rasterize_kwargs
 ) -> List[str]:
     """
@@ -241,7 +264,7 @@ def rasterize_and_export_partitions(
         )
 
         export_func = lambda x: export_raster_partition(
-            x, output_dir, fmt=fmt, compress=compress
+            x, output_dir, fmt=fmt, compress=compress, cog=cog
         )
 
         paths = raster_parts.map_partitions(
@@ -261,7 +284,8 @@ def rasterize_and_export_partitions(
     else:
         # Regular GeoDataFrame
         raster = rasterize_func(gdf, columns=columns, **rasterize_kwargs)
-        path = export_raster_partition(raster, output_dir, fmt=fmt, compress=compress)
+        path = export_raster_partition(raster, output_dir, fmt=fmt, compress=compress,
+                                       cog=cog)
         result = [path] if path else []
 
     # Build VRT mosaic from output tiles
@@ -476,6 +500,7 @@ def merge_and_export_rasters(
     columns: Optional[List[str]] = None,
     compress: str = 'LZW',
     show_progress: bool = True,
+    cog: bool = True,
     **rasterize_kwargs
 ) -> str:
     """
@@ -563,7 +588,7 @@ def merge_and_export_rasters(
                 merged = merge_datasets(valid_rasters, nodata=np.nan)
 
     # Export
-    return export_raster(merged, output_path, compress=compress)
+    return export_raster(merged, output_path, compress=compress, cog=cog)
 
 
 def compute_raster_stats(xras: xr.Dataset) -> Dict[str, Dict[str, float]]:

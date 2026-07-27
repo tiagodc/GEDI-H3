@@ -43,6 +43,8 @@ def get_cmd_args():
     p.add_argument("--compress", dest="compress", type=str, default='LZW',
                    choices=['LZW', 'ZSTD', 'DEFLATE', 'PACKBITS', 'NONE'],
                    help="GeoTIFF compression [default=LZW]")
+    p.add_argument("--no-cog", dest="cog", action='store_false',
+                   help="write plain GeoTIFFs instead of Cloud Optimized GeoTIFFs")
 
     # Aggregation options
     p.add_argument("-h3", "--h3-level", dest="h3_level", type=int, default=None,
@@ -206,7 +208,8 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
         # rasterize_h3_partition detecting it from the surviving h3_NN column.
         result = gh3.gh3_rasterize(
             aggdf, output_dir, columns=None, merge=args.merge,
-            compress=args.compress, show_progress=not args.quiet
+            compress=args.compress, cog=getattr(args, 'cog', True),
+            show_progress=not args.quiet
         )
 
         if args.merge:
@@ -227,6 +230,7 @@ def _export_data(aggdf, *, export_func, part_col, output_dir, args,
         gh3.gh3_export(
             aggdf, output=output_dir, fmt=args.format, merge=args.merge,
             show_progress=not args.quiet, drop_internal=False,
+            cog=getattr(args, 'cog', True),
             source_database=args.database, tool='gh3_aggregate',
             h3_partition_level=h3_part_level,
             **meta_kwargs

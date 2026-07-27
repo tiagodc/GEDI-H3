@@ -363,10 +363,17 @@ def export_raster(
     compress: str = 'LZW',
     tiled: bool = True,
     blocksize: int = 256,
-    bigtiff: bool = True
+    bigtiff: bool = True,
+    cog: bool = True
 ) -> str:
     """
     Export xarray Dataset to GeoTIFF file.
+
+    Thin alias for :func:`gedih3.raster.export_raster`, kept because
+    ``egi.export_raster`` is part of the module's published surface. It used
+    to be a near-copy that inlined its own creation options, so it silently
+    missed the parent's directory creation, its ``compress='NONE'`` handling
+    and — latterly — Cloud Optimized GeoTIFF output.
 
     Parameters
     ----------
@@ -375,28 +382,25 @@ def export_raster(
     output_path : str
         Output file path
     compress : str
-        Compression method ('LZW', 'ZSTD', 'DEFLATE', None)
+        Compression method ('LZW', 'ZSTD', 'DEFLATE', 'NONE')
     tiled : bool
-        Use tiled output format
+        Use tiled output format. Ignored when ``cog`` is True.
     blocksize : int
         Tile block size in pixels
     bigtiff : bool
         Use BigTIFF format for large files
+    cog : bool
+        Write a Cloud Optimized GeoTIFF (default)
 
     Returns
     -------
     str
         Output file path
     """
-    xras.rio.to_raster(
-        output_path,
-        compress=compress,
-        TILED='YES' if tiled else 'NO',
-        BLOCKXSIZE=blocksize,
-        BLOCKYSIZE=blocksize,
-        BIGTIFF='YES' if bigtiff else 'NO'
-    )
-    return output_path
+    from ..raster.export import export_raster as _export_raster
+
+    return _export_raster(xras, output_path, compress=compress, tiled=tiled,
+                          blocksize=blocksize, bigtiff=bigtiff, cog=cog)
 
 
 def merge_raster_partitions(
