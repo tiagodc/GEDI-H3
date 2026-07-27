@@ -501,6 +501,19 @@ def _select_dataset_files(data_files, region, logger=None, dataset_path=None,
     return sorted(selected)
 
 
+def _check_filters_supported(fmt, filters):
+    """Reject ``filters=`` on formats with no predicate-pushdown reader.
+
+    Only parquet carries row-group statistics. Silently ignoring the
+    predicate on feather / gpkg would hand back unfiltered rows that the
+    caller believes are filtered — the one failure mode worth a hard error.
+    """
+    if filters is not None and fmt != 'parquet':
+        raise GediValidationError(
+            f"filters= requires a parquet dataset (got '{fmt}'); predicate "
+            f"pushdown has no equivalent in this format. Use query= instead.")
+
+
 def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filters=None):
     """Internal: load from simplified dataset (H3 or EGI).
 
@@ -518,8 +531,9 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         Spatial filter for clipping.
     lazy : bool
         If True, return Dask DataFrame. If False, return computed DataFrame.
-    filters : list, optional
-        PyArrow predicate pushdown filters (only for lazy=False + parquet).
+    filters : list or pyarrow.compute.Expression, optional
+        PyArrow predicate pushdown filters, applied per file at read time in
+        both eager and lazy mode. Parquet only — see ``_check_filters_supported``.
 
     Returns
     -------
@@ -534,11 +548,14 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         if smart_isfile(path):
             ext = os.path.splitext(path)[1].lstrip('.').lower()
             fmt = ext if ext in ('parquet', 'feather', 'gpkg') else 'parquet'
+            _check_filters_supported(fmt, filters)
             _, has_geo = read_dataset_schema(path, fmt)
-            reader = make_dataset_reader(fmt, columns=columns, geo=has_geo)
+            reader = make_dataset_reader(fmt, columns=columns, geo=has_geo,
+                                         filters=filters)
             return reader(path)
 
         fmt = detect_dataset_format(path)
+        _check_filters_supported(fmt, filters)
         data_files, fmt = _find_dataset_files(path, fmt)
         data_files = _select_dataset_files(data_files, region, dataset_path=path)
         _, has_geo = read_dataset_schema(data_files[0], fmt)
@@ -579,6 +596,7 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
 
     # --- Lazy mode ---
     fmt = detect_dataset_format(path)
+    _check_filters_supported(fmt, filters)
 
     # Handle query-column expansion
     load_columns = columns
@@ -606,8 +624,11 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         if index_col and index_col not in load_cols and index_col in col_names:
             load_cols.append(index_col)
 
-    # Build reader and metadata
-    reader = make_dataset_reader(fmt, columns=load_cols, geo=has_geometry)
+    # Build reader and metadata. `filters` rides along in the reader closure,
+    # so every per-file task in the from_map graph pushes the predicate down
+    # to the parquet row-group stats — the rows never enter worker memory.
+    reader = make_dataset_reader(fmt, columns=load_cols, geo=has_geometry,
+                                 filters=filters)
     _meta = reader(data_files[0])
 
     # Wrap reader to propagate storage credentials to Dask workers
@@ -870,7 +891,26 @@ def _pick_bbox_strategy(sample_file):
     return result
 
 
-def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat_col, lon_col):
+def _combine_filters(base, extra):
+    """AND two pyarrow predicate specs into one the parquet readers accept.
+
+    Either side may be a conjunctive ``[(col, op, val), ...]`` list, a DNF
+    ``[[...], [...]]`` list, or a ``pyarrow.compute.Expression``. Plain
+    concatenation is only correct for two conjunctive lists — it silently
+    produces a malformed spec when either side is DNF — so both are lifted
+    to Expressions and combined with ``&``. ``pq.read_table`` and
+    ``gpd.read_parquet`` both take an Expression wherever they take a list.
+    """
+    if extra is None or (isinstance(extra, (list, tuple)) and not extra):
+        return base
+    if base is None or (isinstance(base, (list, tuple)) and not base):
+        return extra
+    import pyarrow.parquet as pq
+    return pq.filters_to_expression(base) & pq.filters_to_expression(extra)
+
+
+def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat_col, lon_col,
+                       extra_filters=None):
     """Single-file bbox-filtered parquet read, routed by `strategy`.
 
     All three paths return a DataFrame whose rows satisfy the bbox predicate
@@ -878,6 +918,14 @@ def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat
     parquet-stats layer so the peak working set is bounded by the
     bbox-clipped result; the fallback materializes the full column-projected
     file before clipping in memory.
+
+    ``extra_filters`` is a caller-supplied pyarrow predicate spec ANDed with
+    whatever the strategy builds, so it is pushed down to the same row-group
+    stats layer on every path (including the fallback, where only the bbox
+    part degrades to an in-memory clip). Predicate columns need NOT appear in
+    ``columns``: pyarrow reads them for the filter and drops them from the
+    output. A file whose schema lacks a predicate column raises rather than
+    silently returning unfiltered rows.
     """
     from contextlib import nullcontext
 
@@ -886,17 +934,25 @@ def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat
     remote = is_remote_path(path)
     source_ctx = smart_open_columnar(path) if remote else nullcontext(path)
 
+    # Passed through to every reader below. Kept out of the call when absent
+    # so the no-filters call shape is byte-for-byte the legacy one.
+    xf = {'filters': extra_filters} if extra_filters is not None else {}
+
     with source_ctx as src:
         if strategy == 'point':
+            # geopandas splices `bbox` and `filters` into one expression
+            # (_splice_bbox_and_filters), so both are honored.
             if remote:
                 return read_parquet_coalesced(src, columns=columns, geo=True,
-                                              bbox=bbox_4326)
-            return gpd.read_parquet(src, bbox=bbox_4326, columns=columns)
+                                              bbox=bbox_4326, **xf)
+            return gpd.read_parquet(src, bbox=bbox_4326, columns=columns, **xf)
 
         if strategy == 'coord_filter':
             x0, y0, x1, y1 = bbox_4326
-            filt = [(lon_col, '>=', x0), (lon_col, '<=', x1),
-                    (lat_col, '>=', y0), (lat_col, '<=', y1)]
+            filt = _combine_filters(
+                [(lon_col, '>=', x0), (lon_col, '<=', x1),
+                 (lat_col, '>=', y0), (lat_col, '<=', y1)],
+                extra_filters)
             # Pyarrow's `filters=` requires the predicate columns to be in the
             # read column list; append + drop them if the caller didn't ask for
             # them. The extra column is already on disk in the same row groups
@@ -931,8 +987,10 @@ def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat
                     raise
 
         # 'fallback' — full read + in-memory geometric clip. Last resort.
-        df = (read_parquet_coalesced(src, columns=columns, geo=True) if remote
-              else gpd.read_parquet(src, columns=columns))
+        # `extra_filters` still pushes down here: only the bbox half of the
+        # predicate degrades to an in-memory clip.
+        df = (read_parquet_coalesced(src, columns=columns, geo=True, **xf) if remote
+              else gpd.read_parquet(src, columns=columns, **xf))
         if len(df) > 0:
             df = df[df.geometry.intersects(clip_box)]
         return df
@@ -1388,10 +1446,14 @@ def gh3_load_hex(d, _bbox_index=None, part_col=None, _storage_cfg=None, **kwargs
     def _read_one(f):
         if bbox4326 is not None:
             strategy, lat_col, lon_col = bbox_strategy
+            # The caller's pyarrow predicate (set by _load_h3_database from
+            # `gh3_load(filters=...)`) is ANDed with the bbox predicate
+            # inside the reader — both are pushed down, neither is dropped.
             return _read_parquet_bbox(
                 f, bbox_4326=bbox4326, clip_box=clip_geom,
                 columns=cols, geo=use_geo,
-                strategy=strategy, lat_col=lat_col, lon_col=lon_col)
+                strategy=strategy, lat_col=lat_col, lon_col=lon_col,
+                extra_filters=kwargs.get('filters'))
         return _read_parquet_files([f], geo=use_geo, **kwargs)
 
     # Per-file read so we can attach the `year` hive partition column from
@@ -1546,12 +1608,13 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
         # whole year files a-priori via the `_bbox_index.parquet` data
         # envelopes when the sidecar exists. Both are supersets of the exact
         # `ddf.clip(region)` applied below, so results are unchanged.
-        # Disabled when the caller passed their own pyarrow `filters` — the
-        # bbox read path cannot compose arbitrary predicates with the bbox
-        # ones on every strategy, and dropping user filters would change
-        # results; that combination keeps the legacy read.
+        # Applies unconditionally, including alongside a caller-supplied
+        # `filters`: `_read_parquet_bbox` ANDs the two predicates together
+        # (`_combine_filters`) on every strategy, so neither is dropped.
+        # Before that existed, region + filters silently fell back to a full
+        # read + in-memory clip — the one combination that lost the pushdown.
         _per_dir_bbox = None
-        if region is not None and filters is None:
+        if region is not None:
             from .utils import region_to_geometry
             _bbox = tuple(region_to_geometry(region).bounds)
             _lat, _lon = _bbox_cols_from_meta(gh3_dir)
@@ -1663,11 +1726,14 @@ def gh3_load(source=None, *, columns=None, region=None, query=None,
     lazy : bool
         If True (default), return Dask DataFrame. If False, return computed
         pandas DataFrame.
-    filters : list, optional
+    filters : list or pyarrow.compute.Expression, optional
         PyArrow predicate pushdown filters (conjunctive list of
-        ``(column, op, value)`` tuples), applied as per-file row-group pushdown
-        during the read. Works for H3 databases and simplified parquet datasets,
-        and combines (AND) with ``region`` when both are given.
+        ``(column, op, value)`` tuples, a DNF list-of-lists, or an Expression),
+        applied as per-file row-group pushdown during the read. Works for H3
+        databases and simplified parquet datasets, and combines (AND) with
+        ``region`` when both are given — the region bbox prefilter stays on,
+        both predicates are pushed to the same row-group stats layer.
+        Predicate columns do not have to be listed in ``columns``.
 
     Returns
     -------
@@ -2345,7 +2411,7 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
                             query, index_level, partition_level, set_index=True,
                             tile_egi_id=None,
                             bbox_strategy='fallback', bbox_lat_col=None, bbox_lon_col=None,
-                            file_bboxes=None):
+                            file_bboxes=None, filters=None):
     """
     Load data for a single EGI tile from its intersecting H3 partitions.
 
@@ -2392,6 +2458,11 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
         partitions. Year files whose envelope cannot intersect the tile are
         skipped without being opened. Files absent from the dict (or the
         dict being ``None``) are always read — fail-safe.
+    filters : list or pyarrow.compute.Expression, optional
+        Pyarrow predicate pushed into each year-file read (ANDed with the
+        tile's bbox predicate), so non-matching row groups are never
+        decompressed. Applied BEFORE ``query``, EGI indexing and the
+        spillover filter.
 
     Returns
     -------
@@ -2466,6 +2537,7 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
                 pf, bbox_4326=wgs84_bbox, clip_box=clip_box,
                 columns=load_cols, geo=True,
                 strategy=bbox_strategy, lat_col=bbox_lat_col, lon_col=bbox_lon_col,
+                extra_filters=filters,
             )
             if len(year_df) == 0:
                 continue
@@ -2665,7 +2737,7 @@ def _build_egi_load_meta(load_cols, gh3_dir, index_level, partition_level, inclu
 
 
 def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR,
-                               index_level=1, partition_level=12):
+                               index_level=1, partition_level=12, filters=None):
     """Internal: load H3 database directly into EGI partitions (original egi_load body)."""
     import dask
     from dask import dataframe as ddf
@@ -2786,6 +2858,7 @@ def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH
             bbox_lat_col=bbox_lat_col,
             bbox_lon_col=bbox_lon_col,
             file_bboxes=file_bboxes,
+            filters=filters,
         )
 
     # Build metadata from schema (avoids empty sample issue)
@@ -2818,7 +2891,7 @@ def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH
 
 
 def egi_load(source=None, *, columns=None, region=None, query=None,
-             index_level=1, partition_level=12, lazy=True):
+             index_level=1, partition_level=12, lazy=True, filters=None):
     """Load EGI-indexed GEDI data from any source.
 
     Auto-detects whether the source is an H3 database (direct EGI loading)
@@ -2846,6 +2919,17 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
     lazy : bool
         If True (default), return Dask DataFrame. If False, return computed
         pandas DataFrame.
+    filters : list or pyarrow.compute.Expression, optional
+        PyArrow predicate pushdown filters (conjunctive list of
+        ``(column, op, value)`` tuples, a DNF list-of-lists, or an
+        Expression) — same contract as ``gh3_load(filters=...)``. Pushed
+        straight into each per-year parquet read, so row groups that cannot
+        match are never decompressed, and ANDed with the tile bbox predicate
+        when both apply. Unlike ``query``, which filters in pandas after the
+        read, the rows never enter worker memory. Predicate columns do not
+        have to be listed in ``columns``. A file whose schema lacks a
+        predicate column raises rather than silently returning unfiltered
+        rows.
 
     Returns
     -------
@@ -2872,6 +2956,15 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
     ...     partition_level=12,
     ... )
     >>> agg = gh3.egi_aggregate(ddf, target_level=6, agg='mean')
+
+    >>> # Predicate pushdown: quality-flag rows are dropped at the parquet
+    >>> # row-group layer, before anything reaches worker memory.
+    >>> ddf = gh3.egi_load(
+    ...     source='/path/to/h3_database',
+    ...     columns=['agbd_l4a'],
+    ...     region='region.shp',
+    ...     filters=[('l2_quality_flag_l4a', '==', 1), ('agbd_l4a', '>', 0)],
+    ... )
     """
     path, info = _detect_source(source)
     columns = _resolve_columns(columns, path, info)
@@ -2880,11 +2973,13 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
         # Direct EGI loading from H3 database (no shuffle)
         ddf = _load_egi_from_h3_database(
             columns=columns, region=region, query=query,
-            gh3_dir=path, index_level=index_level, partition_level=partition_level
+            gh3_dir=path, index_level=index_level, partition_level=partition_level,
+            filters=filters
         )
     elif info.get('index_type') == 'egi':
         # Simplified EGI dataset
-        ddf = _load_dataset(path, columns=columns, query=query, region=region, lazy=True)
+        ddf = _load_dataset(path, columns=columns, query=query, region=region,
+                            lazy=True, filters=filters)
     elif info.get('index_type') == 'h3':
         raise GediValidationError(
             f"Source '{path}' is an H3 dataset. Use gh3_load() for H3 data, "
@@ -2892,7 +2987,8 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
         )
     else:
         # Parquet directory with unknown index — try loading as dataset
-        ddf = _load_dataset(path, columns=columns, query=query, region=region, lazy=True)
+        ddf = _load_dataset(path, columns=columns, query=query, region=region,
+                            lazy=True, filters=filters)
 
     if not lazy:
         return dask_safe_collect(ddf)
