@@ -1667,6 +1667,18 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
         if 'geometry' in ddf.columns:
             ddf = dask_geopandas.from_dask_dataframe(ddf, geometry='geometry')
     else:
+        # DEPRECATED — slated for removal, along with the `from_map` argument
+        # itself. This is the original dask_geopandas.read_parquet path; the
+        # from_map branch above superseded it and is the default, so this one
+        # never received the work the primary path did. It reads `_metadata`
+        # (the cost from_map exists to avoid on databases with thousands of
+        # partitions), it has no region bbox pushdown and no `_bbox_index`
+        # file skipping, and `filters` here still drive dask's own hive
+        # partition pruning — which is why the region + user predicate
+        # combination is left as plain list concatenation instead of the
+        # `_combine_filters` expression the from_map path uses (an Expression
+        # may not prune h3_part_col the same way). Do not extend it; when
+        # `from_map=False` goes, this whole branch goes with it.
         storage_kwargs = {}
         if is_remote_path(gh3_dir):
             from .utils import get_storage_options
@@ -1722,7 +1734,12 @@ def gh3_load(source=None, *, columns=None, region=None, query=None,
     query : str, optional
         Pandas query string for filtering.
     from_map : bool
-        Use from_map loading for H3 databases (default True).
+        Use from_map loading for H3 databases (default True). DEPRECATED —
+        ``from_map=False`` selects the original ``dask_geopandas.read_parquet``
+        path, which is unmaintained and slower on every axis (reads
+        ``_metadata``, no region bbox pushdown, no ``_bbox_index`` file
+        skipping). The argument and that branch are slated for removal; leave
+        it at the default.
     lazy : bool
         If True (default), return Dask DataFrame. If False, return computed
         pandas DataFrame.
