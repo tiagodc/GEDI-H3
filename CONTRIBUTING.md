@@ -93,6 +93,30 @@ unverified one tends to be unsatisfiable or simply broken. Raise a floor when
 something *requires* it (record why in the inline comment next to it), and
 never lower one without re-running that job.
 
+## Release Process
+
+Releases are cut by maintainers, in two deliberate halves.
+
+**1. Version bump** — update every hardcoded version location (`pyproject.toml`,
+`src/gedih3/__init__.py`, `docs/conf.py`, `CITATION.cff`, and the fixture in
+`tests/test_merge_build_logs.py`), write the `CHANGELOG.md` entry for the release, and
+commit as `bump version to X.Y.Z`. Nothing is pushed, tagged, or published at this stage,
+so a mistake here costs a commit amend.
+
+**2. Ship** — verify the bump is complete on a clean `main` and that CI is green, then
+`git tag -a vX.Y.Z` and push. The tag triggers the Release workflow, which publishes the
+sdist to PyPI. **Pushing the tag is the irreversible step** — a version number on PyPI
+cannot be reused.
+
+Once PyPI serves the new sdist, conda-forge's autotick bot opens a pull request against
+[the feedstock](https://github.com/conda-forge/gedih3-feedstock) updating the version and
+`sha256`. Verify that hash against the real PyPI sdist digest rather than "fixing" it,
+check that `build.python.entry_points` still matches `[project.scripts]` at the release
+tag, wait for Azure CI, and merge.
+
+Contributors using Claude Code have this encoded as the `bump-version` and `ship` skills
+in `.claude/skills/`; they follow exactly the steps above.
+
 ## Reporting Issues
 
 - Use [GitHub Issues](https://github.com/tiagodc/GEDI-H3/issues) to report bugs or request features
@@ -111,6 +135,10 @@ never lower one without re-running that job.
 - Unit tests go in `tests/`
 - Mark tests that require network access with `@pytest.mark.integration`
 - Mark slow tests with `@pytest.mark.slow`
+- [`tests/TESTING.md`](tests/TESTING.md) defines the safety and correctness invariants a
+  gedih3 database must uphold — resume without corruption, safe updates on every scope,
+  and readability of databases built by any earlier version. Read it before adding or
+  changing a test in the build, update, or export path.
 
 ## Questions?
 

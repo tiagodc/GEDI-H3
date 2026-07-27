@@ -258,6 +258,110 @@ any index older than the build log.
 
 ---
 
+### `gh3_doctor`
+
+Audit an H3 database or SOC tree for health problems, and optionally apply safe
+remedies. Read-only by default: `--fix` never deletes or rewrites corrupt data,
+it only applies remedies that cannot lose information. Corrupt files are always
+reported rather than repaired.
+
+```bash
+gh3_doctor -i /path/to/db                     # audit with the default `db` group
+gh3_doctor -i /db --check backfill,parquet_health
+gh3_doctor -i /db --check all                 # every registered diagnosis
+gh3_doctor -i /db --fix                       # apply safe remedies
+gh3_doctor -i /db --fix backfill --s3         # backfill via NASA S3 streaming
+gh3_doctor -i /db --online                    # add upstream availability + recovery commands
+gh3_doctor -i /db --report report.json        # machine-readable output
+```
+
+`--check` and `--fix` accept a diagnosis name, a comma-separated list, or a
+group alias:
+
+| Alias | Runs |
+|-------|------|
+| `db` | the default: `backfill`, `orphans`, `log_state`, `metadata`, `parquet_health`, `geoparquet_bbox` |
+| `soc` | `soc_health` |
+| `all` | every registered diagnosis |
+
+```{note}
+`soc_health` and `tmp_partitions_health` are **not** in the `db` group, so a
+plain `gh3_doctor -i /db` does not run them. Ask for them by name, or use `all`.
+```
+
+| Diagnosis | Checks for |
+|-----------|-----------|
+| `backfill` | NaN gaps in product columns |
+| `orphans` | leftover `.tmp` files and empty directories |
+| `log_state` | stuck build flags, and drift between the log and what is on disk |
+| `metadata` | partition JSON sidecars and the manifest |
+| `parquet_health` | corrupt files, duplicate shots, schema drift |
+| `geoparquet_bbox` | GeoParquet bbox metadata coverage |
+| `soc_health` | invalid HDF5 files, and download-log drift |
+| `tmp_partitions_health` | post-build forensics on `tmp/partitions/`: merge-failure sentinels, granule-failure summaries, and progress↔manifest drift |
+
+`--online` decorates the report with NASA upstream availability and emits
+concrete `gh3_download` / `gh3_build` commands to recover what is missing.
+
+Exit codes: **0** clean, **1** findings remain, **2** errors occurred during a
+fix. `tmp_partitions_health --fix` refuses to act while a `gh3_build` is live.
+
+---
+
+### `gh3_update`
+
+Add columns to an existing dataset in place, without re-extracting it. Shots are
+matched by `shot_number` against what is already stored, so the spatial index is
+never recomputed and the dataset's partitioning is untouched.
+
+```bash
+# Pull additional GEDI variables from a source H3 database
+gh3_update -d existing_dataset/ -D /path/to/h3_database -l4a agbd_se
+
+# Merge columns from another simplified dataset
+gh3_update -d existing_dataset/ -m other_dataset/
+```
+
+| Flag | Description |
+|------|-------------|
+| `-d` | dataset to update (required; modified in place) |
+| `-D` | source H3 database to pull new variables from |
+| `-l1b` / `-l2a` / `-l2b` / `-l4a` / `-l4c` | variables to add, per product |
+| `-l` | variable list, as for `gh3_extract` |
+| `-m` | another simplified dataset to merge columns from |
+
+Also accepts the standard dask, verbosity, and remote-storage flags.
+
+Adding variables to a full H3 database reads each source granule once and fans
+its shots out to every partition that contains them, so cost scales with the
+number of granules rather than with the number of partitions.
+
+---
+
+### `gh3_build_ducklake`
+
+Build a [DuckLake](https://ducklake.select/) metadata table over an existing H3
+parquet database, so it can be queried with SQL through DuckDB alongside the
+Python and CLI paths.
+
+```bash
+gh3_build_ducklake                       # default H3 database
+gh3_build_ducklake -d /path/to/db
+```
+
+| Flag | Description |
+|------|-------------|
+| `-d` | H3 database directory (default: `GH3_DEFAULT_H3_DIR`) |
+| `-t` | temporary directory for DuckLake data files |
+
+```{note}
+The `duckdb` version bound in `pyproject.toml` is deliberately narrow — the
+DuckLake catalog format is version-locked, and a catalog built under one
+version may not open under another.
+```
+
+---
+
 ## Common Flags
 
 | Flag | Description |
