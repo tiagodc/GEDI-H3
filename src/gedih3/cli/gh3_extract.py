@@ -33,6 +33,9 @@ def get_cmd_args():
                    help="output format [default=parquet]")
     p.add_argument("-m", "--merge", dest="merge", action='store_true',
                    help="merge all partitions into single file")
+    p.add_argument("--no-cog", dest="cog", action='store_false',
+                   help="for raster formats, write plain GeoTIFFs instead of "
+                        "Cloud Optimized GeoTIFFs")
 
     # Indexing options
     p.add_argument("-egi", "--egi", dest="egi", type=parse_egi_levels, default=None,
@@ -223,7 +226,7 @@ def main():
             gh3.gh3_export(
                 ddf, output=args.output, fmt=args.format, merge=args.merge,
                 show_progress=not getattr(args, 'quiet', False),
-                drop_internal=False,
+                drop_internal=False, cog=getattr(args, 'cog', True),
                 source_database=args.database, tool='gh3_extract',
                 **meta_kwargs
             )

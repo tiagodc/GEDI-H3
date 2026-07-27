@@ -43,6 +43,8 @@ def get_cmd_args():
     p.add_argument("--compress", dest="compress", type=str, default='LZW',
                    choices=['LZW', 'ZSTD', 'DEFLATE', 'PACKBITS', 'NONE'],
                    help="GeoTIFF compression [default=LZW]")
+    p.add_argument("--no-cog", dest="cog", action='store_false',
+                   help="write plain GeoTIFFs instead of Cloud Optimized GeoTIFFs")
 
     # Variable selection
     p.add_argument("-l", "--list", dest="list", nargs='+', type=str, default=None,
@@ -94,7 +96,7 @@ def _rasterize_dataset(dataset_path, output_path, args, logger):
         dataset_path, output_path,
         columns=args.list if args.list else None,
         merge=args.merge, query=args.query,
-        compress=args.compress, show_progress=not args.quiet
+        compress=args.compress, cog=args.cog, show_progress=not args.quiet
     )
 
     if args.merge:

@@ -243,6 +243,17 @@ gh3.gh3_rasterize('/data/agbd_egi_agg', 'tiles/',
 EGI output stays in **EPSG:6933** (EASE-Grid 2.0) so it stacks with GEDI L4B; H3 output is
 EPSG:4326. EGI rasters are never reprojected — that alignment is the reason EGI exists.
 
+Image output is a **Cloud Optimized GeoTIFF with LZW compression** by default — internally
+tiled, with an overview pyramid, so a COG reader over HTTP or S3 fetches only the bytes it
+needs. A COG is a valid GeoTIFF, so nothing that read the old output breaks. Pass
+`cog=False` (or `--no-cog` on the CLIs) for a plain GeoTIFF:
+
+```python
+gh3.gh3_rasterize(ddf, 'tiles/', compress='ZSTD')   # COG + ZSTD
+gh3.gh3_rasterize(ddf, 'tiles/', cog=False)         # plain GeoTIFF, no overviews
+gh3.gh3_export(ddf, 'tiles/', fmt='tif')            # same pipeline, from export
+```
+
 For a single in-memory frame, `gh3_to_raster()` returns the `xarray.Dataset` directly,
 dispatching on index type the same way:
 

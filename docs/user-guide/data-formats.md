@@ -128,9 +128,11 @@ All three routes go through the same rasterization pipeline, for both H3 and
 EGI, so they produce identical output.
 
 Key properties:
+- **Cloud Optimized GeoTIFF by default** — internally tiled with an overview pyramid, so viewers and range-reading clients (COG readers over HTTP/S3) fetch only the bytes they need. A COG is a valid GeoTIFF, so every reader still works; pass `--no-cog` for a plain GeoTIFF with no overviews
+- **LZW compression by default** — override with `--compress`
 - **Tiled by default** — one file per spatial partition, named after the partition ID, plus a `mosaic.vrt` covering them
 - **CRS follows the index** — EPSG:4326 for H3, EPSG:6933 (EASE-Grid 2.0) for EGI, which is never reprojected
-- **Compression support** — `LZW`, `DEFLATE`, `ZSTD`, `NONE`
+- **Compression support** — `LZW`, `DEFLATE`, `ZSTD`, `PACKBITS`, `NONE`
 - **BIGTIFF support** — for files exceeding 4 GB
 - **Time-series naming** — when produced from time-windowed data, files are named after their temporal windows
 
