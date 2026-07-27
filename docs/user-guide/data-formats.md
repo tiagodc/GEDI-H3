@@ -107,7 +107,8 @@ gdf = gh3.gh3_load(source='/path/to/output/').compute()
 
 ## GeoTIFF (Raster Output)
 
-Created by `gh3_rasterize` or the `-R` flag in `gh3_aggregate`. Standard GeoTIFF files compatible with GDAL, QGIS, R (`terra`), Python (`rasterio`,`rioxarray`), and virtually any GIS tool.
+Created by `gh3_rasterize`, the `-R` flag in `gh3_aggregate`, or `-f tif` on
+`gh3_extract` / `gh3_aggregate`. Standard GeoTIFF files compatible with GDAL, QGIS, R (`terra`), Python (`rasterio`,`rioxarray`), and virtually any GIS tool.
 
 ```bash
 # Tiled output (one file per partition)
@@ -118,10 +119,17 @@ gh3_rasterize -d aggregated/ -m -o output.tif --compress LZW
 
 # Select specific variables
 gh3_rasterize -d aggregated/ -l agbd_l4a_mean -o rasters/
+
+# Straight to GeoTIFF from extract/aggregate, no separate rasterize step
+gh3_extract -r region.shp -l4a agbd -egi 6 -f tif -o rasters/
 ```
 
+All three routes go through the same rasterization pipeline, for both H3 and
+EGI, so they produce identical output.
+
 Key properties:
-- **Tiled by default** — output is split by spatial partition for efficient access
+- **Tiled by default** — one file per spatial partition, named after the partition ID, plus a `mosaic.vrt` covering them
+- **CRS follows the index** — EPSG:4326 for H3, EPSG:6933 (EASE-Grid 2.0) for EGI, which is never reprojected
 - **Compression support** — `LZW`, `DEFLATE`, `ZSTD`, `NONE`
 - **BIGTIFF support** — for files exceeding 4 GB
 - **Time-series naming** — when produced from time-windowed data, files are named after their temporal windows

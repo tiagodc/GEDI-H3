@@ -67,6 +67,40 @@ class TestExportGeoTIFF:
         assert rioxarray.open_rasterio(ofiles[0]).rio.crs.to_epsg() == expected
 
 
+class TestCliAcceptsRasterFormats:
+    """`-f tif` has to survive the CLI's format validation, on every tool.
+
+    gh3_aggregate ran args.format through parse_file_format, whose
+    VALID_FORMATS list had no raster entries — so `-f tif` was rejected there
+    while gh3_extract (which passes args.format straight through) accepted it.
+    """
+
+    @pytest.mark.parametrize('fmt', ['tif', 'tiff', 'geotiff', 'nc'])
+    def test_raster_formats_pass_validation(self, fmt):
+        import argparse
+
+        from gedih3.cliutils import parse_file_format
+
+        args = argparse.Namespace(output='out_dir', format=fmt)
+        assert parse_file_format(args) == fmt
+
+    def test_unknown_format_still_rejected(self):
+        import argparse
+
+        from gedih3.cliutils import parse_file_format
+
+        args = argparse.Namespace(output='out_dir', format='jpeg2000')
+        with pytest.raises(GediValidationError, match='Invalid file format'):
+            parse_file_format(args)
+
+    def test_valid_formats_covers_every_raster_format(self):
+        """The two lists must not drift apart."""
+        from gedih3.cliutils import VALID_FORMATS
+        from gedih3.raster import RASTER_FORMATS
+
+        assert set(RASTER_FORMATS) <= set(VALID_FORMATS)
+
+
 class TestExportRasterEdges:
 
     def test_netcdf_is_tiled_only(self, tmp_dir):
@@ -111,6 +145,16 @@ class TestExportRasterEdges:
                        + np.uint64(100) * np.uint64(10**15)
                        + np.uint64(50) * np.uint64(10**12))
         assert [os.path.basename(p) for p in ofiles] == [f'{expected}.tif']
+
+    def test_missing_geometry_is_a_legible_error(self, tmp_dir):
+        """Without geometry the rasterizers fail on .crs inside a worker, the
+        per-partition handler swallows it, and the run used to end with the
+        unhelpful "No output files were created"."""
+        ddf = _h3_ddf().drop(columns=['geometry'])
+
+        with pytest.raises(GediValidationError, match="needs a 'geometry' column"):
+            gh3.gh3_export(ddf, output=os.path.join(tmp_dir, 'nogeom'),
+                           fmt='tif', show_progress=False)
 
     def test_tiled_raster_export_builds_a_mosaic(self, tmp_dir):
         """gh3_export inherits the VRT that only the raster pipeline built."""

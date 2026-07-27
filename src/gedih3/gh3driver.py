@@ -4291,6 +4291,18 @@ def gh3_rasterize(data, output, columns=None, merge=False, query=None,
             "or index_type='egi', or supply data carrying an 'h3_*' / 'egi*' index."
         )
 
+    # Rasterizing needs geometry: the rasterizers reproject and burn polygons,
+    # and a plain DataFrame fails on the missing .crs deep inside a worker,
+    # where the per-partition handler swallows it and the run ends with the
+    # unhelpful "No output files were created".
+    meta = ddf._meta if hasattr(ddf, '_meta') else ddf
+    if 'geometry' not in getattr(meta, 'columns', []):
+        raise GediValidationError(
+            "Rasterization needs a 'geometry' column and this data has none. Re-run the "
+            "extract/aggregate step including geometry (add it to -l/--list), or load the "
+            "dataset with geometry before calling gh3_rasterize()."
+        )
+
     rasterize_kwargs = {}
     if index_type == 'egi':
         from . import egi
