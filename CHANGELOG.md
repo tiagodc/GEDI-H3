@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.17.0] - 2026-07-27
+
+### Added
+- **`gh3_rasterize(data, output, ...)`**: one call from a dataset directory *or* a (Dask) frame to rasters, for **both index types**. It detects the spatial index, picks the rasterizer, resolves the partition level and column wildcards, and delegates to the existing `rasterize_and_export_partitions` / `merge_and_export_rasters`. Previously there was no public way to rasterize an EGI-indexed Dask DataFrame across its partitions at all: `gh3_rasterize_partitions` hard-wired the H3 rasterizer, and `gh3_to_raster` died on an EGI frame with a misleading "cannot determine raster resolution". Both the `gh3_rasterize` CLI and the `gh3_aggregate -R` branch now delegate to it — that glue was duplicated in two places and had already drifted (`-R` never passed `partition_level`; the CLI bypassed `_resolve_columns`, so its documented `-l 'agbd_*'` wildcard did not work). Supports tiled output (one GeoTIFF per partition plus `mosaic.vrt`) or `merge=True`.
+- **Raster formats in `gh3_export`**: `fmt='tif'` (and `'nc'`, tiled) now work for **H3**, which previously raised "Unsupported export format: tif". EGI already worked but through a second rasterization implementation inlined in `_write_egi_file` that bypassed the outer-tile invariant, the VRT and the naming; every raster format now routes through `gh3_rasterize`, so one implementation backs `gh3_export`, `gh3_extract -f tif`, `gh3_aggregate -f tif`, `gh3_aggregate -R` and `gh3_rasterize` alike.
+- `egi.split_by_outer_tile(gdf)`: the explicit escape hatch for callers that legitimately hold a multi-tile EGI frame — an aggregate over an arbitrary ROI, i.e. `TimeSeriesRasterizer` — now that `rasterize_partition` treats a multi-tile *partition* as the invariant violation it is.
+- `--no-cog` on `gh3_rasterize`, `gh3_aggregate` and `gh3_extract`; `cog=` on `gh3_rasterize`, `gh3_export` and the `raster.export_*` family.
+- `gh3_rasterize` reports overwritten tiles: when two partitions resolve to the same output name it logs an ERROR naming them rather than letting the last write win silently.
+
+### Changed
+- **Image output is a Cloud Optimized GeoTIFF by default** (LZW unchanged): internally tiled at 256 px with an overview pyramid, so viewers and range-reading clients over HTTP/S3 fetch only the bytes they need. A COG is a valid GeoTIFF, so every reader that handled the previous output still does; the cost is the pyramid on disk (90 KiB → 130 KiB on a sparse level-4 tile). The GDAL COG driver takes its own creation-option names — `BLOCKSIZE`, not `TILED`/`BLOCKXSIZE`, and it is always tiled — so this is a separate `get_cog_options()` builder rather than a flag on `get_geotiff_options()`; handing the driver the GeoTIFF spellings is silently ignored and yields the 512-px driver defaults.
+- **`egi.rasterize_partition` enforces one partition = one outer tile = one raster.** An EGI partition nests in exactly one level-12 tile by construction (`egi_export_part`, `_prepare_egi_loading`), so the function no longer splits silently across tiles: it reports a violation with a WARNING and rasterizes the tile holding the most rows, always returning a Series of length 0 or 1. This deletes the split loop and its per-tile `logger.debug` swallow, and makes the comma-joined multi-path machinery downstream dead on the EGI side.
+- `gh3_to_raster` dispatches on index type — EGI frames route to `egi.geodf_to_raster` (EPSG:6933) instead of raising.
+- `egi.export_raster` is now a thin alias for `raster.export_raster`. It was a near-copy that inlined its own creation options and so already missed the parent's directory creation and `compress='NONE'` handling.
+- Agent-facing documentation reworked: `CLAUDE.md` rewritten as invariants rather than a reference manual, path-scoped `.claude/rules/*`, a `find-existing-helper` skill indexing the reusable helpers, the four custom subagents removed, and a test guarding all of it against drift.
+
+### Fixed
+- **Silent data loss rasterizing EGI partitions finer than level 12** (`-egi 6:10`, `-egi 1:10`): tiles were named after the level-12 *outer tile*, so several partitions sharing a tile wrote to the same path and every one but the last was replaced — no error, no log line. Reproduced at 2 partitions → 1 file, 3 of 6 pixels kept. EGI now names tiles by **partition identity**, the way the H3 rasterizer already did (`egi<level>_id` below 12, `egi12_id` unchanged for the standard case, so existing filenames are stable). The level comes from the dataset sidecar or the coarsest `egiNN` column; where neither exists the collision is reported instead of being silent.
+- `merge_and_export_rasters` silently discarded tiles on its non-Dask branch — it kept only `iloc[0]` when the rasterizer returned several. It now warns and merges them.
+- `gh3_aggregate` rejected `-f tif` outright: it validates `args.format` through `parse_file_format`, whose `VALID_FORMATS` carried no raster entries, so the same flag worked on `gh3_extract` (which passes it straight through) and failed on `gh3_aggregate`. `VALID_FORMATS` now covers `RASTER_FORMATS`, with a test asserting the two cannot drift apart.
+- `gh3_extract -f tif` produced nothing for H3: geometry was only added to the column list for EGI, so the H3 frame reached the rasterizer as a plain DataFrame, died on the missing `.crs` inside a worker, and the swallowed per-partition failure surfaced as "No output files were created". Extract now includes geometry for any raster format, and `gh3_rasterize` checks for it on the driver so the failure is legible before work is scheduled.
+- `merge=True` with a non-GeoTIFF raster format raised nothing and emitted a GeoTIFF under a `.nc` name; it now raises `GediValidationError`.
+
 ## [0.16.2] - 2026-07-27
 
 ### Added
