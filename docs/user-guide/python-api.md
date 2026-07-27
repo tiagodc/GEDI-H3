@@ -118,6 +118,29 @@ ddf = gh3.gh3_load(
 )
 ```
 
+#### Pushdown filters (`filters=`)
+
+`query=` filters in pandas *after* each partition is read. `filters=` hands the
+predicate to the parquet reader, so row groups that cannot match are never
+decompressed and the rows never enter worker memory. Both `gh3_load` and
+`egi_load` take it, with the same pyarrow contract — a conjunctive list of
+`(column, op, value)` tuples, a DNF list-of-lists, or a
+`pyarrow.compute.Expression`:
+
+```python
+ddf = gh3.egi_load(
+    source='/path/to/h3_database/',
+    columns=['agbd_l4a'],
+    region=polygon,
+    filters=[('l2_quality_flag_l4a', '==', 1), ('agbd_l4a', '>', 0)],
+)
+```
+
+Predicate columns do not have to appear in `columns=` — pyarrow reads them for
+the filter and leaves them out of the frame. The predicate is ANDed with the
+spatial filtering `region=` already applies. Parquet only: on a feather or gpkg
+dataset `filters=` raises rather than silently returning unfiltered rows.
+
 Remote sources work the same way in Python as on the command line — including
 self-hosted S3 with the endpoint carried in the URL itself
 (`source='s3://host:port/bucket/db'`); an endpoint configured explicitly via
