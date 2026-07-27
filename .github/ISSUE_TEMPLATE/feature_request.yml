@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest a capability or improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: >
+        Describe the analysis or workflow you are blocked on, not just the
+        feature. Knowing the underlying goal often surfaces a way to do it with
+        what already exists.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like gedih3 to do
+      description: If you have a CLI or API shape in mind, sketch it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: >
+        Existing flags, the Python API, or external tooling — and where each one
+        fell short.
+
+  - type: textarea
+    id: scale
+    attributes:
+      label: Scale
+      description: >
+        Roughly how much data would this run over — one region, a continent,
+        global? Design choices in gedih3 are dominated by scale, so this
+        materially affects the answer.

@@ -1,0 +1,76 @@
+name: Bug report
+description: Something in gedih3 behaves incorrectly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. A minimal reproduction is by far the most useful
+        thing you can include — it usually determines whether a bug is fixed in
+        days or in months.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: >
+        The shortest command or script that shows the problem. If it needs data,
+        say which GEDI product, version, and region — or whether it reproduces
+        against a small synthetic database.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Error output
+      description: >
+        Full traceback or log excerpt. Re-run with `-v` for INFO or `-vv` for
+        DEBUG if the failure is not obvious.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: gedih3 version
+      description: "`python -c \"import gedih3; print(gedih3.__version__)\"`"
+    validations:
+      required: true
+
+  - type: input
+    id: python-os
+    attributes:
+      label: Python version and OS
+      placeholder: "e.g. Python 3.12, Ubuntu 24.04"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How was it installed
+      options:
+        - pip
+        - conda-forge
+        - uv
+        - from source
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: >
+        Scale (single granule vs. continental), whether a dask cluster is
+        involved, whether the database is local or on remote/object storage.
+        Please redact credentials and any private paths.
