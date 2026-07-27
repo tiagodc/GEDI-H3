@@ -263,7 +263,8 @@ def split_by_outer_tile(gdf: gpd.GeoDataFrame) -> List[tuple]:
 def rasterize_partition(
     gdf: gpd.GeoDataFrame,
     columns: Optional[List[str]] = None,
-    include_egi_id: bool = True
+    include_egi_id: bool = True,
+    partition_level: Optional[int] = None
 ) -> pd.Series:
     """
     Rasterize a single EGI partition (for use with Dask map_partitions).
@@ -284,6 +285,13 @@ def rasterize_partition(
         Columns to rasterize
     include_egi_id : bool
         If True, include outer tile ID in raster attributes
+    partition_level : int, optional
+        EGI level the data is partitioned at. Drives the ``egiNN_id`` attribute
+        that names the output file, so it must identify the *partition*, not
+        the raster's level-12 tile: when partitions are finer than level 12,
+        several of them share one outer tile and naming by the tile makes them
+        overwrite each other. None (the default) stamps ``egi12_id``, which is
+        correct for the standard level-12 partitioning.
 
     Returns
     -------
@@ -326,8 +334,19 @@ def rasterize_partition(
         if len(xras.data_vars) == 0:
             return pd.Series(dtype=object)
 
+        # Name by PARTITION identity, the way the H3 rasterizer does. Below
+        # level 12 several partitions share an outer tile, so stamping the
+        # tile id would give them all the same filename and the last one
+        # written would silently replace the rest.
+        if partition_level is not None and partition_level < OUTER_LEVEL:
+            from .core import to_parent
+            part_id = int(np.asarray(to_parent(egi_hashes[:1], partition_level))[0])
+            attrs = {f'egi{partition_level:02d}_id': part_id}
+        else:
+            attrs = {'egi12_id': egi12_id}
+
         for var in list(xras.data_vars):
-            xras[var] = xras[var].assign_attrs(egi12_id=egi12_id)
+            xras[var] = xras[var].assign_attrs(**attrs)
 
         return object_series([xras])
 
