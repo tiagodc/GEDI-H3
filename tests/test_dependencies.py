@@ -182,10 +182,24 @@ class TestDeclaredDependencies:
         assert not mismatched, 'constraints-min.txt has drifted:\n  ' + '\n  '.join(mismatched)
 
     def test_recipe_matches_pyproject(self):
-        """The conda recipe's run deps must not drift from pyproject's."""
+        """The conda recipe's run deps must not drift from pyproject's.
+
+        The in-repo recipe was retired once the conda-forge feedstock became the
+        source of truth, so this normally skips. That is a real coverage gap
+        rather than a clean pass: nothing here can see the feedstock, so a
+        dependency or a `[project.scripts]` entry point added to this repo and
+        not mirrored at
+        https://github.com/conda-forge/gedih3-feedstock will produce a broken
+        conda package and no failing test. Mirror it by hand — the autotick bot
+        only bumps the version and the sdist hash.
+        """
         recipe_path = os.path.join(REPO_ROOT, 'recipe', 'meta.yaml')
         if not os.path.exists(recipe_path):
-            pytest.skip('no conda recipe')
+            pytest.skip(
+                'no in-repo conda recipe: dependency and entry-point parity with '
+                'conda-forge/gedih3-feedstock is NOT verified by CI and must be '
+                'maintained by hand'
+            )
 
         with open(recipe_path) as handle:
             lines = handle.read().splitlines()
