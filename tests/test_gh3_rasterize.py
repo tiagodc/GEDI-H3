@@ -164,6 +164,87 @@ class TestGh3RasterizeFrames:
             gh3.gh3_rasterize(ddf, os.path.join(tmp_dir, 'q'), query='val > 1')
 
 
+class TestSubTwelvePartitionNaming:
+    """Partitions finer than level 12 must not collide on output filename.
+
+    Several level-N (N < 12) partitions nest in one level-12 outer tile. Naming
+    tiles after the outer tile made them all write to the same path, so every
+    partition but the last was silently replaced. Tiles are now named after the
+    partition, the way the H3 rasterizer already did.
+    """
+
+    PART = 10
+
+    def _sub12_ddf(self, with_part_col):
+        """Two distinct level-10 partitions inside ONE level-12 outer tile."""
+        from gedih3 import egi
+        from gedih3.egi.config import LIMITS, OUTER_RES
+
+        res = egi.get_resolution(LEVEL)
+        x0 = LIMITS['lon_w'] + 100 * OUTER_RES
+        y0 = LIMITS['lat_s'] + 50 * OUTER_RES
+
+        parts = []
+        for offset in (2, 100):
+            xs = x0 + res * (np.arange(3) + offset + 0.5)
+            ys = y0 + res * (np.arange(3) + offset + 0.5)
+            hashes = np.array([egi.to_hash(x, y, level=LEVEL) for x, y in zip(xs, ys)],
+                              dtype=np.uint64)
+            data = {'val': np.arange(3, dtype=float) + offset}
+            if with_part_col:
+                data[f'egi{self.PART}'] = [int(v) for v in egi.to_parent(hashes, self.PART)]
+            gdf = gpd.GeoDataFrame(
+                data, geometry=gpd.points_from_xy(xs, ys), crs='EPSG:6933',
+                index=pd.Index(hashes, name=f'egi{LEVEL:02d}'))
+            parts.append(dask_geopandas.from_geopandas(gdf, npartitions=1))
+        return dd.concat(parts)
+
+    @staticmethod
+    def _finite_pixels(paths):
+        import rioxarray
+        return sum(int(np.isfinite(rioxarray.open_rasterio(p).values).sum())
+                   for p in paths)
+
+    def test_partition_column_gives_each_partition_its_own_tile(self, tmp_dir):
+        out = os.path.join(tmp_dir, 'sub12_col')
+        paths = gh3.gh3_rasterize(self._sub12_ddf(True), out)
+
+        assert len(set(paths)) == 2
+        assert self._finite_pixels(paths) == 6      # nothing dropped
+
+    def test_explicit_partition_level_is_enough(self, tmp_dir):
+        out = os.path.join(tmp_dir, 'sub12_explicit')
+        paths = gh3.gh3_rasterize(self._sub12_ddf(False), out,
+                                  partition_level=self.PART)
+
+        assert len(set(paths)) == 2
+        assert self._finite_pixels(paths) == 6
+
+    def test_unresolvable_collision_is_reported(self, tmp_dir, caplog):
+        """Nothing identifies the partitions — the loss is unavoidable, but
+        it must never be silent."""
+        out = os.path.join(tmp_dir, 'sub12_blind')
+
+        lg = logging.getLogger('gedih3.gh3driver')
+        lg.addHandler(caplog.handler)
+        try:
+            with caplog.at_level(logging.ERROR, logger='gedih3.gh3driver'):
+                paths = gh3.gh3_rasterize(self._sub12_ddf(False), out)
+        finally:
+            lg.removeHandler(caplog.handler)
+
+        assert len(set(paths)) == 1 and len(paths) == 2
+        assert 'were overwritten' in caplog.text
+
+    def test_level_12_partitioning_keeps_the_tile_id(self, tmp_dir):
+        """The standard case is unchanged: files named by the level-12 tile."""
+        out = os.path.join(tmp_dir, 'lvl12')
+        paths = gh3.gh3_rasterize(_egi_ddf({(100, 50): 5, (101, 50): 3}), out)
+
+        assert sorted(os.path.basename(p) for p in paths) == sorted(
+            [f'{_egi12_id(100, 50)}.tif', f'{_egi12_id(101, 50)}.tif'])
+
+
 # =============================================================================
 # gh3_rasterize — plain (non-dask) frame
 # =============================================================================

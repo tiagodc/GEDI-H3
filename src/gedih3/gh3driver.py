@@ -4124,6 +4124,35 @@ def _h3_partition_level_from_dataset(path, info):
     return partition_level, source
 
 
+def _egi_partition_level(ddf, info):
+    """Resolve the EGI level a frame or dataset is partitioned at.
+
+    The sidecar knows it for a dataset; for a bare frame the coarsest ``egiNN``
+    column is the partition column (see ``_detect_export_params``). Returns
+    None when neither is available, which leaves the rasterizer on its
+    level-12 default.
+
+    Parameters
+    ----------
+    ddf : DataFrame
+        Dask or in-memory EGI-indexed frame.
+    info : dict
+        ``get_dataset_index_info`` result, or ``{}`` for frame input.
+
+    Returns
+    -------
+    int or None
+    """
+    level = info.get('egi_partition_level') or info.get('partition_level')
+    if level is not None:
+        return int(level)
+
+    _, part_col, _, _ = _detect_export_params(ddf, index_type='egi')
+    if part_col:
+        return int(str(part_col).replace('egi', ''))
+    return None
+
+
 def gh3_rasterize(data, output, columns=None, merge=False, query=None,
                   index_type=None, partition_level=None, fmt='tif',
                   compress='LZW', show_progress=True):
@@ -4239,6 +4268,13 @@ def gh3_rasterize(data, output, columns=None, merge=False, query=None,
     if index_type == 'egi':
         from . import egi
         rasterize_func = egi.rasterize_partition
+        # Output files are named from the partition id. Below level 12 several
+        # partitions share an outer tile, so the rasterizer needs the level to
+        # name them apart — otherwise they all collide on the tile id.
+        if partition_level is None:
+            partition_level = _egi_partition_level(ddf, info)
+        if partition_level is not None:
+            rasterize_kwargs['partition_level'] = partition_level
         logger.info(f"Rasterizing EGI-indexed data ({ddf.npartitions} partitions)"
                     if hasattr(ddf, 'npartitions') else "Rasterizing EGI-indexed data")
     else:
@@ -4268,7 +4304,24 @@ def gh3_rasterize(data, output, columns=None, merge=False, query=None,
     # export_raster_partition comma-joins when a partition yields several tiles.
     # EGI never does (one partition = one tile); H3 can when a partition holds
     # cells from several parents. Flatten so the return is always file paths.
-    return [p for entry in result if entry for p in entry.split(',') if p]
+    paths = [p for entry in result if entry for p in entry.split(',') if p]
+
+    # Tiles are named from the partition id carried in the raster attributes.
+    # If two partitions resolve to the same id they write to the same path and
+    # the last one silently replaces the rest — never let that pass quietly.
+    # The usual cause is EGI partitions finer than level 12 on a frame that
+    # carries no egiNN partition column, so the level cannot be recovered.
+    duplicates = {p for p in paths if paths.count(p) > 1}
+    if duplicates:
+        logger.error(
+            f"{len(paths) - len(set(paths))} raster tile(s) were overwritten: "
+            f"{sorted(duplicates)[:3]}{'...' if len(duplicates) > 3 else ''}. Several "
+            f"partitions resolved to the same output name, so only the last write "
+            f"survives. Pass partition_level= explicitly, or rasterize data that "
+            f"still carries its partition column."
+        )
+
+    return paths
 
 
 def gh3_rasterize_partitions(
