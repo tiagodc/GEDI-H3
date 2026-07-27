@@ -308,17 +308,25 @@ Module Contents
            Pandas query string for filtering.
 
        **from_map** : bool
-           Use from_map loading for H3 databases (default True).
+           Use from_map loading for H3 databases (default True). DEPRECATED —
+           ``from_map=False`` selects the original ``dask_geopandas.read_parquet``
+           path, which is unmaintained and slower on every axis (reads
+           ``_metadata``, no region bbox pushdown, no ``_bbox_index`` file
+           skipping). The argument and that branch are slated for removal; leave
+           it at the default.
 
        **lazy** : bool
            If True (default), return Dask DataFrame. If False, return computed
            pandas DataFrame.
 
-       **filters** : list, optional
+       **filters** : list or pyarrow.compute.Expression, optional
            PyArrow predicate pushdown filters (conjunctive list of
-           ``(column, op, value)`` tuples), applied as per-file row-group pushdown
-           during the read. Works for H3 databases and simplified parquet datasets,
-           and combines (AND) with ``region`` when both are given.
+           ``(column, op, value)`` tuples, a DNF list-of-lists, or an Expression),
+           applied as per-file row-group pushdown during the read. Works for H3
+           databases and simplified parquet datasets, and combines (AND) with
+           ``region`` when both are given — the region bbox prefilter stays on,
+           both predicates are pushed to the same row-group stats layer.
+           Predicate columns do not have to be listed in ``columns``.
 
 
 
@@ -563,7 +571,7 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
-.. py:function:: egi_load(source=None, *, columns=None, region=None, query=None, index_level=1, partition_level=12, lazy=True)
+.. py:function:: egi_load(source=None, *, columns=None, region=None, query=None, index_level=1, partition_level=12, lazy=True, filters=None)
 
    
    Load EGI-indexed GEDI data from any source.
@@ -599,6 +607,18 @@ Module Contents
        **lazy** : bool
            If True (default), return Dask DataFrame. If False, return computed
            pandas DataFrame.
+
+       **filters** : list or pyarrow.compute.Expression, optional
+           PyArrow predicate pushdown filters (conjunctive list of
+           ``(column, op, value)`` tuples, a DNF list-of-lists, or an
+           Expression) — same contract as ``gh3_load(filters=...)``. Pushed
+           straight into each per-year parquet read, so row groups that cannot
+           match are never decompressed, and ANDed with the tile bbox predicate
+           when both apply. Unlike ``query``, which filters in pandas after the
+           read, the rows never enter worker memory. Predicate columns do not
+           have to be listed in ``columns``. A file whose schema lacks a
+           predicate column raises rather than silently returning unfiltered
+           rows.
 
 
 
@@ -637,6 +657,15 @@ Module Contents
    ...     partition_level=12,
    ... )
    >>> agg = gh3.egi_aggregate(ddf, target_level=6, agg='mean')
+
+   >>> # Predicate pushdown: quality-flag rows are dropped at the parquet
+   >>> # row-group layer, before anything reaches worker memory.
+   >>> ddf = gh3.egi_load(
+   ...     source='/path/to/h3_database',
+   ...     columns=['agbd_l4a'],
+   ...     region='region.shp',
+   ...     filters=[('l2_quality_flag_l4a', '==', 1), ('agbd_l4a', '>', 0)],
+   ... )
 
    ..
        !! processed by numpydoc !!

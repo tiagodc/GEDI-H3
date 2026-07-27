@@ -7,7 +7,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gedih3.gh3driver &#8212; gedih3 0.16.1 documentation</title>
+    <title>gedih3.gh3driver &#8212; gedih3 0.16.2 documentation</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../_static/documentation_options.js?v=56c55dd0"></script>
+    <script src="../../_static/documentation_options.js?v=7674c73b"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/design-tabs.js?v=f930bc37"></script>
@@ -479,8 +479,8 @@ window.runMermaid = runMermaid;</script>
       
     
     
-    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.1 documentation - Home"/>
-    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.1 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.2 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.2 documentation - Home"/>
   
   
 </a></div>
@@ -1280,6 +1280,19 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">selected</span><span class="p">)</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_check_filters_supported</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">filters</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reject ``filters=`` on formats with no predicate-pushdown reader.</span>
+
+<span class="sd">    Only parquet carries row-group statistics. Silently ignoring the</span>
+<span class="sd">    predicate on feather / gpkg would hand back unfiltered rows that the</span>
+<span class="sd">    caller believes are filtered — the one failure mode worth a hard error.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">filters</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">fmt</span> <span class="o">!=</span> <span class="s1">&#39;parquet&#39;</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;filters= requires a parquet dataset (got &#39;</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">&#39;); predicate &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;pushdown has no equivalent in this format. Use query= instead.&quot;</span><span class="p">)</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_load_dataset</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Internal: load from simplified dataset (H3 or EGI).</span>
 
@@ -1297,8 +1310,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Spatial filter for clipping.</span>
 <span class="sd">    lazy : bool</span>
 <span class="sd">        If True, return Dask DataFrame. If False, return computed DataFrame.</span>
-<span class="sd">    filters : list, optional</span>
-<span class="sd">        PyArrow predicate pushdown filters (only for lazy=False + parquet).</span>
+<span class="sd">    filters : list or pyarrow.compute.Expression, optional</span>
+<span class="sd">        PyArrow predicate pushdown filters, applied per file at read time in</span>
+<span class="sd">        both eager and lazy mode. Parquet only — see ``_check_filters_supported``.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -1313,11 +1327,14 @@ window.runMermaid = runMermaid;</script>
         <span class="k">if</span> <span class="n">smart_isfile</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
             <span class="n">ext</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">path</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
             <span class="n">fmt</span> <span class="o">=</span> <span class="n">ext</span> <span class="k">if</span> <span class="n">ext</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;parquet&#39;</span><span class="p">,</span> <span class="s1">&#39;feather&#39;</span><span class="p">,</span> <span class="s1">&#39;gpkg&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="s1">&#39;parquet&#39;</span>
+            <span class="n">_check_filters_supported</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">filters</span><span class="p">)</span>
             <span class="n">_</span><span class="p">,</span> <span class="n">has_geo</span> <span class="o">=</span> <span class="n">read_dataset_schema</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">fmt</span><span class="p">)</span>
-            <span class="n">reader</span> <span class="o">=</span> <span class="n">make_dataset_reader</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">has_geo</span><span class="p">)</span>
+            <span class="n">reader</span> <span class="o">=</span> <span class="n">make_dataset_reader</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">has_geo</span><span class="p">,</span>
+                                         <span class="n">filters</span><span class="o">=</span><span class="n">filters</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">reader</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
 
         <span class="n">fmt</span> <span class="o">=</span> <span class="n">detect_dataset_format</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="n">_check_filters_supported</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">filters</span><span class="p">)</span>
         <span class="n">data_files</span><span class="p">,</span> <span class="n">fmt</span> <span class="o">=</span> <span class="n">_find_dataset_files</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">fmt</span><span class="p">)</span>
         <span class="n">data_files</span> <span class="o">=</span> <span class="n">_select_dataset_files</span><span class="p">(</span><span class="n">data_files</span><span class="p">,</span> <span class="n">region</span><span class="p">,</span> <span class="n">dataset_path</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
         <span class="n">_</span><span class="p">,</span> <span class="n">has_geo</span> <span class="o">=</span> <span class="n">read_dataset_schema</span><span class="p">(</span><span class="n">data_files</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">fmt</span><span class="p">)</span>
@@ -1358,6 +1375,7 @@ window.runMermaid = runMermaid;</script>
 
     <span class="c1"># --- Lazy mode ---</span>
     <span class="n">fmt</span> <span class="o">=</span> <span class="n">detect_dataset_format</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="n">_check_filters_supported</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">filters</span><span class="p">)</span>
 
     <span class="c1"># Handle query-column expansion</span>
     <span class="n">load_columns</span> <span class="o">=</span> <span class="n">columns</span>
@@ -1385,8 +1403,11 @@ window.runMermaid = runMermaid;</script>
         <span class="k">if</span> <span class="n">index_col</span> <span class="ow">and</span> <span class="n">index_col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">load_cols</span> <span class="ow">and</span> <span class="n">index_col</span> <span class="ow">in</span> <span class="n">col_names</span><span class="p">:</span>
             <span class="n">load_cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">index_col</span><span class="p">)</span>
 
-    <span class="c1"># Build reader and metadata</span>
-    <span class="n">reader</span> <span class="o">=</span> <span class="n">make_dataset_reader</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">load_cols</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">has_geometry</span><span class="p">)</span>
+    <span class="c1"># Build reader and metadata. `filters` rides along in the reader closure,</span>
+    <span class="c1"># so every per-file task in the from_map graph pushes the predicate down</span>
+    <span class="c1"># to the parquet row-group stats — the rows never enter worker memory.</span>
+    <span class="n">reader</span> <span class="o">=</span> <span class="n">make_dataset_reader</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">load_cols</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">has_geometry</span><span class="p">,</span>
+                                 <span class="n">filters</span><span class="o">=</span><span class="n">filters</span><span class="p">)</span>
     <span class="n">_meta</span> <span class="o">=</span> <span class="n">reader</span><span class="p">(</span><span class="n">data_files</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
 
     <span class="c1"># Wrap reader to propagate storage credentials to Dask workers</span>
@@ -1661,7 +1682,26 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="n">result</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_read_parquet_bbox</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">bbox_4326</span><span class="p">,</span> <span class="n">clip_box</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">geo</span><span class="p">,</span> <span class="n">strategy</span><span class="p">,</span> <span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_combine_filters</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">extra</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;AND two pyarrow predicate specs into one the parquet readers accept.</span>
+
+<span class="sd">    Either side may be a conjunctive ``[(col, op, val), ...]`` list, a DNF</span>
+<span class="sd">    ``[[...], [...]]`` list, or a ``pyarrow.compute.Expression``. Plain</span>
+<span class="sd">    concatenation is only correct for two conjunctive lists — it silently</span>
+<span class="sd">    produces a malformed spec when either side is DNF — so both are lifted</span>
+<span class="sd">    to Expressions and combined with ``&amp;``. ``pq.read_table`` and</span>
+<span class="sd">    ``gpd.read_parquet`` both take an Expression wherever they take a list.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">extra</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">extra</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">))</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">extra</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">base</span>
+    <span class="k">if</span> <span class="n">base</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">))</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">base</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">extra</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+    <span class="k">return</span> <span class="n">pq</span><span class="o">.</span><span class="n">filters_to_expression</span><span class="p">(</span><span class="n">base</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">pq</span><span class="o">.</span><span class="n">filters_to_expression</span><span class="p">(</span><span class="n">extra</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_read_parquet_bbox</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">bbox_4326</span><span class="p">,</span> <span class="n">clip_box</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">geo</span><span class="p">,</span> <span class="n">strategy</span><span class="p">,</span> <span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="p">,</span>
+                       <span class="n">extra_filters</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Single-file bbox-filtered parquet read, routed by `strategy`.</span>
 
 <span class="sd">    All three paths return a DataFrame whose rows satisfy the bbox predicate</span>
@@ -1669,6 +1709,14 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    parquet-stats layer so the peak working set is bounded by the</span>
 <span class="sd">    bbox-clipped result; the fallback materializes the full column-projected</span>
 <span class="sd">    file before clipping in memory.</span>
+
+<span class="sd">    ``extra_filters`` is a caller-supplied pyarrow predicate spec ANDed with</span>
+<span class="sd">    whatever the strategy builds, so it is pushed down to the same row-group</span>
+<span class="sd">    stats layer on every path (including the fallback, where only the bbox</span>
+<span class="sd">    part degrades to an in-memory clip). Predicate columns need NOT appear in</span>
+<span class="sd">    ``columns``: pyarrow reads them for the filter and drops them from the</span>
+<span class="sd">    output. A file whose schema lacks a predicate column raises rather than</span>
+<span class="sd">    silently returning unfiltered rows.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">nullcontext</span>
 
@@ -1677,17 +1725,25 @@ window.runMermaid = runMermaid;</script>
     <span class="n">remote</span> <span class="o">=</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
     <span class="n">source_ctx</span> <span class="o">=</span> <span class="n">smart_open_columnar</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">if</span> <span class="n">remote</span> <span class="k">else</span> <span class="n">nullcontext</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
 
+    <span class="c1"># Passed through to every reader below. Kept out of the call when absent</span>
+    <span class="c1"># so the no-filters call shape is byte-for-byte the legacy one.</span>
+    <span class="n">xf</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;filters&#39;</span><span class="p">:</span> <span class="n">extra_filters</span><span class="p">}</span> <span class="k">if</span> <span class="n">extra_filters</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{}</span>
+
     <span class="k">with</span> <span class="n">source_ctx</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s1">&#39;point&#39;</span><span class="p">:</span>
+            <span class="c1"># geopandas splices `bbox` and `filters` into one expression</span>
+            <span class="c1"># (_splice_bbox_and_filters), so both are honored.</span>
             <span class="k">if</span> <span class="n">remote</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">read_parquet_coalesced</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                                              <span class="n">bbox</span><span class="o">=</span><span class="n">bbox_4326</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">bbox_4326</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">)</span>
+                                              <span class="n">bbox</span><span class="o">=</span><span class="n">bbox_4326</span><span class="p">,</span> <span class="o">**</span><span class="n">xf</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">bbox_4326</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="o">**</span><span class="n">xf</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s1">&#39;coord_filter&#39;</span><span class="p">:</span>
             <span class="n">x0</span><span class="p">,</span> <span class="n">y0</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">y1</span> <span class="o">=</span> <span class="n">bbox_4326</span>
-            <span class="n">filt</span> <span class="o">=</span> <span class="p">[(</span><span class="n">lon_col</span><span class="p">,</span> <span class="s1">&#39;&gt;=&#39;</span><span class="p">,</span> <span class="n">x0</span><span class="p">),</span> <span class="p">(</span><span class="n">lon_col</span><span class="p">,</span> <span class="s1">&#39;&lt;=&#39;</span><span class="p">,</span> <span class="n">x1</span><span class="p">),</span>
-                    <span class="p">(</span><span class="n">lat_col</span><span class="p">,</span> <span class="s1">&#39;&gt;=&#39;</span><span class="p">,</span> <span class="n">y0</span><span class="p">),</span> <span class="p">(</span><span class="n">lat_col</span><span class="p">,</span> <span class="s1">&#39;&lt;=&#39;</span><span class="p">,</span> <span class="n">y1</span><span class="p">)]</span>
+            <span class="n">filt</span> <span class="o">=</span> <span class="n">_combine_filters</span><span class="p">(</span>
+                <span class="p">[(</span><span class="n">lon_col</span><span class="p">,</span> <span class="s1">&#39;&gt;=&#39;</span><span class="p">,</span> <span class="n">x0</span><span class="p">),</span> <span class="p">(</span><span class="n">lon_col</span><span class="p">,</span> <span class="s1">&#39;&lt;=&#39;</span><span class="p">,</span> <span class="n">x1</span><span class="p">),</span>
+                 <span class="p">(</span><span class="n">lat_col</span><span class="p">,</span> <span class="s1">&#39;&gt;=&#39;</span><span class="p">,</span> <span class="n">y0</span><span class="p">),</span> <span class="p">(</span><span class="n">lat_col</span><span class="p">,</span> <span class="s1">&#39;&lt;=&#39;</span><span class="p">,</span> <span class="n">y1</span><span class="p">)],</span>
+                <span class="n">extra_filters</span><span class="p">)</span>
             <span class="c1"># Pyarrow&#39;s `filters=` requires the predicate columns to be in the</span>
             <span class="c1"># read column list; append + drop them if the caller didn&#39;t ask for</span>
             <span class="c1"># them. The extra column is already on disk in the same row groups</span>
@@ -1722,8 +1778,10 @@ window.runMermaid = runMermaid;</script>
                     <span class="k">raise</span>
 
         <span class="c1"># &#39;fallback&#39; — full read + in-memory geometric clip. Last resort.</span>
-        <span class="n">df</span> <span class="o">=</span> <span class="p">(</span><span class="n">read_parquet_coalesced</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="n">remote</span>
-              <span class="k">else</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">))</span>
+        <span class="c1"># `extra_filters` still pushes down here: only the bbox half of the</span>
+        <span class="c1"># predicate degrades to an in-memory clip.</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="p">(</span><span class="n">read_parquet_coalesced</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">xf</span><span class="p">)</span> <span class="k">if</span> <span class="n">remote</span>
+              <span class="k">else</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="o">**</span><span class="n">xf</span><span class="p">))</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">intersects</span><span class="p">(</span><span class="n">clip_box</span><span class="p">)]</span>
         <span class="k">return</span> <span class="n">df</span>
@@ -2190,10 +2248,14 @@ window.runMermaid = runMermaid;</script>
     <span class="k">def</span><span class="w"> </span><span class="nf">_read_one</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">bbox4326</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">strategy</span><span class="p">,</span> <span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span> <span class="o">=</span> <span class="n">bbox_strategy</span>
+            <span class="c1"># The caller&#39;s pyarrow predicate (set by _load_h3_database from</span>
+            <span class="c1"># `gh3_load(filters=...)`) is ANDed with the bbox predicate</span>
+            <span class="c1"># inside the reader — both are pushed down, neither is dropped.</span>
             <span class="k">return</span> <span class="n">_read_parquet_bbox</span><span class="p">(</span>
                 <span class="n">f</span><span class="p">,</span> <span class="n">bbox_4326</span><span class="o">=</span><span class="n">bbox4326</span><span class="p">,</span> <span class="n">clip_box</span><span class="o">=</span><span class="n">clip_geom</span><span class="p">,</span>
                 <span class="n">columns</span><span class="o">=</span><span class="n">cols</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">use_geo</span><span class="p">,</span>
-                <span class="n">strategy</span><span class="o">=</span><span class="n">strategy</span><span class="p">,</span> <span class="n">lat_col</span><span class="o">=</span><span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="o">=</span><span class="n">lon_col</span><span class="p">)</span>
+                <span class="n">strategy</span><span class="o">=</span><span class="n">strategy</span><span class="p">,</span> <span class="n">lat_col</span><span class="o">=</span><span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="o">=</span><span class="n">lon_col</span><span class="p">,</span>
+                <span class="n">extra_filters</span><span class="o">=</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;filters&#39;</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">_read_parquet_files</span><span class="p">([</span><span class="n">f</span><span class="p">],</span> <span class="n">geo</span><span class="o">=</span><span class="n">use_geo</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="c1"># Per-file read so we can attach the `year` hive partition column from</span>
@@ -2349,12 +2411,13 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># whole year files a-priori via the `_bbox_index.parquet` data</span>
         <span class="c1"># envelopes when the sidecar exists. Both are supersets of the exact</span>
         <span class="c1"># `ddf.clip(region)` applied below, so results are unchanged.</span>
-        <span class="c1"># Disabled when the caller passed their own pyarrow `filters` — the</span>
-        <span class="c1"># bbox read path cannot compose arbitrary predicates with the bbox</span>
-        <span class="c1"># ones on every strategy, and dropping user filters would change</span>
-        <span class="c1"># results; that combination keeps the legacy read.</span>
+        <span class="c1"># Applies unconditionally, including alongside a caller-supplied</span>
+        <span class="c1"># `filters`: `_read_parquet_bbox` ANDs the two predicates together</span>
+        <span class="c1"># (`_combine_filters`) on every strategy, so neither is dropped.</span>
+        <span class="c1"># Before that existed, region + filters silently fell back to a full</span>
+        <span class="c1"># read + in-memory clip — the one combination that lost the pushdown.</span>
         <span class="n">_per_dir_bbox</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="k">if</span> <span class="n">region</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">filters</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">region</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">region_to_geometry</span>
             <span class="n">_bbox</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">region_to_geometry</span><span class="p">(</span><span class="n">region</span><span class="p">)</span><span class="o">.</span><span class="n">bounds</span><span class="p">)</span>
             <span class="n">_lat</span><span class="p">,</span> <span class="n">_lon</span> <span class="o">=</span> <span class="n">_bbox_cols_from_meta</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">)</span>
@@ -2407,6 +2470,18 @@ window.runMermaid = runMermaid;</script>
         <span class="k">if</span> <span class="s1">&#39;geometry&#39;</span> <span class="ow">in</span> <span class="n">ddf</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
             <span class="n">ddf</span> <span class="o">=</span> <span class="n">dask_geopandas</span><span class="o">.</span><span class="n">from_dask_dataframe</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="s1">&#39;geometry&#39;</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># DEPRECATED — slated for removal, along with the `from_map` argument</span>
+        <span class="c1"># itself. This is the original dask_geopandas.read_parquet path; the</span>
+        <span class="c1"># from_map branch above superseded it and is the default, so this one</span>
+        <span class="c1"># never received the work the primary path did. It reads `_metadata`</span>
+        <span class="c1"># (the cost from_map exists to avoid on databases with thousands of</span>
+        <span class="c1"># partitions), it has no region bbox pushdown and no `_bbox_index`</span>
+        <span class="c1"># file skipping, and `filters` here still drive dask&#39;s own hive</span>
+        <span class="c1"># partition pruning — which is why the region + user predicate</span>
+        <span class="c1"># combination is left as plain list concatenation instead of the</span>
+        <span class="c1"># `_combine_filters` expression the from_map path uses (an Expression</span>
+        <span class="c1"># may not prune h3_part_col the same way). Do not extend it; when</span>
+        <span class="c1"># `from_map=False` goes, this whole branch goes with it.</span>
         <span class="n">storage_kwargs</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">if</span> <span class="n">is_remote_path</span><span class="p">(</span><span class="n">gh3_dir</span><span class="p">):</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_storage_options</span>
@@ -2464,15 +2539,23 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    query : str, optional</span>
 <span class="sd">        Pandas query string for filtering.</span>
 <span class="sd">    from_map : bool</span>
-<span class="sd">        Use from_map loading for H3 databases (default True).</span>
+<span class="sd">        Use from_map loading for H3 databases (default True). DEPRECATED —</span>
+<span class="sd">        ``from_map=False`` selects the original ``dask_geopandas.read_parquet``</span>
+<span class="sd">        path, which is unmaintained and slower on every axis (reads</span>
+<span class="sd">        ``_metadata``, no region bbox pushdown, no ``_bbox_index`` file</span>
+<span class="sd">        skipping). The argument and that branch are slated for removal; leave</span>
+<span class="sd">        it at the default.</span>
 <span class="sd">    lazy : bool</span>
 <span class="sd">        If True (default), return Dask DataFrame. If False, return computed</span>
 <span class="sd">        pandas DataFrame.</span>
-<span class="sd">    filters : list, optional</span>
+<span class="sd">    filters : list or pyarrow.compute.Expression, optional</span>
 <span class="sd">        PyArrow predicate pushdown filters (conjunctive list of</span>
-<span class="sd">        ``(column, op, value)`` tuples), applied as per-file row-group pushdown</span>
-<span class="sd">        during the read. Works for H3 databases and simplified parquet datasets,</span>
-<span class="sd">        and combines (AND) with ``region`` when both are given.</span>
+<span class="sd">        ``(column, op, value)`` tuples, a DNF list-of-lists, or an Expression),</span>
+<span class="sd">        applied as per-file row-group pushdown during the read. Works for H3</span>
+<span class="sd">        databases and simplified parquet datasets, and combines (AND) with</span>
+<span class="sd">        ``region`` when both are given — the region bbox prefilter stays on,</span>
+<span class="sd">        both predicates are pushed to the same row-group stats layer.</span>
+<span class="sd">        Predicate columns do not have to be listed in ``columns``.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -3160,7 +3243,7 @@ window.runMermaid = runMermaid;</script>
                             <span class="n">query</span><span class="p">,</span> <span class="n">index_level</span><span class="p">,</span> <span class="n">partition_level</span><span class="p">,</span> <span class="n">set_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                             <span class="n">tile_egi_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                             <span class="n">bbox_strategy</span><span class="o">=</span><span class="s1">&#39;fallback&#39;</span><span class="p">,</span> <span class="n">bbox_lat_col</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bbox_lon_col</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                            <span class="n">file_bboxes</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+                            <span class="n">file_bboxes</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Load data for a single EGI tile from its intersecting H3 partitions.</span>
 
@@ -3207,6 +3290,11 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        partitions. Year files whose envelope cannot intersect the tile are</span>
 <span class="sd">        skipped without being opened. Files absent from the dict (or the</span>
 <span class="sd">        dict being ``None``) are always read — fail-safe.</span>
+<span class="sd">    filters : list or pyarrow.compute.Expression, optional</span>
+<span class="sd">        Pyarrow predicate pushed into each year-file read (ANDed with the</span>
+<span class="sd">        tile&#39;s bbox predicate), so non-matching row groups are never</span>
+<span class="sd">        decompressed. Applied BEFORE ``query``, EGI indexing and the</span>
+<span class="sd">        spillover filter.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -3281,6 +3369,7 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">pf</span><span class="p">,</span> <span class="n">bbox_4326</span><span class="o">=</span><span class="n">wgs84_bbox</span><span class="p">,</span> <span class="n">clip_box</span><span class="o">=</span><span class="n">clip_box</span><span class="p">,</span>
                 <span class="n">columns</span><span class="o">=</span><span class="n">load_cols</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                 <span class="n">strategy</span><span class="o">=</span><span class="n">bbox_strategy</span><span class="p">,</span> <span class="n">lat_col</span><span class="o">=</span><span class="n">bbox_lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="o">=</span><span class="n">bbox_lon_col</span><span class="p">,</span>
+                <span class="n">extra_filters</span><span class="o">=</span><span class="n">filters</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">year_df</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
                 <span class="k">continue</span>
@@ -3480,7 +3569,7 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_load_egi_from_h3_database</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">gh3_dir</span><span class="o">=</span><span class="n">GH3_DEFAULT_H3_DIR</span><span class="p">,</span>
-                               <span class="n">index_level</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">partition_level</span><span class="o">=</span><span class="mi">12</span><span class="p">):</span>
+                               <span class="n">index_level</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">partition_level</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Internal: load H3 database directly into EGI partitions (original egi_load body).&quot;&quot;&quot;</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">dask</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">dask</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataframe</span> <span class="k">as</span> <span class="n">ddf</span>
@@ -3601,6 +3690,7 @@ window.runMermaid = runMermaid;</script>
             <span class="n">bbox_lat_col</span><span class="o">=</span><span class="n">bbox_lat_col</span><span class="p">,</span>
             <span class="n">bbox_lon_col</span><span class="o">=</span><span class="n">bbox_lon_col</span><span class="p">,</span>
             <span class="n">file_bboxes</span><span class="o">=</span><span class="n">file_bboxes</span><span class="p">,</span>
+            <span class="n">filters</span><span class="o">=</span><span class="n">filters</span><span class="p">,</span>
         <span class="p">)</span>
 
     <span class="c1"># Build metadata from schema (avoids empty sample issue)</span>
@@ -3635,7 +3725,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="egi_load">
 <a class="viewcode-back" href="../../autoapi/gedih3/gh3driver/index.html#gedih3.gh3driver.egi_load">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">egi_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-             <span class="n">index_level</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">partition_level</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+             <span class="n">index_level</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">partition_level</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Load EGI-indexed GEDI data from any source.</span>
 
 <span class="sd">    Auto-detects whether the source is an H3 database (direct EGI loading)</span>
@@ -3663,6 +3753,17 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    lazy : bool</span>
 <span class="sd">        If True (default), return Dask DataFrame. If False, return computed</span>
 <span class="sd">        pandas DataFrame.</span>
+<span class="sd">    filters : list or pyarrow.compute.Expression, optional</span>
+<span class="sd">        PyArrow predicate pushdown filters (conjunctive list of</span>
+<span class="sd">        ``(column, op, value)`` tuples, a DNF list-of-lists, or an</span>
+<span class="sd">        Expression) — same contract as ``gh3_load(filters=...)``. Pushed</span>
+<span class="sd">        straight into each per-year parquet read, so row groups that cannot</span>
+<span class="sd">        match are never decompressed, and ANDed with the tile bbox predicate</span>
+<span class="sd">        when both apply. Unlike ``query``, which filters in pandas after the</span>
+<span class="sd">        read, the rows never enter worker memory. Predicate columns do not</span>
+<span class="sd">        have to be listed in ``columns``. A file whose schema lacks a</span>
+<span class="sd">        predicate column raises rather than silently returning unfiltered</span>
+<span class="sd">        rows.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -3689,6 +3790,15 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ...     partition_level=12,</span>
 <span class="sd">    ... )</span>
 <span class="sd">    &gt;&gt;&gt; agg = gh3.egi_aggregate(ddf, target_level=6, agg=&#39;mean&#39;)</span>
+
+<span class="sd">    &gt;&gt;&gt; # Predicate pushdown: quality-flag rows are dropped at the parquet</span>
+<span class="sd">    &gt;&gt;&gt; # row-group layer, before anything reaches worker memory.</span>
+<span class="sd">    &gt;&gt;&gt; ddf = gh3.egi_load(</span>
+<span class="sd">    ...     source=&#39;/path/to/h3_database&#39;,</span>
+<span class="sd">    ...     columns=[&#39;agbd_l4a&#39;],</span>
+<span class="sd">    ...     region=&#39;region.shp&#39;,</span>
+<span class="sd">    ...     filters=[(&#39;l2_quality_flag_l4a&#39;, &#39;==&#39;, 1), (&#39;agbd_l4a&#39;, &#39;&gt;&#39;, 0)],</span>
+<span class="sd">    ... )</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">path</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">_detect_source</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
     <span class="n">columns</span> <span class="o">=</span> <span class="n">_resolve_columns</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">info</span><span class="p">)</span>
@@ -3697,11 +3807,13 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># Direct EGI loading from H3 database (no shuffle)</span>
         <span class="n">ddf</span> <span class="o">=</span> <span class="n">_load_egi_from_h3_database</span><span class="p">(</span>
             <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="n">region</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">,</span>
-            <span class="n">gh3_dir</span><span class="o">=</span><span class="n">path</span><span class="p">,</span> <span class="n">index_level</span><span class="o">=</span><span class="n">index_level</span><span class="p">,</span> <span class="n">partition_level</span><span class="o">=</span><span class="n">partition_level</span>
+            <span class="n">gh3_dir</span><span class="o">=</span><span class="n">path</span><span class="p">,</span> <span class="n">index_level</span><span class="o">=</span><span class="n">index_level</span><span class="p">,</span> <span class="n">partition_level</span><span class="o">=</span><span class="n">partition_level</span><span class="p">,</span>
+            <span class="n">filters</span><span class="o">=</span><span class="n">filters</span>
         <span class="p">)</span>
     <span class="k">elif</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;egi&#39;</span><span class="p">:</span>
         <span class="c1"># Simplified EGI dataset</span>
-        <span class="n">ddf</span> <span class="o">=</span> <span class="n">_load_dataset</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="n">region</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">ddf</span> <span class="o">=</span> <span class="n">_load_dataset</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="n">region</span><span class="p">,</span>
+                            <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">filters</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_type&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;h3&#39;</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">&quot;Source &#39;</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&#39; is an H3 dataset. Use gh3_load() for H3 data, &quot;</span>
@@ -3709,7 +3821,8 @@ window.runMermaid = runMermaid;</script>
         <span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># Parquet directory with unknown index — try loading as dataset</span>
-        <span class="n">ddf</span> <span class="o">=</span> <span class="n">_load_dataset</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="n">region</span><span class="p">,</span> <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">ddf</span> <span class="o">=</span> <span class="n">_load_dataset</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="n">region</span><span class="p">,</span>
+                            <span class="n">lazy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="n">filters</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">lazy</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">dask_safe_collect</span><span class="p">(</span><span class="n">ddf</span><span class="p">)</span>

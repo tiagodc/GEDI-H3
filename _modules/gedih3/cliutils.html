@@ -7,7 +7,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gedih3.cliutils &#8212; gedih3 0.16.1 documentation</title>
+    <title>gedih3.cliutils &#8212; gedih3 0.16.2 documentation</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../_static/documentation_options.js?v=56c55dd0"></script>
+    <script src="../../_static/documentation_options.js?v=7674c73b"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/design-tabs.js?v=f930bc37"></script>
@@ -479,8 +479,8 @@ window.runMermaid = runMermaid;</script>
       
     
     
-    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.1 documentation - Home"/>
-    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.1 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.2 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.2 documentation - Home"/>
   
   
 </a></div>
@@ -923,7 +923,7 @@ window.runMermaid = runMermaid;</script>
 
 <div class="viewcode-block" id="make_dataset_reader">
 <a class="viewcode-back" href="../../autoapi/gedih3/cliutils/index.html#gedih3.cliutils.make_dataset_reader">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">make_dataset_reader</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_dataset_reader</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">filters</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a callable that reads a single file into a DataFrame or GeoDataFrame.</span>
 
 <span class="sd">    The returned callable supports column selection at read time.</span>
@@ -937,6 +937,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    geo : bool</span>
 <span class="sd">        If True, use geopandas readers (for files with geometry metadata).</span>
 <span class="sd">        If False, use pandas readers (for files without geometry metadata).</span>
+<span class="sd">    filters : list or pyarrow.compute.Expression, optional</span>
+<span class="sd">        PyArrow predicate pushed into the read so non-matching row groups are</span>
+<span class="sd">        never decompressed. Parquet only — callers gate this with</span>
+<span class="sd">        ``gh3driver._check_filters_supported``.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -947,6 +951,10 @@ window.runMermaid = runMermaid;</script>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
 
     <span class="k">if</span> <span class="n">fmt</span> <span class="o">==</span> <span class="s1">&#39;parquet&#39;</span><span class="p">:</span>
+        <span class="c1"># Kept out of the call when absent so the no-filters call shape is</span>
+        <span class="c1"># byte-for-byte the legacy one.</span>
+        <span class="n">xf</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;filters&#39;</span><span class="p">:</span> <span class="n">filters</span><span class="p">}</span> <span class="k">if</span> <span class="n">filters</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{}</span>
+
         <span class="k">def</span><span class="w"> </span><span class="nf">reader</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">is_remote_path</span><span class="p">,</span> <span class="n">smart_open_columnar</span><span class="p">,</span>
                                 <span class="n">read_parquet_coalesced</span><span class="p">)</span>
@@ -955,9 +963,9 @@ window.runMermaid = runMermaid;</script>
                 <span class="c1"># column-projected read then transfers the column chunks</span>
                 <span class="c1"># and nothing else (see smart_open_columnar).</span>
                 <span class="k">with</span> <span class="n">smart_open_columnar</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">as</span> <span class="n">fobj</span><span class="p">:</span>
-                    <span class="k">return</span> <span class="n">read_parquet_coalesced</span><span class="p">(</span><span class="n">fobj</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">geo</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="n">read_parquet_coalesced</span><span class="p">(</span><span class="n">fobj</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="n">geo</span><span class="p">,</span> <span class="o">**</span><span class="n">xf</span><span class="p">)</span>
             <span class="n">read_fn</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_parquet</span> <span class="k">if</span> <span class="n">geo</span> <span class="k">else</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span>
-            <span class="k">return</span> <span class="n">read_fn</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">read_fn</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="o">**</span><span class="n">xf</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">reader</span>
     <span class="k">elif</span> <span class="n">fmt</span> <span class="o">==</span> <span class="s1">&#39;feather&#39;</span><span class="p">:</span>
         <span class="k">def</span><span class="w"> </span><span class="nf">reader</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>

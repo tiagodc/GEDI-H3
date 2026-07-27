@@ -181,7 +181,7 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
-.. py:function:: make_dataset_reader(fmt, columns=None, geo=True)
+.. py:function:: make_dataset_reader(fmt, columns=None, geo=True, filters=None)
 
    
    Return a callable that reads a single file into a DataFrame or GeoDataFrame.
@@ -199,6 +199,11 @@ Module Contents
        **geo** : bool
            If True, use geopandas readers (for files with geometry metadata).
            If False, use pandas readers (for files without geometry metadata).
+
+       **filters** : list or pyarrow.compute.Expression, optional
+           PyArrow predicate pushed into the read so non-matching row groups are
+           never decompressed. Parquet only — callers gate this with
+           ``gh3driver._check_filters_supported``.
 
 
 

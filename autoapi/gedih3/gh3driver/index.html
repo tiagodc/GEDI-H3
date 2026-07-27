@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>gedih3.gh3driver &#8212; gedih3 0.16.1 documentation</title>
+    <title>gedih3.gh3driver &#8212; gedih3 0.16.2 documentation</title>
   
   
   
@@ -41,7 +41,7 @@
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../../_static/documentation_options.js?v=56c55dd0"></script>
+    <script src="../../../_static/documentation_options.js?v=7674c73b"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
@@ -126,8 +126,8 @@
       
     
     
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.1 documentation - Home"/>
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.1 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.2 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.2 documentation - Home"/>
   
   
 </a></div>
@@ -796,15 +796,23 @@ an endpoint already configured via <code class="docutils literal notranslate"><s
 </dd>
 <dt><strong>query</strong><span class="classifier">str, optional</span></dt><dd><p>Pandas query string for filtering.</p>
 </dd>
-<dt><strong>from_map</strong><span class="classifier">bool</span></dt><dd><p>Use from_map loading for H3 databases (default True).</p>
+<dt><strong>from_map</strong><span class="classifier">bool</span></dt><dd><p>Use from_map loading for H3 databases (default True). DEPRECATED —
+<code class="docutils literal notranslate"><span class="pre">from_map=False</span></code> selects the original <code class="docutils literal notranslate"><span class="pre">dask_geopandas.read_parquet</span></code>
+path, which is unmaintained and slower on every axis (reads
+<code class="docutils literal notranslate"><span class="pre">_metadata</span></code>, no region bbox pushdown, no <code class="docutils literal notranslate"><span class="pre">_bbox_index</span></code> file
+skipping). The argument and that branch are slated for removal; leave
+it at the default.</p>
 </dd>
 <dt><strong>lazy</strong><span class="classifier">bool</span></dt><dd><p>If True (default), return Dask DataFrame. If False, return computed
 pandas DataFrame.</p>
 </dd>
-<dt><strong>filters</strong><span class="classifier">list, optional</span></dt><dd><p>PyArrow predicate pushdown filters (conjunctive list of
-<code class="docutils literal notranslate"><span class="pre">(column,</span> <span class="pre">op,</span> <span class="pre">value)</span></code> tuples), applied as per-file row-group pushdown
-during the read. Works for H3 databases and simplified parquet datasets,
-and combines (AND) with <code class="docutils literal notranslate"><span class="pre">region</span></code> when both are given.</p>
+<dt><strong>filters</strong><span class="classifier">list or pyarrow.compute.Expression, optional</span></dt><dd><p>PyArrow predicate pushdown filters (conjunctive list of
+<code class="docutils literal notranslate"><span class="pre">(column,</span> <span class="pre">op,</span> <span class="pre">value)</span></code> tuples, a DNF list-of-lists, or an Expression),
+applied as per-file row-group pushdown during the read. Works for H3
+databases and simplified parquet datasets, and combines (AND) with
+<code class="docutils literal notranslate"><span class="pre">region</span></code> when both are given — the region bbox prefilter stays on,
+both predicates are pushed to the same row-group stats layer.
+Predicate columns do not have to be listed in <code class="docutils literal notranslate"><span class="pre">columns</span></code>.</p>
 </dd>
 </dl>
 </dd>
@@ -989,7 +997,7 @@ egi_partition_level, h3_partition_level, image_source, etc.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.gh3driver.egi_load">
-<span class="sig-prename descclassname"><span class="pre">gedih3.gh3driver.</span></span><span class="sig-name descname"><span class="pre">egi_load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">region</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">index_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partition_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">12</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lazy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3driver.html#egi_load"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3driver.egi_load" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3driver.</span></span><span class="sig-name descname"><span class="pre">egi_load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">region</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">index_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partition_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">12</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lazy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3driver.html#egi_load"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3driver.egi_load" title="Link to this definition">#</a></dt>
 <dd><p>Load EGI-indexed GEDI data from any source.</p>
 <p>Auto-detects whether the source is an H3 database (direct EGI loading)
 or a simplified EGI dataset and loads accordingly.</p>
@@ -1015,6 +1023,17 @@ Only used when loading from H3 database.</p>
 </dd>
 <dt><strong>lazy</strong><span class="classifier">bool</span></dt><dd><p>If True (default), return Dask DataFrame. If False, return computed
 pandas DataFrame.</p>
+</dd>
+<dt><strong>filters</strong><span class="classifier">list or pyarrow.compute.Expression, optional</span></dt><dd><p>PyArrow predicate pushdown filters (conjunctive list of
+<code class="docutils literal notranslate"><span class="pre">(column,</span> <span class="pre">op,</span> <span class="pre">value)</span></code> tuples, a DNF list-of-lists, or an
+Expression) — same contract as <code class="docutils literal notranslate"><span class="pre">gh3_load(filters=...)</span></code>. Pushed
+straight into each per-year parquet read, so row groups that cannot
+match are never decompressed, and ANDed with the tile bbox predicate
+when both apply. Unlike <code class="docutils literal notranslate"><span class="pre">query</span></code>, which filters in pandas after the
+read, the rows never enter worker memory. Predicate columns do not
+have to be listed in <code class="docutils literal notranslate"><span class="pre">columns</span></code>. A file whose schema lacks a
+predicate column raises rather than silently returning unfiltered
+rows.</p>
 </dd>
 </dl>
 </dd>
@@ -1045,6 +1064,16 @@ pandas DataFrame.</p>
 <span class="gp">... </span>    <span class="n">partition_level</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
 <span class="gp">... </span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">agg</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">egi_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_level</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Predicate pushdown: quality-flag rows are dropped at the parquet</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># row-group layer, before anything reaches worker memory.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">egi_load</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">source</span><span class="o">=</span><span class="s1">&#39;/path/to/h3_database&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">],</span>
+<span class="gp">... </span>    <span class="n">region</span><span class="o">=</span><span class="s1">&#39;region.shp&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">filters</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;l2_quality_flag_l4a&#39;</span><span class="p">,</span> <span class="s1">&#39;==&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">,</span> <span class="s1">&#39;&gt;&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)],</span>
+<span class="gp">... </span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>

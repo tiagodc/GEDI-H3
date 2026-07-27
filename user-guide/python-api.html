@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Python API &#8212; gedih3 0.16.1 documentation</title>
+    <title>Python API &#8212; gedih3 0.16.2 documentation</title>
   
   
   
@@ -41,7 +41,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=56c55dd0"></script>
+    <script src="../_static/documentation_options.js?v=7674c73b"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
@@ -126,8 +126,8 @@
       
     
     
-    <img src="../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.1 documentation - Home"/>
-    <img src="../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.1 documentation - Home"/>
+    <img src="../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.2 documentation - Home"/>
+    <img src="../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.2 documentation - Home"/>
   
   
 </a></div>
@@ -535,6 +535,26 @@
 <span class="p">)</span>
 </pre></div>
 </div>
+<section id="pushdown-filters-filters">
+<h4>Pushdown filters (<code class="docutils literal notranslate"><span class="pre">filters=</span></code>)<a class="headerlink" href="#pushdown-filters-filters" title="Link to this heading">#</a></h4>
+<p><code class="docutils literal notranslate"><span class="pre">query=</span></code> filters in pandas <em>after</em> each partition is read. <code class="docutils literal notranslate"><span class="pre">filters=</span></code> hands the
+predicate to the parquet reader, so row groups that cannot match are never
+decompressed and the rows never enter worker memory. Both <code class="docutils literal notranslate"><span class="pre">gh3_load</span></code> and
+<code class="docutils literal notranslate"><span class="pre">egi_load</span></code> take it, with the same pyarrow contract — a conjunctive list of
+<code class="docutils literal notranslate"><span class="pre">(column,</span> <span class="pre">op,</span> <span class="pre">value)</span></code> tuples, a DNF list-of-lists, or a
+<code class="docutils literal notranslate"><span class="pre">pyarrow.compute.Expression</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">egi_load</span><span class="p">(</span>
+    <span class="n">source</span><span class="o">=</span><span class="s1">&#39;/path/to/h3_database/&#39;</span><span class="p">,</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">],</span>
+    <span class="n">region</span><span class="o">=</span><span class="n">polygon</span><span class="p">,</span>
+    <span class="n">filters</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;l2_quality_flag_l4a&#39;</span><span class="p">,</span> <span class="s1">&#39;==&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">,</span> <span class="s1">&#39;&gt;&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)],</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Predicate columns do not have to appear in <code class="docutils literal notranslate"><span class="pre">columns=</span></code> — pyarrow reads them for
+the filter and leaves them out of the frame. The predicate is ANDed with the
+spatial filtering <code class="docutils literal notranslate"><span class="pre">region=</span></code> already applies. Parquet only: on a feather or gpkg
+dataset <code class="docutils literal notranslate"><span class="pre">filters=</span></code> raises rather than silently returning unfiltered rows.</p>
 <p>Remote sources work the same way in Python as on the command line — including
 self-hosted S3 with the endpoint carried in the URL itself
 (<code class="docutils literal notranslate"><span class="pre">source='s3://host:port/bucket/db'</span></code>); an endpoint configured explicitly via
@@ -554,6 +574,7 @@ the CLI’s <code class="docutils literal notranslate"><span class="pre">--s3-en
 </div>
 <p>Supported protocols: <code class="docutils literal notranslate"><span class="pre">s3</span></code>, <code class="docutils literal notranslate"><span class="pre">http</span></code>, <code class="docutils literal notranslate"><span class="pre">https</span></code>, <code class="docutils literal notranslate"><span class="pre">ftp</span></code>, <code class="docutils literal notranslate"><span class="pre">sftp</span></code>/<code class="docutils literal notranslate"><span class="pre">ssh</span></code>. See the <a class="reference internal" href="cli-reference.html#remote-storage-credentials"><span class="std std-ref">CLI credential flags</span></a> for the equivalent command-line options.</p>
 </div>
+</section>
 </section>
 <section id="from-a-simplified-dataset-gh3-extract-gh3-aggregate-output">
 <h3>From a Simplified Dataset (gh3_extract / gh3_aggregate output)<a class="headerlink" href="#from-a-simplified-dataset-gh3-extract-gh3-aggregate-output" title="Link to this heading">#</a></h3>
@@ -755,7 +776,10 @@ the CLI’s <code class="docutils literal notranslate"><span class="pre">--s3-en
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#loading-datasets">Loading Datasets</a><ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#from-the-h3-database">From the H3 Database</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#from-the-h3-database">From the H3 Database</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#pushdown-filters-filters">Pushdown filters (<code class="docutils literal notranslate"><span class="pre">filters=</span></code>)</a></li>
+</ul>
+</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#from-a-simplified-dataset-gh3-extract-gh3-aggregate-output">From a Simplified Dataset (gh3_extract / gh3_aggregate output)</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#selecting-partition-files-directly">Selecting partition files directly</a></li>
 </ul>

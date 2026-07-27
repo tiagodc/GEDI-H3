@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>gedih3.cliutils &#8212; gedih3 0.16.1 documentation</title>
+    <title>gedih3.cliutils &#8212; gedih3 0.16.2 documentation</title>
   
   
   
@@ -41,7 +41,7 @@
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../../_static/documentation_options.js?v=56c55dd0"></script>
+    <script src="../../../_static/documentation_options.js?v=7674c73b"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
@@ -126,8 +126,8 @@
       
     
     
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.1 documentation - Home"/>
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.1 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.16.2 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.16.2 documentation - Home"/>
   
   
 </a></div>
@@ -525,7 +525,7 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cliutils.read_dataset_schema" title="gedih3.cliutils.read_dataset_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_dataset_schema</span></code></a>(filepath, fmt)</p></td>
 <td><p>Read column names and geometry flag from a dataset file without loading data.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cliutils.make_dataset_reader" title="gedih3.cliutils.make_dataset_reader"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_dataset_reader</span></code></a>(fmt[, columns, geo])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cliutils.make_dataset_reader" title="gedih3.cliutils.make_dataset_reader"><code class="xref py py-obj docutils literal notranslate"><span class="pre">make_dataset_reader</span></code></a>(fmt[, columns, geo, filters])</p></td>
 <td><p>Return a callable that reads a single file into a DataFrame or GeoDataFrame.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cliutils.add_dask_args" title="gedih3.cliutils.add_dask_args"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_dask_args</span></code></a>(parser[, profile])</p></td>
@@ -734,7 +734,7 @@ directory for known extensions. Defaults to ‘parquet’ for backwards compat.<
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.cliutils.make_dataset_reader">
-<span class="sig-prename descclassname"><span class="pre">gedih3.cliutils.</span></span><span class="sig-name descname"><span class="pre">make_dataset_reader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fmt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/cliutils.html#make_dataset_reader"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.cliutils.make_dataset_reader" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">gedih3.cliutils.</span></span><span class="sig-name descname"><span class="pre">make_dataset_reader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fmt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/cliutils.html#make_dataset_reader"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.cliutils.make_dataset_reader" title="Link to this definition">#</a></dt>
 <dd><p>Return a callable that reads a single file into a DataFrame or GeoDataFrame.</p>
 <p>The returned callable supports column selection at read time.</p>
 <dl class="field-list simple">
@@ -746,6 +746,10 @@ directory for known extensions. Defaults to ‘parquet’ for backwards compat.<
 </dd>
 <dt><strong>geo</strong><span class="classifier">bool</span></dt><dd><p>If True, use geopandas readers (for files with geometry metadata).
 If False, use pandas readers (for files without geometry metadata).</p>
+</dd>
+<dt><strong>filters</strong><span class="classifier">list or pyarrow.compute.Expression, optional</span></dt><dd><p>PyArrow predicate pushed into the read so non-matching row groups are
+never decompressed. Parquet only — callers gate this with
+<code class="docutils literal notranslate"><span class="pre">gh3driver._check_filters_supported</span></code>.</p>
 </dd>
 </dl>
 </dd>
