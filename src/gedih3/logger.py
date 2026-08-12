@@ -430,6 +430,23 @@ class H3BuildLogger:
             )
         }
 
+        # Superset of `default_products` covering every preset keyword
+        # (`default`/`minimal`/`all`), as opposed to a literal user-supplied
+        # name, file path, or wildcard. gh3_build's Stage-2 pre-flight
+        # sample check must skip these too: their variable names come from
+        # an internal manifest/table, not something the user typed, so a
+        # mismatch there means the GEDI-version assumption used to resolve
+        # the preset was wrong — not a user typo — and downstream variable
+        # resolution (`_expand_product_vars`) already re-derives the
+        # correct version-specific names regardless. Runtime-only.
+        self.preset_products = {
+            prod for prod, v in (product_vars or {}).items()
+            if isinstance(v, list) and any(
+                isinstance(s, str) and s in ('default', 'def', 'minimal', 'min', 'all', '*')
+                for s in v
+            )
+        }
+
         self.log_file = os.path.join(self._PARENT_DIR, self._LOG_FILE_NAME)
         self.log_data = load_log_data(self.log_file)
 

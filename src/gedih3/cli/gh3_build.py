@@ -18,12 +18,14 @@ def explicit_vars_missing_in_sample(product_vars, default_products, sample_dict)
     ----------
     product_vars : dict
         Mapping ``{product: list-or-None}``. ``None`` means "everything"
-        (``*``/``all``) and is skipped. ``default``-sourced lists are
-        identified by ``default_products`` and skipped (they are validated
-        against the static manifest instead).
+        (``*``/``all``) and is skipped. Preset-sourced lists (``default``,
+        ``minimal``, ``all``/``*``) are identified by ``default_products``
+        and skipped — their names come from an internal manifest/table, not
+        the user, so a mismatch here is not a typo to catch.
     default_products : set
-        Products the user requested as ``default`` (skipped — manifest is
-        the contract).
+        Products to exempt from this check. Despite the name, callers pass
+        the full preset set (e.g. ``H3BuildLogger.preset_products``), not
+        just literal ``default`` requests — see that attribute's docstring.
     sample_dict : dict
         One ``{product: hdf5_path}`` mapping from
         :func:`gedidriver.soc_file_tree`. Pass an empty dict to short-circuit.
@@ -487,8 +489,13 @@ def main():
                                 sys.exit(2)
 
                     # ── Stage 2: explicit-list products vs sample HDF5 schema ──
+                    # `preset_products` (a superset of `default_products`) excludes
+                    # every preset keyword (default/minimal/all), not just `default` —
+                    # their variable names come from an internal table/manifest, not
+                    # something the user typed, so this check must not treat them as
+                    # "explicit". See H3BuildLogger.preset_products.
                     has_explicit = any(
-                        v is not None and p not in h3_logger.default_products
+                        v is not None and p not in h3_logger.preset_products
                         for p, v in (product_vars or {}).items()
                     )
                     if not has_explicit:
@@ -514,7 +521,7 @@ def main():
 
                     sample_dict = sample[0]
                     missing = explicit_vars_missing_in_sample(
-                        product_vars, h3_logger.default_products, sample_dict,
+                        product_vars, h3_logger.preset_products, sample_dict,
                     )
 
                     if missing:
