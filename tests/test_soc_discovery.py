@@ -535,3 +535,94 @@ def test_read_manifest_supports_filename_kwarg(tmp_path):
     # Both cached separately
     assert (str(tmp_path), MANIFEST_FILENAME) in u._manifest_cache
     assert (str(tmp_path), SOC_MANIFEST_FILENAME) in u._manifest_cache
+
+
+# ── Temporal filtering for local/pre-acquired build sources ────────────────
+#
+# build_h3db's local-directory and pre-acquired-list branches list every
+# granule with the requested products regardless of date -- only the
+# S3/download paths forward `temporal` to the CMR search. `-t0`/`-t1` on
+# gh3_build silently did nothing when building from an already-downloaded
+# SOC tree, processing the whole archive instead of the requested range.
+# _filter_soc_files_by_temporal closes that gap; these tests exercise it
+# directly as a pure function (no real files needed -- GEDIFile parses
+# dates from the filename string alone).
+
+def _entry(name, product='L2A'):
+    return {product: f'/soc/2020/999/{name}'}
+
+
+class TestFilterSocFilesByTemporal:
+
+    def test_none_temporal_is_noop(self):
+        from gedih3.gh3builder import _filter_soc_files_by_temporal
+        entries = [_entry('GEDI02_A_2019094180555_O01753_01_T01683_02_003_01_V003.h5')]
+        assert _filter_soc_files_by_temporal(entries, None) == entries
+
+    def test_empty_entries_is_noop(self):
+        from gedih3.gh3builder import _filter_soc_files_by_temporal
+        assert _filter_soc_files_by_temporal([], ('2020-06-01', '2020-06-30')) == []
+
+    def test_keeps_entry_inside_range(self):
+        from gedih3.gh3builder import _filter_soc_files_by_temporal
+        # 2020, day 160 -> ~2020-06-08, inside [2020-06-01, 2020-06-30]
+        entries = [_entry('GEDI02_A_2020160120000_O12345_01_T00001_02_003_01_V003.h5')]
+        result = _filter_soc_files_by_temporal(entries, ('2020-06-01', '2020-06-30'))
+        assert result == entries
+
+    def test_drops_entry_before_start(self):
+        from gedih3.gh3builder import _filter_soc_files_by_temporal
+        # 2019, day 094 -> ~2019-04-04, well before 2020-06-01
+        entries = [_entry('GEDI02_A_2019094180555_O01753_01_T01683_02_003_01_V003.h5')]
+        result = _filter_soc_files_by_temporal(entries, ('2020-06-01', '2020-06-30'))
+        assert result == []
+
+    def test_drops_entry_after_end(self):
+        from gedih3.gh3builder import _filter_soc_files_by_temporal
+        # 2021, day 001 -> 2021-01-01, after 2020-06-30
+        entries = [_entry('GEDI02_A_2021001000000_O99999_01_T00001_02_003_01_V003.h5')]
+        result = _filter_soc_files_by_temporal(entries, ('2020-06-01', '2020-06-30'))
+        assert result == []
+
+    def test_keeps_entry_late_on_end_date(self):
+        from gedih3.gh3builder import _filter_soc_files_by_temporal
+        # 2020, day 182 -> 2020-06-30 23:00:00: the end bound is a date, not a
+        # timestamp, so the whole end date must be included, not just its midnight.
+        entries = [_entry('GEDI02_A_2020182230000_O12345_01_T00001_02_003_01_V003.h5')]
+        result = _filter_soc_files_by_temporal(entries, ('2020-06-01', '2020-06-30'))
+        assert result == entries
+
+    def test_drops_entry_at_start_of_day_after_end(self):
+        from gedih3.gh3builder import _filter_soc_files_by_temporal
+        # 2020, day 183 -> 2020-07-01 00:00:00: the instant after the end date closes
+        entries = [_entry('GEDI02_A_2020183000000_O12345_01_T00001_02_003_01_V003.h5')]
+        result = _filter_soc_files_by_temporal(entries, ('2020-06-01', '2020-06-30'))
+        assert result == []
+
+    def test_mixed_batch_keeps_only_in_range(self):
+        from gedih3.gh3builder import _filter_soc_files_by_temporal
+        in_range = _entry('GEDI02_A_2020160120000_O12345_01_T00001_02_003_01_V003.h5')
+        before = _entry('GEDI02_A_2019094180555_O01753_01_T01683_02_003_01_V003.h5')
+        after = _entry('GEDI02_A_2021001000000_O99999_01_T00001_02_003_01_V003.h5')
+        result = _filter_soc_files_by_temporal([before, in_range, after], ('2020-06-01', '2020-06-30'))
+        assert result == [in_range]
+
+    def test_open_ended_start_only(self):
+        from gedih3.gh3builder import _filter_soc_files_by_temporal
+        before = _entry('GEDI02_A_2019094180555_O01753_01_T01683_02_003_01_V003.h5')
+        after = _entry('GEDI02_A_2021001000000_O99999_01_T00001_02_003_01_V003.h5')
+        result = _filter_soc_files_by_temporal([before, after], ('2020-01-01', None))
+        assert result == [after]
+
+    def test_open_ended_end_only(self):
+        from gedih3.gh3builder import _filter_soc_files_by_temporal
+        before = _entry('GEDI02_A_2019094180555_O01753_01_T01683_02_003_01_V003.h5')
+        after = _entry('GEDI02_A_2021001000000_O99999_01_T00001_02_003_01_V003.h5')
+        result = _filter_soc_files_by_temporal([before, after], (None, '2020-01-01'))
+        assert result == [before]
+
+    def test_unparseable_filename_kept_fail_open(self):
+        from gedih3.gh3builder import _filter_soc_files_by_temporal
+        entries = [{'L2A': '/soc/not_a_gedi_filename.h5'}]
+        result = _filter_soc_files_by_temporal(entries, ('2020-06-01', '2020-06-30'))
+        assert result == entries
