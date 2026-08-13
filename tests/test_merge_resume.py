@@ -107,6 +107,41 @@ class TestDetectMergeResumeSignal:
         )
         assert signal == 'log status MERGING'
 
+    # ── Veto: pending new product/variable work ────────────────────────
+    #
+    # Reproduced live: adding a product (e.g. -l4a) to an existing
+    # COMPLETED database, in both local-SOC and -dl modes, hit a stale
+    # _merge_progress.txt left over from the database's original build in
+    # the same tmp directory. L2 misread it as "this request's merge
+    # already started", skipped Stage 1/2 extract entirely, and
+    # _merge_and_finalize found nothing new to merge — reporting SUCCESS
+    # and recording the product as added while not one of its columns was
+    # ever written to any partition file.
+
+    def test_pending_new_work_vetoes_l1(self, tmp_dir):
+        from gedih3.cli.gh3_build import _detect_merge_resume_signal
+        signal = _detect_merge_resume_signal(
+            self._logger('MERGING'), tmp_dir, has_pending_new_work=True,
+        )
+        assert signal is None
+
+    def test_pending_new_work_vetoes_l2(self, tmp_dir):
+        from gedih3.cli.gh3_build import _detect_merge_resume_signal
+        with open(os.path.join(tmp_dir, '_merge_progress.txt'), 'w') as f:
+            f.write('/some/h3_a/year=2020\n')
+        signal = _detect_merge_resume_signal(
+            self._logger('PROCESSING'), tmp_dir, has_pending_new_work=True,
+        )
+        assert signal is None
+
+    def test_no_pending_new_work_does_not_veto(self, tmp_dir):
+        """Default (has_pending_new_work=False) preserves prior behavior —
+        a plain crash-resume with no new product/variable request still
+        takes the shortcut."""
+        from gedih3.cli.gh3_build import _detect_merge_resume_signal
+        signal = _detect_merge_resume_signal(self._logger('MERGING'), tmp_dir)
+        assert signal == 'log status MERGING'
+
 
 # ---------------------------------------------------------------------------
 # _merge_and_finalize — empty tmp dirs are skipped
