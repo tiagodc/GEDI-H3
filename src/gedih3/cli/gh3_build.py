@@ -174,7 +174,7 @@ def _has_new_local_granules(soc_source, h3_logger):
     return False
 
 
-def _detect_merge_resume_signal(h3_logger, parquet_dir):
+def _detect_merge_resume_signal(h3_logger, parquet_dir, *, has_pending_new_work=False):
     """Return a human-readable signal name if the resume should skip extract
     and go straight to merge, else return None.
 
@@ -199,8 +199,25 @@ def _detect_merge_resume_signal(h3_logger, parquet_dir):
     is what closes the loop: it walks ``MERGE_FAILED → INDEXING``,
     re-writes the fragments from source HDF5, and feeds the merge fresh
     inputs.
+
+    **Veto: pending new product/variable work.** ``has_pending_new_work``
+    is true when the caller has detected a variable-only update, a mixed
+    update's Phase 2, or a crash-recovered pending variable update --
+    i.e. there are products/variables requested that have never been
+    through Stage 1/2 for this database. Neither L1 nor L2 proves anything
+    about that new work: ``_merge_progress.txt`` and the ``MERGING`` status
+    are written by the plain Stage-1 build-and-merge cycle, not by
+    ``_build_add_variables``'s separate ``_var_merge_progress.txt``
+    tracking. A leftover from an earlier, already-completed build in the
+    same tmp directory would otherwise be misread as "this request's merge
+    already started" -- silently skipping extract entirely for the new
+    product while `_merge_and_finalize` finds nothing new to do and still
+    reports success. The build log then records the product as added even
+    though not one of its columns was ever written.
     """
     import os
+    if has_pending_new_work:
+        return None
     granule_info = getattr(h3_logger, 'granule_info', None) or []
     if any(g.get('status') == 'MERGE_FAILED' for g in granule_info):
         return None
@@ -664,8 +681,23 @@ def main():
             # to incorporate new granules. (The shortcut also leaves PENDING
             # entries in granule_info that the next non-shortcut run cleans
             # up; gh3_doctor can flag/fix this if needed.)
+            #
+            # has_pending_new_work vetoes both signals whenever this
+            # invocation is a variable-only update, a mixed update's Phase 2,
+            # or a crash-recovered pending variable update: neither signal
+            # proves anything about product/variable work that has never
+            # been through Stage 1/2, and a stale _merge_progress.txt left
+            # over from an earlier, already-completed build in the same tmp
+            # directory would otherwise be misread as "this request's merge
+            # already started" — silently no-opping the whole product add
+            # while still reporting success.
             _parquet_dir = os.path.join(args.tmpdir, 'partitions')
-            _merge_signal = _detect_merge_resume_signal(h3_logger, _parquet_dir)
+            _merge_signal = _detect_merge_resume_signal(
+                h3_logger, _parquet_dir,
+                has_pending_new_work=bool(
+                    is_variable_only_update or is_mixed_update or pending_var_update
+                ),
+            )
             if _merge_signal:
                 logger.info(
                     f"Resume shortcut: {_merge_signal} — skipping register/"
