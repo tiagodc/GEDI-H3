@@ -1978,6 +1978,72 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
     return n_flipped
 
 
+def _filter_soc_files_by_temporal(all_soc_files, temporal):
+    """Drop ``soc_file_tree`` entries whose granule date falls outside ``temporal``.
+
+    ``temporal`` (``-t0``/``-t1``) is only ever forwarded to the CMR search
+    inside ``download_soc``/``s3_etl_subset`` -- the local-directory and
+    pre-acquired-list branches in ``build_h3db`` list every granule with the
+    requested products regardless of date, and neither ``_filter_granules``
+    nor ``_apply_spatial_filter`` downstream check dates either. Without this,
+    building from an already-downloaded SOC tree silently processes the
+    entire archive instead of the requested range.
+
+    Uses the same ``datetime >= start`` / ``datetime <= end`` bound
+    ``gh3_extract``'s query filter applies (see ``cliutils.build_query_string``)
+    so a local build respects ``-t0``/``-t1`` the same way building from S3 or
+    after a fresh download does.
+
+    Parameters
+    ----------
+    all_soc_files : list of dict
+        ``{product: path}`` mappings from :func:`gedidriver.soc_file_tree`.
+    temporal : tuple of str, optional
+        ``(start_date, end_date)`` as accepted by :func:`utils.parse_temporal`.
+        Either bound may be ``None`` for an open-ended range. ``None`` itself
+        is a no-op.
+
+    Returns
+    -------
+    list of dict
+        The subset of ``all_soc_files`` whose granule date is in range.
+        Entries whose date cannot be parsed are kept (fail open) rather than
+        silently dropped.
+    """
+    if not temporal or not all_soc_files:
+        return all_soc_files
+
+    from datetime import datetime
+    from .utils import parse_temporal
+    start, end = parse_temporal(temporal)
+    start_dt = datetime.strptime(start, '%Y-%m-%d') if start else None
+    end_dt = datetime.strptime(end, '%Y-%m-%d') if end else None
+    if start_dt is None and end_dt is None:
+        return all_soc_files
+
+    def _in_range(entry):
+        path = next(iter(entry.values()))
+        try:
+            p = path.path if isinstance(path, EarthAccessFile) else path
+            d = GEDIFile(p).date
+        except Exception:
+            return True
+        if start_dt is not None and d < start_dt:
+            return False
+        if end_dt is not None and d > end_dt:
+            return False
+        return True
+
+    filtered = [e for e in all_soc_files if _in_range(e)]
+    dropped = len(all_soc_files) - len(filtered)
+    if dropped:
+        logger.info(
+            f"Temporal filter [{start or '-inf'}, {end or '+inf'}]: "
+            f"excluded {dropped} granule(s) outside the requested range"
+        )
+    return filtered
+
+
 def _filter_granules(
     prod_soc_files: List[Dict[str, str]],
     product_vars: Dict[str, List[str]],
@@ -3772,6 +3838,16 @@ def build_h3db(
         all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=glob_kwargs, exclude=exclude)
     else:
         raise GediValidationError(f"Invalid soc_source type: {type(soc_source)}")
+
+    # Neither branch above consults `temporal` -- only the S3/download paths
+    # forward it to the CMR search. Apply it here so a build from an
+    # already-downloaded SOC tree honors -t0/-t1 instead of silently
+    # processing every granule with the requested products, any date.
+    # (No-op for variable_only_update: that path re-discovers files from
+    # `soc_source` directly inside `_build_add_variables` and never reads
+    # `all_soc_files`, by design -- it backfills the product across every
+    # existing granule, not just a new date slice.)
+    all_soc_files = _filter_soc_files_by_temporal(all_soc_files, temporal)
 
     try:
         if status_callback:
