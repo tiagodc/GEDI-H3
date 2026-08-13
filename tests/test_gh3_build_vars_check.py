@@ -116,3 +116,49 @@ class TestExplicitVarsCheck:
             product_vars, set(), {'L2A': str(bad)},
         )
         assert result == {}
+
+
+class TestPresetProductsExemptsMinimalAtRealCallSite:
+    """End-to-end regression test for the `minimal` false-abort bug.
+
+    Exercises the real ``H3BuildLogger.preset_products``/``default_products``
+    attributes feeding the actual ``explicit_vars_missing_in_sample`` call —
+    not just each piece in isolation — against the scenario that triggered
+    the bug: a `minimal` request resolved under the fresh-build fallback
+    GEDI version (2), sample-checked against an archive on a newer version
+    (3) whose variable names differ.
+    """
+
+    def test_minimal_resolved_under_fallback_version_is_exempted(self, tmp_path):
+        from gedih3.logger import H3BuildLogger
+
+        # No `version` passed and no existing build log -> effective_version
+        # falls back to 2, so 'minimal' expands to the v2 L2B essentials,
+        # including the v2-only name 'l2b_quality_flag'.
+        h3_logger = H3BuildLogger({'L2B': ['minimal']}, dir=str(tmp_path))
+        assert 'l2b_quality_flag' in h3_logger.product_vars['L2B']
+        assert h3_logger.preset_products == {'L2B'}
+        # Pre-fix behavior: 'minimal' was never added to `default_products`,
+        # only the literal `default`/`def` keyword was.
+        assert h3_logger.default_products == set()
+
+        # Sample archive is really on v3: 'l2b_quality_flag' was renamed to
+        # 'l2b_quality_flag_rel3', so a naive check would report it missing.
+        sample_path = str(tmp_path / 'l2b_v3_sample.h5')
+        _write_h5(sample_path, ('shot_number', 'l2b_quality_flag_rel3', 'cover', 'pai'), beam='BEAM0000')
+        sample_dict = {'L2B': sample_path}
+
+        # The actual gh3_build.py call site passes `preset_products` — must
+        # be exempted, matching what `default` already got.
+        result = explicit_vars_missing_in_sample(
+            h3_logger.product_vars, h3_logger.preset_products, sample_dict,
+        )
+        assert result == {}
+
+        # Using the pre-fix `default_products` in the same call reproduces
+        # the false abort this PR fixes.
+        result_pre_fix = explicit_vars_missing_in_sample(
+            h3_logger.product_vars, h3_logger.default_products, sample_dict,
+        )
+        assert result_pre_fix != {}
+        assert 'l2b_quality_flag' in result_pre_fix.get('L2B', [])

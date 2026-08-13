@@ -344,6 +344,55 @@ def test_default_products_empty_for_no_product_vars(tmp_path):
     assert logger.default_products == set()
 
 
+def test_preset_products_captured_for_default_keyword(tmp_path):
+    """preset_products is a superset of default_products: a `default`-sourced
+    product is captured by both."""
+    from gedih3.logger import H3BuildLogger
+    logger = H3BuildLogger(
+        product_vars={'L2A': ['default'], 'L4A': ['def']},
+        dir=str(tmp_path), version=3,
+    )
+    assert logger.preset_products == {'L2A', 'L4A'}
+
+
+def test_preset_products_captured_for_minimal_keyword(tmp_path):
+    """preset_products (unlike default_products) also captures
+    `minimal`/`min`-sourced products. This is the gate gh3_build's Stage-2
+    pre-flight check must use — `minimal` resolves from an internal table,
+    not user input, so a version-mismatched sample must not abort the
+    build the way a genuine user typo does."""
+    from gedih3.logger import H3BuildLogger
+    logger = H3BuildLogger(
+        product_vars={'L2A': ['minimal'], 'L2B': ['min']},
+        dir=str(tmp_path), version=3,
+    )
+    assert logger.preset_products == {'L2A', 'L2B'}
+    # default_products must NOT widen — Stage 1's manifest-consultation
+    # contract is specifically for the literal `default` keyword.
+    assert logger.default_products == set()
+
+
+def test_preset_products_captured_for_all_keyword(tmp_path):
+    """preset_products also captures `all`/`*`-sourced products."""
+    from gedih3.logger import H3BuildLogger
+    logger = H3BuildLogger(
+        product_vars={'L2A': ['all'], 'L4A': ['*']},
+        dir=str(tmp_path), version=3,
+    )
+    assert logger.preset_products == {'L2A', 'L4A'}
+
+
+def test_preset_products_empty_for_explicit_list(tmp_path):
+    """A genuinely explicit (user-typed) variable list is not a preset —
+    Stage 2 must still typo-check it against a sample HDF5."""
+    from gedih3.logger import H3BuildLogger
+    logger = H3BuildLogger(
+        product_vars={'L2A': ['rh', 'sensitivity']},
+        dir=str(tmp_path), version=3,
+    )
+    assert logger.preset_products == set()
+
+
 def test_default_products_not_persisted_to_log(tmp_path):
     """default_products is a runtime-only flag — never written to the
     build log. The persisted log stores the resolved literal list so
