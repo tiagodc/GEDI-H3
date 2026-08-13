@@ -584,6 +584,21 @@ class TestFilterSocFilesByTemporal:
         result = _filter_soc_files_by_temporal(entries, ('2020-06-01', '2020-06-30'))
         assert result == []
 
+    def test_keeps_entry_late_on_end_date(self):
+        from gedih3.gh3builder import _filter_soc_files_by_temporal
+        # 2020, day 182 -> 2020-06-30 23:00:00: the end bound is a date, not a
+        # timestamp, so the whole end date must be included, not just its midnight.
+        entries = [_entry('GEDI02_A_2020182230000_O12345_01_T00001_02_003_01_V003.h5')]
+        result = _filter_soc_files_by_temporal(entries, ('2020-06-01', '2020-06-30'))
+        assert result == entries
+
+    def test_drops_entry_at_start_of_day_after_end(self):
+        from gedih3.gh3builder import _filter_soc_files_by_temporal
+        # 2020, day 183 -> 2020-07-01 00:00:00: the instant after the end date closes
+        entries = [_entry('GEDI02_A_2020183000000_O12345_01_T00001_02_003_01_V003.h5')]
+        result = _filter_soc_files_by_temporal(entries, ('2020-06-01', '2020-06-30'))
+        assert result == []
+
     def test_mixed_batch_keeps_only_in_range(self):
         from gedih3.gh3builder import _filter_soc_files_by_temporal
         in_range = _entry('GEDI02_A_2020160120000_O12345_01_T00001_02_003_01_V003.h5')

@@ -2013,11 +2013,13 @@ def _filter_soc_files_by_temporal(all_soc_files, temporal):
     if not temporal or not all_soc_files:
         return all_soc_files
 
-    from datetime import datetime
+    from datetime import datetime, timedelta
     from .utils import parse_temporal
     start, end = parse_temporal(temporal)
     start_dt = datetime.strptime(start, '%Y-%m-%d') if start else None
-    end_dt = datetime.strptime(end, '%Y-%m-%d') if end else None
+    # end is a date-only bound but granule dates carry a time-of-day component;
+    # advance to the start of the next day so the entire end date is included.
+    end_dt = datetime.strptime(end, '%Y-%m-%d') + timedelta(days=1) if end else None
     if start_dt is None and end_dt is None:
         return all_soc_files
 
@@ -2030,7 +2032,7 @@ def _filter_soc_files_by_temporal(all_soc_files, temporal):
             return True
         if start_dt is not None and d < start_dt:
             return False
-        if end_dt is not None and d > end_dt:
+        if end_dt is not None and d >= end_dt:
             return False
         return True
 
