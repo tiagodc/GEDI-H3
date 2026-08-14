@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.17.1] - 2026-08-13
+
+### Fixed
+- **Adding a product to an already-`COMPLETED` database could silently no-op.** `_detect_merge_resume_signal`'s merge-only resume shortcut trusted a stale `_merge_progress.txt` left over from an earlier completed build to mean "this request already extracted, just merge" — even when the current invocation was a variable-only or mixed product update that had never gone through Stage 1/2. It now vetoes both fallback signals whenever pending new work is detected, mirroring the existing `MERGE_FAILED` veto.
+- **`-t0`/`-t1` had no effect building from an already-downloaded SOC directory.** Only `download_soc`/`s3_etl_subset` ever consulted `temporal`; the local-directory and pre-acquired-list branches in `build_h3db` listed every granule with the requested products regardless of date. `_filter_soc_files_by_temporal` now applies the bound once, right after SOC file discovery, covering local, pre-acquired-list, and fresh-S3-download paths alike; the end bound is inclusive of the whole requested day rather than truncating at midnight.
+- **`--detail-level minimal` could abort a fresh build on a newer GEDI version than the fallback (V002).** The Stage-2 pre-flight sample check only exempted the literal `default` keyword from typo-checking, so a `minimal`-resolved variable list (resolved under the fallback version) was checked against a real sample file that might be on a newer version, aborting on a false "missing variable" report. `H3BuildLogger.preset_products` now exempts every preset keyword (`default`/`def`/`minimal`/`min`/`all`/`*`), matching what `_expand_product_vars` already re-derives correctly downstream.
+
 ## [0.17.0] - 2026-07-27
 
 ### Added
