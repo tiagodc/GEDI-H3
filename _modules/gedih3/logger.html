@@ -1229,23 +1229,6 @@ window.runMermaid = runMermaid;</script>
             <span class="p">)</span>
         <span class="p">}</span>
 
-        <span class="c1"># Superset of `default_products` covering every preset keyword</span>
-        <span class="c1"># (`default`/`minimal`/`all`), as opposed to a literal user-supplied</span>
-        <span class="c1"># name, file path, or wildcard. gh3_build&#39;s Stage-2 pre-flight</span>
-        <span class="c1"># sample check must skip these too: their variable names come from</span>
-        <span class="c1"># an internal manifest/table, not something the user typed, so a</span>
-        <span class="c1"># mismatch there means the GEDI-version assumption used to resolve</span>
-        <span class="c1"># the preset was wrong — not a user typo — and downstream variable</span>
-        <span class="c1"># resolution (`_expand_product_vars`) already re-derives the</span>
-        <span class="c1"># correct version-specific names regardless. Runtime-only.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">preset_products</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="n">prod</span> <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">(</span><span class="n">product_vars</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">(</span>
-                <span class="nb">isinstance</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">s</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="s1">&#39;def&#39;</span><span class="p">,</span> <span class="s1">&#39;minimal&#39;</span><span class="p">,</span> <span class="s1">&#39;min&#39;</span><span class="p">,</span> <span class="s1">&#39;all&#39;</span><span class="p">,</span> <span class="s1">&#39;*&#39;</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">v</span>
-            <span class="p">)</span>
-        <span class="p">}</span>
-
         <span class="bp">self</span><span class="o">.</span><span class="n">log_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_PARENT_DIR</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_LOG_FILE_NAME</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">log_data</span> <span class="o">=</span> <span class="n">load_log_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_file</span><span class="p">)</span>
 

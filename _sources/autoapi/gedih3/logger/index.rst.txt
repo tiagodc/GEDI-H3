@@ -243,9 +243,6 @@ Module Contents
    .. py:attribute:: default_products
 
 
-   .. py:attribute:: preset_products
-
-
    .. py:attribute:: log_file
 
 
