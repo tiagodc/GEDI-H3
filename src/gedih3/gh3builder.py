@@ -895,7 +895,16 @@ def _expand_product_vars(
     essentials = _get_versioned(_GEDI_L2A_ESSENTIALS, version)
     if 'L2A' in product_vars:
         if product_vars['L2A'] is not None:
-            product_vars['L2A'] = list(set(product_vars['L2A'] + essentials))
+            # A `minimal`/`default` keyword resolved under a provisional
+            # version (e.g. the fresh-build fallback, before the real
+            # version is auto-detected) bakes that version's essential
+            # name into the list. A plain union only adds the correct
+            # name alongside it rather than replacing it, leaving a stale
+            # name that doesn't exist in the real archive and fails every
+            # beam that requests it. Purge any essential name unique to
+            # another version before re-adding the current version's.
+            stale = {v for vs in _GEDI_L2A_ESSENTIALS.values() for v in vs} - set(essentials)
+            product_vars['L2A'] = list((set(product_vars['L2A']) - stale) | set(essentials))
         # None means "all variables" — essentials already included
     else:
         product_vars['L2A'] = essentials
@@ -907,6 +916,10 @@ def _expand_product_vars(
         flag_map = _PRODUCT_QUALITY_FLAGS.get(prod)
         if flag_map and val is not None:
             flags = _get_versioned(flag_map, version)
+            flag_names = {f for f, _ in flags}
+            # Same stale-name hazard as the L2A essentials above.
+            stale = {f for fl in flag_map.values() for f, _ in fl} - flag_names
+            val[:] = [v for v in val if v not in stale]
             for flag_name, _condition in flags:
                 if flag_name not in val:
                     val.append(flag_name)
