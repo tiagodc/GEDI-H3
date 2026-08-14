@@ -7,7 +7,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gedih3.cli.gh3_build &#8212; gedih3 0.17.0 documentation</title>
+    <title>gedih3.cli.gh3_build &#8212; gedih3 0.17.1 documentation</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../../../_static/documentation_options.js?v=9b4af9f2"></script>
+    <script src="../../../_static/documentation_options.js?v=320a8d94"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
@@ -479,8 +479,8 @@ window.runMermaid = runMermaid;</script>
       
     
     
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.17.0 documentation - Home"/>
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.17.0 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.17.1 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.17.1 documentation - Home"/>
   
   
 </a></div>
@@ -778,12 +778,14 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ----------</span>
 <span class="sd">    product_vars : dict</span>
 <span class="sd">        Mapping ``{product: list-or-None}``. ``None`` means &quot;everything&quot;</span>
-<span class="sd">        (``*``/``all``) and is skipped. ``default``-sourced lists are</span>
-<span class="sd">        identified by ``default_products`` and skipped (they are validated</span>
-<span class="sd">        against the static manifest instead).</span>
+<span class="sd">        (``*``/``all``) and is skipped. Preset-sourced lists (``default``,</span>
+<span class="sd">        ``minimal``, ``all``/``*``) are identified by ``default_products``</span>
+<span class="sd">        and skipped — their names come from an internal manifest/table, not</span>
+<span class="sd">        the user, so a mismatch here is not a typo to catch.</span>
 <span class="sd">    default_products : set</span>
-<span class="sd">        Products the user requested as ``default`` (skipped — manifest is</span>
-<span class="sd">        the contract).</span>
+<span class="sd">        Products to exempt from this check. Despite the name, callers pass</span>
+<span class="sd">        the full preset set (e.g. ``H3BuildLogger.preset_products``), not</span>
+<span class="sd">        just literal ``default`` requests — see that attribute&#39;s docstring.</span>
 <span class="sd">    sample_dict : dict</span>
 <span class="sd">        One ``{product: hdf5_path}`` mapping from</span>
 <span class="sd">        :func:`gedidriver.soc_file_tree`. Pass an empty dict to short-circuit.</span>
@@ -1273,8 +1275,13 @@ window.runMermaid = runMermaid;</script>
                                 <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
 
                     <span class="c1"># ── Stage 2: explicit-list products vs sample HDF5 schema ──</span>
+                    <span class="c1"># `preset_products` (a superset of `default_products`) excludes</span>
+                    <span class="c1"># every preset keyword (default/minimal/all), not just `default` —</span>
+                    <span class="c1"># their variable names come from an internal table/manifest, not</span>
+                    <span class="c1"># something the user typed, so this check must not treat them as</span>
+                    <span class="c1"># &quot;explicit&quot;. See H3BuildLogger.preset_products.</span>
                     <span class="n">has_explicit</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span>
-                        <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">p</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">default_products</span>
+                        <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">p</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">preset_products</span>
                         <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">(</span><span class="n">product_vars</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
                     <span class="p">)</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">has_explicit</span><span class="p">:</span>
@@ -1300,7 +1307,7 @@ window.runMermaid = runMermaid;</script>
 
                     <span class="n">sample_dict</span> <span class="o">=</span> <span class="n">sample</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
                     <span class="n">missing</span> <span class="o">=</span> <span class="n">explicit_vars_missing_in_sample</span><span class="p">(</span>
-                        <span class="n">product_vars</span><span class="p">,</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">default_products</span><span class="p">,</span> <span class="n">sample_dict</span><span class="p">,</span>
+                        <span class="n">product_vars</span><span class="p">,</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">preset_products</span><span class="p">,</span> <span class="n">sample_dict</span><span class="p">,</span>
                     <span class="p">)</span>
 
                     <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
