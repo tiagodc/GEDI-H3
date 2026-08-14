@@ -528,12 +528,14 @@ pre-flight typo check can be unit-tested without invoking <code class="docutils 
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
 <dt><strong>product_vars</strong><span class="classifier">dict</span></dt><dd><p>Mapping <code class="docutils literal notranslate"><span class="pre">{product:</span> <span class="pre">list-or-None}</span></code>. <code class="docutils literal notranslate"><span class="pre">None</span></code> means “everything”
-(<code class="docutils literal notranslate"><span class="pre">*</span></code>/<code class="docutils literal notranslate"><span class="pre">all</span></code>) and is skipped. <code class="docutils literal notranslate"><span class="pre">default</span></code>-sourced lists are
-identified by <code class="docutils literal notranslate"><span class="pre">default_products</span></code> and skipped (they are validated
-against the static manifest instead).</p>
+(<code class="docutils literal notranslate"><span class="pre">*</span></code>/<code class="docutils literal notranslate"><span class="pre">all</span></code>) and is skipped. Preset-sourced lists (<code class="docutils literal notranslate"><span class="pre">default</span></code>,
+<code class="docutils literal notranslate"><span class="pre">minimal</span></code>, <code class="docutils literal notranslate"><span class="pre">all</span></code>/<code class="docutils literal notranslate"><span class="pre">*</span></code>) are identified by <code class="docutils literal notranslate"><span class="pre">default_products</span></code>
+and skipped — their names come from an internal manifest/table, not
+the user, so a mismatch here is not a typo to catch.</p>
 </dd>
-<dt><strong>default_products</strong><span class="classifier">set</span></dt><dd><p>Products the user requested as <code class="docutils literal notranslate"><span class="pre">default</span></code> (skipped — manifest is
-the contract).</p>
+<dt><strong>default_products</strong><span class="classifier">set</span></dt><dd><p>Products to exempt from this check. Despite the name, callers pass
+the full preset set (e.g. <code class="docutils literal notranslate"><span class="pre">H3BuildLogger.preset_products</span></code>), not
+just literal <code class="docutils literal notranslate"><span class="pre">default</span></code> requests — see that attribute’s docstring.</p>
 </dd>
 <dt><strong>sample_dict</strong><span class="classifier">dict</span></dt><dd><p>One <code class="docutils literal notranslate"><span class="pre">{product:</span> <span class="pre">hdf5_path}</span></code> mapping from
 <code class="xref py py-func docutils literal notranslate"><span class="pre">gedidriver.soc_file_tree()</span></code>. Pass an empty dict to short-circuit.</p>
