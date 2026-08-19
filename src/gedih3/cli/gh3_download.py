@@ -109,7 +109,11 @@ def main():
                         product_vars=soc_logger.product_vars,
                         spatial=soc_logger.get_spatial(),
                         temporal=soc_logger.get_temporal(),
-                        version=args.version,
+                        # soc_logger.gedi_version, not args.version: on resume it
+                        # carries the persisted version even when --gedi-version
+                        # was omitted, matching the version soc_logger.product_vars
+                        # was already resolved under (see SOCDownloadLogger).
+                        version=soc_logger.gedi_version,
                         odir=args.output,
                         ensure_l2a=True,
                     )
@@ -121,7 +125,7 @@ def main():
                         temporal=soc_logger.get_temporal(),
                         direct_access=False,
                         update=True,
-                        version=args.version,
+                        version=soc_logger.gedi_version,
                         odir=args.output
                     )
 
