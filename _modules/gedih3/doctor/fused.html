@@ -760,18 +760,18 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;Fused per-partition scan for gh3_doctor&#39;s h3db-tree diagnoses.</span>
+<span class="sd">"""Fused per-partition scan for gh3_doctor's h3db-tree diagnoses.</span>
 
 <span class="sd">When the user asks for multiple per-partition diagnoses in one invocation</span>
 <span class="sd">(e.g. ``--check db`` or ``--check parquet_health,metadata``), this module</span>
 <span class="sd">turns N separate ``parallel_map`` dispatches with N file opens per</span>
-<span class="sd">partition into a single dispatch where each partition&#39;s parquet listing,</span>
+<span class="sd">partition into a single dispatch where each partition's parquet listing,</span>
 <span class="sd">meta JSON, and parquet footers are opened **once** and shared across</span>
 <span class="sd">every enabled scan.</span>
 
 <span class="sd">The shared state is built by :func:`_build_shared_state` at worker entry,</span>
-<span class="sd">passed as a ``shared`` dict to each diagnosis&#39;s ``_scan_partition_*(dir,</span>
-<span class="sd">shared=None)`` worker, and dropped when the partition&#39;s work is done.</span>
+<span class="sd">passed as a ``shared`` dict to each diagnosis's ``_scan_partition_*(dir,</span>
+<span class="sd">shared=None)`` worker, and dropped when the partition's work is done.</span>
 <span class="sd">Each scan in :data:`_SCAN_REGISTRY` returns the per-partition payload its</span>
 <span class="sd">diagnosis already produces today (no schema change), so driver-side</span>
 <span class="sd">``_finalize_check_from_results`` aggregation is identical to the single-</span>
@@ -780,7 +780,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">Read-amplification savings on a continental DB scale with the parquet</span>
 <span class="sd">footer reuse — the heaviest reads — between ``parquet_health``,</span>
 <span class="sd">``geoparquet_bbox``, and ``backfill``.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
@@ -793,7 +793,7 @@ window.runMermaid = runMermaid;</script>
 
 <span class="c1"># Worker registry. Each entry is the picklable per-partition scan callable</span>
 <span class="c1"># for one diagnosis. The fused worker dispatches enabled scans in</span>
-<span class="c1"># registry-iteration order — order doesn&#39;t matter for correctness because</span>
+<span class="c1"># registry-iteration order — order doesn't matter for correctness because</span>
 <span class="c1"># every scan returns its own keyed result slot.</span>
 <span class="c1">#</span>
 <span class="c1"># Diagnoses populate this at import time via :func:`register_scan`.</span>
@@ -803,18 +803,18 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="register_scan">
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/fused/index.html#gedih3.doctor.fused.register_scan">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">register_scan</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Register a per-partition scan worker under ``name``.</span>
+<span class="w">    </span><span class="sd">"""Register a per-partition scan worker under ``name``.</span>
 
 <span class="sd">    The worker must be picklable (module-level), accept ``partition_dir``</span>
 <span class="sd">    as the first positional arg, and accept ``shared=None`` plus any</span>
 <span class="sd">    diagnosis-specific keyword args.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">_SCAN_REGISTRY</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">fn</span></div>
 
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_build_shared_state</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">enabled</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Open the per-partition state needed by ``enabled`` scans **once**.</span>
+<span class="w">    </span><span class="sd">"""Open the per-partition state needed by ``enabled`` scans **once**.</span>
 
 <span class="sd">    Returns a dict with whichever keys are relevant:</span>
 
@@ -827,42 +827,42 @@ window.runMermaid = runMermaid;</script>
 
 <span class="sd">    Parquet footers are *not* prefetched here — the per-file</span>
 <span class="sd">    ``pq.ParquetFile`` open is deferred to the diagnosis worker so the</span>
-<span class="sd">    file handle&#39;s lifetime is tightly scoped (open → read footer →</span>
-<span class="sd">    close) and worker RSS doesn&#39;t carry N footer handles simultaneously.</span>
+<span class="sd">    file handle's lifetime is tightly scoped (open → read footer →</span>
+<span class="sd">    close) and worker RSS doesn't carry N footer handles simultaneously.</span>
 <span class="sd">    The driver-side win is the *file-listing* and *meta-locate* dedupe;</span>
 <span class="sd">    the per-file open itself stays inside each diagnosis as today, since</span>
 <span class="sd">    the footer payload is small and dropping ``pq.ParquetFile`` promptly</span>
 <span class="sd">    is the established memory plateau pattern (see parquet_health docstring).</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">enabled</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">enabled</span><span class="p">)</span>
     <span class="n">need_parquet_list</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">enabled</span> <span class="o">&amp;</span> <span class="p">{</span>
-        <span class="s1">&#39;metadata&#39;</span><span class="p">,</span> <span class="s1">&#39;geoparquet_bbox&#39;</span><span class="p">,</span> <span class="s1">&#39;parquet_health&#39;</span><span class="p">,</span> <span class="s1">&#39;backfill&#39;</span><span class="p">,</span>
+        <span class="s1">'metadata'</span><span class="p">,</span> <span class="s1">'geoparquet_bbox'</span><span class="p">,</span> <span class="s1">'parquet_health'</span><span class="p">,</span> <span class="s1">'backfill'</span><span class="p">,</span>
     <span class="p">})</span>
-    <span class="n">need_meta_file</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">enabled</span> <span class="o">&amp;</span> <span class="p">{</span><span class="s1">&#39;metadata&#39;</span><span class="p">,</span> <span class="s1">&#39;backfill&#39;</span><span class="p">})</span>
-    <span class="n">need_meta_dict</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">enabled</span> <span class="o">&amp;</span> <span class="p">{</span><span class="s1">&#39;backfill&#39;</span><span class="p">})</span>
+    <span class="n">need_meta_file</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">enabled</span> <span class="o">&amp;</span> <span class="p">{</span><span class="s1">'metadata'</span><span class="p">,</span> <span class="s1">'backfill'</span><span class="p">})</span>
+    <span class="n">need_meta_dict</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">enabled</span> <span class="o">&amp;</span> <span class="p">{</span><span class="s1">'backfill'</span><span class="p">})</span>
 
-    <span class="n">shared</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;partition_dir&#39;</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">}</span>
+    <span class="n">shared</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'partition_dir'</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">}</span>
 
     <span class="k">if</span> <span class="n">need_parquet_list</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">shared</span><span class="p">[</span><span class="s1">&#39;parquet_files&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">partition_parquet_files</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">)</span>
+            <span class="n">shared</span><span class="p">[</span><span class="s1">'parquet_files'</span><span class="p">]</span> <span class="o">=</span> <span class="n">partition_parquet_files</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-            <span class="n">shared</span><span class="p">[</span><span class="s1">&#39;parquet_files&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">shared</span><span class="p">[</span><span class="s1">'parquet_files'</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="k">if</span> <span class="n">need_meta_file</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">shared</span><span class="p">[</span><span class="s1">&#39;meta_file&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">partition_meta_file</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">)</span>
+            <span class="n">shared</span><span class="p">[</span><span class="s1">'meta_file'</span><span class="p">]</span> <span class="o">=</span> <span class="n">partition_meta_file</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-            <span class="n">shared</span><span class="p">[</span><span class="s1">&#39;meta_file&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">shared</span><span class="p">[</span><span class="s1">'meta_file'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="k">if</span> <span class="n">need_meta_dict</span><span class="p">:</span>
-        <span class="n">mf</span> <span class="o">=</span> <span class="n">shared</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;meta_file&#39;</span><span class="p">)</span>
-        <span class="n">shared</span><span class="p">[</span><span class="s1">&#39;meta_dict&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">mf</span> <span class="o">=</span> <span class="n">shared</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'meta_file'</span><span class="p">)</span>
+        <span class="n">shared</span><span class="p">[</span><span class="s1">'meta_dict'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">if</span> <span class="n">mf</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="n">shared</span><span class="p">[</span><span class="s1">&#39;meta_dict&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">json_read</span><span class="p">(</span><span class="n">mf</span><span class="p">)</span>
+                <span class="n">shared</span><span class="p">[</span><span class="s1">'meta_dict'</span><span class="p">]</span> <span class="o">=</span> <span class="n">json_read</span><span class="p">(</span><span class="n">mf</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-                <span class="n">shared</span><span class="p">[</span><span class="s1">&#39;meta_dict&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="n">shared</span><span class="p">[</span><span class="s1">'meta_dict'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="k">return</span> <span class="n">shared</span>
 
@@ -875,22 +875,22 @@ window.runMermaid = runMermaid;</script>
     <span class="n">enabled_scans</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
     <span class="n">scan_kwargs</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Worker: run every enabled per-partition scan on one partition.</span>
+<span class="w">    </span><span class="sd">"""Worker: run every enabled per-partition scan on one partition.</span>
 
 <span class="sd">    Returns ``{scan_name: per_partition_result_or_exception}``. A</span>
 <span class="sd">    per-scan exception is captured in the result dict (mirroring</span>
-<span class="sd">    ``parallel_map``&#39;s exception-passthrough) so one scan&#39;s failure on</span>
+<span class="sd">    ``parallel_map``'s exception-passthrough) so one scan's failure on</span>
 <span class="sd">    one partition never aborts the others for that same partition.</span>
 
 <span class="sd">    ``scan_kwargs`` carries per-diagnosis broadcast args namespaced by</span>
-<span class="sd">    diagnosis name — e.g. ``{&#39;orphans&#39;: {&#39;age_seconds&#39;: 86400},</span>
-<span class="sd">    &#39;backfill&#39;: {&#39;products&#39;: [...], &#39;expected_by_product&#39;: {...}}}``.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    diagnosis name — e.g. ``{'orphans': {'age_seconds': 86400},</span>
+<span class="sd">    'backfill': {'products': [...], 'expected_by_product': {...}}}``.</span>
+<span class="sd">    """</span>
     <span class="c1"># Force-import the diagnoses package on the worker side. Each</span>
     <span class="c1"># diagnosis module populates ``_SCAN_REGISTRY`` via a</span>
     <span class="c1"># :func:`register_scan` call at import time, but workers receive</span>
     <span class="c1"># this function by pickle-by-reference — they have never imported</span>
-    <span class="c1"># the diagnoses submodules, so the worker&#39;s ``_SCAN_REGISTRY`` is</span>
+    <span class="c1"># the diagnoses submodules, so the worker's ``_SCAN_REGISTRY`` is</span>
     <span class="c1"># empty until we trigger the side-effect imports here. Without this,</span>
     <span class="c1"># every scan returns None and the driver-side fallback fires for</span>
     <span class="c1"># every diagnosis (slow per-diagnosis path).</span>
@@ -903,7 +903,7 @@ window.runMermaid = runMermaid;</script>
     <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">enabled_scans</span><span class="p">:</span>
         <span class="n">fn</span> <span class="o">=</span> <span class="n">_SCAN_REGISTRY</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">fn</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="c1"># Diagnosis isn&#39;t fused-aware yet — driver falls back to</span>
+            <span class="c1"># Diagnosis isn't fused-aware yet — driver falls back to</span>
             <span class="c1"># single-diagnosis dispatch for this name.</span>
             <span class="k">continue</span>
         <span class="n">kwargs</span> <span class="o">=</span> <span class="n">scan_kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="p">{})</span>
@@ -926,12 +926,12 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="fused_eligible_names">
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/fused/index.html#gedih3.doctor.fused.fused_eligible_names">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">fused_eligible_names</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the set of diagnosis names that participate in fusion.</span>
+<span class="w">    </span><span class="sd">"""Return the set of diagnosis names that participate in fusion.</span>
 
 <span class="sd">    The runner uses this to decide whether ``--check X,Y`` is fusible.</span>
 <span class="sd">    Only diagnoses whose worker has been registered via</span>
 <span class="sd">    :func:`register_scan` are eligible.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="n">_SCAN_REGISTRY</span><span class="p">)</span></div>
 
 </pre></div>

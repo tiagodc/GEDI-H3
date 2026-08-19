@@ -760,7 +760,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="sd">EGI (EASE Grid Index) DataFrame Module</span>
 
 <span class="sd">This module provides operations for integrating EGI spatial indexing with</span>
@@ -769,7 +769,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">- Converting between resolution levels (to_parent)</span>
 <span class="sd">- Aggregation functions with spatial grouping</span>
 <span class="sd">- Conversion to/from GeoDataFrames</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
@@ -786,13 +786,13 @@ window.runMermaid = runMermaid;</script>
 <a class="viewcode-back" href="../../../autoapi/gedih3/egi/dataframe/index.html#gedih3.egi.dataframe.egi_dataframe">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">egi_dataframe</span><span class="p">(</span>
     <span class="n">df</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">],</span>
-    <span class="n">x_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;lon_lowestmode&#39;</span><span class="p">,</span>
-    <span class="n">y_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;lat_lowestmode&#39;</span><span class="p">,</span>
+    <span class="n">x_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'lon_lowestmode'</span><span class="p">,</span>
+    <span class="n">y_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'lat_lowestmode'</span><span class="p">,</span>
     <span class="n">level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
     <span class="n">in_epsg</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4326</span><span class="p">,</span>
     <span class="n">set_index</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Add EGI spatial index to a DataFrame based on coordinate columns.</span>
 
 <span class="sd">    This is the primary function for converting GEDI shot data to EGI-indexed format.</span>
@@ -804,9 +804,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    df : DataFrame or GeoDataFrame</span>
 <span class="sd">        Input data with coordinate columns or Point geometries</span>
 <span class="sd">    x_col : str</span>
-<span class="sd">        Name of longitude/X column (default: &#39;lon_lowestmode&#39;)</span>
+<span class="sd">        Name of longitude/X column (default: 'lon_lowestmode')</span>
 <span class="sd">    y_col : str</span>
-<span class="sd">        Name of latitude/Y column (default: &#39;lat_lowestmode&#39;)</span>
+<span class="sd">        Name of latitude/Y column (default: 'lat_lowestmode')</span>
 <span class="sd">    level : int</span>
 <span class="sd">        EGI resolution level (1-12), default=1 (finest)</span>
 <span class="sd">    in_epsg : int</span>
@@ -822,33 +822,33 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; # Add EGI index to GEDI shots</span>
-<span class="sd">    &gt;&gt;&gt; gedi_df = pd.read_parquet(&quot;gedi_shots.parquet&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; gedi_df = pd.read_parquet("gedi_shots.parquet")</span>
 <span class="sd">    &gt;&gt;&gt; egi_df = egi_dataframe(gedi_df, level=6)  # ~1km resolution</span>
 <span class="sd">    &gt;&gt;&gt;</span>
 <span class="sd">    &gt;&gt;&gt; # Using existing GeoDataFrame</span>
-<span class="sd">    &gt;&gt;&gt; gdf = gpd.read_file(&quot;points.gpkg&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; gdf = gpd.read_file("points.gpkg")</span>
 <span class="sd">    &gt;&gt;&gt; egi_gdf = egi_dataframe(gdf, level=6)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">validate_level</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
 
     <span class="c1"># Handle empty DataFrames (e.g., during Dask metadata inference)</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">egi_col</span> <span class="o">=</span> <span class="n">egi_col_name</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
-        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="p">[],</span> <span class="n">crs</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;EPSG:</span><span class="si">{</span><span class="n">in_epsg</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="p">[],</span> <span class="n">crs</span><span class="o">=</span><span class="sa">f</span><span class="s1">'EPSG:</span><span class="si">{</span><span class="n">in_epsg</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
         <span class="n">gdf</span><span class="p">[</span><span class="n">egi_col</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">set_index</span><span class="p">:</span>
             <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="n">egi_col</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">gdf</span>
 
     <span class="c1"># Handle GeoDataFrame with Point geometry</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">df</span><span class="o">.</span><span class="n">geom_type</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;Point&#39;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">df</span><span class="o">.</span><span class="n">geom_type</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'Point'</span><span class="p">:</span>
         <span class="n">gdf</span> <span class="o">=</span> <span class="n">df</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># Create GeoDataFrame from coordinate columns</span>
         <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span>
             <span class="n">df</span><span class="p">,</span>
             <span class="n">geometry</span><span class="o">=</span><span class="n">gpd</span><span class="o">.</span><span class="n">points_from_xy</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="n">x_col</span><span class="p">],</span> <span class="n">df</span><span class="p">[</span><span class="n">y_col</span><span class="p">]),</span>
-            <span class="n">crs</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;EPSG:</span><span class="si">{</span><span class="n">in_epsg</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="n">crs</span><span class="o">=</span><span class="sa">f</span><span class="s1">'EPSG:</span><span class="si">{</span><span class="n">in_epsg</span><span class="si">}</span><span class="s1">'</span>
         <span class="p">)</span>
 
     <span class="c1"># Reproject to EASE-Grid 2.0 if needed</span>
@@ -873,13 +873,13 @@ window.runMermaid = runMermaid;</script>
 <a class="viewcode-back" href="../../../autoapi/gedih3/egi/dataframe/index.html#gedih3.egi.dataframe.egi_dataframe_vectorized">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">egi_dataframe_vectorized</span><span class="p">(</span>
     <span class="n">df</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">],</span>
-    <span class="n">x_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;lon_lowestmode&#39;</span><span class="p">,</span>
-    <span class="n">y_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;lat_lowestmode&#39;</span><span class="p">,</span>
+    <span class="n">x_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'lon_lowestmode'</span><span class="p">,</span>
+    <span class="n">y_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'lat_lowestmode'</span><span class="p">,</span>
     <span class="n">level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
     <span class="n">in_epsg</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4326</span><span class="p">,</span>
     <span class="n">set_index</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Add EGI spatial index using vectorized operations (faster for large datasets).</span>
 
 <span class="sd">    This is an optimized version of egi_dataframe() that uses numpy vectorization</span>
@@ -904,7 +904,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    GeoDataFrame</span>
 <span class="sd">        GeoDataFrame with EGI column added</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">pyproj</span><span class="w"> </span><span class="kn">import</span> <span class="n">Transformer</span>
 
     <span class="n">validate_level</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
@@ -912,19 +912,19 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># Handle empty DataFrames (e.g., during Dask metadata inference)</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">egi_col</span> <span class="o">=</span> <span class="n">egi_col_name</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
-        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="p">[],</span> <span class="n">crs</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;EPSG:</span><span class="si">{</span><span class="n">in_epsg</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="p">[],</span> <span class="n">crs</span><span class="o">=</span><span class="sa">f</span><span class="s1">'EPSG:</span><span class="si">{</span><span class="n">in_epsg</span><span class="si">}</span><span class="s1">'</span><span class="p">)</span>
         <span class="n">gdf</span><span class="p">[</span><span class="n">egi_col</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">set_index</span><span class="p">:</span>
             <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="n">egi_col</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">gdf</span>
 
     <span class="c1"># Get coordinates</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">df</span><span class="o">.</span><span class="n">geom_type</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;Point&#39;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">df</span><span class="o">.</span><span class="n">geom_type</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'Point'</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">crs</span><span class="o">.</span><span class="n">to_epsg</span><span class="p">()</span> <span class="o">==</span> <span class="n">EGI_CRS</span><span class="p">:</span>
             <span class="n">x</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">values</span>
             <span class="n">y</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">values</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">transformer</span> <span class="o">=</span> <span class="n">Transformer</span><span class="o">.</span><span class="n">from_crs</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">crs</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;EPSG:</span><span class="si">{</span><span class="n">EGI_CRS</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">always_xy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">transformer</span> <span class="o">=</span> <span class="n">Transformer</span><span class="o">.</span><span class="n">from_crs</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">crs</span><span class="p">,</span> <span class="sa">f</span><span class="s1">'EPSG:</span><span class="si">{</span><span class="n">EGI_CRS</span><span class="si">}</span><span class="s1">'</span><span class="p">,</span> <span class="n">always_xy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">transformer</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">df</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">values</span><span class="p">)</span>
         <span class="n">gdf</span> <span class="o">=</span> <span class="n">df</span>
     <span class="k">else</span><span class="p">:</span>
@@ -932,13 +932,13 @@ window.runMermaid = runMermaid;</script>
         <span class="n">y</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">y_col</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
 
         <span class="k">if</span> <span class="n">in_epsg</span> <span class="o">!=</span> <span class="n">EGI_CRS</span><span class="p">:</span>
-            <span class="n">transformer</span> <span class="o">=</span> <span class="n">Transformer</span><span class="o">.</span><span class="n">from_crs</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;EPSG:</span><span class="si">{</span><span class="n">in_epsg</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;EPSG:</span><span class="si">{</span><span class="n">EGI_CRS</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">always_xy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">transformer</span> <span class="o">=</span> <span class="n">Transformer</span><span class="o">.</span><span class="n">from_crs</span><span class="p">(</span><span class="sa">f</span><span class="s1">'EPSG:</span><span class="si">{</span><span class="n">in_epsg</span><span class="si">}</span><span class="s1">'</span><span class="p">,</span> <span class="sa">f</span><span class="s1">'EPSG:</span><span class="si">{</span><span class="n">EGI_CRS</span><span class="si">}</span><span class="s1">'</span><span class="p">,</span> <span class="n">always_xy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">transformer</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
 
         <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span>
             <span class="n">df</span><span class="p">,</span>
             <span class="n">geometry</span><span class="o">=</span><span class="n">gpd</span><span class="o">.</span><span class="n">points_from_xy</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="n">x_col</span><span class="p">],</span> <span class="n">df</span><span class="p">[</span><span class="n">y_col</span><span class="p">]),</span>
-            <span class="n">crs</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;EPSG:</span><span class="si">{</span><span class="n">in_epsg</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="n">crs</span><span class="o">=</span><span class="sa">f</span><span class="s1">'EPSG:</span><span class="si">{</span><span class="n">in_epsg</span><span class="si">}</span><span class="s1">'</span>
         <span class="p">)</span>
 
     <span class="c1"># Vectorized hash computation</span>
@@ -959,7 +959,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">parent_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">OUTER_LEVEL</span><span class="p">,</span>
     <span class="n">set_index</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Convert EGI-indexed DataFrame to a coarser resolution level.</span>
 
 <span class="sd">    Parameters</span>
@@ -980,7 +980,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; # Aggregate from level 1 to level 6</span>
 <span class="sd">    &gt;&gt;&gt; parent_df = egi_to_parent(fine_df, parent_level=6)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">validate_level</span><span class="p">(</span><span class="n">parent_level</span><span class="p">)</span>
 
     <span class="c1"># Handle empty DataFrames (e.g., during Dask metadata inference)</span>
@@ -1016,7 +1016,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">parent_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">OUTER_LEVEL</span><span class="p">,</span>
     <span class="n">set_index</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Convert EGI-indexed DataFrame to coarser resolution (vectorized version).</span>
 
 <span class="sd">    This is an optimized version using numpy vectorization.</span>
@@ -1034,7 +1034,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    DataFrame or GeoDataFrame</span>
 <span class="sd">        DataFrame with parent-level EGI column/index</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">validate_level</span><span class="p">(</span><span class="n">parent_level</span><span class="p">)</span>
 
     <span class="c1"># Handle empty DataFrames (e.g., during Dask metadata inference)</span>
@@ -1068,7 +1068,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">df</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">],</span>
     <span class="n">polygons</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Add geometry to an EGI-indexed DataFrame.</span>
 
 <span class="sd">    Parameters</span>
@@ -1087,7 +1087,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; # Add polygon geometries for visualization</span>
 <span class="sd">    &gt;&gt;&gt; gdf = egi_to_geo(aggregated_df, polygons=True)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="c1"># Handle empty DataFrames (e.g., during Dask operations on empty partitions)</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="p">[],</span> <span class="n">crs</span><span class="o">=</span><span class="n">EGI_CRS_STRING</span><span class="p">)</span>
@@ -1104,11 +1104,11 @@ window.runMermaid = runMermaid;</script>
 <a class="viewcode-back" href="../../../autoapi/gedih3/egi/dataframe/index.html#gedih3.egi.dataframe.egi_aggregate">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">egi_aggregate</span><span class="p">(</span>
     <span class="n">gdf</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">],</span>
-    <span class="n">mapper</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Callable</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;mean&#39;</span><span class="p">,</span>
+    <span class="n">mapper</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Callable</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'mean'</span><span class="p">,</span>
     <span class="n">return_geometry</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">geom_points</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Aggregate EGI-indexed DataFrame by spatial index.</span>
 
 <span class="sd">    Parameters</span>
@@ -1117,9 +1117,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        EGI-indexed DataFrame</span>
 <span class="sd">    mapper : str, list, dict, or callable</span>
 <span class="sd">        Aggregation specification:</span>
-<span class="sd">        - str: Single aggregation function (e.g., &#39;mean&#39;, &#39;sum&#39;, &#39;count&#39;)</span>
-<span class="sd">        - list: Multiple functions [&#39;mean&#39;, &#39;std&#39;, &#39;count&#39;]</span>
-<span class="sd">        - dict: Per-column specification {&#39;col1&#39;: &#39;mean&#39;, &#39;col2&#39;: [&#39;min&#39;, &#39;max&#39;]}</span>
+<span class="sd">        - str: Single aggregation function (e.g., 'mean', 'sum', 'count')</span>
+<span class="sd">        - list: Multiple functions ['mean', 'std', 'count']</span>
+<span class="sd">        - dict: Per-column specification {'col1': 'mean', 'col2': ['min', 'max']}</span>
 <span class="sd">        - callable: Custom aggregation function</span>
 <span class="sd">    return_geometry : bool</span>
 <span class="sd">        If True, return GeoDataFrame with geometry</span>
@@ -1134,17 +1134,17 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; # Simple mean aggregation</span>
-<span class="sd">    &gt;&gt;&gt; agg_df = egi_aggregate(shots_df, mapper=&#39;mean&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; agg_df = egi_aggregate(shots_df, mapper='mean')</span>
 <span class="sd">    &gt;&gt;&gt;</span>
 <span class="sd">    &gt;&gt;&gt; # Multiple aggregations</span>
-<span class="sd">    &gt;&gt;&gt; agg_df = egi_aggregate(shots_df, mapper=[&#39;mean&#39;, &#39;std&#39;, &#39;count&#39;])</span>
+<span class="sd">    &gt;&gt;&gt; agg_df = egi_aggregate(shots_df, mapper=['mean', 'std', 'count'])</span>
 <span class="sd">    &gt;&gt;&gt;</span>
 <span class="sd">    &gt;&gt;&gt; # Per-column specification</span>
-<span class="sd">    &gt;&gt;&gt; agg_df = egi_aggregate(shots_df, mapper={&#39;agbd&#39;: &#39;mean&#39;, &#39;rh_098&#39;: [&#39;mean&#39;, &#39;std&#39;]})</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    &gt;&gt;&gt; agg_df = egi_aggregate(shots_df, mapper={'agbd': 'mean', 'rh_098': ['mean', 'std']})</span>
+<span class="sd">    """</span>
     <span class="c1"># Remove geometry column if present (will be regenerated)</span>
-    <span class="k">if</span> <span class="s1">&#39;geometry&#39;</span> <span class="ow">in</span> <span class="n">gdf</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="s1">&#39;geometry&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="s1">'geometry'</span> <span class="ow">in</span> <span class="n">gdf</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="s1">'geometry'</span><span class="p">)</span>
 
     <span class="c1"># Perform aggregation</span>
     <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">mapper</span><span class="p">):</span>
@@ -1161,7 +1161,7 @@ window.runMermaid = runMermaid;</script>
 
         <span class="c1"># Flatten MultiIndex columns if present</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">df_agg</span><span class="o">.</span><span class="n">columns</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">MultiIndex</span><span class="p">):</span>
-            <span class="n">df_agg</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;_&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">col</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">df_agg</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+            <span class="n">df_agg</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'_'</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">col</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">df_agg</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
 
         <span class="n">df_agg</span> <span class="o">=</span> <span class="n">geom</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">df_agg</span><span class="p">)</span>
 
@@ -1172,7 +1172,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="egi_col_from_df">
 <a class="viewcode-back" href="../../../autoapi/gedih3/egi/dataframe/index.html#gedih3.egi.dataframe.egi_col_from_df">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">egi_col_from_df</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Find the EGI column in a DataFrame.</span>
 
 <span class="sd">    Parameters</span>
@@ -1184,13 +1184,13 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    str or None</span>
 <span class="sd">        Name of the EGI column, or None if not found</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="c1"># Check index name</span>
-    <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;egi&#39;</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'egi'</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span>
 
     <span class="c1"># Check columns</span>
-    <span class="n">egi_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">col</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">col</span><span class="p">)</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;egi&#39;</span><span class="p">)]</span>
+    <span class="n">egi_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">col</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">col</span><span class="p">)</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'egi'</span><span class="p">)]</span>
     <span class="k">if</span> <span class="n">egi_cols</span><span class="p">:</span>
         <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">egi_cols</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
 
@@ -1201,8 +1201,8 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="egi_get_level_from_df">
 <a class="viewcode-back" href="../../../autoapi/gedih3/egi/dataframe/index.html#gedih3.egi.dataframe.egi_get_level_from_df">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">egi_get_level_from_df</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Get the EGI resolution level from a DataFrame&#39;s index.</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Get the EGI resolution level from a DataFrame's index.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -1213,17 +1213,17 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    int or None</span>
 <span class="sd">        Resolution level, or None if not EGI-indexed</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">col</span> <span class="o">=</span> <span class="n">egi_col_from_df</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">col</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">None</span>
 
-    <span class="c1"># Extract level from column name (e.g., &#39;egi06&#39; -&gt; 6)</span>
+    <span class="c1"># Extract level from column name (e.g., 'egi06' -&gt; 6)</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">col</span><span class="p">[</span><span class="mi">3</span><span class="p">:])</span>
     <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
         <span class="c1"># Fall back to examining the index values</span>
-        <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;egi&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'egi'</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_level</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="mi">0</span><span class="p">])))</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 

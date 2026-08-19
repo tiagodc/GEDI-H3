@@ -760,7 +760,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="sd">EGI (EASE Grid Index) Core Module</span>
 
 <span class="sd">This module provides the fundamental hash encoding and decoding functions for</span>
@@ -780,7 +780,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    - Hash values MUST use np.uint64 for 64-bit precision</span>
 <span class="sd">    - Intermediate calculations use appropriate uint16/uint32 to prevent overflow</span>
 <span class="sd">    - Coordinate divisions must use exact type casting to preserve precision</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Union</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">numpy.typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">NDArray</span>
@@ -797,7 +797,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">px_inner</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint32</span><span class="p">]],</span>
     <span class="n">py_inner</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint32</span><span class="p">]]</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Construct EGI hash from component parts.</span>
 
 <span class="sd">    This is the core hash construction function. It combines level, outer tile</span>
@@ -825,7 +825,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -----</span>
 <span class="sd">    All inputs must be the same shape or broadcastable. The function preserves</span>
 <span class="sd">    exact integer arithmetic using uint64 throughout.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="c1"># Convert to uint64 for multiplication to prevent overflow</span>
     <span class="n">uint_hash</span> <span class="o">=</span> <span class="p">(</span>
         <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="n">level</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="mf">1e18</span><span class="p">)</span> <span class="o">+</span>
@@ -845,7 +845,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">y</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">floating</span><span class="p">]],</span>
     <span class="n">level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Convert EPSG:6933 coordinates to EGI hash.</span>
 
 <span class="sd">    Parameters</span>
@@ -889,22 +889,22 @@ window.runMermaid = runMermaid;</script>
 
 <span class="sd">    Coordinates must be in EPSG:6933 projection. Do NOT use this function</span>
 <span class="sd">    with WGS84 coordinates - reproject first.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">validate_level</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
     <span class="n">scale</span> <span class="o">=</span> <span class="n">RESOLUTIONS</span><span class="p">[</span><span class="n">level</span><span class="p">]</span>
     <span class="n">scale_factor</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">OUTER_RES</span> <span class="o">/</span> <span class="n">scale</span><span class="p">)</span>  <span class="c1"># integer pixels per outer tile at this level</span>
 
     <span class="c1"># Calculate coordinate offsets from grid origin</span>
-    <span class="n">x_offset</span> <span class="o">=</span> <span class="n">x</span> <span class="o">-</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lon_w&#39;</span><span class="p">]</span>
-    <span class="n">y_offset</span> <span class="o">=</span> <span class="n">y</span> <span class="o">-</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lat_s&#39;</span><span class="p">]</span>
+    <span class="n">x_offset</span> <span class="o">=</span> <span class="n">x</span> <span class="o">-</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lon_w'</span><span class="p">]</span>
+    <span class="n">y_offset</span> <span class="o">=</span> <span class="n">y</span> <span class="o">-</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lat_s'</span><span class="p">]</span>
 
     <span class="c1"># Outer-tile and inner-pixel indices, both via the same OUTER_RES grid the</span>
     <span class="c1"># reference easegridindex uses. This preserves backward-compatible cell</span>
     <span class="c1"># alignment for existing data — we only diverge for boundary overflow below.</span>
-    <span class="n">px_outer</span> <span class="o">=</span> <span class="p">(</span><span class="n">x_offset</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">x_offset</span><span class="p">,</span> <span class="s1">&#39;astype&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">(</span><span class="n">x_offset</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span>
-    <span class="n">py_outer</span> <span class="o">=</span> <span class="p">(</span><span class="n">y_offset</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">y_offset</span><span class="p">,</span> <span class="s1">&#39;astype&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">(</span><span class="n">y_offset</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span>
-    <span class="n">px_inner</span> <span class="o">=</span> <span class="p">(</span><span class="n">x_offset</span> <span class="o">%</span> <span class="n">OUTER_RES</span> <span class="o">//</span> <span class="n">scale</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">x_offset</span><span class="p">,</span> <span class="s1">&#39;astype&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">(</span><span class="n">x_offset</span> <span class="o">%</span> <span class="n">OUTER_RES</span> <span class="o">//</span> <span class="n">scale</span><span class="p">)</span>
-    <span class="n">py_inner</span> <span class="o">=</span> <span class="p">(</span><span class="n">y_offset</span> <span class="o">%</span> <span class="n">OUTER_RES</span> <span class="o">//</span> <span class="n">scale</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">y_offset</span><span class="p">,</span> <span class="s1">&#39;astype&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">(</span><span class="n">y_offset</span> <span class="o">%</span> <span class="n">OUTER_RES</span> <span class="o">//</span> <span class="n">scale</span><span class="p">)</span>
+    <span class="n">px_outer</span> <span class="o">=</span> <span class="p">(</span><span class="n">x_offset</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">x_offset</span><span class="p">,</span> <span class="s1">'astype'</span><span class="p">)</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">(</span><span class="n">x_offset</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span>
+    <span class="n">py_outer</span> <span class="o">=</span> <span class="p">(</span><span class="n">y_offset</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">y_offset</span><span class="p">,</span> <span class="s1">'astype'</span><span class="p">)</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">(</span><span class="n">y_offset</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span>
+    <span class="n">px_inner</span> <span class="o">=</span> <span class="p">(</span><span class="n">x_offset</span> <span class="o">%</span> <span class="n">OUTER_RES</span> <span class="o">//</span> <span class="n">scale</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">x_offset</span><span class="p">,</span> <span class="s1">'astype'</span><span class="p">)</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">(</span><span class="n">x_offset</span> <span class="o">%</span> <span class="n">OUTER_RES</span> <span class="o">//</span> <span class="n">scale</span><span class="p">)</span>
+    <span class="n">py_inner</span> <span class="o">=</span> <span class="p">(</span><span class="n">y_offset</span> <span class="o">%</span> <span class="n">OUTER_RES</span> <span class="o">//</span> <span class="n">scale</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">y_offset</span><span class="p">,</span> <span class="s1">'astype'</span><span class="p">)</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">(</span><span class="n">y_offset</span> <span class="o">%</span> <span class="n">OUTER_RES</span> <span class="o">//</span> <span class="n">scale</span><span class="p">)</span>
 
     <span class="c1"># Boundary overflow carry: at tile boundaries, the independent float ops</span>
     <span class="c1"># leave px_inner == scale_factor (one past valid). Fold that overflow into</span>
@@ -938,7 +938,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint32</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint32</span><span class="p">]],</span>
     <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint32</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint32</span><span class="p">]]</span>
 <span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Decode EGI hash into its component parts.</span>
 
 <span class="sd">    Parameters</span>
@@ -960,7 +960,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; level, scale, px_o, py_o, px_i, py_i = from_hash(hash_val)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">uint_hash</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">)</span>
 
     <span class="c1"># Extract level from highest digits</span>
@@ -987,7 +987,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="get_level">
 <a class="viewcode-back" href="../../../autoapi/gedih3/egi/core/index.html#gedih3.egi.core.get_level">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_level</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">integer</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Extract the resolution level from an EGI hash.</span>
 
 <span class="sd">    Parameters</span>
@@ -999,7 +999,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    int or array</span>
 <span class="sd">        Resolution level(s)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">)</span> <span class="o">//</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="mf">1e18</span><span class="p">)</span></div>
 
 
@@ -1007,7 +1007,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="get_scale">
 <a class="viewcode-back" href="../../../autoapi/gedih3/egi/core/index.html#gedih3.egi.core.get_scale">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_scale</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">floating</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Get the pixel size in meters for an EGI hash.</span>
 
 <span class="sd">    Parameters</span>
@@ -1019,7 +1019,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    float or array</span>
 <span class="sd">        Pixel size(s) in meters</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">level</span> <span class="o">=</span> <span class="n">get_level</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">ndim</span><span class="p">(</span><span class="n">level</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">RESOLUTIONS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">level</span><span class="p">))</span>
@@ -1033,7 +1033,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">uint_hash</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">]],</span>
     <span class="n">parent_level</span><span class="p">:</span> <span class="nb">int</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Convert EGI hash to a coarser (parent) resolution level.</span>
 
 <span class="sd">    This function rescales the inner pixel coordinates to the parent resolution</span>
@@ -1060,24 +1060,24 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; # Convert from level 1 to level 6</span>
 <span class="sd">    &gt;&gt;&gt; parent_hash = to_parent(fine_hash, parent_level=6)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">validate_level</span><span class="p">(</span><span class="n">parent_level</span><span class="p">)</span>
 
     <span class="n">uint_hash</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">)</span>
     <span class="n">level</span> <span class="o">=</span> <span class="n">get_level</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">)</span>
 
-    <span class="c1"># Validate that we&#39;re going to coarser resolution</span>
+    <span class="c1"># Validate that we're going to coarser resolution</span>
     <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">ndim</span><span class="p">(</span><span class="n">level</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">level</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">parent_level</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Cannot convert to finer resolution. Current level: </span><span class="si">{</span><span class="n">level</span><span class="si">}</span><span class="s2">, &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;requested parent level: </span><span class="si">{</span><span class="n">parent_level</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">"Cannot convert to finer resolution. Current level: </span><span class="si">{</span><span class="n">level</span><span class="si">}</span><span class="s2">, "</span>
+                <span class="sa">f</span><span class="s2">"requested parent level: </span><span class="si">{</span><span class="n">parent_level</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
         <span class="n">current_scale</span> <span class="o">=</span> <span class="n">RESOLUTIONS</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">level</span><span class="p">)]</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">level</span> <span class="o">&gt;</span> <span class="n">parent_level</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Cannot convert to finer resolution. Some hashes have level &gt; </span><span class="si">{</span><span class="n">parent_level</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">"Cannot convert to finer resolution. Some hashes have level &gt; </span><span class="si">{</span><span class="n">parent_level</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
         <span class="n">current_scale</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">RESOLUTIONS</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">lv</span><span class="p">)]</span> <span class="k">for</span> <span class="n">lv</span> <span class="ow">in</span> <span class="n">level</span><span class="p">])</span>
 
@@ -1109,7 +1109,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">uint_hash</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">]],</span>
     <span class="n">children_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Get all child pixels at a finer resolution.</span>
 
 <span class="sd">    Parameters</span>
@@ -1134,7 +1134,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; children = get_children(parent_hash, children_level=-1)</span>
 <span class="sd">    &gt;&gt;&gt; fine_children = get_children(level6_hash, children_level=1)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">uint_hash</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">)</span>
     <span class="n">level</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">px_outer</span><span class="p">,</span> <span class="n">py_outer</span><span class="p">,</span> <span class="n">px_inner</span><span class="p">,</span> <span class="n">py_inner</span> <span class="o">=</span> <span class="n">from_hash</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">)</span>
     <span class="n">level</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
@@ -1145,12 +1145,12 @@ window.runMermaid = runMermaid;</script>
     <span class="n">validate_level</span><span class="p">(</span><span class="n">children_level</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">children_level</span> <span class="o">&gt;=</span> <span class="n">level</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Children level (</span><span class="si">{</span><span class="n">children_level</span><span class="si">}</span><span class="s2">) must be finer than parent level (</span><span class="si">{</span><span class="n">level</span><span class="si">}</span><span class="s2">)&quot;</span>
+            <span class="sa">f</span><span class="s2">"Children level (</span><span class="si">{</span><span class="n">children_level</span><span class="si">}</span><span class="s2">) must be finer than parent level (</span><span class="si">{</span><span class="n">level</span><span class="si">}</span><span class="s2">)"</span>
         <span class="p">)</span>
 
     <span class="c1"># Compute pixel bounds directly (no Shapely dependency)</span>
-    <span class="n">minx</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">scale</span><span class="p">)</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">px_inner</span><span class="p">)</span> <span class="o">+</span> <span class="n">OUTER_RES</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">px_outer</span><span class="p">)</span> <span class="o">+</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lon_w&#39;</span><span class="p">]</span>
-    <span class="n">miny</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">scale</span><span class="p">)</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">py_inner</span><span class="p">)</span> <span class="o">+</span> <span class="n">OUTER_RES</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">py_outer</span><span class="p">)</span> <span class="o">+</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lat_s&#39;</span><span class="p">]</span>
+    <span class="n">minx</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">scale</span><span class="p">)</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">px_inner</span><span class="p">)</span> <span class="o">+</span> <span class="n">OUTER_RES</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">px_outer</span><span class="p">)</span> <span class="o">+</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lon_w'</span><span class="p">]</span>
+    <span class="n">miny</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">scale</span><span class="p">)</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">py_inner</span><span class="p">)</span> <span class="o">+</span> <span class="n">OUTER_RES</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">py_outer</span><span class="p">)</span> <span class="o">+</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lat_s'</span><span class="p">]</span>
     <span class="n">maxx</span> <span class="o">=</span> <span class="n">minx</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">scale</span><span class="p">)</span>
     <span class="n">maxy</span> <span class="o">=</span> <span class="n">miny</span> <span class="o">+</span> <span class="nb">float</span><span class="p">(</span><span class="n">scale</span><span class="p">)</span>
 
@@ -1174,7 +1174,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="pixels_per_tile">
 <a class="viewcode-back" href="../../../autoapi/gedih3/egi/core/index.html#gedih3.egi.core.pixels_per_tile">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">pixels_per_tile</span><span class="p">(</span><span class="n">uint_hash_or_level</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Calculate the number of pixels per outer tile at a given level.</span>
 
 <span class="sd">    Parameters</span>
@@ -1186,7 +1186,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    int or float</span>
 <span class="sd">        Number of pixels along one edge of an outer tile</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="n">uint_hash_or_level</span> <span class="o">&lt;=</span> <span class="mi">12</span><span class="p">:</span>
         <span class="c1"># Input is a level</span>
         <span class="n">level</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">uint_hash_or_level</span><span class="p">)</span>
@@ -1202,7 +1202,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="validate_hash">
 <a class="viewcode-back" href="../../../autoapi/gedih3/egi/core/index.html#gedih3.egi.core.validate_hash">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">validate_hash</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Validate that an EGI hash is well-formed.</span>
 
 <span class="sd">    Parameters</span>
@@ -1214,7 +1214,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    bool</span>
 <span class="sd">        True if valid, False otherwise</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">uint_hash</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">)</span>
     <span class="n">level</span> <span class="o">=</span> <span class="n">get_level</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">)</span>
 

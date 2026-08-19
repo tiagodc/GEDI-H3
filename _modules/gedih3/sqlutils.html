@@ -786,7 +786,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">temp_directory</span> <span class="o">=</span> <span class="p">(</span>
         <span class="n">temp_directory</span>
         <span class="k">if</span> <span class="n">temp_directory</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-        <span class="k">else</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">GH3_DEFAULT_TMP_DIR</span><span class="si">}</span><span class="s2">/duckdb&quot;</span>
+        <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">GH3_DEFAULT_TMP_DIR</span><span class="si">}</span><span class="s2">/duckdb"</span>
     <span class="p">)</span>
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">temp_directory</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
@@ -797,56 +797,56 @@ window.runMermaid = runMermaid;</script>
 
     <span class="n">con</span> <span class="o">=</span> <span class="n">duckdb</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">extension_directory</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SET extension_directory=&#39;</span><span class="si">{</span><span class="n">extension_directory</span><span class="si">}</span><span class="s2">&#39;;&quot;</span><span class="p">)</span>
-    <span class="n">con</span><span class="o">.</span><span class="n">install_extension</span><span class="p">(</span><span class="s2">&quot;spatial&quot;</span><span class="p">)</span>
-    <span class="n">con</span><span class="o">.</span><span class="n">load_extension</span><span class="p">(</span><span class="s2">&quot;spatial&quot;</span><span class="p">)</span>
-    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSTALL h3 FROM community;&quot;</span><span class="p">)</span>
-    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;LOAD h3;&quot;</span><span class="p">)</span>
-    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SET enable_progress_bar = true;&quot;</span><span class="p">)</span>
-    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SET preserve_insertion_order = false;&quot;</span><span class="p">)</span>
-    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;SET parquet_metadata_cache = true;&quot;</span><span class="p">)</span>
-    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SET memory_limit=&#39;</span><span class="si">{</span><span class="n">memory_limit</span><span class="si">}</span><span class="s2">GB&#39;;&quot;</span><span class="p">)</span>
-    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SET temp_directory=&#39;</span><span class="si">{</span><span class="n">temp_directory</span><span class="si">}</span><span class="s2">&#39;;&quot;</span><span class="p">)</span>
-    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SET max_temp_directory_size=&#39;</span><span class="si">{</span><span class="n">max_temp_size</span><span class="si">}</span><span class="s2">GB&#39;;&quot;</span><span class="p">)</span>
-    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;PRAGMA threads=</span><span class="si">{</span><span class="n">threads</span><span class="si">}</span><span class="s2">;&quot;</span><span class="p">)</span>
+        <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">"SET extension_directory='</span><span class="si">{</span><span class="n">extension_directory</span><span class="si">}</span><span class="s2">';"</span><span class="p">)</span>
+    <span class="n">con</span><span class="o">.</span><span class="n">install_extension</span><span class="p">(</span><span class="s2">"spatial"</span><span class="p">)</span>
+    <span class="n">con</span><span class="o">.</span><span class="n">load_extension</span><span class="p">(</span><span class="s2">"spatial"</span><span class="p">)</span>
+    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"INSTALL h3 FROM community;"</span><span class="p">)</span>
+    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"LOAD h3;"</span><span class="p">)</span>
+    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SET enable_progress_bar = true;"</span><span class="p">)</span>
+    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SET preserve_insertion_order = false;"</span><span class="p">)</span>
+    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SET parquet_metadata_cache = true;"</span><span class="p">)</span>
+    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">"SET memory_limit='</span><span class="si">{</span><span class="n">memory_limit</span><span class="si">}</span><span class="s2">GB';"</span><span class="p">)</span>
+    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">"SET temp_directory='</span><span class="si">{</span><span class="n">temp_directory</span><span class="si">}</span><span class="s2">';"</span><span class="p">)</span>
+    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">"SET max_temp_directory_size='</span><span class="si">{</span><span class="n">max_temp_size</span><span class="si">}</span><span class="s2">GB';"</span><span class="p">)</span>
+    <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">"PRAGMA threads=</span><span class="si">{</span><span class="n">threads</span><span class="si">}</span><span class="s2">;"</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">con</span></div>
 
 
 
 <div class="viewcode-block" id="attach_ducklake_db">
 <a class="viewcode-back" href="../../autoapi/gedih3/sqlutils/index.html#gedih3.sqlutils.attach_ducklake_db">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">attach_ducklake_db</span><span class="p">(</span><span class="n">con</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;gedi_dl&quot;</span><span class="p">,</span> <span class="nb">dir</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Attach existing ducklake database</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">attach_ducklake_db</span><span class="p">(</span><span class="n">con</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"gedi_dl"</span><span class="p">,</span> <span class="nb">dir</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Attach existing ducklake database</span>
 <span class="sd">    If dir is not specified, it will be located in GH3_DEFAULT_H3_DIR.</span>
 
 <span class="sd">    Once this function is called, the gedi data can be queried using</span>
 <span class="sd">        `SELECT ... FROM {name}.data`</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="nb">dir</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="nb">dir</span> <span class="o">=</span> <span class="n">GH3_DEFAULT_H3_DIR</span>
-    <span class="n">con</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&quot;&quot;--sql</span>
-<span class="s2">        ATTACH &#39;ducklake:</span><span class="si">{</span><span class="nb">dir</span><span class="si">}</span><span class="s2">/gedi.ducklake&#39; AS </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> (READ_ONLY);</span>
+    <span class="n">con</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="sa">f</span><span class="s2">"""--sql</span>
+<span class="s2">        ATTACH 'ducklake:</span><span class="si">{</span><span class="nb">dir</span><span class="si">}</span><span class="s2">/gedi.ducklake' AS </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> (READ_ONLY);</span>
 <span class="s2">        USE </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">;</span>
-<span class="s2">    &quot;&quot;&quot;</span><span class="p">)</span></div>
+<span class="s2">    """</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="geoseries_to_cells">
 <a class="viewcode-back" href="../../autoapi/gedih3/sqlutils/index.html#gedih3.sqlutils.geoseries_to_cells">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">geoseries_to_cells</span><span class="p">(</span><span class="n">shp</span><span class="p">,</span> <span class="n">resolution</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span> <span class="n">expand_ring</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert a region to a list of overlapping H3 cells at *resolution*.</span>
+<span class="w">    </span><span class="sd">"""Convert a region to a list of overlapping H3 cells at *resolution*.</span>
 
 <span class="sd">    Accepts every region form the loaders accept (vector-file path,</span>
-<span class="sd">    ``&quot;W,S,E,N&quot;`` string, ``[W, S, E, N]`` list, GeoDataFrame/GeoSeries in</span>
+<span class="sd">    ``"W,S,E,N"`` string, ``[W, S, E, N]`` list, GeoDataFrame/GeoSeries in</span>
 <span class="sd">    any CRS, shapely geometry) via :func:`~gedih3.utils.region_to_geometry`,</span>
-<span class="sd">    so the DuckDB pre-query selection cannot drift from ``gh3_load``&#39;s —</span>
+<span class="sd">    so the DuckDB pre-query selection cannot drift from ``gh3_load``'s —</span>
 <span class="sd">    previously a GeoSeries in a projected CRS was fed to h3 as if it were</span>
 <span class="sd">    lat/lng degrees.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">region_to_geometry</span>
 
     <span class="n">geom</span> <span class="o">=</span> <span class="n">region_to_geometry</span><span class="p">(</span><span class="n">shp</span><span class="p">)</span>
     <span class="n">h3shape</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">geo_to_h3shape</span><span class="p">(</span><span class="n">geom</span><span class="p">)</span>
-    <span class="n">h3_cells</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">h3</span><span class="o">.</span><span class="n">h3shape_to_cells_experimental</span><span class="p">(</span><span class="n">h3shape</span><span class="p">,</span> <span class="n">resolution</span><span class="p">,</span> <span class="s2">&quot;overlap&quot;</span><span class="p">))</span>
+    <span class="n">h3_cells</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">h3</span><span class="o">.</span><span class="n">h3shape_to_cells_experimental</span><span class="p">(</span><span class="n">h3shape</span><span class="p">,</span> <span class="n">resolution</span><span class="p">,</span> <span class="s2">"overlap"</span><span class="p">))</span>
     <span class="k">if</span> <span class="n">expand_ring</span><span class="p">:</span>
         <span class="n">cells_out</span> <span class="o">=</span> <span class="n">h3_expand_ring</span><span class="p">(</span><span class="n">h3_cells</span><span class="p">,</span> <span class="n">ring</span><span class="o">=</span><span class="n">expand_ring</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
@@ -858,45 +858,45 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="geoseries_to_filter">
 <a class="viewcode-back" href="../../autoapi/gedih3/sqlutils/index.html#gedih3.sqlutils.geoseries_to_filter">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">geoseries_to_filter</span><span class="p">(</span><span class="n">shp</span><span class="p">,</span> <span class="n">resolution</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span> <span class="n">expand_ring</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert a region to an H3 partition filter at the given resolution.</span>
+<span class="w">    </span><span class="sd">"""Convert a region to an H3 partition filter at the given resolution.</span>
 
-<span class="sd">    ``&#39;overlap&#39;`` coverage is exact w.r.t. the cell polygons, but shots are</span>
+<span class="sd">    ``'overlap'`` coverage is exact w.r.t. the cell polygons, but shots are</span>
 <span class="sd">    stored under their hierarchy partition, which can overhang the polygon</span>
 <span class="sd">    by ~0.18 x edge length (see ``intersect_h3_geometries``). ``expand_ring``</span>
 <span class="sd">    adds grid_disk neighbors so boundary shots stored in a non-overlapping</span>
 <span class="sd">    neighbor partition are not silently filtered out; pass 0 to disable.</span>
 
 <span class="sd">    The filter column follows *resolution* (``h3_03`` for the default</span>
-<span class="sd">    partition level 3) — pass the database&#39;s ``h3_partition_level`` when it</span>
+<span class="sd">    partition level 3) — pass the database's ``h3_partition_level`` when it</span>
 <span class="sd">    differs.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">cells_out</span> <span class="o">=</span> <span class="n">geoseries_to_cells</span><span class="p">(</span><span class="n">shp</span><span class="p">,</span> <span class="n">resolution</span><span class="p">,</span> <span class="n">expand_ring</span><span class="p">)</span>
-    <span class="k">return</span> <span class="s2">&quot;h3_</span><span class="si">{:02d}</span><span class="s2"> = ANY(</span><span class="si">{}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">resolution</span><span class="p">,</span> <span class="n">cells_out</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="s2">"h3_</span><span class="si">{:02d}</span><span class="s2"> = ANY(</span><span class="si">{}</span><span class="s2">)"</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">resolution</span><span class="p">,</span> <span class="n">cells_out</span><span class="p">)</span></div>
 
 
 
 <div class="viewcode-block" id="duck_to_gdf">
 <a class="viewcode-back" href="../../autoapi/gedih3/sqlutils/index.html#gedih3.sqlutils.duck_to_gdf">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">duck_to_gdf</span><span class="p">(</span>
-    <span class="n">table</span><span class="p">,</span> <span class="n">geometry_columns</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;geometry&quot;</span><span class="p">],</span> <span class="n">crs</span><span class="o">=</span><span class="s2">&quot;EPSG:4326&quot;</span>
+    <span class="n">table</span><span class="p">,</span> <span class="n">geometry_columns</span><span class="o">=</span><span class="p">[</span><span class="s2">"geometry"</span><span class="p">],</span> <span class="n">crs</span><span class="o">=</span><span class="s2">"EPSG:4326"</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Convert a DuckDB table to a GeoDataFrame.</span>
+<span class="w">    </span><span class="sd">"""Convert a DuckDB table to a GeoDataFrame.</span>
 <span class="sd">    If multiple geometry columns are specified,</span>
 <span class="sd">    the first will be set as the active geometry.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">for</span> <span class="n">geom_col</span> <span class="ow">in</span> <span class="n">geometry_columns</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">geom_col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">geom_col</span><span class="si">}</span><span class="s2">&#39; not found in table.&quot;</span><span class="p">)</span>
-    <span class="n">replace_cols</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
-        <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;ST_AsHEXWKB(</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">) AS </span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">geometry_columns</span><span class="p">]</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Column '</span><span class="si">{</span><span class="n">geom_col</span><span class="si">}</span><span class="s2">' not found in table."</span><span class="p">)</span>
+    <span class="n">replace_cols</span> <span class="o">=</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="p">[</span><span class="sa">f</span><span class="s2">"ST_AsHEXWKB(</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">) AS </span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">geometry_columns</span><span class="p">]</span>
     <span class="p">)</span>
-    <span class="n">df</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;* REPLACE (</span><span class="si">{</span><span class="n">replace_cols</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">to_df</span><span class="p">()</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="sa">f</span><span class="s2">"* REPLACE (</span><span class="si">{</span><span class="n">replace_cols</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span><span class="o">.</span><span class="n">to_df</span><span class="p">()</span>
     <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span>
         <span class="n">df</span><span class="p">,</span>
         <span class="n">geometry</span><span class="o">=</span><span class="n">gpd</span><span class="o">.</span><span class="n">GeoSeries</span><span class="o">.</span><span class="n">from_wkb</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="n">geometry_columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]]),</span>
         <span class="n">crs</span><span class="o">=</span><span class="n">crs</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="k">if</span> <span class="n">geometry_columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">&quot;geometry&quot;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">geometry_columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">"geometry"</span><span class="p">:</span>
         <span class="n">gdf</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="n">geometry_columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">geometry_columns</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">geom_col</span> <span class="ow">in</span> <span class="n">geometry_columns</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
@@ -910,15 +910,15 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">gdf_to_duck</span><span class="p">(</span>
     <span class="n">con</span><span class="p">,</span>
     <span class="n">gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">,</span>
-    <span class="n">geometry_columns</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;geometry&quot;</span><span class="p">],</span>
+    <span class="n">geometry_columns</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"geometry"</span><span class="p">],</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">duckdb</span><span class="o">.</span><span class="n">DuckDBPyRelation</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Load a GeoDataFrame into a DuckDB table.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Load a GeoDataFrame into a DuckDB table."""</span>
     <span class="c1"># Convert geometries to WKT</span>
     <span class="n">gdf_tmp</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
     <span class="c1"># Geopandas overrides EPSG:4326 to have lon/lat order,</span>
     <span class="c1"># but the official CRS definition has lat/lon.</span>
     <span class="c1"># If the crs is EPSG:4326, we need to swap the order of coordinates when converting to WKT.</span>
-    <span class="k">if</span> <span class="n">gdf_tmp</span><span class="o">.</span><span class="n">crs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">gdf_tmp</span><span class="o">.</span><span class="n">crs</span><span class="o">.</span><span class="n">to_string</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;EPSG:4326&quot;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">gdf_tmp</span><span class="o">.</span><span class="n">crs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">gdf_tmp</span><span class="o">.</span><span class="n">crs</span><span class="o">.</span><span class="n">to_string</span><span class="p">()</span> <span class="o">==</span> <span class="s2">"EPSG:4326"</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">geometry_columns</span><span class="p">:</span>
             <span class="n">gdf_tmp</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdf_tmp</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
                 <span class="k">lambda</span> <span class="n">polygon</span><span class="p">:</span> <span class="n">shapely</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span>
@@ -928,24 +928,24 @@ window.runMermaid = runMermaid;</script>
 
     <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">():</span>
         <span class="c1"># ignore that the df now has a geometry column of strings</span>
-        <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">)</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s2">"ignore"</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">geometry_columns</span><span class="p">:</span>
             <span class="n">gdf_tmp</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdf_tmp</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">to_wkt</span><span class="p">()</span>
 
-        <span class="c1"># All columns with type &#39;str&#39; must be converted to &#39;string&#39;</span>
+        <span class="c1"># All columns with type 'str' must be converted to 'string'</span>
         <span class="c1"># DuckDB does not yet support the new pandas 2.3+, 3.x str dtype.</span>
         <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">gdf_tmp</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">gdf_tmp</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="s2">&quot;str&quot;</span><span class="p">:</span>
-                <span class="n">gdf_tmp</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdf_tmp</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s2">&quot;string&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">gdf_tmp</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="s2">"str"</span><span class="p">:</span>
+                <span class="n">gdf_tmp</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdf_tmp</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s2">"string"</span><span class="p">)</span>
 
-    <span class="n">replace_cols</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
-        <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;ST_GeomFromText(</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">) AS </span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">geometry_columns</span><span class="p">]</span>
+    <span class="n">replace_cols</span> <span class="o">=</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="p">[</span><span class="sa">f</span><span class="s2">"ST_GeomFromText(</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">) AS </span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">geometry_columns</span><span class="p">]</span>
     <span class="p">)</span>
     <span class="c1"># Execute immediately to use local context table (gdf_tmp)</span>
-    <span class="n">rel</span> <span class="o">=</span> <span class="n">con</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+    <span class="n">rel</span> <span class="o">=</span> <span class="n">con</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="sa">f</span><span class="s2">"""</span>
 <span class="s2">        SELECT * REPLACE (</span><span class="si">{</span><span class="n">replace_cols</span><span class="si">}</span><span class="s2">)</span>
 <span class="s2">        FROM gdf_tmp</span>
-<span class="s2">    &quot;&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span>
+<span class="s2">    """</span><span class="p">)</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">rel</span></div>
 
 </pre></div>

@@ -773,22 +773,22 @@ window.runMermaid = runMermaid;</script>
 
     <span class="n">p</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span>
         <span class="n">description</span><span class="o">=</span><span class="p">(</span>
-            <span class="s2">&quot;Build the _bbox_index.parquet root sidecar for an H3 database: &quot;</span>
-            <span class="s2">&quot;one row per partition year-file with the true data envelope, &quot;</span>
-            <span class="s2">&quot;derived from existing parquet row-group statistics (footer-only &quot;</span>
-            <span class="s2">&quot;scan, no data read). Query tools then skip files a region or &quot;</span>
-            <span class="s2">&quot;EGI tile provably cannot touch. Safe to re-run at any time; &quot;</span>
-            <span class="s2">&quot;gh3_build removes the index automatically when a merge changes &quot;</span>
-            <span class="s2">&quot;the data.&quot;</span>
+            <span class="s2">"Build the _bbox_index.parquet root sidecar for an H3 database: "</span>
+            <span class="s2">"one row per partition year-file with the true data envelope, "</span>
+            <span class="s2">"derived from existing parquet row-group statistics (footer-only "</span>
+            <span class="s2">"scan, no data read). Query tools then skip files a region or "</span>
+            <span class="s2">"EGI tile provably cannot touch. Safe to re-run at any time; "</span>
+            <span class="s2">"gh3_build removes the index automatically when a merge changes "</span>
+            <span class="s2">"the data."</span>
         <span class="p">)</span>
     <span class="p">)</span>
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;-d&quot;</span><span class="p">,</span> <span class="s2">&quot;--database&quot;</span><span class="p">,</span>
-        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;database&quot;</span><span class="p">,</span>
+        <span class="s2">"-d"</span><span class="p">,</span> <span class="s2">"--database"</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">"database"</span><span class="p">,</span>
         <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
         <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;H3 database directory (default: GH3_DEFAULT_H3_DIR). Must be &quot;</span>
-             <span class="s2">&quot;a local path - the index is written at the database root&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"H3 database directory (default: GH3_DEFAULT_H3_DIR). Must be "</span>
+             <span class="s2">"a local path - the index is written at the database root"</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">add_dask_args</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
     <span class="n">add_verbosity_args</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
@@ -805,9 +805,9 @@ window.runMermaid = runMermaid;</script>
 
     <span class="n">args</span> <span class="o">=</span> <span class="n">get_cmd_args</span><span class="p">()</span>
     <span class="n">logger</span> <span class="o">=</span> <span class="n">setup_logging</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
-    <span class="n">print_banner</span><span class="p">(</span><span class="s2">&quot;GEDI H3 BBox Index Builder&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+    <span class="n">print_banner</span><span class="p">(</span><span class="s2">"GEDI H3 BBox Index Builder"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
 
-    <span class="n">resolve_path_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;database&#39;</span><span class="p">],</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+    <span class="n">resolve_path_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">[</span><span class="s1">'database'</span><span class="p">],</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
 
     <span class="k">with</span> <span class="n">cli_exception_handler</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">):</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">dask.distributed</span><span class="w"> </span><span class="kn">import</span> <span class="n">Client</span>
@@ -815,19 +815,19 @@ window.runMermaid = runMermaid;</script>
         <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">GH3_DEFAULT_H3_DIR</span>
 
         <span class="n">database</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">database</span> <span class="ow">or</span> <span class="n">GH3_DEFAULT_H3_DIR</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Database: </span><span class="si">{</span><span class="n">database</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Database: </span><span class="si">{</span><span class="n">database</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
         <span class="n">dask_kwargs</span> <span class="o">=</span> <span class="n">parse_dask_args</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
         <span class="k">with</span> <span class="n">Client</span><span class="p">(</span><span class="o">**</span><span class="n">dask_kwargs</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dask dashboard available at: </span><span class="si">{</span><span class="n">client</span><span class="o">.</span><span class="n">dashboard_link</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dask dashboard available at: </span><span class="si">{</span><span class="n">client</span><span class="o">.</span><span class="n">dashboard_link</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">opath</span> <span class="o">=</span> <span class="n">gh3_build_bbox_index</span><span class="p">(</span><span class="n">database</span><span class="p">)</span>
 
-        <span class="n">print_success</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;BBox index written to </span><span class="si">{</span><span class="n">opath</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+        <span class="n">print_success</span><span class="p">(</span><span class="sa">f</span><span class="s2">"BBox index written to </span><span class="si">{</span><span class="n">opath</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
     <span class="k">return</span> <span class="mi">0</span></div>
 
 
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
     <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </pre></div>
 

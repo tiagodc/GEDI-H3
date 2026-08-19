@@ -768,7 +768,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="explicit_vars_missing_in_sample">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_build/index.html#gedih3.cli.gh3_build.explicit_vars_missing_in_sample">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">explicit_vars_missing_in_sample</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">default_products</span><span class="p">,</span> <span class="n">sample_dict</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return ``{product: [bad_names]}`` for explicit-list products whose</span>
+<span class="w">    </span><span class="sd">"""Return ``{product: [bad_names]}`` for explicit-list products whose</span>
 <span class="sd">    requested variables are absent from the sample HDF5.</span>
 
 <span class="sd">    Pure function over its inputs — extracted from the gh3_build CLI so the</span>
@@ -777,7 +777,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    product_vars : dict</span>
-<span class="sd">        Mapping ``{product: list-or-None}``. ``None`` means &quot;everything&quot;</span>
+<span class="sd">        Mapping ``{product: list-or-None}``. ``None`` means "everything"</span>
 <span class="sd">        (``*``/``all``) and is skipped. Preset-sourced lists (``default``,</span>
 <span class="sd">        ``minimal``, ``all``/``*``) are identified by ``default_products``</span>
 <span class="sd">        and skipped — their names come from an internal manifest/table, not</span>
@@ -785,7 +785,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    default_products : set</span>
 <span class="sd">        Products to exempt from this check. Despite the name, callers pass</span>
 <span class="sd">        the full preset set (e.g. ``H3BuildLogger.preset_products``), not</span>
-<span class="sd">        just literal ``default`` requests — see that attribute&#39;s docstring.</span>
+<span class="sd">        just literal ``default`` requests — see that attribute's docstring.</span>
 <span class="sd">    sample_dict : dict</span>
 <span class="sd">        One ``{product: hdf5_path}`` mapping from</span>
 <span class="sd">        :func:`gedidriver.soc_file_tree`. Pass an empty dict to short-circuit.</span>
@@ -797,7 +797,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        lists exist). Otherwise ``{product: [missing_names]}``. Wildcards</span>
 <span class="sd">        that match nothing in the sample HDF5 are surfaced as a single</span>
 <span class="sd">        ``GediValidationError`` string entry under their product.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">gedi_vars_from_h5</span><span class="p">,</span> <span class="n">expand_var_wildcards</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">GediValidationError</span>
 
@@ -816,7 +816,7 @@ window.runMermaid = runMermaid;</script>
             <span class="n">available</span> <span class="o">=</span> <span class="n">gedi_vars_from_h5</span><span class="p">(</span><span class="n">sample_dict</span><span class="p">[</span><span class="n">prod</span><span class="p">])</span>
         <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
             <span class="c1"># Caller surfaces this as a warning; treat as soft skip so a</span>
-            <span class="c1"># broken sample file doesn&#39;t block an otherwise-valid request.</span>
+            <span class="c1"># broken sample file doesn't block an otherwise-valid request.</span>
             <span class="k">continue</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">expanded_names</span> <span class="o">=</span> <span class="n">expand_var_wildcards</span><span class="p">(</span><span class="n">requested</span><span class="p">,</span> <span class="n">available</span><span class="p">)</span>
@@ -834,7 +834,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="manifest_check_scope">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_build/index.html#gedih3.cli.gh3_build.manifest_check_scope">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">manifest_check_scope</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the subset of ``product_vars`` that should be validated</span>
+<span class="w">    </span><span class="sd">"""Return the subset of ``product_vars`` that should be validated</span>
 <span class="sd">    against the shipped static manifest, per the regime rule:</span>
 
 <span class="sd">    - **Regime A** (fresh build): every product the user passed that was</span>
@@ -849,7 +849,7 @@ window.runMermaid = runMermaid;</script>
 
 <span class="sd">    Pure function over logger state so the regime gate can be unit-tested</span>
 <span class="sd">    without the full CLI pipeline.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">updating</span><span class="p">:</span>
         <span class="n">scope</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">default_products</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">product_vars</span> <span class="ow">or</span> <span class="p">{})</span>
     <span class="k">else</span><span class="p">:</span>
@@ -863,55 +863,55 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_cmd_args</span><span class="p">():</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">add_dask_args</span><span class="p">,</span> <span class="n">add_verbosity_args</span><span class="p">,</span> <span class="n">add_product_args</span>
 
-    <span class="n">p</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Build H3-indexed GEDI database from SOC files&quot;</span><span class="p">)</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Build H3-indexed GEDI database from SOC files"</span><span class="p">)</span>
 
     <span class="c1"># Spatial/temporal filtering</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-r&quot;</span><span class="p">,</span> <span class="s2">&quot;--region&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;region&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;vector file, bbox &#39;W,S,E,N&#39;, or ISO3 country code&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-t0&quot;</span><span class="p">,</span> <span class="s2">&quot;--time-start&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;time_start&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;start date [YYYY-MM-DD]&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-t1&quot;</span><span class="p">,</span> <span class="s2">&quot;--time-end&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;time_end&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;end date [YYYY-MM-DD]&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-r"</span><span class="p">,</span> <span class="s2">"--region"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"region"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"vector file, bbox 'W,S,E,N', or ISO3 country code"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-t0"</span><span class="p">,</span> <span class="s2">"--time-start"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"time_start"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"start date [YYYY-MM-DD]"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-t1"</span><span class="p">,</span> <span class="s2">"--time-end"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"time_end"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"end date [YYYY-MM-DD]"</span><span class="p">)</span>
 
     <span class="c1"># H3 configuration. Default is None (not 12 / 3) so the logger can</span>
-    <span class="c1"># distinguish &quot;user-passed&quot; from &quot;fell-back-to-default&quot; — the latter</span>
+    <span class="c1"># distinguish "user-passed" from "fell-back-to-default" — the latter</span>
     <span class="c1"># is silently filled in for new builds (defaults: 12 / 3), the former</span>
     <span class="c1"># is strictly validated against the existing log on resume to refuse</span>
     <span class="c1"># silent layout drift. See H3BuildLogger.__init__.</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-h3r&quot;</span><span class="p">,</span> <span class="s2">&quot;--h3-resolution&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;h3_resolution&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;H3 index level [0-15, default=12 on fresh build; ignored on resume - must match existing log]&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-h3p&quot;</span><span class="p">,</span> <span class="s2">&quot;--h3-partition&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;h3_partition&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;H3 partition level [0-15, default=3 on fresh build; ignored on resume - must match existing log]&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-h3r"</span><span class="p">,</span> <span class="s2">"--h3-resolution"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"h3_resolution"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"H3 index level [0-15, default=12 on fresh build; ignored on resume - must match existing log]"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-h3p"</span><span class="p">,</span> <span class="s2">"--h3-partition"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"h3_partition"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"H3 partition level [0-15, default=3 on fresh build; ignored on resume - must match existing log]"</span><span class="p">)</span>
 
     <span class="c1"># GEDI product variables</span>
     <span class="n">add_product_args</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
 
     <span class="c1"># I/O paths</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-o&quot;</span><span class="p">,</span> <span class="s2">&quot;--output&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;output&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;output directory for H3 database (default: GH3_DEFAULT_H3_DIR)&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-i&quot;</span><span class="p">,</span> <span class="s1">&#39;--indir&#39;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;indir&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;directory with GEDI SOC files (default: GH3_DEFAULT_SOC_DIR)&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-dl&quot;</span><span class="p">,</span> <span class="s2">&quot;--download&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;download&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;download missing GEDI data before building (embeds gh3_download as pre-step)&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-t&quot;</span><span class="p">,</span> <span class="s1">&#39;--tmpdir&#39;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;tmpdir&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;temporary directory for intermediate files&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--no-bbox-index&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;bbox_index&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_false&#39;</span><span class="p">,</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-o"</span><span class="p">,</span> <span class="s2">"--output"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"output"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"output directory for H3 database (default: GH3_DEFAULT_H3_DIR)"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-i"</span><span class="p">,</span> <span class="s1">'--indir'</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"indir"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"directory with GEDI SOC files (default: GH3_DEFAULT_SOC_DIR)"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-dl"</span><span class="p">,</span> <span class="s2">"--download"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"download"</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">'store_true'</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"download missing GEDI data before building (embeds gh3_download as pre-step)"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-t"</span><span class="p">,</span> <span class="s1">'--tmpdir'</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"tmpdir"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"temporary directory for intermediate files"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--no-bbox-index"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"bbox_index"</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">'store_false'</span><span class="p">,</span>
                    <span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;skip (re)building the _bbox_index.parquet sidecar after a &quot;</span>
-                        <span class="s2">&quot;successful build (footer-only scan; spatial queries use it &quot;</span>
-                        <span class="s2">&quot;to skip files a region/EGI tile cannot touch)&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-s3&quot;</span><span class="p">,</span> <span class="s2">&quot;--s3&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;s3&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;download from NASA S3 to temp directory (no persistent local download)&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--gedi-version&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;version&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;GEDI data version [default=latest available]&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--exclude&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;exclude&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;append&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;PATTERN&#39;</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;exclude files whose basename matches the given fnmatch pattern. &quot;</span>
-                        <span class="s2">&quot;Repeat the flag for multiple patterns. &quot;</span>
-                        <span class="s2">&quot;Example: --exclude &#39;*_SGS.h5&#39; --exclude &#39;*_BETA.h5&#39;&quot;</span><span class="p">)</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"skip (re)building the _bbox_index.parquet sidecar after a "</span>
+                        <span class="s2">"successful build (footer-only scan; spatial queries use it "</span>
+                        <span class="s2">"to skip files a region/EGI tile cannot touch)"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-s3"</span><span class="p">,</span> <span class="s2">"--s3"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"s3"</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">'store_true'</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"download from NASA S3 to temp directory (no persistent local download)"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--gedi-version"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"version"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"GEDI data version [default=latest available]"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--exclude"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"exclude"</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">'append'</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">metavar</span><span class="o">=</span><span class="s1">'PATTERN'</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"exclude files whose basename matches the given fnmatch pattern. "</span>
+                        <span class="s2">"Repeat the flag for multiple patterns. "</span>
+                        <span class="s2">"Example: --exclude '*_SGS.h5' --exclude '*_BETA.h5'"</span><span class="p">)</span>
 
     <span class="c1"># Dask and verbosity</span>
-    <span class="n">add_dask_args</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="s1">&#39;build&#39;</span><span class="p">)</span>
+    <span class="n">add_dask_args</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="s1">'build'</span><span class="p">)</span>
     <span class="n">add_verbosity_args</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span></div>
@@ -919,7 +919,7 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_has_new_local_granules</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Check if SOC directory has HDF5 files not tracked in the build log.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Check if SOC directory has HDF5 files not tracked in the build log."""</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">glob</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">globmod</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEDIFile</span>
@@ -928,11 +928,11 @@ window.runMermaid = runMermaid;</script>
         <span class="k">return</span> <span class="kc">False</span>
 
     <span class="n">tracked</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
-    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">&#39;granule_info&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">granule_info</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">)</span> <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">granule_info</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">granule_info</span><span class="p">:</span>
-            <span class="n">tracked</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">&#39;orbit&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;granule&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;track&#39;</span><span class="p">]))</span>
+            <span class="n">tracked</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]))</span>
 
-    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">globmod</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="s1">&#39;**&#39;</span><span class="p">,</span> <span class="s1">&#39;GEDI*.h5&#39;</span><span class="p">),</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">globmod</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="s1">'**'</span><span class="p">,</span> <span class="s1">'GEDI*.h5'</span><span class="p">),</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">gf</span> <span class="o">=</span> <span class="n">GEDIFile</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
             <span class="k">if</span> <span class="p">(</span><span class="n">gf</span><span class="o">.</span><span class="n">orbit</span><span class="p">,</span> <span class="n">gf</span><span class="o">.</span><span class="n">orbit_granule</span><span class="p">,</span> <span class="n">gf</span><span class="o">.</span><span class="n">track</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">tracked</span><span class="p">:</span>
@@ -944,10 +944,10 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_detect_merge_resume_signal</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">parquet_dir</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">has_pending_new_work</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a human-readable signal name if the resume should skip extract</span>
+<span class="w">    </span><span class="sd">"""Return a human-readable signal name if the resume should skip extract</span>
 <span class="sd">    and go straight to merge, else return None.</span>
 
-<span class="sd">    L1 (canonical): the on-disk log says ``status == &#39;MERGING&#39;``. This is set</span>
+<span class="sd">    L1 (canonical): the on-disk log says ``status == 'MERGING'``. This is set</span>
 <span class="sd">    by ``build_h3db`` immediately before the merge phase, so seeing it on</span>
 <span class="sd">    resume proves the previous run finished extract.</span>
 
@@ -959,45 +959,45 @@ window.runMermaid = runMermaid;</script>
 
 <span class="sd">    **Veto: MERGE_FAILED granules.** If the build log contains any granule</span>
 <span class="sd">    in ``MERGE_FAILED`` status, the shortcut is suppressed even when L1/L2</span>
-<span class="sd">    fire. Those granules&#39; partitions failed merge on a prior run with a</span>
+<span class="sd">    fire. Those granules' partitions failed merge on a prior run with a</span>
 <span class="sd">    corrupt-fragment error — they were flipped to ``MERGE_FAILED`` by</span>
 <span class="sd">    ``apply_merge_failures_to_logger`` so that Stage 1 would re-extract</span>
 <span class="sd">    them on the next resume. Taking the merge-only shortcut would skip the</span>
 <span class="sd">    extract pass and re-attempt the same merge against the same bad</span>
-<span class="sd">    fragments, looping forever. The full path&#39;s reconcile + extract pass</span>
+<span class="sd">    fragments, looping forever. The full path's reconcile + extract pass</span>
 <span class="sd">    is what closes the loop: it walks ``MERGE_FAILED → INDEXING``,</span>
 <span class="sd">    re-writes the fragments from source HDF5, and feeds the merge fresh</span>
 <span class="sd">    inputs.</span>
 
 <span class="sd">    **Veto: pending new product/variable work.** ``has_pending_new_work``</span>
 <span class="sd">    is true when the caller has detected a variable-only update, a mixed</span>
-<span class="sd">    update&#39;s Phase 2, or a crash-recovered pending variable update --</span>
+<span class="sd">    update's Phase 2, or a crash-recovered pending variable update --</span>
 <span class="sd">    i.e. there are products/variables requested that have never been</span>
 <span class="sd">    through Stage 1/2 for this database. Neither L1 nor L2 proves anything</span>
 <span class="sd">    about that new work: ``_merge_progress.txt`` and the ``MERGING`` status</span>
 <span class="sd">    are written by the plain Stage-1 build-and-merge cycle, not by</span>
-<span class="sd">    ``_build_add_variables``&#39;s separate ``_var_merge_progress.txt``</span>
+<span class="sd">    ``_build_add_variables``'s separate ``_var_merge_progress.txt``</span>
 <span class="sd">    tracking. A leftover from an earlier, already-completed build in the</span>
-<span class="sd">    same tmp directory would otherwise be misread as &quot;this request&#39;s merge</span>
-<span class="sd">    already started&quot; -- silently skipping extract entirely for the new</span>
+<span class="sd">    same tmp directory would otherwise be misread as "this request's merge</span>
+<span class="sd">    already started" -- silently skipping extract entirely for the new</span>
 <span class="sd">    product while `_merge_and_finalize` finds nothing new to do and still</span>
 <span class="sd">    reports success. The build log then records the product as added even</span>
 <span class="sd">    though not one of its columns was ever written.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
     <span class="k">if</span> <span class="n">has_pending_new_work</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">None</span>
-    <span class="n">granule_info</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">&#39;granule_info&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
-    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;status&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;MERGE_FAILED&#39;</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">granule_info</span><span class="p">):</span>
+    <span class="n">granule_info</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">==</span> <span class="s1">'MERGE_FAILED'</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">granule_info</span><span class="p">):</span>
         <span class="k">return</span> <span class="kc">None</span>
-    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">&#39;previous_status&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;MERGING&#39;</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s1">&#39;log status MERGING&#39;</span>
-    <span class="n">progress_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">,</span> <span class="s1">&#39;_merge_progress.txt&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'previous_status'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="o">==</span> <span class="s1">'MERGING'</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s1">'log status MERGING'</span>
+    <span class="n">progress_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">,</span> <span class="s1">'_merge_progress.txt'</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">progress_file</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">progress_file</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">progress_file</span><span class="p">,</span> <span class="s1">'r'</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
                 <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">fh</span><span class="p">):</span>
-                    <span class="k">return</span> <span class="s1">&#39;merge progress file present&#39;</span>
+                    <span class="k">return</span> <span class="s1">'merge progress file present'</span>
         <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
             <span class="k">pass</span>
     <span class="k">return</span> <span class="kc">None</span>
@@ -1022,7 +1022,7 @@ window.runMermaid = runMermaid;</script>
 
     <span class="c1"># Setup logging and print banner</span>
     <span class="n">logger</span> <span class="o">=</span> <span class="n">setup_logging</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
-    <span class="n">print_banner</span><span class="p">(</span><span class="s2">&quot;GEDI H3 Database Builder Tool&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+    <span class="n">print_banner</span><span class="p">(</span><span class="s2">"GEDI H3 Database Builder Tool"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">output</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">args</span><span class="o">.</span><span class="n">output</span> <span class="o">=</span> <span class="n">GH3_DEFAULT_H3_DIR</span>
@@ -1030,7 +1030,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="s1">&#39;.tmp&#39;</span><span class="p">)</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="s1">'.tmp'</span><span class="p">)</span>
     <span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">)</span>
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
@@ -1039,21 +1039,21 @@ window.runMermaid = runMermaid;</script>
 
     <span class="c1"># Log detected resources. ``Driver host`` makes it explicit that the</span>
     <span class="c1"># CPUs/RAM are local to this process — an external ``--dask-scheduler``</span>
-    <span class="c1"># cluster may live elsewhere. The cluster&#39;s actual workers/threads/RAM</span>
+    <span class="c1"># cluster may live elsewhere. The cluster's actual workers/threads/RAM</span>
     <span class="c1"># are reported separately by the ``Dask config`` line below, after the</span>
     <span class="c1"># Client connects and we can query ``client.scheduler_info()``.</span>
     <span class="n">cpus</span><span class="p">,</span> <span class="n">ram</span><span class="p">,</span> <span class="n">storage</span> <span class="o">=</span> <span class="n">get_system_resources</span><span class="p">(</span><span class="n">disk_path</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">)</span>
-    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Driver host: </span><span class="si">{</span><span class="n">cpus</span><span class="si">}</span><span class="s2"> CPUs, </span><span class="si">{</span><span class="n">ram</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> GB RAM | Disk: </span><span class="si">{</span><span class="n">storage</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> GB free at </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Driver host: </span><span class="si">{</span><span class="n">cpus</span><span class="si">}</span><span class="s2"> CPUs, </span><span class="si">{</span><span class="n">ram</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> GB RAM | Disk: </span><span class="si">{</span><span class="n">storage</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> GB free at </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">storage</span> <span class="o">&lt;</span> <span class="mi">10</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Low disk space (</span><span class="si">{</span><span class="n">storage</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> GB free) — build may fail writing parquet output&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Low disk space (</span><span class="si">{</span><span class="n">storage</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> GB free) — build may fail writing parquet output"</span><span class="p">)</span>
 
     <span class="c1"># Determine source mode: --s3 (temp download+build) or local SOC directory</span>
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">s3</span><span class="p">:</span>
         <span class="n">soc_source</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># S3 ETL to temp dir</span>
         <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">indir</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Both -i and --s3 specified. Using --s3 (S3 mode).&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"Both -i and --s3 specified. Using --s3 (S3 mode)."</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">download</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;--download is ignored when using --s3 (S3 mode downloads automatically).&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"--download is ignored when using --s3 (S3 mode downloads automatically)."</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">indir</span><span class="p">:</span>
         <span class="n">soc_source</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">indir</span>
     <span class="k">else</span><span class="p">:</span>
@@ -1073,26 +1073,26 @@ window.runMermaid = runMermaid;</script>
         <span class="n">part</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">h3_partition</span><span class="p">,</span>
         <span class="n">version</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">version</span><span class="p">,</span>
         <span class="nb">dir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span>
-        <span class="n">source_mode</span><span class="o">=</span><span class="s1">&#39;s3&#39;</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">s3</span> <span class="k">else</span> <span class="s1">&#39;local&#39;</span><span class="p">,</span>
+        <span class="n">source_mode</span><span class="o">=</span><span class="s1">'s3'</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">s3</span> <span class="k">else</span> <span class="s1">'local'</span><span class="p">,</span>
     <span class="p">)</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">product_vars</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">updating</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-            <span class="s2">&quot;No GEDI product selected - please select at least one of &quot;</span>
-            <span class="s2">&quot;--l2a, --l2b, --l4a, --l4c (or use --detail-level for all four), &quot;</span>
-            <span class="s2">&quot;and/or --l1b for waveform data&quot;</span>
+            <span class="s2">"No GEDI product selected - please select at least one of "</span>
+            <span class="s2">"--l2a, --l2b, --l4a, --l4c (or use --detail-level for all four), "</span>
+            <span class="s2">"and/or --l1b for waveform data"</span>
         <span class="p">)</span>
     <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">get_spatial</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No spatial filter provided - processing global data&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"No spatial filter provided - processing global data"</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">updating</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Build log exists, checking for updates&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Build log exists, checking for updates"</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_spatial</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Spatial filter updated&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Spatial filter updated"</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_temporal</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Temporal filter updated&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Temporal filter updated"</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Product variables updated&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Product variables updated"</span><span class="p">)</span>
 
     <span class="c1"># Detect variable-only update: only new products, no spatial/temporal changes</span>
     <span class="n">is_variable_only_update</span> <span class="o">=</span> <span class="p">(</span>
@@ -1111,28 +1111,28 @@ window.runMermaid = runMermaid;</script>
     <span class="p">)</span>
 
     <span class="k">if</span> <span class="n">is_mixed_update</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Mixed update detected (spatial/temporal + new variables)&quot;</span><span class="p">)</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;  Phase 1: expand spatial/temporal range with existing products&quot;</span><span class="p">)</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;  Phase 2: add new variable columns to all partitions&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Mixed update detected (spatial/temporal + new variables)"</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"  Phase 1: expand spatial/temporal range with existing products"</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"  Phase 2: add new variable columns to all partitions"</span><span class="p">)</span>
 
     <span class="c1"># Check for pending variable update from crash recovery</span>
-    <span class="n">pending_var_update</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;_pending_variable_update&#39;</span><span class="p">)</span>
+    <span class="n">pending_var_update</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'_pending_variable_update'</span><span class="p">)</span>
 
     <span class="c1"># Early exit: database is already up-to-date with requested parameters</span>
     <span class="c1"># Only when a valid build log exists with partition data to confirm completeness</span>
     <span class="k">if</span> <span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">is_up_to_date</span><span class="p">()</span>
             <span class="ow">and</span> <span class="ow">not</span> <span class="n">pending_var_update</span>
-            <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">&#39;h3_partition_ids&#39;</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'h3_partition_ids'</span><span class="p">)</span>
             <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">h3_partition_ids</span><span class="p">):</span>
         <span class="c1"># S3/download modes: skip early exit — let the pipeline query CMR</span>
         <span class="c1"># or run download_soc() to discover new NASA granules</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">s3</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">download</span><span class="p">:</span>
             <span class="c1"># Local mode: check SOC directory for new HDF5 files</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">_has_new_local_granules</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">):</span>
-                <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">previous_status</span> <span class="o">!=</span> <span class="s1">&#39;COMPLETED&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">previous_status</span> <span class="o">!=</span> <span class="s1">'COMPLETED'</span><span class="p">:</span>
                     <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
-                    <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;COMPLETED&#39;</span><span class="p">)</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Database is already up-to-date with requested parameters&quot;</span><span class="p">)</span>
+                    <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'COMPLETED'</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Database is already up-to-date with requested parameters"</span><span class="p">)</span>
                 <span class="c1"># Up-to-date DB: create the index only if it is missing</span>
                 <span class="c1"># (e.g. first run after upgrading gedih3) — the data is</span>
                 <span class="c1"># unchanged, so an existing index remains valid. No client</span>
@@ -1142,21 +1142,21 @@ window.runMermaid = runMermaid;</script>
                 <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="kn">import</span> <span class="n">refresh_bbox_index_after_build</span>
                 <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">bbox_index</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span>
                         <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">BBOX_INDEX_FILENAME</span><span class="p">)):</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Creating missing bbox index (footer-only scan)&quot;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Creating missing bbox index (footer-only scan)"</span><span class="p">)</span>
                     <span class="k">with</span> <span class="n">Client</span><span class="p">(</span><span class="o">**</span><span class="n">parse_dask_args</span><span class="p">(</span><span class="n">args</span><span class="p">)):</span>
                         <span class="n">refresh_bbox_index_after_build</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
-                <span class="n">print_success</span><span class="p">(</span><span class="s2">&quot;Database is up-to-date, no changes needed&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+                <span class="n">print_success</span><span class="p">(</span><span class="s2">"Database is up-to-date, no changes needed"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
                 <span class="k">return</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;New granules detected in SOC directory — updating database&quot;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"New granules detected in SOC directory — updating database"</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">soc_source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">source_label</span> <span class="o">=</span> <span class="s2">&quot;NASA S3 (temp download)&quot;</span>
+        <span class="n">source_label</span> <span class="o">=</span> <span class="s2">"NASA S3 (temp download)"</span>
     <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">download</span><span class="p">:</span>
-        <span class="n">source_label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;download+build: </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">source_label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"download+build: </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">"</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">source_label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;local: </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">&quot;</span>
-    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Building GEDI H3 database at </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2"> (source: </span><span class="si">{</span><span class="n">source_label</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+        <span class="n">source_label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"local: </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">"</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Building GEDI H3 database at </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2"> (source: </span><span class="si">{</span><span class="n">source_label</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
 
     <span class="n">dask_kwargs</span> <span class="o">=</span> <span class="n">parse_dask_args</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
 
@@ -1173,22 +1173,22 @@ window.runMermaid = runMermaid;</script>
         <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">,</span>
     <span class="p">)</span>
 
-    <span class="c1"># Set right after each final save_log(&#39;COMPLETED&#39;): a Ctrl-C during the</span>
+    <span class="c1"># Set right after each final save_log('COMPLETED'): a Ctrl-C during the</span>
     <span class="c1"># post-completion bbox-index build must not downgrade a finished build.</span>
     <span class="n">build_completed</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="k">with</span> <span class="n">Client</span><span class="p">(</span><span class="o">**</span><span class="n">dask_kwargs</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
-            <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;Sending large graph of size.*&quot;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">UserWarning</span><span class="p">,</span> <span class="n">module</span><span class="o">=</span><span class="s2">&quot;distributed.client&quot;</span><span class="p">)</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="sa">r</span><span class="s2">"Sending large graph of size.*"</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">UserWarning</span><span class="p">,</span> <span class="n">module</span><span class="o">=</span><span class="s2">"distributed.client"</span><span class="p">)</span>
             <span class="k">def</span><span class="w"> </span><span class="nf">_suppress_pandas_perf_warnings</span><span class="p">():</span>
                 <span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
                 <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-                <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;DataFrame is highly fragmented.*&quot;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="n">pd</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">PerformanceWarning</span><span class="p">)</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">"ignore"</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="sa">r</span><span class="s2">"DataFrame is highly fragmented.*"</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="n">pd</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">PerformanceWarning</span><span class="p">)</span>
 
             <span class="n">client</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">_suppress_pandas_perf_warnings</span><span class="p">)</span>
 
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dask config: </span><span class="si">{</span><span class="n">format_dask_cluster_info</span><span class="p">(</span><span class="n">client</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dask dashboard available at: </span><span class="si">{</span><span class="n">client</span><span class="o">.</span><span class="n">dashboard_link</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dask config: </span><span class="si">{</span><span class="n">format_dask_cluster_info</span><span class="p">(</span><span class="n">client</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dask dashboard available at: </span><span class="si">{</span><span class="n">client</span><span class="o">.</span><span class="n">dashboard_link</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
             <span class="c1"># Validate/download SOC data when using local directory mode</span>
             <span class="k">if</span> <span class="n">soc_source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1202,16 +1202,16 @@ window.runMermaid = runMermaid;</script>
                 <span class="c1"># driver.</span>
                 <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.parallel</span><span class="w"> </span><span class="kn">import</span> <span class="n">walk_soc_parallel</span>
                 <span class="n">existing_h5</span> <span class="o">=</span> <span class="n">walk_soc_parallel</span><span class="p">(</span>
-                    <span class="n">soc_source</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="s1">&#39;GEDI*.h5&#39;</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">,</span>
+                    <span class="n">soc_source</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="s1">'GEDI*.h5'</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">,</span>
                 <span class="p">)</span>
                 <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">:</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;Listed </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">existing_h5</span><span class="p">)</span><span class="si">}</span><span class="s2"> HDF5 files in </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2"> &quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;(exclude filters: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="si">}</span><span class="s2">)&quot;</span>
+                        <span class="sa">f</span><span class="s2">"Listed </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">existing_h5</span><span class="p">)</span><span class="si">}</span><span class="s2"> HDF5 files in </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2"> "</span>
+                        <span class="sa">f</span><span class="s2">"(exclude filters: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="si">}</span><span class="s2">)"</span>
                     <span class="p">)</span>
 
                 <span class="k">def</span><span class="w"> </span><span class="nf">_validate_existing_h5</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">soc_dir</span><span class="p">):</span>
-<span class="w">                    </span><span class="sd">&quot;&quot;&quot;Validate requested products/variables exist in HDF5 files. Exits on mismatch.</span>
+<span class="w">                    </span><span class="sd">"""Validate requested products/variables exist in HDF5 files. Exits on mismatch.</span>
 
 <span class="sd">                    Two stages:</span>
 
@@ -1231,7 +1231,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">                    99% of granules but absent in a handful); those surface</span>
 <span class="sd">                    as Stage1 warnings at build time and are recorded as</span>
 <span class="sd">                    non-INDEXED in the build log for retry.</span>
-<span class="sd">                    &quot;&quot;&quot;</span>
+<span class="sd">                    """</span>
                     <span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
 
                     <span class="c1"># ── Stage 1: default-products vs shipped manifest ──</span>
@@ -1245,7 +1245,7 @@ window.runMermaid = runMermaid;</script>
                                 <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">,</span>
                             <span class="p">)</span>
                         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">val_err</span><span class="p">:</span>
-                            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not validate HDF5 files (corrupt file?): </span><span class="si">{</span><span class="n">val_err</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not validate HDF5 files (corrupt file?): </span><span class="si">{</span><span class="n">val_err</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                             <span class="n">validation</span> <span class="o">=</span> <span class="kc">None</span>
 
                         <span class="k">if</span> <span class="n">validation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1253,25 +1253,25 @@ window.runMermaid = runMermaid;</script>
                                 <span class="n">can_skip</span> <span class="o">=</span> <span class="kc">False</span>
                                 <span class="n">validation</span> <span class="o">=</span> <span class="n">validation</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">validation</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="p">{}</span>
                             <span class="k">else</span><span class="p">:</span>
-                                <span class="n">can_skip</span> <span class="o">=</span> <span class="n">validation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;can_skip&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+                                <span class="n">can_skip</span> <span class="o">=</span> <span class="n">validation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"can_skip"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
 
                             <span class="k">if</span> <span class="ow">not</span> <span class="n">can_skip</span><span class="p">:</span>
-                                <span class="n">msg_parts</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Requested variables not found in existing HDF5 files:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">]</span>
-                                <span class="k">if</span> <span class="n">validation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;missing_products&quot;</span><span class="p">):</span>
-                                    <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Missing products: </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">validation</span><span class="p">[</span><span class="s1">&#39;missing_products&#39;</span><span class="p">])</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                                <span class="k">if</span> <span class="n">validation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;missing_variables&quot;</span><span class="p">):</span>
-                                    <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">mvars</span> <span class="ow">in</span> <span class="n">validation</span><span class="p">[</span><span class="s2">&quot;missing_variables&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                                        <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Missing variables in </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">mvars</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                                <span class="k">if</span> <span class="n">validation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;error&quot;</span><span class="p">):</span>
-                                    <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">validation</span><span class="p">[</span><span class="s1">&#39;error&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
-                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;To fix:&quot;</span><span class="p">)</span>
-                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;  1. Check available variables:  gh3_read_schema /path/to/file.h5&quot;</span><span class="p">)</span>
-                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;  2. Adjust your -l2a/-l4a/... flags to match available data&quot;</span><span class="p">)</span>
-                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;  3. Run gh3_download to fetch the required products&quot;</span><span class="p">)</span>
-                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;  4. Or add --download to auto-fetch before building&quot;</span><span class="p">)</span>
-                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;  5. Or use --s3 to build directly from NASA S3 (no persistent download)&quot;</span><span class="p">)</span>
-                                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg_parts</span><span class="p">))</span>
+                                <span class="n">msg_parts</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"Requested variables not found in existing HDF5 files:</span><span class="se">\n</span><span class="s2">"</span><span class="p">]</span>
+                                <span class="k">if</span> <span class="n">validation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"missing_products"</span><span class="p">):</span>
+                                    <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  Missing products: </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">validation</span><span class="p">[</span><span class="s1">'missing_products'</span><span class="p">])</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+                                <span class="k">if</span> <span class="n">validation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"missing_variables"</span><span class="p">):</span>
+                                    <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">mvars</span> <span class="ow">in</span> <span class="n">validation</span><span class="p">[</span><span class="s2">"missing_variables"</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                                        <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  Missing variables in </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">mvars</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+                                <span class="k">if</span> <span class="n">validation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"error"</span><span class="p">):</span>
+                                    <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  </span><span class="si">{</span><span class="n">validation</span><span class="p">[</span><span class="s1">'error'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span>
+                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"To fix:"</span><span class="p">)</span>
+                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"  1. Check available variables:  gh3_read_schema /path/to/file.h5"</span><span class="p">)</span>
+                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"  2. Adjust your -l2a/-l4a/... flags to match available data"</span><span class="p">)</span>
+                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"  3. Run gh3_download to fetch the required products"</span><span class="p">)</span>
+                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"  4. Or add --download to auto-fetch before building"</span><span class="p">)</span>
+                                <span class="n">msg_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"  5. Or use --s3 to build directly from NASA S3 (no persistent download)"</span><span class="p">)</span>
+                                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg_parts</span><span class="p">))</span>
                                 <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
 
                     <span class="c1"># ── Stage 2: explicit-list products vs sample HDF5 schema ──</span>
@@ -1279,7 +1279,7 @@ window.runMermaid = runMermaid;</script>
                     <span class="c1"># every preset keyword (default/minimal/all), not just `default` —</span>
                     <span class="c1"># their variable names come from an internal table/manifest, not</span>
                     <span class="c1"># something the user typed, so this check must not treat them as</span>
-                    <span class="c1"># &quot;explicit&quot;. See H3BuildLogger.preset_products.</span>
+                    <span class="c1"># "explicit". See H3BuildLogger.preset_products.</span>
                     <span class="n">has_explicit</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span>
                         <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">p</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">preset_products</span>
                         <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">(</span><span class="n">product_vars</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
@@ -1291,15 +1291,15 @@ window.runMermaid = runMermaid;</script>
                         <span class="n">sample</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span>
                             <span class="n">soc_dir</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                             <span class="n">glob_kwargs</span><span class="o">=</span><span class="p">(</span>
-                                <span class="p">{</span><span class="s1">&#39;version&#39;</span><span class="p">:</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">}</span>
+                                <span class="p">{</span><span class="s1">'version'</span><span class="p">:</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">}</span>
                                 <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
                             <span class="p">),</span>
                             <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">,</span>
                         <span class="p">)</span>
                     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                            <span class="sa">f</span><span class="s2">&quot;Pre-flight var check: could not sample SOC tree &quot;</span>
-                            <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">)&quot;</span>
+                            <span class="sa">f</span><span class="s2">"Pre-flight var check: could not sample SOC tree "</span>
+                            <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">)"</span>
                         <span class="p">)</span>
                         <span class="k">return</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">sample</span><span class="p">:</span>
@@ -1312,22 +1312,22 @@ window.runMermaid = runMermaid;</script>
 
                     <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
                         <span class="n">msg</span> <span class="o">=</span> <span class="p">[</span>
-                            <span class="s2">&quot;Pre-flight variable check failed: requested names &quot;</span>
-                            <span class="s2">&quot;are not present in the sample HDF5 files.&quot;</span><span class="p">,</span>
-                            <span class="s2">&quot;Fix typos or unknown names and rerun. Nothing was built.&quot;</span><span class="p">,</span>
-                            <span class="s2">&quot;&quot;</span><span class="p">,</span>
+                            <span class="s2">"Pre-flight variable check failed: requested names "</span>
+                            <span class="s2">"are not present in the sample HDF5 files."</span><span class="p">,</span>
+                            <span class="s2">"Fix typos or unknown names and rerun. Nothing was built."</span><span class="p">,</span>
+                            <span class="s2">""</span><span class="p">,</span>
                         <span class="p">]</span>
                         <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">bad</span> <span class="ow">in</span> <span class="n">missing</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                             <span class="n">preview</span> <span class="o">=</span> <span class="n">bad</span><span class="p">[:</span><span class="mi">10</span><span class="p">]</span>
-                            <span class="n">tail</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bad</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">10</span> <span class="k">else</span> <span class="sa">f</span><span class="s1">&#39; (+</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">bad</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">10</span><span class="si">}</span><span class="s1"> more)&#39;</span>
-                            <span class="n">msg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">preview</span><span class="si">}{</span><span class="n">tail</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                            <span class="n">tail</span> <span class="o">=</span> <span class="s1">''</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bad</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">10</span> <span class="k">else</span> <span class="sa">f</span><span class="s1">' (+</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">bad</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">10</span><span class="si">}</span><span class="s1"> more)'</span>
+                            <span class="n">msg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">preview</span><span class="si">}{</span><span class="n">tail</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                         <span class="n">msg</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span>
-                            <span class="s2">&quot;&quot;</span><span class="p">,</span>
-                            <span class="s2">&quot;To inspect available variables in a SOC file:&quot;</span><span class="p">,</span>
-                            <span class="s2">&quot;  gh3_read_schema /path/to/file.h5&quot;</span><span class="p">,</span>
-                            <span class="sa">f</span><span class="s2">&quot;  gh3_read_schema </span><span class="si">{</span><span class="n">sample_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">missing</span><span class="p">)),</span><span class="w"> </span><span class="s1">&#39;&lt;file.h5&gt;&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                            <span class="s2">""</span><span class="p">,</span>
+                            <span class="s2">"To inspect available variables in a SOC file:"</span><span class="p">,</span>
+                            <span class="s2">"  gh3_read_schema /path/to/file.h5"</span><span class="p">,</span>
+                            <span class="sa">f</span><span class="s2">"  gh3_read_schema </span><span class="si">{</span><span class="n">sample_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">missing</span><span class="p">)),</span><span class="w"> </span><span class="s1">'&lt;file.h5&gt;'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
                         <span class="p">])</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg</span><span class="p">))</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">msg</span><span class="p">))</span>
                         <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
 
                 <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">download</span><span class="p">:</span>
@@ -1342,7 +1342,7 @@ window.runMermaid = runMermaid;</script>
 
                     <span class="n">needs_download</span> <span class="o">=</span> <span class="kc">True</span>
 
-                    <span class="k">if</span> <span class="n">soc_logger</span><span class="o">.</span><span class="n">updating</span> <span class="ow">and</span> <span class="n">soc_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;status&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;COMPLETED&#39;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">soc_logger</span><span class="o">.</span><span class="n">updating</span> <span class="ow">and</span> <span class="n">soc_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">==</span> <span class="s1">'COMPLETED'</span><span class="p">:</span>
                         <span class="c1"># Completed download log exists — check if more data is needed</span>
                         <span class="k">if</span> <span class="p">(</span><span class="n">is_variable_only_update</span> <span class="ow">or</span> <span class="n">is_mixed_update</span><span class="p">)</span> <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span><span class="p">:</span>
                             <span class="c1"># Regime C: only consult the static manifest for products</span>
@@ -1361,24 +1361,24 @@ window.runMermaid = runMermaid;</script>
                                         <span class="n">version</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">,</span>
                                         <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">,</span>
                                     <span class="p">)</span>
-                                    <span class="n">can_skip</span> <span class="o">=</span> <span class="n">validation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;can_skip&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">validation</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="kc">False</span>
+                                    <span class="n">can_skip</span> <span class="o">=</span> <span class="n">validation</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'can_skip'</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">validation</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="kc">False</span>
                                 <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
                                     <span class="n">can_skip</span> <span class="o">=</span> <span class="kc">False</span>
                                 <span class="k">if</span> <span class="n">can_skip</span><span class="p">:</span>
                                     <span class="n">needs_download</span> <span class="o">=</span> <span class="kc">False</span>
-                                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;New products already available in </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"New products already available in </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                                 <span class="k">else</span><span class="p">:</span>
-                                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;New products not found in existing HDF5 files — downloading them&quot;</span><span class="p">)</span>
+                                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"New products not found in existing HDF5 files — downloading them"</span><span class="p">)</span>
                             <span class="k">else</span><span class="p">:</span>
                                 <span class="c1"># Regime D — explicit-list var delta; trust the user</span>
                                 <span class="c1"># and let download_soc() resume idempotently.</span>
                                 <span class="n">needs_download</span> <span class="o">=</span> <span class="kc">True</span>
-                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;New variables requested — downloading missing granules (idempotent resume)&quot;</span><span class="p">)</span>
+                                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"New variables requested — downloading missing granules (idempotent resume)"</span><span class="p">)</span>
                         <span class="k">elif</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_spatial</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_temporal</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span><span class="p">:</span>
                             <span class="c1"># Same parameters — still run download to discover new NASA granules.</span>
                             <span class="c1"># download_soc() is idempotent: existing files are skipped via resume=True.</span>
                             <span class="n">needs_download</span> <span class="o">=</span> <span class="kc">True</span>
-                            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Checking for new GEDI data (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">soc_logger</span><span class="o">.</span><span class="n">granule_info</span><span class="p">)</span><span class="si">}</span><span class="s2"> granules already downloaded)&quot;</span><span class="p">)</span>
+                            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Checking for new GEDI data (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">soc_logger</span><span class="o">.</span><span class="n">granule_info</span><span class="p">)</span><span class="si">}</span><span class="s2"> granules already downloaded)"</span><span class="p">)</span>
                         <span class="k">else</span><span class="p">:</span>
                             <span class="c1"># Regime B — spatial/temporal expansion without var change.</span>
                             <span class="c1"># No manifest consultation; the log is the contract and</span>
@@ -1386,16 +1386,16 @@ window.runMermaid = runMermaid;</script>
                             <span class="n">needs_download</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># Spatial/temporal expansion needs new granules</span>
 
                     <span class="k">if</span> <span class="n">needs_download</span><span class="p">:</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Downloading GEDI data to </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                        <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;DOWNLOADING&#39;</span><span class="p">)</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Downloading GEDI data to </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+                        <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'DOWNLOADING'</span><span class="p">)</span>
 
                         <span class="k">def</span><span class="w"> </span><span class="nf">_download_tracker</span><span class="p">(</span><span class="n">gran_info</span><span class="p">,</span> <span class="n">status</span><span class="p">):</span>
-<span class="w">                            </span><span class="sd">&quot;&quot;&quot;Called from main thread (as_completed loop). Thread safe.&quot;&quot;&quot;</span>
-                            <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="s1">&#39;PENDING&#39;</span><span class="p">:</span>
+<span class="w">                            </span><span class="sd">"""Called from main thread (as_completed loop). Thread safe."""</span>
+                            <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="s1">'PENDING'</span><span class="p">:</span>
                                 <span class="n">soc_logger</span><span class="o">.</span><span class="n">register_pending_granules</span><span class="p">([</span><span class="n">gran_info</span><span class="p">])</span>
                             <span class="k">else</span><span class="p">:</span>
                                 <span class="n">soc_logger</span><span class="o">.</span><span class="n">update_granule_status</span><span class="p">(</span><span class="n">gran_info</span><span class="p">,</span> <span class="n">status</span><span class="p">)</span>
-                            <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;DOWNLOADING&#39;</span><span class="p">)</span>
+                            <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'DOWNLOADING'</span><span class="p">)</span>
 
                         <span class="n">download_soc</span><span class="p">(</span>
                             <span class="n">product_vars</span><span class="o">=</span><span class="n">soc_logger</span><span class="o">.</span><span class="n">get_product_vars</span><span class="p">(),</span>
@@ -1409,45 +1409,45 @@ window.runMermaid = runMermaid;</script>
                             <span class="n">ensure_l2a</span><span class="o">=</span><span class="ow">not</span> <span class="n">is_variable_only_update</span><span class="p">,</span>
                         <span class="p">)</span>
                         <span class="n">soc_logger</span><span class="o">.</span><span class="n">set_post_download_info</span><span class="p">()</span>
-                        <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;COMPLETED&#39;</span><span class="p">)</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Download complete&quot;</span><span class="p">)</span>
+                        <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'COMPLETED'</span><span class="p">)</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Download complete"</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="c1"># --download NOT enabled: build from existing data only</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">existing_h5</span><span class="p">:</span>
                         <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
-                            <span class="sa">f</span><span class="s2">&quot;No HDF5 files found in </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">.</span><span class="se">\n</span><span class="s2">&quot;</span>
-                            <span class="s2">&quot;Options:</span><span class="se">\n</span><span class="s2">&quot;</span>
-                            <span class="s2">&quot;  1. Run gh3_download first to fetch GEDI data</span><span class="se">\n</span><span class="s2">&quot;</span>
-                            <span class="s2">&quot;  2. Add --download to auto-fetch before building</span><span class="se">\n</span><span class="s2">&quot;</span>
-                            <span class="s2">&quot;  3. Use --s3 to build directly from NASA S3 (no persistent download)&quot;</span>
+                            <span class="sa">f</span><span class="s2">"No HDF5 files found in </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">.</span><span class="se">\n</span><span class="s2">"</span>
+                            <span class="s2">"Options:</span><span class="se">\n</span><span class="s2">"</span>
+                            <span class="s2">"  1. Run gh3_download first to fetch GEDI data</span><span class="se">\n</span><span class="s2">"</span>
+                            <span class="s2">"  2. Add --download to auto-fetch before building</span><span class="se">\n</span><span class="s2">"</span>
+                            <span class="s2">"  3. Use --s3 to build directly from NASA S3 (no persistent download)"</span>
                         <span class="p">)</span>
                         <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
 
-                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Building from </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">existing_h5</span><span class="p">)</span><span class="si">}</span><span class="s2"> existing HDF5 files in </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Note: using only existing data (add --download to fetch missing data)&quot;</span><span class="p">)</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Validating product variables in existing HDF5 files&quot;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Building from </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">existing_h5</span><span class="p">)</span><span class="si">}</span><span class="s2"> existing HDF5 files in </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Note: using only existing data (add --download to fetch missing data)"</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Validating product variables in existing HDF5 files"</span><span class="p">)</span>
                     <span class="n">_validate_existing_h5</span><span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">get_product_vars</span><span class="p">(),</span> <span class="n">soc_source</span><span class="p">)</span>
 
                     <span class="c1"># Opportunistic SOC manifest refresh: we have the</span>
                     <span class="c1"># file list in memory from the parallel walk above,</span>
                     <span class="c1"># so persisting the sentinel is free. Closes the</span>
-                    <span class="c1"># &quot;tree populated externally (NASA delivery, manual</span>
-                    <span class="c1"># rsync) and gh3_download was never run&quot; gap that</span>
+                    <span class="c1"># "tree populated externally (NASA delivery, manual</span>
+                    <span class="c1"># rsync) and gh3_download was never run" gap that</span>
                     <span class="c1"># left every consumer paying the recursive walk.</span>
                     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">write_soc_manifest</span>
                     <span class="n">n_written</span> <span class="o">=</span> <span class="n">write_soc_manifest</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">files</span><span class="o">=</span><span class="n">existing_h5</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">n_written</span><span class="p">:</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SOC manifest refreshed (</span><span class="si">{</span><span class="n">n_written</span><span class="si">}</span><span class="s2"> files)&quot;</span><span class="p">)</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"SOC manifest refreshed (</span><span class="si">{</span><span class="n">n_written</span><span class="si">}</span><span class="s2"> files)"</span><span class="p">)</span>
 
             <span class="c1"># ── Resume shortcut: skip reconcile + extract on merge-resume ──</span>
             <span class="c1"># If a previous run finished extract and was killed during merge,</span>
-            <span class="c1"># the on-disk log status is &#39;MERGING&#39; and we have nothing to</span>
+            <span class="c1"># the on-disk log status is 'MERGING' and we have nothing to</span>
             <span class="c1"># re-extract. Calling _merge_and_finalize directly (which is</span>
             <span class="c1"># itself resume-aware via _merge_progress.txt + atomic .merge.tmp</span>
             <span class="c1"># rename) is sufficient.</span>
             <span class="c1">#</span>
             <span class="c1"># Detection (see _detect_merge_resume_signal):</span>
-            <span class="c1">#   L1 (canonical): h3_logger.previous_status == &#39;MERGING&#39;.</span>
+            <span class="c1">#   L1 (canonical): h3_logger.previous_status == 'MERGING'.</span>
             <span class="c1">#   L2 (fallback for builds started before this code shipped):</span>
             <span class="c1">#     &lt;tmp&gt;/partitions/_merge_progress.txt exists with ≥1 entry.</span>
             <span class="c1">#</span>
@@ -1459,15 +1459,15 @@ window.runMermaid = runMermaid;</script>
             <span class="c1"># up; gh3_doctor can flag/fix this if needed.)</span>
             <span class="c1">#</span>
             <span class="c1"># has_pending_new_work vetoes both signals whenever this</span>
-            <span class="c1"># invocation is a variable-only update, a mixed update&#39;s Phase 2,</span>
+            <span class="c1"># invocation is a variable-only update, a mixed update's Phase 2,</span>
             <span class="c1"># or a crash-recovered pending variable update: neither signal</span>
             <span class="c1"># proves anything about product/variable work that has never</span>
             <span class="c1"># been through Stage 1/2, and a stale _merge_progress.txt left</span>
             <span class="c1"># over from an earlier, already-completed build in the same tmp</span>
-            <span class="c1"># directory would otherwise be misread as &quot;this request&#39;s merge</span>
-            <span class="c1"># already started&quot; — silently no-opping the whole product add</span>
+            <span class="c1"># directory would otherwise be misread as "this request's merge</span>
+            <span class="c1"># already started" — silently no-opping the whole product add</span>
             <span class="c1"># while still reporting success.</span>
-            <span class="n">_parquet_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span> <span class="s1">&#39;partitions&#39;</span><span class="p">)</span>
+            <span class="n">_parquet_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span> <span class="s1">'partitions'</span><span class="p">)</span>
             <span class="n">_merge_signal</span> <span class="o">=</span> <span class="n">_detect_merge_resume_signal</span><span class="p">(</span>
                 <span class="n">h3_logger</span><span class="p">,</span> <span class="n">_parquet_dir</span><span class="p">,</span>
                 <span class="n">has_pending_new_work</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span>
@@ -1476,15 +1476,15 @@ window.runMermaid = runMermaid;</script>
             <span class="p">)</span>
             <span class="k">if</span> <span class="n">_merge_signal</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Resume shortcut: </span><span class="si">{</span><span class="n">_merge_signal</span><span class="si">}</span><span class="s2"> — skipping register/&quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;reconcile/extract, running merge only&quot;</span>
+                    <span class="sa">f</span><span class="s2">"Resume shortcut: </span><span class="si">{</span><span class="n">_merge_signal</span><span class="si">}</span><span class="s2"> — skipping register/"</span>
+                    <span class="sa">f</span><span class="s2">"reconcile/extract, running merge only"</span>
                 <span class="p">)</span>
-                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;MERGING&#39;</span><span class="p">)</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'MERGING'</span><span class="p">)</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="n">h3_files</span> <span class="o">=</span> <span class="n">_merge_and_finalize</span><span class="p">(</span><span class="n">_parquet_dir</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">)</span>
                 <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">_e</span><span class="p">:</span>
-                    <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;FAILED&#39;</span><span class="p">)</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Merge-resume failed: </span><span class="si">{</span><span class="n">_e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'FAILED'</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Merge-resume failed: </span><span class="si">{</span><span class="n">_e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                     <span class="k">raise</span>
                 <span class="c1"># Fold per-failed-merge granule flip-backs into the build</span>
                 <span class="c1"># log so the next resume re-extracts the affected granules</span>
@@ -1494,13 +1494,13 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">_flipped</span> <span class="o">=</span> <span class="n">apply_merge_failures_to_logger</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">_parquet_dir</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">_flipped</span><span class="p">:</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;Flipped </span><span class="si">{</span><span class="n">_flipped</span><span class="si">}</span><span class="s2"> granule(s) INDEXED → MERGE_FAILED &quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;after corrupt-fragment merge failures. They will be &quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;re-extracted on the next resume.&quot;</span>
+                        <span class="sa">f</span><span class="s2">"Flipped </span><span class="si">{</span><span class="n">_flipped</span><span class="si">}</span><span class="s2"> granule(s) INDEXED → MERGE_FAILED "</span>
+                        <span class="sa">f</span><span class="s2">"after corrupt-fragment merge failures. They will be "</span>
+                        <span class="sa">f</span><span class="s2">"re-extracted on the next resume."</span>
                     <span class="p">)</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
-                <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;_pending_variable_update&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;COMPLETED&#39;</span><span class="p">)</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'_pending_variable_update'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'COMPLETED'</span><span class="p">)</span>
                 <span class="n">build_completed</span> <span class="o">=</span> <span class="kc">True</span>
                 <span class="c1"># AFTER the final log save — an index older than the log is</span>
                 <span class="c1"># treated as stale by the loaders.</span>
@@ -1509,20 +1509,20 @@ window.runMermaid = runMermaid;</script>
                                                <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
                 <span class="n">_n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">h3_files</span><span class="p">)</span> <span class="k">if</span> <span class="n">h3_files</span> <span class="k">else</span> <span class="mi">0</span>
                 <span class="n">print_success</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">_n</span><span class="si">}</span><span class="s2"> files exported to </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2"> (merge-only resume)&quot;</span><span class="p">,</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">_n</span><span class="si">}</span><span class="s2"> files exported to </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2"> (merge-only resume)"</span><span class="p">,</span>
                     <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">,</span>
                 <span class="p">)</span>
                 <span class="k">return</span>
 
             <span class="c1"># Save log only after validation/download passes — prevents</span>
             <span class="c1"># writing unverified products (e.g. L4C) when data is missing</span>
-            <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;PARTITIONING&#39;</span><span class="p">)</span>
+            <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'PARTITIONING'</span><span class="p">)</span>
 
             <span class="k">try</span><span class="p">:</span>
                 <span class="c1"># Register granules being submitted for build as PENDING</span>
                 <span class="c1"># Only for local download mode (-i); S3 mode has no local SOC directory</span>
                 <span class="k">if</span> <span class="n">soc_source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">soc_source</span><span class="p">):</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Listing SOC files for granule registration&quot;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Listing SOC files for granule registration"</span><span class="p">)</span>
                     <span class="n">_soc_for_build</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">)</span>
                     <span class="c1"># GEDI filename: GEDInn_L_DATE_O{orbit}_{granule}_T{track}_PPDS_PGE_GEN_V{ver}.h5</span>
                     <span class="c1"># Parse orbit/granule/track from the basename directly — no</span>
@@ -1530,11 +1530,11 @@ window.runMermaid = runMermaid;</script>
                     <span class="c1"># granule (matters on network filesystems).</span>
                     <span class="n">_build_granules</span> <span class="o">=</span> <span class="p">[]</span>
                     <span class="k">for</span> <span class="n">_soc</span> <span class="ow">in</span> <span class="n">_soc_for_build</span><span class="p">:</span>
-                        <span class="n">fl</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">_soc</span><span class="o">.</span><span class="n">values</span><span class="p">())[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">)</span>
+                        <span class="n">fl</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">_soc</span><span class="o">.</span><span class="n">values</span><span class="p">())[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'_'</span><span class="p">)</span>
                         <span class="n">_build_granules</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                            <span class="s1">&#39;orbit&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">3</span><span class="p">][</span><span class="mi">1</span><span class="p">:]),</span>
-                            <span class="s1">&#39;granule&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">4</span><span class="p">]),</span>
-                            <span class="s1">&#39;track&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">5</span><span class="p">][</span><span class="mi">1</span><span class="p">:]),</span>
+                            <span class="s1">'orbit'</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">3</span><span class="p">][</span><span class="mi">1</span><span class="p">:]),</span>
+                            <span class="s1">'granule'</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">4</span><span class="p">]),</span>
+                            <span class="s1">'track'</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">5</span><span class="p">][</span><span class="mi">1</span><span class="p">:]),</span>
                         <span class="p">})</span>
                     <span class="n">h3_logger</span><span class="o">.</span><span class="n">register_pending_granules</span><span class="p">(</span><span class="n">_build_granules</span><span class="p">)</span>
 
@@ -1545,10 +1545,10 @@ window.runMermaid = runMermaid;</script>
                     <span class="c1"># re-extracts everything on the next rerun.</span>
                     <span class="n">_reconcile_granules_from_disk</span><span class="p">(</span>
                         <span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">,</span>
-                        <span class="n">tmp_dir</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span> <span class="s1">&#39;partitions&#39;</span><span class="p">),</span>
+                        <span class="n">tmp_dir</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span> <span class="s1">'partitions'</span><span class="p">),</span>
                     <span class="p">)</span>
 
-                    <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;PROCESSING&#39;</span><span class="p">)</span>
+                    <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'PROCESSING'</span><span class="p">)</span>
 
                 <span class="n">h3_files</span> <span class="o">=</span> <span class="kc">None</span>
 
@@ -1559,11 +1559,11 @@ window.runMermaid = runMermaid;</script>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">pending_var_update</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_variable_only_update</span><span class="p">:</span>
                     <span class="k">if</span> <span class="n">is_mixed_update</span><span class="p">:</span>
                         <span class="n">stage1_products</span> <span class="o">=</span> <span class="p">{</span>
-                            <span class="n">k</span><span class="p">:</span> <span class="n">val</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;variables&#39;</span><span class="p">)</span>
-                            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;products&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                            <span class="n">k</span><span class="p">:</span> <span class="n">val</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'variables'</span><span class="p">)</span>
+                            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'products'</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
                         <span class="p">}</span>
                         <span class="n">stage1_skip</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Re-examine all granules for new spatial area</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Mixed update Phase 1: expanding with existing products&quot;</span><span class="p">)</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Mixed update Phase 1: expanding with existing products"</span><span class="p">)</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">stage1_products</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">get_product_vars</span><span class="p">()</span>
                         <span class="n">stage1_skip</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">get_finished_granules</span><span class="p">()</span>
@@ -1581,17 +1581,17 @@ window.runMermaid = runMermaid;</script>
                 <span class="c1"># or pending variable resume from crash.</span>
                 <span class="k">if</span> <span class="n">pending_var_update</span> <span class="ow">or</span> <span class="n">is_variable_only_update</span> <span class="ow">or</span> <span class="n">is_mixed_update</span><span class="p">:</span>
                     <span class="k">if</span> <span class="n">pending_var_update</span><span class="p">:</span>
-                        <span class="n">stage2_products</span> <span class="o">=</span> <span class="n">pending_var_update</span><span class="p">[</span><span class="s1">&#39;product_vars&#39;</span><span class="p">]</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Resuming pending variable update&quot;</span><span class="p">)</span>
+                        <span class="n">stage2_products</span> <span class="o">=</span> <span class="n">pending_var_update</span><span class="p">[</span><span class="s1">'product_vars'</span><span class="p">]</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Resuming pending variable update"</span><span class="p">)</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">stage2_products</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span><span class="p">)</span>
                         <span class="k">if</span> <span class="n">is_mixed_update</span><span class="p">:</span>
                             <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
-                            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Mixed update Phase 2: adding new variables&quot;</span><span class="p">)</span>
-                        <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="p">[</span><span class="s1">&#39;_pending_variable_update&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-                            <span class="s1">&#39;product_vars&#39;</span><span class="p">:</span> <span class="n">stage2_products</span><span class="p">,</span>
+                            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Mixed update Phase 2: adding new variables"</span><span class="p">)</span>
+                        <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="p">[</span><span class="s1">'_pending_variable_update'</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                            <span class="s1">'product_vars'</span><span class="p">:</span> <span class="n">stage2_products</span><span class="p">,</span>
                         <span class="p">}</span>
-                        <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;PROCESSING&#39;</span><span class="p">)</span>
+                        <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'PROCESSING'</span><span class="p">)</span>
 
                     <span class="n">h3_files_s2</span> <span class="o">=</span> <span class="n">build_h3db</span><span class="p">(</span>
                         <span class="n">product_vars</span><span class="o">=</span><span class="n">stage2_products</span><span class="p">,</span>
@@ -1611,13 +1611,13 @@ window.runMermaid = runMermaid;</script>
                 <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
                     <span class="n">apply_merge_failures_to_logger</span><span class="p">,</span> <span class="n">_read_granule_failures</span><span class="p">,</span>
                 <span class="p">)</span>
-                <span class="n">_parquet_dir_for_fold</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span> <span class="s1">&#39;partitions&#39;</span><span class="p">)</span>
+                <span class="n">_parquet_dir_for_fold</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span> <span class="s1">'partitions'</span><span class="p">)</span>
                 <span class="n">_flipped</span> <span class="o">=</span> <span class="n">apply_merge_failures_to_logger</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">_parquet_dir_for_fold</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">_flipped</span><span class="p">:</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;Flipped </span><span class="si">{</span><span class="n">_flipped</span><span class="si">}</span><span class="s2"> granule(s) INDEXED → MERGE_FAILED &quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;after corrupt-fragment merge failures. They will be &quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;re-extracted on the next resume.&quot;</span>
+                        <span class="sa">f</span><span class="s2">"Flipped </span><span class="si">{</span><span class="n">_flipped</span><span class="si">}</span><span class="s2"> granule(s) INDEXED → MERGE_FAILED "</span>
+                        <span class="sa">f</span><span class="s2">"after corrupt-fragment merge failures. They will be "</span>
+                        <span class="sa">f</span><span class="s2">"re-extracted on the next resume."</span>
                     <span class="p">)</span>
                 <span class="c1"># Advisory: surface Stage 1 failure classes with actionable</span>
                 <span class="c1"># recovery recipes. The granule failure sidecar persisted by</span>
@@ -1628,31 +1628,31 @@ window.runMermaid = runMermaid;</script>
                 <span class="k">if</span> <span class="n">_gran_failures</span><span class="p">:</span>
                     <span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
                     <span class="n">_by_class</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span>
-                        <span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;kind&#39;</span><span class="p">),</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;product&#39;</span><span class="p">),</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;var&#39;</span><span class="p">))</span>
+                        <span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'kind'</span><span class="p">),</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'product'</span><span class="p">),</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'var'</span><span class="p">))</span>
                         <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">_gran_failures</span>
                     <span class="p">)</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">_gran_failures</span><span class="p">)</span><span class="si">}</span><span class="s2"> (granule × beam) task(s) failed &quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;Stage 1. Breakdown:&quot;</span>
+                        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">_gran_failures</span><span class="p">)</span><span class="si">}</span><span class="s2"> (granule × beam) task(s) failed "</span>
+                        <span class="sa">f</span><span class="s2">"Stage 1. Breakdown:"</span>
                     <span class="p">)</span>
                     <span class="k">for</span> <span class="p">(</span><span class="n">kind</span><span class="p">,</span> <span class="n">product</span><span class="p">,</span> <span class="n">var</span><span class="p">),</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">_by_class</span><span class="o">.</span><span class="n">most_common</span><span class="p">():</span>
-                        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;missing_var&#39;</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">'missing_var'</span><span class="p">:</span>
                             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                                <span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">count</span><span class="si">}</span><span class="s2">x missing_var: </span><span class="si">{</span><span class="n">product</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;&lt;product&gt;&#39;</span><span class="si">}</span><span class="s2"> &quot;</span>
-                                <span class="sa">f</span><span class="s2">&quot;variable &#39;</span><span class="si">{</span><span class="n">var</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;&lt;var&gt;&#39;</span><span class="si">}</span><span class="s2">&#39; absent from HDF5. &quot;</span>
-                                <span class="sa">f</span><span class="s2">&quot;Recovery: re-run gh3_build with an explicit &quot;</span>
-                                <span class="sa">f</span><span class="s2">&quot;-l</span><span class="si">{</span><span class="p">(</span><span class="n">product</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;XX&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()[</span><span class="mi">1</span><span class="p">:]</span><span class="si">}</span><span class="s2"> list that omits &quot;</span>
-                                <span class="sa">f</span><span class="s2">&quot;&#39;</span><span class="si">{</span><span class="n">var</span><span class="si">}</span><span class="s2">&#39; (and any other listed vars on this line).&quot;</span>
+                                <span class="sa">f</span><span class="s2">"  </span><span class="si">{</span><span class="n">count</span><span class="si">}</span><span class="s2">x missing_var: </span><span class="si">{</span><span class="n">product</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'&lt;product&gt;'</span><span class="si">}</span><span class="s2"> "</span>
+                                <span class="sa">f</span><span class="s2">"variable '</span><span class="si">{</span><span class="n">var</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'&lt;var&gt;'</span><span class="si">}</span><span class="s2">' absent from HDF5. "</span>
+                                <span class="sa">f</span><span class="s2">"Recovery: re-run gh3_build with an explicit "</span>
+                                <span class="sa">f</span><span class="s2">"-l</span><span class="si">{</span><span class="p">(</span><span class="n">product</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'XX'</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()[</span><span class="mi">1</span><span class="p">:]</span><span class="si">}</span><span class="s2"> list that omits "</span>
+                                <span class="sa">f</span><span class="s2">"'</span><span class="si">{</span><span class="n">var</span><span class="si">}</span><span class="s2">' (and any other listed vars on this line)."</span>
                             <span class="p">)</span>
                         <span class="k">else</span><span class="p">:</span>
-                            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">count</span><span class="si">}</span><span class="s2">x </span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">product</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;N/A&#39;</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+                            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  </span><span class="si">{</span><span class="n">count</span><span class="si">}</span><span class="s2">x </span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">product</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'N/A'</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
                 <span class="c1"># Clear pending variable update BEFORE saving — ensures the flag</span>
                 <span class="c1"># is not persisted to disk after successful completion.</span>
                 <span class="c1"># Crash safety: if crash between pop and save, disk still has</span>
                 <span class="c1"># PROCESSING status with the flag → next run resumes correctly.</span>
-                <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;_pending_variable_update&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;COMPLETED&#39;</span><span class="p">)</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'_pending_variable_update'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'COMPLETED'</span><span class="p">)</span>
                 <span class="n">build_completed</span> <span class="o">=</span> <span class="kc">True</span>
 
                 <span class="c1"># AFTER the final log save — an index older than the log is</span>
@@ -1662,36 +1662,36 @@ window.runMermaid = runMermaid;</script>
                                                <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
 
                 <span class="n">n_files</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">h3_files</span><span class="p">)</span> <span class="k">if</span> <span class="n">h3_files</span> <span class="k">else</span> <span class="mi">0</span>
-                <span class="n">print_success</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_files</span><span class="si">}</span><span class="s2"> files exported to </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+                <span class="n">print_success</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_files</span><span class="si">}</span><span class="s2"> files exported to </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
 
                 <span class="c1"># Regime C: Stage 2 ran from a `default` re-expansion. Any vars</span>
                 <span class="c1"># not present in the source HDF5 files were silently written</span>
-                <span class="c1"># as NaN columns. gh3_doctor&#39;s backfill diagnosis flags these.</span>
+                <span class="c1"># as NaN columns. gh3_doctor's backfill diagnosis flags these.</span>
                 <span class="k">if</span> <span class="p">(</span><span class="n">is_variable_only_update</span> <span class="ow">or</span> <span class="n">is_mixed_update</span><span class="p">)</span> <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span> <span class="ow">and</span> <span class="p">(</span>
                     <span class="n">h3_logger</span><span class="o">.</span><span class="n">default_products</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span><span class="p">)</span>
                 <span class="p">):</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-                        <span class="s2">&quot;New variables added via `default`; run &quot;</span>
-                        <span class="s2">&quot;`gh3_doctor --check backfill` if you suspect any are &quot;</span>
-                        <span class="s2">&quot;not present in source HDF5 files.&quot;</span>
+                        <span class="s2">"New variables added via `default`; run "</span>
+                        <span class="s2">"`gh3_doctor --check backfill` if you suspect any are "</span>
+                        <span class="s2">"not present in source HDF5 files."</span>
                     <span class="p">)</span>
 
                 <span class="k">if</span> <span class="n">soc_source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">args</span><span class="o">.</span><span class="n">download</span><span class="p">:</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Note: Downloaded HDF5 files in </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2"> are no longer needed and can be deleted to free disk space&quot;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Note: Downloaded HDF5 files in </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2"> are no longer needed and can be deleted to free disk space"</span><span class="p">)</span>
 
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;FAILED&#39;</span><span class="p">)</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Build failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'FAILED'</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Build failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                 <span class="k">raise</span> <span class="n">e</span>
 
     <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Build interrupted by user&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">Build interrupted by user"</span><span class="p">)</span>
         <span class="c1"># A Ctrl-C during the post-completion bbox-index build must not</span>
-        <span class="c1"># downgrade a genuinely finished build&#39;s log to INTERRUPTED — the</span>
+        <span class="c1"># downgrade a genuinely finished build's log to INTERRUPTED — the</span>
         <span class="c1"># index is derived and rebuildable, the COMPLETED status is not.</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">build_completed</span><span class="p">:</span>
             <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
-            <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;INTERRUPTED&#39;</span><span class="p">)</span>
+            <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'INTERRUPTED'</span><span class="p">)</span>
         <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">130</span><span class="p">)</span>
 
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
@@ -1703,26 +1703,26 @@ window.runMermaid = runMermaid;</script>
         <span class="p">)</span>
 
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">H3ValidationError</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;H3 parameter error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"H3 parameter error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">GediFileError</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;File error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"File error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">GediDatabaseError</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Database error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Database error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">GediError</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;GEDI error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"GEDI error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unexpected error: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unexpected error: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
                 <span class="kn">import</span><span class="w"> </span><span class="nn">traceback</span>
                 <span class="n">traceback</span><span class="o">.</span><span class="n">print_exc</span><span class="p">()</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span></div>
 
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
     <span class="n">main</span><span class="p">()</span>
 </pre></div>
 

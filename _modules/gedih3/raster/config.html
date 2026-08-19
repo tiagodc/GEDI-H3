@@ -760,22 +760,22 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="sd">Raster Module Configuration</span>
 
 <span class="sd">This module defines constants and defaults for raster output operations</span>
 <span class="sd">including GeoTIFF compression, tiling, and format settings.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Any</span>
 
 <span class="c1"># Default GeoTIFF export options</span>
 <span class="n">GEOTIFF_DEFAULTS</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;compress&#39;</span><span class="p">:</span> <span class="s1">&#39;LZW&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;tiled&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-    <span class="s1">&#39;blockxsize&#39;</span><span class="p">:</span> <span class="mi">256</span><span class="p">,</span>
-    <span class="s1">&#39;blockysize&#39;</span><span class="p">:</span> <span class="mi">256</span><span class="p">,</span>
-    <span class="s1">&#39;bigtiff&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-    <span class="s1">&#39;cog&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s1">'compress'</span><span class="p">:</span> <span class="s1">'LZW'</span><span class="p">,</span>
+    <span class="s1">'tiled'</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s1">'blockxsize'</span><span class="p">:</span> <span class="mi">256</span><span class="p">,</span>
+    <span class="s1">'blockysize'</span><span class="p">:</span> <span class="mi">256</span><span class="p">,</span>
+    <span class="s1">'bigtiff'</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s1">'cog'</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">}</span>
 
 <span class="c1"># Cloud Optimized GeoTIFF is the default layout for image output: internal</span>
@@ -784,41 +784,41 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># the old output stops working; the cost is the overview pyramid on disk</span>
 <span class="c1"># (~30% on a dense tile).</span>
 <span class="n">COG_DEFAULTS</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;overviews&#39;</span><span class="p">:</span> <span class="s1">&#39;AUTO&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;resampling&#39;</span><span class="p">:</span> <span class="s1">&#39;AVERAGE&#39;</span><span class="p">,</span>
+    <span class="s1">'overviews'</span><span class="p">:</span> <span class="s1">'AUTO'</span><span class="p">,</span>
+    <span class="s1">'resampling'</span><span class="p">:</span> <span class="s1">'AVERAGE'</span><span class="p">,</span>
 <span class="p">}</span>
 
 <span class="c1"># Compression options (for user selection)</span>
-<span class="n">COMPRESSION_OPTIONS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;LZW&#39;</span><span class="p">,</span> <span class="s1">&#39;ZSTD&#39;</span><span class="p">,</span> <span class="s1">&#39;DEFLATE&#39;</span><span class="p">,</span> <span class="s1">&#39;PACKBITS&#39;</span><span class="p">,</span> <span class="s1">&#39;NONE&#39;</span><span class="p">]</span>
+<span class="n">COMPRESSION_OPTIONS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'LZW'</span><span class="p">,</span> <span class="s1">'ZSTD'</span><span class="p">,</span> <span class="s1">'DEFLATE'</span><span class="p">,</span> <span class="s1">'PACKBITS'</span><span class="p">,</span> <span class="s1">'NONE'</span><span class="p">]</span>
 
 <span class="c1"># Supported raster output formats</span>
-<span class="n">RASTER_FORMATS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;tif&#39;</span><span class="p">,</span> <span class="s1">&#39;tiff&#39;</span><span class="p">,</span> <span class="s1">&#39;geotiff&#39;</span><span class="p">,</span> <span class="s1">&#39;nc&#39;</span><span class="p">,</span> <span class="s1">&#39;netcdf&#39;</span><span class="p">]</span>
+<span class="n">RASTER_FORMATS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'tif'</span><span class="p">,</span> <span class="s1">'tiff'</span><span class="p">,</span> <span class="s1">'geotiff'</span><span class="p">,</span> <span class="s1">'nc'</span><span class="p">,</span> <span class="s1">'netcdf'</span><span class="p">]</span>
 
 <span class="c1"># Time units for temporal aggregation</span>
-<span class="n">TIME_UNITS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;years&#39;</span><span class="p">,</span> <span class="s1">&#39;months&#39;</span><span class="p">,</span> <span class="s1">&#39;weeks&#39;</span><span class="p">,</span> <span class="s1">&#39;days&#39;</span><span class="p">]</span>
+<span class="n">TIME_UNITS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'years'</span><span class="p">,</span> <span class="s1">'months'</span><span class="p">,</span> <span class="s1">'weeks'</span><span class="p">,</span> <span class="s1">'days'</span><span class="p">]</span>
 
 <span class="c1"># Default CRS for H3 raster output (WGS84)</span>
-<span class="n">H3_RASTER_CRS</span> <span class="o">=</span> <span class="s1">&#39;EPSG:4326&#39;</span>
+<span class="n">H3_RASTER_CRS</span> <span class="o">=</span> <span class="s1">'EPSG:4326'</span>
 
 <span class="c1"># GEDI mission start date (used for delta_time conversion)</span>
-<span class="n">GEDI_START_DATE_STR</span> <span class="o">=</span> <span class="s1">&#39;2018-01-01&#39;</span>
+<span class="n">GEDI_START_DATE_STR</span> <span class="o">=</span> <span class="s1">'2018-01-01'</span>
 
 
 <div class="viewcode-block" id="get_geotiff_options">
 <a class="viewcode-back" href="../../../autoapi/gedih3/raster/config/index.html#gedih3.raster.config.get_geotiff_options">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_geotiff_options</span><span class="p">(</span>
-    <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;LZW&#39;</span><span class="p">,</span>
+    <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'LZW'</span><span class="p">,</span>
     <span class="n">tiled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">blocksize</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">256</span><span class="p">,</span>
     <span class="n">bigtiff</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Generate rasterio GeoTIFF export options.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    compress : str</span>
-<span class="sd">        Compression method (&#39;LZW&#39;, &#39;ZSTD&#39;, &#39;DEFLATE&#39;, &#39;PACKBITS&#39;, &#39;NONE&#39;)</span>
+<span class="sd">        Compression method ('LZW', 'ZSTD', 'DEFLATE', 'PACKBITS', 'NONE')</span>
 <span class="sd">    tiled : bool</span>
 <span class="sd">        Use tiled output format</span>
 <span class="sd">    blocksize : int</span>
@@ -830,13 +830,13 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    dict</span>
 <span class="sd">        Options dictionary for rio.to_raster()</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">return</span> <span class="p">{</span>
-        <span class="s1">&#39;compress&#39;</span><span class="p">:</span> <span class="n">compress</span> <span class="k">if</span> <span class="n">compress</span> <span class="o">!=</span> <span class="s1">&#39;NONE&#39;</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="s1">&#39;TILED&#39;</span><span class="p">:</span> <span class="s1">&#39;YES&#39;</span> <span class="k">if</span> <span class="n">tiled</span> <span class="k">else</span> <span class="s1">&#39;NO&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;BLOCKXSIZE&#39;</span><span class="p">:</span> <span class="n">blocksize</span><span class="p">,</span>
-        <span class="s1">&#39;BLOCKYSIZE&#39;</span><span class="p">:</span> <span class="n">blocksize</span><span class="p">,</span>
-        <span class="s1">&#39;BIGTIFF&#39;</span><span class="p">:</span> <span class="s1">&#39;YES&#39;</span> <span class="k">if</span> <span class="n">bigtiff</span> <span class="k">else</span> <span class="s1">&#39;NO&#39;</span><span class="p">,</span>
+        <span class="s1">'compress'</span><span class="p">:</span> <span class="n">compress</span> <span class="k">if</span> <span class="n">compress</span> <span class="o">!=</span> <span class="s1">'NONE'</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="s1">'TILED'</span><span class="p">:</span> <span class="s1">'YES'</span> <span class="k">if</span> <span class="n">tiled</span> <span class="k">else</span> <span class="s1">'NO'</span><span class="p">,</span>
+        <span class="s1">'BLOCKXSIZE'</span><span class="p">:</span> <span class="n">blocksize</span><span class="p">,</span>
+        <span class="s1">'BLOCKYSIZE'</span><span class="p">:</span> <span class="n">blocksize</span><span class="p">,</span>
+        <span class="s1">'BIGTIFF'</span><span class="p">:</span> <span class="s1">'YES'</span> <span class="k">if</span> <span class="n">bigtiff</span> <span class="k">else</span> <span class="s1">'NO'</span><span class="p">,</span>
     <span class="p">}</span></div>
 
 
@@ -844,13 +844,13 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="get_cog_options">
 <a class="viewcode-back" href="../../../autoapi/gedih3/raster/config/index.html#gedih3.raster.config.get_cog_options">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_cog_options</span><span class="p">(</span>
-    <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;LZW&#39;</span><span class="p">,</span>
+    <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'LZW'</span><span class="p">,</span>
     <span class="n">blocksize</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">256</span><span class="p">,</span>
     <span class="n">bigtiff</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-    <span class="n">overviews</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;AUTO&#39;</span><span class="p">,</span>
-    <span class="n">resampling</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;AVERAGE&#39;</span>
+    <span class="n">overviews</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'AUTO'</span><span class="p">,</span>
+    <span class="n">resampling</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'AVERAGE'</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Generate rasterio creation options for the GDAL COG driver.</span>
 
 <span class="sd">    The COG driver takes its own option names — ``BLOCKSIZE`` rather than</span>
@@ -862,29 +862,29 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    compress : str</span>
-<span class="sd">        Compression method (&#39;LZW&#39;, &#39;ZSTD&#39;, &#39;DEFLATE&#39;, &#39;PACKBITS&#39;, &#39;NONE&#39;)</span>
+<span class="sd">        Compression method ('LZW', 'ZSTD', 'DEFLATE', 'PACKBITS', 'NONE')</span>
 <span class="sd">    blocksize : int</span>
 <span class="sd">        Internal tile size in pixels</span>
 <span class="sd">    bigtiff : bool</span>
 <span class="sd">        Use BigTIFF for large files</span>
 <span class="sd">    overviews : str</span>
-<span class="sd">        COG ``OVERVIEWS`` policy — &#39;AUTO&#39; builds the pyramid when the image is</span>
-<span class="sd">        larger than one block, &#39;NONE&#39; skips it</span>
+<span class="sd">        COG ``OVERVIEWS`` policy — 'AUTO' builds the pyramid when the image is</span>
+<span class="sd">        larger than one block, 'NONE' skips it</span>
 <span class="sd">    resampling : str</span>
 <span class="sd">        Resampling used to build the overviews</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    dict</span>
-<span class="sd">        Options for ``rio.to_raster()``, including ``driver=&#39;COG&#39;``</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">        Options for ``rio.to_raster()``, including ``driver='COG'``</span>
+<span class="sd">    """</span>
     <span class="k">return</span> <span class="p">{</span>
-        <span class="s1">&#39;driver&#39;</span><span class="p">:</span> <span class="s1">&#39;COG&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;COMPRESS&#39;</span><span class="p">:</span> <span class="n">compress</span><span class="p">,</span>
-        <span class="s1">&#39;BLOCKSIZE&#39;</span><span class="p">:</span> <span class="n">blocksize</span><span class="p">,</span>
-        <span class="s1">&#39;BIGTIFF&#39;</span><span class="p">:</span> <span class="s1">&#39;YES&#39;</span> <span class="k">if</span> <span class="n">bigtiff</span> <span class="k">else</span> <span class="s1">&#39;NO&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;OVERVIEWS&#39;</span><span class="p">:</span> <span class="n">overviews</span><span class="p">,</span>
-        <span class="s1">&#39;RESAMPLING&#39;</span><span class="p">:</span> <span class="n">resampling</span><span class="p">,</span>
+        <span class="s1">'driver'</span><span class="p">:</span> <span class="s1">'COG'</span><span class="p">,</span>
+        <span class="s1">'COMPRESS'</span><span class="p">:</span> <span class="n">compress</span><span class="p">,</span>
+        <span class="s1">'BLOCKSIZE'</span><span class="p">:</span> <span class="n">blocksize</span><span class="p">,</span>
+        <span class="s1">'BIGTIFF'</span><span class="p">:</span> <span class="s1">'YES'</span> <span class="k">if</span> <span class="n">bigtiff</span> <span class="k">else</span> <span class="s1">'NO'</span><span class="p">,</span>
+        <span class="s1">'OVERVIEWS'</span><span class="p">:</span> <span class="n">overviews</span><span class="p">,</span>
+        <span class="s1">'RESAMPLING'</span><span class="p">:</span> <span class="n">resampling</span><span class="p">,</span>
     <span class="p">}</span></div>
 
 
@@ -892,7 +892,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="is_raster_format">
 <a class="viewcode-back" href="../../../autoapi/gedih3/raster/config/index.html#gedih3.raster.config.is_raster_format">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">is_raster_format</span><span class="p">(</span><span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Check if a format string indicates raster output.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Check if a format string indicates raster output."""</span>
     <span class="k">return</span> <span class="n">fmt</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="n">RASTER_FORMATS</span></div>
 
 </pre></div>

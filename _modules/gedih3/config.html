@@ -770,13 +770,13 @@ window.runMermaid = runMermaid;</script>
 <a class="viewcode-back" href="../../autoapi/gedih3/config/index.html#gedih3.config.get_package_data_path">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_package_data_path</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">files</span><span class="p">(</span><span class="s1">&#39;gedih3&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">files</span><span class="p">(</span><span class="s1">'gedih3'</span><span class="p">)</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">'data'</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">ModuleNotFoundError</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s1">'data'</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span></div>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_get_versioned</span><span class="p">(</span><span class="n">version_dict</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve a version-keyed dict. Falls back to nearest lower version.</span>
+<span class="w">    </span><span class="sd">"""Resolve a version-keyed dict. Falls back to nearest lower version.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -789,7 +789,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    object</span>
 <span class="sd">        The value for the requested version, or the nearest lower version.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">version</span> <span class="o">=</span> <span class="mi">2</span>
     <span class="k">if</span> <span class="n">version</span> <span class="ow">in</span> <span class="n">version_dict</span><span class="p">:</span>
@@ -800,7 +800,7 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="n">version_dict</span><span class="p">[</span><span class="nb">min</span><span class="p">(</span><span class="n">version_dict</span><span class="p">)]</span>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_resolve_identifier</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">version</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">product</span><span class="p">,</span> <span class="n">field</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve a product short_name/DOI for a requested version.</span>
+<span class="w">    </span><span class="sd">"""Resolve a product short_name/DOI for a requested version.</span>
 
 <span class="sd">    LPDAAC products store ``value`` as a plain string (version-agnostic) and</span>
 <span class="sd">    pass through. ORNL DAAC products store ``value`` as a ``{version: str}``</span>
@@ -816,26 +816,26 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    value : str or dict</span>
 <span class="sd">        The ``short_name`` or ``doi`` field from a GEDI_PRODUCTS entry.</span>
 <span class="sd">    version : int, float, str, or None</span>
-<span class="sd">        Requested data version. ``None`` resolves to the product&#39;s default</span>
+<span class="sd">        Requested data version. ``None`` resolves to the product's default</span>
 <span class="sd">        version (handled by the caller before calling this helper).</span>
 <span class="sd">    product : str</span>
 <span class="sd">        Product code, used only for the error message.</span>
 <span class="sd">    field : str</span>
-<span class="sd">        Field name (``&#39;short_name&#39;`` or ``&#39;doi&#39;``), used only for the error.</span>
+<span class="sd">        Field name (``'short_name'`` or ``'doi'``), used only for the error.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    str</span>
 <span class="sd">        The resolved identifier.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">value</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;GEDI_PRODUCTS[</span><span class="si">{</span><span class="n">product</span><span class="si">!r}</span><span class="s2">][</span><span class="si">{</span><span class="n">field</span><span class="si">!r}</span><span class="s2">] must be str or dict, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"GEDI_PRODUCTS[</span><span class="si">{</span><span class="n">product</span><span class="si">!r}</span><span class="s2">][</span><span class="si">{</span><span class="n">field</span><span class="si">!r}</span><span class="s2">] must be str or dict, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">v</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">version</span><span class="p">)</span>
     <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Cannot resolve </span><span class="si">{</span><span class="n">field</span><span class="si">}</span><span class="s2"> for </span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2">: version=</span><span class="si">{</span><span class="n">version</span><span class="si">!r}</span><span class="s2"> is not numeric&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Cannot resolve </span><span class="si">{</span><span class="n">field</span><span class="si">}</span><span class="s2"> for </span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2">: version=</span><span class="si">{</span><span class="n">version</span><span class="si">!r}</span><span class="s2"> is not numeric"</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">value</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">value</span><span class="p">[</span><span class="n">v</span><span class="p">]</span>
     <span class="n">int_v</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
@@ -846,26 +846,26 @@ window.runMermaid = runMermaid;</script>
         <span class="k">return</span> <span class="n">value</span><span class="p">[</span><span class="n">candidates</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
     <span class="n">available</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
     <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;No </span><span class="si">{</span><span class="n">field</span><span class="si">}</span><span class="s2"> registered for </span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2"> v</span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s2">; available versions: </span><span class="si">{</span><span class="n">available</span><span class="si">}</span><span class="s2">. &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;If a new release has been published, add it to GEDI_PRODUCTS[</span><span class="si">{</span><span class="n">product</span><span class="si">!r}</span><span class="s2">][</span><span class="si">{</span><span class="n">field</span><span class="si">!r}</span><span class="s2">].&quot;</span>
+        <span class="sa">f</span><span class="s2">"No </span><span class="si">{</span><span class="n">field</span><span class="si">}</span><span class="s2"> registered for </span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2"> v</span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s2">; available versions: </span><span class="si">{</span><span class="n">available</span><span class="si">}</span><span class="s2">. "</span>
+        <span class="sa">f</span><span class="s2">"If a new release has been published, add it to GEDI_PRODUCTS[</span><span class="si">{</span><span class="n">product</span><span class="si">!r}</span><span class="s2">][</span><span class="si">{</span><span class="n">field</span><span class="si">!r}</span><span class="s2">]."</span>
     <span class="p">)</span>
 
 
-<span class="n">ISO3_COUNTRIES_URL</span> <span class="o">=</span> <span class="s2">&quot;https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/country_shapes/exports/geojson/&quot;</span>
+<span class="n">ISO3_COUNTRIES_URL</span> <span class="o">=</span> <span class="s2">"https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/country_shapes/exports/geojson/"</span>
 
 <span class="c1"># Default download directories</span>
-<span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s1">&#39;gedih3_db&#39;</span><span class="p">)</span>
-<span class="n">GH3_DEFAULT_TMP_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span><span class="p">,</span> <span class="s1">&#39;tmp&#39;</span><span class="p">)</span>
-<span class="n">GH3_DEFAULT_SOC_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span><span class="p">,</span> <span class="s1">&#39;soc&#39;</span><span class="p">)</span>
-<span class="n">GH3_DEFAULT_H3_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span><span class="p">,</span> <span class="s1">&#39;h3&#39;</span><span class="p">)</span>
+<span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s1">'gedih3_db'</span><span class="p">)</span>
+<span class="n">GH3_DEFAULT_TMP_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span><span class="p">,</span> <span class="s1">'tmp'</span><span class="p">)</span>
+<span class="n">GH3_DEFAULT_SOC_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span><span class="p">,</span> <span class="s1">'soc'</span><span class="p">)</span>
+<span class="n">GH3_DEFAULT_H3_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span><span class="p">,</span> <span class="s1">'h3'</span><span class="p">)</span>
 
 <span class="c1"># Metadata filenames</span>
-<span class="n">BUILD_LOG_FILENAME</span> <span class="o">=</span> <span class="s1">&#39;gedih3_build_log.json&#39;</span>
-<span class="n">DATASET_META_FILENAME</span> <span class="o">=</span> <span class="s1">&#39;gedih3_dataset.json&#39;</span>
-<span class="n">PARTITION_META_FILENAME</span> <span class="o">=</span> <span class="s1">&#39;.metadata.json&#39;</span>
-<span class="n">MANIFEST_FILENAME</span> <span class="o">=</span> <span class="s1">&#39;_manifest.txt&#39;</span>
-<span class="n">SOC_MANIFEST_FILENAME</span> <span class="o">=</span> <span class="s1">&#39;_soc_manifest.txt&#39;</span>
-<span class="n">BBOX_INDEX_FILENAME</span> <span class="o">=</span> <span class="s1">&#39;_bbox_index.parquet&#39;</span>
+<span class="n">BUILD_LOG_FILENAME</span> <span class="o">=</span> <span class="s1">'gedih3_build_log.json'</span>
+<span class="n">DATASET_META_FILENAME</span> <span class="o">=</span> <span class="s1">'gedih3_dataset.json'</span>
+<span class="n">PARTITION_META_FILENAME</span> <span class="o">=</span> <span class="s1">'.metadata.json'</span>
+<span class="n">MANIFEST_FILENAME</span> <span class="o">=</span> <span class="s1">'_manifest.txt'</span>
+<span class="n">SOC_MANIFEST_FILENAME</span> <span class="o">=</span> <span class="s1">'_soc_manifest.txt'</span>
+<span class="n">BBOX_INDEX_FILENAME</span> <span class="o">=</span> <span class="s1">'_bbox_index.parquet'</span>
 
 <div class="viewcode-block" id="configure_environment">
 <a class="viewcode-back" href="../../autoapi/gedih3/config/index.html#gedih3.config.configure_environment">[docs]</a>
@@ -875,17 +875,17 @@ window.runMermaid = runMermaid;</script>
     <span class="k">global</span> <span class="n">GH3_DEFAULT_SOC_DIR</span>
     <span class="k">global</span> <span class="n">GH3_DEFAULT_H3_DIR</span>
 
-    <span class="n">env_file</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s1">&#39;.gedih3.env&#39;</span>
+    <span class="n">env_file</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s1">'.gedih3.env'</span>
     <span class="k">if</span> <span class="n">env_file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
         <span class="n">load_dotenv</span><span class="p">(</span><span class="n">env_file</span><span class="p">,</span> <span class="n">override</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
     <span class="c1"># Set variables according to priority</span>
-    <span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">&#39;GH3_DEFAULT_DOWNLOAD_DIR&#39;</span><span class="p">,</span> <span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span><span class="p">)</span>
-    <span class="n">GH3_DEFAULT_TMP_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">&#39;GH3_DEFAULT_TMP_DIR&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span><span class="p">,</span> <span class="s1">&#39;tmp&#39;</span><span class="p">))</span>
-    <span class="n">GH3_DEFAULT_SOC_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">&#39;GH3_DEFAULT_SOC_DIR&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span><span class="p">,</span> <span class="s1">&#39;soc&#39;</span><span class="p">))</span>
-    <span class="n">GH3_DEFAULT_H3_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">&#39;GH3_DEFAULT_H3_DIR&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span><span class="p">,</span> <span class="s1">&#39;h3&#39;</span><span class="p">))</span>
+    <span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'GH3_DEFAULT_DOWNLOAD_DIR'</span><span class="p">,</span> <span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span><span class="p">)</span>
+    <span class="n">GH3_DEFAULT_TMP_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'GH3_DEFAULT_TMP_DIR'</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span><span class="p">,</span> <span class="s1">'tmp'</span><span class="p">))</span>
+    <span class="n">GH3_DEFAULT_SOC_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'GH3_DEFAULT_SOC_DIR'</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span><span class="p">,</span> <span class="s1">'soc'</span><span class="p">))</span>
+    <span class="n">GH3_DEFAULT_H3_DIR</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'GH3_DEFAULT_H3_DIR'</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span><span class="p">,</span> <span class="s1">'h3'</span><span class="p">))</span>
 
-    <span class="c1"># Create directories if they don&#39;t exist (skip remote paths)</span>
+    <span class="c1"># Create directories if they don't exist (skip remote paths)</span>
     <span class="k">if</span> <span class="n">mkdirs</span><span class="p">:</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">is_remote_path</span>
         <span class="k">for</span> <span class="n">directory</span> <span class="ow">in</span> <span class="p">[</span><span class="n">GH3_DEFAULT_TMP_DIR</span><span class="p">,</span> <span class="n">GH3_DEFAULT_SOC_DIR</span><span class="p">,</span> <span class="n">GH3_DEFAULT_H3_DIR</span><span class="p">]:</span>
@@ -895,145 +895,145 @@ window.runMermaid = runMermaid;</script>
 
 <span class="n">configure_environment</span><span class="p">()</span>
 
-<span class="n">GEDI_START_DATE</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="s1">&#39;2018-01-01&#39;</span><span class="p">,</span> <span class="s1">&#39;%Y-%m-</span><span class="si">%d</span><span class="s1">&#39;</span><span class="p">)</span>
+<span class="n">GEDI_START_DATE</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="s1">'2018-01-01'</span><span class="p">,</span> <span class="s1">'%Y-%m-</span><span class="si">%d</span><span class="s1">'</span><span class="p">)</span>
 <span class="n">GEDI_MISSION_START</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2018</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">13</span><span class="p">)</span>
-<span class="n">GEDI_BEAMS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;BEAM0000&#39;</span><span class="p">,</span><span class="s1">&#39;BEAM0001&#39;</span><span class="p">,</span><span class="s1">&#39;BEAM0010&#39;</span><span class="p">,</span><span class="s1">&#39;BEAM0011&#39;</span><span class="p">,</span><span class="s1">&#39;BEAM0101&#39;</span><span class="p">,</span><span class="s1">&#39;BEAM0110&#39;</span><span class="p">,</span><span class="s1">&#39;BEAM1000&#39;</span><span class="p">,</span><span class="s1">&#39;BEAM1011&#39;</span><span class="p">]</span>
+<span class="n">GEDI_BEAMS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'BEAM0000'</span><span class="p">,</span><span class="s1">'BEAM0001'</span><span class="p">,</span><span class="s1">'BEAM0010'</span><span class="p">,</span><span class="s1">'BEAM0011'</span><span class="p">,</span><span class="s1">'BEAM0101'</span><span class="p">,</span><span class="s1">'BEAM0110'</span><span class="p">,</span><span class="s1">'BEAM1000'</span><span class="p">,</span><span class="s1">'BEAM1011'</span><span class="p">]</span>
 <span class="n">_GEDI_L2A_ESSENTIALS</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="mi">2</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">,</span><span class="s1">&#39;delta_time&#39;</span><span class="p">,</span><span class="s1">&#39;quality_flag&#39;</span><span class="p">,</span><span class="s1">&#39;degrade_flag&#39;</span><span class="p">,</span><span class="s1">&#39;sensitivity&#39;</span><span class="p">,</span><span class="s1">&#39;lat_lowestmode&#39;</span><span class="p">,</span><span class="s1">&#39;lon_lowestmode&#39;</span><span class="p">,</span><span class="s1">&#39;elev_lowestmode&#39;</span><span class="p">],</span>
-    <span class="mi">3</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">,</span><span class="s1">&#39;delta_time&#39;</span><span class="p">,</span><span class="s1">&#39;l2a_quality_flag_rel3&#39;</span><span class="p">,</span><span class="s1">&#39;degrade_flag&#39;</span><span class="p">,</span><span class="s1">&#39;sensitivity&#39;</span><span class="p">,</span><span class="s1">&#39;lat_lowestmode&#39;</span><span class="p">,</span><span class="s1">&#39;lon_lowestmode&#39;</span><span class="p">,</span><span class="s1">&#39;elev_lowestmode&#39;</span><span class="p">],</span>
+    <span class="mi">2</span><span class="p">:</span> <span class="p">[</span><span class="s1">'shot_number'</span><span class="p">,</span><span class="s1">'delta_time'</span><span class="p">,</span><span class="s1">'quality_flag'</span><span class="p">,</span><span class="s1">'degrade_flag'</span><span class="p">,</span><span class="s1">'sensitivity'</span><span class="p">,</span><span class="s1">'lat_lowestmode'</span><span class="p">,</span><span class="s1">'lon_lowestmode'</span><span class="p">,</span><span class="s1">'elev_lowestmode'</span><span class="p">],</span>
+    <span class="mi">3</span><span class="p">:</span> <span class="p">[</span><span class="s1">'shot_number'</span><span class="p">,</span><span class="s1">'delta_time'</span><span class="p">,</span><span class="s1">'l2a_quality_flag_rel3'</span><span class="p">,</span><span class="s1">'degrade_flag'</span><span class="p">,</span><span class="s1">'sensitivity'</span><span class="p">,</span><span class="s1">'lat_lowestmode'</span><span class="p">,</span><span class="s1">'lon_lowestmode'</span><span class="p">,</span><span class="s1">'elev_lowestmode'</span><span class="p">],</span>
 <span class="p">}</span>
 <span class="c1"># Version-keyed minimum variable sets per product.</span>
 <span class="c1"># _get_versioned() falls back to nearest lower version, so only entries</span>
 <span class="c1"># that differ from the previous version need to be added (e.g., v4 falls</span>
 <span class="c1"># back to v3 automatically if no v4 entry exists).</span>
 <span class="n">_GEDI_MIN_VARS</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;L1B&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="mi">2</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">,</span><span class="s1">&#39;stale_return_flag&#39;</span><span class="p">,</span><span class="s1">&#39;noise_mean_corrected&#39;</span><span class="p">,</span><span class="s1">&#39;rx_sample_start_index&#39;</span><span class="p">,</span><span class="s1">&#39;rx_sample_count&#39;</span><span class="p">,</span><span class="s1">&#39;rxwaveform&#39;</span><span class="p">,</span><span class="s1">&#39;geolocation/elevation_bin0&#39;</span><span class="p">,</span><span class="s1">&#39;geolocation/elevation_lastbin&#39;</span><span class="p">],</span>
-        <span class="mi">3</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">,</span><span class="s1">&#39;stale_return_flag&#39;</span><span class="p">,</span><span class="s1">&#39;noise_mean_corrected&#39;</span><span class="p">,</span><span class="s1">&#39;rx_sample_start_index&#39;</span><span class="p">,</span><span class="s1">&#39;rx_sample_count&#39;</span><span class="p">,</span><span class="s1">&#39;rxwaveform&#39;</span><span class="p">,</span><span class="s1">&#39;geolocation/elevation_bin0&#39;</span><span class="p">,</span><span class="s1">&#39;geolocation/elevation_lastbin&#39;</span><span class="p">,</span><span class="s1">&#39;rx_clipflag&#39;</span><span class="p">],</span>
+    <span class="s1">'L1B'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="mi">2</span><span class="p">:</span> <span class="p">[</span><span class="s1">'shot_number'</span><span class="p">,</span><span class="s1">'stale_return_flag'</span><span class="p">,</span><span class="s1">'noise_mean_corrected'</span><span class="p">,</span><span class="s1">'rx_sample_start_index'</span><span class="p">,</span><span class="s1">'rx_sample_count'</span><span class="p">,</span><span class="s1">'rxwaveform'</span><span class="p">,</span><span class="s1">'geolocation/elevation_bin0'</span><span class="p">,</span><span class="s1">'geolocation/elevation_lastbin'</span><span class="p">],</span>
+        <span class="mi">3</span><span class="p">:</span> <span class="p">[</span><span class="s1">'shot_number'</span><span class="p">,</span><span class="s1">'stale_return_flag'</span><span class="p">,</span><span class="s1">'noise_mean_corrected'</span><span class="p">,</span><span class="s1">'rx_sample_start_index'</span><span class="p">,</span><span class="s1">'rx_sample_count'</span><span class="p">,</span><span class="s1">'rxwaveform'</span><span class="p">,</span><span class="s1">'geolocation/elevation_bin0'</span><span class="p">,</span><span class="s1">'geolocation/elevation_lastbin'</span><span class="p">,</span><span class="s1">'rx_clipflag'</span><span class="p">],</span>
     <span class="p">},</span>
-    <span class="s1">&#39;L2A&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="mi">2</span><span class="p">:</span> <span class="n">_GEDI_L2A_ESSENTIALS</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;rh&#39;</span><span class="p">],</span>
-        <span class="mi">3</span><span class="p">:</span> <span class="n">_GEDI_L2A_ESSENTIALS</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;rh&#39;</span><span class="p">],</span>
+    <span class="s1">'L2A'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="mi">2</span><span class="p">:</span> <span class="n">_GEDI_L2A_ESSENTIALS</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="s1">'rh'</span><span class="p">],</span>
+        <span class="mi">3</span><span class="p">:</span> <span class="n">_GEDI_L2A_ESSENTIALS</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="s1">'rh'</span><span class="p">],</span>
     <span class="p">},</span>
-    <span class="s1">&#39;L2B&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="mi">2</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">,</span><span class="s1">&#39;l2b_quality_flag&#39;</span><span class="p">,</span><span class="s1">&#39;cover_z&#39;</span><span class="p">,</span><span class="s1">&#39;fhd_normal&#39;</span><span class="p">,</span><span class="s1">&#39;pai_z&#39;</span><span class="p">,</span><span class="s1">&#39;pavd_z&#39;</span><span class="p">,</span><span class="s1">&#39;cover&#39;</span><span class="p">,</span><span class="s1">&#39;pai&#39;</span><span class="p">],</span>
-        <span class="mi">3</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">,</span><span class="s1">&#39;l2b_quality_flag_rel3&#39;</span><span class="p">,</span><span class="s1">&#39;cover_z&#39;</span><span class="p">,</span><span class="s1">&#39;fhd_normal&#39;</span><span class="p">,</span><span class="s1">&#39;pai_z&#39;</span><span class="p">,</span><span class="s1">&#39;pavd_z&#39;</span><span class="p">,</span><span class="s1">&#39;cover&#39;</span><span class="p">,</span><span class="s1">&#39;pai&#39;</span><span class="p">,</span><span class="s1">&#39;rch&#39;</span><span class="p">],</span>
+    <span class="s1">'L2B'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="mi">2</span><span class="p">:</span> <span class="p">[</span><span class="s1">'shot_number'</span><span class="p">,</span><span class="s1">'l2b_quality_flag'</span><span class="p">,</span><span class="s1">'cover_z'</span><span class="p">,</span><span class="s1">'fhd_normal'</span><span class="p">,</span><span class="s1">'pai_z'</span><span class="p">,</span><span class="s1">'pavd_z'</span><span class="p">,</span><span class="s1">'cover'</span><span class="p">,</span><span class="s1">'pai'</span><span class="p">],</span>
+        <span class="mi">3</span><span class="p">:</span> <span class="p">[</span><span class="s1">'shot_number'</span><span class="p">,</span><span class="s1">'l2b_quality_flag_rel3'</span><span class="p">,</span><span class="s1">'cover_z'</span><span class="p">,</span><span class="s1">'fhd_normal'</span><span class="p">,</span><span class="s1">'pai_z'</span><span class="p">,</span><span class="s1">'pavd_z'</span><span class="p">,</span><span class="s1">'cover'</span><span class="p">,</span><span class="s1">'pai'</span><span class="p">,</span><span class="s1">'rch'</span><span class="p">],</span>
     <span class="p">},</span>
-    <span class="s1">&#39;L4A&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="mi">2</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">,</span><span class="s1">&#39;agbd&#39;</span><span class="p">,</span><span class="s1">&#39;agbd_se&#39;</span><span class="p">,</span><span class="s1">&#39;l4_quality_flag&#39;</span><span class="p">],</span>
-        <span class="mi">3</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">,</span><span class="s1">&#39;agbd&#39;</span><span class="p">,</span><span class="s1">&#39;agbd_se&#39;</span><span class="p">,</span><span class="s1">&#39;l4a_quality_flag_rel3&#39;</span><span class="p">,</span><span class="s1">&#39;elev_highestreturn_outlier_flag&#39;</span><span class="p">],</span>
+    <span class="s1">'L4A'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="mi">2</span><span class="p">:</span> <span class="p">[</span><span class="s1">'shot_number'</span><span class="p">,</span><span class="s1">'agbd'</span><span class="p">,</span><span class="s1">'agbd_se'</span><span class="p">,</span><span class="s1">'l4_quality_flag'</span><span class="p">],</span>
+        <span class="mi">3</span><span class="p">:</span> <span class="p">[</span><span class="s1">'shot_number'</span><span class="p">,</span><span class="s1">'agbd'</span><span class="p">,</span><span class="s1">'agbd_se'</span><span class="p">,</span><span class="s1">'l4a_quality_flag_rel3'</span><span class="p">,</span><span class="s1">'elev_highestreturn_outlier_flag'</span><span class="p">],</span>
     <span class="p">},</span>
-    <span class="s1">&#39;L4C&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="mi">2</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">,</span><span class="s1">&#39;wsci&#39;</span><span class="p">,</span><span class="s1">&#39;wsci_xy&#39;</span><span class="p">,</span><span class="s1">&#39;wsci_z&#39;</span><span class="p">,</span><span class="s1">&#39;wsci_pi_lower&#39;</span><span class="p">,</span><span class="s1">&#39;wsci_pi_upper&#39;</span><span class="p">,</span><span class="s1">&#39;wsci_quality_flag&#39;</span><span class="p">,</span><span class="s1">&#39;land_cover_data/worldcover_class&#39;</span><span class="p">],</span>
-        <span class="mi">3</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">,</span><span class="s1">&#39;wsci&#39;</span><span class="p">,</span><span class="s1">&#39;wsci_xy&#39;</span><span class="p">,</span><span class="s1">&#39;wsci_z&#39;</span><span class="p">,</span><span class="s1">&#39;wsci_pi_lower&#39;</span><span class="p">,</span><span class="s1">&#39;wsci_pi_upper&#39;</span><span class="p">,</span><span class="s1">&#39;l4c_quality_flag_rel3&#39;</span><span class="p">,</span><span class="s1">&#39;land_cover_data/worldcover_class&#39;</span><span class="p">,</span><span class="s1">&#39;elev_highestreturn_outlier_flag&#39;</span><span class="p">],</span>
+    <span class="s1">'L4C'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="mi">2</span><span class="p">:</span> <span class="p">[</span><span class="s1">'shot_number'</span><span class="p">,</span><span class="s1">'wsci'</span><span class="p">,</span><span class="s1">'wsci_xy'</span><span class="p">,</span><span class="s1">'wsci_z'</span><span class="p">,</span><span class="s1">'wsci_pi_lower'</span><span class="p">,</span><span class="s1">'wsci_pi_upper'</span><span class="p">,</span><span class="s1">'wsci_quality_flag'</span><span class="p">,</span><span class="s1">'land_cover_data/worldcover_class'</span><span class="p">],</span>
+        <span class="mi">3</span><span class="p">:</span> <span class="p">[</span><span class="s1">'shot_number'</span><span class="p">,</span><span class="s1">'wsci'</span><span class="p">,</span><span class="s1">'wsci_xy'</span><span class="p">,</span><span class="s1">'wsci_z'</span><span class="p">,</span><span class="s1">'wsci_pi_lower'</span><span class="p">,</span><span class="s1">'wsci_pi_upper'</span><span class="p">,</span><span class="s1">'l4c_quality_flag_rel3'</span><span class="p">,</span><span class="s1">'land_cover_data/worldcover_class'</span><span class="p">,</span><span class="s1">'elev_highestreturn_outlier_flag'</span><span class="p">],</span>
     <span class="p">},</span>
 <span class="p">}</span>
 
 <span class="c1"># Quality flag conditions per product and GEDI version (before product suffix).</span>
 <span class="c1"># Each entry is a list of (flag_name, condition_str) tuples applied when --quality is used.</span>
 <span class="c1"># degrade_flag lives in L2A only (always present via essentials); downstream products</span>
-<span class="c1"># rely on L2A&#39;s degrade_flag rather than carrying redundant copies.</span>
+<span class="c1"># rely on L2A's degrade_flag rather than carrying redundant copies.</span>
 <span class="c1"># Use _get_versioned() to resolve for a given version.</span>
 <span class="n">_PRODUCT_QUALITY_FLAGS</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;L1B&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="mi">2</span><span class="p">:</span> <span class="p">[(</span><span class="s1">&#39;stale_return_flag&#39;</span><span class="p">,</span> <span class="s1">&#39;== 0&#39;</span><span class="p">)],</span>
-        <span class="mi">3</span><span class="p">:</span> <span class="p">[(</span><span class="s1">&#39;stale_return_flag&#39;</span><span class="p">,</span> <span class="s1">&#39;== 0&#39;</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;rx_clipflag&#39;</span><span class="p">,</span> <span class="s1">&#39;== 0&#39;</span><span class="p">)],</span>
+    <span class="s1">'L1B'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="mi">2</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'stale_return_flag'</span><span class="p">,</span> <span class="s1">'== 0'</span><span class="p">)],</span>
+        <span class="mi">3</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'stale_return_flag'</span><span class="p">,</span> <span class="s1">'== 0'</span><span class="p">),</span> <span class="p">(</span><span class="s1">'rx_clipflag'</span><span class="p">,</span> <span class="s1">'== 0'</span><span class="p">)],</span>
     <span class="p">},</span>
-    <span class="s1">&#39;L2A&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="mi">2</span><span class="p">:</span> <span class="p">[(</span><span class="s1">&#39;quality_flag&#39;</span><span class="p">,</span> <span class="s1">&#39;== 1&#39;</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;degrade_flag&#39;</span><span class="p">,</span> <span class="s1">&#39;== 0&#39;</span><span class="p">)],</span>
-        <span class="mi">3</span><span class="p">:</span> <span class="p">[(</span><span class="s1">&#39;l2a_quality_flag_rel3&#39;</span><span class="p">,</span> <span class="s1">&#39;== 1&#39;</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;degrade_flag&#39;</span><span class="p">,</span> <span class="s1">&#39;== 0&#39;</span><span class="p">)],</span>
+    <span class="s1">'L2A'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="mi">2</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'quality_flag'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">),</span> <span class="p">(</span><span class="s1">'degrade_flag'</span><span class="p">,</span> <span class="s1">'== 0'</span><span class="p">)],</span>
+        <span class="mi">3</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'l2a_quality_flag_rel3'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">),</span> <span class="p">(</span><span class="s1">'degrade_flag'</span><span class="p">,</span> <span class="s1">'== 0'</span><span class="p">)],</span>
     <span class="p">},</span>
-    <span class="s1">&#39;L2B&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="mi">2</span><span class="p">:</span> <span class="p">[(</span><span class="s1">&#39;l2b_quality_flag&#39;</span><span class="p">,</span> <span class="s1">&#39;== 1&#39;</span><span class="p">)],</span>
-        <span class="mi">3</span><span class="p">:</span> <span class="p">[(</span><span class="s1">&#39;l2b_quality_flag_rel3&#39;</span><span class="p">,</span> <span class="s1">&#39;== 1&#39;</span><span class="p">)],</span>
+    <span class="s1">'L2B'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="mi">2</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'l2b_quality_flag'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">)],</span>
+        <span class="mi">3</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'l2b_quality_flag_rel3'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">)],</span>
     <span class="p">},</span>
-    <span class="s1">&#39;L4A&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="mi">2</span><span class="p">:</span> <span class="p">[(</span><span class="s1">&#39;l4_quality_flag&#39;</span><span class="p">,</span> <span class="s1">&#39;== 1&#39;</span><span class="p">)],</span>
-        <span class="mi">3</span><span class="p">:</span> <span class="p">[(</span><span class="s1">&#39;l4a_quality_flag_rel3&#39;</span><span class="p">,</span> <span class="s1">&#39;== 1&#39;</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;elev_highestreturn_outlier_flag&#39;</span><span class="p">,</span> <span class="s1">&#39;== 0&#39;</span><span class="p">)],</span>
+    <span class="s1">'L4A'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="mi">2</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'l4_quality_flag'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">)],</span>
+        <span class="mi">3</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'l4a_quality_flag_rel3'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">),</span> <span class="p">(</span><span class="s1">'elev_highestreturn_outlier_flag'</span><span class="p">,</span> <span class="s1">'== 0'</span><span class="p">)],</span>
     <span class="p">},</span>
-    <span class="s1">&#39;L4C&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="mi">2</span><span class="p">:</span> <span class="p">[(</span><span class="s1">&#39;wsci_quality_flag&#39;</span><span class="p">,</span> <span class="s1">&#39;== 1&#39;</span><span class="p">)],</span>
-        <span class="mi">3</span><span class="p">:</span> <span class="p">[(</span><span class="s1">&#39;l4c_quality_flag_rel3&#39;</span><span class="p">,</span> <span class="s1">&#39;== 1&#39;</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;elev_highestreturn_outlier_flag&#39;</span><span class="p">,</span> <span class="s1">&#39;== 0&#39;</span><span class="p">)],</span>
+    <span class="s1">'L4C'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="mi">2</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'wsci_quality_flag'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">)],</span>
+        <span class="mi">3</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'l4c_quality_flag_rel3'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">),</span> <span class="p">(</span><span class="s1">'elev_highestreturn_outlier_flag'</span><span class="p">,</span> <span class="s1">'== 0'</span><span class="p">)],</span>
     <span class="p">},</span>
 <span class="p">}</span>
 
 <span class="n">GEDI_PRODUCTS</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;L1B&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="s1">&#39;short_name&#39;</span><span class="p">:</span> <span class="s1">&#39;GEDI01_B&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;doi&#39;</span><span class="p">:</span> <span class="s1">&#39;10.5067/GEDI/GEDI01_B.002&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;daac&#39;</span><span class="p">:</span> <span class="s1">&#39;LPDAAC&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;version&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
-        <span class="s1">&#39;format&#39;</span><span class="p">:</span> <span class="s1">&#39;.h5&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="s1">&#39;Geolocated waveforms&#39;</span>
+    <span class="s1">'L1B'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">'short_name'</span><span class="p">:</span> <span class="s1">'GEDI01_B'</span><span class="p">,</span>
+        <span class="s1">'doi'</span><span class="p">:</span> <span class="s1">'10.5067/GEDI/GEDI01_B.002'</span><span class="p">,</span>
+        <span class="s1">'daac'</span><span class="p">:</span> <span class="s1">'LPDAAC'</span><span class="p">,</span>
+        <span class="s1">'version'</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">'format'</span><span class="p">:</span> <span class="s1">'.h5'</span><span class="p">,</span>
+        <span class="s1">'description'</span><span class="p">:</span> <span class="s1">'Geolocated waveforms'</span>
     <span class="p">},</span>
-    <span class="s1">&#39;L2A&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="s1">&#39;short_name&#39;</span><span class="p">:</span> <span class="s1">&#39;GEDI02_A&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;doi&#39;</span><span class="p">:</span> <span class="s1">&#39;10.5067/GEDI/GEDI02_A.002&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;daac&#39;</span><span class="p">:</span> <span class="s1">&#39;LPDAAC&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;version&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
-        <span class="s1">&#39;format&#39;</span><span class="p">:</span> <span class="s1">&#39;.h5&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="s1">&#39;Elevation and height metrics&#39;</span>
+    <span class="s1">'L2A'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">'short_name'</span><span class="p">:</span> <span class="s1">'GEDI02_A'</span><span class="p">,</span>
+        <span class="s1">'doi'</span><span class="p">:</span> <span class="s1">'10.5067/GEDI/GEDI02_A.002'</span><span class="p">,</span>
+        <span class="s1">'daac'</span><span class="p">:</span> <span class="s1">'LPDAAC'</span><span class="p">,</span>
+        <span class="s1">'version'</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">'format'</span><span class="p">:</span> <span class="s1">'.h5'</span><span class="p">,</span>
+        <span class="s1">'description'</span><span class="p">:</span> <span class="s1">'Elevation and height metrics'</span>
     <span class="p">},</span>
-    <span class="s1">&#39;L2B&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="s1">&#39;short_name&#39;</span><span class="p">:</span> <span class="s1">&#39;GEDI02_B&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;doi&#39;</span><span class="p">:</span> <span class="s1">&#39;10.5067/GEDI/GEDI02_B.002&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;daac&#39;</span><span class="p">:</span> <span class="s1">&#39;LPDAAC&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;version&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
-        <span class="s1">&#39;format&#39;</span><span class="p">:</span> <span class="s1">&#39;.h5&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="s1">&#39;Canopy cover and vertical profile metrics&#39;</span>
+    <span class="s1">'L2B'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">'short_name'</span><span class="p">:</span> <span class="s1">'GEDI02_B'</span><span class="p">,</span>
+        <span class="s1">'doi'</span><span class="p">:</span> <span class="s1">'10.5067/GEDI/GEDI02_B.002'</span><span class="p">,</span>
+        <span class="s1">'daac'</span><span class="p">:</span> <span class="s1">'LPDAAC'</span><span class="p">,</span>
+        <span class="s1">'version'</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">'format'</span><span class="p">:</span> <span class="s1">'.h5'</span><span class="p">,</span>
+        <span class="s1">'description'</span><span class="p">:</span> <span class="s1">'Canopy cover and vertical profile metrics'</span>
     <span class="p">},</span>
-    <span class="c1"># &#39;L3&#39;: {</span>
-    <span class="c1">#     &#39;short_name&#39;: &#39;GEDI03&#39;,</span>
-    <span class="c1">#     &#39;doi&#39;: &#39;10.3334/ORNLDAAC/1952&#39;,</span>
-    <span class="c1">#     &#39;daac&#39;: &#39;ORNLDAAC&#39;,</span>
-    <span class="c1">#     &#39;version&#39;: 2,</span>
-    <span class="c1">#     &#39;format&#39;: &#39;.tif&#39;,</span>
-    <span class="c1">#     &#39;description&#39;: &#39;Gridded land surface metrics&#39;</span>
+    <span class="c1"># 'L3': {</span>
+    <span class="c1">#     'short_name': 'GEDI03',</span>
+    <span class="c1">#     'doi': '10.3334/ORNLDAAC/1952',</span>
+    <span class="c1">#     'daac': 'ORNLDAAC',</span>
+    <span class="c1">#     'version': 2,</span>
+    <span class="c1">#     'format': '.tif',</span>
+    <span class="c1">#     'description': 'Gridded land surface metrics'</span>
     <span class="c1"># },</span>
-    <span class="s1">&#39;L4A&#39;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">'L4A'</span><span class="p">:</span> <span class="p">{</span>
         <span class="c1"># ORNL DAAC short_names and DOIs encode the release ID, so they are</span>
         <span class="c1"># version-pinned. Resolve per requested version via _resolve_identifier().</span>
-        <span class="s1">&#39;short_name&#39;</span><span class="p">:</span> <span class="p">{</span><span class="mf">2.1</span><span class="p">:</span> <span class="s1">&#39;GEDI_L4A_AGB_Density_V2_1_2056&#39;</span><span class="p">,</span>
-                       <span class="mi">3</span><span class="p">:</span>   <span class="s1">&#39;GEDI_L4A_AGB_Density_V3_2508&#39;</span><span class="p">},</span>
-        <span class="s1">&#39;doi&#39;</span><span class="p">:</span>        <span class="p">{</span><span class="mf">2.1</span><span class="p">:</span> <span class="s1">&#39;10.3334/ORNLDAAC/2056&#39;</span><span class="p">,</span>
-                       <span class="mi">3</span><span class="p">:</span>   <span class="s1">&#39;10.3334/ORNLDAAC/2508&#39;</span><span class="p">},</span>
-        <span class="s1">&#39;daac&#39;</span><span class="p">:</span> <span class="s1">&#39;ORNLDAAC&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;version&#39;</span><span class="p">:</span> <span class="mf">2.1</span><span class="p">,</span>
-        <span class="s1">&#39;format&#39;</span><span class="p">:</span> <span class="s1">&#39;.h5&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="s1">&#39;Footprint level aboveground biomass&#39;</span>
+        <span class="s1">'short_name'</span><span class="p">:</span> <span class="p">{</span><span class="mf">2.1</span><span class="p">:</span> <span class="s1">'GEDI_L4A_AGB_Density_V2_1_2056'</span><span class="p">,</span>
+                       <span class="mi">3</span><span class="p">:</span>   <span class="s1">'GEDI_L4A_AGB_Density_V3_2508'</span><span class="p">},</span>
+        <span class="s1">'doi'</span><span class="p">:</span>        <span class="p">{</span><span class="mf">2.1</span><span class="p">:</span> <span class="s1">'10.3334/ORNLDAAC/2056'</span><span class="p">,</span>
+                       <span class="mi">3</span><span class="p">:</span>   <span class="s1">'10.3334/ORNLDAAC/2508'</span><span class="p">},</span>
+        <span class="s1">'daac'</span><span class="p">:</span> <span class="s1">'ORNLDAAC'</span><span class="p">,</span>
+        <span class="s1">'version'</span><span class="p">:</span> <span class="mf">2.1</span><span class="p">,</span>
+        <span class="s1">'format'</span><span class="p">:</span> <span class="s1">'.h5'</span><span class="p">,</span>
+        <span class="s1">'description'</span><span class="p">:</span> <span class="s1">'Footprint level aboveground biomass'</span>
     <span class="p">},</span>
-    <span class="c1"># &#39;L4B&#39;: {</span>
-    <span class="c1">#     &#39;short_name&#39;: &#39;GEDI04_B&#39;,</span>
-    <span class="c1">#     &#39;doi&#39;: &#39;10.3334/ORNLDAAC/2299&#39;,</span>
-    <span class="c1">#     &#39;daac&#39;: &#39;ORNLDAAC&#39;,</span>
-    <span class="c1">#     &#39;version&#39;: 2,</span>
-    <span class="c1">#     &#39;format&#39;: &#39;.tif&#39;,</span>
-    <span class="c1">#     &#39;description&#39;: &#39;Gridded aboveground biomass&#39;</span>
+    <span class="c1"># 'L4B': {</span>
+    <span class="c1">#     'short_name': 'GEDI04_B',</span>
+    <span class="c1">#     'doi': '10.3334/ORNLDAAC/2299',</span>
+    <span class="c1">#     'daac': 'ORNLDAAC',</span>
+    <span class="c1">#     'version': 2,</span>
+    <span class="c1">#     'format': '.tif',</span>
+    <span class="c1">#     'description': 'Gridded aboveground biomass'</span>
     <span class="c1"># },</span>
-    <span class="s1">&#39;L4C&#39;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">'L4C'</span><span class="p">:</span> <span class="p">{</span>
         <span class="c1"># See L4A note re: ORNL DAAC version-pinned identifiers.</span>
-        <span class="s1">&#39;short_name&#39;</span><span class="p">:</span> <span class="p">{</span><span class="mi">2</span><span class="p">:</span> <span class="s1">&#39;GEDI_L4C_WSCI_2338&#39;</span><span class="p">},</span>
-        <span class="s1">&#39;doi&#39;</span><span class="p">:</span>        <span class="p">{</span><span class="mi">2</span><span class="p">:</span> <span class="s1">&#39;10.3334/ORNLDAAC/2338&#39;</span><span class="p">},</span>
-        <span class="s1">&#39;daac&#39;</span><span class="p">:</span> <span class="s1">&#39;ORNLDAAC&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;version&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
-        <span class="s1">&#39;format&#39;</span><span class="p">:</span> <span class="s1">&#39;.h5&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="s1">&#39;Footprint level structural complexity&#39;</span>
+        <span class="s1">'short_name'</span><span class="p">:</span> <span class="p">{</span><span class="mi">2</span><span class="p">:</span> <span class="s1">'GEDI_L4C_WSCI_2338'</span><span class="p">},</span>
+        <span class="s1">'doi'</span><span class="p">:</span>        <span class="p">{</span><span class="mi">2</span><span class="p">:</span> <span class="s1">'10.3334/ORNLDAAC/2338'</span><span class="p">},</span>
+        <span class="s1">'daac'</span><span class="p">:</span> <span class="s1">'ORNLDAAC'</span><span class="p">,</span>
+        <span class="s1">'version'</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">'format'</span><span class="p">:</span> <span class="s1">'.h5'</span><span class="p">,</span>
+        <span class="s1">'description'</span><span class="p">:</span> <span class="s1">'Footprint level structural complexity'</span>
     <span class="p">}</span>
     <span class="c1"># Future products:</span>
-    <span class="c1"># &#39;L4C_FUSION&#39;: {&#39;short_name&#39;: &#39;&#39;, &#39;daac&#39;: &#39;ORNLDAAC&#39;, &#39;version&#39;: &#39;002&#39;, &#39;format&#39;: &#39;.tif&#39;},</span>
-    <span class="c1"># &#39;L4D&#39;: {&#39;short_name&#39;: &#39;&#39;, &#39;daac&#39;: &#39;ORNLDAAC&#39;, &#39;version&#39;: &#39;002&#39;, &#39;format&#39;: &#39;.tif&#39;}</span>
+    <span class="c1"># 'L4C_FUSION': {'short_name': '', 'daac': 'ORNLDAAC', 'version': '002', 'format': '.tif'},</span>
+    <span class="c1"># 'L4D': {'short_name': '', 'daac': 'ORNLDAAC', 'version': '002', 'format': '.tif'}</span>
 <span class="p">}</span>
 
 
 <div class="viewcode-block" id="get_default_vars_file">
 <a class="viewcode-back" href="../../autoapi/gedih3/config/index.html#gedih3.config.get_default_vars_file">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_default_vars_file</span><span class="p">(</span><span class="n">product</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get the default variable list file for a product, with version awareness.</span>
+<span class="w">    </span><span class="sd">"""Get the default variable list file for a product, with version awareness.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    product : str</span>
-<span class="sd">        Product code (e.g., &#39;L2A&#39;, &#39;L4A&#39;)</span>
+<span class="sd">        Product code (e.g., 'L2A', 'L4A')</span>
 <span class="sd">    version : int or None</span>
 <span class="sd">        GEDI data version. If None, falls back to known version 2.</span>
 
@@ -1041,19 +1041,19 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    Path</span>
 <span class="sd">        Path to the variable list file</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">product</span> <span class="o">=</span> <span class="n">product</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">product</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">GEDI_PRODUCTS</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown product: </span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unknown product: </span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">version</span> <span class="o">=</span> <span class="mi">2</span>
-    <span class="c1"># Derive canonical prefix from product key (e.g., &#39;L2A&#39; → &#39;GEDI02_A&#39;)</span>
+    <span class="c1"># Derive canonical prefix from product key (e.g., 'L2A' → 'GEDI02_A')</span>
     <span class="c1"># instead of short_name, which is DAAC-specific for L4A/L4C.</span>
-    <span class="n">prefix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;GEDI0</span><span class="si">{</span><span class="n">product</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">product</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
-    <span class="n">fname</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s1">_DATASETS_</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">version</span><span class="p">)</span><span class="si">:</span><span class="s1">03d</span><span class="si">}</span><span class="s1">.txt&#39;</span>
+    <span class="n">prefix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"GEDI0</span><span class="si">{</span><span class="n">product</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">product</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
+    <span class="n">fname</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s1">_DATASETS_</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">version</span><span class="p">)</span><span class="si">:</span><span class="s1">03d</span><span class="si">}</span><span class="s1">.txt'</span>
     <span class="n">path</span> <span class="o">=</span> <span class="n">get_package_data_path</span><span class="p">(</span><span class="n">fname</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
-        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Variable list file not found: </span><span class="si">{</span><span class="n">fname</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Variable list file not found: </span><span class="si">{</span><span class="n">fname</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">path</span></div>
 
 </pre></div>

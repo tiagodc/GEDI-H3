@@ -760,7 +760,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="sd">Time-Series Raster Generation Module</span>
 
 <span class="sd">This module provides functions for generating time-series raster products</span>
@@ -768,7 +768,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">- Temporal filtering by date range</span>
 <span class="sd">- Time-windowed aggregation (years, months, weeks, days)</span>
 <span class="sd">- Batch raster generation for time intervals</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Generator</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Union</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">datetime</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
@@ -789,7 +789,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">df</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">],</span>
     <span class="n">time_col</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Find and identify the datetime column in a DataFrame.</span>
 
 <span class="sd">    Parameters</span>
@@ -803,16 +803,16 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    str or None</span>
 <span class="sd">        Name of the datetime column, or None if not found</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="n">time_col</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">time_col</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">time_col</span>
 
     <span class="c1"># Look for common datetime column names</span>
     <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
         <span class="n">col_lower</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">col</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
-        <span class="k">if</span> <span class="s1">&#39;datetime&#39;</span> <span class="ow">in</span> <span class="n">col_lower</span> <span class="ow">or</span> <span class="n">col_lower</span> <span class="o">==</span> <span class="s1">&#39;time&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s1">'datetime'</span> <span class="ow">in</span> <span class="n">col_lower</span> <span class="ow">or</span> <span class="n">col_lower</span> <span class="o">==</span> <span class="s1">'time'</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">col</span>
-        <span class="k">if</span> <span class="s1">&#39;delta_time&#39;</span> <span class="ow">in</span> <span class="n">col_lower</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s1">'delta_time'</span> <span class="ow">in</span> <span class="n">col_lower</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">col</span>
 
     <span class="k">return</span> <span class="kc">None</span></div>
@@ -823,10 +823,10 @@ window.runMermaid = runMermaid;</script>
 <a class="viewcode-back" href="../../../autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.convert_delta_time_to_datetime">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">convert_delta_time_to_datetime</span><span class="p">(</span>
     <span class="n">df</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">],</span>
-    <span class="n">delta_time_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;delta_time&#39;</span><span class="p">,</span>
-    <span class="n">output_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;datetime&#39;</span>
+    <span class="n">delta_time_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'delta_time'</span><span class="p">,</span>
+    <span class="n">output_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'datetime'</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Convert GEDI delta_time (seconds since epoch) to datetime.</span>
 
 <span class="sd">    GEDI delta_time is seconds since 2018-01-01 00:00:00 UTC.</span>
@@ -844,15 +844,15 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    DataFrame or GeoDataFrame</span>
 <span class="sd">        Data with new datetime column added</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="n">delta_time_col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Column &#39;</span><span class="si">{</span><span class="n">delta_time_col</span><span class="si">}</span><span class="s2">&#39; not found in DataFrame&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Column '</span><span class="si">{</span><span class="n">delta_time_col</span><span class="si">}</span><span class="s2">' not found in DataFrame"</span><span class="p">)</span>
 
     <span class="c1"># Convert delta_time (seconds since GEDI epoch) to datetime</span>
     <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
     <span class="n">df</span><span class="p">[</span><span class="n">output_col</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">to_datetime</span><span class="p">(</span>
         <span class="n">df</span><span class="p">[</span><span class="n">delta_time_col</span><span class="p">]</span> <span class="o">+</span> <span class="n">GEDI_START_DATE</span><span class="o">.</span><span class="n">timestamp</span><span class="p">(),</span>
-        <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;s&#39;</span>
+        <span class="n">unit</span><span class="o">=</span><span class="s1">'s'</span>
     <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">df</span></div>
@@ -865,9 +865,9 @@ window.runMermaid = runMermaid;</script>
     <span class="n">start_date</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">],</span>
     <span class="n">end_date</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">],</span>
     <span class="n">interval</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-    <span class="n">units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;years&#39;</span>
+    <span class="n">units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'years'</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Generate time windows for temporal aggregation.</span>
 
 <span class="sd">    Parameters</span>
@@ -879,7 +879,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    interval : int</span>
 <span class="sd">        Number of time units per window</span>
 <span class="sd">    units : str</span>
-<span class="sd">        Time unit: &#39;years&#39;, &#39;months&#39;, &#39;weeks&#39;, &#39;days&#39;</span>
+<span class="sd">        Time unit: 'years', 'months', 'weeks', 'days'</span>
 
 <span class="sd">    Yields</span>
 <span class="sd">    ------</span>
@@ -889,26 +889,26 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; # Generate yearly windows</span>
-<span class="sd">    &gt;&gt;&gt; for t0, t1, suffix in generate_time_windows(&#39;2020-01-01&#39;, &#39;2023-01-01&#39;, 1, &#39;years&#39;):</span>
-<span class="sd">    ...     print(f&quot;{suffix}: {t0} to {t1}&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; for t0, t1, suffix in generate_time_windows('2020-01-01', '2023-01-01', 1, 'years'):</span>
+<span class="sd">    ...     print(f"{suffix}: {t0} to {t1}")</span>
 <span class="sd">    2020-01-01-to-2021-01-01: 2020-01-01 00:00:00 to 2021-01-01 00:00:00</span>
 <span class="sd">    2021-01-01-to-2022-01-01: 2021-01-01 00:00:00 to 2022-01-01 00:00:00</span>
 <span class="sd">    2022-01-01-to-2023-01-01: 2022-01-01 00:00:00 to 2023-01-01 00:00:00</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="n">units</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">TIME_UNITS</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid time unit: </span><span class="si">{</span><span class="n">units</span><span class="si">}</span><span class="s2">. Must be one of </span><span class="si">{</span><span class="n">TIME_UNITS</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid time unit: </span><span class="si">{</span><span class="n">units</span><span class="si">}</span><span class="s2">. Must be one of </span><span class="si">{</span><span class="n">TIME_UNITS</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="c1"># Parse dates</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">start_date</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-        <span class="n">start_date</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">start_date</span><span class="p">,</span> <span class="s1">&#39;%Y-%m-</span><span class="si">%d</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">start_date</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">start_date</span><span class="p">,</span> <span class="s1">'%Y-%m-</span><span class="si">%d</span><span class="s1">'</span><span class="p">)</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">end_date</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-        <span class="n">end_date</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">end_date</span><span class="p">,</span> <span class="s1">&#39;%Y-%m-</span><span class="si">%d</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">end_date</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">end_date</span><span class="p">,</span> <span class="s1">'%Y-%m-</span><span class="si">%d</span><span class="s1">'</span><span class="p">)</span>
 
     <span class="c1"># Warn about pre-GEDI dates</span>
     <span class="n">gedi_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2019</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">17</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">start_date</span> <span class="o">&lt;</span> <span class="n">gedi_start</span><span class="p">:</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
-        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No GEDI data available before 2019-04-17. Start date is </span><span class="si">{</span><span class="n">start_date</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">"No GEDI data available before 2019-04-17. Start date is </span><span class="si">{</span><span class="n">start_date</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="c1"># Generate windows</span>
     <span class="n">time_delta</span> <span class="o">=</span> <span class="n">relativedelta</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="n">units</span><span class="p">:</span> <span class="n">interval</span><span class="p">})</span>
@@ -920,7 +920,7 @@ window.runMermaid = runMermaid;</script>
             <span class="n">t1</span> <span class="o">=</span> <span class="n">end_date</span>
 
         <span class="c1"># Create suffix string</span>
-        <span class="n">suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">t0</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-</span><span class="si">%d</span><span class="s1">&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">-to-</span><span class="si">{</span><span class="n">t1</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-</span><span class="si">%d</span><span class="s1">&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">t0</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">'%Y-%m-</span><span class="si">%d</span><span class="s1">'</span><span class="p">)</span><span class="si">}</span><span class="s2">-to-</span><span class="si">{</span><span class="n">t1</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">'%Y-%m-</span><span class="si">%d</span><span class="s1">'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
 
         <span class="k">yield</span> <span class="n">t0</span><span class="p">,</span> <span class="n">t1</span><span class="p">,</span> <span class="n">suffix</span>
         <span class="n">t0</span> <span class="o">=</span> <span class="n">t1</span></div>
@@ -933,9 +933,9 @@ window.runMermaid = runMermaid;</script>
     <span class="n">df</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">],</span>
     <span class="n">start_date</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">end_date</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">time_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;datetime&#39;</span>
+    <span class="n">time_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'datetime'</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Filter DataFrame by time range.</span>
 
 <span class="sd">    Parameters</span>
@@ -953,9 +953,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    DataFrame or GeoDataFrame</span>
 <span class="sd">        Filtered data</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="n">time_col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Datetime column &#39;</span><span class="si">{</span><span class="n">time_col</span><span class="si">}</span><span class="s2">&#39; not found&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Datetime column '</span><span class="si">{</span><span class="n">time_col</span><span class="si">}</span><span class="s2">' not found"</span><span class="p">)</span>
 
     <span class="n">result</span> <span class="o">=</span> <span class="n">df</span>
 
@@ -978,9 +978,9 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">build_temporal_query</span><span class="p">(</span>
     <span class="n">start_date</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">end_date</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">time_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;datetime&#39;</span>
+    <span class="n">time_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'datetime'</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Build a pandas query string for temporal filtering.</span>
 
 <span class="sd">    Parameters</span>
@@ -996,16 +996,16 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    str or None</span>
 <span class="sd">        Query string for pandas.query(), or None if no filters</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">queries</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="k">if</span> <span class="n">start_date</span><span class="p">:</span>
-        <span class="n">queries</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">time_col</span><span class="si">}</span><span class="s2"> &gt;= &#39;</span><span class="si">{</span><span class="n">start_date</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="p">)</span>
+        <span class="n">queries</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">time_col</span><span class="si">}</span><span class="s2"> &gt;= '</span><span class="si">{</span><span class="n">start_date</span><span class="si">}</span><span class="s2">'"</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">end_date</span><span class="p">:</span>
-        <span class="n">queries</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">time_col</span><span class="si">}</span><span class="s2"> &lt; &#39;</span><span class="si">{</span><span class="n">end_date</span><span class="si">}</span><span class="s2">&#39;&quot;</span><span class="p">)</span>
+        <span class="n">queries</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">time_col</span><span class="si">}</span><span class="s2"> &lt; '</span><span class="si">{</span><span class="n">end_date</span><span class="si">}</span><span class="s2">'"</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">queries</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s1">&#39; and &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">queries</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s1">' and '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">queries</span><span class="p">)</span>
     <span class="k">return</span> <span class="kc">None</span></div>
 
 
@@ -1013,7 +1013,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="TimeSeriesRasterizer">
 <a class="viewcode-back" href="../../../autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.TimeSeriesRasterizer">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">TimeSeriesRasterizer</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Class for generating time-series raster products.</span>
 
 <span class="sd">    This class provides a convenient interface for generating multiple</span>
@@ -1038,27 +1038,27 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; rasterizer = TimeSeriesRasterizer(</span>
 <span class="sd">    ...     gdf=data,</span>
-<span class="sd">    ...     time_col=&#39;datetime&#39;,</span>
-<span class="sd">    ...     aggregation=&#39;mean&#39;,</span>
+<span class="sd">    ...     time_col='datetime',</span>
+<span class="sd">    ...     aggregation='mean',</span>
 <span class="sd">    ...     target_level=6,</span>
 <span class="sd">    ...     use_egi=True</span>
 <span class="sd">    ... )</span>
 <span class="sd">    &gt;&gt;&gt;</span>
 <span class="sd">    &gt;&gt;&gt; # Generate yearly rasters</span>
 <span class="sd">    &gt;&gt;&gt; for raster, suffix in rasterizer.generate(</span>
-<span class="sd">    ...     start_date=&#39;2020-01-01&#39;,</span>
-<span class="sd">    ...     end_date=&#39;2023-01-01&#39;,</span>
+<span class="sd">    ...     start_date='2020-01-01',</span>
+<span class="sd">    ...     end_date='2023-01-01',</span>
 <span class="sd">    ...     interval=1,</span>
-<span class="sd">    ...     units=&#39;years&#39;</span>
+<span class="sd">    ...     units='years'</span>
 <span class="sd">    ... ):</span>
-<span class="sd">    ...     raster.rio.to_raster(f&quot;output_{suffix}.tif&quot;)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    ...     raster.rio.to_raster(f"output_{suffix}.tif")</span>
+<span class="sd">    """</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">gdf</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">],</span>
-        <span class="n">time_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;datetime&#39;</span><span class="p">,</span>
-        <span class="n">aggregation</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">Callable</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;mean&#39;</span><span class="p">,</span>
+        <span class="n">time_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'datetime'</span><span class="p">,</span>
+        <span class="n">aggregation</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">Callable</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'mean'</span><span class="p">,</span>
         <span class="n">target_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">6</span><span class="p">,</span>
         <span class="n">use_egi</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
         <span class="n">columns</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1077,7 +1077,7 @@ window.runMermaid = runMermaid;</script>
             <span class="k">if</span> <span class="n">found_col</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">time_col</span> <span class="o">=</span> <span class="n">found_col</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Datetime column &#39;</span><span class="si">{</span><span class="n">time_col</span><span class="si">}</span><span class="s2">&#39; not found in data&quot;</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Datetime column '</span><span class="si">{</span><span class="n">time_col</span><span class="si">}</span><span class="s2">' not found in data"</span><span class="p">)</span>
 
 <div class="viewcode-block" id="TimeSeriesRasterizer.generate">
 <a class="viewcode-back" href="../../../autoapi/gedih3/raster/timeseries/index.html#gedih3.raster.timeseries.TimeSeriesRasterizer.generate">[docs]</a>
@@ -1086,10 +1086,10 @@ window.runMermaid = runMermaid;</script>
         <span class="n">start_date</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
         <span class="n">end_date</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
         <span class="n">interval</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-        <span class="n">units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;years&#39;</span><span class="p">,</span>
+        <span class="n">units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'years'</span><span class="p">,</span>
         <span class="n">to_raster</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">,</span> <span class="n">xr</span><span class="o">.</span><span class="n">Dataset</span><span class="p">],</span> <span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">"""</span>
 <span class="sd">        Generate time-series outputs.</span>
 
 <span class="sd">        Parameters</span>
@@ -1101,7 +1101,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        interval : int</span>
 <span class="sd">            Number of time units per window</span>
 <span class="sd">        units : str</span>
-<span class="sd">            Time unit: &#39;years&#39;, &#39;months&#39;, &#39;weeks&#39;, &#39;days&#39;</span>
+<span class="sd">            Time unit: 'years', 'months', 'weeks', 'days'</span>
 <span class="sd">        to_raster : bool</span>
 <span class="sd">            If True, convert to raster; if False, return GeoDataFrame</span>
 
@@ -1109,7 +1109,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        ------</span>
 <span class="sd">        tuple</span>
 <span class="sd">            (output_data, time_suffix)</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+<span class="sd">        """</span>
         <span class="k">for</span> <span class="n">t0</span><span class="p">,</span> <span class="n">t1</span><span class="p">,</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="n">generate_time_windows</span><span class="p">(</span><span class="n">start_date</span><span class="p">,</span> <span class="n">end_date</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">units</span><span class="p">):</span>
             <span class="c1"># Filter data for this time window</span>
             <span class="n">window_data</span> <span class="o">=</span> <span class="n">filter_by_time_range</span><span class="p">(</span>
@@ -1138,7 +1138,7 @@ window.runMermaid = runMermaid;</script>
 
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_aggregate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gdf</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Perform spatial aggregation.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">"""Perform spatial aggregation."""</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_egi</span><span class="p">:</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">..</span><span class="w"> </span><span class="kn">import</span> <span class="n">egi</span>
             <span class="c1"># Convert to EGI and aggregate</span>
@@ -1156,7 +1156,7 @@ window.runMermaid = runMermaid;</script>
             <span class="k">return</span> <span class="n">gh3_add_geometry</span><span class="p">(</span><span class="n">agg_df</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_rasterize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">xr</span><span class="o">.</span><span class="n">Dataset</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert aggregated data to raster.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">"""Convert aggregated data to raster."""</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_egi</span><span class="p">:</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">..</span><span class="w"> </span><span class="kn">import</span> <span class="n">egi</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">..utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">object_series</span>

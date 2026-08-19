@@ -760,13 +760,13 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;Diagnosis registry + orchestrator for gh3_doctor.</span>
+<span class="sd">"""Diagnosis registry + orchestrator for gh3_doctor.</span>
 
 <span class="sd">Each diagnosis is a callable with ``check(ctx) -&gt; Report`` and optional</span>
 <span class="sd">``fix(ctx, report) -&gt; Report``. Diagnoses register themselves at import time</span>
-<span class="sd">via :func:`register`; the package&#39;s :mod:`diagnoses` subpackage auto-imports</span>
+<span class="sd">via :func:`register`; the package's :mod:`diagnoses` subpackage auto-imports</span>
 <span class="sd">all known diagnosis modules.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
@@ -780,7 +780,7 @@ window.runMermaid = runMermaid;</script>
 <span class="k">class</span><span class="w"> </span><span class="nc">Diagnosis</span><span class="p">:</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">description</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">scope</span><span class="p">:</span> <span class="nb">str</span>                          <span class="c1"># &#39;global&#39; or &#39;partition&#39;</span>
+    <span class="n">scope</span><span class="p">:</span> <span class="nb">str</span>                          <span class="c1"># 'global' or 'partition'</span>
     <span class="n">check</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">DoctorContext</span><span class="p">],</span> <span class="n">Report</span><span class="p">]</span>
     <span class="n">fix</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">DoctorContext</span><span class="p">,</span> <span class="n">Report</span><span class="p">],</span> <span class="n">Report</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">aliases</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></div>
@@ -792,25 +792,25 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Group aliases users can pass to --check/--fix. Resolved at dispatch time</span>
 <span class="c1"># against whatever diagnoses have registered.</span>
 <span class="n">ALIAS_GROUPS</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;db&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;backfill&#39;</span><span class="p">,</span> <span class="s1">&#39;orphans&#39;</span><span class="p">,</span> <span class="s1">&#39;log_state&#39;</span><span class="p">,</span> <span class="s1">&#39;metadata&#39;</span><span class="p">,</span> <span class="s1">&#39;parquet_health&#39;</span><span class="p">,</span> <span class="s1">&#39;geoparquet_bbox&#39;</span><span class="p">],</span>
-    <span class="s1">&#39;soc&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;soc_health&#39;</span><span class="p">],</span>
-    <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>                         <span class="c1"># special: all registered diagnoses</span>
+    <span class="s1">'db'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'backfill'</span><span class="p">,</span> <span class="s1">'orphans'</span><span class="p">,</span> <span class="s1">'log_state'</span><span class="p">,</span> <span class="s1">'metadata'</span><span class="p">,</span> <span class="s1">'parquet_health'</span><span class="p">,</span> <span class="s1">'geoparquet_bbox'</span><span class="p">],</span>
+    <span class="s1">'soc'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'soc_health'</span><span class="p">],</span>
+    <span class="s1">'all'</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>                         <span class="c1"># special: all registered diagnoses</span>
 <span class="p">}</span>
 
 
 <div class="viewcode-block" id="register">
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.register">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">description</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">scope</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;global&#39;</span><span class="p">,</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">description</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">scope</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'global'</span><span class="p">,</span>
              <span class="n">fix</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Decorator to register a check function.</span>
+<span class="w">    </span><span class="sd">"""Decorator to register a check function.</span>
 
 <span class="sd">    Usage::</span>
 
-<span class="sd">        @register(&#39;orphans&#39;, &#39;Leftover temp + empty partitions&#39;, scope=&#39;global&#39;, fix=orphans_fix)</span>
+<span class="sd">        @register('orphans', 'Leftover temp + empty partitions', scope='global', fix=orphans_fix)</span>
 <span class="sd">        def orphans_check(ctx): ...</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">scope</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;global&#39;</span><span class="p">,</span> <span class="s1">&#39;partition&#39;</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;scope must be &#39;global&#39; or &#39;partition&#39;, got </span><span class="si">{</span><span class="n">scope</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">scope</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'global'</span><span class="p">,</span> <span class="s1">'partition'</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"scope must be 'global' or 'partition', got </span><span class="si">{</span><span class="n">scope</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">decorator</span><span class="p">(</span><span class="n">check_fn</span><span class="p">):</span>
         <span class="n">_REGISTRY</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">Diagnosis</span><span class="p">(</span>
@@ -829,7 +829,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="get_diagnoses">
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.get_diagnoses">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_diagnoses</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Diagnosis</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a copy of the diagnosis registry.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Return a copy of the diagnosis registry."""</span>
     <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">_REGISTRY</span><span class="p">)</span></div>
 
 
@@ -837,7 +837,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="resolve_names">
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.resolve_names">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">resolve_names</span><span class="p">(</span><span class="n">names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Expand alias groups (``db``, ``soc``, ``all``) into concrete names.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Expand alias groups (``db``, ``soc``, ``all``) into concrete names."""</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">names</span><span class="p">:</span>
         <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">_REGISTRY</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
 
@@ -856,26 +856,26 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Unknown diagnosis &#39;</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2">&#39;. Available: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">_REGISTRY</span><span class="p">)</span><span class="si">}</span><span class="s2"> &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;or aliases: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">ALIAS_GROUPS</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">"Unknown diagnosis '</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2">'. Available: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">_REGISTRY</span><span class="p">)</span><span class="si">}</span><span class="s2"> "</span>
+                <span class="sa">f</span><span class="s2">"or aliases: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">ALIAS_GROUPS</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
     <span class="k">return</span> <span class="n">out</span></div>
 
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_fused_check_reports</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">DoctorContext</span><span class="p">,</span> <span class="n">names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Report</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Dispatch ``names`` as a single per-partition fused scan.</span>
+<span class="w">    </span><span class="sd">"""Dispatch ``names`` as a single per-partition fused scan.</span>
 
 <span class="sd">    Returns a ``{name: Report}`` map. Only diagnoses registered with the</span>
 <span class="sd">    fused registry (``gedih3.doctor.fused.register_scan``) participate;</span>
 <span class="sd">    the caller is responsible for filtering ``names`` accordingly.</span>
 
-<span class="sd">    The single ``parallel_map`` opens each partition&#39;s parquet listing</span>
+<span class="sd">    The single ``parallel_map`` opens each partition's parquet listing</span>
 <span class="sd">    and meta JSON once and routes the result through every enabled</span>
-<span class="sd">    scan, then each diagnosis&#39;s ``_finalize_*`` driver-side aggregator</span>
+<span class="sd">    scan, then each diagnosis's ``_finalize_*`` driver-side aggregator</span>
 <span class="sd">    builds its Report. GPFS read amplification drops 3-5× on a</span>
 <span class="sd">    continental DB vs. one ``parallel_map`` per diagnosis.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.fused</span><span class="w"> </span><span class="kn">import</span> <span class="n">fused_scan_partition</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.parallel</span><span class="w"> </span><span class="kn">import</span> <span class="n">parallel_map</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.diagnoses.backfill</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
@@ -889,20 +889,20 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># Per-diagnosis broadcast kwargs. Computed once on the driver and</span>
     <span class="c1"># forwarded to the worker as a namespaced ``scan_kwargs`` dict.</span>
     <span class="n">scan_kwargs</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">if</span> <span class="s1">&#39;backfill&#39;</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+    <span class="k">if</span> <span class="s1">'backfill'</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
         <span class="n">products</span> <span class="o">=</span> <span class="n">_active_products</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">products</span><span class="p">:</span>
-            <span class="n">scan_kwargs</span><span class="p">[</span><span class="s1">&#39;backfill&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-                <span class="s1">&#39;products&#39;</span><span class="p">:</span> <span class="n">products</span><span class="p">,</span>
-                <span class="s1">&#39;expected_by_product&#39;</span><span class="p">:</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="n">_expected_product_columns</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">products</span><span class="p">},</span>
+            <span class="n">scan_kwargs</span><span class="p">[</span><span class="s1">'backfill'</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">'products'</span><span class="p">:</span> <span class="n">products</span><span class="p">,</span>
+                <span class="s1">'expected_by_product'</span><span class="p">:</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="n">_expected_product_columns</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">products</span><span class="p">},</span>
             <span class="p">}</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># No active products → backfill has nothing to do; drop from</span>
             <span class="c1"># the fused dispatch and return its no-op report directly.</span>
-            <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">names</span> <span class="k">if</span> <span class="n">n</span> <span class="o">!=</span> <span class="s1">&#39;backfill&#39;</span><span class="p">]</span>
-    <span class="k">if</span> <span class="s1">&#39;orphans&#39;</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
-        <span class="n">age_hours</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="s1">&#39;orphan_age_hours&#39;</span><span class="p">,</span> <span class="mf">24.0</span><span class="p">)</span>
-        <span class="n">scan_kwargs</span><span class="p">[</span><span class="s1">&#39;orphans&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;age_seconds&#39;</span><span class="p">:</span> <span class="n">age_hours</span> <span class="o">*</span> <span class="mi">3600</span><span class="p">}</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">names</span> <span class="k">if</span> <span class="n">n</span> <span class="o">!=</span> <span class="s1">'backfill'</span><span class="p">]</span>
+    <span class="k">if</span> <span class="s1">'orphans'</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+        <span class="n">age_hours</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="s1">'orphan_age_hours'</span><span class="p">,</span> <span class="mf">24.0</span><span class="p">)</span>
+        <span class="n">scan_kwargs</span><span class="p">[</span><span class="s1">'orphans'</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'age_seconds'</span><span class="p">:</span> <span class="n">age_hours</span> <span class="o">*</span> <span class="mi">3600</span><span class="p">}</span>
 
     <span class="c1"># Dispatch the fused scan over partition dirs. Each per-partition</span>
     <span class="c1"># result is a {scan_name: payload} dict.</span>
@@ -910,9 +910,9 @@ window.runMermaid = runMermaid;</script>
     <span class="k">for</span> <span class="n">part_dir</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">partition_dirs</span><span class="p">,</span>
         <span class="n">fused_scan_partition</span><span class="p">,</span>
-        <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">&#39;args&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-        <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;fused: scanning partitions&#39;</span><span class="p">,</span>
-        <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;part&#39;</span><span class="p">,</span>
+        <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">'args'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="n">desc</span><span class="o">=</span><span class="s1">'fused: scanning partitions'</span><span class="p">,</span>
+        <span class="n">unit</span><span class="o">=</span><span class="s1">'part'</span><span class="p">,</span>
         <span class="n">enabled_scans</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">names</span><span class="p">),</span>
         <span class="n">scan_kwargs</span><span class="o">=</span><span class="n">scan_kwargs</span><span class="p">,</span>
     <span class="p">):</span>
@@ -924,22 +924,22 @@ window.runMermaid = runMermaid;</script>
             <span class="n">per_partition</span><span class="p">[</span><span class="n">part_dir</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span>
 
     <span class="c1"># Split per_partition into a {name: {part_dir: scan_result}} map for</span>
-    <span class="c1"># each diagnosis&#39;s finalize step.</span>
+    <span class="c1"># each diagnosis's finalize step.</span>
     <span class="n">by_name</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span><span class="n">n</span><span class="p">:</span> <span class="p">{}</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">names</span><span class="p">}</span>
     <span class="k">for</span> <span class="n">part_dir</span><span class="p">,</span> <span class="n">scan_results</span> <span class="ow">in</span> <span class="n">per_partition</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="c1"># ``scan_results`` is the per-partition dict the fused worker</span>
         <span class="c1"># returned (or a {n: Exception} dict if the whole task failed).</span>
         <span class="c1"># ``.get(n)`` is None when the worker skipped this scan because</span>
-        <span class="c1"># the registry didn&#39;t have it — most commonly happens when the</span>
+        <span class="c1"># the registry didn't have it — most commonly happens when the</span>
         <span class="c1"># cluster has stale bytecode predating this refactor.</span>
-        <span class="n">get</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">scan_results</span><span class="p">,</span> <span class="s1">&#39;get&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">get</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">scan_results</span><span class="p">,</span> <span class="s1">'get'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
             <span class="n">by_name</span><span class="p">[</span><span class="n">n</span><span class="p">][</span><span class="n">part_dir</span><span class="p">]</span> <span class="o">=</span> <span class="n">get</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">if</span> <span class="n">get</span> <span class="k">else</span> <span class="kc">None</span>
 
     <span class="c1"># Detect scans where EVERY partition returned None (i.e. fusion</span>
     <span class="c1"># produced no usable data for this diagnosis). Fall through to the</span>
     <span class="c1"># single-diagnosis dispatch in those cases so the operator gets a</span>
-    <span class="c1"># correct report instead of a misleading &quot;all errored&quot; finding.</span>
+    <span class="c1"># correct report instead of a misleading "all errored" finding.</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">..logging_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_logger</span>
     <span class="n">_log</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
     <span class="n">failed_in_fusion</span> <span class="o">=</span> <span class="p">[]</span>
@@ -947,38 +947,38 @@ window.runMermaid = runMermaid;</script>
         <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">v</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">by_name</span><span class="p">[</span><span class="n">n</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
             <span class="n">failed_in_fusion</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
             <span class="n">_log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;fused scan returned no results for </span><span class="si">{</span><span class="n">n</span><span class="si">!r}</span><span class="s2"> (cluster may have &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;stale bytecode); falling back to per-diagnosis dispatch&quot;</span>
+                <span class="sa">f</span><span class="s2">"fused scan returned no results for </span><span class="si">{</span><span class="n">n</span><span class="si">!r}</span><span class="s2"> (cluster may have "</span>
+                <span class="sa">f</span><span class="s2">"stale bytecode); falling back to per-diagnosis dispatch"</span>
             <span class="p">)</span>
     <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">failed_in_fusion</span><span class="p">:</span>
         <span class="n">names</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
 
     <span class="n">reports</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Report</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">if</span> <span class="s1">&#39;metadata&#39;</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
-        <span class="n">reports</span><span class="p">[</span><span class="s1">&#39;metadata&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_finalize_metadata_check</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">by_name</span><span class="p">[</span><span class="s1">&#39;metadata&#39;</span><span class="p">])</span>
-    <span class="k">if</span> <span class="s1">&#39;geoparquet_bbox&#39;</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
-        <span class="n">reports</span><span class="p">[</span><span class="s1">&#39;geoparquet_bbox&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_finalize_geoparquet_bbox_check</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">by_name</span><span class="p">[</span><span class="s1">&#39;geoparquet_bbox&#39;</span><span class="p">])</span>
-    <span class="k">if</span> <span class="s1">&#39;parquet_health&#39;</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
-        <span class="n">reports</span><span class="p">[</span><span class="s1">&#39;parquet_health&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_finalize_parquet_health_check</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">by_name</span><span class="p">[</span><span class="s1">&#39;parquet_health&#39;</span><span class="p">])</span>
-    <span class="k">if</span> <span class="s1">&#39;orphans&#39;</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
-        <span class="n">reports</span><span class="p">[</span><span class="s1">&#39;orphans&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_finalize_orphans_check</span><span class="p">(</span>
-            <span class="n">ctx</span><span class="p">,</span> <span class="n">by_name</span><span class="p">[</span><span class="s1">&#39;orphans&#39;</span><span class="p">],</span> <span class="n">scan_kwargs</span><span class="p">[</span><span class="s1">&#39;orphans&#39;</span><span class="p">][</span><span class="s1">&#39;age_seconds&#39;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="s1">'metadata'</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+        <span class="n">reports</span><span class="p">[</span><span class="s1">'metadata'</span><span class="p">]</span> <span class="o">=</span> <span class="n">_finalize_metadata_check</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">by_name</span><span class="p">[</span><span class="s1">'metadata'</span><span class="p">])</span>
+    <span class="k">if</span> <span class="s1">'geoparquet_bbox'</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+        <span class="n">reports</span><span class="p">[</span><span class="s1">'geoparquet_bbox'</span><span class="p">]</span> <span class="o">=</span> <span class="n">_finalize_geoparquet_bbox_check</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">by_name</span><span class="p">[</span><span class="s1">'geoparquet_bbox'</span><span class="p">])</span>
+    <span class="k">if</span> <span class="s1">'parquet_health'</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+        <span class="n">reports</span><span class="p">[</span><span class="s1">'parquet_health'</span><span class="p">]</span> <span class="o">=</span> <span class="n">_finalize_parquet_health_check</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">by_name</span><span class="p">[</span><span class="s1">'parquet_health'</span><span class="p">])</span>
+    <span class="k">if</span> <span class="s1">'orphans'</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+        <span class="n">reports</span><span class="p">[</span><span class="s1">'orphans'</span><span class="p">]</span> <span class="o">=</span> <span class="n">_finalize_orphans_check</span><span class="p">(</span>
+            <span class="n">ctx</span><span class="p">,</span> <span class="n">by_name</span><span class="p">[</span><span class="s1">'orphans'</span><span class="p">],</span> <span class="n">scan_kwargs</span><span class="p">[</span><span class="s1">'orphans'</span><span class="p">][</span><span class="s1">'age_seconds'</span><span class="p">]</span>
         <span class="p">)</span>
-    <span class="k">if</span> <span class="s1">&#39;backfill&#39;</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
-        <span class="n">reports</span><span class="p">[</span><span class="s1">&#39;backfill&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_finalize_backfill_check</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">by_name</span><span class="p">[</span><span class="s1">&#39;backfill&#39;</span><span class="p">])</span>
+    <span class="k">if</span> <span class="s1">'backfill'</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+        <span class="n">reports</span><span class="p">[</span><span class="s1">'backfill'</span><span class="p">]</span> <span class="o">=</span> <span class="n">_finalize_backfill_check</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">by_name</span><span class="p">[</span><span class="s1">'backfill'</span><span class="p">])</span>
 
     <span class="k">return</span> <span class="n">reports</span>
 
 
 <div class="viewcode-block" id="run_diagnoses">
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/runner/index.html#gedih3.doctor.runner.run_diagnoses">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">run_diagnoses</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">DoctorContext</span><span class="p">,</span> <span class="n">names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;check&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Report</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the named diagnoses (or aliases) against ``ctx``.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">run_diagnoses</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">DoctorContext</span><span class="p">,</span> <span class="n">names</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'check'</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Report</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Run the named diagnoses (or aliases) against ``ctx``.</span>
 
 <span class="sd">    When two or more per-partition h3db diagnoses are requested at</span>
-<span class="sd">    ``mode=&#39;check&#39;``, dispatch fuses them into a single per-partition</span>
-<span class="sd">    scan that opens each partition&#39;s files once and routes the per-</span>
-<span class="sd">    partition payload to every enabled diagnosis&#39;s driver-side</span>
+<span class="sd">    ``mode='check'``, dispatch fuses them into a single per-partition</span>
+<span class="sd">    scan that opens each partition's files once and routes the per-</span>
+<span class="sd">    partition payload to every enabled diagnosis's driver-side</span>
 <span class="sd">    aggregator. Falls back to per-diagnosis dispatch for fix mode and</span>
 <span class="sd">    for single-diagnosis check invocations.</span>
 
@@ -989,24 +989,24 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    names : list of str</span>
 <span class="sd">        Diagnosis names or alias groups. Empty list = all registered.</span>
 <span class="sd">    mode : str</span>
-<span class="sd">        &#39;check&#39; (read-only) or &#39;fix&#39; (apply remedies where supported).</span>
+<span class="sd">        'check' (read-only) or 'fix' (apply remedies where supported).</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    list of Report</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;check&#39;</span><span class="p">,</span> <span class="s1">&#39;fix&#39;</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;mode must be &#39;check&#39; or &#39;fix&#39;, got </span><span class="si">{</span><span class="n">mode</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'check'</span><span class="p">,</span> <span class="s1">'fix'</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"mode must be 'check' or 'fix', got </span><span class="si">{</span><span class="n">mode</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="n">resolved</span> <span class="o">=</span> <span class="n">resolve_names</span><span class="p">(</span><span class="n">names</span><span class="p">)</span>
     <span class="n">reports</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="c1"># Identify the subset of resolved diagnoses that are fusion-eligible.</span>
-    <span class="c1"># Fusion only applies to ``mode=&#39;check&#39;`` because each diagnosis&#39;s</span>
+    <span class="c1"># Fusion only applies to ``mode='check'`` because each diagnosis's</span>
     <span class="c1"># fix flow has independent semantics (some rewrite parquet, some</span>
     <span class="c1"># delete dirs, some only log).</span>
     <span class="n">fused_reports</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Report</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;check&#39;</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">'check'</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">.fused</span><span class="w"> </span><span class="kn">import</span> <span class="n">fused_eligible_names</span>
         <span class="n">eligible</span> <span class="o">=</span> <span class="p">[</span><span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">resolved</span> <span class="k">if</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">fused_eligible_names</span><span class="p">()]</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">eligible</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
@@ -1017,8 +1017,8 @@ window.runMermaid = runMermaid;</script>
                 <span class="c1"># fallback: log and proceed.</span>
                 <span class="kn">from</span><span class="w"> </span><span class="nn">..logging_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_logger</span>
                 <span class="n">get_logger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;fused dispatch failed: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">; &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;falling back to per-diagnosis dispatch&quot;</span>
+                    <span class="sa">f</span><span class="s2">"fused dispatch failed: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">; "</span>
+                    <span class="sa">f</span><span class="s2">"falling back to per-diagnosis dispatch"</span>
                 <span class="p">)</span>
                 <span class="n">fused_reports</span> <span class="o">=</span> <span class="p">{}</span>
 
@@ -1033,20 +1033,20 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">report</span> <span class="o">=</span> <span class="n">Report</span><span class="p">(</span>
                     <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
                     <span class="n">severity</span><span class="o">=</span><span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span><span class="p">,</span>
-                    <span class="n">summary</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;check failed: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
-                    <span class="n">findings</span><span class="o">=</span><span class="p">[{</span><span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">),</span> <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">}],</span>
+                    <span class="n">summary</span><span class="o">=</span><span class="sa">f</span><span class="s2">"check failed: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+                    <span class="n">findings</span><span class="o">=</span><span class="p">[{</span><span class="s1">'error'</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">),</span> <span class="s1">'type'</span><span class="p">:</span> <span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">}],</span>
                 <span class="p">)</span>
                 <span class="n">reports</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">report</span><span class="p">)</span>
                 <span class="k">continue</span>
 
-        <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;fix&#39;</span> <span class="ow">and</span> <span class="n">report</span><span class="o">.</span><span class="n">has_findings</span> <span class="ow">and</span> <span class="n">diag</span><span class="o">.</span><span class="n">fix</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">'fix'</span> <span class="ow">and</span> <span class="n">report</span><span class="o">.</span><span class="n">has_findings</span> <span class="ow">and</span> <span class="n">diag</span><span class="o">.</span><span class="n">fix</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">report</span> <span class="o">=</span> <span class="n">diag</span><span class="o">.</span><span class="n">fix</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">report</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="c1"># Preserve the check report but flag the fix failure.</span>
                 <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
-                <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">report</span><span class="o">.</span><span class="n">summary</span><span class="si">}</span><span class="s2"> | fix failed: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span>
-                <span class="n">report</span><span class="o">.</span><span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;fix_error&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">),</span> <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">})</span>
+                <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">report</span><span class="o">.</span><span class="n">summary</span><span class="si">}</span><span class="s2"> | fix failed: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span>
+                <span class="n">report</span><span class="o">.</span><span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'fix_error'</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">),</span> <span class="s1">'type'</span><span class="p">:</span> <span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">})</span>
 
         <span class="n">reports</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">report</span><span class="p">)</span>
 

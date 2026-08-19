@@ -762,13 +762,13 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="sd">Display H3 hexagon or EGI (EASE Grid Index) resolution levels and their characteristics.</span>
 
 <span class="sd">Shows average edge length, area, and number of cells for each H3 resolution,</span>
 <span class="sd">or pixel size and description for each EGI level, helping users choose</span>
 <span class="sd">appropriate resolution and partition levels.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 
@@ -776,41 +776,41 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="format_number">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.format_number">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">format_number</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Format large numbers with commas&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2">&quot;</span></div>
+<span class="w">    </span><span class="sd">"""Format large numbers with commas"""</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2">"</span></div>
 
 
 
 <div class="viewcode-block" id="format_area">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.format_area">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">format_area</span><span class="p">(</span><span class="n">area_km2</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Format area with appropriate units&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Format area with appropriate units"""</span>
     <span class="k">if</span> <span class="n">area_km2</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">area_km2</span><span class="si">:</span><span class="s2">,.2f</span><span class="si">}</span><span class="s2"> km²&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">area_km2</span><span class="si">:</span><span class="s2">,.2f</span><span class="si">}</span><span class="s2"> km²"</span>
     <span class="k">elif</span> <span class="n">area_km2</span> <span class="o">&gt;=</span> <span class="mf">0.001</span><span class="p">:</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">area_km2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1_000_000</span><span class="si">:</span><span class="s2">,.0f</span><span class="si">}</span><span class="s2"> m²&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">area_km2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1_000_000</span><span class="si">:</span><span class="s2">,.0f</span><span class="si">}</span><span class="s2"> m²"</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">area_km2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1_000_000</span><span class="si">:</span><span class="s2">,.2f</span><span class="si">}</span><span class="s2"> m²&quot;</span></div>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">area_km2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1_000_000</span><span class="si">:</span><span class="s2">,.2f</span><span class="si">}</span><span class="s2"> m²"</span></div>
 
 
 
 <div class="viewcode-block" id="format_edge">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.format_edge">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">format_edge</span><span class="p">(</span><span class="n">edge_km</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Format edge length with appropriate units&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Format edge length with appropriate units"""</span>
     <span class="k">if</span> <span class="n">edge_km</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">edge_km</span><span class="si">:</span><span class="s2">,.2f</span><span class="si">}</span><span class="s2"> km&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">edge_km</span><span class="si">:</span><span class="s2">,.2f</span><span class="si">}</span><span class="s2"> km"</span>
     <span class="k">elif</span> <span class="n">edge_km</span> <span class="o">&gt;=</span> <span class="mf">0.001</span><span class="p">:</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">edge_km</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1000</span><span class="si">:</span><span class="s2">,.1f</span><span class="si">}</span><span class="s2"> m&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">edge_km</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1000</span><span class="si">:</span><span class="s2">,.1f</span><span class="si">}</span><span class="s2"> m"</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">edge_km</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1000</span><span class="si">:</span><span class="s2">,.2f</span><span class="si">}</span><span class="s2"> m&quot;</span></div>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">edge_km</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1000</span><span class="si">:</span><span class="s2">,.2f</span><span class="si">}</span><span class="s2"> m"</span></div>
 
 
 
 <div class="viewcode-block" id="get_h3_resolution_info">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.get_h3_resolution_info">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_h3_resolution_info</span><span class="p">(</span><span class="n">res</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Get H3 resolution characteristics from h3 library.</span>
 
 <span class="sd">    Parameters</span>
@@ -822,41 +822,41 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    dict</span>
 <span class="sd">        Dictionary with edge_km, area_km2, and cells count</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">h3</span>
-    <span class="n">edge_m</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">average_hexagon_edge_length</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;m&#39;</span><span class="p">)</span>
-    <span class="n">area_m2</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">average_hexagon_area</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;m^2&#39;</span><span class="p">)</span>
+    <span class="n">edge_m</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">average_hexagon_edge_length</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">'m'</span><span class="p">)</span>
+    <span class="n">area_m2</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">average_hexagon_area</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">'m^2'</span><span class="p">)</span>
     <span class="n">num_cells</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">get_num_cells</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="p">{</span>
-        <span class="s1">&#39;edge_km&#39;</span><span class="p">:</span> <span class="n">edge_m</span> <span class="o">/</span> <span class="mi">1000</span><span class="p">,</span>
-        <span class="s1">&#39;area_km2&#39;</span><span class="p">:</span> <span class="n">area_m2</span> <span class="o">/</span> <span class="mi">1_000_000</span><span class="p">,</span>
-        <span class="s1">&#39;cells&#39;</span><span class="p">:</span> <span class="n">num_cells</span>
+        <span class="s1">'edge_km'</span><span class="p">:</span> <span class="n">edge_m</span> <span class="o">/</span> <span class="mi">1000</span><span class="p">,</span>
+        <span class="s1">'area_km2'</span><span class="p">:</span> <span class="n">area_m2</span> <span class="o">/</span> <span class="mi">1_000_000</span><span class="p">,</span>
+        <span class="s1">'cells'</span><span class="p">:</span> <span class="n">num_cells</span>
     <span class="p">}</span></div>
 
 
 
 <span class="c1"># EGI level descriptions for display</span>
 <span class="n">EGI_DESCRIPTIONS</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="mi">1</span><span class="p">:</span> <span class="s2">&quot;~1m (finest)&quot;</span><span class="p">,</span>
-    <span class="mi">2</span><span class="p">:</span> <span class="s2">&quot;~5m&quot;</span><span class="p">,</span>
-    <span class="mi">3</span><span class="p">:</span> <span class="s2">&quot;~25m (GEDI footprint)&quot;</span><span class="p">,</span>
-    <span class="mi">4</span><span class="p">:</span> <span class="s2">&quot;~100m (NISAR compatible)&quot;</span><span class="p">,</span>
-    <span class="mi">5</span><span class="p">:</span> <span class="s2">&quot;~200m (BIOMASS compatible)&quot;</span><span class="p">,</span>
-    <span class="mi">6</span><span class="p">:</span> <span class="s2">&quot;~1km (GEDI L4B baseline)&quot;</span><span class="p">,</span>
-    <span class="mi">7</span><span class="p">:</span> <span class="s2">&quot;~2km (GEDI threshold)&quot;</span><span class="p">,</span>
-    <span class="mi">8</span><span class="p">:</span> <span class="s2">&quot;~10km (GEDI wall-to-wall)&quot;</span><span class="p">,</span>
-    <span class="mi">9</span><span class="p">:</span> <span class="s2">&quot;~20km&quot;</span><span class="p">,</span>
-    <span class="mi">10</span><span class="p">:</span> <span class="s2">&quot;~40km&quot;</span><span class="p">,</span>
-    <span class="mi">11</span><span class="p">:</span> <span class="s2">&quot;~80km&quot;</span><span class="p">,</span>
-    <span class="mi">12</span><span class="p">:</span> <span class="s2">&quot;~160km (coarsest, partition level)&quot;</span><span class="p">,</span>
+    <span class="mi">1</span><span class="p">:</span> <span class="s2">"~1m (finest)"</span><span class="p">,</span>
+    <span class="mi">2</span><span class="p">:</span> <span class="s2">"~5m"</span><span class="p">,</span>
+    <span class="mi">3</span><span class="p">:</span> <span class="s2">"~25m (GEDI footprint)"</span><span class="p">,</span>
+    <span class="mi">4</span><span class="p">:</span> <span class="s2">"~100m (NISAR compatible)"</span><span class="p">,</span>
+    <span class="mi">5</span><span class="p">:</span> <span class="s2">"~200m (BIOMASS compatible)"</span><span class="p">,</span>
+    <span class="mi">6</span><span class="p">:</span> <span class="s2">"~1km (GEDI L4B baseline)"</span><span class="p">,</span>
+    <span class="mi">7</span><span class="p">:</span> <span class="s2">"~2km (GEDI threshold)"</span><span class="p">,</span>
+    <span class="mi">8</span><span class="p">:</span> <span class="s2">"~10km (GEDI wall-to-wall)"</span><span class="p">,</span>
+    <span class="mi">9</span><span class="p">:</span> <span class="s2">"~20km"</span><span class="p">,</span>
+    <span class="mi">10</span><span class="p">:</span> <span class="s2">"~40km"</span><span class="p">,</span>
+    <span class="mi">11</span><span class="p">:</span> <span class="s2">"~80km"</span><span class="p">,</span>
+    <span class="mi">12</span><span class="p">:</span> <span class="s2">"~160km (coarsest, partition level)"</span><span class="p">,</span>
 <span class="p">}</span>
 
 
 <div class="viewcode-block" id="get_egi_resolution_info">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.get_egi_resolution_info">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_egi_resolution_info</span><span class="p">(</span><span class="n">level</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Get EGI resolution characteristics.</span>
 
 <span class="sd">    Parameters</span>
@@ -868,11 +868,11 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    dict</span>
 <span class="sd">        Dictionary with resolution_m and description</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.egi.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">RESOLUTIONS</span> <span class="k">as</span> <span class="n">EGI_RESOLUTIONS</span>
     <span class="k">return</span> <span class="p">{</span>
-        <span class="s1">&#39;resolution_m&#39;</span><span class="p">:</span> <span class="n">EGI_RESOLUTIONS</span><span class="p">[</span><span class="n">level</span><span class="p">],</span>
-        <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="n">EGI_DESCRIPTIONS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="s1">'resolution_m'</span><span class="p">:</span> <span class="n">EGI_RESOLUTIONS</span><span class="p">[</span><span class="n">level</span><span class="p">],</span>
+        <span class="s1">'description'</span><span class="p">:</span> <span class="n">EGI_DESCRIPTIONS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
     <span class="p">}</span></div>
 
 
@@ -880,39 +880,39 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="get_cmd_args">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.get_cmd_args">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_cmd_args</span><span class="p">():</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Parse command line arguments&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Parse command line arguments"""</span>
     <span class="n">p</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span>
-        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Display H3 hexagon or EGI (EASE Grid Index) resolution levels and characteristics&quot;</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">"Display H3 hexagon or EGI (EASE Grid Index) resolution levels and characteristics"</span>
     <span class="p">)</span>
 
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;-egi&quot;</span><span class="p">,</span> <span class="s2">&quot;--egi&quot;</span><span class="p">,</span>
-        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;egi&quot;</span><span class="p">,</span>
-        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;show EGI (EASE Grid Index) levels instead of H3&quot;</span>
+        <span class="s2">"-egi"</span><span class="p">,</span> <span class="s2">"--egi"</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">"egi"</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="s2">"store_true"</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"show EGI (EASE Grid Index) levels instead of H3"</span>
     <span class="p">)</span>
 
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;-r&quot;</span><span class="p">,</span> <span class="s2">&quot;--resolution&quot;</span><span class="p">,</span>
-        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;resolution&quot;</span><span class="p">,</span>
+        <span class="s2">"-r"</span><span class="p">,</span> <span class="s2">"--resolution"</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">"resolution"</span><span class="p">,</span>
         <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span>
-        <span class="n">metavar</span><span class="o">=</span><span class="s2">&quot;LEVEL&quot;</span><span class="p">,</span>
+        <span class="n">metavar</span><span class="o">=</span><span class="s2">"LEVEL"</span><span class="p">,</span>
         <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;show details for specific resolution only (H3: 0-15, EGI: 1-12)&quot;</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"show details for specific resolution only (H3: 0-15, EGI: 1-12)"</span>
     <span class="p">)</span>
 
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;--json&quot;</span><span class="p">,</span>
-        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;json_output&quot;</span><span class="p">,</span>
-        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;output in JSON format&quot;</span>
+        <span class="s2">"--json"</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">"json_output"</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="s2">"store_true"</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"output in JSON format"</span>
     <span class="p">)</span>
 
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;--csv&quot;</span><span class="p">,</span>
-        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;csv_output&quot;</span><span class="p">,</span>
-        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;output in CSV format&quot;</span>
+        <span class="s2">"--csv"</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">"csv_output"</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="s2">"store_true"</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"output in CSV format"</span>
     <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span></div>
@@ -922,11 +922,11 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="display_h3_resolutions">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.display_h3_resolutions">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">display_h3_resolutions</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Display H3 resolution table&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Display H3 resolution table"""</span>
     <span class="c1"># Build resolution data from h3 library</span>
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">resolution</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">args</span><span class="o">.</span><span class="n">resolution</span> <span class="o">&lt;=</span> <span class="mi">15</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ERROR: H3 resolution must be between 0 and 15, got </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">resolution</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"ERROR: H3 resolution must be between 0 and 15, got </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">resolution</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="k">return</span>
         <span class="n">resolutions</span> <span class="o">=</span> <span class="p">{</span><span class="n">args</span><span class="o">.</span><span class="n">resolution</span><span class="p">:</span> <span class="n">get_h3_resolution_info</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">resolution</span><span class="p">)}</span>
     <span class="k">else</span><span class="p">:</span>
@@ -940,39 +940,39 @@ window.runMermaid = runMermaid;</script>
 
     <span class="c1"># CSV output</span>
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">csv_output</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;resolution,edge_km,area_km2,cells&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"resolution,edge_km,area_km2,cells"</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">res</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">resolutions</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">res</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;edge_km&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;area_km2&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;cells&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">res</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">'edge_km'</span><span class="p">]</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">'area_km2'</span><span class="p">]</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">'cells'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span>
 
     <span class="c1"># Default table output</span>
     <span class="nb">print</span><span class="p">()</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;H3 Hexagon Resolution Levels&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;=&quot;</span> <span class="o">*</span> <span class="mi">75</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"H3 Hexagon Resolution Levels"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"="</span> <span class="o">*</span> <span class="mi">75</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">()</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="s1">&#39;Res&#39;</span><span class="si">:</span><span class="s2">&gt;4</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="s1">&#39;Avg Edge Length&#39;</span><span class="si">:</span><span class="s2">&gt;18</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="s1">&#39;Avg Hex Area&#39;</span><span class="si">:</span><span class="s2">&gt;18</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="s1">&#39;Total Cells&#39;</span><span class="si">:</span><span class="s2">&gt;20</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">75</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'Res'</span><span class="si">:</span><span class="s2">&gt;4</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="s1">'Avg Edge Length'</span><span class="si">:</span><span class="s2">&gt;18</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="s1">'Avg Hex Area'</span><span class="si">:</span><span class="s2">&gt;18</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="s1">'Total Cells'</span><span class="si">:</span><span class="s2">&gt;20</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"-"</span> <span class="o">*</span> <span class="mi">75</span><span class="p">)</span>
 
     <span class="k">for</span> <span class="n">res</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">resolutions</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">edge</span> <span class="o">=</span> <span class="n">format_edge</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;edge_km&#39;</span><span class="p">])</span>
-        <span class="n">area</span> <span class="o">=</span> <span class="n">format_area</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;area_km2&#39;</span><span class="p">])</span>
-        <span class="n">cells</span> <span class="o">=</span> <span class="n">format_number</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;cells&#39;</span><span class="p">])</span>
+        <span class="n">edge</span> <span class="o">=</span> <span class="n">format_edge</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">'edge_km'</span><span class="p">])</span>
+        <span class="n">area</span> <span class="o">=</span> <span class="n">format_area</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">'area_km2'</span><span class="p">])</span>
+        <span class="n">cells</span> <span class="o">=</span> <span class="n">format_number</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s1">'cells'</span><span class="p">])</span>
 
         <span class="c1"># Add markers for common use cases</span>
-        <span class="n">marker</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+        <span class="n">marker</span> <span class="o">=</span> <span class="s2">""</span>
         <span class="k">if</span> <span class="n">res</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
-            <span class="n">marker</span> <span class="o">=</span> <span class="s2">&quot; &lt;- typical partition level&quot;</span>
+            <span class="n">marker</span> <span class="o">=</span> <span class="s2">" &lt;- typical partition level"</span>
         <span class="k">elif</span> <span class="n">res</span> <span class="o">==</span> <span class="mi">12</span><span class="p">:</span>
-            <span class="n">marker</span> <span class="o">=</span> <span class="s2">&quot; &lt;- typical index level for GEDI footprint resolution&quot;</span>
+            <span class="n">marker</span> <span class="o">=</span> <span class="s2">" &lt;- typical index level for GEDI footprint resolution"</span>
 
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">res</span><span class="si">:</span><span class="s2">&gt;4</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">edge</span><span class="si">:</span><span class="s2">&gt;18</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">area</span><span class="si">:</span><span class="s2">&gt;18</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">cells</span><span class="si">:</span><span class="s2">&gt;20</span><span class="si">}{</span><span class="n">marker</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">res</span><span class="si">:</span><span class="s2">&gt;4</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">edge</span><span class="si">:</span><span class="s2">&gt;18</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">area</span><span class="si">:</span><span class="s2">&gt;18</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">cells</span><span class="si">:</span><span class="s2">&gt;20</span><span class="si">}{</span><span class="n">marker</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">75</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"-"</span> <span class="o">*</span> <span class="mi">75</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">()</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Recommendations:&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;  - Partition level (--h3p): 2-4 for continental scale datasets&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;  - Index level (--h3r): 12 for GEDI footprint resolution (~25m)&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;  - Index level must be &gt;= partition level&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"Recommendations:"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"  - Partition level (--h3p): 2-4 for continental scale datasets"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"  - Index level (--h3r): 12 for GEDI footprint resolution (~25m)"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"  - Index level must be &gt;= partition level"</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">()</span></div>
 
 
@@ -980,11 +980,11 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="display_egi_resolutions">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_list_resolutions/index.html#gedih3.cli.gh3_list_resolutions.display_egi_resolutions">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">display_egi_resolutions</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Display EGI resolution table&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Display EGI resolution table"""</span>
     <span class="c1"># Build resolution data</span>
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">resolution</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="mi">1</span> <span class="o">&lt;=</span> <span class="n">args</span><span class="o">.</span><span class="n">resolution</span> <span class="o">&lt;=</span> <span class="mi">12</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ERROR: EGI level must be between 1 and 12, got </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">resolution</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"ERROR: EGI level must be between 1 and 12, got </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">resolution</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="k">return</span>
         <span class="n">resolutions</span> <span class="o">=</span> <span class="p">{</span><span class="n">args</span><span class="o">.</span><span class="n">resolution</span><span class="p">:</span> <span class="n">get_egi_resolution_info</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">resolution</span><span class="p">)}</span>
     <span class="k">else</span><span class="p">:</span>
@@ -998,42 +998,42 @@ window.runMermaid = runMermaid;</script>
 
     <span class="c1"># CSV output</span>
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">csv_output</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;level,resolution_m,description&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"level,resolution_m,description"</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">level</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">resolutions</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">level</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;resolution_m&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;description&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">level</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">'resolution_m'</span><span class="p">]</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">'description'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span>
 
     <span class="c1"># Default table output</span>
     <span class="nb">print</span><span class="p">()</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;EGI (EASE Grid Index) Resolution Levels&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;=&quot;</span> <span class="o">*</span> <span class="mi">75</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"EGI (EASE Grid Index) Resolution Levels"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"="</span> <span class="o">*</span> <span class="mi">75</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">()</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="s1">&#39;Level&#39;</span><span class="si">:</span><span class="s2">&gt;6</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="s1">&#39;Pixel Size&#39;</span><span class="si">:</span><span class="s2">&gt;15</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="s1">&#39;Description&#39;</span><span class="si">:</span><span class="s2">&lt;45</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">75</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'Level'</span><span class="si">:</span><span class="s2">&gt;6</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="s1">'Pixel Size'</span><span class="si">:</span><span class="s2">&gt;15</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="s1">'Description'</span><span class="si">:</span><span class="s2">&lt;45</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"-"</span> <span class="o">*</span> <span class="mi">75</span><span class="p">)</span>
 
     <span class="k">for</span> <span class="n">level</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">resolutions</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">res_m</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;resolution_m&#39;</span><span class="p">]</span>
+        <span class="n">res_m</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">'resolution_m'</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">res_m</span> <span class="o">&gt;=</span> <span class="mi">1000</span><span class="p">:</span>
-            <span class="n">pixel_str</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">res_m</span><span class="o">/</span><span class="mi">1000</span><span class="si">:</span><span class="s2">,.2f</span><span class="si">}</span><span class="s2"> km&quot;</span>
+            <span class="n">pixel_str</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">res_m</span><span class="o">/</span><span class="mi">1000</span><span class="si">:</span><span class="s2">,.2f</span><span class="si">}</span><span class="s2"> km"</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">pixel_str</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">res_m</span><span class="si">:</span><span class="s2">,.2f</span><span class="si">}</span><span class="s2"> m&quot;</span>
+            <span class="n">pixel_str</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">res_m</span><span class="si">:</span><span class="s2">,.2f</span><span class="si">}</span><span class="s2"> m"</span>
 
-        <span class="n">desc</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;description&#39;</span><span class="p">]</span>
+        <span class="n">desc</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">'description'</span><span class="p">]</span>
 
         <span class="c1"># Add markers for common use cases</span>
-        <span class="n">marker</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+        <span class="n">marker</span> <span class="o">=</span> <span class="s2">""</span>
         <span class="k">if</span> <span class="n">level</span> <span class="o">==</span> <span class="mi">6</span><span class="p">:</span>
-            <span class="n">marker</span> <span class="o">=</span> <span class="s2">&quot; &lt;- GEDI L4B native&quot;</span>
+            <span class="n">marker</span> <span class="o">=</span> <span class="s2">" &lt;- GEDI L4B native"</span>
 
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">level</span><span class="si">:</span><span class="s2">&gt;6</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">pixel_str</span><span class="si">:</span><span class="s2">&gt;15</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">desc</span><span class="si">:</span><span class="s2">&lt;45</span><span class="si">}{</span><span class="n">marker</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">level</span><span class="si">:</span><span class="s2">&gt;6</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">pixel_str</span><span class="si">:</span><span class="s2">&gt;15</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">desc</span><span class="si">:</span><span class="s2">&lt;45</span><span class="si">}{</span><span class="n">marker</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">75</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"-"</span> <span class="o">*</span> <span class="mi">75</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">()</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Recommendations:&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;  - Level 3 (~25m): GEDI footprint resolution&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;  - Level 6 (~1km): GEDI L4B baseline&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;  - Level 8 (~10km): GEDI wall-to-wall products&quot;</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;  - Higher levels (9-12) for coarse regional/global analysis&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"Recommendations:"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"  - Level 3 (~25m): GEDI footprint resolution"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"  - Level 6 (~1km): GEDI L4B baseline"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"  - Level 8 (~10km): GEDI wall-to-wall products"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"  - Higher levels (9-12) for coarse regional/global analysis"</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">()</span></div>
 
 
@@ -1050,7 +1050,7 @@ window.runMermaid = runMermaid;</script>
 
 
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
     <span class="n">main</span><span class="p">()</span>
 </pre></div>
 

@@ -769,29 +769,29 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_cmd_args</span><span class="p">():</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">add_dask_args</span><span class="p">,</span> <span class="n">add_verbosity_args</span><span class="p">,</span> <span class="n">add_product_args</span>
 
-    <span class="n">p</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Download GEDI data from NASA&#39;s DAAC&quot;</span><span class="p">)</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Download GEDI data from NASA's DAAC"</span><span class="p">)</span>
 
     <span class="c1"># Spatial/temporal filtering</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-r&quot;</span><span class="p">,</span> <span class="s2">&quot;--region&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;region&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;vector file, bbox &#39;W,S,E,N&#39;, or ISO3 code&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-t0&quot;</span><span class="p">,</span> <span class="s2">&quot;--time-start&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;time_start&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;start date [YYYY-MM-DD]&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-t1&quot;</span><span class="p">,</span> <span class="s2">&quot;--time-end&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;time_end&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;end date [YYYY-MM-DD]&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-r"</span><span class="p">,</span> <span class="s2">"--region"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"region"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"vector file, bbox 'W,S,E,N', or ISO3 code"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-t0"</span><span class="p">,</span> <span class="s2">"--time-start"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"time_start"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"start date [YYYY-MM-DD]"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-t1"</span><span class="p">,</span> <span class="s2">"--time-end"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"time_end"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"end date [YYYY-MM-DD]"</span><span class="p">)</span>
 
     <span class="c1"># GEDI product variables</span>
     <span class="n">add_product_args</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
 
     <span class="c1"># Output options</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-o&quot;</span><span class="p">,</span> <span class="s2">&quot;--output&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;output&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;output directory for downloaded files&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-s3&quot;</span><span class="p">,</span> <span class="s2">&quot;--s3&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;s3&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;use S3 ETL mode: stream and subset from NASA S3. Best when the subset is narrow (&lt;~10</span><span class="si">%%</span><span class="s2"> of the granule) or bandwidth is constrained. On fast links with broad subsets (e.g. L2A default including rh), plain DAAC download is usually faster&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--gedi-version&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;version&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;GEDI data version [default=latest available]&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-o"</span><span class="p">,</span> <span class="s2">"--output"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"output"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"output directory for downloaded files"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-s3"</span><span class="p">,</span> <span class="s2">"--s3"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"s3"</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">'store_true'</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"use S3 ETL mode: stream and subset from NASA S3. Best when the subset is narrow (&lt;~10</span><span class="si">%%</span><span class="s2"> of the granule) or bandwidth is constrained. On fast links with broad subsets (e.g. L2A default including rh), plain DAAC download is usually faster"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--gedi-version"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"version"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"GEDI data version [default=latest available]"</span><span class="p">)</span>
 
     <span class="c1"># Dask and verbosity</span>
-    <span class="n">add_dask_args</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="s1">&#39;build&#39;</span><span class="p">)</span>
+    <span class="n">add_dask_args</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="s1">'build'</span><span class="p">)</span>
     <span class="n">add_verbosity_args</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span></div>
@@ -812,11 +812,11 @@ window.runMermaid = runMermaid;</script>
 
     <span class="c1"># Setup logging and print banner</span>
     <span class="n">logger</span> <span class="o">=</span> <span class="n">setup_logging</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
-    <span class="n">print_banner</span><span class="p">(</span><span class="s2">&quot;GEDI Data Download Tool&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+    <span class="n">print_banner</span><span class="p">(</span><span class="s2">"GEDI Data Download Tool"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">output</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">args</span><span class="o">.</span><span class="n">output</span> <span class="o">=</span> <span class="n">GH3_DEFAULT_SOC_DIR</span>
-    <span class="n">resolve_path_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;output&#39;</span><span class="p">],</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+    <span class="n">resolve_path_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">[</span><span class="s1">'output'</span><span class="p">],</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="n">product_vars</span> <span class="o">=</span> <span class="n">parse_gedi_args</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
@@ -838,33 +838,33 @@ window.runMermaid = runMermaid;</script>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">soc_logger</span><span class="o">.</span><span class="n">product_vars</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">soc_logger</span><span class="o">.</span><span class="n">updating</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-            <span class="s2">&quot;No GEDI product selected for download - please select at least one of &quot;</span>
-            <span class="s2">&quot;--l2a, --l2b, --l4a, --l4c (or use --detail-level for all four), &quot;</span>
-            <span class="s2">&quot;and/or --l1b for waveform data&quot;</span>
+            <span class="s2">"No GEDI product selected for download - please select at least one of "</span>
+            <span class="s2">"--l2a, --l2b, --l4a, --l4c (or use --detail-level for all four), "</span>
+            <span class="s2">"and/or --l1b for waveform data"</span>
         <span class="p">)</span>
     <span class="k">if</span> <span class="n">soc_logger</span><span class="o">.</span><span class="n">get_spatial</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No spatial filter provided - downloading global data&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"No spatial filter provided - downloading global data"</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">soc_logger</span><span class="o">.</span><span class="n">get_temporal</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No temporal filter provided - downloading data from all available dates&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"No temporal filter provided - downloading data from all available dates"</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">soc_logger</span><span class="o">.</span><span class="n">updating</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Download log exists, resuming downloads&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Download log exists, resuming downloads"</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">soc_logger</span><span class="o">.</span><span class="n">new_spatial</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Spatial filter updated&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Spatial filter updated"</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">soc_logger</span><span class="o">.</span><span class="n">new_temporal</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Temporal filter updated&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Temporal filter updated"</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">soc_logger</span><span class="o">.</span><span class="n">new_product_vars</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Product variables updated&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Product variables updated"</span><span class="p">)</span>
 
-    <span class="n">source_label</span> <span class="o">=</span> <span class="s2">&quot;S3 ETL&quot;</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">s3</span> <span class="k">else</span> <span class="s2">&quot;DAAC download&quot;</span>
-    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Downloading GEDI data to </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">source_label</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
-    <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;DOWNLOADING&#39;</span><span class="p">)</span>
+    <span class="n">source_label</span> <span class="o">=</span> <span class="s2">"S3 ETL"</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">s3</span> <span class="k">else</span> <span class="s2">"DAAC download"</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Downloading GEDI data to </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">source_label</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
+    <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'DOWNLOADING'</span><span class="p">)</span>
 
     <span class="n">dask_kwargs</span> <span class="o">=</span> <span class="n">parse_dask_args</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="k">with</span> <span class="n">Client</span><span class="p">(</span><span class="o">**</span><span class="n">dask_kwargs</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dask dashboard available at: </span><span class="si">{</span><span class="n">client</span><span class="o">.</span><span class="n">dashboard_link</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dask dashboard available at: </span><span class="si">{</span><span class="n">client</span><span class="o">.</span><span class="n">dashboard_link</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">s3</span><span class="p">:</span>
                     <span class="c1"># S3 ETL mode: stream and subset from NASA S3 to permanent output dir</span>
@@ -889,22 +889,22 @@ window.runMermaid = runMermaid;</script>
                     <span class="p">)</span>
 
                 <span class="n">soc_logger</span><span class="o">.</span><span class="n">set_post_download_info</span><span class="p">()</span>
-                <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;COMPLETED&#39;</span><span class="p">)</span>
+                <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'COMPLETED'</span><span class="p">)</span>
 
                 <span class="c1"># set_post_download_info already walked the SOC tree (and</span>
                 <span class="c1"># refreshed _soc_manifest.txt); read the count it cached</span>
                 <span class="c1"># instead of crawling GPFS a second time.</span>
-                <span class="n">n_files</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">soc_logger</span><span class="p">,</span> <span class="s1">&#39;n_files&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-                <span class="n">print_success</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_files</span><span class="si">}</span><span class="s2"> files downloaded to </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">source_label</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+                <span class="n">n_files</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">soc_logger</span><span class="p">,</span> <span class="s1">'n_files'</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="n">print_success</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_files</span><span class="si">}</span><span class="s2"> files downloaded to </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">source_label</span><span class="si">}</span><span class="s2">)"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
 
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;FAILED&#39;</span><span class="p">)</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Download failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'FAILED'</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Download failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                 <span class="k">raise</span> <span class="n">e</span>
 
     <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Download interrupted by user&quot;</span><span class="p">)</span>
-        <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;INTERRUPTED&#39;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">Download interrupted by user"</span><span class="p">)</span>
+        <span class="n">soc_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'INTERRUPTED'</span><span class="p">)</span>
         <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">130</span><span class="p">)</span>
 
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
@@ -916,28 +916,28 @@ window.runMermaid = runMermaid;</script>
         <span class="p">)</span>
 
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">GediAuthenticationError</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Authentication error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Please check your NASA Earthdata credentials at ~/.netrc&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Authentication error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Please check your NASA Earthdata credentials at ~/.netrc"</span><span class="p">)</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">GediDownloadError</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Download error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Download error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">GediNetworkError</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Network error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Check your internet connection and try again&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Network error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Check your internet connection and try again"</span><span class="p">)</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">GediError</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;GEDI error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"GEDI error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unexpected error: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unexpected error: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">verbose</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">:</span>
                 <span class="kn">import</span><span class="w"> </span><span class="nn">traceback</span>
                 <span class="n">traceback</span><span class="o">.</span><span class="n">print_exc</span><span class="p">()</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span></div>
 
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
     <span class="n">main</span><span class="p">()</span>
 </pre></div>
 

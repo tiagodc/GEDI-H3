@@ -762,7 +762,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="sd">Vector Polygon Spatial Join at GEDI Shot Locations</span>
 
 <span class="sd">Spatially join polygon attributes (e.g., ecoregion names, administrative</span>
@@ -770,7 +770,7 @@ window.runMermaid = runMermaid;</script>
 
 <span class="sd">Supports shapefiles, GeoPackages, GeoJSON, and GeoParquet. Works with both</span>
 <span class="sd">H3 databases and simplified datasets from gh3_extract.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
@@ -785,7 +785,7 @@ window.runMermaid = runMermaid;</script>
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 <span class="c1"># Supported vector file extensions</span>
-<span class="n">_VECTOR_EXTENSIONS</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;*.shp&#39;</span><span class="p">,</span> <span class="s1">&#39;*.gpkg&#39;</span><span class="p">,</span> <span class="s1">&#39;*.geojson&#39;</span><span class="p">,</span> <span class="s1">&#39;*.parquet&#39;</span><span class="p">,</span> <span class="s1">&#39;*.geoparquet&#39;</span><span class="p">)</span>
+<span class="n">_VECTOR_EXTENSIONS</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'*.shp'</span><span class="p">,</span> <span class="s1">'*.gpkg'</span><span class="p">,</span> <span class="s1">'*.geojson'</span><span class="p">,</span> <span class="s1">'*.parquet'</span><span class="p">,</span> <span class="s1">'*.geoparquet'</span><span class="p">)</span>
 
 <span class="c1"># Worker-level cache for polygon data (same pattern as raster file opening in imgutils)</span>
 <span class="n">_VECTOR_CACHE</span> <span class="o">=</span> <span class="p">{}</span>
@@ -797,8 +797,8 @@ window.runMermaid = runMermaid;</script>
 
 <div class="viewcode-block" id="resolve_vector_source">
 <a class="viewcode-back" href="../../autoapi/gedih3/vecutils/index.html#gedih3.vecutils.resolve_vector_source">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">resolve_vector_source</span><span class="p">(</span><span class="n">vector_path</span><span class="p">,</span> <span class="n">file_format</span><span class="o">=</span><span class="s1">&#39;*&#39;</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resolve vector input to a single file path.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_vector_source</span><span class="p">(</span><span class="n">vector_path</span><span class="p">,</span> <span class="n">file_format</span><span class="o">=</span><span class="s1">'*'</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Resolve vector input to a single file path.</span>
 
 <span class="sd">    - Single file -&gt; return as-is</span>
 <span class="sd">    - Directory -&gt; glob for vector files</span>
@@ -809,7 +809,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Path to vector file or directory of vector files</span>
 <span class="sd">    file_format : str</span>
 <span class="sd">        File extension to glob when vector_path is a directory.</span>
-<span class="sd">        Use &#39;*&#39; to search all supported formats.</span>
+<span class="sd">        Use '*' to search all supported formats.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -820,26 +820,26 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ------</span>
 <span class="sd">    GediSpatialJoinError</span>
 <span class="sd">        If no valid vector file found</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">vector_path</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">vector_path</span><span class="p">,</span> <span class="mi">1</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">vector_path</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="n">GediSpatialJoinError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Vector path not found: </span><span class="si">{</span><span class="n">vector_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">GediSpatialJoinError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Vector path not found: </span><span class="si">{</span><span class="n">vector_path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="c1"># Directory: glob for vector files</span>
-    <span class="k">if</span> <span class="n">file_format</span> <span class="o">==</span> <span class="s1">&#39;*&#39;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">file_format</span> <span class="o">==</span> <span class="s1">'*'</span><span class="p">:</span>
         <span class="n">files</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">ext</span> <span class="ow">in</span> <span class="n">_VECTOR_EXTENSIONS</span><span class="p">:</span>
             <span class="n">files</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">vector_path</span><span class="p">,</span> <span class="n">ext</span><span class="p">)))</span>
         <span class="n">files</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">files</span><span class="p">))</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">fmt</span> <span class="o">=</span> <span class="n">file_format</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span>
-        <span class="n">files</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">_glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">vector_path</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;*.</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)))</span>
+        <span class="n">fmt</span> <span class="o">=</span> <span class="n">file_format</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">'.'</span><span class="p">)</span>
+        <span class="n">files</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">_glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">vector_path</span><span class="p">,</span> <span class="sa">f</span><span class="s1">'*.</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s1">'</span><span class="p">)))</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">files</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">GediSpatialJoinError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;No vector files found in </span><span class="si">{</span><span class="n">vector_path</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">"No vector files found in </span><span class="si">{</span><span class="n">vector_path</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
 
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
@@ -847,8 +847,8 @@ window.runMermaid = runMermaid;</script>
 
     <span class="c1"># Multiple files found — use the first one and warn</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;Multiple vector files found in </span><span class="si">{</span><span class="n">vector_path</span><span class="si">}</span><span class="s2">, using first: &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">files</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="sa">f</span><span class="s2">"Multiple vector files found in </span><span class="si">{</span><span class="n">vector_path</span><span class="si">}</span><span class="s2">, using first: "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">files</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="si">}</span><span class="s2">"</span>
     <span class="p">)</span>
     <span class="k">return</span> <span class="n">files</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span></div>
 
@@ -861,7 +861,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="get_vector_info">
 <a class="viewcode-back" href="../../autoapi/gedih3/vecutils/index.html#gedih3.vecutils.get_vector_info">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_vector_info</span><span class="p">(</span><span class="n">vector_path</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Read vector file metadata without loading all features.</span>
+<span class="w">    </span><span class="sd">"""Read vector file metadata without loading all features.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -872,26 +872,26 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    dict</span>
 <span class="sd">        Keys: crs, bounds_wgs84, columns, feature_count, geometry_type</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># pyogrio, not fiona: it is geopandas&#39; own OGR backend (so it is already</span>
+<span class="sd">    """</span>
+    <span class="c1"># pyogrio, not fiona: it is geopandas' own OGR backend (so it is already</span>
     <span class="c1"># installed), and unlike fiona it ships wheels for linux-aarch64 and every</span>
     <span class="c1"># CPython via abi3.</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyogrio</span>
 
     <span class="n">info</span> <span class="o">=</span> <span class="n">pyogrio</span><span class="o">.</span><span class="n">read_info</span><span class="p">(</span><span class="n">vector_path</span><span class="p">)</span>
-    <span class="n">crs</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span>
-    <span class="n">feature_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;features&#39;</span><span class="p">])</span>
-    <span class="n">geometry_type</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;geometry_type&#39;</span><span class="p">]</span>
-    <span class="n">columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;fields&#39;</span><span class="p">])</span>
+    <span class="n">crs</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="s1">'crs'</span><span class="p">]</span>
+    <span class="n">feature_count</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">info</span><span class="p">[</span><span class="s1">'features'</span><span class="p">])</span>
+    <span class="n">geometry_type</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="s1">'geometry_type'</span><span class="p">]</span>
+    <span class="n">columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">info</span><span class="p">[</span><span class="s1">'fields'</span><span class="p">])</span>
 
     <span class="k">if</span> <span class="n">feature_count</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="c1"># Nothing to bound. fiona raised DriverError here; be explicit instead,</span>
         <span class="c1"># since a None would slip silently into the transform below.</span>
         <span class="k">raise</span> <span class="n">GediSpatialJoinError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Vector file has no features to derive bounds from: </span><span class="si">{</span><span class="n">vector_path</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">"Vector file has no features to derive bounds from: </span><span class="si">{</span><span class="n">vector_path</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
 
-    <span class="n">bounds</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;total_bounds&#39;</span><span class="p">]</span>  <span class="c1"># (minx, miny, maxx, maxy)</span>
+    <span class="n">bounds</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="s1">'total_bounds'</span><span class="p">]</span>  <span class="c1"># (minx, miny, maxx, maxy)</span>
     <span class="k">if</span> <span class="n">bounds</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="c1"># Not every OGR driver reports an extent for free — GeoJSON does not on</span>
         <span class="c1"># pyogrio &lt; 0.8, and a driver can decline at any version. Read just the</span>
@@ -904,7 +904,7 @@ window.runMermaid = runMermaid;</script>
 
     <span class="n">src_crs</span> <span class="o">=</span> <span class="n">CRS</span><span class="o">.</span><span class="n">from_user_input</span><span class="p">(</span><span class="n">crs</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">src_crs</span><span class="o">.</span><span class="n">to_epsg</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">4326</span><span class="p">:</span>
-        <span class="n">transformer</span> <span class="o">=</span> <span class="n">Transformer</span><span class="o">.</span><span class="n">from_crs</span><span class="p">(</span><span class="n">src_crs</span><span class="p">,</span> <span class="s1">&#39;EPSG:4326&#39;</span><span class="p">,</span> <span class="n">always_xy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">transformer</span> <span class="o">=</span> <span class="n">Transformer</span><span class="o">.</span><span class="n">from_crs</span><span class="p">(</span><span class="n">src_crs</span><span class="p">,</span> <span class="s1">'EPSG:4326'</span><span class="p">,</span> <span class="n">always_xy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="n">x_coords</span> <span class="o">=</span> <span class="p">[</span><span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">2</span><span class="p">]]</span>
         <span class="n">y_coords</span> <span class="o">=</span> <span class="p">[</span><span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">3</span><span class="p">]]</span>
         <span class="n">lons</span><span class="p">,</span> <span class="n">lats</span> <span class="o">=</span> <span class="n">transformer</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">x_coords</span><span class="p">,</span> <span class="n">y_coords</span><span class="p">)</span>
@@ -913,11 +913,11 @@ window.runMermaid = runMermaid;</script>
         <span class="n">bounds_wgs84</span> <span class="o">=</span> <span class="n">bounds</span>
 
     <span class="k">return</span> <span class="p">{</span>
-        <span class="s1">&#39;crs&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">src_crs</span><span class="p">),</span>
-        <span class="s1">&#39;bounds_wgs84&#39;</span><span class="p">:</span> <span class="n">bounds_wgs84</span><span class="p">,</span>
-        <span class="s1">&#39;columns&#39;</span><span class="p">:</span> <span class="n">columns</span><span class="p">,</span>
-        <span class="s1">&#39;feature_count&#39;</span><span class="p">:</span> <span class="n">feature_count</span><span class="p">,</span>
-        <span class="s1">&#39;geometry_type&#39;</span><span class="p">:</span> <span class="n">geometry_type</span><span class="p">,</span>
+        <span class="s1">'crs'</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">src_crs</span><span class="p">),</span>
+        <span class="s1">'bounds_wgs84'</span><span class="p">:</span> <span class="n">bounds_wgs84</span><span class="p">,</span>
+        <span class="s1">'columns'</span><span class="p">:</span> <span class="n">columns</span><span class="p">,</span>
+        <span class="s1">'feature_count'</span><span class="p">:</span> <span class="n">feature_count</span><span class="p">,</span>
+        <span class="s1">'geometry_type'</span><span class="p">:</span> <span class="n">geometry_type</span><span class="p">,</span>
     <span class="p">}</span></div>
 
 
@@ -929,7 +929,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="load_vector">
 <a class="viewcode-back" href="../../autoapi/gedih3/vecutils/index.html#gedih3.vecutils.load_vector">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">load_vector</span><span class="p">(</span><span class="n">vector_path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">to_crs</span><span class="o">=</span><span class="mi">4326</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Load polygon GeoDataFrame, filter columns, reproject to WGS84.</span>
+<span class="w">    </span><span class="sd">"""Load polygon GeoDataFrame, filter columns, reproject to WGS84.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -949,17 +949,17 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ------</span>
 <span class="sd">    GediSpatialJoinError</span>
 <span class="sd">        If file contains non-polygon geometries</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="n">vector_path</span><span class="p">)</span>
 
     <span class="c1"># Validate geometry types</span>
     <span class="n">geom_types</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">geom_type</span><span class="p">)</span>
-    <span class="n">valid_types</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;Polygon&#39;</span><span class="p">,</span> <span class="s1">&#39;MultiPolygon&#39;</span><span class="p">}</span>
+    <span class="n">valid_types</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'Polygon'</span><span class="p">,</span> <span class="s1">'MultiPolygon'</span><span class="p">}</span>
     <span class="n">invalid</span> <span class="o">=</span> <span class="n">geom_types</span> <span class="o">-</span> <span class="n">valid_types</span>
     <span class="k">if</span> <span class="n">invalid</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">GediSpatialJoinError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Vector file contains unsupported geometry types: </span><span class="si">{</span><span class="n">invalid</span><span class="si">}</span><span class="s2">. &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;Only Polygon and MultiPolygon are supported.&quot;</span>
+            <span class="sa">f</span><span class="s2">"Vector file contains unsupported geometry types: </span><span class="si">{</span><span class="n">invalid</span><span class="si">}</span><span class="s2">. "</span>
+            <span class="sa">f</span><span class="s2">"Only Polygon and MultiPolygon are supported."</span>
         <span class="p">)</span>
 
     <span class="c1"># Filter columns</span>
@@ -967,16 +967,16 @@ window.runMermaid = runMermaid;</script>
         <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">columns</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">gdf</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">GediSpatialJoinError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Columns not found in vector file: </span><span class="si">{</span><span class="n">missing</span><span class="si">}</span><span class="s2">. &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;Available: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s1">&#39;geometry&#39;</span><span class="p">))</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">"Columns not found in vector file: </span><span class="si">{</span><span class="n">missing</span><span class="si">}</span><span class="s2">. "</span>
+                <span class="sa">f</span><span class="s2">"Available: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s1">'geometry'</span><span class="p">))</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
-        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="n">columns</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]]</span>
+        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="n">columns</span> <span class="o">+</span> <span class="p">[</span><span class="s1">'geometry'</span><span class="p">]]</span>
 
     <span class="c1"># Reproject</span>
     <span class="k">if</span> <span class="n">gdf</span><span class="o">.</span><span class="n">crs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">gdf</span><span class="o">.</span><span class="n">crs</span><span class="o">.</span><span class="n">to_epsg</span><span class="p">()</span> <span class="o">!=</span> <span class="n">to_crs</span><span class="p">:</span>
         <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="n">epsg</span><span class="o">=</span><span class="n">to_crs</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">gdf</span><span class="o">.</span><span class="n">crs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Vector file has no CRS defined, assuming EPSG:4326&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"Vector file has no CRS defined, assuming EPSG:4326"</span><span class="p">)</span>
         <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">set_crs</span><span class="p">(</span><span class="n">epsg</span><span class="o">=</span><span class="mi">4326</span><span class="p">)</span>
 
     <span class="c1"># Ensure spatial index is built</span>
@@ -987,7 +987,7 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_get_cached_polygons</span><span class="p">(</span><span class="n">vector_path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get polygon GeoDataFrame with worker-level caching.</span>
+<span class="w">    </span><span class="sd">"""Get polygon GeoDataFrame with worker-level caching.</span>
 
 <span class="sd">    Each Dask worker loads the polygon file once and reuses it across</span>
 <span class="sd">    partitions. Same pattern as raster file opening in imgutils.py.</span>
@@ -1003,7 +1003,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    GeoDataFrame</span>
 <span class="sd">        Cached polygon data</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="c1"># Cache key includes columns to handle different column selections</span>
     <span class="n">cache_key</span> <span class="o">=</span> <span class="p">(</span><span class="n">vector_path</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span> <span class="k">if</span> <span class="n">columns</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span>
 
@@ -1018,16 +1018,16 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># =============================================================================</span>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_detect_spatial_cols</span><span class="p">(</span><span class="n">df</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Detect all spatial index columns (h3_XX, egiXX) from a DataFrame.</span>
+<span class="w">    </span><span class="sd">"""Detect all spatial index columns (h3_XX, egiXX) from a DataFrame.</span>
 
 <span class="sd">    Inspects both columns and index name for spatial patterns.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.imgutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">_detect_spatial_cols</span>
     <span class="k">return</span> <span class="n">_detect_spatial_cols</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_finest_spatial_col</span><span class="p">(</span><span class="n">col_names</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the finest-resolution spatial column name from a list.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Return the finest-resolution spatial column name from a list."""</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.imgutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">_finest_spatial_col</span>
     <span class="k">return</span> <span class="n">_finest_spatial_col</span><span class="p">(</span><span class="n">col_names</span><span class="p">)</span>
 
@@ -1039,9 +1039,9 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="join_polygons_to_points">
 <a class="viewcode-back" href="../../autoapi/gedih3/vecutils/index.html#gedih3.vecutils.join_polygons_to_points">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">join_polygons_to_points</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">vector_path</span><span class="p">,</span> <span class="n">join_columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                            <span class="n">predicate</span><span class="o">=</span><span class="s1">&#39;within&#39;</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                            <span class="n">predicate</span><span class="o">=</span><span class="s1">'within'</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">'left'</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                             <span class="n">partition_col</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">geo</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Spatially join polygon attributes to GEDI shot locations within a partition.</span>
+<span class="w">    </span><span class="sd">"""Spatially join polygon attributes to GEDI shot locations within a partition.</span>
 
 <span class="sd">    Designed to be called via Dask map_partitions. For each partition:</span>
 <span class="sd">    1. Load polygons via worker-level cache</span>
@@ -1058,9 +1058,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    join_columns : list of str, optional</span>
 <span class="sd">        Polygon attribute columns to include. If None, all polygon columns.</span>
 <span class="sd">    predicate : str</span>
-<span class="sd">        Spatial join predicate: &#39;within&#39; or &#39;intersects&#39;</span>
+<span class="sd">        Spatial join predicate: 'within' or 'intersects'</span>
 <span class="sd">    how : str</span>
-<span class="sd">        Join type: &#39;left&#39; (keep all shots) or &#39;inner&#39; (matched only)</span>
+<span class="sd">        Join type: 'left' (keep all shots) or 'inner' (matched only)</span>
 <span class="sd">    prefix : str, optional</span>
 <span class="sd">        Prefix to add to polygon column names (avoids conflicts)</span>
 <span class="sd">    partition_col : str, optional</span>
@@ -1072,63 +1072,63 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    DataFrame or GeoDataFrame</span>
 <span class="sd">        Joined data with polygon attribute columns</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">df</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s1">&#39;empty&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">df</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s1">'empty'</span><span class="p">)</span> <span class="ow">and</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">_empty_join_result</span><span class="p">(</span>
             <span class="n">join_columns</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">geo</span><span class="p">,</span> <span class="n">partition_col</span><span class="p">,</span>
-            <span class="n">spatial_cols</span><span class="o">=</span><span class="p">{</span><span class="n">partition_col</span><span class="p">:</span> <span class="s1">&#39;object&#39;</span><span class="p">}</span> <span class="k">if</span> <span class="n">partition_col</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">spatial_cols</span><span class="o">=</span><span class="p">{</span><span class="n">partition_col</span><span class="p">:</span> <span class="s1">'object'</span><span class="p">}</span> <span class="k">if</span> <span class="n">partition_col</span> <span class="k">else</span> <span class="kc">None</span>
         <span class="p">)</span>
 
     <span class="c1"># Load polygons (cached per worker)</span>
     <span class="n">polygons</span> <span class="o">=</span> <span class="n">_get_cached_polygons</span><span class="p">(</span><span class="n">vector_path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">join_columns</span><span class="p">)</span>
 
     <span class="c1"># Determine polygon columns to include</span>
-    <span class="n">poly_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">polygons</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">c</span> <span class="o">!=</span> <span class="s1">&#39;geometry&#39;</span><span class="p">]</span>
+    <span class="n">poly_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">polygons</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">c</span> <span class="o">!=</span> <span class="s1">'geometry'</span><span class="p">]</span>
 
     <span class="c1"># Build GeoDataFrame from partition if not already</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">):</span>
-        <span class="k">if</span> <span class="s1">&#39;geometry&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s1">'geometry'</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">GediSpatialJoinError</span><span class="p">(</span>
-                <span class="s2">&quot;Partition has no geometry column for spatial join&quot;</span>
+                <span class="s2">"Partition has no geometry column for spatial join"</span>
             <span class="p">)</span>
-        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="s1">&#39;geometry&#39;</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="s1">&#39;EPSG:4326&#39;</span><span class="p">)</span>
+        <span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="s1">'geometry'</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="s1">'EPSG:4326'</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">gdf</span> <span class="o">=</span> <span class="n">df</span>
         <span class="k">if</span> <span class="n">gdf</span><span class="o">.</span><span class="n">crs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">set_crs</span><span class="p">(</span><span class="s1">&#39;EPSG:4326&#39;</span><span class="p">)</span>
+            <span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">set_crs</span><span class="p">(</span><span class="s1">'EPSG:4326'</span><span class="p">)</span>
 
     <span class="c1"># Check for column conflicts before join</span>
-    <span class="n">existing_cols</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span> <span class="o">-</span> <span class="p">{</span><span class="s1">&#39;geometry&#39;</span><span class="p">}</span>
+    <span class="n">existing_cols</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span> <span class="o">-</span> <span class="p">{</span><span class="s1">'geometry'</span><span class="p">}</span>
     <span class="n">conflicts</span> <span class="o">=</span> <span class="n">existing_cols</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">poly_cols</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">conflicts</span> <span class="ow">and</span> <span class="n">prefix</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">GediSpatialJoinError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Column name conflicts between GEDI data and polygon file: &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">conflicts</span><span class="p">)</span><span class="si">}</span><span class="s2">. Use the -x/--prefix flag to add a prefix &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;to polygon column names.&quot;</span>
+            <span class="sa">f</span><span class="s2">"Column name conflicts between GEDI data and polygon file: "</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">conflicts</span><span class="p">)</span><span class="si">}</span><span class="s2">. Use the -x/--prefix flag to add a prefix "</span>
+            <span class="sa">f</span><span class="s2">"to polygon column names."</span>
         <span class="p">)</span>
 
     <span class="c1"># Perform spatial join</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">joined</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">sjoin</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">polygons</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="n">how</span><span class="p">,</span> <span class="n">predicate</span><span class="o">=</span><span class="n">predicate</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">GediSpatialJoinError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Spatial join failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">GediSpatialJoinError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Spatial join failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="c1"># Cleanup: drop index_right column added by sjoin</span>
-    <span class="k">if</span> <span class="s1">&#39;index_right&#39;</span> <span class="ow">in</span> <span class="n">joined</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-        <span class="n">joined</span> <span class="o">=</span> <span class="n">joined</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;index_right&#39;</span><span class="p">])</span>
+    <span class="k">if</span> <span class="s1">'index_right'</span> <span class="ow">in</span> <span class="n">joined</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+        <span class="n">joined</span> <span class="o">=</span> <span class="n">joined</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'index_right'</span><span class="p">])</span>
 
     <span class="c1"># Warn about duplicates (overlapping polygons)</span>
     <span class="n">n_orig</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">gdf</span><span class="p">)</span>
     <span class="n">n_joined</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">joined</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">n_joined</span> <span class="o">&gt;</span> <span class="n">n_orig</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Spatial join produced </span><span class="si">{</span><span class="n">n_joined</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">n_orig</span><span class="si">}</span><span class="s2"> extra rows from &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;overlapping polygons (partition had </span><span class="si">{</span><span class="n">n_orig</span><span class="si">}</span><span class="s2"> shots)&quot;</span>
+            <span class="sa">f</span><span class="s2">"Spatial join produced </span><span class="si">{</span><span class="n">n_joined</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">n_orig</span><span class="si">}</span><span class="s2"> extra rows from "</span>
+            <span class="sa">f</span><span class="s2">"overlapping polygons (partition had </span><span class="si">{</span><span class="n">n_orig</span><span class="si">}</span><span class="s2"> shots)"</span>
         <span class="p">)</span>
 
     <span class="c1"># Apply column prefix if specified</span>
     <span class="k">if</span> <span class="n">prefix</span><span class="p">:</span>
-        <span class="n">rename_map</span> <span class="o">=</span> <span class="p">{</span><span class="n">c</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}{</span><span class="n">c</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">poly_cols</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">joined</span><span class="o">.</span><span class="n">columns</span><span class="p">}</span>
+        <span class="n">rename_map</span> <span class="o">=</span> <span class="p">{</span><span class="n">c</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prefix</span><span class="si">}{</span><span class="n">c</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">poly_cols</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">joined</span><span class="o">.</span><span class="n">columns</span><span class="p">}</span>
         <span class="n">joined</span> <span class="o">=</span> <span class="n">joined</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">rename_map</span><span class="p">)</span>
         <span class="n">poly_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">rename_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">poly_cols</span><span class="p">]</span>
 
@@ -1136,26 +1136,26 @@ window.runMermaid = runMermaid;</script>
     <span class="n">out</span> <span class="o">=</span> <span class="p">{}</span>
 
     <span class="c1"># Preserve all spatial index columns (h3_XX, egiXX)</span>
-    <span class="k">if</span> <span class="n">joined</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^(h3_\d</span><span class="si">{2}</span><span class="s1">|egi\d</span><span class="si">{2}</span><span class="s1">)$&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">joined</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="p">)):</span>
+    <span class="k">if</span> <span class="n">joined</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">'^(h3_\d</span><span class="si">{2}</span><span class="s1">|egi\d</span><span class="si">{2}</span><span class="s1">)$'</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">joined</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="p">)):</span>
         <span class="n">out</span><span class="p">[</span><span class="n">joined</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">joined</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">values</span>
     <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">joined</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^(h3_\d</span><span class="si">{2}</span><span class="s1">|egi\d</span><span class="si">{2}</span><span class="s1">)$&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">col</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">'^(h3_\d</span><span class="si">{2}</span><span class="s1">|egi\d</span><span class="si">{2}</span><span class="s1">)$'</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">col</span><span class="p">)):</span>
             <span class="n">out</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">col</span><span class="p">)]</span> <span class="o">=</span> <span class="n">joined</span><span class="p">[</span><span class="n">col</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
     <span class="k">if</span> <span class="n">partition_col</span> <span class="ow">and</span> <span class="n">partition_col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">out</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Partition column &#39;</span><span class="si">{</span><span class="n">partition_col</span><span class="si">}</span><span class="s2">&#39; not found in data&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Partition column '</span><span class="si">{</span><span class="n">partition_col</span><span class="si">}</span><span class="s2">' not found in data"</span><span class="p">)</span>
 
     <span class="c1"># shot_number</span>
     <span class="n">sn_col</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">joined</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;shot_number&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'shot_number'</span><span class="p">):</span>
             <span class="n">sn_col</span> <span class="o">=</span> <span class="n">c</span>
             <span class="k">break</span>
     <span class="k">if</span> <span class="n">sn_col</span><span class="p">:</span>
-        <span class="n">out</span><span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">joined</span><span class="p">[</span><span class="n">sn_col</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">out</span><span class="p">[</span><span class="s1">'shot_number'</span><span class="p">]</span> <span class="o">=</span> <span class="n">joined</span><span class="p">[</span><span class="n">sn_col</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-            <span class="s2">&quot;shot_number column not found in partition — output will lack shot identifiers. &quot;</span>
-            <span class="s2">&quot;Use an H3 database or gh3_extract output as the data source.&quot;</span>
+            <span class="s2">"shot_number column not found in partition — output will lack shot identifiers. "</span>
+            <span class="s2">"Use an H3 database or gh3_extract output as the data source."</span>
         <span class="p">)</span>
 
     <span class="c1"># Polygon attribute columns</span>
@@ -1166,8 +1166,8 @@ window.runMermaid = runMermaid;</script>
     <span class="n">result</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
 
     <span class="c1"># Geometry</span>
-    <span class="k">if</span> <span class="n">geo</span> <span class="ow">and</span> <span class="s1">&#39;geometry&#39;</span> <span class="ow">in</span> <span class="n">joined</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-        <span class="n">result</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="n">joined</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="s1">&#39;EPSG:4326&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">geo</span> <span class="ow">and</span> <span class="s1">'geometry'</span> <span class="ow">in</span> <span class="n">joined</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="n">joined</span><span class="p">[</span><span class="s1">'geometry'</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="s1">'EPSG:4326'</span><span class="p">)</span>
 
     <span class="c1"># Set finest spatial column as the DataFrame index</span>
     <span class="n">idx_col</span> <span class="o">=</span> <span class="n">_finest_spatial_col</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
@@ -1184,7 +1184,7 @@ window.runMermaid = runMermaid;</script>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_empty_join_result</span><span class="p">(</span><span class="n">join_columns</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">geo</span><span class="p">,</span> <span class="n">partition_col</span><span class="p">,</span>
                        <span class="n">spatial_cols</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return empty DataFrame matching the join output schema.</span>
+<span class="w">    </span><span class="sd">"""Return empty DataFrame matching the join output schema.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -1198,25 +1198,25 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Partition column name</span>
 <span class="sd">    spatial_cols : dict, optional</span>
 <span class="sd">        Dict of spatial column name -&gt; dtype</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">cols</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">if</span> <span class="n">spatial_cols</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">col_name</span><span class="p">,</span> <span class="n">dtype</span> <span class="ow">in</span> <span class="n">spatial_cols</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">cols</span><span class="p">[</span><span class="n">col_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">partition_col</span><span class="p">:</span>
-        <span class="n">cols</span><span class="p">[</span><span class="n">partition_col</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;object&#39;</span><span class="p">)</span>
+        <span class="n">cols</span><span class="p">[</span><span class="n">partition_col</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">'object'</span><span class="p">)</span>
     <span class="c1"># uint64 matches the on-disk GEDI shot_number dtype. See imgutils.py for the</span>
     <span class="c1"># full rationale — an int64 meta forces Dask to upcast uint64 data to</span>
     <span class="c1"># float64 on reconciliation, which corrupts shot identifiers.</span>
-    <span class="n">cols</span><span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;uint64&#39;</span><span class="p">)</span>
+    <span class="n">cols</span><span class="p">[</span><span class="s1">'shot_number'</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">'uint64'</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">join_columns</span><span class="p">:</span>
-        <span class="n">prefixed</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}{</span><span class="n">c</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">prefix</span> <span class="k">else</span> <span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">join_columns</span><span class="p">]</span>
+        <span class="n">prefixed</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prefix</span><span class="si">}{</span><span class="n">c</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">prefix</span> <span class="k">else</span> <span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">join_columns</span><span class="p">]</span>
         <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">prefixed</span><span class="p">:</span>
-            <span class="n">cols</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;object&#39;</span><span class="p">)</span>
+            <span class="n">cols</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">'object'</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">geo</span><span class="p">:</span>
-        <span class="n">result</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">cols</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="n">gpd</span><span class="o">.</span><span class="n">GeoSeries</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;geometry&#39;</span><span class="p">))</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">cols</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="n">gpd</span><span class="o">.</span><span class="n">GeoSeries</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">'geometry'</span><span class="p">))</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">result</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span>
 
@@ -1229,7 +1229,7 @@ window.runMermaid = runMermaid;</script>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_compute_join_meta</span><span class="p">(</span><span class="n">join_columns</span><span class="p">,</span> <span class="n">polygon_dtypes</span><span class="p">,</span> <span class="n">prefix</span><span class="p">,</span> <span class="n">geo</span><span class="p">,</span>
                        <span class="n">partition_col</span><span class="p">,</span> <span class="n">spatial_cols</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build empty DataFrame with correct schema for Dask map_partitions meta.</span>
+<span class="w">    </span><span class="sd">"""Build empty DataFrame with correct schema for Dask map_partitions meta.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -1250,26 +1250,26 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    DataFrame or GeoDataFrame</span>
 <span class="sd">        Empty frame matching output schema</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">cols</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">if</span> <span class="n">spatial_cols</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">col_name</span><span class="p">,</span> <span class="n">dtype</span> <span class="ow">in</span> <span class="n">spatial_cols</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">cols</span><span class="p">[</span><span class="n">col_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">partition_col</span><span class="p">:</span>
-        <span class="n">cols</span><span class="p">[</span><span class="n">partition_col</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;object&#39;</span><span class="p">)</span>
+        <span class="n">cols</span><span class="p">[</span><span class="n">partition_col</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">'object'</span><span class="p">)</span>
     <span class="c1"># uint64 matches the on-disk GEDI shot_number dtype. See imgutils.py for the</span>
     <span class="c1"># full rationale — an int64 meta forces Dask to upcast uint64 data to</span>
     <span class="c1"># float64 on reconciliation, which corrupts shot identifiers.</span>
-    <span class="n">cols</span><span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;uint64&#39;</span><span class="p">)</span>
+    <span class="n">cols</span><span class="p">[</span><span class="s1">'shot_number'</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">'uint64'</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">join_columns</span> <span class="ow">and</span> <span class="n">polygon_dtypes</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">join_columns</span><span class="p">:</span>
-            <span class="n">col_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}{</span><span class="n">c</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">prefix</span> <span class="k">else</span> <span class="n">c</span>
-            <span class="n">dtype</span> <span class="o">=</span> <span class="n">polygon_dtypes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s1">&#39;object&#39;</span><span class="p">)</span>
+            <span class="n">col_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prefix</span><span class="si">}{</span><span class="n">c</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">prefix</span> <span class="k">else</span> <span class="n">c</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="n">polygon_dtypes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s1">'object'</span><span class="p">)</span>
             <span class="n">cols</span><span class="p">[</span><span class="n">col_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">geo</span><span class="p">:</span>
-        <span class="n">result</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">cols</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="n">gpd</span><span class="o">.</span><span class="n">GeoSeries</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;geometry&#39;</span><span class="p">))</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">cols</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="n">gpd</span><span class="o">.</span><span class="n">GeoSeries</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="s1">'geometry'</span><span class="p">))</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">result</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span>
 

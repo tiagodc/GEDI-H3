@@ -760,7 +760,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;Report and DoctorContext dataclasses shared by all diagnoses.&quot;&quot;&quot;</span>
+<span class="sd">"""Report and DoctorContext dataclasses shared by all diagnoses."""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">asdict</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
@@ -770,9 +770,9 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="Severity">
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Severity">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">Severity</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Enum</span><span class="p">):</span>
-    <span class="n">INFO</span> <span class="o">=</span> <span class="s1">&#39;info&#39;</span>
-    <span class="n">WARN</span> <span class="o">=</span> <span class="s1">&#39;warn&#39;</span>
-    <span class="n">ERROR</span> <span class="o">=</span> <span class="s1">&#39;error&#39;</span></div>
+    <span class="n">INFO</span> <span class="o">=</span> <span class="s1">'info'</span>
+    <span class="n">WARN</span> <span class="o">=</span> <span class="s1">'warn'</span>
+    <span class="n">ERROR</span> <span class="o">=</span> <span class="s1">'error'</span></div>
 
 
 
@@ -780,12 +780,12 @@ window.runMermaid = runMermaid;</script>
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Report">[docs]</a>
 <span class="nd">@dataclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Report</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Uniform output from a diagnosis check or fix.</span>
+<span class="w">    </span><span class="sd">"""Uniform output from a diagnosis check or fix.</span>
 
 <span class="sd">    Attributes</span>
 <span class="sd">    ----------</span>
 <span class="sd">    name : str</span>
-<span class="sd">        Diagnosis identifier (e.g. &#39;backfill&#39;, &#39;orphans&#39;).</span>
+<span class="sd">        Diagnosis identifier (e.g. 'backfill', 'orphans').</span>
 <span class="sd">    severity : Severity</span>
 <span class="sd">        Worst severity across all findings.</span>
 <span class="sd">    findings : list of dict</span>
@@ -796,12 +796,12 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        One-line human-readable summary.</span>
 <span class="sd">    recommendations : list of str</span>
 <span class="sd">        Suggested next-step CLI commands (printed verbatim, never executed).</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">severity</span><span class="p">:</span> <span class="n">Severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span>
     <span class="n">findings</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
     <span class="n">applied</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">summary</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="n">summary</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span>
     <span class="n">recommendations</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
 
     <span class="nd">@property</span>
@@ -816,7 +816,7 @@ window.runMermaid = runMermaid;</script>
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.Report.to_dict">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
         <span class="n">d</span> <span class="o">=</span> <span class="n">asdict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
-        <span class="n">d</span><span class="p">[</span><span class="s1">&#39;severity&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">severity</span><span class="o">.</span><span class="n">value</span>
+        <span class="n">d</span><span class="p">[</span><span class="s1">'severity'</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">severity</span><span class="o">.</span><span class="n">value</span>
         <span class="k">return</span> <span class="n">d</span></div>
 </div>
 
@@ -826,7 +826,7 @@ window.runMermaid = runMermaid;</script>
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/report/index.html#gedih3.doctor.report.DoctorContext">[docs]</a>
 <span class="nd">@dataclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">DoctorContext</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Pre-loaded state passed to every diagnosis.</span>
+<span class="w">    </span><span class="sd">"""Pre-loaded state passed to every diagnosis.</span>
 
 <span class="sd">    The runner constructs this once per invocation and shares it across all</span>
 <span class="sd">    diagnoses to avoid redundant filesystem walks and log re-reads.</span>
@@ -852,7 +852,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    upstream : dict or None</span>
 <span class="sd">        Populated by :mod:`gedih3.doctor.upstream` when ``--online`` is set;</span>
 <span class="sd">        keyed by product code.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">soc_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">tmp_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>

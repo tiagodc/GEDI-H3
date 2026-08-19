@@ -524,16 +524,16 @@ preset lists.</p>
 </table>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Build with only algorithm-a1 geolocation variables</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span><span class="s2">&quot;geolocation/*_a1&quot;</span><span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-s3
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span><span class="s2">"geolocation/*_a1"</span><span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-s3
 
 <span class="c1"># Extract all RH percentiles</span>
-gh3_extract<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-l2a<span class="w"> </span><span class="s2">&quot;rh_*&quot;</span><span class="w"> </span>-o<span class="w"> </span>output/
+gh3_extract<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-l2a<span class="w"> </span><span class="s2">"rh_*"</span><span class="w"> </span>-o<span class="w"> </span>output/
 
 <span class="c1"># Aggregate all AGBD variables</span>
-gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-h3<span class="w"> </span><span class="m">6</span><span class="w"> </span>-l4a<span class="w"> </span><span class="s2">&quot;agbd*&quot;</span><span class="w"> </span>-o<span class="w"> </span>output/
+gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-h3<span class="w"> </span><span class="m">6</span><span class="w"> </span>-l4a<span class="w"> </span><span class="s2">"agbd*"</span><span class="w"> </span>-o<span class="w"> </span>output/
 
 <span class="c1"># Use --list with suffixed wildcard</span>
-gh3_extract<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-l<span class="w"> </span><span class="s2">&quot;rh_*_l2a&quot;</span><span class="w"> </span>-o<span class="w"> </span>output/
+gh3_extract<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-l<span class="w"> </span><span class="s2">"rh_*_l2a"</span><span class="w"> </span>-o<span class="w"> </span>output/
 </pre></div>
 </div>
 <div class="admonition important">
@@ -545,19 +545,19 @@ gh3_extract<span class="w"> </span>-d<span class="w"> </span>/path/to/database<s
 <section id="cli-usage">
 <h2>CLI Usage<a class="headerlink" href="#cli-usage" title="Link to this heading">#</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Minimal set (fastest build, smallest files)</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>minimal<span class="w"> </span>-l4a<span class="w"> </span>minimal<span class="w"> </span>-s3
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>minimal<span class="w"> </span>-l4a<span class="w"> </span>minimal<span class="w"> </span>-s3
 
 <span class="c1"># Default science-ready set</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
 
 <span class="c1"># Explicit variables</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>rh<span class="w"> </span>quality_flag<span class="w"> </span>lat_lowestmode<span class="w"> </span>lon_lowestmode<span class="w"> </span>-l2b<span class="w"> </span>cover<span class="w"> </span>-l4a<span class="w"> </span>agbd
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>rh<span class="w"> </span>quality_flag<span class="w"> </span>lat_lowestmode<span class="w"> </span>lon_lowestmode<span class="w"> </span>-l2b<span class="w"> </span>cover<span class="w"> </span>-l4a<span class="w"> </span>agbd
 
 <span class="c1"># From a custom file (one variable per line, # comments allowed)</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>/path/to/my_l2a_vars.txt
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>/path/to/my_l2a_vars.txt
 
 <span class="c1"># All variables (use with caution)</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>all
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>all
 </pre></div>
 </div>
 </section>

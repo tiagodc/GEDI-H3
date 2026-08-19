@@ -760,7 +760,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;geoparquet_bbox diagnosis — partition parquets without a valid bbox.</span>
+<span class="sd">"""geoparquet_bbox diagnosis — partition parquets without a valid bbox.</span>
 
 <span class="sd">Detects partition parquets whose GeoParquet ``geo`` schema metadata is missing</span>
 <span class="sd">or has no usable ``columns.&lt;primary&gt;.bbox``. The bbox is required for valid</span>
@@ -782,7 +782,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Fixable via ``parquet_backfill_bbox``.</span>
 <span class="sd">  - ``no_geometry``: file has no geometry column (rare; typical for non-spatial</span>
 <span class="sd">    sidecars). Reported only — no bbox is meaningful here.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
@@ -800,49 +800,49 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_classify</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a finding kind, or None if the file&#39;s bbox is OK.</span>
+<span class="w">    </span><span class="sd">"""Return a finding kind, or None if the file's bbox is OK.</span>
 
 <span class="sd">    Memory: footer-only ``pq.read_schema`` (no data buffers) plus a</span>
 <span class="sd">    JSON parse of the small ``geo`` metadata block. Constant ~KB</span>
 <span class="sd">    per file — independent of file size or column count.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
     <span class="n">schema</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">schema</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">read_schema</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s1">&#39;unreadable&#39;</span>
+        <span class="k">return</span> <span class="s1">'unreadable'</span>
 
     <span class="k">try</span><span class="p">:</span>
-        <span class="k">if</span> <span class="s1">&#39;geometry&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">schema</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s1">&#39;no_geometry&#39;</span>
+        <span class="k">if</span> <span class="s1">'geometry'</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">schema</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">'no_geometry'</span>
 
         <span class="n">md</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="n">metadata</span> <span class="ow">or</span> <span class="p">{}</span>
-        <span class="n">raw</span> <span class="o">=</span> <span class="n">md</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;geo&#39;</span><span class="p">)</span>
+        <span class="n">raw</span> <span class="o">=</span> <span class="n">md</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">b</span><span class="s1">'geo'</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">raw</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s1">&#39;missing_geo&#39;</span>
+            <span class="k">return</span> <span class="s1">'missing_geo'</span>
 
         <span class="k">try</span><span class="p">:</span>
             <span class="n">geo</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s1">&#39;missing_geo&#39;</span>
+            <span class="k">return</span> <span class="s1">'missing_geo'</span>
 
-        <span class="n">primary</span> <span class="o">=</span> <span class="n">geo</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;primary_column&#39;</span><span class="p">,</span> <span class="s1">&#39;geometry&#39;</span><span class="p">)</span>
-        <span class="n">col</span> <span class="o">=</span> <span class="n">geo</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;columns&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">primary</span><span class="p">,</span> <span class="p">{})</span>
-        <span class="n">bbox</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;bbox&#39;</span><span class="p">)</span>
+        <span class="n">primary</span> <span class="o">=</span> <span class="n">geo</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'primary_column'</span><span class="p">,</span> <span class="s1">'geometry'</span><span class="p">)</span>
+        <span class="n">col</span> <span class="o">=</span> <span class="n">geo</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'columns'</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">primary</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">bbox</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'bbox'</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">bbox</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s1">&#39;missing_bbox&#39;</span>
+            <span class="k">return</span> <span class="s1">'missing_bbox'</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">bbox</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">))</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">bbox</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">4</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s1">&#39;invalid_bbox&#39;</span>
+            <span class="k">return</span> <span class="s1">'invalid_bbox'</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">bbox</span><span class="p">):</span>
-                <span class="k">return</span> <span class="s1">&#39;invalid_bbox&#39;</span>
+                <span class="k">return</span> <span class="s1">'invalid_bbox'</span>
         <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
-            <span class="k">return</span> <span class="s1">&#39;invalid_bbox&#39;</span>
+            <span class="k">return</span> <span class="s1">'invalid_bbox'</span>
         <span class="k">return</span> <span class="kc">None</span>
     <span class="k">finally</span><span class="p">:</span>
         <span class="c1"># Drop the schema reference promptly so its metadata buffers</span>
-        <span class="c1"># don&#39;t accumulate across the per-partition scan.</span>
+        <span class="c1"># don't accumulate across the per-partition scan.</span>
         <span class="k">del</span> <span class="n">schema</span>
 
 
@@ -851,18 +851,18 @@ window.runMermaid = runMermaid;</script>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">shared</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Worker: classify every parquet under one partition.</span>
+<span class="w">    </span><span class="sd">"""Worker: classify every parquet under one partition.</span>
 
-<span class="sd">    Returns ``{&#39;findings&#39;: [...], &#39;n_ok&#39;: int}`` so the driver can</span>
+<span class="sd">    Returns ``{'findings': [...], 'n_ok': int}`` so the driver can</span>
 <span class="sd">    aggregate counts without holding the per-OK paths. Drains the</span>
 <span class="sd">    pyarrow allocator at the end so worker RSS plateaus instead of</span>
 <span class="sd">    accumulating across tasks.</span>
 
 <span class="sd">    Fused-aware: when ``shared`` is provided, reads the cached parquet</span>
 <span class="sd">    listing instead of re-globbing.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">shared</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">&#39;parquet_files&#39;</span> <span class="ow">in</span> <span class="n">shared</span><span class="p">:</span>
-        <span class="n">files</span> <span class="o">=</span> <span class="n">shared</span><span class="p">[</span><span class="s1">&#39;parquet_files&#39;</span><span class="p">]</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">shared</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">'parquet_files'</span> <span class="ow">in</span> <span class="n">shared</span><span class="p">:</span>
+        <span class="n">files</span> <span class="o">=</span> <span class="n">shared</span><span class="p">[</span><span class="s1">'parquet_files'</span><span class="p">]</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">files</span> <span class="o">=</span> <span class="n">partition_parquet_files</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">)</span>
     <span class="n">findings</span> <span class="o">=</span> <span class="p">[]</span>
@@ -873,37 +873,37 @@ window.runMermaid = runMermaid;</script>
             <span class="k">if</span> <span class="n">kind</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">n_ok</span> <span class="o">+=</span> <span class="mi">1</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="n">kind</span><span class="p">,</span> <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">f</span><span class="p">})</span>
+                <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'kind'</span><span class="p">:</span> <span class="n">kind</span><span class="p">,</span> <span class="s1">'path'</span><span class="p">:</span> <span class="n">f</span><span class="p">})</span>
     <span class="k">finally</span><span class="p">:</span>
         <span class="n">release_arrow_pool</span><span class="p">()</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;findings&#39;</span><span class="p">:</span> <span class="n">findings</span><span class="p">,</span> <span class="s1">&#39;n_ok&#39;</span><span class="p">:</span> <span class="n">n_ok</span><span class="p">}</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s1">'findings'</span><span class="p">:</span> <span class="n">findings</span><span class="p">,</span> <span class="s1">'n_ok'</span><span class="p">:</span> <span class="n">n_ok</span><span class="p">}</span>
 
 
-<span class="n">register_scan</span><span class="p">(</span><span class="s1">&#39;geoparquet_bbox&#39;</span><span class="p">,</span> <span class="n">_scan_partition_bbox</span><span class="p">)</span>
+<span class="n">register_scan</span><span class="p">(</span><span class="s1">'geoparquet_bbox'</span><span class="p">,</span> <span class="n">_scan_partition_bbox</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_finalize_geoparquet_bbox_check</span><span class="p">(</span>
     <span class="n">ctx</span><span class="p">:</span> <span class="n">DoctorContext</span><span class="p">,</span>
     <span class="n">per_partition</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Report</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Driver-side aggregation of geoparquet_bbox per-partition results.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Driver-side aggregation of geoparquet_bbox per-partition results."""</span>
     <span class="n">findings</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">n_ok</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="k">for</span> <span class="n">part_dir</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">per_partition</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
             <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;unreadable&#39;</span><span class="p">,</span>
-                <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">part_dir</span><span class="p">,</span>
-                <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'unreadable'</span><span class="p">,</span>
+                <span class="s1">'path'</span><span class="p">:</span> <span class="n">part_dir</span><span class="p">,</span>
+                <span class="s1">'error'</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
             <span class="p">})</span>
             <span class="k">continue</span>
-        <span class="n">findings</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;findings&#39;</span><span class="p">])</span>
-        <span class="n">n_ok</span> <span class="o">+=</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;n_ok&#39;</span><span class="p">]</span>
+        <span class="n">findings</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'findings'</span><span class="p">])</span>
+        <span class="n">n_ok</span> <span class="o">+=</span> <span class="n">result</span><span class="p">[</span><span class="s1">'n_ok'</span><span class="p">]</span>
 
-    <span class="n">n_missing_geo</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;missing_geo&#39;</span><span class="p">)</span>
-    <span class="n">n_missing_bbox</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;missing_bbox&#39;</span><span class="p">)</span>
-    <span class="n">n_invalid</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;invalid_bbox&#39;</span><span class="p">)</span>
-    <span class="n">n_unreadable</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;unreadable&#39;</span><span class="p">)</span>
+    <span class="n">n_missing_geo</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'missing_geo'</span><span class="p">)</span>
+    <span class="n">n_missing_bbox</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'missing_bbox'</span><span class="p">)</span>
+    <span class="n">n_invalid</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'invalid_bbox'</span><span class="p">)</span>
+    <span class="n">n_unreadable</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'unreadable'</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">n_missing_geo</span> <span class="ow">or</span> <span class="n">n_unreadable</span><span class="p">:</span>
         <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
@@ -913,26 +913,26 @@ window.runMermaid = runMermaid;</script>
         <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span>
 
     <span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_ok</span><span class="si">}</span><span class="s2"> valid; &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_missing_bbox</span><span class="si">}</span><span class="s2"> missing bbox; &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_invalid</span><span class="si">}</span><span class="s2"> invalid bbox; &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_missing_geo</span><span class="si">}</span><span class="s2"> missing geo metadata; &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_unreadable</span><span class="si">}</span><span class="s2"> unreadable&quot;</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_ok</span><span class="si">}</span><span class="s2"> valid; "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_missing_bbox</span><span class="si">}</span><span class="s2"> missing bbox; "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_invalid</span><span class="si">}</span><span class="s2"> invalid bbox; "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_missing_geo</span><span class="si">}</span><span class="s2"> missing geo metadata; "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_unreadable</span><span class="si">}</span><span class="s2"> unreadable"</span>
     <span class="p">)</span>
 
     <span class="n">recommendations</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">if</span> <span class="n">n_missing_bbox</span> <span class="ow">or</span> <span class="n">n_invalid</span><span class="p">:</span>
         <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-            <span class="s2">&quot;gh3_doctor --fix geoparquet_bbox   # rewrite affected files in place&quot;</span>
+            <span class="s2">"gh3_doctor --fix geoparquet_bbox   # rewrite affected files in place"</span>
         <span class="p">)</span>
     <span class="k">if</span> <span class="n">n_missing_geo</span><span class="p">:</span>
         <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-            <span class="s2">&quot;Files missing the entire GeoParquet &#39;geo&#39; metadata cannot be &quot;</span>
-            <span class="s2">&quot;backfilled; full re-merge from tmp fragments required.&quot;</span>
+            <span class="s2">"Files missing the entire GeoParquet 'geo' metadata cannot be "</span>
+            <span class="s2">"backfilled; full re-merge from tmp fragments required."</span>
         <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">Report</span><span class="p">(</span>
-        <span class="n">name</span><span class="o">=</span><span class="s1">&#39;geoparquet_bbox&#39;</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">severity</span><span class="p">,</span>
+        <span class="n">name</span><span class="o">=</span><span class="s1">'geoparquet_bbox'</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">severity</span><span class="p">,</span>
         <span class="n">findings</span><span class="o">=</span><span class="n">findings</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="n">summary</span><span class="p">,</span> <span class="n">recommendations</span><span class="o">=</span><span class="n">recommendations</span><span class="p">,</span>
     <span class="p">)</span>
 
@@ -944,9 +944,9 @@ window.runMermaid = runMermaid;</script>
     <span class="k">for</span> <span class="n">part_dir</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">partition_dirs</span><span class="p">,</span>
         <span class="n">_scan_partition_bbox</span><span class="p">,</span>
-        <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">&#39;args&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-        <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;geoparquet_bbox: scanning partitions&#39;</span><span class="p">,</span>
-        <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;part&#39;</span><span class="p">,</span>
+        <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">'args'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="n">desc</span><span class="o">=</span><span class="s1">'geoparquet_bbox: scanning partitions'</span><span class="p">,</span>
+        <span class="n">unit</span><span class="o">=</span><span class="s1">'part'</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="n">per_partition</span><span class="p">[</span><span class="n">part_dir</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span>
     <span class="k">return</span> <span class="n">_finalize_geoparquet_bbox_check</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">per_partition</span><span class="p">)</span></div>
@@ -954,59 +954,59 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_backfill_one</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Worker: rewrite one file&#39;s bbox metadata. Picklable.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Worker: rewrite one file's bbox metadata. Picklable."""</span>
     <span class="k">return</span> <span class="n">parquet_backfill_bbox</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="geoparquet_bbox_fix">
 <a class="viewcode-back" href="../../../../autoapi/gedih3/doctor/diagnoses/geoparquet_bbox/index.html#gedih3.doctor.diagnoses.geoparquet_bbox.geoparquet_bbox_fix">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">geoparquet_bbox_fix</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">DoctorContext</span><span class="p">,</span> <span class="n">report</span><span class="p">:</span> <span class="n">Report</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Report</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Rewrite missing/invalid-bbox files via parquet_backfill_bbox.</span>
+<span class="w">    </span><span class="sd">"""Rewrite missing/invalid-bbox files via parquet_backfill_bbox.</span>
 
 <span class="sd">    Per-file work is independent (each call rewrites a single</span>
-<span class="sd">    parquet&#39;s metadata block) so we dispatch through ``parallel_map``</span>
+<span class="sd">    parquet's metadata block) so we dispatch through ``parallel_map``</span>
 <span class="sd">    when a dask client is registered — same shape as the check path.</span>
 <span class="sd">    Without parallelism the fix on a continental DB with thousands of</span>
 <span class="sd">    bbox-missing files takes hours of single-threaded I/O.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">fixable</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;missing_bbox&#39;</span><span class="p">,</span> <span class="s1">&#39;invalid_bbox&#39;</span><span class="p">}</span>
+<span class="sd">    """</span>
+    <span class="n">fixable</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'missing_bbox'</span><span class="p">,</span> <span class="s1">'invalid_bbox'</span><span class="p">}</span>
     <span class="n">fixed</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">n_rewritten</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">n_already_ok</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">n_errors</span> <span class="o">=</span> <span class="mi">0</span>
 
-    <span class="n">targets</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="ow">in</span> <span class="n">fixable</span><span class="p">]</span>
-    <span class="n">paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">targets</span><span class="p">]</span>
-    <span class="n">by_path</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">]:</span> <span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">targets</span><span class="p">}</span>
+    <span class="n">targets</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="ow">in</span> <span class="n">fixable</span><span class="p">]</span>
+    <span class="n">paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span><span class="p">[</span><span class="s1">'path'</span><span class="p">]</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">targets</span><span class="p">]</span>
+    <span class="n">by_path</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span><span class="p">[</span><span class="s1">'path'</span><span class="p">]:</span> <span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">targets</span><span class="p">}</span>
     <span class="k">for</span> <span class="n">path</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span>
         <span class="n">paths</span><span class="p">,</span>
         <span class="n">_backfill_one</span><span class="p">,</span>
-        <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">&#39;args&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-        <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;geoparquet_bbox: backfilling bbox&#39;</span><span class="p">,</span>
-        <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;file&#39;</span><span class="p">,</span>
+        <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">'args'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="n">desc</span><span class="o">=</span><span class="s1">'geoparquet_bbox: backfilling bbox'</span><span class="p">,</span>
+        <span class="n">unit</span><span class="o">=</span><span class="s1">'file'</span><span class="p">,</span>
     <span class="p">):</span>
-        <span class="n">f</span> <span class="o">=</span> <span class="n">by_path</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">path</span><span class="p">})</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">by_path</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="p">{</span><span class="s1">'path'</span><span class="p">:</span> <span class="n">path</span><span class="p">})</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
             <span class="n">n_errors</span> <span class="o">+=</span> <span class="mi">1</span>
-            <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;fix_error&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">})</span>
+            <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">'fix_error'</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">"</span><span class="p">})</span>
             <span class="k">continue</span>
-        <span class="k">if</span> <span class="n">result</span> <span class="o">==</span> <span class="s1">&#39;rewritten&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">result</span> <span class="o">==</span> <span class="s1">'rewritten'</span><span class="p">:</span>
             <span class="n">n_rewritten</span> <span class="o">+=</span> <span class="mi">1</span>
-            <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;action&#39;</span><span class="p">:</span> <span class="s1">&#39;bbox_backfilled&#39;</span><span class="p">})</span>
-        <span class="k">elif</span> <span class="n">result</span> <span class="o">==</span> <span class="s1">&#39;ok&#39;</span><span class="p">:</span>
+            <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">'action'</span><span class="p">:</span> <span class="s1">'bbox_backfilled'</span><span class="p">})</span>
+        <span class="k">elif</span> <span class="n">result</span> <span class="o">==</span> <span class="s1">'ok'</span><span class="p">:</span>
             <span class="n">n_already_ok</span> <span class="o">+=</span> <span class="mi">1</span>
-            <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;action&#39;</span><span class="p">:</span> <span class="s1">&#39;already_valid&#39;</span><span class="p">})</span>
+            <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">'action'</span><span class="p">:</span> <span class="s1">'already_valid'</span><span class="p">})</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;action&#39;</span><span class="p">:</span> <span class="n">result</span><span class="p">})</span>
+            <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">'action'</span><span class="p">:</span> <span class="n">result</span><span class="p">})</span>
 
     <span class="c1"># Preserve unfixable findings as-is (missing_geo, no_geometry, unreadable)</span>
     <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">fixable</span><span class="p">:</span>
-            <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;action&#39;</span><span class="p">:</span> <span class="s1">&#39;reported_only&#39;</span><span class="p">})</span>
+        <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">fixable</span><span class="p">:</span>
+            <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">'action'</span><span class="p">:</span> <span class="s1">'reported_only'</span><span class="p">})</span>
 
     <span class="n">n_blocking</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
         <span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">fixed</span>
-        <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;missing_geo&#39;</span><span class="p">,</span> <span class="s1">&#39;unreadable&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'missing_geo'</span><span class="p">,</span> <span class="s1">'unreadable'</span><span class="p">)</span>
     <span class="p">)</span>
 
     <span class="n">report</span><span class="o">.</span><span class="n">applied</span> <span class="o">=</span> <span class="kc">True</span>
@@ -1014,20 +1014,20 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="n">n_errors</span> <span class="ow">or</span> <span class="n">n_blocking</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span> <span class="k">if</span> <span class="n">n_blocking</span> <span class="k">else</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span>
         <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_rewritten</span><span class="si">}</span><span class="s2"> backfilled; </span><span class="si">{</span><span class="n">n_already_ok</span><span class="si">}</span><span class="s2"> already valid; &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_blocking</span><span class="si">}</span><span class="s2"> unfixable; </span><span class="si">{</span><span class="n">n_errors</span><span class="si">}</span><span class="s2"> fix errors&quot;</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_rewritten</span><span class="si">}</span><span class="s2"> backfilled; </span><span class="si">{</span><span class="n">n_already_ok</span><span class="si">}</span><span class="s2"> already valid; "</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_blocking</span><span class="si">}</span><span class="s2"> unfixable; </span><span class="si">{</span><span class="n">n_errors</span><span class="si">}</span><span class="s2"> fix errors"</span>
         <span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span>
         <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_rewritten</span><span class="si">}</span><span class="s2"> backfilled; </span><span class="si">{</span><span class="n">n_already_ok</span><span class="si">}</span><span class="s2"> already valid&quot;</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_rewritten</span><span class="si">}</span><span class="s2"> backfilled; </span><span class="si">{</span><span class="n">n_already_ok</span><span class="si">}</span><span class="s2"> already valid"</span>
         <span class="p">)</span>
     <span class="k">return</span> <span class="n">report</span></div>
 
 
 
-<span class="n">register</span><span class="p">(</span><span class="s1">&#39;geoparquet_bbox&#39;</span><span class="p">,</span> <span class="s1">&#39;partition parquets without valid bbox metadata&#39;</span><span class="p">,</span>
-         <span class="n">scope</span><span class="o">=</span><span class="s1">&#39;global&#39;</span><span class="p">,</span> <span class="n">fix</span><span class="o">=</span><span class="n">geoparquet_bbox_fix</span><span class="p">)(</span><span class="n">geoparquet_bbox_check</span><span class="p">)</span>
+<span class="n">register</span><span class="p">(</span><span class="s1">'geoparquet_bbox'</span><span class="p">,</span> <span class="s1">'partition parquets without valid bbox metadata'</span><span class="p">,</span>
+         <span class="n">scope</span><span class="o">=</span><span class="s1">'global'</span><span class="p">,</span> <span class="n">fix</span><span class="o">=</span><span class="n">geoparquet_bbox_fix</span><span class="p">)(</span><span class="n">geoparquet_bbox_check</span><span class="p">)</span>
 </pre></div>
 
                 </article>

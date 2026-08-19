@@ -536,11 +536,11 @@
 </ul>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Read with pandas</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="s1">&#39;/path/to/output/838041fffffffff.parquet&#39;</span><span class="p">)</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="s1">'/path/to/output/838041fffffffff.parquet'</span><span class="p">)</span>
 
 <span class="c1"># Load all files with gedih3</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gh3</span>
-<span class="n">gdf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">&#39;/path/to/output/&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
+<span class="n">gdf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">'/path/to/output/'</span><span class="p">)</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
 </pre></div>
 </div>
 <section id="dataset-metadata-gedih3-dataset-json">
@@ -604,7 +604,7 @@ EGI, so they produce identical output.</p>
 </ul>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Load GeoTIFF output in Python</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">rioxarray</span>
-<span class="n">xds</span> <span class="o">=</span> <span class="n">rioxarray</span><span class="o">.</span><span class="n">open_rasterio</span><span class="p">(</span><span class="s1">&#39;agbd_mean.tif&#39;</span><span class="p">)</span>
+<span class="n">xds</span> <span class="o">=</span> <span class="n">rioxarray</span><span class="o">.</span><span class="n">open_rasterio</span><span class="p">(</span><span class="s1">'agbd_mean.tif'</span><span class="p">)</span>
 <span class="n">xds</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
 </pre></div>
 </div>

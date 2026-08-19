@@ -760,7 +760,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;tmp_partitions_health diagnosis — post-build forensics on ``tmp/partitions/``.</span>
+<span class="sd">"""tmp_partitions_health diagnosis — post-build forensics on ``tmp/partitions/``.</span>
 
 <span class="sd">Audit-only check that NEVER iterates healthy partitions (Pillar 1 — no</span>
 <span class="sd">driver-side O(N) GPFS scans). It acts strictly on the signals the build</span>
@@ -780,7 +780,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">belongs in ``gh3_update --recover-missing-vars``. As a hard guard, the</span>
 <span class="sd">fix refuses to act when a fresh ``gh3_build`` process appears to be</span>
 <span class="sd">running (recent ``gh3_build.log`` mtime + matching pgrep PID).</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
@@ -806,12 +806,12 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_count_manifest_entries</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;O(1) line count of the DB&#39;s ``_manifest.txt`` sentinel.</span>
+<span class="w">    </span><span class="sd">"""O(1) line count of the DB's ``_manifest.txt`` sentinel.</span>
 
 <span class="sd">    Uses :func:`gedih3.utils._read_manifest` when available so the manifest</span>
 <span class="sd">    cache is shared with the rest of the loader; falls back to a direct</span>
 <span class="sd">    line-count on the file when the helper is missing or returns None.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">...utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">_read_manifest</span>
         <span class="n">lines</span> <span class="o">=</span> <span class="n">_read_manifest</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">)</span>
@@ -825,36 +825,36 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">manifest_path</span><span class="p">):</span>
         <span class="k">return</span> <span class="mi">0</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">manifest_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">manifest_path</span><span class="p">,</span> <span class="s1">'r'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
             <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span> <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
     <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
         <span class="k">return</span> <span class="mi">0</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_count_merge_progress_entries</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;O(1) line count of ``_merge_progress.txt`` under tmp_dir.&quot;&quot;&quot;</span>
-    <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="s1">&#39;_merge_progress.txt&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">"""O(1) line count of ``_merge_progress.txt`` under tmp_dir."""</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="s1">'_merge_progress.txt'</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
         <span class="k">return</span> <span class="mi">0</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">'r'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
             <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span> <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
     <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
         <span class="k">return</span> <span class="mi">0</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_build_is_active</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return ``(active: bool, info: dict)``.</span>
+<span class="w">    </span><span class="sd">"""Return ``(active: bool, info: dict)``.</span>
 
 <span class="sd">    Cheap signal: a ``gh3_build.log`` whose mtime is &lt; 60 s old AND a</span>
 <span class="sd">    matching ``pgrep -f gh3_build`` hit. Run only at fix time. False</span>
 <span class="sd">    negative (build with stale log) is acceptable — the user can re-run</span>
 <span class="sd">    after the build settles.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span>
-        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="s1">&#39;gh3_build.log&#39;</span><span class="p">),</span>
-        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">h3_dir</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)),</span> <span class="s1">&#39;gh3_build.log&#39;</span><span class="p">),</span>
-        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="s1">&#39;gh3_build.log&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="n">tmp_dir</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="s1">'gh3_build.log'</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">h3_dir</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)),</span> <span class="s1">'gh3_build.log'</span><span class="p">),</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="s1">'gh3_build.log'</span><span class="p">)</span> <span class="k">if</span> <span class="n">tmp_dir</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">]</span>
     <span class="n">fresh_log</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
@@ -873,7 +873,7 @@ window.runMermaid = runMermaid;</script>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="n">res</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
-            <span class="p">[</span><span class="s1">&#39;pgrep&#39;</span><span class="p">,</span> <span class="s1">&#39;-f&#39;</span><span class="p">,</span> <span class="s1">&#39;gh3_build&#39;</span><span class="p">],</span>
+            <span class="p">[</span><span class="s1">'pgrep'</span><span class="p">,</span> <span class="s1">'-f'</span><span class="p">,</span> <span class="s1">'gh3_build'</span><span class="p">],</span>
             <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="n">pids</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">res</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">split</span><span class="p">()</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
@@ -881,7 +881,7 @@ window.runMermaid = runMermaid;</script>
         <span class="n">pids</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="k">if</span> <span class="n">pids</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">True</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;log&#39;</span><span class="p">:</span> <span class="n">fresh_log</span><span class="p">,</span> <span class="s1">&#39;pid&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">pids</span><span class="p">[</span><span class="mi">0</span><span class="p">])}</span>
+        <span class="k">return</span> <span class="kc">True</span><span class="p">,</span> <span class="p">{</span><span class="s1">'log'</span><span class="p">:</span> <span class="n">fresh_log</span><span class="p">,</span> <span class="s1">'pid'</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">pids</span><span class="p">[</span><span class="mi">0</span><span class="p">])}</span>
     <span class="k">return</span> <span class="kc">False</span><span class="p">,</span> <span class="p">{}</span>
 
 
@@ -889,36 +889,36 @@ window.runMermaid = runMermaid;</script>
 <a class="viewcode-back" href="../../../../autoapi/gedih3/doctor/diagnoses/tmp_partitions_health/index.html#gedih3.doctor.diagnoses.tmp_partitions_health.tmp_partitions_health_check">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">tmp_partitions_health_check</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">DoctorContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Report</span><span class="p">:</span>
     <span class="n">findings</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">tmp_dir</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">&#39;tmp_dir&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">tmp_dir</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">'tmp_dir'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">tmp_dir</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">Report</span><span class="p">(</span>
-            <span class="n">name</span><span class="o">=</span><span class="s1">&#39;tmp_partitions_health&#39;</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="s1">'tmp_partitions_health'</span><span class="p">,</span>
             <span class="n">severity</span><span class="o">=</span><span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span>
             <span class="n">findings</span><span class="o">=</span><span class="p">[],</span>
-            <span class="n">summary</span><span class="o">=</span><span class="s1">&#39;no tmp_dir present (one-shot build); nothing to audit&#39;</span><span class="p">,</span>
+            <span class="n">summary</span><span class="o">=</span><span class="s1">'no tmp_dir present (one-shot build); nothing to audit'</span><span class="p">,</span>
         <span class="p">)</span>
 
     <span class="c1"># 1. Merge-failure sentinels — one finding per recorded failure.</span>
     <span class="n">sentinels</span> <span class="o">=</span> <span class="n">gh3builder</span><span class="o">.</span><span class="n">_scan_merge_failure_sentinels</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">partition_dir</span><span class="p">,</span> <span class="n">err</span> <span class="ow">in</span> <span class="n">sentinels</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-            <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;merge_failure&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;partition_dir&#39;</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">,</span>
-            <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="n">err</span><span class="p">,</span>
+            <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'merge_failure'</span><span class="p">,</span>
+            <span class="s1">'partition_dir'</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">,</span>
+            <span class="s1">'error'</span><span class="p">:</span> <span class="n">err</span><span class="p">,</span>
         <span class="p">})</span>
 
     <span class="c1"># 2. Granule failures — grouped by ``kind``; up to 5 examples per group.</span>
     <span class="n">granule_records</span> <span class="o">=</span> <span class="n">gh3builder</span><span class="o">.</span><span class="n">_read_granule_failures</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)</span>
     <span class="n">by_kind</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">rec</span> <span class="ow">in</span> <span class="n">granule_records</span><span class="p">:</span>
-        <span class="n">by_kind</span><span class="p">[</span><span class="n">rec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;kind&#39;</span><span class="p">,</span> <span class="s1">&#39;unknown&#39;</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rec</span><span class="p">)</span>
+        <span class="n">by_kind</span><span class="p">[</span><span class="n">rec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'kind'</span><span class="p">,</span> <span class="s1">'unknown'</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rec</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">kind</span><span class="p">,</span> <span class="n">recs</span> <span class="ow">in</span> <span class="n">by_kind</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-            <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;granule_failures&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;failure_kind&#39;</span><span class="p">:</span> <span class="n">kind</span><span class="p">,</span>
-            <span class="s1">&#39;count&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">recs</span><span class="p">),</span>
-            <span class="s1">&#39;examples&#39;</span><span class="p">:</span> <span class="n">recs</span><span class="p">[:</span><span class="mi">5</span><span class="p">],</span>
+            <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'granule_failures'</span><span class="p">,</span>
+            <span class="s1">'failure_kind'</span><span class="p">:</span> <span class="n">kind</span><span class="p">,</span>
+            <span class="s1">'count'</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">recs</span><span class="p">),</span>
+            <span class="s1">'examples'</span><span class="p">:</span> <span class="n">recs</span><span class="p">[:</span><span class="mi">5</span><span class="p">],</span>
         <span class="p">})</span>
 
     <span class="c1"># 3. Progress vs. manifest drift — O(1) on both ends.</span>
@@ -926,24 +926,24 @@ window.runMermaid = runMermaid;</script>
     <span class="n">manifest_count</span> <span class="o">=</span> <span class="n">_count_manifest_entries</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_dir</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">progress_count</span> <span class="o">&gt;</span> <span class="n">manifest_count</span> <span class="o">+</span> <span class="n">_DRIFT_TOLERANCE</span><span class="p">:</span>
         <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-            <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;progress_manifest_drift&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;progress_count&#39;</span><span class="p">:</span> <span class="n">progress_count</span><span class="p">,</span>
-            <span class="s1">&#39;manifest_count&#39;</span><span class="p">:</span> <span class="n">manifest_count</span><span class="p">,</span>
+            <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'progress_manifest_drift'</span><span class="p">,</span>
+            <span class="s1">'progress_count'</span><span class="p">:</span> <span class="n">progress_count</span><span class="p">,</span>
+            <span class="s1">'manifest_count'</span><span class="p">:</span> <span class="n">manifest_count</span><span class="p">,</span>
         <span class="p">})</span>
 
-    <span class="n">n_merge</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;merge_failure&#39;</span><span class="p">)</span>
-    <span class="n">n_gran_groups</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;granule_failures&#39;</span><span class="p">)</span>
-    <span class="n">n_gran_records</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;granule_failures&#39;</span><span class="p">)</span>
-    <span class="n">n_drift</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;progress_manifest_drift&#39;</span><span class="p">)</span>
+    <span class="n">n_merge</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'merge_failure'</span><span class="p">)</span>
+    <span class="n">n_gran_groups</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'granule_failures'</span><span class="p">)</span>
+    <span class="n">n_gran_records</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">'count'</span><span class="p">]</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'granule_failures'</span><span class="p">)</span>
+    <span class="n">n_drift</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'progress_manifest_drift'</span><span class="p">)</span>
 
     <span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_merge</span><span class="si">}</span><span class="s2"> failed merges, &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_gran_records</span><span class="si">}</span><span class="s2"> granule failures across </span><span class="si">{</span><span class="n">n_gran_groups</span><span class="si">}</span><span class="s2"> kind(s), &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_drift</span><span class="si">}</span><span class="s2"> drift finding(s)&quot;</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_merge</span><span class="si">}</span><span class="s2"> failed merges, "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_gran_records</span><span class="si">}</span><span class="s2"> granule failures across </span><span class="si">{</span><span class="n">n_gran_groups</span><span class="si">}</span><span class="s2"> kind(s), "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_drift</span><span class="si">}</span><span class="s2"> drift finding(s)"</span>
     <span class="p">)</span>
     <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span> <span class="k">if</span> <span class="n">findings</span> <span class="k">else</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span>
     <span class="k">return</span> <span class="n">Report</span><span class="p">(</span>
-        <span class="n">name</span><span class="o">=</span><span class="s1">&#39;tmp_partitions_health&#39;</span><span class="p">,</span>
+        <span class="n">name</span><span class="o">=</span><span class="s1">'tmp_partitions_health'</span><span class="p">,</span>
         <span class="n">severity</span><span class="o">=</span><span class="n">severity</span><span class="p">,</span>
         <span class="n">findings</span><span class="o">=</span><span class="n">findings</span><span class="p">,</span>
         <span class="n">summary</span><span class="o">=</span><span class="n">summary</span><span class="p">,</span>
@@ -954,11 +954,11 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="tmp_partitions_health_fix">
 <a class="viewcode-back" href="../../../../autoapi/gedih3/doctor/diagnoses/tmp_partitions_health/index.html#gedih3.doctor.diagnoses.tmp_partitions_health.tmp_partitions_health_fix">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">tmp_partitions_health_fix</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">DoctorContext</span><span class="p">,</span> <span class="n">report</span><span class="p">:</span> <span class="n">Report</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Report</span><span class="p">:</span>
-    <span class="n">tmp_dir</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">&#39;tmp_dir&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">tmp_dir</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">'tmp_dir'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">tmp_dir</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">):</span>
         <span class="n">report</span><span class="o">.</span><span class="n">applied</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span>
-        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="s1">&#39;no tmp_dir present; nothing to fix&#39;</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="s1">'no tmp_dir present; nothing to fix'</span>
         <span class="k">return</span> <span class="n">report</span>
 
     <span class="c1"># Build-active guard — refuse to mutate state while a build is writing.</span>
@@ -967,12 +967,12 @@ window.runMermaid = runMermaid;</script>
         <span class="n">report</span><span class="o">.</span><span class="n">applied</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
         <span class="n">report</span><span class="o">.</span><span class="n">findings</span> <span class="o">=</span> <span class="p">[{</span>
-            <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;build_active&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;pid&#39;</span><span class="p">:</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;pid&#39;</span><span class="p">),</span>
-            <span class="s1">&#39;log&#39;</span><span class="p">:</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;log&#39;</span><span class="p">),</span>
-            <span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="s1">&#39;refusing to fix while gh3_build appears to be running&#39;</span><span class="p">,</span>
+            <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'build_active'</span><span class="p">,</span>
+            <span class="s1">'pid'</span><span class="p">:</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'pid'</span><span class="p">),</span>
+            <span class="s1">'log'</span><span class="p">:</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'log'</span><span class="p">),</span>
+            <span class="s1">'message'</span><span class="p">:</span> <span class="s1">'refusing to fix while gh3_build appears to be running'</span><span class="p">,</span>
         <span class="p">}]</span>
-        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;build active (pid=</span><span class="si">{</span><span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;pid&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">); fix skipped&quot;</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"build active (pid=</span><span class="si">{</span><span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'pid'</span><span class="p">)</span><span class="si">}</span><span class="s2">); fix skipped"</span>
         <span class="k">return</span> <span class="n">report</span>
 
     <span class="n">new_findings</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
@@ -980,8 +980,8 @@ window.runMermaid = runMermaid;</script>
     <span class="n">preclean_stats</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}</span>
 
     <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span><span class="p">:</span>
-        <span class="n">kind</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;kind&#39;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;merge_failure&#39;</span><span class="p">:</span>
+        <span class="n">kind</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'kind'</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">'merge_failure'</span><span class="p">:</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">preclean_done</span><span class="p">:</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="n">preclean_stats</span> <span class="o">=</span> <span class="n">gh3builder</span><span class="o">.</span><span class="n">preclean_merge_failures</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)</span>
@@ -989,57 +989,57 @@ window.runMermaid = runMermaid;</script>
                 <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                     <span class="n">new_findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
                         <span class="o">**</span><span class="n">f</span><span class="p">,</span>
-                        <span class="s1">&#39;fix_error&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="s1">'fix_error'</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
                     <span class="p">})</span>
                     <span class="k">continue</span>
             <span class="n">new_findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
                 <span class="o">**</span><span class="n">f</span><span class="p">,</span>
-                <span class="s1">&#39;action&#39;</span><span class="p">:</span> <span class="s1">&#39;preclean_merge_failures&#39;</span><span class="p">,</span>
-                <span class="s1">&#39;preclean_stats&#39;</span><span class="p">:</span> <span class="n">preclean_stats</span><span class="p">,</span>
+                <span class="s1">'action'</span><span class="p">:</span> <span class="s1">'preclean_merge_failures'</span><span class="p">,</span>
+                <span class="s1">'preclean_stats'</span><span class="p">:</span> <span class="n">preclean_stats</span><span class="p">,</span>
             <span class="p">})</span>
-        <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;granule_failures&#39;</span><span class="p">:</span>
+        <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">'granule_failures'</span><span class="p">:</span>
             <span class="n">new_findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
                 <span class="o">**</span><span class="n">f</span><span class="p">,</span>
-                <span class="s1">&#39;action&#39;</span><span class="p">:</span> <span class="s1">&#39;reported_only&#39;</span><span class="p">,</span>
-                <span class="s1">&#39;recommendation&#39;</span><span class="p">:</span> <span class="p">(</span>
-                    <span class="s1">&#39;gh3_update --recover-missing-vars &#39;</span>
-                    <span class="sa">f</span><span class="s2">&quot;(failure_kind=</span><span class="si">{</span><span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;failure_kind&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">)&quot;</span>
+                <span class="s1">'action'</span><span class="p">:</span> <span class="s1">'reported_only'</span><span class="p">,</span>
+                <span class="s1">'recommendation'</span><span class="p">:</span> <span class="p">(</span>
+                    <span class="s1">'gh3_update --recover-missing-vars '</span>
+                    <span class="sa">f</span><span class="s2">"(failure_kind=</span><span class="si">{</span><span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'failure_kind'</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span>
                 <span class="p">),</span>
             <span class="p">})</span>
-        <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;progress_manifest_drift&#39;</span><span class="p">:</span>
+        <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">'progress_manifest_drift'</span><span class="p">:</span>
             <span class="n">new_findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
                 <span class="o">**</span><span class="n">f</span><span class="p">,</span>
-                <span class="s1">&#39;action&#39;</span><span class="p">:</span> <span class="s1">&#39;reported_only&#39;</span><span class="p">,</span>
-                <span class="s1">&#39;recommendation&#39;</span><span class="p">:</span> <span class="s1">&#39;gh3_doctor --fix metadata&#39;</span><span class="p">,</span>
+                <span class="s1">'action'</span><span class="p">:</span> <span class="s1">'reported_only'</span><span class="p">,</span>
+                <span class="s1">'recommendation'</span><span class="p">:</span> <span class="s1">'gh3_doctor --fix metadata'</span><span class="p">,</span>
             <span class="p">})</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">new_findings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
 
     <span class="n">report</span><span class="o">.</span><span class="n">applied</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">report</span><span class="o">.</span><span class="n">findings</span> <span class="o">=</span> <span class="n">new_findings</span>
-    <span class="n">n_errors</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">new_findings</span> <span class="k">if</span> <span class="s1">&#39;fix_error&#39;</span> <span class="ow">in</span> <span class="n">x</span><span class="p">)</span>
+    <span class="n">n_errors</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">new_findings</span> <span class="k">if</span> <span class="s1">'fix_error'</span> <span class="ow">in</span> <span class="n">x</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">n_errors</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
-        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">report</span><span class="o">.</span><span class="n">summary</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">n_errors</span><span class="si">}</span><span class="s2"> fix error(s)&quot;</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">report</span><span class="o">.</span><span class="n">summary</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">n_errors</span><span class="si">}</span><span class="s2"> fix error(s)"</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># WARN remains when granule_failures / drift are reported-only;</span>
         <span class="c1"># downgrade to INFO only when every finding had an action that</span>
         <span class="c1"># actually resolved something on disk.</span>
         <span class="n">any_unresolved</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span>
-            <span class="n">x</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;action&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;reported_only&#39;</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">new_findings</span>
+            <span class="n">x</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'action'</span><span class="p">)</span> <span class="o">==</span> <span class="s1">'reported_only'</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">new_findings</span>
         <span class="p">)</span>
         <span class="k">if</span> <span class="n">preclean_done</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">any_unresolved</span><span class="p">:</span>
             <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span>
             <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;precleaned </span><span class="si">{</span><span class="n">preclean_stats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;partitions_cleaned&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="si">}</span><span class="s2"> partitions: &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">preclean_stats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;parquets_removed&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="si">}</span><span class="s2"> parquets, &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">preclean_stats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;tmps_removed&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="si">}</span><span class="s2"> tmps removed&quot;</span>
+                <span class="sa">f</span><span class="s2">"precleaned </span><span class="si">{</span><span class="n">preclean_stats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'partitions_cleaned'</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="si">}</span><span class="s2"> partitions: "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">preclean_stats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'parquets_removed'</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="si">}</span><span class="s2"> parquets, "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">preclean_stats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'tmps_removed'</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="si">}</span><span class="s2"> tmps removed"</span>
             <span class="p">)</span>
         <span class="k">elif</span> <span class="n">preclean_done</span><span class="p">:</span>
             <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span>
             <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;precleaned </span><span class="si">{</span><span class="n">preclean_stats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;partitions_cleaned&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="si">}</span><span class="s2"> partitions; &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;granule/drift findings reported for follow-up&quot;</span>
+                <span class="sa">f</span><span class="s2">"precleaned </span><span class="si">{</span><span class="n">preclean_stats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'partitions_cleaned'</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="si">}</span><span class="s2"> partitions; "</span>
+                <span class="sa">f</span><span class="s2">"granule/drift findings reported for follow-up"</span>
             <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">report</span></div>
@@ -1047,9 +1047,9 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="n">register</span><span class="p">(</span>
-    <span class="s1">&#39;tmp_partitions_health&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;tmp/partitions/ post-build forensics (merge failures + granule failures + progress drift)&#39;</span><span class="p">,</span>
-    <span class="n">scope</span><span class="o">=</span><span class="s1">&#39;global&#39;</span><span class="p">,</span>
+    <span class="s1">'tmp_partitions_health'</span><span class="p">,</span>
+    <span class="s1">'tmp/partitions/ post-build forensics (merge failures + granule failures + progress drift)'</span><span class="p">,</span>
+    <span class="n">scope</span><span class="o">=</span><span class="s1">'global'</span><span class="p">,</span>
     <span class="n">fix</span><span class="o">=</span><span class="n">tmp_partitions_health_fix</span><span class="p">,</span>
 <span class="p">)(</span><span class="n">tmp_partitions_health_check</span><span class="p">)</span>
 </pre></div>

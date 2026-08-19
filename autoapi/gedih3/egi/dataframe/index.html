@@ -569,11 +569,11 @@ resolution level.</p>
 </dl>
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Add EGI index to GEDI shots</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">gedi_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="s2">&quot;gedi_shots.parquet&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">gedi_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="s2">"gedi_shots.parquet"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">egi_df</span> <span class="o">=</span> <span class="n">egi_dataframe</span><span class="p">(</span><span class="n">gedi_df</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span>  <span class="c1"># ~1km resolution</span>
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Using existing GeoDataFrame</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">&quot;points.gpkg&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">"points.gpkg"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">egi_gdf</span> <span class="o">=</span> <span class="n">egi_dataframe</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -722,13 +722,13 @@ for better performance on large datasets.</p>
 </dl>
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Simple mean aggregation</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">agg_df</span> <span class="o">=</span> <span class="n">egi_aggregate</span><span class="p">(</span><span class="n">shots_df</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">agg_df</span> <span class="o">=</span> <span class="n">egi_aggregate</span><span class="p">(</span><span class="n">shots_df</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="s1">'mean'</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Multiple aggregations</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">agg_df</span> <span class="o">=</span> <span class="n">egi_aggregate</span><span class="p">(</span><span class="n">shots_df</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">,</span> <span class="s1">&#39;std&#39;</span><span class="p">,</span> <span class="s1">&#39;count&#39;</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">agg_df</span> <span class="o">=</span> <span class="n">egi_aggregate</span><span class="p">(</span><span class="n">shots_df</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="p">[</span><span class="s1">'mean'</span><span class="p">,</span> <span class="s1">'std'</span><span class="p">,</span> <span class="s1">'count'</span><span class="p">])</span>
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Per-column specification</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">agg_df</span> <span class="o">=</span> <span class="n">egi_aggregate</span><span class="p">(</span><span class="n">shots_df</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;agbd&#39;</span><span class="p">:</span> <span class="s1">&#39;mean&#39;</span><span class="p">,</span> <span class="s1">&#39;rh_098&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">,</span> <span class="s1">&#39;std&#39;</span><span class="p">]})</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">agg_df</span> <span class="o">=</span> <span class="n">egi_aggregate</span><span class="p">(</span><span class="n">shots_df</span><span class="p">,</span> <span class="n">mapper</span><span class="o">=</span><span class="p">{</span><span class="s1">'agbd'</span><span class="p">:</span> <span class="s1">'mean'</span><span class="p">,</span> <span class="s1">'rh_098'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'mean'</span><span class="p">,</span> <span class="s1">'std'</span><span class="p">]})</span>
 </pre></div>
 </div>
 </dd></dl>

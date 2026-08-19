@@ -760,11 +760,11 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;Read-only inspectors shared across diagnoses.</span>
+<span class="sd">"""Read-only inspectors shared across diagnoses.</span>
 
 <span class="sd">These helpers do not mutate the database. They consolidate filesystem and</span>
-<span class="sd">parquet I/O so individual diagnoses don&#39;t re-walk the same directories.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">parquet I/O so individual diagnoses don't re-walk the same directories.</span>
+<span class="sd">"""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
@@ -781,26 +781,26 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="discover_partition_dirs">
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/inspect/index.html#gedih3.doctor.inspect.discover_partition_dirs">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">discover_partition_dirs</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;List ``h3_*/`` directories under the database root.&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="s1">&#39;h3_*/&#39;</span><span class="p">))</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">d</span><span class="p">))</span></div>
+<span class="w">    </span><span class="sd">"""List ``h3_*/`` directories under the database root."""</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="s1">'h3_*/'</span><span class="p">))</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">d</span><span class="p">))</span></div>
 
 
 
 <div class="viewcode-block" id="partition_meta_file">
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/inspect/index.html#gedih3.doctor.inspect.partition_meta_file">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">partition_meta_file</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Locate the merged partition-level metadata file.</span>
+<span class="w">    </span><span class="sd">"""Locate the merged partition-level metadata file.</span>
 
 <span class="sd">    Per ``h3_merge_metadata`` (gh3builder.py:475), each partition has a single</span>
 <span class="sd">    ``&lt;h3_part&gt;_gedih3_partition_meta.json`` at its root. Returns None if absent.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">files</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;*</span><span class="si">{</span><span class="n">PARTITION_META_FILENAME</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">))</span>
+<span class="sd">    """</span>
+    <span class="n">files</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s1">'*</span><span class="si">{</span><span class="n">PARTITION_META_FILENAME</span><span class="si">}</span><span class="s1">'</span><span class="p">))</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">files</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">None</span>
     <span class="c1"># Prefer the file whose basename has no year prefix (root-level meta).</span>
     <span class="c1"># h3_write_metadata produces ``&lt;h3_part&gt;.&lt;year&gt;_gedih3_partition_meta.json``</span>
     <span class="c1"># per year; h3_merge_metadata writes ``&lt;h3_part&gt;_gedih3_partition_meta.json``.</span>
-    <span class="n">root</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="n">root</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="s1">'.'</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">]</span>
     <span class="k">return</span> <span class="n">root</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">root</span> <span class="k">else</span> <span class="n">files</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
 
 
@@ -808,7 +808,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="load_partition_meta">
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/inspect/index.html#gedih3.doctor.inspect.load_partition_meta">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">load_partition_meta</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Read the merged partition meta JSON (or None if missing).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Read the merged partition meta JSON (or None if missing)."""</span>
     <span class="n">f</span> <span class="o">=</span> <span class="n">partition_meta_file</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">f</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">None</span>
@@ -822,8 +822,8 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="partition_parquet_files">
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/inspect/index.html#gedih3.doctor.inspect.partition_parquet_files">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">partition_parquet_files</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;List the per-year parquet files for one partition.&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">,</span> <span class="s1">&#39;*&#39;</span><span class="p">,</span> <span class="s1">&#39;*.parquet&#39;</span><span class="p">)))</span></div>
+<span class="w">    </span><span class="sd">"""List the per-year parquet files for one partition."""</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">,</span> <span class="s1">'*'</span><span class="p">,</span> <span class="s1">'*.parquet'</span><span class="p">)))</span></div>
 
 
 
@@ -834,7 +834,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">product_columns</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span>
     <span class="n">granule_lookup</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">GranuleKey</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="n">GranuleKey</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Count nulls per (granule, product) pair within one parquet file.</span>
+<span class="w">    </span><span class="sd">"""Count nulls per (granule, product) pair within one parquet file.</span>
 
 <span class="sd">    Granule grouping uses the ``root_file_l2a`` column (the canonical source-</span>
 <span class="sd">    granule pointer written by ``h3_write_metadata``). This matches the granule</span>
@@ -847,14 +847,14 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        ``pd.read_parquet(columns=cols_to_read)`` that used to materialize</span>
 <span class="sd">        every product column × millions of rows in one shot (multiple GB</span>
 <span class="sd">        per file on continental partitions).</span>
-<span class="sd">      * Each batch&#39;s null counts are aggregated into a small accumulator</span>
+<span class="sd">      * Each batch's null counts are aggregated into a small accumulator</span>
 <span class="sd">        dict (``O(num_granules × num_products)``) and the batch is dropped</span>
 <span class="sd">        before the next is read — so worker RSS is bounded by one batch</span>
 <span class="sd">        regardless of file size.</span>
 <span class="sd">      * Native arrow null counting + ``groupby`` on a per-batch</span>
 <span class="sd">        DataFrame; no full-file ``isnull().any(axis=1)`` allocation.</span>
 <span class="sd">      * ``pa.default_memory_pool().release_unused()`` at end so the</span>
-<span class="sd">        worker doesn&#39;t drag transient buffers into the next task.</span>
+<span class="sd">        worker doesn't drag transient buffers into the next task.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -871,11 +871,11 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    dict</span>
 <span class="sd">        ``{(orbit, orbit_granule, track): {product_code: null_count}}``. Only</span>
 <span class="sd">        granule × product combos with at least one null are returned.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">..gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEDIFile</span>
 
-    <span class="n">cols_to_read</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">,</span> <span class="s1">&#39;root_file_l2a&#39;</span><span class="p">]</span>
+    <span class="n">cols_to_read</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'shot_number'</span><span class="p">,</span> <span class="s1">'root_file_l2a'</span><span class="p">]</span>
     <span class="k">for</span> <span class="n">cols</span> <span class="ow">in</span> <span class="n">product_columns</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
         <span class="n">cols_to_read</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span>
     <span class="n">cols_to_read</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">cols_to_read</span><span class="p">))</span>
@@ -888,13 +888,13 @@ window.runMermaid = runMermaid;</script>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">pf</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetFile</span><span class="p">(</span><span class="n">parquet_file</span><span class="p">,</span> <span class="n">pre_buffer</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="n">schema_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">pf</span><span class="o">.</span><span class="n">schema_arrow</span><span class="o">.</span><span class="n">names</span><span class="p">)</span>
-        <span class="k">if</span> <span class="s1">&#39;root_file_l2a&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">schema_names</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s1">'root_file_l2a'</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">schema_names</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">{}</span>
 
-        <span class="c1"># Drop columns the file doesn&#39;t carry (bare-DB partitions for</span>
-        <span class="c1"># products that haven&#39;t been merged in yet).</span>
+        <span class="c1"># Drop columns the file doesn't carry (bare-DB partitions for</span>
+        <span class="c1"># products that haven't been merged in yet).</span>
         <span class="n">cols_actually_present</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cols_to_read</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">schema_names</span><span class="p">]</span>
-        <span class="k">if</span> <span class="s1">&#39;root_file_l2a&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cols_actually_present</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s1">'root_file_l2a'</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cols_actually_present</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">{}</span>
 
         <span class="c1"># Per-product list of columns that exist in this file. Computed</span>
@@ -922,7 +922,7 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">null_mask</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">present_cols</span><span class="p">]</span><span class="o">.</span><span class="n">isnull</span><span class="p">()</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">null_mask</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
                     <span class="k">continue</span>
-                <span class="n">nulls_by_file</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">null_mask</span><span class="p">]</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;root_file_l2a&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">size</span><span class="p">()</span>
+                <span class="n">nulls_by_file</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">null_mask</span><span class="p">]</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">'root_file_l2a'</span><span class="p">)</span><span class="o">.</span><span class="n">size</span><span class="p">()</span>
                 <span class="k">for</span> <span class="n">fname</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">nulls_by_file</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                     <span class="n">key</span> <span class="o">=</span> <span class="n">granule_lookup</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">fname</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -948,15 +948,15 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="product_columns_in_schema">
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/inspect/index.html#gedih3.doctor.inspect.product_columns_in_schema">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">product_columns_in_schema</span><span class="p">(</span><span class="n">columns</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">products</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Group columns by product suffix.</span>
+<span class="w">    </span><span class="sd">"""Group columns by product suffix.</span>
 
 <span class="sd">    Returns ``{product_code: [columns...]}`` for each product whose suffix</span>
 <span class="sd">    appears at least once. Products with no matching column are omitted.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">cols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span>
     <span class="n">out</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">prod</span> <span class="ow">in</span> <span class="n">products</span><span class="p">:</span>
-        <span class="n">suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span>
         <span class="n">matched</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cols</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">suffix</span><span class="p">)]</span>
         <span class="k">if</span> <span class="n">matched</span><span class="p">:</span>
             <span class="n">out</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="n">matched</span>

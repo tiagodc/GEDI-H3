@@ -761,7 +761,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="sd">gedih3 Exception Hierarchy</span>
 
 <span class="sd">Custom exceptions for structured error handling throughout the package.</span>
@@ -773,14 +773,14 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    try:</span>
 <span class="sd">        download_granule(granule, odir)</span>
 <span class="sd">    except GediDownloadError as e:</span>
-<span class="sd">        logger.error(f&quot;Download failed: {e}&quot;)</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        logger.error(f"Download failed: {e}")</span>
+<span class="sd">"""</span>
 
 
 <div class="viewcode-block" id="GediError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Base exception for all gedih3 errors.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Base exception for all gedih3 errors."""</span>
     <span class="k">pass</span></div>
 
 
@@ -792,7 +792,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediNetworkError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediNetworkError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediNetworkError</span><span class="p">(</span><span class="n">GediError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Base exception for network-related errors.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Base exception for network-related errors."""</span>
     <span class="k">pass</span></div>
 
 
@@ -800,7 +800,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediDownloadError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediDownloadError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediDownloadError</span><span class="p">(</span><span class="n">GediNetworkError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error during file download from NASA DAAC.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error during file download from NASA DAAC."""</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">granule_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">granule_id</span> <span class="o">=</span> <span class="n">granule_id</span>
@@ -812,7 +812,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediAuthenticationError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediAuthenticationError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediAuthenticationError</span><span class="p">(</span><span class="n">GediNetworkError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error during NASA Earthdata authentication.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error during NASA Earthdata authentication."""</span>
     <span class="k">pass</span></div>
 
 
@@ -820,7 +820,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediS3AccessError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediS3AccessError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediS3AccessError</span><span class="p">(</span><span class="n">GediNetworkError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error accessing GEDI data via S3.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error accessing GEDI data via S3."""</span>
     <span class="k">pass</span></div>
 
 
@@ -828,7 +828,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediIncompleteListingError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediIncompleteListingError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediIncompleteListingError</span><span class="p">(</span><span class="n">GediNetworkError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;CMR returned fewer granules than its own CMR-Hits count (silent truncation).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""CMR returned fewer granules than its own CMR-Hits count (silent truncation)."""</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">expected</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">received</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">expected</span> <span class="o">=</span> <span class="n">expected</span>
@@ -844,7 +844,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediValidationError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediValidationError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediValidationError</span><span class="p">(</span><span class="n">GediError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Base exception for validation errors.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Base exception for validation errors."""</span>
     <span class="k">pass</span></div>
 
 
@@ -852,7 +852,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="H3ValidationError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.H3ValidationError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">H3ValidationError</span><span class="p">(</span><span class="n">GediValidationError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error in H3 parameter validation.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error in H3 parameter validation."""</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">param_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">param_name</span> <span class="o">=</span> <span class="n">param_name</span>
@@ -864,7 +864,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="EGIValidationError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.EGIValidationError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">EGIValidationError</span><span class="p">(</span><span class="n">GediValidationError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error in EGI parameter validation.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error in EGI parameter validation."""</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">param_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">param_name</span> <span class="o">=</span> <span class="n">param_name</span>
@@ -876,7 +876,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediProductError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediProductError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediProductError</span><span class="p">(</span><span class="n">GediValidationError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error with GEDI product specification.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error with GEDI product specification."""</span>
     <span class="k">pass</span></div>
 
 
@@ -884,7 +884,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediVariableError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediVariableError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediVariableError</span><span class="p">(</span><span class="n">GediValidationError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error with GEDI variable specification.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error with GEDI variable specification."""</span>
     <span class="k">pass</span></div>
 
 
@@ -896,7 +896,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediFileError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediFileError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediFileError</span><span class="p">(</span><span class="n">GediError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Base exception for file-related errors.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Base exception for file-related errors."""</span>
     <span class="k">pass</span></div>
 
 
@@ -904,7 +904,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediHDF5Error">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediHDF5Error">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediHDF5Error</span><span class="p">(</span><span class="n">GediFileError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error reading/processing HDF5 file.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error reading/processing HDF5 file."""</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">file_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">file_path</span> <span class="o">=</span> <span class="n">file_path</span>
@@ -915,7 +915,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediParquetError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediParquetError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediParquetError</span><span class="p">(</span><span class="n">GediFileError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error reading/writing Parquet file.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error reading/writing Parquet file."""</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">file_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">file_path</span> <span class="o">=</span> <span class="n">file_path</span>
@@ -926,7 +926,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediCorruptedFileError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediCorruptedFileError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediCorruptedFileError</span><span class="p">(</span><span class="n">GediFileError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;File is corrupted or unreadable.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""File is corrupted or unreadable."""</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">file_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">file_path</span> <span class="o">=</span> <span class="n">file_path</span>
@@ -937,7 +937,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediTransactionError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediTransactionError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediTransactionError</span><span class="p">(</span><span class="n">GediFileError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error during atomic file operation.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error during atomic file operation."""</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">source_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">dest_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">source_path</span> <span class="o">=</span> <span class="n">source_path</span>
@@ -953,7 +953,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediDatabaseError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediDatabaseError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediDatabaseError</span><span class="p">(</span><span class="n">GediError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Base exception for H3 database errors.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Base exception for H3 database errors."""</span>
     <span class="k">pass</span></div>
 
 
@@ -961,7 +961,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediDatabaseNotFoundError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediDatabaseNotFoundError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediDatabaseNotFoundError</span><span class="p">(</span><span class="n">GediDatabaseError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;H3 database directory not found.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""H3 database directory not found."""</span>
     <span class="k">pass</span></div>
 
 
@@ -969,7 +969,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediDatabaseCorruptedError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediDatabaseCorruptedError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediDatabaseCorruptedError</span><span class="p">(</span><span class="n">GediDatabaseError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;H3 database is corrupted or inconsistent.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""H3 database is corrupted or inconsistent."""</span>
     <span class="k">pass</span></div>
 
 
@@ -977,7 +977,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediMergeError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediMergeError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediMergeError</span><span class="p">(</span><span class="n">GediDatabaseError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error merging H3 partitions or databases.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error merging H3 partitions or databases."""</span>
     <span class="k">pass</span></div>
 
 
@@ -989,7 +989,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediSpatialError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediSpatialError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediSpatialError</span><span class="p">(</span><span class="n">GediError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error with spatial operations or filters.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error with spatial operations or filters."""</span>
     <span class="k">pass</span></div>
 
 
@@ -997,7 +997,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediTemporalError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediTemporalError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediTemporalError</span><span class="p">(</span><span class="n">GediError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error with temporal operations or filters.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error with temporal operations or filters."""</span>
     <span class="k">pass</span></div>
 
 
@@ -1009,7 +1009,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediProcessingError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediProcessingError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediProcessingError</span><span class="p">(</span><span class="n">GediError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Base exception for data processing errors.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Base exception for data processing errors."""</span>
     <span class="k">pass</span></div>
 
 
@@ -1017,7 +1017,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediAggregationError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediAggregationError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediAggregationError</span><span class="p">(</span><span class="n">GediProcessingError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error during data aggregation.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error during data aggregation."""</span>
     <span class="k">pass</span></div>
 
 
@@ -1025,7 +1025,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediRasterizationError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediRasterizationError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediRasterizationError</span><span class="p">(</span><span class="n">GediProcessingError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error during rasterization.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error during rasterization."""</span>
     <span class="k">pass</span></div>
 
 
@@ -1033,7 +1033,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediImageSamplingError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediImageSamplingError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediImageSamplingError</span><span class="p">(</span><span class="n">GediProcessingError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error during raster image sampling at GEDI shot locations.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error during raster image sampling at GEDI shot locations."""</span>
     <span class="k">pass</span></div>
 
 
@@ -1041,7 +1041,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GediSpatialJoinError">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.GediSpatialJoinError">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GediSpatialJoinError</span><span class="p">(</span><span class="n">GediProcessingError</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Error during spatial join of vector data to GEDI shot locations.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Error during spatial join of vector data to GEDI shot locations."""</span>
     <span class="k">pass</span></div>
 
 
@@ -1052,22 +1052,22 @@ window.runMermaid = runMermaid;</script>
 
 <span class="c1"># Default retry settings for network operations</span>
 <span class="n">RETRY_DEFAULTS</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;max_attempts&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
-    <span class="s1">&#39;initial_wait&#39;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span>  <span class="c1"># seconds</span>
-    <span class="s1">&#39;max_wait&#39;</span><span class="p">:</span> <span class="mf">60.0</span><span class="p">,</span>  <span class="c1"># seconds</span>
-    <span class="s1">&#39;exponential_base&#39;</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">,</span>
-    <span class="s1">&#39;jitter&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s1">'max_attempts'</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="s1">'initial_wait'</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span>  <span class="c1"># seconds</span>
+    <span class="s1">'max_wait'</span><span class="p">:</span> <span class="mf">60.0</span><span class="p">,</span>  <span class="c1"># seconds</span>
+    <span class="s1">'exponential_base'</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">,</span>
+    <span class="s1">'jitter'</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">}</span>
 
 
 <div class="viewcode-block" id="is_retryable_error">
 <a class="viewcode-back" href="../../autoapi/gedih3/exceptions/index.html#gedih3.exceptions.is_retryable_error">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">is_retryable_error</span><span class="p">(</span><span class="n">exception</span><span class="p">:</span> <span class="ne">Exception</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Determine if an exception is retryable.</span>
 
 <span class="sd">    Returns True for transient network errors that may succeed on retry.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">socket</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">urllib.error</span>
 
@@ -1100,12 +1100,12 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># Check for HTTP status codes in exception message</span>
     <span class="n">error_msg</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">exception</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
     <span class="n">retryable_patterns</span> <span class="o">=</span> <span class="p">[</span>
-        <span class="s1">&#39;500&#39;</span><span class="p">,</span> <span class="s1">&#39;502&#39;</span><span class="p">,</span> <span class="s1">&#39;503&#39;</span><span class="p">,</span> <span class="s1">&#39;504&#39;</span><span class="p">,</span>  <span class="c1"># Server errors</span>
-        <span class="s1">&#39;timeout&#39;</span><span class="p">,</span> <span class="s1">&#39;timed out&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;connection reset&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;connection refused&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;temporary failure&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;service unavailable&#39;</span><span class="p">,</span>
+        <span class="s1">'500'</span><span class="p">,</span> <span class="s1">'502'</span><span class="p">,</span> <span class="s1">'503'</span><span class="p">,</span> <span class="s1">'504'</span><span class="p">,</span>  <span class="c1"># Server errors</span>
+        <span class="s1">'timeout'</span><span class="p">,</span> <span class="s1">'timed out'</span><span class="p">,</span>
+        <span class="s1">'connection reset'</span><span class="p">,</span>
+        <span class="s1">'connection refused'</span><span class="p">,</span>
+        <span class="s1">'temporary failure'</span><span class="p">,</span>
+        <span class="s1">'service unavailable'</span><span class="p">,</span>
     <span class="p">]</span>
 
     <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">pattern</span> <span class="ow">in</span> <span class="n">error_msg</span> <span class="k">for</span> <span class="n">pattern</span> <span class="ow">in</span> <span class="n">retryable_patterns</span><span class="p">)</span></div>

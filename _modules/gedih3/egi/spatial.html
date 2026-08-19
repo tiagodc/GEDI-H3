@@ -760,7 +760,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="sd">EGI (EASE Grid Index) Spatial Module</span>
 
 <span class="sd">This module provides spatial operations for EGI indices including:</span>
@@ -769,7 +769,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">- Neighbor finding (pixel ring)</span>
 <span class="sd">- Child pixel enumeration</span>
 <span class="sd">- Area of Interest (AOI) tile generation</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Union</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">numpy.typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">NDArray</span>
@@ -789,7 +789,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">x</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">floating</span><span class="p">]],</span>
     <span class="n">y</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">floating</span><span class="p">]]</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">floating</span><span class="p">]],</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">floating</span><span class="p">]]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Clamp coordinates to EPSG:6933 valid bounds.</span>
 
 <span class="sd">    Parameters</span>
@@ -803,13 +803,13 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    tuple</span>
 <span class="sd">        (x, y) clamped to valid bounds</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
-        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lon_w&#39;</span><span class="p">],</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lon_e&#39;</span><span class="p">])</span>
-        <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lat_s&#39;</span><span class="p">],</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lat_n&#39;</span><span class="p">])</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lon_w'</span><span class="p">],</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lon_e'</span><span class="p">])</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lat_s'</span><span class="p">],</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lat_n'</span><span class="p">])</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">x</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lon_w&#39;</span><span class="p">]),</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lon_e&#39;</span><span class="p">])</span>
-        <span class="n">y</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lat_s&#39;</span><span class="p">]),</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lat_n&#39;</span><span class="p">])</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lon_w'</span><span class="p">]),</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lon_e'</span><span class="p">])</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lat_s'</span><span class="p">]),</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lat_n'</span><span class="p">])</span>
     <span class="k">return</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span></div>
 
 
@@ -821,7 +821,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">center</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">return_point</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">Point</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Get the coordinate of an EGI pixel.</span>
 
 <span class="sd">    Parameters</span>
@@ -842,13 +842,13 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; x, y = pixel_coordinate(hash_val)</span>
 <span class="sd">    &gt;&gt;&gt; point = pixel_coordinate(hash_val, return_point=True)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">level</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">px_outer</span><span class="p">,</span> <span class="n">py_outer</span><span class="p">,</span> <span class="n">px_inner</span><span class="p">,</span> <span class="n">py_inner</span> <span class="o">=</span> <span class="n">from_hash</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">)</span>
 
     <span class="c1"># Calculate absolute coordinates from tile + pixel position</span>
     <span class="c1"># Cast to float64 to avoid uint16 overflow when OUTER_RES is large</span>
-    <span class="n">px</span> <span class="o">=</span> <span class="n">scale</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">px_inner</span><span class="p">)</span> <span class="o">+</span> <span class="n">OUTER_RES</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">px_outer</span><span class="p">)</span> <span class="o">+</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lon_w&#39;</span><span class="p">]</span>
-    <span class="n">py</span> <span class="o">=</span> <span class="n">scale</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">py_inner</span><span class="p">)</span> <span class="o">+</span> <span class="n">OUTER_RES</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">py_outer</span><span class="p">)</span> <span class="o">+</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lat_s&#39;</span><span class="p">]</span>
+    <span class="n">px</span> <span class="o">=</span> <span class="n">scale</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">px_inner</span><span class="p">)</span> <span class="o">+</span> <span class="n">OUTER_RES</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">px_outer</span><span class="p">)</span> <span class="o">+</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lon_w'</span><span class="p">]</span>
+    <span class="n">py</span> <span class="o">=</span> <span class="n">scale</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">py_inner</span><span class="p">)</span> <span class="o">+</span> <span class="n">OUTER_RES</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">py_outer</span><span class="p">)</span> <span class="o">+</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lat_s'</span><span class="p">]</span>
 
     <span class="k">if</span> <span class="n">center</span><span class="p">:</span>
         <span class="n">px</span> <span class="o">+=</span> <span class="n">scale</span> <span class="o">/</span> <span class="mi">2</span>
@@ -867,7 +867,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">uint_hash</span><span class="p">:</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">],</span>
     <span class="n">center</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">floating</span><span class="p">],</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">floating</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Get coordinates for multiple EGI pixels (vectorized).</span>
 
 <span class="sd">    Parameters</span>
@@ -881,13 +881,13 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    tuple</span>
 <span class="sd">        (x_array, y_array) coordinates in EPSG:6933</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">level</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">px_outer</span><span class="p">,</span> <span class="n">py_outer</span><span class="p">,</span> <span class="n">px_inner</span><span class="p">,</span> <span class="n">py_inner</span> <span class="o">=</span> <span class="n">from_hash</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">)</span>
 
     <span class="c1"># Vectorized coordinate calculation</span>
     <span class="c1"># Cast to float64 to avoid uint16 overflow when OUTER_RES is large</span>
-    <span class="n">px</span> <span class="o">=</span> <span class="n">scale</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">px_inner</span><span class="p">)</span> <span class="o">+</span> <span class="n">OUTER_RES</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">px_outer</span><span class="p">)</span> <span class="o">+</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lon_w&#39;</span><span class="p">]</span>
-    <span class="n">py</span> <span class="o">=</span> <span class="n">scale</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">py_inner</span><span class="p">)</span> <span class="o">+</span> <span class="n">OUTER_RES</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">py_outer</span><span class="p">)</span> <span class="o">+</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lat_s&#39;</span><span class="p">]</span>
+    <span class="n">px</span> <span class="o">=</span> <span class="n">scale</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">px_inner</span><span class="p">)</span> <span class="o">+</span> <span class="n">OUTER_RES</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">px_outer</span><span class="p">)</span> <span class="o">+</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lon_w'</span><span class="p">]</span>
+    <span class="n">py</span> <span class="o">=</span> <span class="n">scale</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">py_inner</span><span class="p">)</span> <span class="o">+</span> <span class="n">OUTER_RES</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">py_outer</span><span class="p">)</span> <span class="o">+</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lat_s'</span><span class="p">]</span>
 
     <span class="k">if</span> <span class="n">center</span><span class="p">:</span>
         <span class="n">px</span> <span class="o">=</span> <span class="n">px</span> <span class="o">+</span> <span class="n">scale</span> <span class="o">/</span> <span class="mi">2</span>
@@ -901,7 +901,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="pixel_shape">
 <a class="viewcode-back" href="../../../autoapi/gedih3/egi/spatial/index.html#gedih3.egi.spatial.pixel_shape">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">pixel_shape</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Polygon</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Get the bounding polygon of an EGI pixel.</span>
 
 <span class="sd">    Parameters</span>
@@ -918,7 +918,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; geom = pixel_shape(hash_val)</span>
 <span class="sd">    &gt;&gt;&gt; area_m2 = geom.area</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">level</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">)</span> <span class="o">//</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="mf">1e18</span><span class="p">))</span>
     <span class="n">scale</span> <span class="o">=</span> <span class="n">RESOLUTIONS</span><span class="p">[</span><span class="n">level</span><span class="p">]</span>
 
@@ -938,7 +938,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">uint_hash</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">,</span>
     <span class="n">include_input</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Get the 8 neighboring pixels (ring) around an EGI pixel.</span>
 
 <span class="sd">    Parameters</span>
@@ -957,12 +957,12 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -----</span>
 <span class="sd">    Pixels at the edge of the projection bounds will have fewer than 8 neighbors.</span>
 <span class="sd">    The function correctly handles tile boundary crossings.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">level</span><span class="p">,</span> <span class="n">scale</span><span class="p">,</span> <span class="n">px_outer</span><span class="p">,</span> <span class="n">py_outer</span><span class="p">,</span> <span class="n">px_inner</span><span class="p">,</span> <span class="n">py_inner</span> <span class="o">=</span> <span class="n">from_hash</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">)</span>
     <span class="n">level</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
     <span class="n">max_pix</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">pixels_per_tile</span><span class="p">(</span><span class="n">uint_hash</span><span class="p">))</span> <span class="o">-</span> <span class="mi">1</span>
-    <span class="n">max_tile_x</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lon_e&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lon_w&#39;</span><span class="p">])</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span>
-    <span class="n">max_tile_y</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lat_n&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lat_s&#39;</span><span class="p">])</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span>
+    <span class="n">max_tile_x</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lon_e'</span><span class="p">]</span> <span class="o">-</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lon_w'</span><span class="p">])</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span>
+    <span class="n">max_tile_y</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lat_n'</span><span class="p">]</span> <span class="o">-</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lat_s'</span><span class="p">])</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span>
 
     <span class="n">neighbors</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
@@ -1007,7 +1007,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="aoi_tiles">
 <a class="viewcode-back" href="../../../autoapi/gedih3/egi/spatial/index.html#gedih3.egi.spatial.aoi_tiles">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">aoi_tiles</span><span class="p">(</span><span class="n">region</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Generate outer tiles (level 12) covering an area of interest.</span>
 
 <span class="sd">    Parameters</span>
@@ -1028,15 +1028,15 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; # Get tiles for a specific region</span>
-<span class="sd">    &gt;&gt;&gt; region = gpd.read_file(&quot;study_area.shp&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; region = gpd.read_file("study_area.shp")</span>
 <span class="sd">    &gt;&gt;&gt; tiles = aoi_tiles(region)</span>
 <span class="sd">    &gt;&gt;&gt;</span>
 <span class="sd">    &gt;&gt;&gt; # Get all global tiles</span>
 <span class="sd">    &gt;&gt;&gt; all_tiles = aoi_tiles()</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="c1"># Calculate number of tiles in each dimension</span>
-    <span class="n">xn</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lon_e&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lon_w&#39;</span><span class="p">])</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span>
-    <span class="n">yn</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lat_n&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">&#39;lat_s&#39;</span><span class="p">])</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span>
+    <span class="n">xn</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lon_e'</span><span class="p">]</span> <span class="o">-</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lon_w'</span><span class="p">])</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span>
+    <span class="n">yn</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lat_n'</span><span class="p">]</span> <span class="o">-</span> <span class="n">LIMITS</span><span class="p">[</span><span class="s1">'lat_s'</span><span class="p">])</span> <span class="o">//</span> <span class="n">OUTER_RES</span><span class="p">)</span>
 
     <span class="c1"># Generate all tile indices</span>
     <span class="n">pairs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">xn</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="nb">range</span><span class="p">(</span><span class="n">yn</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)))</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
@@ -1053,7 +1053,7 @@ window.runMermaid = runMermaid;</script>
 
     <span class="k">if</span> <span class="n">region</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">region</span><span class="o">.</span><span class="n">crs</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Input region has no CRS defined&#39;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">'Input region has no CRS defined'</span><span class="p">)</span>
 
         <span class="c1"># Densify before reprojecting: to_crs moves vertices only, and in</span>
         <span class="c1"># EPSG:6933 y = A*sin(lat) bends straight lon/lat edges — the chord</span>
@@ -1069,7 +1069,7 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># per-tile .apply this replaces scanned all 19,656 global tiles</span>
         <span class="c1"># against the region serially (~1.5 s per query for a 5-deg ROI).</span>
         <span class="n">hit</span> <span class="o">=</span> <span class="n">tiles</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">sindex</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">reg</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">union_all</span><span class="p">(),</span>
-                                          <span class="n">predicate</span><span class="o">=</span><span class="s1">&#39;intersects&#39;</span><span class="p">)</span>
+                                          <span class="n">predicate</span><span class="o">=</span><span class="s1">'intersects'</span><span class="p">)</span>
         <span class="n">tiles</span> <span class="o">=</span> <span class="n">tiles</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">hit</span><span class="p">))]</span>
 
     <span class="k">return</span> <span class="n">tiles</span></div>
@@ -1082,7 +1082,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">uint_hash_iter</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">],</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">]],</span>
     <span class="n">return_polygons</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Convert EGI hashes to a GeoDataFrame.</span>
 
 <span class="sd">    Parameters</span>
@@ -1100,14 +1100,14 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; gdf = to_geodataframe(egi_hashes, return_polygons=True)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">uint_hash_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">uint_hash_iter</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
 
     <span class="c1"># Handle empty arrays (e.g., during Dask operations on empty partitions)</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">uint_hash_arr</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="c1"># Return empty GeoDataFrame with correct structure</span>
-        <span class="c1"># Use a default level since we can&#39;t infer from empty array</span>
-        <span class="n">idx_name</span> <span class="o">=</span> <span class="s1">&#39;egi_hash&#39;</span>
+        <span class="c1"># Use a default level since we can't infer from empty array</span>
+        <span class="n">idx_name</span> <span class="o">=</span> <span class="s1">'egi_hash'</span>
         <span class="k">return</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span>
             <span class="p">{</span><span class="n">idx_name</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)},</span>
             <span class="n">geometry</span><span class="o">=</span><span class="p">[],</span>
@@ -1119,7 +1119,7 @@ window.runMermaid = runMermaid;</script>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">geometries</span> <span class="o">=</span> <span class="p">[</span><span class="n">pixel_coordinate</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">center</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">return_point</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="n">uint_hash_arr</span><span class="p">]</span>
 
-    <span class="c1"># Determine column name from first hash&#39;s level</span>
+    <span class="c1"># Determine column name from first hash's level</span>
     <span class="n">level</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">uint_hash_arr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">//</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="mf">1e18</span><span class="p">))</span>
     <span class="n">idx_name</span> <span class="o">=</span> <span class="n">egi_col_name</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
 
@@ -1139,7 +1139,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">egi_tiles</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">,</span>
     <span class="n">h3_gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Map EGI tiles to intersecting H3 partition cells using spatial index.</span>
 
 <span class="sd">    Maps each EGI tile to the union of:</span>
@@ -1157,7 +1157,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    intersection silently misses them — observed in production: a single</span>
 <span class="sd">    L3 partition with 1.84M shots had 84k (~5%) stored under a partition</span>
 <span class="sd">    whose polygon did not intersect their true L12 tile. Including ring-1</span>
-<span class="sd">    neighbors closes this gap because the &quot;fat-partition&quot; extent is</span>
+<span class="sd">    neighbors closes this gap because the "fat-partition" extent is</span>
 <span class="sd">    bounded by one neighbor-cell width.</span>
 
 <span class="sd">    Parameters</span>
@@ -1179,7 +1179,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    &gt;&gt;&gt; egi_to_h3 = egi_h3_intersection(egi_tiles, h3_gdf)</span>
 <span class="sd">    &gt;&gt;&gt; for egi_id, h3_list in egi_to_h3.items():</span>
 <span class="sd">    ...     # Load data from h3_list files for egi_id tile</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">..h3utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">h3_expand_ring</span>
 
     <span class="c1"># Use EPSG:6933 (EGI native CRS) for intersection.</span>
@@ -1196,14 +1196,14 @@ window.runMermaid = runMermaid;</script>
 
     <span class="n">egi_to_h3</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">egi_id</span> <span class="ow">in</span> <span class="n">egi_tiles</span><span class="o">.</span><span class="n">index</span><span class="p">:</span>
-        <span class="n">egi_geom</span> <span class="o">=</span> <span class="n">egi_tiles</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">egi_id</span><span class="p">,</span> <span class="s1">&#39;geometry&#39;</span><span class="p">]</span>
+        <span class="n">egi_geom</span> <span class="o">=</span> <span class="n">egi_tiles</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">egi_id</span><span class="p">,</span> <span class="s1">'geometry'</span><span class="p">]</span>
         <span class="c1"># Query spatial index for intersecting H3 cells</span>
-        <span class="n">candidate_idx</span> <span class="o">=</span> <span class="n">h3_sindex</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">egi_geom</span><span class="p">,</span> <span class="n">predicate</span><span class="o">=</span><span class="s1">&#39;intersects&#39;</span><span class="p">)</span>
+        <span class="n">candidate_idx</span> <span class="o">=</span> <span class="n">h3_sindex</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">egi_geom</span><span class="p">,</span> <span class="n">predicate</span><span class="o">=</span><span class="s1">'intersects'</span><span class="p">)</span>
         <span class="n">intersecting_h3</span> <span class="o">=</span> <span class="n">h3_gdf</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="n">candidate_idx</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">intersecting_h3</span><span class="p">:</span>
             <span class="k">continue</span>
         <span class="c1"># Expand by ring-1 neighbors (filtered to valid partitions in the DB).</span>
-        <span class="c1"># Captures boundary shots stored in partitions whose polygon doesn&#39;t</span>
+        <span class="c1"># Captures boundary shots stored in partitions whose polygon doesn't</span>
         <span class="c1"># overlap the EGI tile but which contain shots in that tile.</span>
         <span class="n">egi_to_h3</span><span class="p">[</span><span class="n">egi_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">h3_expand_ring</span><span class="p">(</span><span class="n">intersecting_h3</span><span class="p">,</span> <span class="n">valid</span><span class="o">=</span><span class="n">valid_partitions</span><span class="p">)</span>
 

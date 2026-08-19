@@ -760,7 +760,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;soc_health diagnosis — invalid HDF5 files + download log drift.</span>
+<span class="sd">"""soc_health diagnosis — invalid HDF5 files + download log drift.</span>
 
 <span class="sd">Detects:</span>
 <span class="sd">  - SOC HDF5 files that fail :func:`h5_is_valid`.</span>
@@ -776,11 +776,11 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    :func:`gedih3.parallel.walk_soc_parallel`. The legacy</span>
 <span class="sd">    ``_soc_manifest.txt`` shortcut was removed from the read path</span>
 <span class="sd">    because external population (manual rsync, NASA delivery) bypasses</span>
-<span class="sd">    the producer-driven refresh and silently narrows the doctor&#39;s view.</span>
+<span class="sd">    the producer-driven refresh and silently narrows the doctor's view.</span>
 <span class="sd">  * Per-file ``h5_is_valid`` checks are dispatched in parallel via</span>
 <span class="sd">    :func:`gedih3.doctor.parallel.parallel_map` when a dask client is</span>
 <span class="sd">    registered.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
@@ -792,36 +792,36 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_check_h5_file</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Worker: validate one HDF5; return {&#39;valid&#39;: bool, &#39;size&#39;: int, &#39;err&#39;: str|None}.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Worker: validate one HDF5; return {'valid': bool, 'size': int, 'err': str|None}."""</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">...utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">h5_is_valid</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">valid</span> <span class="o">=</span> <span class="n">h5_is_valid</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
-        <span class="n">err</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">valid</span> <span class="k">else</span> <span class="s1">&#39;not a valid GEDI HDF5&#39;</span>
+        <span class="n">err</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">valid</span> <span class="k">else</span> <span class="s1">'not a valid GEDI HDF5'</span>
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
         <span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="n">err</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">err</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">size</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getsize</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
         <span class="n">size</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;valid&#39;</span><span class="p">:</span> <span class="n">valid</span><span class="p">,</span> <span class="s1">&#39;size&#39;</span><span class="p">:</span> <span class="n">size</span><span class="p">,</span> <span class="s1">&#39;err&#39;</span><span class="p">:</span> <span class="n">err</span><span class="p">}</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s1">'valid'</span><span class="p">:</span> <span class="n">valid</span><span class="p">,</span> <span class="s1">'size'</span><span class="p">:</span> <span class="n">size</span><span class="p">,</span> <span class="s1">'err'</span><span class="p">:</span> <span class="n">err</span><span class="p">}</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_enumerate_soc_files</span><span class="p">(</span><span class="n">soc_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return every ``GEDI*.h5`` path under *soc_dir*.</span>
+<span class="w">    </span><span class="sd">"""Return every ``GEDI*.h5`` path under *soc_dir*.</span>
 
 <span class="sd">    Always walks the tree in parallel via the registered dask Client.</span>
 <span class="sd">    We intentionally do not consume ``_soc_manifest.txt`` here:</span>
 <span class="sd">    external population paths (manual rsync, NASA delivery) bypass the</span>
 <span class="sd">    producer-driven refresh and would leave the manifest stale relative</span>
-<span class="sd">    to disk, silently narrowing the doctor&#39;s view. Returns the *full*</span>
+<span class="sd">    to disk, silently narrowing the doctor's view. Returns the *full*</span>
 <span class="sd">    file list — unlike :func:`soc_file_tree(..., to_list=True)`, which</span>
 <span class="sd">    pivots by orbit/track and ``dropna()``s rows where any product is</span>
 <span class="sd">    absent, silently excluding partial-download granules from</span>
 <span class="sd">    downstream scans.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">...parallel</span><span class="w"> </span><span class="kn">import</span> <span class="n">walk_soc_parallel</span>
-    <span class="k">return</span> <span class="n">walk_soc_parallel</span><span class="p">(</span><span class="n">soc_dir</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="s1">&#39;GEDI*.h5&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">walk_soc_parallel</span><span class="p">(</span><span class="n">soc_dir</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="s1">'GEDI*.h5'</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="soc_health_check">
@@ -831,8 +831,8 @@ window.runMermaid = runMermaid;</script>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">soc_dir</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">soc_dir</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">Report</span><span class="p">(</span>
-            <span class="n">name</span><span class="o">=</span><span class="s1">&#39;soc_health&#39;</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span>
-            <span class="n">summary</span><span class="o">=</span><span class="s1">&#39;no SOC directory configured; skipping&#39;</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="s1">'soc_health'</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span>
+            <span class="n">summary</span><span class="o">=</span><span class="s1">'no SOC directory configured; skipping'</span><span class="p">,</span>
         <span class="p">)</span>
 
     <span class="n">soc_files</span> <span class="o">=</span> <span class="n">_enumerate_soc_files</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">soc_dir</span><span class="p">)</span>
@@ -846,21 +846,21 @@ window.runMermaid = runMermaid;</script>
     <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span>
         <span class="n">soc_files</span><span class="p">,</span>
         <span class="n">_check_h5_file</span><span class="p">,</span>
-        <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">&#39;args&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-        <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;soc_health: scanning HDF5 files&#39;</span><span class="p">,</span>
-        <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;file&#39;</span><span class="p">,</span>
+        <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">'args'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="n">desc</span><span class="o">=</span><span class="s1">'soc_health: scanning HDF5 files'</span><span class="p">,</span>
+        <span class="n">unit</span><span class="o">=</span><span class="s1">'file'</span><span class="p">,</span>
         <span class="n">batch_size</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
             <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;invalid_h5&#39;</span><span class="p">,</span> <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">f</span><span class="p">,</span> <span class="s1">&#39;size_bytes&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
-                <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'invalid_h5'</span><span class="p">,</span> <span class="s1">'path'</span><span class="p">:</span> <span class="n">f</span><span class="p">,</span> <span class="s1">'size_bytes'</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+                <span class="s1">'error'</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
             <span class="p">})</span>
             <span class="k">continue</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;valid&#39;</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="p">[</span><span class="s1">'valid'</span><span class="p">]:</span>
             <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;invalid_h5&#39;</span><span class="p">,</span> <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">f</span><span class="p">,</span>
-                <span class="s1">&#39;size_bytes&#39;</span><span class="p">:</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;size&#39;</span><span class="p">],</span> <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;err&#39;</span><span class="p">],</span>
+                <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'invalid_h5'</span><span class="p">,</span> <span class="s1">'path'</span><span class="p">:</span> <span class="n">f</span><span class="p">,</span>
+                <span class="s1">'size_bytes'</span><span class="p">:</span> <span class="n">result</span><span class="p">[</span><span class="s1">'size'</span><span class="p">],</span> <span class="s1">'error'</span><span class="p">:</span> <span class="n">result</span><span class="p">[</span><span class="s1">'err'</span><span class="p">],</span>
             <span class="p">})</span>
 
     <span class="c1"># Cross-check the download log against disk.</span>
@@ -869,35 +869,35 @@ window.runMermaid = runMermaid;</script>
         <span class="n">soc_log</span> <span class="o">=</span> <span class="n">SOCDownloadLogger</span><span class="p">(</span><span class="n">product_vars</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="nb">dir</span><span class="o">=</span><span class="n">ctx</span><span class="o">.</span><span class="n">soc_dir</span><span class="p">)</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">soc_logger</span> <span class="o">=</span> <span class="n">soc_log</span>
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-        <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;download_log_unreadable&#39;</span><span class="p">,</span> <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">})</span>
+        <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'download_log_unreadable'</span><span class="p">,</span> <span class="s1">'error'</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">})</span>
         <span class="n">soc_log</span> <span class="o">=</span> <span class="kc">None</span>
 
-    <span class="k">if</span> <span class="n">soc_log</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">soc_log</span><span class="p">,</span> <span class="s1">&#39;granule_info&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">soc_log</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">soc_log</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">soc_log</span><span class="o">.</span><span class="n">granule_info</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;status&#39;</span><span class="p">)</span> <span class="o">!=</span> <span class="s1">&#39;DOWNLOADED&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">!=</span> <span class="s1">'DOWNLOADED'</span><span class="p">:</span>
                 <span class="k">continue</span>
-            <span class="c1"># Granule entry doesn&#39;t directly name a file path; we infer per-product via SOC tree.</span>
-            <span class="c1"># If any product&#39;s expected file is missing, flag drift.</span>
-            <span class="c1"># A more thorough check would require the granule&#39;s file_path field.</span>
-            <span class="n">file_path</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;file_path&#39;</span><span class="p">)</span>
+            <span class="c1"># Granule entry doesn't directly name a file path; we infer per-product via SOC tree.</span>
+            <span class="c1"># If any product's expected file is missing, flag drift.</span>
+            <span class="c1"># A more thorough check would require the granule's file_path field.</span>
+            <span class="n">file_path</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'file_path'</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">file_path</span> <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getsize</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
                 <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                    <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;download_log_drift&#39;</span><span class="p">,</span>
-                    <span class="s1">&#39;granule&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;orbit&#39;</span><span class="p">:</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;orbit&#39;</span><span class="p">),</span> <span class="s1">&#39;granule&#39;</span><span class="p">:</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;granule&#39;</span><span class="p">),</span> <span class="s1">&#39;track&#39;</span><span class="p">:</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;track&#39;</span><span class="p">)},</span>
-                    <span class="s1">&#39;file_path&#39;</span><span class="p">:</span> <span class="n">file_path</span><span class="p">,</span>
+                    <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'download_log_drift'</span><span class="p">,</span>
+                    <span class="s1">'granule'</span><span class="p">:</span> <span class="p">{</span><span class="s1">'orbit'</span><span class="p">:</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'orbit'</span><span class="p">),</span> <span class="s1">'granule'</span><span class="p">:</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granule'</span><span class="p">),</span> <span class="s1">'track'</span><span class="p">:</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'track'</span><span class="p">)},</span>
+                    <span class="s1">'file_path'</span><span class="p">:</span> <span class="n">file_path</span><span class="p">,</span>
                 <span class="p">})</span>
 
-    <span class="n">n_invalid</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;invalid_h5&#39;</span><span class="p">)</span>
-    <span class="n">n_drift</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;download_log_drift&#39;</span><span class="p">)</span>
+    <span class="n">n_invalid</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'invalid_h5'</span><span class="p">)</span>
+    <span class="n">n_drift</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'download_log_drift'</span><span class="p">)</span>
 
     <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span>
     <span class="k">if</span> <span class="n">n_invalid</span><span class="p">:</span>
         <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span>
-    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;download_log_unreadable&#39;</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'download_log_unreadable'</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span><span class="p">):</span>
         <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
 
-    <span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_invalid</span><span class="si">}</span><span class="s2"> invalid HDF5 files; </span><span class="si">{</span><span class="n">n_drift</span><span class="si">}</span><span class="s2"> download-log drift entries&quot;</span>
-    <span class="k">return</span> <span class="n">Report</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;soc_health&#39;</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">severity</span><span class="p">,</span> <span class="n">findings</span><span class="o">=</span><span class="n">findings</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="n">summary</span><span class="p">)</span></div>
+    <span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_invalid</span><span class="si">}</span><span class="s2"> invalid HDF5 files; </span><span class="si">{</span><span class="n">n_drift</span><span class="si">}</span><span class="s2"> download-log drift entries"</span>
+    <span class="k">return</span> <span class="n">Report</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">'soc_health'</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">severity</span><span class="p">,</span> <span class="n">findings</span><span class="o">=</span><span class="n">findings</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="n">summary</span><span class="p">)</span></div>
 
 
 
@@ -905,37 +905,37 @@ window.runMermaid = runMermaid;</script>
 <a class="viewcode-back" href="../../../../autoapi/gedih3/doctor/diagnoses/soc_health/index.html#gedih3.doctor.diagnoses.soc_health.soc_health_fix">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">soc_health_fix</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">DoctorContext</span><span class="p">,</span> <span class="n">report</span><span class="p">:</span> <span class="n">Report</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Report</span><span class="p">:</span>
     <span class="n">fixed</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">soc_log</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">&#39;soc_logger&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">soc_log</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">'soc_logger'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span><span class="p">:</span>
-        <span class="n">kind</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;kind&#39;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;download_log_drift&#39;</span> <span class="ow">and</span> <span class="n">soc_log</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">kind</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'kind'</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">'download_log_drift'</span> <span class="ow">and</span> <span class="n">soc_log</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="n">soc_log</span><span class="o">.</span><span class="n">update_granule_status</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;granule&#39;</span><span class="p">],</span> <span class="s1">&#39;FAILED&#39;</span><span class="p">)</span>
-                <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;action&#39;</span><span class="p">:</span> <span class="s1">&#39;marked_FAILED_for_retry&#39;</span><span class="p">})</span>
+                <span class="n">soc_log</span><span class="o">.</span><span class="n">update_granule_status</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="s1">'FAILED'</span><span class="p">)</span>
+                <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">'action'</span><span class="p">:</span> <span class="s1">'marked_FAILED_for_retry'</span><span class="p">})</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;fix_error&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">})</span>
+                <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">'fix_error'</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">})</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># invalid_h5 and download_log_unreadable: no auto-fix</span>
-            <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;action&#39;</span><span class="p">:</span> <span class="s1">&#39;reported_only&#39;</span><span class="p">})</span>
+            <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">'action'</span><span class="p">:</span> <span class="s1">'reported_only'</span><span class="p">})</span>
 
     <span class="k">if</span> <span class="n">soc_log</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">soc_log</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">&#39;UNKNOWN&#39;</span><span class="p">)</span>
+            <span class="n">soc_log</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'UNKNOWN'</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
             <span class="k">pass</span>
 
-    <span class="n">n_errors</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">fixed</span> <span class="k">if</span> <span class="s1">&#39;fix_error&#39;</span> <span class="ow">in</span> <span class="n">x</span><span class="p">)</span>
+    <span class="n">n_errors</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">fixed</span> <span class="k">if</span> <span class="s1">'fix_error'</span> <span class="ow">in</span> <span class="n">x</span><span class="p">)</span>
     <span class="n">report</span><span class="o">.</span><span class="n">applied</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">report</span><span class="o">.</span><span class="n">findings</span> <span class="o">=</span> <span class="n">fixed</span>
     <span class="k">if</span> <span class="n">n_errors</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
-    <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">sum</span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">fixed</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">x</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;action&#39;</span><span class="p">,</span><span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;marked_&#39;</span><span class="p">))</span><span class="si">}</span><span class="s2"> download entries marked for retry; </span><span class="si">{</span><span class="n">n_errors</span><span class="si">}</span><span class="s2"> errors&quot;</span>
+    <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">sum</span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">fixed</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">x</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'action'</span><span class="p">,</span><span class="s1">''</span><span class="p">)</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'marked_'</span><span class="p">))</span><span class="si">}</span><span class="s2"> download entries marked for retry; </span><span class="si">{</span><span class="n">n_errors</span><span class="si">}</span><span class="s2"> errors"</span>
     <span class="k">return</span> <span class="n">report</span></div>
 
 
 
-<span class="n">register</span><span class="p">(</span><span class="s1">&#39;soc_health&#39;</span><span class="p">,</span> <span class="s1">&#39;invalid HDF5 + download log drift&#39;</span><span class="p">,</span>
-         <span class="n">scope</span><span class="o">=</span><span class="s1">&#39;global&#39;</span><span class="p">,</span> <span class="n">fix</span><span class="o">=</span><span class="n">soc_health_fix</span><span class="p">)(</span><span class="n">soc_health_check</span><span class="p">)</span>
+<span class="n">register</span><span class="p">(</span><span class="s1">'soc_health'</span><span class="p">,</span> <span class="s1">'invalid HDF5 + download log drift'</span><span class="p">,</span>
+         <span class="n">scope</span><span class="o">=</span><span class="s1">'global'</span><span class="p">,</span> <span class="n">fix</span><span class="o">=</span><span class="n">soc_health_fix</span><span class="p">)(</span><span class="n">soc_health_check</span><span class="p">)</span>
 </pre></div>
 
                 </article>

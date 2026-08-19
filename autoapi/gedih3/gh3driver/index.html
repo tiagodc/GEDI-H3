@@ -667,13 +667,13 @@ Empty when no dataset partition intersects the region.</p>
 </dd>
 </dl>
 <p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">ids</span> <span class="o">=</span> <span class="n">gh3_select_partitions</span><span class="p">(</span><span class="s1">&#39;/data/h3db&#39;</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="s1">&#39;roi.shp&#39;</span><span class="p">)</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">ids</span> <span class="o">=</span> <span class="n">gh3_select_partitions</span><span class="p">(</span><span class="s1">'/data/h3db'</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="s1">'roi.shp'</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">ids</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
-<span class="go">[&#39;83804cfffffffff&#39;, &#39;838041fffffffff&#39;]</span>
+<span class="go">['83804cfffffffff', '838041fffffffff']</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Map ids -&gt; files when reading outside gh3_load:</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">glob</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">files</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ids</span>
-<span class="gp">... </span>         <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;/data/h3db/h3_03=</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">/year=*/*.parquet&#39;</span><span class="p">)]</span>
+<span class="gp">... </span>         <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s1">'/data/h3db/h3_03=</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">/year=*/*.parquet'</span><span class="p">)]</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -837,9 +837,9 @@ Predicate columns do not have to be listed in <code class="docutils literal notr
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gh3</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="n">source</span><span class="o">=</span><span class="s1">&#39;/path/to/h3_database&#39;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">,</span> <span class="s1">&#39;rh_098_l2a&#39;</span><span class="p">],</span>
-<span class="gp">... </span>    <span class="n">region</span><span class="o">=</span><span class="s1">&#39;region.shp&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">source</span><span class="o">=</span><span class="s1">'/path/to/h3_database'</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'agbd_l4a'</span><span class="p">,</span> <span class="s1">'rh_098_l2a'</span><span class="p">],</span>
+<span class="gp">... </span>    <span class="n">region</span><span class="o">=</span><span class="s1">'region.shp'</span><span class="p">,</span>
 <span class="gp">... </span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">ddf</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span><span class="o">.</span><span class="n">head</span><span class="p">()</span>
 </pre></div>
@@ -988,15 +988,15 @@ egi_partition_level, h3_partition_level, image_source, etc.</p>
 </dl>
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gh3</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">&#39;/db&#39;</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">],</span> <span class="n">region</span><span class="o">=</span><span class="s1">&#39;roi.shp&#39;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;/tmp/test_export/&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">'/db'</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'agbd_l4a'</span><span class="p">],</span> <span class="n">region</span><span class="o">=</span><span class="s1">'roi.shp'</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">'/tmp/test_export/'</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Merged export</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;/tmp/merged/&#39;</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">'/tmp/merged/'</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># With metadata</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;/tmp/out/&#39;</span><span class="p">,</span> <span class="n">source_database</span><span class="o">=</span><span class="s1">&#39;/db&#39;</span><span class="p">,</span> <span class="n">tool</span><span class="o">=</span><span class="s1">&#39;my_script&#39;</span><span class="p">,</span>
-<span class="gp">... </span>              <span class="n">query_filter</span><span class="o">=</span><span class="s1">&#39;quality_flag == 1&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">'/tmp/out/'</span><span class="p">,</span> <span class="n">source_database</span><span class="o">=</span><span class="s1">'/db'</span><span class="p">,</span> <span class="n">tool</span><span class="o">=</span><span class="s1">'my_script'</span><span class="p">,</span>
+<span class="gp">... </span>              <span class="n">query_filter</span><span class="o">=</span><span class="s1">'quality_flag == 1'</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -1063,22 +1063,22 @@ rows.</p>
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gh3</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">egi_load</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="n">source</span><span class="o">=</span><span class="s1">&#39;/path/to/h3_database&#39;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">],</span>
-<span class="gp">... </span>    <span class="n">region</span><span class="o">=</span><span class="s1">&#39;region.shp&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">source</span><span class="o">=</span><span class="s1">'/path/to/h3_database'</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'agbd_l4a'</span><span class="p">],</span>
+<span class="gp">... </span>    <span class="n">region</span><span class="o">=</span><span class="s1">'region.shp'</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="n">index_level</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="n">partition_level</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
 <span class="gp">... </span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">agg</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">egi_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_level</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">agg</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">egi_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_level</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="s1">'mean'</span><span class="p">)</span>
 </pre></div>
 </div>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Predicate pushdown: quality-flag rows are dropped at the parquet</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># row-group layer, before anything reaches worker memory.</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">egi_load</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="n">source</span><span class="o">=</span><span class="s1">&#39;/path/to/h3_database&#39;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">],</span>
-<span class="gp">... </span>    <span class="n">region</span><span class="o">=</span><span class="s1">&#39;region.shp&#39;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="n">filters</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;l2_quality_flag_l4a&#39;</span><span class="p">,</span> <span class="s1">&#39;==&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">,</span> <span class="s1">&#39;&gt;&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)],</span>
+<span class="gp">... </span>    <span class="n">source</span><span class="o">=</span><span class="s1">'/path/to/h3_database'</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'agbd_l4a'</span><span class="p">],</span>
+<span class="gp">... </span>    <span class="n">region</span><span class="o">=</span><span class="s1">'region.shp'</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">filters</span><span class="o">=</span><span class="p">[(</span><span class="s1">'l2_quality_flag_l4a'</span><span class="p">,</span> <span class="s1">'=='</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s1">'agbd_l4a'</span><span class="p">,</span> <span class="s1">'&gt;'</span><span class="p">,</span> <span class="mi">0</span><span class="p">)],</span>
 <span class="gp">... </span><span class="p">)</span>
 </pre></div>
 </div>
@@ -1351,10 +1351,10 @@ than one level-12 outer tile is refused rather than silently reduced
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Rasterize aggregated data</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">raster</span> <span class="o">=</span> <span class="n">gh3_to_raster</span><span class="p">(</span><span class="n">agg_gdf</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">raster</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">to_raster</span><span class="p">(</span><span class="s2">&quot;output.tif&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">raster</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">to_raster</span><span class="p">(</span><span class="s2">"output.tif"</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Or save directly</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">raster</span> <span class="o">=</span> <span class="n">gh3_to_raster</span><span class="p">(</span><span class="n">agg_gdf</span><span class="p">,</span> <span class="n">output_path</span><span class="o">=</span><span class="s2">&quot;output.tif&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">raster</span> <span class="o">=</span> <span class="n">gh3_to_raster</span><span class="p">(</span><span class="n">agg_gdf</span><span class="p">,</span> <span class="n">output_path</span><span class="o">=</span><span class="s2">"output.tif"</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -1437,11 +1437,11 @@ or if <code class="docutils literal notranslate"><span class="pre">query</span><
 </dl>
 </div>
 <p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">ddf</span> <span class="o">=</span> <span class="n">egi_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">db</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="s1">&#39;region.shp&#39;</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">paths</span> <span class="o">=</span> <span class="n">gh3_rasterize</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;tiles/&#39;</span><span class="p">)</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">ddf</span> <span class="o">=</span> <span class="n">egi_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">db</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="s1">'region.shp'</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">paths</span> <span class="o">=</span> <span class="n">gh3_rasterize</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">'tiles/'</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># From a dataset directory, merged into one file</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="s1">&#39;/data/agg_egi&#39;</span><span class="p">,</span> <span class="s1">&#39;agbd.tif&#39;</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="s1">'/data/agg_egi'</span><span class="p">,</span> <span class="s1">'agbd.tif'</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -1528,10 +1528,10 @@ Returns a Dask DataFrame; use <code class="docutils literal notranslate"><span c
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gh3</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_sample_raster</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="s1">&#39;dem.tif&#39;</span><span class="p">,</span> <span class="n">data_source</span><span class="o">=</span><span class="s1">&#39;/path/to/database&#39;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="n">band_names</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;elevation&#39;</span><span class="p">],</span> <span class="n">geo</span><span class="o">=</span><span class="kc">True</span>
+<span class="gp">... </span>    <span class="s1">'dem.tif'</span><span class="p">,</span> <span class="n">data_source</span><span class="o">=</span><span class="s1">'/path/to/database'</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">band_names</span><span class="o">=</span><span class="p">[</span><span class="s1">'elevation'</span><span class="p">],</span> <span class="n">geo</span><span class="o">=</span><span class="kc">True</span>
 <span class="gp">... </span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;/tmp/sampled/&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">'/tmp/sampled/'</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>

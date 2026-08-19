@@ -760,7 +760,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="sd">H3 Hexagon Rasterization Module</span>
 
 <span class="sd">This module provides functions for converting H3-indexed GeoDataFrames</span>
@@ -772,7 +772,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">2. Find optimal UTM zone for the data extent</span>
 <span class="sd">3. Rasterize using geocube with bilinear interpolation</span>
 <span class="sd">4. Reproject to target CRS (default: EPSG:4326)</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
@@ -793,7 +793,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="get_h3_resolution_meters">
 <a class="viewcode-back" href="../../../autoapi/gedih3/raster/h3_raster/index.html#gedih3.raster.h3_raster.get_h3_resolution_meters">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_h3_resolution_meters</span><span class="p">(</span><span class="n">h3_level</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Get the approximate pixel resolution in meters for an H3 level.</span>
 
 <span class="sd">    Uses the average hexagon edge length * 2 (diameter) as the pixel size.</span>
@@ -807,16 +807,16 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    float</span>
 <span class="sd">        Approximate pixel size in meters</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">h3</span><span class="o">.</span><span class="n">average_hexagon_edge_length</span><span class="p">(</span><span class="n">h3_level</span><span class="p">,</span> <span class="s1">&#39;m&#39;</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span></div>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="n">h3</span><span class="o">.</span><span class="n">average_hexagon_edge_length</span><span class="p">(</span><span class="n">h3_level</span><span class="p">,</span> <span class="s1">'m'</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span></div>
 
 
 
 <div class="viewcode-block" id="get_optimal_utm">
 <a class="viewcode-back" href="../../../autoapi/gedih3/raster/h3_raster/index.html#gedih3.raster.h3_raster.get_optimal_utm">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_optimal_utm</span><span class="p">(</span><span class="n">gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Find the optimal UTM zone EPSG code for a GeoDataFrame&#39;s extent.</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Find the optimal UTM zone EPSG code for a GeoDataFrame's extent.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -827,7 +827,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    int</span>
 <span class="sd">        EPSG code for the optimal UTM zone</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="c1"># Ensure we have bounds in WGS84</span>
     <span class="k">if</span> <span class="n">gdf</span><span class="o">.</span><span class="n">crs</span><span class="o">.</span><span class="n">to_epsg</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">4326</span><span class="p">:</span>
         <span class="n">bounds</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="mi">4326</span><span class="p">)</span><span class="o">.</span><span class="n">total_bounds</span>
@@ -837,7 +837,7 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># Query UTM CRS for the area of interest</span>
     <span class="n">aoi</span> <span class="o">=</span> <span class="n">pyproj</span><span class="o">.</span><span class="n">aoi</span><span class="o">.</span><span class="n">AreaOfInterest</span><span class="p">(</span><span class="o">*</span><span class="n">bounds</span><span class="p">)</span>
     <span class="n">utm_list</span> <span class="o">=</span> <span class="n">pyproj</span><span class="o">.</span><span class="n">database</span><span class="o">.</span><span class="n">query_utm_crs_info</span><span class="p">(</span>
-        <span class="n">datum_name</span><span class="o">=</span><span class="s1">&#39;WGS 84&#39;</span><span class="p">,</span>
+        <span class="n">datum_name</span><span class="o">=</span><span class="s1">'WGS 84'</span><span class="p">,</span>
         <span class="n">area_of_interest</span><span class="o">=</span><span class="n">aoi</span>
     <span class="p">)</span>
 
@@ -850,7 +850,7 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_detect_partition_level</span><span class="p">(</span><span class="n">gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Detect the H3 partition level from a GeoDataFrame.</span>
 
 <span class="sd">    Looks for H3 partition columns (e.g., h3_03, h3_05) to determine</span>
@@ -865,13 +865,13 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    int or None</span>
 <span class="sd">        Detected partition level, or None if not found</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
     <span class="c1"># Look for partition columns like h3_03, h3_05, etc.</span>
-    <span class="n">h3_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">gdf</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;h3_\d</span><span class="si">{2}</span><span class="s1">$&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">))]</span>
+    <span class="n">h3_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">gdf</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">'h3_\d</span><span class="si">{2}</span><span class="s1">$'</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">))]</span>
     <span class="k">if</span> <span class="n">h3_cols</span><span class="p">:</span>
         <span class="c1"># Get the lowest resolution (smallest number = coarsest = partition level)</span>
-        <span class="n">levels</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">h3_cols</span><span class="p">]</span>
+        <span class="n">levels</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'_'</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">h3_cols</span><span class="p">]</span>
         <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">levels</span><span class="p">)</span>
     <span class="k">return</span> <span class="kc">None</span>
 
@@ -886,7 +886,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">output_crs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">H3_RASTER_CRS</span><span class="p">,</span>
     <span class="n">partition_level</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">xr</span><span class="o">.</span><span class="n">Dataset</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Convert H3-indexed GeoDataFrame to raster (xarray Dataset).</span>
 
 <span class="sd">    This function rasterizes H3 hexagon data using geocube, with automatic</span>
@@ -918,19 +918,19 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; # Rasterize H3 aggregated data</span>
-<span class="sd">    &gt;&gt;&gt; raster = h3_to_raster(h3_gdf, columns=[&#39;agbd_mean&#39;])</span>
-<span class="sd">    &gt;&gt;&gt; raster.rio.to_raster(&quot;output.tif&quot;)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    &gt;&gt;&gt; raster = h3_to_raster(h3_gdf, columns=['agbd_mean'])</span>
+<span class="sd">    &gt;&gt;&gt; raster.rio.to_raster("output.tif")</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="n">gdf</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="s2">&quot;Cannot rasterize empty GeoDataFrame&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="s2">"Cannot rasterize empty GeoDataFrame"</span><span class="p">)</span>
 
     <span class="c1"># Filter out internal columns from rasterization</span>
     <span class="n">columns</span> <span class="o">=</span> <span class="n">_filter_raster_columns</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="n">gdf</span><span class="p">)</span>
 
     <span class="c1"># Get H3 level and partition ID</span>
-    <span class="n">h3_index</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;h3_&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">h3_index</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'h3_'</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
     <span class="k">if</span> <span class="n">h3_index</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="n">h3_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">gdf</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;h3_&#39;</span><span class="p">)]</span>
+        <span class="n">h3_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">gdf</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'h3_'</span><span class="p">)]</span>
         <span class="k">if</span> <span class="n">h3_cols</span><span class="p">:</span>
             <span class="n">h3_index</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="n">h3_cols</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
@@ -946,10 +946,10 @@ window.runMermaid = runMermaid;</script>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">partition_id</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="c1"># Try to get H3 level from index name (e.g., &quot;h3_12&quot;)</span>
-        <span class="k">if</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;h3_&#39;</span><span class="p">):</span>
+        <span class="c1"># Try to get H3 level from index name (e.g., "h3_12")</span>
+        <span class="k">if</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'h3_'</span><span class="p">):</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="n">h3_level</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="n">h3_level</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'_'</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
             <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">IndexError</span><span class="p">):</span>
                 <span class="n">h3_level</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">else</span><span class="p">:</span>
@@ -959,7 +959,7 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># Determine resolution if not provided</span>
     <span class="k">if</span> <span class="n">resolution</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">h3_level</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="s2">&quot;Cannot determine raster resolution: no H3 level found in data and no resolution provided&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="s2">"Cannot determine raster resolution: no H3 level found in data and no resolution provided"</span><span class="p">)</span>
         <span class="n">res_meters</span> <span class="o">=</span> <span class="n">get_h3_resolution_meters</span><span class="p">(</span><span class="n">h3_level</span><span class="p">)</span>
         <span class="c1"># Get optimal UTM for accurate resolution</span>
         <span class="n">utm_epsg</span> <span class="o">=</span> <span class="n">get_optimal_utm</span><span class="p">(</span><span class="n">gdf</span><span class="p">)</span>
@@ -967,8 +967,8 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># Create raster in UTM</span>
         <span class="n">gdf_utm</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="n">epsg</span><span class="o">=</span><span class="n">utm_epsg</span><span class="p">)</span>
         <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">():</span>
-            <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="s1">&#39;Dataset has no geotransform&#39;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">UserWarning</span><span class="p">)</span>
-            <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="n">rasterio</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">NotGeoreferencedWarning</span><span class="p">)</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s1">'ignore'</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="s1">'Dataset has no geotransform'</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">UserWarning</span><span class="p">)</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s1">'ignore'</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="n">rasterio</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">NotGeoreferencedWarning</span><span class="p">)</span>
             <span class="n">xras</span> <span class="o">=</span> <span class="n">make_geocube</span><span class="p">(</span>
                 <span class="n">gdf_utm</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(),</span>
                 <span class="n">measurements</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span>
@@ -983,8 +983,8 @@ window.runMermaid = runMermaid;</script>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># Use provided resolution directly</span>
         <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">():</span>
-            <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="s1">&#39;Dataset has no geotransform&#39;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">UserWarning</span><span class="p">)</span>
-            <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="n">rasterio</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">NotGeoreferencedWarning</span><span class="p">)</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s1">'ignore'</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="s1">'Dataset has no geotransform'</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">UserWarning</span><span class="p">)</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s1">'ignore'</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="n">rasterio</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">NotGeoreferencedWarning</span><span class="p">)</span>
             <span class="n">xras</span> <span class="o">=</span> <span class="n">make_geocube</span><span class="p">(</span>
                 <span class="n">gdf</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(),</span>
                 <span class="n">measurements</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span>
@@ -998,16 +998,16 @@ window.runMermaid = runMermaid;</script>
             <span class="n">xras</span><span class="p">[</span><span class="n">var</span><span class="p">]</span> <span class="o">=</span> <span class="n">xras</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">write_nodata</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
 
     <span class="c1"># Add metadata</span>
-    <span class="n">attrs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;source&#39;</span><span class="p">:</span> <span class="s1">&#39;gedih3&#39;</span><span class="p">}</span>
+    <span class="n">attrs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'source'</span><span class="p">:</span> <span class="s1">'gedih3'</span><span class="p">}</span>
     <span class="k">if</span> <span class="n">h3_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;h3_level&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">h3_level</span>
+        <span class="n">attrs</span><span class="p">[</span><span class="s1">'h3_level'</span><span class="p">]</span> <span class="o">=</span> <span class="n">h3_level</span>
     <span class="k">if</span> <span class="n">partition_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;h3_partition_level&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">partition_level</span>
+        <span class="n">attrs</span><span class="p">[</span><span class="s1">'h3_partition_level'</span><span class="p">]</span> <span class="o">=</span> <span class="n">partition_level</span>
     <span class="n">xras</span> <span class="o">=</span> <span class="n">xras</span><span class="o">.</span><span class="n">assign_attrs</span><span class="p">(</span><span class="o">**</span><span class="n">attrs</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">partition_id</span> <span class="ow">and</span> <span class="n">partition_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="c1"># Use dynamic attribute name based on actual partition level</span>
-        <span class="n">partition_attr</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;h3_</span><span class="si">{</span><span class="n">partition_level</span><span class="si">:</span><span class="s1">02d</span><span class="si">}</span><span class="s1">_id&#39;</span>
+        <span class="n">partition_attr</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'h3_</span><span class="si">{</span><span class="n">partition_level</span><span class="si">:</span><span class="s1">02d</span><span class="si">}</span><span class="s1">_id'</span>
         <span class="n">xras</span> <span class="o">=</span> <span class="n">xras</span><span class="o">.</span><span class="n">assign_attrs</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="n">partition_attr</span><span class="p">:</span> <span class="n">partition_id</span><span class="p">})</span>
         <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">xras</span><span class="o">.</span><span class="n">data_vars</span><span class="p">):</span>
             <span class="n">xras</span><span class="p">[</span><span class="n">var</span><span class="p">]</span> <span class="o">=</span> <span class="n">xras</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">assign_attrs</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="n">partition_attr</span><span class="p">:</span> <span class="n">partition_id</span><span class="p">})</span>
@@ -1025,7 +1025,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">include_partition_id</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">partition_level</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Rasterize a single H3 partition (for use with Dask map_partitions).</span>
 
 <span class="sd">    Splits data by a coarser H3 parent level to create separate raster tiles,</span>
@@ -1055,7 +1055,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; # With Dask</span>
 <span class="sd">    &gt;&gt;&gt; rasters = ddf.map_partitions(rasterize_h3_partition, meta=pd.Series(dtype=object))</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
     <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -1068,10 +1068,10 @@ window.runMermaid = runMermaid;</script>
             <span class="n">partition_level</span> <span class="o">=</span> <span class="n">_detect_partition_level</span><span class="p">(</span><span class="n">gdf</span><span class="p">)</span>
 
         <span class="c1"># Get H3 level from index</span>
-        <span class="n">h3_index</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;h3_&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">h3_index</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'h3_'</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
         <span class="k">if</span> <span class="n">h3_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="c1"># Fallback: try to find H3 cells in columns</span>
-            <span class="n">h3_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">gdf</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;h3_&#39;</span><span class="p">)]</span>
+            <span class="n">h3_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">gdf</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'h3_'</span><span class="p">)]</span>
             <span class="k">if</span> <span class="n">h3_cols</span><span class="p">:</span>
                 <span class="n">h3_index</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="n">h3_cols</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
@@ -1095,7 +1095,7 @@ window.runMermaid = runMermaid;</script>
                     <span class="n">partition_level</span><span class="o">=</span><span class="n">partition_level</span>
                 <span class="p">)</span>
                 <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">xras</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">include_partition_id</span><span class="p">:</span>
-                    <span class="n">partition_attr</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;h3_</span><span class="si">{</span><span class="n">h3_level</span><span class="si">:</span><span class="s1">02d</span><span class="si">}</span><span class="s1">_id&#39;</span>
+                    <span class="n">partition_attr</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'h3_</span><span class="si">{</span><span class="n">h3_level</span><span class="si">:</span><span class="s1">02d</span><span class="si">}</span><span class="s1">_id'</span>
                     <span class="n">tile_id</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
                     <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">xras</span><span class="o">.</span><span class="n">data_vars</span><span class="p">):</span>
                         <span class="n">xras</span><span class="p">[</span><span class="n">var</span><span class="p">]</span> <span class="o">=</span> <span class="n">xras</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">assign_attrs</span><span class="p">(</span>
@@ -1103,7 +1103,7 @@ window.runMermaid = runMermaid;</script>
                         <span class="p">)</span>
                 <span class="k">return</span> <span class="n">object_series</span><span class="p">([</span><span class="n">xras</span><span class="p">])</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">xras</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rasterization failed for partition: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Rasterization failed for partition: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                 <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
 
         <span class="c1"># Group H3 cells by parent at partition level</span>
@@ -1131,13 +1131,13 @@ window.runMermaid = runMermaid;</script>
                 <span class="p">)</span>
 
                 <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">xras</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">include_partition_id</span><span class="p">:</span>
-                    <span class="n">partition_attr</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;h3_</span><span class="si">{</span><span class="n">partition_level</span><span class="si">:</span><span class="s1">02d</span><span class="si">}</span><span class="s1">_id&#39;</span>
+                    <span class="n">partition_attr</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'h3_</span><span class="si">{</span><span class="n">partition_level</span><span class="si">:</span><span class="s1">02d</span><span class="si">}</span><span class="s1">_id'</span>
                     <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">xras</span><span class="o">.</span><span class="n">data_vars</span><span class="p">):</span>
                         <span class="n">xras</span><span class="p">[</span><span class="n">var</span><span class="p">]</span> <span class="o">=</span> <span class="n">xras</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">assign_attrs</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="n">partition_attr</span><span class="p">:</span> <span class="n">parent_id</span><span class="p">})</span>
 
                     <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">xras</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rasterization failed for tile </span><span class="si">{</span><span class="n">parent_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Rasterization failed for tile </span><span class="si">{</span><span class="n">parent_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                 <span class="k">continue</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">results</span><span class="p">:</span>
@@ -1147,7 +1147,7 @@ window.runMermaid = runMermaid;</script>
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
         <span class="c1"># Whole-partition failure — never benign, unlike the per-tile skips</span>
         <span class="c1"># above, so it is logged loudly rather than at debug.</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rasterization failed for the whole partition: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Rasterization failed for the whole partition: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span></div>
 
 
@@ -1158,7 +1158,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">raster_series</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">,</span>
     <span class="n">show_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">xr</span><span class="o">.</span><span class="n">Dataset</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Merge multiple raster partitions into a single mosaic.</span>
 
 <span class="sd">    Parameters</span>
@@ -1172,17 +1172,17 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    xr.Dataset</span>
 <span class="sd">        Merged raster mosaic</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">rioxarray</span><span class="w"> </span><span class="kn">import</span> <span class="n">merge</span> <span class="k">as</span> <span class="n">rio_merge</span>
 
     <span class="c1"># Filter out empty/invalid partitions</span>
     <span class="n">valid</span> <span class="o">=</span> <span class="n">raster_series</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
-        <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s1">&#39;data_vars&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
+        <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s1">'data_vars'</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
     <span class="p">)</span>
     <span class="n">valid_rasters</span> <span class="o">=</span> <span class="n">raster_series</span><span class="p">[</span><span class="n">valid</span><span class="p">]</span>
 
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">valid_rasters</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No valid raster partitions to merge&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"No valid raster partitions to merge"</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">valid_rasters</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">valid_rasters</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
@@ -1204,7 +1204,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">gdf</span><span class="p">:</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">,</span>
     <span class="n">npartitions</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Determine the appropriate raster resolution for H3 data.</span>
 
 <span class="sd">    Parameters</span>
@@ -1218,25 +1218,25 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    tuple</span>
 <span class="sd">        (y_resolution, x_resolution) in degrees (EPSG:4326)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="c1"># Get sample data</span>
-    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="s1">&#39;npartitions&#39;</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="s1">'npartitions'</span><span class="p">):</span>
         <span class="n">sample</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="n">npartitions</span><span class="o">=</span><span class="nb">min</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">npartitions</span><span class="p">,</span> <span class="n">npartitions</span><span class="p">))</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">sample</span> <span class="o">=</span> <span class="n">gdf</span>
 
     <span class="k">if</span> <span class="n">sample</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot determine resolution from empty GeoDataFrame&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Cannot determine resolution from empty GeoDataFrame"</span><span class="p">)</span>
 
     <span class="c1"># Get H3 level</span>
-    <span class="n">h3_index</span> <span class="o">=</span> <span class="n">sample</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">sample</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="n">sample</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;h3_&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">h3_index</span> <span class="o">=</span> <span class="n">sample</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">sample</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="ow">and</span> <span class="n">sample</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'h3_'</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
     <span class="k">if</span> <span class="n">h3_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">h3_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">sample</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;h3_&#39;</span><span class="p">)]</span>
+        <span class="n">h3_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">sample</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'h3_'</span><span class="p">)]</span>
         <span class="k">if</span> <span class="n">h3_cols</span><span class="p">:</span>
             <span class="n">h3_index</span> <span class="o">=</span> <span class="n">sample</span><span class="p">[</span><span class="n">h3_cols</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
     <span class="k">if</span> <span class="n">h3_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Could not find H3 index in GeoDataFrame&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Could not find H3 index in GeoDataFrame"</span><span class="p">)</span>
 
     <span class="n">h3_level</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">get_resolution</span><span class="p">(</span><span class="n">h3_index</span><span class="p">)</span>
     <span class="n">res_meters</span> <span class="o">=</span> <span class="n">get_h3_resolution_meters</span><span class="p">(</span><span class="n">h3_level</span><span class="p">)</span>

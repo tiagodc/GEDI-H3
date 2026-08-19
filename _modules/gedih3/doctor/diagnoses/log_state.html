@@ -760,7 +760,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;log_state diagnosis — stuck recovery flags + log↔disk drift.</span>
+<span class="sd">"""log_state diagnosis — stuck recovery flags + log↔disk drift.</span>
 
 <span class="sd">Detects:</span>
 <span class="sd">  - ``_pending_variable_update`` left in the log without matching state.</span>
@@ -768,7 +768,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">  - Partitions listed in the log but missing from disk.</span>
 <span class="sd">  - Granule status drift — granules in ``granule_info`` with a non-INDEXED</span>
 <span class="sd">    status whose ``(orbit, granule, track)`` is present in a finalized</span>
-<span class="sd">    partition&#39;s metadata JSON. Caused by the merge-only resume shortcut</span>
+<span class="sd">    partition's metadata JSON. Caused by the merge-only resume shortcut</span>
 <span class="sd">    (gh3_build v0.8.9+), which skips reconcile and leaves stale PENDING</span>
 <span class="sd">    statuses behind even though the data is already on disk.</span>
 
@@ -785,7 +785,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    found. Without this, the default ``--check db`` audit on a</span>
 <span class="sd">    continental-scale (10k+ partitions) database stalls for minutes</span>
 <span class="sd">    in two driver-side recursive globs over h3_*/.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
@@ -800,7 +800,7 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_granule_triples_in_partition</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Worker: read every partition meta JSON under one partition dir</span>
+<span class="w">    </span><span class="sd">"""Worker: read every partition meta JSON under one partition dir</span>
 <span class="sd">    and return the union of ``(orbit, granule, track)`` tuples.</span>
 
 <span class="sd">    Looks at both shapes of meta:</span>
@@ -812,25 +812,25 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    distributing the reads to dask workers takes the wall time down</span>
 <span class="sd">    to seconds + scheduler overhead. Self-contained so the function</span>
 <span class="sd">    is picklable for ``parallel_map``.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">triples</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
-    <span class="n">meta_files</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;*</span><span class="si">{</span><span class="n">PARTITION_META_FILENAME</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">))</span>
-    <span class="n">meta_files</span> <span class="o">+=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">,</span> <span class="s1">&#39;*&#39;</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;*</span><span class="si">{</span><span class="n">PARTITION_META_FILENAME</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">))</span>
+    <span class="n">meta_files</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s1">'*</span><span class="si">{</span><span class="n">PARTITION_META_FILENAME</span><span class="si">}</span><span class="s1">'</span><span class="p">))</span>
+    <span class="n">meta_files</span> <span class="o">+=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">,</span> <span class="s1">'*'</span><span class="p">,</span> <span class="sa">f</span><span class="s1">'*</span><span class="si">{</span><span class="n">PARTITION_META_FILENAME</span><span class="si">}</span><span class="s1">'</span><span class="p">))</span>
     <span class="k">for</span> <span class="n">mf</span> <span class="ow">in</span> <span class="n">meta_files</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">mf</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">mf</span><span class="p">,</span> <span class="s1">'r'</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
                 <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fh</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
-            <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;granules&#39;</span><span class="p">,</span> <span class="p">[]):</span>
-                <span class="n">triples</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">&#39;orbit&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;granule&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;track&#39;</span><span class="p">]))</span>
+            <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granules'</span><span class="p">,</span> <span class="p">[]):</span>
+                <span class="n">triples</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]))</span>
         <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
             <span class="k">continue</span>
     <span class="k">return</span> <span class="n">triples</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_partition_id_from_dir</span><span class="p">(</span><span class="n">d</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Extract the H3 cell ID from a partition dir name like ``h3_03=8c2a...``.&quot;&quot;&quot;</span>
-    <span class="n">base</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="p">))</span>
-    <span class="k">return</span> <span class="n">base</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;=&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="s1">&#39;=&#39;</span> <span class="ow">in</span> <span class="n">base</span> <span class="k">else</span> <span class="n">base</span>
+<span class="w">    </span><span class="sd">"""Extract the H3 cell ID from a partition dir name like ``h3_03=8c2a...``."""</span>
+    <span class="n">base</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">base</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'='</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="s1">'='</span> <span class="ow">in</span> <span class="n">base</span> <span class="k">else</span> <span class="n">base</span>
 
 
 <div class="viewcode-block" id="log_state_check">
@@ -840,39 +840,39 @@ window.runMermaid = runMermaid;</script>
 
     <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">Report</span><span class="p">(</span>
-            <span class="n">name</span><span class="o">=</span><span class="s1">&#39;log_state&#39;</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span><span class="p">,</span>
-            <span class="n">summary</span><span class="o">=</span><span class="s1">&#39;no build log present&#39;</span><span class="p">,</span>
-            <span class="n">findings</span><span class="o">=</span><span class="p">[{</span><span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;no_log&#39;</span><span class="p">}],</span>
+            <span class="n">name</span><span class="o">=</span><span class="s1">'log_state'</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span><span class="p">,</span>
+            <span class="n">summary</span><span class="o">=</span><span class="s1">'no build log present'</span><span class="p">,</span>
+            <span class="n">findings</span><span class="o">=</span><span class="p">[{</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'no_log'</span><span class="p">}],</span>
         <span class="p">)</span>
 
     <span class="n">log</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span>
     <span class="n">log_data</span> <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">log_data</span>
 
     <span class="c1"># 1. Stuck _pending_variable_update flag</span>
-    <span class="n">pending</span> <span class="o">=</span> <span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;_pending_variable_update&#39;</span><span class="p">)</span>
+    <span class="n">pending</span> <span class="o">=</span> <span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'_pending_variable_update'</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">pending</span><span class="p">:</span>
-        <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;stuck_pending_flag&#39;</span><span class="p">,</span> <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="n">pending</span><span class="p">})</span>
+        <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'stuck_pending_flag'</span><span class="p">,</span> <span class="s1">'value'</span><span class="p">:</span> <span class="n">pending</span><span class="p">})</span>
 
     <span class="c1"># 2 &amp; 3. Set-diff between disk partitions and logged partition ids</span>
     <span class="n">disk_ids</span> <span class="o">=</span> <span class="p">{</span><span class="n">_partition_id_from_dir</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">ctx</span><span class="o">.</span><span class="n">partition_dirs</span><span class="p">}</span>
-    <span class="n">logged_ids</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">log</span><span class="p">,</span> <span class="s1">&#39;h3_partition_ids&#39;</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[])</span>
+    <span class="n">logged_ids</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">log</span><span class="p">,</span> <span class="s1">'h3_partition_ids'</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[])</span>
 
     <span class="n">on_disk_missing_log</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">disk_ids</span> <span class="o">-</span> <span class="n">logged_ids</span><span class="p">)</span>
     <span class="n">in_log_missing_disk</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">logged_ids</span> <span class="o">-</span> <span class="n">disk_ids</span><span class="p">)</span>
 
     <span class="k">for</span> <span class="n">pid</span> <span class="ow">in</span> <span class="n">on_disk_missing_log</span><span class="p">:</span>
-        <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;partition_on_disk_unlogged&#39;</span><span class="p">,</span> <span class="s1">&#39;h3_partition&#39;</span><span class="p">:</span> <span class="n">pid</span><span class="p">})</span>
+        <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'partition_on_disk_unlogged'</span><span class="p">,</span> <span class="s1">'h3_partition'</span><span class="p">:</span> <span class="n">pid</span><span class="p">})</span>
     <span class="k">for</span> <span class="n">pid</span> <span class="ow">in</span> <span class="n">in_log_missing_disk</span><span class="p">:</span>
-        <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;partition_in_log_missing_disk&#39;</span><span class="p">,</span> <span class="s1">&#39;h3_partition&#39;</span><span class="p">:</span> <span class="n">pid</span><span class="p">})</span>
+        <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'partition_in_log_missing_disk'</span><span class="p">,</span> <span class="s1">'h3_partition'</span><span class="p">:</span> <span class="n">pid</span><span class="p">})</span>
 
     <span class="c1"># 4. Granule status drift — granule_info has non-INDEXED entries whose</span>
     <span class="c1"># data is already in a finalized partition. Common after a merge-only</span>
     <span class="c1"># resume (gh3_build 0.8.9+ shortcut) which skips reconcile.</span>
-    <span class="n">granule_info</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">log</span><span class="p">,</span> <span class="s1">&#39;granule_info&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+    <span class="n">granule_info</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">log</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
     <span class="n">drift_triples</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">if</span> <span class="n">granule_info</span><span class="p">:</span>
         <span class="c1"># Fan the per-partition meta scan out via parallel_map. The</span>
-        <span class="c1"># prior driver-side ``glob.glob(&#39;h3_*/...&#39;, recursive=True)``</span>
+        <span class="c1"># prior driver-side ``glob.glob('h3_*/...', recursive=True)``</span>
         <span class="c1"># took minutes on continental databases (10k+ partitions × a</span>
         <span class="c1"># couple of small JSONs each); distributing the reads brings</span>
         <span class="c1"># wall time down to seconds + scheduler overhead. With no</span>
@@ -883,9 +883,9 @@ window.runMermaid = runMermaid;</script>
         <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span>
             <span class="n">ctx</span><span class="o">.</span><span class="n">partition_dirs</span><span class="p">,</span>
             <span class="n">_granule_triples_in_partition</span><span class="p">,</span>
-            <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">&#39;args&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-            <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;log_state: scanning partition meta&#39;</span><span class="p">,</span>
-            <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;part&#39;</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">'args'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="n">desc</span><span class="o">=</span><span class="s1">'log_state: scanning partition meta'</span><span class="p">,</span>
+            <span class="n">unit</span><span class="o">=</span><span class="s1">'part'</span><span class="p">,</span>
         <span class="p">):</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
                 <span class="c1"># Single-partition failures must not abort the audit;</span>
@@ -895,28 +895,28 @@ window.runMermaid = runMermaid;</script>
                 <span class="k">continue</span>
             <span class="n">on_disk</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">granule_info</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;status&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;INDEXED&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">==</span> <span class="s1">'INDEXED'</span><span class="p">:</span>
                 <span class="k">continue</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="n">triple</span> <span class="o">=</span> <span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s1">&#39;orbit&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;granule&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;track&#39;</span><span class="p">])</span>
+                <span class="n">triple</span> <span class="o">=</span> <span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span>
             <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
                 <span class="k">continue</span>
             <span class="k">if</span> <span class="n">triple</span> <span class="ow">in</span> <span class="n">on_disk</span><span class="p">:</span>
                 <span class="n">drift_triples</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">triple</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">tr</span> <span class="ow">in</span> <span class="n">drift_triples</span><span class="p">:</span>
         <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-            <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;granule_status_drift&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;orbit&#39;</span><span class="p">:</span> <span class="n">tr</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;granule&#39;</span><span class="p">:</span> <span class="n">tr</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39;track&#39;</span><span class="p">:</span> <span class="n">tr</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+            <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'granule_status_drift'</span><span class="p">,</span>
+            <span class="s1">'orbit'</span><span class="p">:</span> <span class="n">tr</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'granule'</span><span class="p">:</span> <span class="n">tr</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">'track'</span><span class="p">:</span> <span class="n">tr</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
         <span class="p">})</span>
 
     <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span> <span class="k">if</span> <span class="n">findings</span> <span class="k">else</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span>
     <span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="s1">&#39;pending flag stuck; &#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">pending</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="s2">&quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">on_disk_missing_log</span><span class="p">)</span><span class="si">}</span><span class="s2"> disk partitions not logged; &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">in_log_missing_disk</span><span class="p">)</span><span class="si">}</span><span class="s2"> log partitions missing disk; &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">drift_triples</span><span class="p">)</span><span class="si">}</span><span class="s2"> granule status drift&quot;</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'pending flag stuck; '</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">pending</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">''</span><span class="si">}</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">on_disk_missing_log</span><span class="p">)</span><span class="si">}</span><span class="s2"> disk partitions not logged; "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">in_log_missing_disk</span><span class="p">)</span><span class="si">}</span><span class="s2"> log partitions missing disk; "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">drift_triples</span><span class="p">)</span><span class="si">}</span><span class="s2"> granule status drift"</span>
     <span class="p">)</span>
-    <span class="k">return</span> <span class="n">Report</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;log_state&#39;</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">severity</span><span class="p">,</span> <span class="n">findings</span><span class="o">=</span><span class="n">findings</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="n">summary</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">Report</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">'log_state'</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">severity</span><span class="p">,</span> <span class="n">findings</span><span class="o">=</span><span class="n">findings</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="n">summary</span><span class="p">)</span></div>
 
 
 
@@ -925,78 +925,78 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">log_state_fix</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">DoctorContext</span><span class="p">,</span> <span class="n">report</span><span class="p">:</span> <span class="n">Report</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Report</span><span class="p">:</span>
     <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">applied</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="s2">&quot;no build log to fix&quot;</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="s2">"no build log to fix"</span>
         <span class="k">return</span> <span class="n">report</span>
 
     <span class="n">log</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span>
     <span class="n">actions</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="c1"># Clear stuck flag</span>
-    <span class="k">if</span> <span class="n">log</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;_pending_variable_update&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;cleared_pending_flag&#39;</span><span class="p">})</span>
+    <span class="k">if</span> <span class="n">log</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'_pending_variable_update'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'cleared_pending_flag'</span><span class="p">})</span>
 
     <span class="c1"># Refresh h3_partition_ids and per-product status from on-disk meta</span>
     <span class="n">needs_refresh</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span>
-        <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;partition_on_disk_unlogged&#39;</span><span class="p">,</span> <span class="s1">&#39;partition_in_log_missing_disk&#39;</span><span class="p">)</span>
+        <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'partition_on_disk_unlogged'</span><span class="p">,</span> <span class="s1">'partition_in_log_missing_disk'</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span>
     <span class="p">)</span>
     <span class="k">if</span> <span class="n">needs_refresh</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">log</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
-            <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;refreshed_partition_ids&#39;</span><span class="p">,</span> <span class="s1">&#39;count&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">log</span><span class="p">,</span> <span class="s1">&#39;h3_partition_ids&#39;</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[])})</span>
+            <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'refreshed_partition_ids'</span><span class="p">,</span> <span class="s1">'count'</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">log</span><span class="p">,</span> <span class="s1">'h3_partition_ids'</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[])})</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;refresh_failed&#39;</span><span class="p">,</span> <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">})</span>
+            <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'refresh_failed'</span><span class="p">,</span> <span class="s1">'error'</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">})</span>
 
     <span class="c1"># Disk-missing partitions: report only (could be intentional deletion).</span>
-    <span class="n">disk_missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;partition_in_log_missing_disk&#39;</span><span class="p">]</span>
+    <span class="n">disk_missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'partition_in_log_missing_disk'</span><span class="p">]</span>
     <span class="k">if</span> <span class="n">disk_missing</span><span class="p">:</span>
         <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-            <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;manual_review_required&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;reason&#39;</span><span class="p">:</span> <span class="s1">&#39;partitions listed in log but absent from disk&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;count&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">disk_missing</span><span class="p">),</span>
-            <span class="s1">&#39;partitions&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;h3_partition&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">disk_missing</span><span class="p">],</span>
+            <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'manual_review_required'</span><span class="p">,</span>
+            <span class="s1">'reason'</span><span class="p">:</span> <span class="s1">'partitions listed in log but absent from disk'</span><span class="p">,</span>
+            <span class="s1">'count'</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">disk_missing</span><span class="p">),</span>
+            <span class="s1">'partitions'</span><span class="p">:</span> <span class="p">[</span><span class="n">f</span><span class="p">[</span><span class="s1">'h3_partition'</span><span class="p">]</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">disk_missing</span><span class="p">],</span>
         <span class="p">})</span>
 
     <span class="c1"># Granule status drift — flip stale entries to INDEXED.</span>
-    <span class="n">drift_findings</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;granule_status_drift&#39;</span><span class="p">]</span>
+    <span class="n">drift_findings</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'granule_status_drift'</span><span class="p">]</span>
     <span class="k">if</span> <span class="n">drift_findings</span><span class="p">:</span>
-        <span class="n">drift_keys</span> <span class="o">=</span> <span class="p">{(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;orbit&#39;</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;granule&#39;</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;track&#39;</span><span class="p">])</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">drift_findings</span><span class="p">}</span>
+        <span class="n">drift_keys</span> <span class="o">=</span> <span class="p">{(</span><span class="n">f</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">drift_findings</span><span class="p">}</span>
         <span class="n">flipped</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="p">(</span><span class="n">log</span><span class="o">.</span><span class="n">granule_info</span> <span class="ow">or</span> <span class="p">[]):</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="n">triple</span> <span class="o">=</span> <span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s1">&#39;orbit&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;granule&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;track&#39;</span><span class="p">])</span>
+                <span class="n">triple</span> <span class="o">=</span> <span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span>
             <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
                 <span class="k">continue</span>
-            <span class="k">if</span> <span class="n">triple</span> <span class="ow">in</span> <span class="n">drift_keys</span> <span class="ow">and</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;status&#39;</span><span class="p">)</span> <span class="o">!=</span> <span class="s1">&#39;INDEXED&#39;</span><span class="p">:</span>
-                <span class="n">g</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;INDEXED&#39;</span>
+            <span class="k">if</span> <span class="n">triple</span> <span class="ow">in</span> <span class="n">drift_keys</span> <span class="ow">and</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">!=</span> <span class="s1">'INDEXED'</span><span class="p">:</span>
+                <span class="n">g</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'INDEXED'</span>
                 <span class="n">flipped</span> <span class="o">+=</span> <span class="mi">1</span>
         <span class="k">if</span> <span class="n">flipped</span><span class="p">:</span>
-            <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;flipped_granule_status&#39;</span><span class="p">,</span> <span class="s1">&#39;count&#39;</span><span class="p">:</span> <span class="n">flipped</span><span class="p">})</span>
+            <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'flipped_granule_status'</span><span class="p">,</span> <span class="s1">'count'</span><span class="p">:</span> <span class="n">flipped</span><span class="p">})</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="c1"># Preserve current top-level log status (e.g. COMPLETED) rather</span>
                 <span class="c1"># than rewriting it; just persist the granule_info edits.</span>
-                <span class="n">log</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="n">log</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;status&#39;</span><span class="p">,</span> <span class="s1">&#39;COMPLETED&#39;</span><span class="p">))</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="n">log</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">,</span> <span class="s1">'COMPLETED'</span><span class="p">))</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                    <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;log_save_failed&#39;</span><span class="p">,</span>
-                    <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'log_save_failed'</span><span class="p">,</span>
+                    <span class="s1">'error'</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
                 <span class="p">})</span>
 
-    <span class="n">n_errors</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">actions</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;kind&#39;</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;refresh_failed&#39;</span><span class="p">,</span> <span class="s1">&#39;log_save_failed&#39;</span><span class="p">))</span>
+    <span class="n">n_errors</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">actions</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'kind'</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'refresh_failed'</span><span class="p">,</span> <span class="s1">'log_save_failed'</span><span class="p">))</span>
     <span class="n">report</span><span class="o">.</span><span class="n">applied</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">report</span><span class="o">.</span><span class="n">findings</span> <span class="o">=</span> <span class="n">actions</span>
     <span class="k">if</span> <span class="n">n_errors</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
-        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;applied </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">actions</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">n_errors</span><span class="si">}</span><span class="s2"> actions; </span><span class="si">{</span><span class="n">n_errors</span><span class="si">}</span><span class="s2"> errors&quot;</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"applied </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">actions</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">n_errors</span><span class="si">}</span><span class="s2"> actions; </span><span class="si">{</span><span class="n">n_errors</span><span class="si">}</span><span class="s2"> errors"</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">disk_missing</span> <span class="k">else</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span>
-        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;applied </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">actions</span><span class="p">)</span><span class="si">}</span><span class="s2"> actions&quot;</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"applied </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">actions</span><span class="p">)</span><span class="si">}</span><span class="s2"> actions"</span>
     <span class="k">return</span> <span class="n">report</span></div>
 
 
 
-<span class="n">register</span><span class="p">(</span><span class="s1">&#39;log_state&#39;</span><span class="p">,</span> <span class="s1">&#39;stuck flags + log&lt;-&gt;disk partition drift&#39;</span><span class="p">,</span>
-         <span class="n">scope</span><span class="o">=</span><span class="s1">&#39;global&#39;</span><span class="p">,</span> <span class="n">fix</span><span class="o">=</span><span class="n">log_state_fix</span><span class="p">)(</span><span class="n">log_state_check</span><span class="p">)</span>
+<span class="n">register</span><span class="p">(</span><span class="s1">'log_state'</span><span class="p">,</span> <span class="s1">'stuck flags + log&lt;-&gt;disk partition drift'</span><span class="p">,</span>
+         <span class="n">scope</span><span class="o">=</span><span class="s1">'global'</span><span class="p">,</span> <span class="n">fix</span><span class="o">=</span><span class="n">log_state_fix</span><span class="p">)(</span><span class="n">log_state_check</span><span class="p">)</span>
 </pre></div>
 
                 </article>

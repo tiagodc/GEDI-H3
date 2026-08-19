@@ -437,7 +437,7 @@ gh3_extract<span class="w"> </span>--help
 <section id="gh3-download">
 <h3><code class="docutils literal notranslate"><span class="pre">gh3_download</span></code><a class="headerlink" href="#gh3-download" title="Link to this heading">#</a></h3>
 <p>Download GEDI data from NASA DAAC.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_download<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;W,S,E,N&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-N<span class="w"> </span><span class="m">8</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_download<span class="w"> </span>-r<span class="w"> </span><span class="s2">"W,S,E,N"</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-N<span class="w"> </span><span class="m">8</span>
 gh3_download<span class="w"> </span>-r<span class="w"> </span>region.shp<span class="w"> </span>-l4a<span class="w"> </span>agbd<span class="w"> </span>-t0<span class="w"> </span><span class="m">2020</span>-01-01<span class="w"> </span>-t1<span class="w"> </span><span class="m">2021</span>-01-01
 gh3_download<span class="w"> </span>--s3<span class="w">  </span><span class="c1"># Stream from NASA S3 without local download</span>
 </pre></div>
@@ -472,7 +472,7 @@ gh3_download<span class="w"> </span>--s3<span class="w">  </span><span class="c1
 <section id="gh3-build">
 <h3><code class="docutils literal notranslate"><span class="pre">gh3_build</span></code><a class="headerlink" href="#gh3-build" title="Link to this heading">#</a></h3>
 <p>Build H3 parquet database from downloaded HDF5 files.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;W,S,E,N&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-h3r<span class="w"> </span><span class="m">12</span><span class="w"> </span>-h3p<span class="w"> </span><span class="m">3</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"W,S,E,N"</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-h3r<span class="w"> </span><span class="m">12</span><span class="w"> </span>-h3p<span class="w"> </span><span class="m">3</span>
 gh3_build<span class="w"> </span>-r<span class="w"> </span>region.shp<span class="w"> </span>-l4a<span class="w"> </span>agbd<span class="w"> </span>--resume
 gh3_build<span class="w"> </span>--s3<span class="w"> </span>-r<span class="w"> </span>region.shp<span class="w"> </span>-l4a<span class="w"> </span>agbd<span class="w">  </span><span class="c1"># Build directly from S3</span>
 </pre></div>
@@ -571,7 +571,7 @@ gh3_extract<span class="w"> </span>-d<span class="w"> </span>/path/to/database<s
 <h3><code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code><a class="headerlink" href="#gh3-aggregate" title="Link to this heading">#</a></h3>
 <p>Aggregate data to a coarser spatial resolution.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-h3<span class="w"> </span><span class="m">6</span><span class="w"> </span>-o<span class="w"> </span>output/
-gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-h3<span class="w"> </span><span class="m">6</span><span class="w"> </span>-a<span class="w"> </span><span class="s2">&quot;[&#39;mean&#39;,&#39;std&#39;,&#39;count&#39;]&quot;</span><span class="w"> </span>-o<span class="w"> </span>output/
+gh3_aggregate<span class="w"> </span>-d<span class="w"> </span>/path/to/database<span class="w"> </span>-h3<span class="w"> </span><span class="m">6</span><span class="w"> </span>-a<span class="w"> </span><span class="s2">"['mean','std','count']"</span><span class="w"> </span>-o<span class="w"> </span>output/
 </pre></div>
 </div>
 <div class="pst-scrollable-table-container"><table class="table">

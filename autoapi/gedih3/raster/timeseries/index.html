@@ -626,8 +626,8 @@ from GEDI data. It supports:
 </dl>
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Generate yearly windows</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">t0</span><span class="p">,</span> <span class="n">t1</span><span class="p">,</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="n">generate_time_windows</span><span class="p">(</span><span class="s1">&#39;2020-01-01&#39;</span><span class="p">,</span> <span class="s1">&#39;2023-01-01&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;years&#39;</span><span class="p">):</span>
-<span class="gp">... </span>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">t0</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">t1</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">t0</span><span class="p">,</span> <span class="n">t1</span><span class="p">,</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="n">generate_time_windows</span><span class="p">(</span><span class="s1">'2020-01-01'</span><span class="p">,</span> <span class="s1">'2023-01-01'</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">'years'</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">t0</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">t1</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 <span class="go">2020-01-01-to-2021-01-01: 2020-01-01 00:00:00 to 2021-01-01 00:00:00</span>
 <span class="go">2021-01-01-to-2022-01-01: 2021-01-01 00:00:00 to 2022-01-01 00:00:00</span>
 <span class="go">2022-01-01-to-2023-01-01: 2022-01-01 00:00:00 to 2023-01-01 00:00:00</span>
@@ -712,20 +712,20 @@ raster outputs for different time windows from a single dataset.</p>
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">rasterizer</span> <span class="o">=</span> <span class="n">TimeSeriesRasterizer</span><span class="p">(</span>
 <span class="gp">... </span>    <span class="n">gdf</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="n">time_col</span><span class="o">=</span><span class="s1">&#39;datetime&#39;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="n">aggregation</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">time_col</span><span class="o">=</span><span class="s1">'datetime'</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">aggregation</span><span class="o">=</span><span class="s1">'mean'</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="n">target_level</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="n">use_egi</span><span class="o">=</span><span class="kc">True</span>
 <span class="gp">... </span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt;</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Generate yearly rasters</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">raster</span><span class="p">,</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="n">rasterizer</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="n">start_date</span><span class="o">=</span><span class="s1">&#39;2020-01-01&#39;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="n">end_date</span><span class="o">=</span><span class="s1">&#39;2023-01-01&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">start_date</span><span class="o">=</span><span class="s1">'2020-01-01'</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">end_date</span><span class="o">=</span><span class="s1">'2023-01-01'</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="n">interval</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="n">units</span><span class="o">=</span><span class="s1">&#39;years&#39;</span>
+<span class="gp">... </span>    <span class="n">units</span><span class="o">=</span><span class="s1">'years'</span>
 <span class="gp">... </span><span class="p">):</span>
-<span class="gp">... </span>    <span class="n">raster</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">to_raster</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;output_</span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">.tif&quot;</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="n">raster</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">to_raster</span><span class="p">(</span><span class="sa">f</span><span class="s2">"output_</span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">.tif"</span><span class="p">)</span>
 </pre></div>
 </div>
 <dl class="py attribute">

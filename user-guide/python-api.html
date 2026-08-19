@@ -437,34 +437,34 @@
 
 <span class="c1"># Step 1: Download GEDI data</span>
 <span class="n">gedi_download</span><span class="p">(</span>
-    <span class="n">product_vars</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;L2A&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;minimal&#39;</span><span class="p">],</span> <span class="s1">&#39;L4A&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;minimal&#39;</span><span class="p">]},</span>
+    <span class="n">product_vars</span><span class="o">=</span><span class="p">{</span><span class="s1">'L2A'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'minimal'</span><span class="p">],</span> <span class="s1">'L4A'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'minimal'</span><span class="p">]},</span>
     <span class="n">spatial</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mi">51</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">50</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>           <span class="c1"># [W, S, E, N]</span>
-    <span class="n">temporal</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;2020-01-01&#39;</span><span class="p">,</span> <span class="s1">&#39;2022-12-31&#39;</span><span class="p">),</span>
+    <span class="n">temporal</span><span class="o">=</span><span class="p">(</span><span class="s1">'2020-01-01'</span><span class="p">,</span> <span class="s1">'2022-12-31'</span><span class="p">),</span>
     <span class="n">resume</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span>
 
 <span class="c1"># Step 2: Build the H3 database</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_h3db</span>
 <span class="n">build_h3db</span><span class="p">(</span>
-    <span class="n">product_vars</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;L2A&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;minimal&#39;</span><span class="p">],</span> <span class="s1">&#39;L4A&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;minimal&#39;</span><span class="p">]},</span>
+    <span class="n">product_vars</span><span class="o">=</span><span class="p">{</span><span class="s1">'L2A'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'minimal'</span><span class="p">],</span> <span class="s1">'L4A'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'minimal'</span><span class="p">]},</span>
     <span class="n">spatial</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mi">51</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">50</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
 <span class="p">)</span>
 
 <span class="c1"># Step 3: Load and filter data</span>
 <span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span>
-    <span class="n">source</span><span class="o">=</span><span class="s1">&#39;~/gedi_data/h3/&#39;</span><span class="p">,</span>
-    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">,</span> <span class="s1">&#39;rh_098_l2a&#39;</span><span class="p">],</span>
+    <span class="n">source</span><span class="o">=</span><span class="s1">'~/gedi_data/h3/'</span><span class="p">,</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'agbd_l4a'</span><span class="p">,</span> <span class="s1">'rh_098_l2a'</span><span class="p">],</span>
     <span class="n">region</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mi">51</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">50</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
-    <span class="n">query</span><span class="o">=</span><span class="s1">&#39;quality_flag_l2a == 1 and agbd_l4a &gt; 0&#39;</span><span class="p">,</span>
+    <span class="n">query</span><span class="o">=</span><span class="s1">'quality_flag_l2a == 1 and agbd_l4a &gt; 0'</span><span class="p">,</span>
 <span class="p">)</span>
 
 <span class="c1"># Step 4: Aggregate to H3 level 6 (~36 km²)</span>
-<span class="n">agg_df</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_res</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">)</span>
+<span class="n">agg_df</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_res</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="s1">'mean'</span><span class="p">)</span>
 <span class="n">gdf</span> <span class="o">=</span> <span class="n">agg_df</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>  <span class="c1"># collect results</span>
 
 <span class="c1"># Step 5: Export as GeoTIFF</span>
 <span class="n">xras</span> <span class="o">=</span> <span class="n">raster</span><span class="o">.</span><span class="n">h3_to_raster</span><span class="p">(</span><span class="n">gdf</span><span class="p">)</span>
-<span class="n">raster</span><span class="o">.</span><span class="n">export_raster</span><span class="p">(</span><span class="n">xras</span><span class="p">,</span> <span class="s1">&#39;agbd_mean.tif&#39;</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="s1">&#39;LZW&#39;</span><span class="p">)</span>
+<span class="n">raster</span><span class="o">.</span><span class="n">export_raster</span><span class="p">(</span><span class="n">xras</span><span class="p">,</span> <span class="s1">'agbd_mean.tif'</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="s1">'LZW'</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
@@ -480,26 +480,26 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gh3</span>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">fit_height_biomass</span><span class="p">(</span><span class="n">df</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fit AGBD ~ RH98 linear regression per hexagon with slope significance.&quot;&quot;&quot;</span>
-    <span class="n">x</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s1">&#39;rh_098_l2a&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
-    <span class="n">y</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+<span class="w">    </span><span class="sd">"""Fit AGBD ~ RH98 linear regression per hexagon with slope significance."""</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s1">'rh_098_l2a'</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s1">'agbd_l4a'</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
 
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s1">&#39;r2&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">],</span> <span class="s1">&#39;pvalue&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">],</span> <span class="s1">&#39;coef&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">],</span> <span class="s1">&#39;n&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">0</span><span class="p">]})</span>
+        <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s1">'r2'</span><span class="p">:</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">],</span> <span class="s1">'pvalue'</span><span class="p">:</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">],</span> <span class="s1">'coef'</span><span class="p">:</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">],</span> <span class="s1">'n'</span><span class="p">:</span> <span class="p">[</span><span class="mi">0</span><span class="p">]})</span>
 
     <span class="n">res</span> <span class="o">=</span> <span class="n">linregress</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
-        <span class="s1">&#39;r2&#39;</span><span class="p">:</span>      <span class="p">[</span><span class="n">res</span><span class="o">.</span><span class="n">rvalue</span> <span class="o">**</span> <span class="mi">2</span><span class="p">],</span>
-        <span class="s1">&#39;pvalue&#39;</span><span class="p">:</span>  <span class="p">[</span><span class="n">res</span><span class="o">.</span><span class="n">pvalue</span><span class="p">],</span>
-        <span class="s1">&#39;coef&#39;</span><span class="p">:</span>    <span class="p">[</span><span class="n">res</span><span class="o">.</span><span class="n">slope</span><span class="p">],</span>
-        <span class="s1">&#39;n&#39;</span><span class="p">:</span>       <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)],</span>
+        <span class="s1">'r2'</span><span class="p">:</span>      <span class="p">[</span><span class="n">res</span><span class="o">.</span><span class="n">rvalue</span> <span class="o">**</span> <span class="mi">2</span><span class="p">],</span>
+        <span class="s1">'pvalue'</span><span class="p">:</span>  <span class="p">[</span><span class="n">res</span><span class="o">.</span><span class="n">pvalue</span><span class="p">],</span>
+        <span class="s1">'coef'</span><span class="p">:</span>    <span class="p">[</span><span class="n">res</span><span class="o">.</span><span class="n">slope</span><span class="p">],</span>
+        <span class="s1">'n'</span><span class="p">:</span>       <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)],</span>
     <span class="p">})</span>
 
 <span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span>
-    <span class="n">source</span><span class="o">=</span><span class="s1">&#39;~/gedi_data/h3/&#39;</span><span class="p">,</span>
-    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">,</span> <span class="s1">&#39;rh_098_l2a&#39;</span><span class="p">],</span>
+    <span class="n">source</span><span class="o">=</span><span class="s1">'~/gedi_data/h3/'</span><span class="p">,</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'agbd_l4a'</span><span class="p">,</span> <span class="s1">'rh_098_l2a'</span><span class="p">],</span>
     <span class="n">region</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mi">51</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">50</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
-    <span class="n">query</span><span class="o">=</span><span class="s1">&#39;quality_flag_l2a == 1 and l4_quality_flag_l4a == 1 and agbd_l4a &gt; 0&#39;</span><span class="p">,</span>
+    <span class="n">query</span><span class="o">=</span><span class="s1">'quality_flag_l2a == 1 and l4_quality_flag_l4a == 1 and agbd_l4a &gt; 0'</span><span class="p">,</span>
 <span class="p">)</span>
 
 <span class="c1"># Each hexagon gets its own regression — Dask processes all partitions in parallel</span>
@@ -524,14 +524,14 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gh3</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
 
-<span class="n">polygon</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s1">&#39;my_region.shp&#39;</span><span class="p">)</span>
+<span class="n">polygon</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s1">'my_region.shp'</span><span class="p">)</span>
 
 <span class="c1"># Load with spatial and temporal filters</span>
 <span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span>
-    <span class="n">source</span><span class="o">=</span><span class="s1">&#39;/path/to/h3_database/&#39;</span><span class="p">,</span>
-    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">,</span> <span class="s1">&#39;rh_098_l2a&#39;</span><span class="p">],</span>
+    <span class="n">source</span><span class="o">=</span><span class="s1">'/path/to/h3_database/'</span><span class="p">,</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'agbd_l4a'</span><span class="p">,</span> <span class="s1">'rh_098_l2a'</span><span class="p">],</span>
     <span class="n">region</span><span class="o">=</span><span class="n">polygon</span><span class="p">,</span>                <span class="c1"># shapefile or bbox [W,S,E,N]</span>
-    <span class="n">query</span><span class="o">=</span><span class="s1">&#39;quality_flag_l2a == 1&#39;</span><span class="p">,</span> <span class="c1"># pandas-style filter string</span>
+    <span class="n">query</span><span class="o">=</span><span class="s1">'quality_flag_l2a == 1'</span><span class="p">,</span> <span class="c1"># pandas-style filter string</span>
 <span class="p">)</span>
 </pre></div>
 </div>
@@ -544,10 +544,10 @@ decompressed and the rows never enter worker memory. Both <code class="docutils 
 <code class="docutils literal notranslate"><span class="pre">(column,</span> <span class="pre">op,</span> <span class="pre">value)</span></code> tuples, a DNF list-of-lists, or a
 <code class="docutils literal notranslate"><span class="pre">pyarrow.compute.Expression</span></code>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">egi_load</span><span class="p">(</span>
-    <span class="n">source</span><span class="o">=</span><span class="s1">&#39;/path/to/h3_database/&#39;</span><span class="p">,</span>
-    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">],</span>
+    <span class="n">source</span><span class="o">=</span><span class="s1">'/path/to/h3_database/'</span><span class="p">,</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'agbd_l4a'</span><span class="p">],</span>
     <span class="n">region</span><span class="o">=</span><span class="n">polygon</span><span class="p">,</span>
-    <span class="n">filters</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;l2_quality_flag_l4a&#39;</span><span class="p">,</span> <span class="s1">&#39;==&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">,</span> <span class="s1">&#39;&gt;&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)],</span>
+    <span class="n">filters</span><span class="o">=</span><span class="p">[(</span><span class="s1">'l2_quality_flag_l4a'</span><span class="p">,</span> <span class="s1">'=='</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s1">'agbd_l4a'</span><span class="p">,</span> <span class="s1">'&gt;'</span><span class="p">,</span> <span class="mi">0</span><span class="p">)],</span>
 <span class="p">)</span>
 </pre></div>
 </div>
@@ -565,11 +565,11 @@ the CLI’s <code class="docutils literal notranslate"><span class="pre">--s3-en
 <p>The database can also live on a remote filesystem. Use <code class="docutils literal notranslate"><span class="pre">configure_storage()</span></code> to set credentials, then pass a remote URI to <code class="docutils literal notranslate"><span class="pre">source=</span></code>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">configure_storage</span>
 
-<span class="n">configure_storage</span><span class="p">(</span><span class="s1">&#39;s3&#39;</span><span class="p">,</span> <span class="n">anon</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>                          <span class="c1"># public bucket</span>
-<span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">&#39;s3://my-bucket/h3_database/&#39;</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">])</span>
+<span class="n">configure_storage</span><span class="p">(</span><span class="s1">'s3'</span><span class="p">,</span> <span class="n">anon</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>                          <span class="c1"># public bucket</span>
+<span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">'s3://my-bucket/h3_database/'</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'agbd_l4a'</span><span class="p">])</span>
 
-<span class="n">configure_storage</span><span class="p">(</span><span class="s1">&#39;sftp&#39;</span><span class="p">,</span> <span class="n">username</span><span class="o">=</span><span class="s1">&#39;user&#39;</span><span class="p">,</span> <span class="n">key_filename</span><span class="o">=</span><span class="s1">&#39;~/.ssh/id_rsa&#39;</span><span class="p">)</span>
-<span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">&#39;sftp://server.example.com/data/h3/&#39;</span><span class="p">)</span>
+<span class="n">configure_storage</span><span class="p">(</span><span class="s1">'sftp'</span><span class="p">,</span> <span class="n">username</span><span class="o">=</span><span class="s1">'user'</span><span class="p">,</span> <span class="n">key_filename</span><span class="o">=</span><span class="s1">'~/.ssh/id_rsa'</span><span class="p">)</span>
+<span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">'sftp://server.example.com/data/h3/'</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Supported protocols: <code class="docutils literal notranslate"><span class="pre">s3</span></code>, <code class="docutils literal notranslate"><span class="pre">http</span></code>, <code class="docutils literal notranslate"><span class="pre">https</span></code>, <code class="docutils literal notranslate"><span class="pre">ftp</span></code>, <code class="docutils literal notranslate"><span class="pre">sftp</span></code>/<code class="docutils literal notranslate"><span class="pre">ssh</span></code>. See the <a class="reference internal" href="cli-reference.html#remote-storage-credentials"><span class="std std-ref">CLI credential flags</span></a> for the equivalent command-line options.</p>
@@ -579,10 +579,10 @@ the CLI’s <code class="docutils literal notranslate"><span class="pre">--s3-en
 <section id="from-a-simplified-dataset-gh3-extract-gh3-aggregate-output">
 <h3>From a Simplified Dataset (gh3_extract / gh3_aggregate output)<a class="headerlink" href="#from-a-simplified-dataset-gh3-extract-gh3-aggregate-output" title="Link to this heading">#</a></h3>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Load as Dask DataFrame (lazy, for large datasets)</span>
-<span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">&#39;/path/to/extracted/&#39;</span><span class="p">)</span>
+<span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">'/path/to/extracted/'</span><span class="p">)</span>
 
 <span class="c1"># Collect into memory</span>
-<span class="n">gdf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">&#39;/path/to/extracted/&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
+<span class="n">gdf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">'/path/to/extracted/'</span><span class="p">)</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
 </pre></div>
 </div>
 </section>
@@ -593,10 +593,10 @@ the CLI’s <code class="docutils literal notranslate"><span class="pre">--s3-en
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">gedih3</span><span class="o">,</span><span class="w"> </span><span class="nn">glob</span>
 
 <span class="c1"># Overhang-safe partition selection (ring-1 expansion applied)</span>
-<span class="n">ids</span> <span class="o">=</span> <span class="n">gedih3</span><span class="o">.</span><span class="n">gh3_select_partitions</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">&#39;/path/to/h3_database/&#39;</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="s1">&#39;roi.shp&#39;</span><span class="p">)</span>
+<span class="n">ids</span> <span class="o">=</span> <span class="n">gedih3</span><span class="o">.</span><span class="n">gh3_select_partitions</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">'/path/to/h3_database/'</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="s1">'roi.shp'</span><span class="p">)</span>
 
 <span class="n">files</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ids</span>
-         <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;/path/to/h3_database/h3_03=</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">/year=*/*.parquet&#39;</span><span class="p">)]</span>
+         <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s1">'/path/to/h3_database/h3_03=</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s1">/year=*/*.parquet'</span><span class="p">)]</span>
 </pre></div>
 </div>
 <p>Each partition’s <code class="docutils literal notranslate"><span class="pre">*.metadata.json</span></code> sidecar (and the parquet GeoParquet footer) also carries an overhang-padded <code class="docutils literal notranslate"><span class="pre">bbox</span></code> that is safe to intersect against; its <code class="docutils literal notranslate"><span class="pre">h3_geometry</span></code> is the <em>exact</em> cell polygon and is <strong>not</strong>. Compute a padded extent for any cell ID with <code class="docutils literal notranslate"><span class="pre">gedih3.h3_partition_bbox(cell_id,</span> <span class="pre">partition_level)</span></code>.</p>
@@ -610,10 +610,10 @@ the CLI’s <code class="docutils literal notranslate"><span class="pre">--s3-en
 <h3>Built-in Functions<a class="headerlink" href="#built-in-functions" title="Link to this heading">#</a></h3>
 <p>Any way of passing functions compatible with <a class="reference external" href="https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.groupby.html"><code class="docutils literal notranslate"><span class="pre">pandas.DataFrame.groupby</span></code></a> is accepted.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Single function</span>
-<span class="n">agg</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_res</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">)</span>
+<span class="n">agg</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_res</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="s1">'mean'</span><span class="p">)</span>
 
 <span class="c1"># Multiple functions at once</span>
-<span class="n">agg</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_res</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">,</span> <span class="s1">&#39;std&#39;</span><span class="p">,</span> <span class="s1">&#39;count&#39;</span><span class="p">])</span>
+<span class="n">agg</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_res</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="p">[</span><span class="s1">'mean'</span><span class="p">,</span> <span class="s1">'std'</span><span class="p">,</span> <span class="s1">'count'</span><span class="p">])</span>
 </pre></div>
 </div>
 <p>Some available built-in function include: <code class="docutils literal notranslate"><span class="pre">mean</span></code>, <code class="docutils literal notranslate"><span class="pre">sum</span></code>, <code class="docutils literal notranslate"><span class="pre">median</span></code>, <code class="docutils literal notranslate"><span class="pre">std</span></code>, <code class="docutils literal notranslate"><span class="pre">count</span></code>, <code class="docutils literal notranslate"><span class="pre">min</span></code>, <code class="docutils literal notranslate"><span class="pre">max</span></code>.</p>
@@ -635,15 +635,15 @@ loaded frame or a dataset directory written by <code class="docutils literal not
 <code class="docutils literal notranslate"><span class="pre">gh3_rasterize</span></code> CLI delegates to it, so both behave identically.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># EGI or H3, Dask or in-memory — one call, one GeoTIFF per spatial tile</span>
 <span class="c1"># (plus a mosaic.vrt), returning the written paths</span>
-<span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">egi_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">db</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="s1">&#39;region.shp&#39;</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span>
-<span class="n">paths</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;tiles/&#39;</span><span class="p">)</span>
+<span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">egi_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">db</span><span class="p">,</span> <span class="n">region</span><span class="o">=</span><span class="s1">'region.shp'</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span>
+<span class="n">paths</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">'tiles/'</span><span class="p">)</span>
 
 <span class="c1"># Straight from a dataset directory, merged into a single file</span>
-<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="s1">&#39;/data/agbd_egi_agg&#39;</span><span class="p">,</span> <span class="s1">&#39;agbd.tif&#39;</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="s1">'/data/agbd_egi_agg'</span><span class="p">,</span> <span class="s1">'agbd.tif'</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
 <span class="c1"># Narrow it down: column wildcards and a row filter (dataset input)</span>
-<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="s1">&#39;/data/agbd_egi_agg&#39;</span><span class="p">,</span> <span class="s1">&#39;tiles/&#39;</span><span class="p">,</span>
-                  <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_*&#39;</span><span class="p">],</span> <span class="n">query</span><span class="o">=</span><span class="s1">&#39;agbd_mean &gt; 50&#39;</span><span class="p">)</span>
+<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="s1">'/data/agbd_egi_agg'</span><span class="p">,</span> <span class="s1">'tiles/'</span><span class="p">,</span>
+                  <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'agbd_*'</span><span class="p">],</span> <span class="n">query</span><span class="o">=</span><span class="s1">'agbd_mean &gt; 50'</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>EGI output stays in <strong>EPSG:6933</strong> (EASE-Grid 2.0) so it stacks with GEDI L4B; H3 output is
@@ -652,24 +652,24 @@ EPSG:4326. EGI rasters are never reprojected — that alignment is the reason EG
 tiled, with an overview pyramid, so a COG reader over HTTP or S3 fetches only the bytes it
 needs. A COG is a valid GeoTIFF, so nothing that read the old output breaks. Pass
 <code class="docutils literal notranslate"><span class="pre">cog=False</span></code> (or <code class="docutils literal notranslate"><span class="pre">--no-cog</span></code> on the CLIs) for a plain GeoTIFF:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;tiles/&#39;</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="s1">&#39;ZSTD&#39;</span><span class="p">)</span>   <span class="c1"># COG + ZSTD</span>
-<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;tiles/&#39;</span><span class="p">,</span> <span class="n">cog</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>         <span class="c1"># plain GeoTIFF, no overviews</span>
-<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">&#39;tiles/&#39;</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;tif&#39;</span><span class="p">)</span>            <span class="c1"># same pipeline, from export</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">'tiles/'</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="s1">'ZSTD'</span><span class="p">)</span>   <span class="c1"># COG + ZSTD</span>
+<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">'tiles/'</span><span class="p">,</span> <span class="n">cog</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>         <span class="c1"># plain GeoTIFF, no overviews</span>
+<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="s1">'tiles/'</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">'tif'</span><span class="p">)</span>            <span class="c1"># same pipeline, from export</span>
 </pre></div>
 </div>
 <p>For a single in-memory frame, <code class="docutils literal notranslate"><span class="pre">gh3_to_raster()</span></code> returns the <code class="docutils literal notranslate"><span class="pre">xarray.Dataset</span></code> directly,
 dispatching on index type the same way:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">gedih3</span><span class="w"> </span><span class="kn">import</span> <span class="n">raster</span>
 
-<span class="n">gdf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_res</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
-<span class="n">xras</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_to_raster</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a_mean&#39;</span><span class="p">])</span>   <span class="c1"># H3 → EPSG:4326</span>
+<span class="n">gdf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_res</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="s1">'mean'</span><span class="p">)</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
+<span class="n">xras</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_to_raster</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'agbd_l4a_mean'</span><span class="p">])</span>   <span class="c1"># H3 → EPSG:4326</span>
                                                             <span class="c1"># EGI → EPSG:6933</span>
 
 <span class="c1"># Export to GeoTIFF</span>
-<span class="n">raster</span><span class="o">.</span><span class="n">export_raster</span><span class="p">(</span><span class="n">xras</span><span class="p">,</span> <span class="s1">&#39;agbd.tif&#39;</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="s1">&#39;LZW&#39;</span><span class="p">)</span>
+<span class="n">raster</span><span class="o">.</span><span class="n">export_raster</span><span class="p">(</span><span class="n">xras</span><span class="p">,</span> <span class="s1">'agbd.tif'</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="s1">'LZW'</span><span class="p">)</span>
 
 <span class="c1"># Visualize in-memory</span>
-<span class="n">xras</span><span class="p">[</span><span class="s1">&#39;agbd_l4a_mean&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
+<span class="n">xras</span><span class="p">[</span><span class="s1">'agbd_l4a_mean'</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
 </pre></div>
 </div>
 <div class="admonition note">
@@ -685,18 +685,18 @@ multi-tile frame — an aggregate over an arbitrary ROI, say — split it first 
 <h3>Time-Series Rasterization<a class="headerlink" href="#time-series-rasterization" title="Link to this heading">#</a></h3>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.raster</span><span class="w"> </span><span class="kn">import</span> <span class="n">TimeSeriesRasterizer</span>
 
-<span class="n">ts</span> <span class="o">=</span> <span class="n">TimeSeriesRasterizer</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">time_col</span><span class="o">=</span><span class="s1">&#39;datetime&#39;</span><span class="p">,</span> <span class="n">target_level</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span>
-<span class="k">for</span> <span class="n">xras</span><span class="p">,</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="n">ts</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s1">&#39;2020-01-01&#39;</span><span class="p">,</span> <span class="s1">&#39;2023-01-01&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;years&#39;</span><span class="p">):</span>
-    <span class="n">raster</span><span class="o">.</span><span class="n">export_raster</span><span class="p">(</span><span class="n">xras</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;agbd_</span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s1">.tif&#39;</span><span class="p">)</span>
+<span class="n">ts</span> <span class="o">=</span> <span class="n">TimeSeriesRasterizer</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">time_col</span><span class="o">=</span><span class="s1">'datetime'</span><span class="p">,</span> <span class="n">target_level</span><span class="o">=</span><span class="mi">6</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">xras</span><span class="p">,</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="n">ts</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="s1">'2020-01-01'</span><span class="p">,</span> <span class="s1">'2023-01-01'</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">'years'</span><span class="p">):</span>
+    <span class="n">raster</span><span class="o">.</span><span class="n">export_raster</span><span class="p">(</span><span class="n">xras</span><span class="p">,</span> <span class="sa">f</span><span class="s1">'agbd_</span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s1">.tif'</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>To rasterize a directory of per-window datasets (what <code class="docutils literal notranslate"><span class="pre">gh3_rasterize</span></code> does when handed a
 time-series tree), loop the windows yourself:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">glob</span>
 
-<span class="k">for</span> <span class="n">window</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s1">&#39;/data/windows/*&#39;</span><span class="p">)):</span>
+<span class="k">for</span> <span class="n">window</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s1">'/data/windows/*'</span><span class="p">)):</span>
     <span class="n">name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">window</span><span class="p">)</span>
-    <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="n">window</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;/out/</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s1">.tif&#39;</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span><span class="n">window</span><span class="p">,</span> <span class="sa">f</span><span class="s1">'/out/</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s1">.tif'</span><span class="p">,</span> <span class="n">merge</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
@@ -710,14 +710,14 @@ time-series tree), loop the windows yourself:</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.imgutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_image</span>
 
 <span class="c1"># region must be a GeoDataFrame or bbox, not a file path</span>
-<span class="n">region</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s1">&#39;region.shp&#39;</span><span class="p">)</span>
+<span class="n">region</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s1">'region.shp'</span><span class="p">)</span>
 
 <span class="c1"># Sample DEM elevation at each GEDI shot location</span>
 <span class="n">ddf</span> <span class="o">=</span> <span class="n">from_image</span><span class="p">(</span>
-    <span class="n">image_path</span><span class="o">=</span><span class="s1">&#39;/path/to/dem.tif&#39;</span><span class="p">,</span>
-    <span class="n">data_source</span><span class="o">=</span><span class="s1">&#39;/path/to/h3_database/&#39;</span><span class="p">,</span>
+    <span class="n">image_path</span><span class="o">=</span><span class="s1">'/path/to/dem.tif'</span><span class="p">,</span>
+    <span class="n">data_source</span><span class="o">=</span><span class="s1">'/path/to/h3_database/'</span><span class="p">,</span>
     <span class="n">region</span><span class="o">=</span><span class="n">region</span><span class="p">,</span>
-    <span class="n">band_names</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;elevation&#39;</span><span class="p">],</span>
+    <span class="n">band_names</span><span class="o">=</span><span class="p">[</span><span class="s1">'elevation'</span><span class="p">],</span>
 <span class="p">)</span>
 </pre></div>
 </div>
@@ -728,14 +728,14 @@ time-series tree), loop the windows yourself:</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.vecutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">join_polygons_to_points</span>
 
 <span class="c1"># Load data with geometry (required for spatial join)</span>
-<span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">&#39;/path/to/h3_database/&#39;</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">])</span>
+<span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">'/path/to/h3_database/'</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'geometry'</span><span class="p">])</span>
 
 <span class="c1"># join_polygons_to_points is partition-level, so use map_partitions</span>
 <span class="n">result</span> <span class="o">=</span> <span class="n">ddf</span><span class="o">.</span><span class="n">map_partitions</span><span class="p">(</span>
     <span class="n">join_polygons_to_points</span><span class="p">,</span>
-    <span class="n">vector_path</span><span class="o">=</span><span class="s1">&#39;ecoregions.shp&#39;</span><span class="p">,</span>
-    <span class="n">join_columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;ECO_NAME&#39;</span><span class="p">,</span> <span class="s1">&#39;BIOME_NAME&#39;</span><span class="p">],</span>
-    <span class="n">prefix</span><span class="o">=</span><span class="s1">&#39;eco_&#39;</span><span class="p">,</span>
+    <span class="n">vector_path</span><span class="o">=</span><span class="s1">'ecoregions.shp'</span><span class="p">,</span>
+    <span class="n">join_columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'ECO_NAME'</span><span class="p">,</span> <span class="s1">'BIOME_NAME'</span><span class="p">],</span>
+    <span class="n">prefix</span><span class="o">=</span><span class="s1">'eco_'</span><span class="p">,</span>
 <span class="p">)</span>
 </pre></div>
 </div>
@@ -745,10 +745,10 @@ time-series tree), loop the windows yourself:</p>
 <section id="exporting-data">
 <h2>Exporting Data<a class="headerlink" href="#exporting-data" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Export to flat Parquet — preserves shot_number and spatial indexes by default</span>
-<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="s1">&#39;path/to/output/&#39;</span><span class="p">)</span>
+<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="s1">'path/to/output/'</span><span class="p">)</span>
 
 <span class="c1"># Drop spatial index columns (h3_XX, egiXX, shot_number) for external consumers</span>
-<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="s1">&#39;path/to/output/&#39;</span><span class="p">,</span> <span class="n">drop_internal</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">gh3</span><span class="o">.</span><span class="n">gh3_export</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="s1">'path/to/output/'</span><span class="p">,</span> <span class="n">drop_internal</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>The exported dataset is compatible with <code class="docutils literal notranslate"><span class="pre">gh3_rasterize</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_from_img</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_from_polygon</span></code>, and any tool that reads Parquet (pandas, R, QGIS, DuckDB).</p>
@@ -759,11 +759,11 @@ time-series tree), loop the windows yourself:</p>
 <p>For large datasets, configure the Dask distributed client directly:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dask.distributed</span><span class="w"> </span><span class="kn">import</span> <span class="n">Client</span>
 
-<span class="n">client</span> <span class="o">=</span> <span class="n">Client</span><span class="p">(</span><span class="n">n_workers</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">threads_per_worker</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">memory_limit</span><span class="o">=</span><span class="s1">&#39;8GB&#39;</span><span class="p">)</span>
+<span class="n">client</span> <span class="o">=</span> <span class="n">Client</span><span class="p">(</span><span class="n">n_workers</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">threads_per_worker</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">memory_limit</span><span class="o">=</span><span class="s1">'8GB'</span><span class="p">)</span>
 
 <span class="c1"># All gh3 operations automatically use this client</span>
-<span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">&#39;~/gedi_data/h3/&#39;</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">])</span>
-<span class="n">agg</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_res</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
+<span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s1">'~/gedi_data/h3/'</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'agbd_l4a'</span><span class="p">])</span>
+<span class="n">agg</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_res</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="s1">'mean'</span><span class="p">)</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
 
 <span class="n">client</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>

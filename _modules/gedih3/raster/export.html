@@ -760,12 +760,12 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="sd">Raster Export Module</span>
 
 <span class="sd">This module provides utilities for exporting raster data to various formats,</span>
 <span class="sd">with support for GeoTIFF compression, tiling, and batch operations.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
@@ -790,13 +790,13 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">export_raster</span><span class="p">(</span>
     <span class="n">xras</span><span class="p">:</span> <span class="n">xr</span><span class="o">.</span><span class="n">Dataset</span><span class="p">,</span>
     <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;LZW&#39;</span><span class="p">,</span>
+    <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'LZW'</span><span class="p">,</span>
     <span class="n">tiled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">blocksize</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">256</span><span class="p">,</span>
     <span class="n">bigtiff</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">cog</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Export xarray Dataset to GeoTIFF file.</span>
 
 <span class="sd">    Writes a Cloud Optimized GeoTIFF by default: internally tiled with an</span>
@@ -811,7 +811,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    output_path : str</span>
 <span class="sd">        Output file path</span>
 <span class="sd">    compress : str</span>
-<span class="sd">        Compression method (&#39;LZW&#39;, &#39;ZSTD&#39;, &#39;DEFLATE&#39;, &#39;NONE&#39;)</span>
+<span class="sd">        Compression method ('LZW', 'ZSTD', 'DEFLATE', 'NONE')</span>
 <span class="sd">    tiled : bool</span>
 <span class="sd">        Use tiled output format. Ignored when ``cog`` is True — a COG is</span>
 <span class="sd">        always tiled.</span>
@@ -827,7 +827,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    str</span>
 <span class="sd">        Output file path</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="n">cog</span><span class="p">:</span>
         <span class="n">options</span> <span class="o">=</span> <span class="n">get_cog_options</span><span class="p">(</span><span class="n">compress</span><span class="p">,</span> <span class="n">blocksize</span><span class="p">,</span> <span class="n">bigtiff</span><span class="p">,</span> <span class="o">**</span><span class="n">COG_DEFAULTS</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
@@ -846,12 +846,12 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">export_raster_partition</span><span class="p">(</span>
     <span class="n">data</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">,</span> <span class="n">xr</span><span class="o">.</span><span class="n">Dataset</span><span class="p">],</span>
     <span class="n">output_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;tif&#39;</span><span class="p">,</span>
-    <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;LZW&#39;</span><span class="p">,</span>
+    <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'tif'</span><span class="p">,</span>
+    <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'LZW'</span><span class="p">,</span>
     <span class="n">partition_id_attr</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">cog</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Export raster partition(s) to file(s).</span>
 
 <span class="sd">    This function handles the case where a Series may contain multiple</span>
@@ -865,7 +865,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    output_dir : str</span>
 <span class="sd">        Output directory</span>
 <span class="sd">    fmt : str</span>
-<span class="sd">        Output format (&#39;tif&#39;, &#39;nc&#39;)</span>
+<span class="sd">        Output format ('tif', 'nc')</span>
 <span class="sd">    compress : str</span>
 <span class="sd">        Compression method for GeoTIFF</span>
 <span class="sd">    partition_id_attr : str, optional</span>
@@ -877,17 +877,17 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    str</span>
 <span class="sd">        Output file path(s), comma-separated if multiple files written</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">):</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+            <span class="k">return</span> <span class="s1">''</span>
         <span class="c1"># Series of Datasets - export each separately</span>
-        <span class="n">valid_rasters</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">data</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s1">&#39;data_vars&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">valid_rasters</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">data</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s1">'data_vars'</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">valid_rasters</span><span class="p">:</span>
-            <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+            <span class="k">return</span> <span class="s1">''</span>
 
         <span class="c1"># Export each raster to its own file based on its tile ID</span>
         <span class="n">output_paths</span> <span class="o">=</span> <span class="p">[]</span>
@@ -897,13 +897,13 @@ window.runMermaid = runMermaid;</script>
             <span class="k">if</span> <span class="n">path</span><span class="p">:</span>
                 <span class="n">output_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
 
-        <span class="k">return</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_paths</span><span class="p">)</span> <span class="k">if</span> <span class="n">output_paths</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">return</span> <span class="s1">','</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_paths</span><span class="p">)</span> <span class="k">if</span> <span class="n">output_paths</span> <span class="k">else</span> <span class="s1">''</span>
 
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">xr</span><span class="o">.</span><span class="n">Dataset</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">_export_single_raster</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">,</span> <span class="n">fmt</span><span class="p">,</span> <span class="n">compress</span><span class="p">,</span>
                                      <span class="n">partition_id_attr</span><span class="p">,</span> <span class="n">cog</span><span class="o">=</span><span class="n">cog</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="s1">&#39;&#39;</span></div>
+    <span class="k">return</span> <span class="s1">''</span></div>
 
 
 
@@ -915,7 +915,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">partition_id_attr</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">cog</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Export a single xarray Dataset to file.</span>
 
 <span class="sd">    Parameters</span>
@@ -937,27 +937,27 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    str</span>
 <span class="sd">        Output file path</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">xras</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">return</span> <span class="s1">''</span>
 
     <span class="c1"># Determine output filename from attributes</span>
-    <span class="n">basename</span> <span class="o">=</span> <span class="s1">&#39;raster&#39;</span>
+    <span class="n">basename</span> <span class="o">=</span> <span class="s1">'raster'</span>
 
     <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">xras</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)[:</span><span class="mi">1</span><span class="p">]:</span>
         <span class="n">attrs</span> <span class="o">=</span> <span class="n">xras</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span>
         <span class="c1"># Look for any H3 partition ID attribute (h3_XX_id pattern)</span>
-        <span class="n">h3_part_attrs</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">attrs</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;h3_\d</span><span class="si">{2}</span><span class="s1">_id$&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">k</span><span class="p">))]</span>
+        <span class="n">h3_part_attrs</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">attrs</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">'h3_\d</span><span class="si">{2}</span><span class="s1">_id$'</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">k</span><span class="p">))]</span>
         <span class="k">if</span> <span class="n">h3_part_attrs</span><span class="p">:</span>
             <span class="n">basename</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">attrs</span><span class="p">[</span><span class="n">h3_part_attrs</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
             <span class="k">break</span>
-        <span class="k">elif</span> <span class="s1">&#39;egi12_id&#39;</span> <span class="ow">in</span> <span class="n">attrs</span><span class="p">:</span>
-            <span class="n">basename</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;egi12_id&#39;</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="s1">'egi12_id'</span> <span class="ow">in</span> <span class="n">attrs</span><span class="p">:</span>
+            <span class="n">basename</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">attrs</span><span class="p">[</span><span class="s1">'egi12_id'</span><span class="p">])</span>
             <span class="k">break</span>
         <span class="c1"># Look for any EGI partition ID attribute (egiXX_id pattern)</span>
-        <span class="n">egi_part_attrs</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">attrs</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;egi\d+_id$&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">k</span><span class="p">))]</span>
+        <span class="n">egi_part_attrs</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">attrs</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">'egi\d+_id$'</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">k</span><span class="p">))]</span>
         <span class="k">if</span> <span class="n">egi_part_attrs</span><span class="p">:</span>
             <span class="n">basename</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">attrs</span><span class="p">[</span><span class="n">egi_part_attrs</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
             <span class="k">break</span>
@@ -966,16 +966,16 @@ window.runMermaid = runMermaid;</script>
             <span class="k">break</span>
 
     <span class="c1"># Add extension</span>
-    <span class="n">output_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">basename</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">output_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">basename</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
-    <span class="k">if</span> <span class="n">fmt</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;tif&#39;</span><span class="p">,</span> <span class="s1">&#39;tiff&#39;</span><span class="p">,</span> <span class="s1">&#39;geotiff&#39;</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">fmt</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'tif'</span><span class="p">,</span> <span class="s1">'tiff'</span><span class="p">,</span> <span class="s1">'geotiff'</span><span class="p">):</span>
         <span class="n">options</span> <span class="o">=</span> <span class="p">(</span><span class="n">get_cog_options</span><span class="p">(</span><span class="n">compress</span><span class="p">,</span> <span class="o">**</span><span class="n">COG_DEFAULTS</span><span class="p">)</span> <span class="k">if</span> <span class="n">cog</span>
                    <span class="k">else</span> <span class="n">get_geotiff_options</span><span class="p">(</span><span class="n">compress</span><span class="p">))</span>
         <span class="n">xras</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">to_raster</span><span class="p">(</span><span class="n">output_path</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="n">fmt</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;nc&#39;</span><span class="p">,</span> <span class="s1">&#39;netcdf&#39;</span><span class="p">):</span>
+    <span class="k">elif</span> <span class="n">fmt</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'nc'</span><span class="p">,</span> <span class="s1">'netcdf'</span><span class="p">):</span>
         <span class="n">xras</span><span class="o">.</span><span class="n">to_netcdf</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported raster format: </span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unsupported raster format: </span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">output_path</span>
 
@@ -987,13 +987,13 @@ window.runMermaid = runMermaid;</script>
     <span class="n">output_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">rasterize_func</span><span class="p">,</span>
     <span class="n">columns</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;tif&#39;</span><span class="p">,</span>
-    <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;LZW&#39;</span><span class="p">,</span>
+    <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'tif'</span><span class="p">,</span>
+    <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'LZW'</span><span class="p">,</span>
     <span class="n">show_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">cog</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="o">**</span><span class="n">rasterize_kwargs</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Rasterize and export GeoDataFrame partitions to individual files.</span>
 
 <span class="sd">    Parameters</span>
@@ -1007,7 +1007,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    columns : list of str, optional</span>
 <span class="sd">        Columns to include in rasterization</span>
 <span class="sd">    fmt : str</span>
-<span class="sd">        Output format (&#39;tif&#39;, &#39;nc&#39;)</span>
+<span class="sd">        Output format ('tif', 'nc')</span>
 <span class="sd">    compress : str</span>
 <span class="sd">        Compression method for GeoTIFF</span>
 <span class="sd">    show_progress : bool</span>
@@ -1017,10 +1017,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    list of str</span>
 <span class="sd">        Paths to output files</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
-    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="s1">&#39;npartitions&#39;</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="s1">'npartitions'</span><span class="p">):</span>
         <span class="c1"># Dask GeoDataFrame</span>
         <span class="n">raster_parts</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">map_partitions</span><span class="p">(</span>
             <span class="n">rasterize_func</span><span class="p">,</span>
@@ -1038,7 +1038,7 @@ window.runMermaid = runMermaid;</script>
             <span class="n">meta</span><span class="o">=</span><span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="nb">str</span><span class="p">)</span>
         <span class="p">)</span>
 
-        <span class="c1"># Driver-side gather instead of .compute() — the optimizer&#39;s</span>
+        <span class="c1"># Driver-side gather instead of .compute() — the optimizer's</span>
         <span class="c1"># RepartitionToFewer collapse step wedges on tunneled meshes past</span>
         <span class="c1"># ~1500 partitions in dask &gt;= 2025.2.</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">..utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">dask_safe_collect</span>
@@ -1059,10 +1059,10 @@ window.runMermaid = runMermaid;</script>
     <span class="n">all_paths</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">p</span><span class="p">:</span>
-            <span class="n">all_paths</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">))</span>
-    <span class="n">tif_files</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">all_paths</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.tif&#39;</span><span class="p">)]</span>
+            <span class="n">all_paths</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">','</span><span class="p">))</span>
+    <span class="n">tif_files</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">all_paths</span> <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">'.tif'</span><span class="p">)]</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tif_files</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="n">vrt_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s1">&#39;mosaic.vrt&#39;</span><span class="p">)</span>
+        <span class="n">vrt_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s1">'mosaic.vrt'</span><span class="p">)</span>
         <span class="n">build_vrt_safe</span><span class="p">(</span><span class="n">tif_files</span><span class="p">,</span> <span class="n">vrt_path</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">result</span></div>
@@ -1073,17 +1073,17 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># rather than a rasterio private helper: the mapping is stable and the failure</span>
 <span class="c1"># mode of a wrong guess (silently misread pixels) is worse than a KeyError.</span>
 <span class="n">_GDAL_TYPENAME</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;uint8&#39;</span><span class="p">:</span> <span class="s1">&#39;Byte&#39;</span><span class="p">,</span> <span class="s1">&#39;int8&#39;</span><span class="p">:</span> <span class="s1">&#39;Int8&#39;</span><span class="p">,</span> <span class="s1">&#39;uint16&#39;</span><span class="p">:</span> <span class="s1">&#39;UInt16&#39;</span><span class="p">,</span> <span class="s1">&#39;int16&#39;</span><span class="p">:</span> <span class="s1">&#39;Int16&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;uint32&#39;</span><span class="p">:</span> <span class="s1">&#39;UInt32&#39;</span><span class="p">,</span> <span class="s1">&#39;int32&#39;</span><span class="p">:</span> <span class="s1">&#39;Int32&#39;</span><span class="p">,</span> <span class="s1">&#39;uint64&#39;</span><span class="p">:</span> <span class="s1">&#39;UInt64&#39;</span><span class="p">,</span> <span class="s1">&#39;int64&#39;</span><span class="p">:</span> <span class="s1">&#39;Int64&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;float32&#39;</span><span class="p">:</span> <span class="s1">&#39;Float32&#39;</span><span class="p">,</span> <span class="s1">&#39;float64&#39;</span><span class="p">:</span> <span class="s1">&#39;Float64&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;complex_int16&#39;</span><span class="p">:</span> <span class="s1">&#39;CInt16&#39;</span><span class="p">,</span> <span class="s1">&#39;complex64&#39;</span><span class="p">:</span> <span class="s1">&#39;CFloat32&#39;</span><span class="p">,</span> <span class="s1">&#39;complex128&#39;</span><span class="p">:</span> <span class="s1">&#39;CFloat64&#39;</span><span class="p">,</span>
+    <span class="s1">'uint8'</span><span class="p">:</span> <span class="s1">'Byte'</span><span class="p">,</span> <span class="s1">'int8'</span><span class="p">:</span> <span class="s1">'Int8'</span><span class="p">,</span> <span class="s1">'uint16'</span><span class="p">:</span> <span class="s1">'UInt16'</span><span class="p">,</span> <span class="s1">'int16'</span><span class="p">:</span> <span class="s1">'Int16'</span><span class="p">,</span>
+    <span class="s1">'uint32'</span><span class="p">:</span> <span class="s1">'UInt32'</span><span class="p">,</span> <span class="s1">'int32'</span><span class="p">:</span> <span class="s1">'Int32'</span><span class="p">,</span> <span class="s1">'uint64'</span><span class="p">:</span> <span class="s1">'UInt64'</span><span class="p">,</span> <span class="s1">'int64'</span><span class="p">:</span> <span class="s1">'Int64'</span><span class="p">,</span>
+    <span class="s1">'float32'</span><span class="p">:</span> <span class="s1">'Float32'</span><span class="p">,</span> <span class="s1">'float64'</span><span class="p">:</span> <span class="s1">'Float64'</span><span class="p">,</span>
+    <span class="s1">'complex_int16'</span><span class="p">:</span> <span class="s1">'CInt16'</span><span class="p">,</span> <span class="s1">'complex64'</span><span class="p">:</span> <span class="s1">'CFloat32'</span><span class="p">,</span> <span class="s1">'complex128'</span><span class="p">:</span> <span class="s1">'CFloat64'</span><span class="p">,</span>
 <span class="p">}</span>
 
 
 <div class="viewcode-block" id="build_vrt">
 <a class="viewcode-back" href="../../../autoapi/gedih3/raster/export/index.html#gedih3.raster.export.build_vrt">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">build_vrt</span><span class="p">(</span><span class="n">tif_files</span><span class="p">,</span> <span class="n">vrt_path</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build a GDAL VRT file mosaicking a list of GeoTIFF tiles.</span>
+<span class="w">    </span><span class="sd">"""Build a GDAL VRT file mosaicking a list of GeoTIFF tiles.</span>
 
 <span class="sd">    Uses the ``osgeo.gdal`` bindings when they are importable, and falls back</span>
 <span class="sd">    to :func:`build_vrt_xml` otherwise. The GDAL bindings are not pip-installable</span>
@@ -1101,19 +1101,19 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    str</span>
 <span class="sd">        Path to the written VRT</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">osgeo</span><span class="w"> </span><span class="kn">import</span> <span class="n">gdal</span>
     <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">build_vrt_xml</span><span class="p">(</span><span class="n">tif_files</span><span class="p">,</span> <span class="n">vrt_path</span><span class="p">)</span>
 
     <span class="n">gdal</span><span class="o">.</span><span class="n">UseExceptions</span><span class="p">()</span>
-    <span class="c1"># Pin the VRT resolution to the first tile&#39;s pixel size.  Without an</span>
-    <span class="c1"># explicit resolution, gdal.BuildVRT defaults to &#39;average&#39;.</span>
+    <span class="c1"># Pin the VRT resolution to the first tile's pixel size.  Without an</span>
+    <span class="c1"># explicit resolution, gdal.BuildVRT defaults to 'average'.</span>
     <span class="n">ds</span> <span class="o">=</span> <span class="n">gdal</span><span class="o">.</span><span class="n">Open</span><span class="p">(</span><span class="n">tif_files</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
     <span class="n">gt</span> <span class="o">=</span> <span class="n">ds</span><span class="o">.</span><span class="n">GetGeoTransform</span><span class="p">()</span>
     <span class="n">ds</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">opts</span> <span class="o">=</span> <span class="n">gdal</span><span class="o">.</span><span class="n">BuildVRTOptions</span><span class="p">(</span><span class="n">resolution</span><span class="o">=</span><span class="s1">&#39;user&#39;</span><span class="p">,</span> <span class="n">xRes</span><span class="o">=</span><span class="n">gt</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">yRes</span><span class="o">=</span><span class="nb">abs</span><span class="p">(</span><span class="n">gt</span><span class="p">[</span><span class="mi">5</span><span class="p">]))</span>
+    <span class="n">opts</span> <span class="o">=</span> <span class="n">gdal</span><span class="o">.</span><span class="n">BuildVRTOptions</span><span class="p">(</span><span class="n">resolution</span><span class="o">=</span><span class="s1">'user'</span><span class="p">,</span> <span class="n">xRes</span><span class="o">=</span><span class="n">gt</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">yRes</span><span class="o">=</span><span class="nb">abs</span><span class="p">(</span><span class="n">gt</span><span class="p">[</span><span class="mi">5</span><span class="p">]))</span>
     <span class="n">gdal</span><span class="o">.</span><span class="n">BuildVRT</span><span class="p">(</span><span class="n">vrt_path</span><span class="p">,</span> <span class="n">tif_files</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">opts</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">vrt_path</span></div>
 
@@ -1122,9 +1122,9 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="build_vrt_xml">
 <a class="viewcode-back" href="../../../autoapi/gedih3/raster/export/index.html#gedih3.raster.export.build_vrt_xml">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">build_vrt_xml</span><span class="p">(</span><span class="n">tif_files</span><span class="p">,</span> <span class="n">vrt_path</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Write a VRT mosaic as XML using rasterio only — no ``osgeo`` bindings.</span>
+<span class="w">    </span><span class="sd">"""Write a VRT mosaic as XML using rasterio only — no ``osgeo`` bindings.</span>
 
-<span class="sd">    Handles the narrow case gedih3&#39;s own writers emit: north-up GeoTIFF tiles</span>
+<span class="sd">    Handles the narrow case gedih3's own writers emit: north-up GeoTIFF tiles</span>
 <span class="sd">    sharing one CRS and one pixel size. Anything outside that (rotated</span>
 <span class="sd">    geotransforms, mixed CRS) raises rather than emitting a subtly wrong</span>
 <span class="sd">    mosaic — use the ``osgeo`` backend for the general case.</span>
@@ -1149,90 +1149,90 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    GediRasterizationError</span>
 <span class="sd">        If the tiles are rotated, span multiple CRS, or use a dtype with no</span>
 <span class="sd">        GDAL equivalent.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">rasterio</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">tif_files</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="s2">&quot;build_vrt_xml requires at least one input tile&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="s2">"build_vrt_xml requires at least one input tile"</span><span class="p">)</span>
 
     <span class="n">profiles</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">tif_files</span><span class="p">:</span>
         <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
             <span class="n">profiles</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">path</span><span class="p">,</span> <span class="s1">&#39;transform&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">transform</span><span class="p">,</span> <span class="s1">&#39;width&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">width</span><span class="p">,</span>
-                <span class="s1">&#39;height&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="s1">&#39;count&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="s1">&#39;dtypes&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">dtypes</span><span class="p">,</span>
-                <span class="s1">&#39;nodata&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">nodata</span><span class="p">,</span> <span class="s1">&#39;crs&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">crs</span><span class="p">,</span> <span class="s1">&#39;bounds&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">bounds</span><span class="p">,</span>
-                <span class="s1">&#39;block&#39;</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">block_shapes</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
-                <span class="s1">&#39;colorinterp&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">ci</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">ci</span> <span class="ow">in</span> <span class="n">src</span><span class="o">.</span><span class="n">colorinterp</span><span class="p">],</span>
+                <span class="s1">'path'</span><span class="p">:</span> <span class="n">path</span><span class="p">,</span> <span class="s1">'transform'</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">transform</span><span class="p">,</span> <span class="s1">'width'</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">width</span><span class="p">,</span>
+                <span class="s1">'height'</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="s1">'count'</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="s1">'dtypes'</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">dtypes</span><span class="p">,</span>
+                <span class="s1">'nodata'</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">nodata</span><span class="p">,</span> <span class="s1">'crs'</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">crs</span><span class="p">,</span> <span class="s1">'bounds'</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">bounds</span><span class="p">,</span>
+                <span class="s1">'block'</span><span class="p">:</span> <span class="n">src</span><span class="o">.</span><span class="n">block_shapes</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                <span class="s1">'colorinterp'</span><span class="p">:</span> <span class="p">[</span><span class="n">ci</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">ci</span> <span class="ow">in</span> <span class="n">src</span><span class="o">.</span><span class="n">colorinterp</span><span class="p">],</span>
             <span class="p">})</span>
 
     <span class="n">first</span> <span class="o">=</span> <span class="n">profiles</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
     <span class="c1"># Preconditions — refuse loudly instead of writing a wrong mosaic.</span>
     <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">b</span> <span class="ow">or</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">d</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s1">'transform'</span><span class="p">]</span><span class="o">.</span><span class="n">b</span> <span class="ow">or</span> <span class="n">p</span><span class="p">[</span><span class="s1">'transform'</span><span class="p">]</span><span class="o">.</span><span class="n">d</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;build_vrt_xml cannot mosaic rotated rasters [file=</span><span class="si">{</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">]; &quot;</span>
-                <span class="s2">&quot;install the GDAL Python bindings for the general case&quot;</span>
+                <span class="sa">f</span><span class="s2">"build_vrt_xml cannot mosaic rotated rasters [file=</span><span class="si">{</span><span class="n">p</span><span class="p">[</span><span class="s1">'path'</span><span class="p">]</span><span class="si">}</span><span class="s2">]; "</span>
+                <span class="s2">"install the GDAL Python bindings for the general case"</span>
             <span class="p">)</span>
-        <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="n">first</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s1">'crs'</span><span class="p">]</span> <span class="o">!=</span> <span class="n">first</span><span class="p">[</span><span class="s1">'crs'</span><span class="p">]:</span>
             <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;build_vrt_xml requires a single CRS across tiles: &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">first</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> vs </span><span class="si">{</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> [file=</span><span class="si">{</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">]&quot;</span>
+                <span class="sa">f</span><span class="s2">"build_vrt_xml requires a single CRS across tiles: "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">first</span><span class="p">[</span><span class="s1">'crs'</span><span class="p">]</span><span class="si">}</span><span class="s2"> vs </span><span class="si">{</span><span class="n">p</span><span class="p">[</span><span class="s1">'crs'</span><span class="p">]</span><span class="si">}</span><span class="s2"> [file=</span><span class="si">{</span><span class="n">p</span><span class="p">[</span><span class="s1">'path'</span><span class="p">]</span><span class="si">}</span><span class="s2">]"</span>
             <span class="p">)</span>
-    <span class="n">unknown</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;dtypes&#39;</span><span class="p">]}</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">_GDAL_TYPENAME</span><span class="p">)</span>
+    <span class="n">unknown</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">p</span><span class="p">[</span><span class="s1">'dtypes'</span><span class="p">]}</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">_GDAL_TYPENAME</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">unknown</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No GDAL type name for dtype(s): </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">unknown</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"No GDAL type name for dtype(s): </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">unknown</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
-    <span class="n">xres</span> <span class="o">=</span> <span class="n">first</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">a</span>
-    <span class="n">yres</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">first</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">e</span><span class="p">)</span>
+    <span class="n">xres</span> <span class="o">=</span> <span class="n">first</span><span class="p">[</span><span class="s1">'transform'</span><span class="p">]</span><span class="o">.</span><span class="n">a</span>
+    <span class="n">yres</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">first</span><span class="p">[</span><span class="s1">'transform'</span><span class="p">]</span><span class="o">.</span><span class="n">e</span><span class="p">)</span>
 
-    <span class="n">left</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;bounds&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">left</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">)</span>
-    <span class="n">right</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;bounds&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">right</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">)</span>
-    <span class="n">bottom</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;bounds&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">bottom</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">)</span>
-    <span class="n">top</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;bounds&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">top</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">)</span>
+    <span class="n">left</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'bounds'</span><span class="p">]</span><span class="o">.</span><span class="n">left</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">)</span>
+    <span class="n">right</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'bounds'</span><span class="p">]</span><span class="o">.</span><span class="n">right</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">)</span>
+    <span class="n">bottom</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'bounds'</span><span class="p">]</span><span class="o">.</span><span class="n">bottom</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">)</span>
+    <span class="n">top</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'bounds'</span><span class="p">]</span><span class="o">.</span><span class="n">top</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">)</span>
 
-    <span class="n">root</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">Element</span><span class="p">(</span><span class="s1">&#39;VRTDataset&#39;</span><span class="p">,</span>
+    <span class="n">root</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">Element</span><span class="p">(</span><span class="s1">'VRTDataset'</span><span class="p">,</span>
                       <span class="n">rasterXSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">((</span><span class="n">right</span> <span class="o">-</span> <span class="n">left</span><span class="p">)</span> <span class="o">/</span> <span class="n">xres</span><span class="p">))),</span>
                       <span class="n">rasterYSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">((</span><span class="n">top</span> <span class="o">-</span> <span class="n">bottom</span><span class="p">)</span> <span class="o">/</span> <span class="n">yres</span><span class="p">))))</span>
-    <span class="k">if</span> <span class="n">first</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;SRS&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="n">first</span><span class="p">[</span><span class="s1">&#39;crs&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_wkt</span><span class="p">()</span>
-    <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;GeoTransform&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">v</span><span class="si">:</span><span class="s1">.16e</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">xres</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">top</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="n">yres</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">first</span><span class="p">[</span><span class="s1">'crs'</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">'SRS'</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="n">first</span><span class="p">[</span><span class="s1">'crs'</span><span class="p">]</span><span class="o">.</span><span class="n">to_wkt</span><span class="p">()</span>
+    <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">'GeoTransform'</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">v</span><span class="si">:</span><span class="s1">.16e</span><span class="si">}</span><span class="s1">'</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">xres</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">top</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="n">yres</span><span class="p">))</span>
 
     <span class="n">vrt_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">vrt_path</span><span class="p">))</span>
 
-    <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">first</span><span class="p">[</span><span class="s1">&#39;count&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
-        <span class="n">vband</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">&#39;VRTRasterBand&#39;</span><span class="p">,</span>
-                              <span class="n">dataType</span><span class="o">=</span><span class="n">_GDAL_TYPENAME</span><span class="p">[</span><span class="n">first</span><span class="p">[</span><span class="s1">&#39;dtypes&#39;</span><span class="p">][</span><span class="n">band</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]],</span>
+    <span class="k">for</span> <span class="n">band</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">first</span><span class="p">[</span><span class="s1">'count'</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">vband</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="s1">'VRTRasterBand'</span><span class="p">,</span>
+                              <span class="n">dataType</span><span class="o">=</span><span class="n">_GDAL_TYPENAME</span><span class="p">[</span><span class="n">first</span><span class="p">[</span><span class="s1">'dtypes'</span><span class="p">][</span><span class="n">band</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]],</span>
                               <span class="n">band</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">band</span><span class="p">))</span>
-        <span class="k">if</span> <span class="n">first</span><span class="p">[</span><span class="s1">&#39;nodata&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">vband</span><span class="p">,</span> <span class="s1">&#39;NoDataValue&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">first</span><span class="p">[</span><span class="s1">&#39;nodata&#39;</span><span class="p">])</span>
-        <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">vband</span><span class="p">,</span> <span class="s1">&#39;ColorInterp&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="n">first</span><span class="p">[</span><span class="s1">&#39;colorinterp&#39;</span><span class="p">][</span><span class="n">band</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">first</span><span class="p">[</span><span class="s1">'nodata'</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">vband</span><span class="p">,</span> <span class="s1">'NoDataValue'</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">first</span><span class="p">[</span><span class="s1">'nodata'</span><span class="p">])</span>
+        <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">vband</span><span class="p">,</span> <span class="s1">'ColorInterp'</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="n">first</span><span class="p">[</span><span class="s1">'colorinterp'</span><span class="p">][</span><span class="n">band</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
 
         <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">profiles</span><span class="p">:</span>
-            <span class="n">source</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">vband</span><span class="p">,</span> <span class="s1">&#39;ComplexSource&#39;</span><span class="p">)</span>
-            <span class="n">filename</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">&#39;SourceFilename&#39;</span><span class="p">,</span> <span class="n">relativeToVRT</span><span class="o">=</span><span class="s1">&#39;1&#39;</span><span class="p">)</span>
-            <span class="n">filename</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">]),</span> <span class="n">vrt_dir</span><span class="p">)</span>
-            <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">&#39;SourceBand&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">band</span><span class="p">)</span>
-            <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">&#39;SourceProperties&#39;</span><span class="p">,</span>
-                          <span class="n">RasterXSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">]),</span> <span class="n">RasterYSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">]),</span>
-                          <span class="n">DataType</span><span class="o">=</span><span class="n">_GDAL_TYPENAME</span><span class="p">[</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;dtypes&#39;</span><span class="p">][</span><span class="n">band</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]],</span>
-                          <span class="n">BlockXSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;block&#39;</span><span class="p">][</span><span class="mi">1</span><span class="p">]),</span> <span class="n">BlockYSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;block&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]))</span>
-            <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">&#39;SrcRect&#39;</span><span class="p">,</span> <span class="n">xOff</span><span class="o">=</span><span class="s1">&#39;0&#39;</span><span class="p">,</span> <span class="n">yOff</span><span class="o">=</span><span class="s1">&#39;0&#39;</span><span class="p">,</span>
-                          <span class="n">xSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">]),</span> <span class="n">ySize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">]))</span>
-            <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">&#39;DstRect&#39;</span><span class="p">,</span>
-                          <span class="n">xOff</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">((</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;bounds&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">left</span> <span class="o">-</span> <span class="n">left</span><span class="p">)</span> <span class="o">/</span> <span class="n">xres</span><span class="p">))),</span>
-                          <span class="n">yOff</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">((</span><span class="n">top</span> <span class="o">-</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;bounds&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">top</span><span class="p">)</span> <span class="o">/</span> <span class="n">yres</span><span class="p">))),</span>
-                          <span class="n">xSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;width&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">a</span> <span class="o">/</span> <span class="n">xres</span><span class="p">))),</span>
-                          <span class="n">ySize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;height&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="nb">abs</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">e</span><span class="p">)</span> <span class="o">/</span> <span class="n">yres</span><span class="p">))))</span>
-            <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s1">&#39;nodata&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">&#39;NODATA&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">&#39;nodata&#39;</span><span class="p">])</span>
+            <span class="n">source</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">vband</span><span class="p">,</span> <span class="s1">'ComplexSource'</span><span class="p">)</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">'SourceFilename'</span><span class="p">,</span> <span class="n">relativeToVRT</span><span class="o">=</span><span class="s1">'1'</span><span class="p">)</span>
+            <span class="n">filename</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'path'</span><span class="p">]),</span> <span class="n">vrt_dir</span><span class="p">)</span>
+            <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">'SourceBand'</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">band</span><span class="p">)</span>
+            <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">'SourceProperties'</span><span class="p">,</span>
+                          <span class="n">RasterXSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'width'</span><span class="p">]),</span> <span class="n">RasterYSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'height'</span><span class="p">]),</span>
+                          <span class="n">DataType</span><span class="o">=</span><span class="n">_GDAL_TYPENAME</span><span class="p">[</span><span class="n">p</span><span class="p">[</span><span class="s1">'dtypes'</span><span class="p">][</span><span class="n">band</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]],</span>
+                          <span class="n">BlockXSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'block'</span><span class="p">][</span><span class="mi">1</span><span class="p">]),</span> <span class="n">BlockYSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'block'</span><span class="p">][</span><span class="mi">0</span><span class="p">]))</span>
+            <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">'SrcRect'</span><span class="p">,</span> <span class="n">xOff</span><span class="o">=</span><span class="s1">'0'</span><span class="p">,</span> <span class="n">yOff</span><span class="o">=</span><span class="s1">'0'</span><span class="p">,</span>
+                          <span class="n">xSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'width'</span><span class="p">]),</span> <span class="n">ySize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'height'</span><span class="p">]))</span>
+            <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">'DstRect'</span><span class="p">,</span>
+                          <span class="n">xOff</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">((</span><span class="n">p</span><span class="p">[</span><span class="s1">'bounds'</span><span class="p">]</span><span class="o">.</span><span class="n">left</span> <span class="o">-</span> <span class="n">left</span><span class="p">)</span> <span class="o">/</span> <span class="n">xres</span><span class="p">))),</span>
+                          <span class="n">yOff</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">((</span><span class="n">top</span> <span class="o">-</span> <span class="n">p</span><span class="p">[</span><span class="s1">'bounds'</span><span class="p">]</span><span class="o">.</span><span class="n">top</span><span class="p">)</span> <span class="o">/</span> <span class="n">yres</span><span class="p">))),</span>
+                          <span class="n">xSize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'width'</span><span class="p">]</span> <span class="o">*</span> <span class="n">p</span><span class="p">[</span><span class="s1">'transform'</span><span class="p">]</span><span class="o">.</span><span class="n">a</span> <span class="o">/</span> <span class="n">xres</span><span class="p">))),</span>
+                          <span class="n">ySize</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'height'</span><span class="p">]</span> <span class="o">*</span> <span class="nb">abs</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'transform'</span><span class="p">]</span><span class="o">.</span><span class="n">e</span><span class="p">)</span> <span class="o">/</span> <span class="n">yres</span><span class="p">))))</span>
+            <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="s1">'nodata'</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">'NODATA'</span><span class="p">)</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="s1">'nodata'</span><span class="p">])</span>
 
-    <span class="n">ET</span><span class="o">.</span><span class="n">indent</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">space</span><span class="o">=</span><span class="s1">&#39;  &#39;</span><span class="p">)</span>
+    <span class="n">ET</span><span class="o">.</span><span class="n">indent</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">space</span><span class="o">=</span><span class="s1">'  '</span><span class="p">)</span>
     <span class="k">with</span> <span class="n">AtomicFileWriter</span><span class="p">(</span><span class="n">vrt_path</span><span class="p">)</span> <span class="k">as</span> <span class="n">tmp_path</span><span class="p">:</span>
-        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
-            <span class="n">handle</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">ET</span><span class="o">.</span><span class="n">tostring</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;unicode&#39;</span><span class="p">))</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="s1">'w'</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+            <span class="n">handle</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">ET</span><span class="o">.</span><span class="n">tostring</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">'unicode'</span><span class="p">))</span>
     <span class="k">return</span> <span class="n">vrt_path</span></div>
 
 
@@ -1240,7 +1240,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="build_vrt_safe">
 <a class="viewcode-back" href="../../../autoapi/gedih3/raster/export/index.html#gedih3.raster.export.build_vrt_safe">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">build_vrt_safe</span><span class="p">(</span><span class="n">tif_files</span><span class="p">,</span> <span class="n">vrt_path</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build a VRT mosaic, downgrading any failure to a warning.</span>
+<span class="w">    </span><span class="sd">"""Build a VRT mosaic, downgrading any failure to a warning.</span>
 
 <span class="sd">    The ``.tif`` tiles are the deliverable; the VRT is a convenience mosaic</span>
 <span class="sd">    over them. A missing GDAL backend or an unmosaicable tile set must not</span>
@@ -1257,13 +1257,13 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    str or None</span>
 <span class="sd">        Path to the written VRT, or None if it could not be built.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">build_vrt</span><span class="p">(</span><span class="n">tif_files</span><span class="p">,</span> <span class="n">vrt_path</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Could not build VRT mosaic: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2"> &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;[vrt=</span><span class="si">{</span><span class="n">vrt_path</span><span class="si">}</span><span class="s2">] — the </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">tif_files</span><span class="p">)</span><span class="si">}</span><span class="s2"> GeoTIFF tiles are unaffected&quot;</span>
+            <span class="sa">f</span><span class="s2">"Could not build VRT mosaic: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2"> "</span>
+            <span class="sa">f</span><span class="s2">"[vrt=</span><span class="si">{</span><span class="n">vrt_path</span><span class="si">}</span><span class="s2">] — the </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">tif_files</span><span class="p">)</span><span class="si">}</span><span class="s2"> GeoTIFF tiles are unaffected"</span>
         <span class="p">)</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
@@ -1276,12 +1276,12 @@ window.runMermaid = runMermaid;</script>
     <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">rasterize_func</span><span class="p">,</span>
     <span class="n">columns</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;LZW&#39;</span><span class="p">,</span>
+    <span class="n">compress</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'LZW'</span><span class="p">,</span>
     <span class="n">show_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">cog</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="o">**</span><span class="n">rasterize_kwargs</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Rasterize all partitions and merge into a single output file.</span>
 
 <span class="sd">    Parameters</span>
@@ -1303,10 +1303,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    str</span>
 <span class="sd">        Path to output file</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">rioxarray.merge</span><span class="w"> </span><span class="kn">import</span> <span class="n">merge_datasets</span>
 
-    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="s1">&#39;npartitions&#39;</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="s1">'npartitions'</span><span class="p">):</span>
         <span class="c1"># Dask GeoDataFrame - rasterize partitions in parallel</span>
         <span class="n">raster_parts</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">map_partitions</span><span class="p">(</span>
             <span class="n">rasterize_func</span><span class="p">,</span>
@@ -1316,7 +1316,7 @@ window.runMermaid = runMermaid;</script>
         <span class="p">)</span>
 
         <span class="c1"># Driver-side gather instead of .compute() — see dask_safe_collect</span>
-        <span class="c1"># docstring; the optimizer&#39;s RepartitionToFewer collapse wedges on</span>
+        <span class="c1"># docstring; the optimizer's RepartitionToFewer collapse wedges on</span>
         <span class="c1"># tunneled meshes past ~1500 partitions in dask &gt;= 2025.2.</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">..utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">dask_safe_collect</span>
         <span class="k">try</span><span class="p">:</span>
@@ -1330,19 +1330,19 @@ window.runMermaid = runMermaid;</script>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">):</span>
                 <span class="c1"># rasterize_func returns Series containing Dataset</span>
                 <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">r</span><span class="p">:</span>
-                    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="s1">&#39;data_vars&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">item</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="s1">'data_vars'</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">item</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
                         <span class="n">valid_rasters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
-            <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="s1">&#39;data_vars&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="s1">'data_vars'</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
                 <span class="n">valid_rasters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">valid_rasters</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="s2">&quot;No valid rasters to merge&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="s2">"No valid rasters to merge"</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">valid_rasters</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
             <span class="n">merged</span> <span class="o">=</span> <span class="n">valid_rasters</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># Use merge_datasets which properly handles non-overlapping tiles</span>
-            <span class="c1"># by creating a combined extent and filling NoData where tiles don&#39;t overlap</span>
+            <span class="c1"># by creating a combined extent and filling NoData where tiles don't overlap</span>
             <span class="c1"># IMPORTANT: Use nodata=np.nan to ensure gaps are filled with NaN, not 0</span>
             <span class="n">merged</span> <span class="o">=</span> <span class="n">merge_datasets</span><span class="p">(</span><span class="n">valid_rasters</span><span class="p">,</span> <span class="n">nodata</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
@@ -1350,9 +1350,9 @@ window.runMermaid = runMermaid;</script>
         <span class="n">merged</span> <span class="o">=</span> <span class="n">rasterize_func</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="o">**</span><span class="n">rasterize_kwargs</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">merged</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">):</span>
             <span class="n">valid_rasters</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">merged</span>
-                             <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="s1">&#39;data_vars&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
+                             <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="s1">'data_vars'</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">valid_rasters</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="s2">&quot;No valid rasters to merge&quot;</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="n">GediRasterizationError</span><span class="p">(</span><span class="s2">"No valid rasters to merge"</span><span class="p">)</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">valid_rasters</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
                 <span class="n">merged</span> <span class="o">=</span> <span class="n">valid_rasters</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
             <span class="k">else</span><span class="p">:</span>
@@ -1360,8 +1360,8 @@ window.runMermaid = runMermaid;</script>
                 <span class="c1"># partitions never reach here (one partition = one tile); an H3</span>
                 <span class="c1"># partition holding cells from several parents can.</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Rasterizing a single frame produced </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">valid_rasters</span><span class="p">)</span><span class="si">}</span><span class="s2"> tiles; &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;merging all of them into </span><span class="si">{</span><span class="n">output_path</span><span class="si">}</span><span class="s2">.&quot;</span>
+                    <span class="sa">f</span><span class="s2">"Rasterizing a single frame produced </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">valid_rasters</span><span class="p">)</span><span class="si">}</span><span class="s2"> tiles; "</span>
+                    <span class="sa">f</span><span class="s2">"merging all of them into </span><span class="si">{</span><span class="n">output_path</span><span class="si">}</span><span class="s2">."</span>
                 <span class="p">)</span>
                 <span class="n">merged</span> <span class="o">=</span> <span class="n">merge_datasets</span><span class="p">(</span><span class="n">valid_rasters</span><span class="p">,</span> <span class="n">nodata</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
 
@@ -1373,7 +1373,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="compute_raster_stats">
 <a class="viewcode-back" href="../../../autoapi/gedih3/raster/export/index.html#gedih3.raster.export.compute_raster_stats">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">compute_raster_stats</span><span class="p">(</span><span class="n">xras</span><span class="p">:</span> <span class="n">xr</span><span class="o">.</span><span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Compute basic statistics for each variable in a raster dataset.</span>
 
 <span class="sd">    Parameters</span>
@@ -1385,17 +1385,17 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    dict</span>
 <span class="sd">        Statistics for each variable: {var_name: {min, max, mean, std, count}}</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">stats</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="n">xras</span><span class="o">.</span><span class="n">data_vars</span><span class="p">:</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">xras</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
         <span class="n">valid</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
         <span class="n">stats</span><span class="p">[</span><span class="n">var</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="s1">&#39;min&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nanmin</span><span class="p">(</span><span class="n">data</span><span class="p">))</span> <span class="k">if</span> <span class="n">valid</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
-            <span class="s1">&#39;max&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nanmax</span><span class="p">(</span><span class="n">data</span><span class="p">))</span> <span class="k">if</span> <span class="n">valid</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
-            <span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">data</span><span class="p">))</span> <span class="k">if</span> <span class="n">valid</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
-            <span class="s1">&#39;std&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nanstd</span><span class="p">(</span><span class="n">data</span><span class="p">))</span> <span class="k">if</span> <span class="n">valid</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
-            <span class="s1">&#39;count&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">valid</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
+            <span class="s1">'min'</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nanmin</span><span class="p">(</span><span class="n">data</span><span class="p">))</span> <span class="k">if</span> <span class="n">valid</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+            <span class="s1">'max'</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nanmax</span><span class="p">(</span><span class="n">data</span><span class="p">))</span> <span class="k">if</span> <span class="n">valid</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+            <span class="s1">'mean'</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">data</span><span class="p">))</span> <span class="k">if</span> <span class="n">valid</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+            <span class="s1">'std'</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nanstd</span><span class="p">(</span><span class="n">data</span><span class="p">))</span> <span class="k">if</span> <span class="n">valid</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+            <span class="s1">'count'</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">valid</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
         <span class="p">}</span>
     <span class="k">return</span> <span class="n">stats</span></div>
 

@@ -761,7 +761,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="sd">gedih3 Validation Module</span>
 
 <span class="sd">Parameter validation functions for H3, EGI, and other critical operations.</span>
@@ -771,7 +771,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    from gedih3.validation import validate_h3_params, validate_egi_level</span>
 
 <span class="sd">    validate_h3_params(res=12, part=3)  # Raises H3ValidationError if invalid</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Union</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Any</span>
@@ -796,8 +796,8 @@ window.runMermaid = runMermaid;</script>
 
 <div class="viewcode-block" id="validate_h3_resolution">
 <a class="viewcode-back" href="../../autoapi/gedih3/validation/index.html#gedih3.validation.validate_h3_resolution">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">validate_h3_resolution</span><span class="p">(</span><span class="n">res</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">param_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;resolution&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">validate_h3_resolution</span><span class="p">(</span><span class="n">res</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">param_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'resolution'</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Validate H3 resolution is within valid range [0, 15].</span>
 
 <span class="sd">    Parameters</span>
@@ -816,17 +816,17 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ------</span>
 <span class="sd">    H3ValidationError</span>
 <span class="sd">        If resolution is out of range or not an integer</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
         <span class="k">raise</span> <span class="n">H3ValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;H3 </span><span class="si">{</span><span class="n">param_name</span><span class="si">}</span><span class="s2"> must be an integer, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">res</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">"H3 </span><span class="si">{</span><span class="n">param_name</span><span class="si">}</span><span class="s2"> must be an integer, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">res</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
             <span class="n">param_name</span><span class="o">=</span><span class="n">param_name</span><span class="p">,</span>
             <span class="n">value</span><span class="o">=</span><span class="n">res</span>
         <span class="p">)</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">H3_MIN_RESOLUTION</span> <span class="o">&lt;=</span> <span class="n">res</span> <span class="o">&lt;=</span> <span class="n">H3_MAX_RESOLUTION</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">H3ValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;H3 </span><span class="si">{</span><span class="n">param_name</span><span class="si">}</span><span class="s2"> must be between </span><span class="si">{</span><span class="n">H3_MIN_RESOLUTION</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">H3_MAX_RESOLUTION</span><span class="si">}</span><span class="s2">, got </span><span class="si">{</span><span class="n">res</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">"H3 </span><span class="si">{</span><span class="n">param_name</span><span class="si">}</span><span class="s2"> must be between </span><span class="si">{</span><span class="n">H3_MIN_RESOLUTION</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">H3_MAX_RESOLUTION</span><span class="si">}</span><span class="s2">, got </span><span class="si">{</span><span class="n">res</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
             <span class="n">param_name</span><span class="o">=</span><span class="n">param_name</span><span class="p">,</span>
             <span class="n">value</span><span class="o">=</span><span class="n">res</span>
         <span class="p">)</span>
@@ -838,7 +838,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="validate_h3_params">
 <a class="viewcode-back" href="../../autoapi/gedih3/validation/index.html#gedih3.validation.validate_h3_params">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">validate_h3_params</span><span class="p">(</span><span class="n">res</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">part</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Validate H3 resolution and partition parameters.</span>
 
 <span class="sd">    Parameters</span>
@@ -863,15 +863,15 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    &gt;&gt;&gt; validate_h3_params(12, 3)  # OK</span>
 <span class="sd">    (12, 3)</span>
 <span class="sd">    &gt;&gt;&gt; validate_h3_params(3, 12)  # Raises H3ValidationError</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">res</span> <span class="o">=</span> <span class="n">validate_h3_resolution</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="s1">&#39;resolution&#39;</span><span class="p">)</span>
-    <span class="n">part</span> <span class="o">=</span> <span class="n">validate_h3_resolution</span><span class="p">(</span><span class="n">part</span><span class="p">,</span> <span class="s1">&#39;partition&#39;</span><span class="p">)</span>
+<span class="sd">    """</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">validate_h3_resolution</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="s1">'resolution'</span><span class="p">)</span>
+    <span class="n">part</span> <span class="o">=</span> <span class="n">validate_h3_resolution</span><span class="p">(</span><span class="n">part</span><span class="p">,</span> <span class="s1">'partition'</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">part</span> <span class="o">&gt;</span> <span class="n">res</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">H3ValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;H3 partition level (</span><span class="si">{</span><span class="n">part</span><span class="si">}</span><span class="s2">) must be &lt;= resolution level (</span><span class="si">{</span><span class="n">res</span><span class="si">}</span><span class="s2">). &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;Partition cells are used to group shots, so they must be coarser than index cells.&quot;</span><span class="p">,</span>
-            <span class="n">param_name</span><span class="o">=</span><span class="s1">&#39;partition&#39;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">"H3 partition level (</span><span class="si">{</span><span class="n">part</span><span class="si">}</span><span class="s2">) must be &lt;= resolution level (</span><span class="si">{</span><span class="n">res</span><span class="si">}</span><span class="s2">). "</span>
+            <span class="sa">f</span><span class="s2">"Partition cells are used to group shots, so they must be coarser than index cells."</span><span class="p">,</span>
+            <span class="n">param_name</span><span class="o">=</span><span class="s1">'partition'</span><span class="p">,</span>
             <span class="n">value</span><span class="o">=</span><span class="n">part</span>
         <span class="p">)</span>
 
@@ -882,7 +882,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="validate_h3_cell">
 <a class="viewcode-back" href="../../autoapi/gedih3/validation/index.html#gedih3.validation.validate_h3_cell">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">validate_h3_cell</span><span class="p">(</span><span class="n">cell</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">expected_res</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Validate an H3 cell index string.</span>
 
 <span class="sd">    Parameters</span>
@@ -901,20 +901,20 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ------</span>
 <span class="sd">    H3ValidationError</span>
 <span class="sd">        If cell is invalid</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">h3</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cell</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
         <span class="k">raise</span> <span class="n">H3ValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;H3 cell must be a string, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">cell</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
-            <span class="n">param_name</span><span class="o">=</span><span class="s1">&#39;cell&#39;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">"H3 cell must be a string, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">cell</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+            <span class="n">param_name</span><span class="o">=</span><span class="s1">'cell'</span><span class="p">,</span>
             <span class="n">value</span><span class="o">=</span><span class="n">cell</span>
         <span class="p">)</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">h3</span><span class="o">.</span><span class="n">is_valid_cell</span><span class="p">(</span><span class="n">cell</span><span class="p">):</span>
         <span class="k">raise</span> <span class="n">H3ValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Invalid H3 cell index: </span><span class="si">{</span><span class="n">cell</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
-            <span class="n">param_name</span><span class="o">=</span><span class="s1">&#39;cell&#39;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">"Invalid H3 cell index: </span><span class="si">{</span><span class="n">cell</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+            <span class="n">param_name</span><span class="o">=</span><span class="s1">'cell'</span><span class="p">,</span>
             <span class="n">value</span><span class="o">=</span><span class="n">cell</span>
         <span class="p">)</span>
 
@@ -922,8 +922,8 @@ window.runMermaid = runMermaid;</script>
         <span class="n">actual_res</span> <span class="o">=</span> <span class="n">h3</span><span class="o">.</span><span class="n">get_resolution</span><span class="p">(</span><span class="n">cell</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">actual_res</span> <span class="o">!=</span> <span class="n">expected_res</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">H3ValidationError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;H3 cell has resolution </span><span class="si">{</span><span class="n">actual_res</span><span class="si">}</span><span class="s2">, expected </span><span class="si">{</span><span class="n">expected_res</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
-                <span class="n">param_name</span><span class="o">=</span><span class="s1">&#39;cell&#39;</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">"H3 cell has resolution </span><span class="si">{</span><span class="n">actual_res</span><span class="si">}</span><span class="s2">, expected </span><span class="si">{</span><span class="n">expected_res</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+                <span class="n">param_name</span><span class="o">=</span><span class="s1">'cell'</span><span class="p">,</span>
                 <span class="n">value</span><span class="o">=</span><span class="n">cell</span>
             <span class="p">)</span>
 
@@ -941,8 +941,8 @@ window.runMermaid = runMermaid;</script>
 
 <div class="viewcode-block" id="validate_egi_level">
 <a class="viewcode-back" href="../../autoapi/gedih3/validation/index.html#gedih3.validation.validate_egi_level">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">validate_egi_level</span><span class="p">(</span><span class="n">level</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">param_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;level&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">validate_egi_level</span><span class="p">(</span><span class="n">level</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">param_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'level'</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Validate EGI level is within valid range [1, 12].</span>
 
 <span class="sd">    Parameters</span>
@@ -961,17 +961,17 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ------</span>
 <span class="sd">    EGIValidationError</span>
 <span class="sd">        If level is out of range</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">level</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
         <span class="k">raise</span> <span class="n">EGIValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;EGI </span><span class="si">{</span><span class="n">param_name</span><span class="si">}</span><span class="s2"> must be an integer, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">level</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">"EGI </span><span class="si">{</span><span class="n">param_name</span><span class="si">}</span><span class="s2"> must be an integer, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">level</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
             <span class="n">param_name</span><span class="o">=</span><span class="n">param_name</span><span class="p">,</span>
             <span class="n">value</span><span class="o">=</span><span class="n">level</span>
         <span class="p">)</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">EGI_MIN_LEVEL</span> <span class="o">&lt;=</span> <span class="n">level</span> <span class="o">&lt;=</span> <span class="n">EGI_MAX_LEVEL</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">EGIValidationError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;EGI </span><span class="si">{</span><span class="n">param_name</span><span class="si">}</span><span class="s2"> must be between </span><span class="si">{</span><span class="n">EGI_MIN_LEVEL</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">EGI_MAX_LEVEL</span><span class="si">}</span><span class="s2">, got </span><span class="si">{</span><span class="n">level</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">"EGI </span><span class="si">{</span><span class="n">param_name</span><span class="si">}</span><span class="s2"> must be between </span><span class="si">{</span><span class="n">EGI_MIN_LEVEL</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">EGI_MAX_LEVEL</span><span class="si">}</span><span class="s2">, got </span><span class="si">{</span><span class="n">level</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
             <span class="n">param_name</span><span class="o">=</span><span class="n">param_name</span><span class="p">,</span>
             <span class="n">value</span><span class="o">=</span><span class="n">level</span>
         <span class="p">)</span>
@@ -984,19 +984,19 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># GEDI Product Validation</span>
 <span class="c1"># =============================================================================</span>
 
-<span class="n">VALID_PRODUCTS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;L1B&#39;</span><span class="p">,</span> <span class="s1">&#39;L2A&#39;</span><span class="p">,</span> <span class="s1">&#39;L2B&#39;</span><span class="p">,</span> <span class="s1">&#39;L3&#39;</span><span class="p">,</span> <span class="s1">&#39;L4A&#39;</span><span class="p">,</span> <span class="s1">&#39;L4B&#39;</span><span class="p">,</span> <span class="s1">&#39;L4C&#39;</span><span class="p">}</span>
+<span class="n">VALID_PRODUCTS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'L1B'</span><span class="p">,</span> <span class="s1">'L2A'</span><span class="p">,</span> <span class="s1">'L2B'</span><span class="p">,</span> <span class="s1">'L3'</span><span class="p">,</span> <span class="s1">'L4A'</span><span class="p">,</span> <span class="s1">'L4B'</span><span class="p">,</span> <span class="s1">'L4C'</span><span class="p">}</span>
 
 
 <div class="viewcode-block" id="validate_product">
 <a class="viewcode-back" href="../../autoapi/gedih3/validation/index.html#gedih3.validation.validate_product">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">validate_product</span><span class="p">(</span><span class="n">product</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Validate GEDI product identifier.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    product : str</span>
-<span class="sd">        GEDI product code (e.g., &#39;L2A&#39;, &#39;L4A&#39;)</span>
+<span class="sd">        GEDI product code (e.g., 'L2A', 'L4A')</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -1007,17 +1007,17 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ------</span>
 <span class="sd">    GediProductError</span>
 <span class="sd">        If product is invalid</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">product</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
         <span class="k">raise</span> <span class="n">GediProductError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Product must be a string, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">product</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">"Product must be a string, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">product</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
 
     <span class="n">product_upper</span> <span class="o">=</span> <span class="n">product</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">product_upper</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">VALID_PRODUCTS</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">GediProductError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Invalid GEDI product: </span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2">. &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;Valid products are: </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">VALID_PRODUCTS</span><span class="p">))</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">"Invalid GEDI product: </span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2">. "</span>
+            <span class="sa">f</span><span class="s2">"Valid products are: </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">VALID_PRODUCTS</span><span class="p">))</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">product_upper</span></div>
@@ -1027,7 +1027,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="validate_product_vars">
 <a class="viewcode-back" href="../../autoapi/gedih3/validation/index.html#gedih3.validation.validate_product_vars">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">validate_product_vars</span><span class="p">(</span><span class="n">product_vars</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Validate product variables dictionary.</span>
 
 <span class="sd">    Parameters</span>
@@ -1046,10 +1046,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        If product is invalid</span>
 <span class="sd">    GediVariableError</span>
 <span class="sd">        If variable specification is invalid</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
         <span class="k">raise</span> <span class="n">GediProductError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;product_vars must be a dictionary, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">product_vars</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">"product_vars must be a dictionary, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">product_vars</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
 
     <span class="n">validated</span> <span class="o">=</span> <span class="p">{}</span>
@@ -1063,13 +1063,13 @@ window.runMermaid = runMermaid;</script>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">vars_spec</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">vars_spec</span><span class="p">):</span>
                 <span class="k">raise</span> <span class="n">GediVariableError</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Variables for </span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2"> must be strings, got: </span><span class="si">{</span><span class="n">vars_spec</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="sa">f</span><span class="s2">"Variables for </span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2"> must be strings, got: </span><span class="si">{</span><span class="n">vars_spec</span><span class="si">}</span><span class="s2">"</span>
                 <span class="p">)</span>
             <span class="n">validated</span><span class="p">[</span><span class="n">product</span><span class="p">]</span> <span class="o">=</span> <span class="n">vars_spec</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">GediVariableError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Variables for </span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2"> must be a string, list, or None, &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">vars_spec</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">"Variables for </span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2"> must be a string, list, or None, "</span>
+                <span class="sa">f</span><span class="s2">"got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">vars_spec</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">validated</span></div>
@@ -1082,8 +1082,8 @@ window.runMermaid = runMermaid;</script>
 
 <div class="viewcode-block" id="validate_file_exists">
 <a class="viewcode-back" href="../../autoapi/gedih3/validation/index.html#gedih3.validation.validate_file_exists">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">validate_file_exists</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">file_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;file&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">validate_file_exists</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">file_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'file'</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Validate that a file exists.</span>
 
 <span class="sd">    Parameters</span>
@@ -1091,7 +1091,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    path : str</span>
 <span class="sd">        File path to validate</span>
 <span class="sd">    file_type : str</span>
-<span class="sd">        Description for error message (e.g., &#39;HDF5 file&#39;, &#39;database&#39;)</span>
+<span class="sd">        Description for error message (e.g., 'HDF5 file', 'database')</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -1102,9 +1102,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ------</span>
 <span class="sd">    GediFileError</span>
 <span class="sd">        If file does not exist</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="n">GediFileError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">file_type</span><span class="si">}</span><span class="s2"> not found: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">GediFileError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">file_type</span><span class="si">}</span><span class="s2"> not found: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">path</span></div>
 
 
@@ -1112,7 +1112,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="validate_directory_exists">
 <a class="viewcode-back" href="../../autoapi/gedih3/validation/index.html#gedih3.validation.validate_directory_exists">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">validate_directory_exists</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">create</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Validate that a directory exists, optionally creating it.</span>
 
 <span class="sd">    Parameters</span>
@@ -1120,7 +1120,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    path : str</span>
 <span class="sd">        Directory path to validate</span>
 <span class="sd">    create : bool</span>
-<span class="sd">        If True, create directory if it doesn&#39;t exist</span>
+<span class="sd">        If True, create directory if it doesn't exist</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -1131,15 +1131,15 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ------</span>
 <span class="sd">    GediFileError</span>
 <span class="sd">        If directory does not exist and create=False</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">create</span><span class="p">:</span>
             <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">GediFileError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Directory not found: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">GediFileError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Directory not found: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="n">GediFileError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Path exists but is not a directory: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">GediFileError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Path exists but is not a directory: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">path</span></div>
 
@@ -1148,7 +1148,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="validate_database_path">
 <a class="viewcode-back" href="../../autoapi/gedih3/validation/index.html#gedih3.validation.validate_database_path">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">validate_database_path</span><span class="p">(</span><span class="n">db_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Validate H3 database path exists and appears valid.</span>
 
 <span class="sd">    Parameters</span>
@@ -1164,29 +1164,29 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Raises</span>
 <span class="sd">    ------</span>
 <span class="sd">    GediDatabaseNotFoundError</span>
-<span class="sd">        If database directory doesn&#39;t exist or appears invalid</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">        If database directory doesn't exist or appears invalid</span>
+<span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_exists</span><span class="p">,</span> <span class="n">smart_isdir</span><span class="p">,</span> <span class="n">smart_glob</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">db_path</span><span class="p">):</span>
         <span class="k">raise</span> <span class="n">GediDatabaseNotFoundError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;H3 database not found: </span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">"H3 database not found: </span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">smart_isdir</span><span class="p">(</span><span class="n">db_path</span><span class="p">):</span>
         <span class="k">raise</span> <span class="n">GediDatabaseNotFoundError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;H3 database path is not a directory: </span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">"H3 database path is not a directory: </span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
 
     <span class="c1"># Check for H3 partition directories or parquet files</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_join</span>
-    <span class="n">h3_dirs</span> <span class="o">=</span> <span class="n">smart_glob</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">db_path</span><span class="p">,</span> <span class="s1">&#39;h3_*/&#39;</span><span class="p">))</span>
-    <span class="n">parquet_files</span> <span class="o">=</span> <span class="n">smart_glob</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">db_path</span><span class="p">,</span> <span class="s1">&#39;**/*.parquet&#39;</span><span class="p">),</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">h3_dirs</span> <span class="o">=</span> <span class="n">smart_glob</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">db_path</span><span class="p">,</span> <span class="s1">'h3_*/'</span><span class="p">))</span>
+    <span class="n">parquet_files</span> <span class="o">=</span> <span class="n">smart_glob</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">db_path</span><span class="p">,</span> <span class="s1">'**/*.parquet'</span><span class="p">),</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">h3_dirs</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">parquet_files</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">GediDatabaseNotFoundError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;H3 database appears empty or invalid: </span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="s2">. &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;No H3 partition directories or parquet files found.&quot;</span>
+            <span class="sa">f</span><span class="s2">"H3 database appears empty or invalid: </span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="s2">. "</span>
+            <span class="sa">f</span><span class="s2">"No H3 partition directories or parquet files found."</span>
         <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">db_path</span></div>
@@ -1200,7 +1200,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="validate_coordinates">
 <a class="viewcode-back" href="../../autoapi/gedih3/validation/index.html#gedih3.validation.validate_coordinates">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">validate_coordinates</span><span class="p">(</span><span class="n">lat</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">lon</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Validate latitude and longitude coordinates.</span>
 
 <span class="sd">    Parameters</span>
@@ -1219,11 +1219,11 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ------</span>
 <span class="sd">    ValueError</span>
 <span class="sd">        If coordinates are out of range</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="o">-</span><span class="mi">90</span> <span class="o">&lt;=</span> <span class="n">lat</span> <span class="o">&lt;=</span> <span class="mi">90</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Latitude must be between -90 and 90, got </span><span class="si">{</span><span class="n">lat</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Latitude must be between -90 and 90, got </span><span class="si">{</span><span class="n">lat</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="o">-</span><span class="mi">180</span> <span class="o">&lt;=</span> <span class="n">lon</span> <span class="o">&lt;=</span> <span class="mi">180</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Longitude must be between -180 and 180, got </span><span class="si">{</span><span class="n">lon</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Longitude must be between -180 and 180, got </span><span class="si">{</span><span class="n">lon</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">lat</span><span class="p">,</span> <span class="n">lon</span></div>
 
 
@@ -1231,7 +1231,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="validate_bbox">
 <a class="viewcode-back" href="../../autoapi/gedih3/validation/index.html#gedih3.validation.validate_bbox">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">validate_bbox</span><span class="p">(</span><span class="n">bbox</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Validate bounding box coordinates.</span>
 
 <span class="sd">    Parameters</span>
@@ -1248,12 +1248,12 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ------</span>
 <span class="sd">    ValueError</span>
 <span class="sd">        If bbox is invalid</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">bbox</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Bounding box must be a list or tuple, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">bbox</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Bounding box must be a list or tuple, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">bbox</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bbox</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">4</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Bounding box must have 4 elements (W, S, E, N), got </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">bbox</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Bounding box must have 4 elements (W, S, E, N), got </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">bbox</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="n">west</span><span class="p">,</span> <span class="n">south</span><span class="p">,</span> <span class="n">east</span><span class="p">,</span> <span class="n">north</span> <span class="o">=</span> <span class="n">bbox</span>
 
@@ -1262,7 +1262,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">validate_coordinates</span><span class="p">(</span><span class="n">north</span><span class="p">,</span> <span class="n">east</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">south</span> <span class="o">&gt;</span> <span class="n">north</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;South (</span><span class="si">{</span><span class="n">south</span><span class="si">}</span><span class="s2">) must be &lt;= North (</span><span class="si">{</span><span class="n">north</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"South (</span><span class="si">{</span><span class="n">south</span><span class="si">}</span><span class="s2">) must be &lt;= North (</span><span class="si">{</span><span class="n">north</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
 
     <span class="c1"># Note: west &gt; east is valid for antimeridian-crossing bboxes</span>
 

@@ -762,7 +762,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="sd">GEDI Dataset Update Tool</span>
 
 <span class="sd">Add new columns to an existing simplified dataset (created by gh3_extract).</span>
@@ -772,7 +772,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">Mode 2: Merge columns from another simplified dataset via shot_number join.</span>
 
 <span class="sd">Both modes modify the target dataset in place.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
@@ -780,83 +780,83 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_query_filter_columns</span><span class="p">(</span><span class="n">query_filter</span><span class="p">,</span> <span class="n">available_columns</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Extract column names referenced in a pandas query filter string.</span>
+<span class="w">    </span><span class="sd">"""Extract column names referenced in a pandas query filter string.</span>
 
 <span class="sd">    Returns only identifiers that match known database columns,</span>
 <span class="sd">    excluding Python keywords and numeric literals.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">query_filter</span><span class="p">:</span>
         <span class="k">return</span> <span class="p">[]</span>
     <span class="n">available</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">available_columns</span><span class="p">)</span>
-    <span class="c1"># Match backtick-quoted identifiers (may contain &#39;/&#39; or other special chars)</span>
-    <span class="n">backtick_tokens</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;`([^`]+)`&#39;</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">))</span>
+    <span class="c1"># Match backtick-quoted identifiers (may contain '/' or other special chars)</span>
+    <span class="n">backtick_tokens</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">'`([^`]+)`'</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">))</span>
     <span class="c1"># Match regular word tokens</span>
-    <span class="n">word_tokens</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\b([a-zA-Z_]\w*)\b&#39;</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">))</span>
+    <span class="n">word_tokens</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">'\b([a-zA-Z_]\w*)\b'</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">))</span>
     <span class="n">all_tokens</span> <span class="o">=</span> <span class="n">backtick_tokens</span> <span class="o">|</span> <span class="n">word_tokens</span>
-    <span class="n">python_keywords</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;and&#39;</span><span class="p">,</span> <span class="s1">&#39;or&#39;</span><span class="p">,</span> <span class="s1">&#39;not&#39;</span><span class="p">,</span> <span class="s1">&#39;in&#39;</span><span class="p">,</span> <span class="s1">&#39;True&#39;</span><span class="p">,</span> <span class="s1">&#39;False&#39;</span><span class="p">,</span> <span class="s1">&#39;None&#39;</span><span class="p">,</span>
-                       <span class="s1">&#39;is&#39;</span><span class="p">,</span> <span class="s1">&#39;nan&#39;</span><span class="p">,</span> <span class="s1">&#39;NaN&#39;</span><span class="p">,</span> <span class="s1">&#39;inf&#39;</span><span class="p">,</span> <span class="s1">&#39;Inf&#39;</span><span class="p">}</span>
+    <span class="n">python_keywords</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'and'</span><span class="p">,</span> <span class="s1">'or'</span><span class="p">,</span> <span class="s1">'not'</span><span class="p">,</span> <span class="s1">'in'</span><span class="p">,</span> <span class="s1">'True'</span><span class="p">,</span> <span class="s1">'False'</span><span class="p">,</span> <span class="s1">'None'</span><span class="p">,</span>
+                       <span class="s1">'is'</span><span class="p">,</span> <span class="s1">'nan'</span><span class="p">,</span> <span class="s1">'NaN'</span><span class="p">,</span> <span class="s1">'inf'</span><span class="p">,</span> <span class="s1">'Inf'</span><span class="p">}</span>
     <span class="k">return</span> <span class="p">[</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">all_tokens</span> <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">available</span> <span class="ow">and</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">python_keywords</span><span class="p">]</span>
 
 
-<span class="n">_QUERY_KEYWORDS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;and&#39;</span><span class="p">,</span> <span class="s1">&#39;or&#39;</span><span class="p">,</span> <span class="s1">&#39;not&#39;</span><span class="p">,</span> <span class="s1">&#39;in&#39;</span><span class="p">,</span> <span class="s1">&#39;is&#39;</span><span class="p">,</span> <span class="s1">&#39;True&#39;</span><span class="p">,</span> <span class="s1">&#39;False&#39;</span><span class="p">,</span> <span class="s1">&#39;None&#39;</span><span class="p">,</span>
-                   <span class="s1">&#39;nan&#39;</span><span class="p">,</span> <span class="s1">&#39;NaN&#39;</span><span class="p">,</span> <span class="s1">&#39;inf&#39;</span><span class="p">,</span> <span class="s1">&#39;Inf&#39;</span><span class="p">}</span>
+<span class="n">_QUERY_KEYWORDS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'and'</span><span class="p">,</span> <span class="s1">'or'</span><span class="p">,</span> <span class="s1">'not'</span><span class="p">,</span> <span class="s1">'in'</span><span class="p">,</span> <span class="s1">'is'</span><span class="p">,</span> <span class="s1">'True'</span><span class="p">,</span> <span class="s1">'False'</span><span class="p">,</span> <span class="s1">'None'</span><span class="p">,</span>
+                   <span class="s1">'nan'</span><span class="p">,</span> <span class="s1">'NaN'</span><span class="p">,</span> <span class="s1">'inf'</span><span class="p">,</span> <span class="s1">'Inf'</span><span class="p">}</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_query_required_names</span><span class="p">(</span><span class="n">query_filter</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return every identifier a pandas query needs to resolve as a column.</span>
+<span class="w">    </span><span class="sd">"""Return every identifier a pandas query needs to resolve as a column.</span>
 
 <span class="sd">    Unlike ``_query_filter_columns`` (which intersects against a known column</span>
 <span class="sd">    set), this returns the *raw* set of names the query references, so the</span>
 <span class="sd">    caller can detect names that are absent from a target schema. String</span>
-<span class="sd">    literals are stripped first so their contents aren&#39;t mistaken for columns.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    literals are stripped first so their contents aren't mistaken for columns.</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">query_filter</span><span class="p">:</span>
         <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
-    <span class="c1"># Backtick-quoted names are unambiguously columns (may contain &#39;/&#39;).</span>
-    <span class="n">backtick_tokens</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;`([^`]+)`&#39;</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">))</span>
-    <span class="c1"># Drop quoted string literals so e.g. `name == &#39;Brazil&#39;` doesn&#39;t flag &#39;Brazil&#39;.</span>
-    <span class="n">no_strings</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;&#39;[^&#39;]*&#39;&quot;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">)</span>
-    <span class="n">no_strings</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;&quot;[^&quot;]*&quot;&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">no_strings</span><span class="p">)</span>
-    <span class="n">word_tokens</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\b([a-zA-Z_]\w*)\b&#39;</span><span class="p">,</span> <span class="n">no_strings</span><span class="p">))</span>
+    <span class="c1"># Backtick-quoted names are unambiguously columns (may contain '/').</span>
+    <span class="n">backtick_tokens</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">'`([^`]+)`'</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">))</span>
+    <span class="c1"># Drop quoted string literals so e.g. `name == 'Brazil'` doesn't flag 'Brazil'.</span>
+    <span class="n">no_strings</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s2">"'[^']*'"</span><span class="p">,</span> <span class="s1">''</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">)</span>
+    <span class="n">no_strings</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s1">'"[^"]*"'</span><span class="p">,</span> <span class="s1">''</span><span class="p">,</span> <span class="n">no_strings</span><span class="p">)</span>
+    <span class="n">word_tokens</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">'\b([a-zA-Z_]\w*)\b'</span><span class="p">,</span> <span class="n">no_strings</span><span class="p">))</span>
     <span class="k">return</span> <span class="p">(</span><span class="n">backtick_tokens</span> <span class="o">|</span> <span class="n">word_tokens</span><span class="p">)</span> <span class="o">-</span> <span class="n">_QUERY_KEYWORDS</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_make_plain_reader</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a plain pandas reader (no geometry) for merge sources.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Create a plain pandas reader (no geometry) for merge sources."""</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-    <span class="k">if</span> <span class="n">fmt</span> <span class="o">==</span> <span class="s1">&#39;parquet&#39;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">fmt</span> <span class="o">==</span> <span class="s1">'parquet'</span><span class="p">:</span>
         <span class="k">return</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="n">fmt</span> <span class="o">==</span> <span class="s1">&#39;feather&#39;</span><span class="p">:</span>
+    <span class="k">elif</span> <span class="n">fmt</span> <span class="o">==</span> <span class="s1">'feather'</span><span class="p">:</span>
         <span class="k">return</span> <span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_feather</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported format for plain reader: </span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unsupported format for plain reader: </span><span class="si">{</span><span class="n">fmt</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="get_cmd_args">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_update/index.html#gedih3.cli.gh3_update.get_cmd_args">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_cmd_args</span><span class="p">():</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Parse command line arguments for dataset update&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Parse command line arguments for dataset update"""</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">add_dask_args</span><span class="p">,</span> <span class="n">add_verbosity_args</span><span class="p">,</span> <span class="n">add_product_args</span><span class="p">,</span> <span class="n">add_storage_args</span>
 
     <span class="n">p</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span>
-        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Add new columns to an existing simplified dataset&quot;</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">"Add new columns to an existing simplified dataset"</span><span class="p">,</span>
         <span class="n">formatter_class</span><span class="o">=</span><span class="n">argparse</span><span class="o">.</span><span class="n">RawTextHelpFormatter</span>
     <span class="p">)</span>
 
     <span class="c1"># Target dataset (modified in place)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-d&quot;</span><span class="p">,</span> <span class="s2">&quot;--dataset&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;dataset&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;path to target simplified dataset directory (modified in place)&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-d"</span><span class="p">,</span> <span class="s2">"--dataset"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"dataset"</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"path to target simplified dataset directory (modified in place)"</span><span class="p">)</span>
 
     <span class="c1"># Mode 1: Add columns from H3 database</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-D&quot;</span><span class="p">,</span> <span class="s2">&quot;--database&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;database&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;source H3 database (default: from dataset metadata)&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-l&quot;</span><span class="p">,</span> <span class="s2">&quot;--list&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;list&quot;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;variables to add (space-separated, file path, or wildcards like &#39;rh_*&#39;)&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-D"</span><span class="p">,</span> <span class="s2">"--database"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"database"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"source H3 database (default: from dataset metadata)"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-l"</span><span class="p">,</span> <span class="s2">"--list"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"list"</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">'+'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"variables to add (space-separated, file path, or wildcards like 'rh_*')"</span><span class="p">)</span>
     <span class="n">add_product_args</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">include_detail_level</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
     <span class="c1"># Mode 2: Merge from another dataset</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-m&quot;</span><span class="p">,</span> <span class="s2">&quot;--merge&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;merge&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;path to another simplified dataset to merge columns from&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-m"</span><span class="p">,</span> <span class="s2">"--merge"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"merge"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"path to another simplified dataset to merge columns from"</span><span class="p">)</span>
 
     <span class="c1"># Dask, storage, and verbosity</span>
     <span class="n">add_dask_args</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
@@ -868,20 +868,20 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_detect_shot_number_col</span><span class="p">(</span><span class="n">col_names</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Find the shot_number column name in a schema.&quot;&quot;&quot;</span>
-    <span class="n">sn_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">col_names</span> <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;shot_number&#39;</span><span class="p">)]</span>
+<span class="w">    </span><span class="sd">"""Find the shot_number column name in a schema."""</span>
+    <span class="n">sn_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">col_names</span> <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'shot_number'</span><span class="p">)]</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">sn_cols</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">None</span>
     <span class="k">return</span> <span class="n">sn_cols</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_join_new_columns</span><span class="p">(</span><span class="n">target_df</span><span class="p">,</span> <span class="n">new_df</span><span class="p">,</span> <span class="n">new_cols</span><span class="p">,</span> <span class="n">sn_col</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Left join new columns onto target via shot_number, preserving all target rows.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Left join new columns onto target via shot_number, preserving all target rows."""</span>
     <span class="n">idx_name</span> <span class="o">=</span> <span class="n">target_df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span>
 
     <span class="n">target_reset</span> <span class="o">=</span> <span class="n">target_df</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
     <span class="n">merge_subset</span> <span class="o">=</span> <span class="n">new_df</span><span class="p">[[</span><span class="n">sn_col</span><span class="p">]</span> <span class="o">+</span> <span class="n">new_cols</span><span class="p">]</span><span class="o">.</span><span class="n">drop_duplicates</span><span class="p">(</span><span class="n">subset</span><span class="o">=</span><span class="p">[</span><span class="n">sn_col</span><span class="p">])</span>
-    <span class="n">merged</span> <span class="o">=</span> <span class="n">target_reset</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">merge_subset</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="n">sn_col</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">)</span>
+    <span class="n">merged</span> <span class="o">=</span> <span class="n">target_reset</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">merge_subset</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="n">sn_col</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">'left'</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">idx_name</span><span class="p">:</span>
         <span class="n">merged</span> <span class="o">=</span> <span class="n">merged</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="n">idx_name</span><span class="p">)</span>
@@ -889,7 +889,7 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_update_from_database</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">dataset_path</span><span class="p">,</span> <span class="n">dataset_meta</span><span class="p">,</span> <span class="n">logger</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Mode 1: Add columns from H3 database via shot_number join.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Mode 1: Add columns from H3 database via shot_number join."""</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
@@ -902,11 +902,11 @@ window.runMermaid = runMermaid;</script>
 
     <span class="c1"># Determine source H3 database</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_exists</span>
-    <span class="n">db_path</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">database</span> <span class="ow">or</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;source_database&#39;</span><span class="p">)</span>
+    <span class="n">db_path</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">database</span> <span class="ow">or</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'source_database'</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">db_path</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">db_path</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Source H3 database not found: </span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
-            <span class="s2">&quot;Specify the H3 database with -D/--database&quot;</span>
+            <span class="sa">f</span><span class="s2">"Source H3 database not found: </span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+            <span class="s2">"Specify the H3 database with -D/--database"</span>
         <span class="p">)</span>
 
     <span class="c1"># If source_database points to a simplified dataset (not an H3 database),</span>
@@ -917,65 +917,65 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">build_log_path</span><span class="p">):</span>
         <span class="n">chain_meta_path</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">db_path</span><span class="p">,</span> <span class="n">DATASET_META_FILENAME</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">chain_meta_path</span><span class="p">):</span>
-            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">chain_meta_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">chain_meta_path</span><span class="p">,</span> <span class="s1">'r'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
                 <span class="n">chain_meta</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
-            <span class="n">upstream</span> <span class="o">=</span> <span class="n">chain_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;source_database&#39;</span><span class="p">)</span>
+            <span class="n">upstream</span> <span class="o">=</span> <span class="n">chain_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'source_database'</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">upstream</span> <span class="ow">and</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">upstream</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">)):</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  source_database is a simplified dataset, tracing back to: </span><span class="si">{</span><span class="n">upstream</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  source_database is a simplified dataset, tracing back to: </span><span class="si">{</span><span class="n">upstream</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                 <span class="n">db_path</span> <span class="o">=</span> <span class="n">upstream</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;source_database &#39;</span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="s2">&#39; is not an H3 database and its upstream &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;H3 database could not be found.</span><span class="se">\n</span><span class="s2">&quot;</span>
-                    <span class="s2">&quot;Specify the H3 database explicitly with -D/--database&quot;</span>
+                    <span class="sa">f</span><span class="s2">"source_database '</span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="s2">' is not an H3 database and its upstream "</span>
+                    <span class="sa">f</span><span class="s2">"H3 database could not be found.</span><span class="se">\n</span><span class="s2">"</span>
+                    <span class="s2">"Specify the H3 database explicitly with -D/--database"</span>
                 <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Not an H3 database (no build log): </span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
-                <span class="s2">&quot;Specify the H3 database with -D/--database&quot;</span>
+                <span class="sa">f</span><span class="s2">"Not an H3 database (no build log): </span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="s2">"Specify the H3 database with -D/--database"</span>
             <span class="p">)</span>
 
-    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Source database: </span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  Source database: </span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="c1"># Surface non-INDEXED granules in the source DB. Class A failures from</span>
     <span class="c1"># gh3_build (orbits whose HDF5 lacked a requested variable) leave gaps</span>
     <span class="c1"># that propagate silently into every downstream simplified dataset and</span>
-    <span class="c1"># every gh3_update&#39;d version — once the operator knows, they can</span>
+    <span class="c1"># every gh3_update'd version — once the operator knows, they can</span>
     <span class="c1"># either re-run gh3_build with a trimmed var list to recover those</span>
     <span class="c1"># granules, or proceed knowingly. Read the source build log once and</span>
     <span class="c1"># count by status; cheap (single JSON read) and lives entirely in the</span>
     <span class="c1"># data we already opened above for db_path validation.</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">build_log_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">_blf</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">build_log_path</span><span class="p">,</span> <span class="s1">'r'</span><span class="p">)</span> <span class="k">as</span> <span class="n">_blf</span><span class="p">:</span>
             <span class="n">_bl</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">_blf</span><span class="p">)</span>
-        <span class="n">_granules</span> <span class="o">=</span> <span class="n">_bl</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;granules&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="n">_granules</span> <span class="o">=</span> <span class="n">_bl</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granules'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
         <span class="k">if</span> <span class="n">_granules</span><span class="p">:</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
-            <span class="n">_status_counts</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;status&#39;</span><span class="p">,</span> <span class="s1">&#39;UNKNOWN&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">_granules</span><span class="p">)</span>
+            <span class="n">_status_counts</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">,</span> <span class="s1">'UNKNOWN'</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">_granules</span><span class="p">)</span>
             <span class="n">_non_indexed</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
-                <span class="n">c</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">_status_counts</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">s</span> <span class="o">!=</span> <span class="s1">&#39;INDEXED&#39;</span>
+                <span class="n">c</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">_status_counts</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">s</span> <span class="o">!=</span> <span class="s1">'INDEXED'</span>
             <span class="p">)</span>
             <span class="k">if</span> <span class="n">_non_indexed</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Source database has </span><span class="si">{</span><span class="n">_non_indexed</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">_granules</span><span class="p">)</span><span class="si">}</span><span class="s2"> &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;non-INDEXED granule(s) — those shots will be ABSENT &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;from the joined columns. Breakdown: </span><span class="si">{</span><span class="nb">dict</span><span class="p">(</span><span class="n">_status_counts</span><span class="p">)</span><span class="si">}</span><span class="s2">. &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;Run `gh3_build` on the source database to retry; see &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;its end-of-build advisory for the recovery recipe.&quot;</span>
+                    <span class="sa">f</span><span class="s2">"Source database has </span><span class="si">{</span><span class="n">_non_indexed</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">_granules</span><span class="p">)</span><span class="si">}</span><span class="s2"> "</span>
+                    <span class="sa">f</span><span class="s2">"non-INDEXED granule(s) — those shots will be ABSENT "</span>
+                    <span class="sa">f</span><span class="s2">"from the joined columns. Breakdown: </span><span class="si">{</span><span class="nb">dict</span><span class="p">(</span><span class="n">_status_counts</span><span class="p">)</span><span class="si">}</span><span class="s2">. "</span>
+                    <span class="sa">f</span><span class="s2">"Run `gh3_build` on the source database to retry; see "</span>
+                    <span class="sa">f</span><span class="s2">"its end-of-build advisory for the recovery recipe."</span>
                 <span class="p">)</span>
     <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">JSONDecodeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">_e</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not enumerate source-db granule status: </span><span class="si">{</span><span class="n">_e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not enumerate source-db granule status: </span><span class="si">{</span><span class="n">_e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="c1"># Resolve new columns from product args</span>
     <span class="c1"># Set safe defaults for attributes collect_columns may access</span>
-    <span class="k">for</span> <span class="n">attr</span><span class="p">,</span> <span class="n">default</span> <span class="ow">in</span> <span class="p">[(</span><span class="s1">&#39;region&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;time_start&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;time_end&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-                          <span class="p">(</span><span class="s1">&#39;quality&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;geo&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;add_datetime&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)]:</span>
+    <span class="k">for</span> <span class="n">attr</span><span class="p">,</span> <span class="n">default</span> <span class="ow">in</span> <span class="p">[(</span><span class="s1">'region'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="p">(</span><span class="s1">'time_start'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="p">(</span><span class="s1">'time_end'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                          <span class="p">(</span><span class="s1">'quality'</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span> <span class="p">(</span><span class="s1">'geo'</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span> <span class="p">(</span><span class="s1">'add_datetime'</span><span class="p">,</span> <span class="kc">False</span><span class="p">)]:</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">attr</span><span class="p">):</span>
             <span class="nb">setattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="n">default</span><span class="p">)</span>
 
     <span class="n">args_db</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">(</span><span class="o">**</span><span class="nb">vars</span><span class="p">(</span><span class="n">args</span><span class="p">))</span>
     <span class="n">args_db</span><span class="o">.</span><span class="n">database</span> <span class="o">=</span> <span class="n">db_path</span>
-    <span class="n">available_columns</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_read_meta</span><span class="p">(</span><span class="s1">&#39;h3_columns&#39;</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="n">db_path</span><span class="p">)</span>
+    <span class="n">available_columns</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_read_meta</span><span class="p">(</span><span class="s1">'h3_columns'</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="n">db_path</span><span class="p">)</span>
     <span class="n">new_cols</span> <span class="o">=</span> <span class="n">collect_columns</span><span class="p">(</span><span class="n">args_db</span><span class="p">,</span> <span class="n">available_columns</span><span class="o">=</span><span class="n">available_columns</span><span class="p">)</span>
 
     <span class="c1"># Read target schema to filter out already-present columns</span>
@@ -985,94 +985,94 @@ window.runMermaid = runMermaid;</script>
     <span class="n">sn_col</span> <span class="o">=</span> <span class="n">_detect_shot_number_col</span><span class="p">(</span><span class="n">target_cols</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">sn_col</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-            <span class="s2">&quot;Target dataset does not contain shot_number. &quot;</span>
-            <span class="s2">&quot;Re-extract with the updated gh3_extract to include shot_number.&quot;</span>
+            <span class="s2">"Target dataset does not contain shot_number. "</span>
+            <span class="s2">"Re-extract with the updated gh3_extract to include shot_number."</span>
         <span class="p">)</span>
 
     <span class="c1"># Filter to truly new columns</span>
-    <span class="n">new_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">new_cols</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">target_cols</span> <span class="ow">and</span> <span class="n">c</span> <span class="o">!=</span> <span class="s1">&#39;geometry&#39;</span> <span class="ow">and</span> <span class="n">c</span> <span class="o">!=</span> <span class="s1">&#39;datetime&#39;</span><span class="p">]</span>
+    <span class="n">new_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">new_cols</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">target_cols</span> <span class="ow">and</span> <span class="n">c</span> <span class="o">!=</span> <span class="s1">'geometry'</span> <span class="ow">and</span> <span class="n">c</span> <span class="o">!=</span> <span class="s1">'datetime'</span><span class="p">]</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">new_cols</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No new columns to add — all requested columns already exist in the dataset.&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"No new columns to add — all requested columns already exist in the dataset."</span><span class="p">)</span>
         <span class="k">return</span>
 
     <span class="c1"># Validate new columns exist in H3 database</span>
     <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">new_cols</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">available_columns</span><span class="p">]</span>
     <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Columns not found in H3 database: </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Columns not found in H3 database: </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
-    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  New columns to add: </span><span class="si">{</span><span class="n">new_cols</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  New columns to add: </span><span class="si">{</span><span class="n">new_cols</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="c1"># Determine index type and partition column</span>
-    <span class="n">index_type</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_type&#39;</span><span class="p">,</span> <span class="s1">&#39;h3&#39;</span><span class="p">)</span>
-    <span class="n">query_filter</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;query_filter&#39;</span><span class="p">)</span>
+    <span class="n">index_type</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'index_type'</span><span class="p">,</span> <span class="s1">'h3'</span><span class="p">)</span>
+    <span class="n">query_filter</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'query_filter'</span><span class="p">)</span>
 
-    <span class="c1"># The stored query_filter was built against the *target&#39;s* source database.</span>
+    <span class="c1"># The stored query_filter was built against the *target's* source database.</span>
     <span class="c1"># When adding columns from a different database (db_path) that lacks some of</span>
     <span class="c1"># the filtered columns — e.g. the target was extracted with L2A/L4A quality</span>
-    <span class="c1"># flags but we&#39;re now joining L1B columns from an L1B-only database — applying</span>
+    <span class="c1"># flags but we're now joining L1B columns from an L1B-only database — applying</span>
     <span class="c1"># the filter to that source would raise UndefinedVariableError. The left join</span>
     <span class="c1"># on shot_number already restricts the source rows to the (already-filtered)</span>
     <span class="c1"># target shots, so filtering the source is only a memory optimization: safe to</span>
-    <span class="c1"># drop whenever it can&#39;t be applied. Apply it only when every name it</span>
+    <span class="c1"># drop whenever it can't be applied. Apply it only when every name it</span>
     <span class="c1"># references is loadable from the source database.</span>
     <span class="n">loadable_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">available_columns</span><span class="p">)</span> <span class="o">|</span> <span class="p">{</span><span class="n">sn_col</span><span class="p">}</span>
     <span class="n">missing_names</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">_query_required_names</span><span class="p">(</span><span class="n">query_filter</span><span class="p">)</span> <span class="o">-</span> <span class="n">loadable_names</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">missing_names</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;  Query filter references column(s) absent from the source database &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing_names</span><span class="p">)</span><span class="si">}</span><span class="s2">); loading the source unfiltered and &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;relying on the shot_number left join to drop non-matching rows.&quot;</span>
+            <span class="sa">f</span><span class="s2">"  Query filter references column(s) absent from the source database "</span>
+            <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing_names</span><span class="p">)</span><span class="si">}</span><span class="s2">); loading the source unfiltered and "</span>
+            <span class="sa">f</span><span class="s2">"relying on the shot_number left join to drop non-matching rows."</span>
         <span class="p">)</span>
         <span class="n">effective_filter</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="n">extra_filter_cols</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">effective_filter</span> <span class="o">=</span> <span class="n">query_filter</span>
-        <span class="c1"># Extra columns needed by the query filter that aren&#39;t in new_cols.</span>
+        <span class="c1"># Extra columns needed by the query filter that aren't in new_cols.</span>
         <span class="n">filter_cols</span> <span class="o">=</span> <span class="n">_query_filter_columns</span><span class="p">(</span><span class="n">query_filter</span><span class="p">,</span> <span class="n">available_columns</span><span class="p">)</span>
         <span class="n">extra_filter_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">filter_cols</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">new_cols</span> <span class="ow">and</span> <span class="n">c</span> <span class="o">!=</span> <span class="n">sn_col</span><span class="p">]</span>
 
     <span class="n">dask_kwargs</span> <span class="o">=</span> <span class="n">parse_dask_args</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
 
     <span class="k">with</span> <span class="n">Client</span><span class="p">(</span><span class="o">**</span><span class="n">dask_kwargs</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Dask dashboard: </span><span class="si">{</span><span class="n">client</span><span class="o">.</span><span class="n">dashboard_link</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  Dask dashboard: </span><span class="si">{</span><span class="n">client</span><span class="o">.</span><span class="n">dashboard_link</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="n">index_type</span> <span class="o">==</span> <span class="s1">&#39;h3&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">index_type</span> <span class="o">==</span> <span class="s1">'h3'</span><span class="p">:</span>
             <span class="n">_update_h3_partitions</span><span class="p">(</span>
                 <span class="n">dataset_path</span><span class="p">,</span> <span class="n">db_path</span><span class="p">,</span> <span class="n">data_files</span><span class="p">,</span> <span class="n">fmt</span><span class="p">,</span> <span class="n">new_cols</span><span class="p">,</span>
                 <span class="n">sn_col</span><span class="p">,</span> <span class="n">effective_filter</span><span class="p">,</span> <span class="n">extra_filter_cols</span><span class="p">,</span> <span class="n">dataset_meta</span><span class="p">,</span>
                 <span class="n">logger</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">args</span>
             <span class="p">)</span>
-        <span class="k">elif</span> <span class="n">index_type</span> <span class="o">==</span> <span class="s1">&#39;egi&#39;</span><span class="p">:</span>
+        <span class="k">elif</span> <span class="n">index_type</span> <span class="o">==</span> <span class="s1">'egi'</span><span class="p">:</span>
             <span class="n">_update_egi_partitions</span><span class="p">(</span>
                 <span class="n">dataset_path</span><span class="p">,</span> <span class="n">db_path</span><span class="p">,</span> <span class="n">data_files</span><span class="p">,</span> <span class="n">fmt</span><span class="p">,</span> <span class="n">new_cols</span><span class="p">,</span>
                 <span class="n">sn_col</span><span class="p">,</span> <span class="n">effective_filter</span><span class="p">,</span> <span class="n">extra_filter_cols</span><span class="p">,</span> <span class="n">dataset_meta</span><span class="p">,</span>
                 <span class="n">logger</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">args</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported index type: </span><span class="si">{</span><span class="n">index_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unsupported index type: </span><span class="si">{</span><span class="n">index_type</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="c1"># Update metadata</span>
-    <span class="n">existing_cols</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;columns&#39;</span><span class="p">,</span> <span class="p">[])</span>
+    <span class="n">existing_cols</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'columns'</span><span class="p">,</span> <span class="p">[])</span>
     <span class="n">updated_cols</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">existing_cols</span> <span class="o">+</span> <span class="n">new_cols</span><span class="p">))</span>
     <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_write_dataset_meta</span><span class="p">(</span>
         <span class="n">opath</span><span class="o">=</span><span class="n">dataset_path</span><span class="p">,</span>
-        <span class="n">index_type</span><span class="o">=</span><span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_type&#39;</span><span class="p">,</span> <span class="s1">&#39;h3&#39;</span><span class="p">),</span>
-        <span class="n">index_level</span><span class="o">=</span><span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_level&#39;</span><span class="p">),</span>
+        <span class="n">index_type</span><span class="o">=</span><span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'index_type'</span><span class="p">,</span> <span class="s1">'h3'</span><span class="p">),</span>
+        <span class="n">index_level</span><span class="o">=</span><span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'index_level'</span><span class="p">),</span>
         <span class="n">columns</span><span class="o">=</span><span class="n">updated_cols</span><span class="p">,</span>
         <span class="n">source_database</span><span class="o">=</span><span class="n">db_path</span><span class="p">,</span>
         <span class="n">query_filter</span><span class="o">=</span><span class="n">query_filter</span><span class="p">,</span>
-        <span class="n">tool</span><span class="o">=</span><span class="s1">&#39;gh3_update&#39;</span><span class="p">,</span>
+        <span class="n">tool</span><span class="o">=</span><span class="s1">'gh3_update'</span><span class="p">,</span>
         <span class="n">file_format</span><span class="o">=</span><span class="n">fmt</span><span class="p">,</span>
         <span class="o">**</span><span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-           <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;egi_index_level&#39;</span><span class="p">,</span> <span class="s1">&#39;egi_partition_level&#39;</span><span class="p">,</span> <span class="s1">&#39;h3_partition_level&#39;</span><span class="p">)}</span>
+           <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'egi_index_level'</span><span class="p">,</span> <span class="s1">'egi_partition_level'</span><span class="p">,</span> <span class="s1">'h3_partition_level'</span><span class="p">)}</span>
     <span class="p">)</span>
-    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;  Metadata updated.&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"  Metadata updated."</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_update_h3_partitions</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">,</span> <span class="n">db_path</span><span class="p">,</span> <span class="n">data_files</span><span class="p">,</span> <span class="n">fmt</span><span class="p">,</span> <span class="n">new_cols</span><span class="p">,</span>
                            <span class="n">sn_col</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">,</span> <span class="n">extra_filter_cols</span><span class="p">,</span> <span class="n">dataset_meta</span><span class="p">,</span>
                            <span class="n">logger</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Update H3-partitioned dataset files from source H3 database.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Update H3-partitioned dataset files from source H3 database."""</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
@@ -1081,18 +1081,18 @@ window.runMermaid = runMermaid;</script>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_dataset_reader</span><span class="p">,</span> <span class="n">h3_col_name</span><span class="p">,</span> <span class="n">progress_iter</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_exists</span><span class="p">,</span> <span class="n">smart_join</span>
 
-    <span class="n">h3_part</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_read_meta</span><span class="p">(</span><span class="s1">&#39;h3_partition_level&#39;</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="n">db_path</span><span class="p">)</span>
+    <span class="n">h3_part</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_read_meta</span><span class="p">(</span><span class="s1">'h3_partition_level'</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="n">db_path</span><span class="p">)</span>
     <span class="n">h3_part_col</span> <span class="o">=</span> <span class="n">h3_col_name</span><span class="p">(</span><span class="n">h3_part</span><span class="p">)</span>
 
     <span class="n">load_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">sn_col</span><span class="p">]</span> <span class="o">+</span> <span class="n">new_cols</span> <span class="o">+</span> <span class="n">extra_filter_cols</span>
     <span class="n">reader</span> <span class="o">=</span> <span class="n">make_dataset_reader</span><span class="p">(</span><span class="n">fmt</span><span class="p">)</span>
     <span class="n">n_updated</span> <span class="o">=</span> <span class="mi">0</span>
 
-    <span class="k">with</span> <span class="n">progress_iter</span><span class="p">(</span><span class="n">data_files</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Updating H3 partitions&quot;</span><span class="p">,</span>
-                       <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">&quot;part&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">bar</span><span class="p">:</span>
+    <span class="k">with</span> <span class="n">progress_iter</span><span class="p">(</span><span class="n">data_files</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">"Updating H3 partitions"</span><span class="p">,</span>
+                       <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"part"</span><span class="p">)</span> <span class="k">as</span> <span class="n">bar</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">fpath</span> <span class="ow">in</span> <span class="n">bar</span><span class="p">:</span>
             <span class="n">part_id</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">fpath</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
-            <span class="n">h3_dir</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">db_path</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">h3_part_col</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">part_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">h3_dir</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">db_path</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">h3_part_col</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">part_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
             <span class="n">target_df</span> <span class="o">=</span> <span class="n">reader</span><span class="p">(</span><span class="n">fpath</span><span class="p">)</span>
 
@@ -1105,7 +1105,7 @@ window.runMermaid = runMermaid;</script>
                     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">safe_query</span>
                     <span class="n">source_df</span> <span class="o">=</span> <span class="n">safe_query</span><span class="p">(</span><span class="n">source_df</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">extra_filter_cols</span><span class="p">:</span>
-                        <span class="n">source_df</span> <span class="o">=</span> <span class="n">source_df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">extra_filter_cols</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span>
+                        <span class="n">source_df</span> <span class="o">=</span> <span class="n">source_df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">extra_filter_cols</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">'ignore'</span><span class="p">)</span>
                 <span class="n">target_df</span> <span class="o">=</span> <span class="n">_join_new_columns</span><span class="p">(</span><span class="n">target_df</span><span class="p">,</span> <span class="n">source_df</span><span class="p">,</span> <span class="n">new_cols</span><span class="p">,</span> <span class="n">sn_col</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">new_cols</span><span class="p">:</span>
@@ -1114,13 +1114,13 @@ window.runMermaid = runMermaid;</script>
             <span class="n">gh3</span><span class="o">.</span><span class="n">_write_dataframe</span><span class="p">(</span><span class="n">target_df</span><span class="p">,</span> <span class="n">fpath</span><span class="p">,</span> <span class="n">fmt</span><span class="p">)</span>
             <span class="n">n_updated</span> <span class="o">+=</span> <span class="mi">1</span>
 
-    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Updated </span><span class="si">{</span><span class="n">n_updated</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">data_files</span><span class="p">)</span><span class="si">}</span><span class="s2"> partition files.&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  Updated </span><span class="si">{</span><span class="n">n_updated</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">data_files</span><span class="p">)</span><span class="si">}</span><span class="s2"> partition files."</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_update_egi_partitions</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">,</span> <span class="n">db_path</span><span class="p">,</span> <span class="n">data_files</span><span class="p">,</span> <span class="n">fmt</span><span class="p">,</span> <span class="n">new_cols</span><span class="p">,</span>
                             <span class="n">sn_col</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">,</span> <span class="n">extra_filter_cols</span><span class="p">,</span> <span class="n">dataset_meta</span><span class="p">,</span>
                             <span class="n">logger</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Update EGI-partitioned dataset files from source H3 database.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Update EGI-partitioned dataset files from source H3 database."""</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
@@ -1131,10 +1131,10 @@ window.runMermaid = runMermaid;</script>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_exists</span><span class="p">,</span> <span class="n">smart_join</span>
 
     <span class="c1"># Get EGI partition level from metadata</span>
-    <span class="n">egi_partition_level</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;egi_partition_level&#39;</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span>
+    <span class="n">egi_partition_level</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'egi_partition_level'</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span>
     <span class="n">egi_part_col</span> <span class="o">=</span> <span class="n">egi_col_name</span><span class="p">(</span><span class="n">egi_partition_level</span><span class="p">)</span>
 
-    <span class="c1"># Prepare EGI↔H3 intersection at the dataset&#39;s partition level — the</span>
+    <span class="c1"># Prepare EGI↔H3 intersection at the dataset's partition level — the</span>
     <span class="c1"># egi_to_h3 keys must be the same level as the hashes encoded in the</span>
     <span class="c1"># partition filenames.</span>
     <span class="n">egi_tiles</span><span class="p">,</span> <span class="n">egi_to_h3</span><span class="p">,</span> <span class="n">h3_part_col</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">_prepare_egi_loading</span><span class="p">(</span>
@@ -1144,8 +1144,8 @@ window.runMermaid = runMermaid;</script>
     <span class="n">reader</span> <span class="o">=</span> <span class="n">make_dataset_reader</span><span class="p">(</span><span class="n">fmt</span><span class="p">)</span>
     <span class="n">n_updated</span> <span class="o">=</span> <span class="mi">0</span>
 
-    <span class="k">with</span> <span class="n">progress_iter</span><span class="p">(</span><span class="n">data_files</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Updating EGI partitions&quot;</span><span class="p">,</span>
-                       <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">&quot;part&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">bar</span><span class="p">:</span>
+    <span class="k">with</span> <span class="n">progress_iter</span><span class="p">(</span><span class="n">data_files</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">"Updating EGI partitions"</span><span class="p">,</span>
+                       <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"part"</span><span class="p">)</span> <span class="k">as</span> <span class="n">bar</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">fpath</span> <span class="ow">in</span> <span class="n">bar</span><span class="p">:</span>
             <span class="n">part_id</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">fpath</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
             <span class="c1"># Filenames carry the EGI hash as a decimal string, but egi_to_h3</span>
@@ -1153,7 +1153,7 @@ window.runMermaid = runMermaid;</script>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">h3_list</span> <span class="o">=</span> <span class="n">egi_to_h3</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="n">part_id</span><span class="p">),</span> <span class="p">[])</span>
             <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Skipping non-EGI partition filename: </span><span class="si">{</span><span class="n">fpath</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  Skipping non-EGI partition filename: </span><span class="si">{</span><span class="n">fpath</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                 <span class="n">h3_list</span> <span class="o">=</span> <span class="p">[]</span>
 
             <span class="n">target_df</span> <span class="o">=</span> <span class="n">reader</span><span class="p">(</span><span class="n">fpath</span><span class="p">)</span>
@@ -1163,7 +1163,7 @@ window.runMermaid = runMermaid;</script>
 
             <span class="n">source_dfs</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">h3_id</span> <span class="ow">in</span> <span class="n">h3_list</span><span class="p">:</span>
-                <span class="n">h3_dir</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">db_path</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">h3_part_col</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">h3_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">h3_dir</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">db_path</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">h3_part_col</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">h3_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">):</span>
                     <span class="n">df</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load_hex</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">load_cols</span><span class="p">)</span>
                     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
@@ -1175,7 +1175,7 @@ window.runMermaid = runMermaid;</script>
                     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">safe_query</span>
                     <span class="n">source_df</span> <span class="o">=</span> <span class="n">safe_query</span><span class="p">(</span><span class="n">source_df</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">extra_filter_cols</span><span class="p">:</span>
-                        <span class="n">source_df</span> <span class="o">=</span> <span class="n">source_df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">extra_filter_cols</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span>
+                        <span class="n">source_df</span> <span class="o">=</span> <span class="n">source_df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">extra_filter_cols</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">'ignore'</span><span class="p">)</span>
                 <span class="n">target_df</span> <span class="o">=</span> <span class="n">_join_new_columns</span><span class="p">(</span><span class="n">target_df</span><span class="p">,</span> <span class="n">source_df</span><span class="p">,</span> <span class="n">new_cols</span><span class="p">,</span> <span class="n">sn_col</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">new_cols</span><span class="p">:</span>
@@ -1184,11 +1184,11 @@ window.runMermaid = runMermaid;</script>
             <span class="n">gh3</span><span class="o">.</span><span class="n">_write_dataframe</span><span class="p">(</span><span class="n">target_df</span><span class="p">,</span> <span class="n">fpath</span><span class="p">,</span> <span class="n">fmt</span><span class="p">)</span>
             <span class="n">n_updated</span> <span class="o">+=</span> <span class="mi">1</span>
 
-    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Updated </span><span class="si">{</span><span class="n">n_updated</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">data_files</span><span class="p">)</span><span class="si">}</span><span class="s2"> partition files.&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  Updated </span><span class="si">{</span><span class="n">n_updated</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">data_files</span><span class="p">)</span><span class="si">}</span><span class="s2"> partition files."</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_update_from_merge</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">dataset_path</span><span class="p">,</span> <span class="n">dataset_meta</span><span class="p">,</span> <span class="n">logger</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Mode 2: Merge columns from another simplified dataset via shot_number join.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Mode 2: Merge columns from another simplified dataset via shot_number join."""</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
@@ -1207,18 +1207,18 @@ window.runMermaid = runMermaid;</script>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_exists</span><span class="p">,</span> <span class="n">smart_join</span>
     <span class="n">merge_meta_path</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">merge_path</span><span class="p">,</span> <span class="n">DATASET_META_FILENAME</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">merge_meta_path</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Not a simplified dataset (no </span><span class="si">{</span><span class="n">DATASET_META_FILENAME</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">merge_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Not a simplified dataset (no </span><span class="si">{</span><span class="n">DATASET_META_FILENAME</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">merge_path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
-    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">merge_meta_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">merge_meta_path</span><span class="p">,</span> <span class="s1">'r'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
         <span class="n">merge_meta</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
 
     <span class="c1"># Validate same index type</span>
-    <span class="n">target_index_type</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_type&#39;</span><span class="p">)</span>
-    <span class="n">merge_index_type</span> <span class="o">=</span> <span class="n">merge_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_type&#39;</span><span class="p">)</span>
+    <span class="n">target_index_type</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'index_type'</span><span class="p">)</span>
+    <span class="n">merge_index_type</span> <span class="o">=</span> <span class="n">merge_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'index_type'</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">target_index_type</span> <span class="o">!=</span> <span class="n">merge_index_type</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Index type mismatch: target is &#39;</span><span class="si">{</span><span class="n">target_index_type</span><span class="si">}</span><span class="s2">&#39;, &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;merge source is &#39;</span><span class="si">{</span><span class="n">merge_index_type</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
+            <span class="sa">f</span><span class="s2">"Index type mismatch: target is '</span><span class="si">{</span><span class="n">target_index_type</span><span class="si">}</span><span class="s2">', "</span>
+            <span class="sa">f</span><span class="s2">"merge source is '</span><span class="si">{</span><span class="n">merge_index_type</span><span class="si">}</span><span class="s2">'"</span>
         <span class="p">)</span>
 
     <span class="c1"># Read schemas</span>
@@ -1236,11 +1236,11 @@ window.runMermaid = runMermaid;</script>
     <span class="n">merge_sn</span> <span class="o">=</span> <span class="n">_detect_shot_number_col</span><span class="p">(</span><span class="n">merge_cols</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">target_sn</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-            <span class="s2">&quot;Target dataset does not contain shot_number. &quot;</span>
-            <span class="s2">&quot;Re-extract with the updated gh3_extract to include shot_number.&quot;</span>
+            <span class="s2">"Target dataset does not contain shot_number. "</span>
+            <span class="s2">"Re-extract with the updated gh3_extract to include shot_number."</span>
         <span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">merge_sn</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Merge dataset does not contain shot_number.&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Merge dataset does not contain shot_number."</span><span class="p">)</span>
 
     <span class="c1"># Use same shot_number column name (they should match, but handle suffix differences)</span>
     <span class="n">sn_col</span> <span class="o">=</span> <span class="n">target_sn</span>
@@ -1248,14 +1248,14 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># Identify new columns (non-duplicate, non-internal)</span>
     <span class="n">new_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">merge_cols</span>
                 <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">target_cols</span>
-                <span class="ow">and</span> <span class="n">c</span> <span class="o">!=</span> <span class="s1">&#39;geometry&#39;</span>
+                <span class="ow">and</span> <span class="n">c</span> <span class="o">!=</span> <span class="s1">'geometry'</span>
                 <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_internal_column</span><span class="p">(</span><span class="n">c</span><span class="p">)]</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">new_cols</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No new columns to merge — all columns already exist in the target dataset.&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"No new columns to merge — all columns already exist in the target dataset."</span><span class="p">)</span>
         <span class="k">return</span>
 
-    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  New columns to merge: </span><span class="si">{</span><span class="n">new_cols</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  New columns to merge: </span><span class="si">{</span><span class="n">new_cols</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="c1"># Build merge file map: {partition_id: file_path}</span>
     <span class="n">merge_map</span> <span class="o">=</span> <span class="p">{}</span>
@@ -1267,7 +1267,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">target_reader</span> <span class="o">=</span> <span class="n">make_dataset_reader</span><span class="p">(</span><span class="n">target_fmt</span><span class="p">)</span>
     <span class="n">merge_reader_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">merge_sn</span><span class="p">]</span> <span class="o">+</span> <span class="n">new_cols</span>
     <span class="c1"># Use pandas (not geopandas) reader — geometry is not needed for the join</span>
-    <span class="c1"># and gpd.read_parquet fails when the requested columns don&#39;t include geometry</span>
+    <span class="c1"># and gpd.read_parquet fails when the requested columns don't include geometry</span>
     <span class="n">merge_reader</span> <span class="o">=</span> <span class="n">_make_plain_reader</span><span class="p">(</span><span class="n">merge_fmt</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">merge_reader_cols</span><span class="p">)</span>
 
     <span class="n">n_updated</span> <span class="o">=</span> <span class="mi">0</span>
@@ -1280,14 +1280,14 @@ window.runMermaid = runMermaid;</script>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">progress_iter</span>
 
     <span class="k">if</span> <span class="n">matched_count</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">merge_map</span><span class="p">:</span>
-        <span class="c1"># Partition names don&#39;t match — fall back to global shot_number join</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;  Partition names don&#39;t match — joining by shot_number across all files&quot;</span><span class="p">)</span>
+        <span class="c1"># Partition names don't match — fall back to global shot_number join</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"  Partition names don't match — joining by shot_number across all files"</span><span class="p">)</span>
         <span class="n">merge_all</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">merge_reader</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">merge_files</span><span class="p">],</span> <span class="n">ignore_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="n">merge_all</span> <span class="o">=</span> <span class="n">merge_all</span><span class="o">.</span><span class="n">drop_duplicates</span><span class="p">(</span><span class="n">subset</span><span class="o">=</span><span class="p">[</span><span class="n">merge_sn</span><span class="p">])</span>
         <span class="k">if</span> <span class="n">merge_sn</span> <span class="o">!=</span> <span class="n">sn_col</span> <span class="ow">and</span> <span class="n">merge_sn</span> <span class="ow">in</span> <span class="n">merge_all</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
             <span class="n">merge_all</span> <span class="o">=</span> <span class="n">merge_all</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="n">merge_sn</span><span class="p">:</span> <span class="n">sn_col</span><span class="p">})</span>
-        <span class="k">with</span> <span class="n">progress_iter</span><span class="p">(</span><span class="n">target_files</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Merging columns&quot;</span><span class="p">,</span>
-                           <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">&quot;part&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">bar</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">progress_iter</span><span class="p">(</span><span class="n">target_files</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">"Merging columns"</span><span class="p">,</span>
+                           <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"part"</span><span class="p">)</span> <span class="k">as</span> <span class="n">bar</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">fpath</span> <span class="ow">in</span> <span class="n">bar</span><span class="p">:</span>
                 <span class="n">target_df</span> <span class="o">=</span> <span class="n">target_reader</span><span class="p">(</span><span class="n">fpath</span><span class="p">)</span>
                 <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">target_df</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
@@ -1296,8 +1296,8 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">gh3</span><span class="o">.</span><span class="n">_write_dataframe</span><span class="p">(</span><span class="n">target_df</span><span class="p">,</span> <span class="n">fpath</span><span class="p">,</span> <span class="n">target_fmt</span><span class="p">)</span>
                 <span class="n">n_updated</span> <span class="o">+=</span> <span class="mi">1</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="k">with</span> <span class="n">progress_iter</span><span class="p">(</span><span class="n">target_files</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Merging partitions&quot;</span><span class="p">,</span>
-                           <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">&quot;part&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">bar</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">progress_iter</span><span class="p">(</span><span class="n">target_files</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">"Merging partitions"</span><span class="p">,</span>
+                           <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"part"</span><span class="p">)</span> <span class="k">as</span> <span class="n">bar</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">fpath</span> <span class="ow">in</span> <span class="n">bar</span><span class="p">:</span>
                 <span class="n">part_id</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">fpath</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
                 <span class="n">target_df</span> <span class="o">=</span> <span class="n">target_reader</span><span class="p">(</span><span class="n">fpath</span><span class="p">)</span>
@@ -1321,24 +1321,24 @@ window.runMermaid = runMermaid;</script>
 
                 <span class="n">gh3</span><span class="o">.</span><span class="n">_write_dataframe</span><span class="p">(</span><span class="n">target_df</span><span class="p">,</span> <span class="n">fpath</span><span class="p">,</span> <span class="n">target_fmt</span><span class="p">)</span>
 
-    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Updated </span><span class="si">{</span><span class="n">n_updated</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">target_files</span><span class="p">)</span><span class="si">}</span><span class="s2"> files (</span><span class="si">{</span><span class="n">n_no_match</span><span class="si">}</span><span class="s2"> with no matching merge partition).&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  Updated </span><span class="si">{</span><span class="n">n_updated</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">target_files</span><span class="p">)</span><span class="si">}</span><span class="s2"> files (</span><span class="si">{</span><span class="n">n_no_match</span><span class="si">}</span><span class="s2"> with no matching merge partition)."</span><span class="p">)</span>
 
     <span class="c1"># Update metadata</span>
-    <span class="n">existing_cols</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;columns&#39;</span><span class="p">,</span> <span class="p">[])</span>
+    <span class="n">existing_cols</span> <span class="o">=</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'columns'</span><span class="p">,</span> <span class="p">[])</span>
     <span class="n">updated_cols</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">existing_cols</span> <span class="o">+</span> <span class="n">new_cols</span><span class="p">))</span>
     <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_write_dataset_meta</span><span class="p">(</span>
         <span class="n">opath</span><span class="o">=</span><span class="n">dataset_path</span><span class="p">,</span>
-        <span class="n">index_type</span><span class="o">=</span><span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_type&#39;</span><span class="p">,</span> <span class="s1">&#39;h3&#39;</span><span class="p">),</span>
-        <span class="n">index_level</span><span class="o">=</span><span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_level&#39;</span><span class="p">),</span>
+        <span class="n">index_type</span><span class="o">=</span><span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'index_type'</span><span class="p">,</span> <span class="s1">'h3'</span><span class="p">),</span>
+        <span class="n">index_level</span><span class="o">=</span><span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'index_level'</span><span class="p">),</span>
         <span class="n">columns</span><span class="o">=</span><span class="n">updated_cols</span><span class="p">,</span>
-        <span class="n">source_database</span><span class="o">=</span><span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;source_database&#39;</span><span class="p">),</span>
-        <span class="n">query_filter</span><span class="o">=</span><span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;query_filter&#39;</span><span class="p">),</span>
-        <span class="n">tool</span><span class="o">=</span><span class="s1">&#39;gh3_update&#39;</span><span class="p">,</span>
+        <span class="n">source_database</span><span class="o">=</span><span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'source_database'</span><span class="p">),</span>
+        <span class="n">query_filter</span><span class="o">=</span><span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'query_filter'</span><span class="p">),</span>
+        <span class="n">tool</span><span class="o">=</span><span class="s1">'gh3_update'</span><span class="p">,</span>
         <span class="n">file_format</span><span class="o">=</span><span class="n">target_fmt</span><span class="p">,</span>
         <span class="o">**</span><span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">dataset_meta</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-           <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;egi_index_level&#39;</span><span class="p">,</span> <span class="s1">&#39;egi_partition_level&#39;</span><span class="p">,</span> <span class="s1">&#39;h3_partition_level&#39;</span><span class="p">)}</span>
+           <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'egi_index_level'</span><span class="p">,</span> <span class="s1">'egi_partition_level'</span><span class="p">,</span> <span class="s1">'h3_partition_level'</span><span class="p">)}</span>
     <span class="p">)</span>
-    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;  Metadata updated.&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"  Metadata updated."</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="main">
@@ -1355,9 +1355,9 @@ window.runMermaid = runMermaid;</script>
 
         <span class="n">logger</span> <span class="o">=</span> <span class="n">setup_logging</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
         <span class="n">setup_storage</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
-        <span class="n">print_banner</span><span class="p">(</span><span class="s2">&quot;GEDI Dataset Update Tool&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+        <span class="n">print_banner</span><span class="p">(</span><span class="s2">"GEDI Dataset Update Tool"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
 
-        <span class="n">resolve_path_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;dataset&#39;</span><span class="p">,</span> <span class="s1">&#39;database&#39;</span><span class="p">,</span> <span class="s1">&#39;merge&#39;</span><span class="p">],</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+        <span class="n">resolve_path_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">[</span><span class="s1">'dataset'</span><span class="p">,</span> <span class="s1">'database'</span><span class="p">,</span> <span class="s1">'merge'</span><span class="p">],</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
 
         <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">DATASET_META_FILENAME</span>
 
@@ -1368,20 +1368,20 @@ window.runMermaid = runMermaid;</script>
         <span class="n">meta_path</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">,</span> <span class="n">DATASET_META_FILENAME</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">meta_path</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Not a simplified dataset (no </span><span class="si">{</span><span class="n">DATASET_META_FILENAME</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">dataset_path</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
-                <span class="s2">&quot;gh3_update requires a dataset created by gh3_extract.&quot;</span>
+                <span class="sa">f</span><span class="s2">"Not a simplified dataset (no </span><span class="si">{</span><span class="n">DATASET_META_FILENAME</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">dataset_path</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="s2">"gh3_update requires a dataset created by gh3_extract."</span>
             <span class="p">)</span>
 
-        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">meta_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">meta_path</span><span class="p">,</span> <span class="s1">'r'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
             <span class="n">dataset_meta</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
 
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Target dataset: </span><span class="si">{</span><span class="n">dataset_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Index type: </span><span class="si">{</span><span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_type&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  Target dataset: </span><span class="si">{</span><span class="n">dataset_path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  Index type: </span><span class="si">{</span><span class="n">dataset_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'index_type'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
         <span class="c1"># Determine mode</span>
         <span class="n">has_product_args</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span>
             <span class="nb">getattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">k</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;L1B&#39;</span><span class="p">,</span> <span class="s1">&#39;L2A&#39;</span><span class="p">,</span> <span class="s1">&#39;L2B&#39;</span><span class="p">,</span> <span class="s1">&#39;L4A&#39;</span><span class="p">,</span> <span class="s1">&#39;L4C&#39;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'L1B'</span><span class="p">,</span> <span class="s1">'L2A'</span><span class="p">,</span> <span class="s1">'L2B'</span><span class="p">,</span> <span class="s1">'L4A'</span><span class="p">,</span> <span class="s1">'L4C'</span><span class="p">)</span>
         <span class="p">)</span>
         <span class="n">has_list_arg</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">list</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
         <span class="n">has_db_mode</span> <span class="o">=</span> <span class="n">has_product_args</span> <span class="ow">or</span> <span class="n">has_list_arg</span>
@@ -1389,27 +1389,27 @@ window.runMermaid = runMermaid;</script>
 
         <span class="k">if</span> <span class="n">has_db_mode</span> <span class="ow">and</span> <span class="n">has_merge_mode</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="s2">&quot;Cannot use both database mode (-l/-l2a/etc.) and merge mode (-m) simultaneously.&quot;</span>
+                <span class="s2">"Cannot use both database mode (-l/-l2a/etc.) and merge mode (-m) simultaneously."</span>
             <span class="p">)</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">has_db_mode</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_merge_mode</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="s2">&quot;Specify columns to add from H3 database (-l/-l2a/-l4a/etc.) &quot;</span>
-                <span class="s2">&quot;or a dataset to merge (-m).&quot;</span>
+                <span class="s2">"Specify columns to add from H3 database (-l/-l2a/-l4a/etc.) "</span>
+                <span class="s2">"or a dataset to merge (-m)."</span>
             <span class="p">)</span>
 
         <span class="k">if</span> <span class="n">has_db_mode</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Mode: Add columns from H3 database&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Mode: Add columns from H3 database"</span><span class="p">)</span>
             <span class="n">_update_from_database</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">dataset_path</span><span class="p">,</span> <span class="n">dataset_meta</span><span class="p">,</span> <span class="n">logger</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Mode: Merge columns from another dataset&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Mode: Merge columns from another dataset"</span><span class="p">)</span>
             <span class="n">_update_from_merge</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">dataset_path</span><span class="p">,</span> <span class="n">dataset_meta</span><span class="p">,</span> <span class="n">logger</span><span class="p">)</span>
 
-        <span class="n">print_success</span><span class="p">(</span><span class="s2">&quot;Dataset updated successfully&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span></div>
+        <span class="n">print_success</span><span class="p">(</span><span class="s2">"Dataset updated successfully"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span></div>
 
 
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
     <span class="n">main</span><span class="p">()</span>
 </pre></div>
 

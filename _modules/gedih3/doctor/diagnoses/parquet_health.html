@@ -760,7 +760,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;parquet_health diagnosis — corrupt files, duplicate shots, schema drift.</span>
+<span class="sd">"""parquet_health diagnosis — corrupt files, duplicate shots, schema drift.</span>
 
 <span class="sd">Three sub-checks bundled because they share the partition/parquet scan:</span>
 
@@ -771,11 +771,11 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    capped readahead, then a single global ``pc.value_counts`` for the</span>
 <span class="sd">    exact count — required because GEDI partitions interleave</span>
 <span class="sd">    shot_numbers across row groups (each row group comes from a</span>
-<span class="sd">    different granule). Memory scales with the file&#39;s ``shot_number``</span>
+<span class="sd">    different granule). Memory scales with the file's ``shot_number``</span>
 <span class="sd">    column size (8 B/row × N rows) plus the value_counts hashmap;</span>
 <span class="sd">    typically &lt;50 MB on production partitions. Remedy:</span>
 <span class="sd">    ``parquet_dedup_partition`` (streaming, keep-first).</span>
-<span class="sd">  - **schema_drift**: compare each partition&#39;s column set to the modal column</span>
+<span class="sd">  - **schema_drift**: compare each partition's column set to the modal column</span>
 <span class="sd">    set; flag outliers. Check-only — recommend running ``--fix backfill`` to</span>
 <span class="sd">    re-join the missing product columns.</span>
 
@@ -788,11 +788,11 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">  * ``shot_number`` is **streamed via ``iter_batches``** with capped</span>
 <span class="sd">    readahead (``batch_readahead=1``, ``fragment_readahead=1``) and</span>
 <span class="sd">    ``pre_buffer=True`` for I/O coalescing on shared GPFS — never the</span>
-<span class="sd">    full ``pd.read_parquet(columns=[&#39;shot_number&#39;])`` pull that used</span>
+<span class="sd">    full ``pd.read_parquet(columns=['shot_number'])`` pull that used</span>
 <span class="sd">    to spike workers to ~800 MB on continental partitions.</span>
 <span class="sd">  * Explicit ``del pf`` + ``pa.default_memory_pool().release_unused()``</span>
 <span class="sd">    after each file so worker RSS plateaus instead of climbing.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
@@ -809,27 +809,27 @@ window.runMermaid = runMermaid;</script>
 
 <span class="c1"># Memory-bounded readahead — same caps the build merge phase landed on</span>
 <span class="c1"># (see commit f718590 / v0.8.22). batch_readahead/fragment_readahead=1</span>
-<span class="c1"># limits the pyarrow scanner&#39;s prefetch so a single partition scan</span>
-<span class="c1"># can&#39;t balloon a worker. ROW_GROUP_BATCH is the per-batch row count</span>
+<span class="c1"># limits the pyarrow scanner's prefetch so a single partition scan</span>
+<span class="c1"># can't balloon a worker. ROW_GROUP_BATCH is the per-batch row count</span>
 <span class="c1"># pulled across iter_batches calls; small enough to bound RSS, large</span>
-<span class="c1"># enough to keep arrow&#39;s vectorized paths warm.</span>
+<span class="c1"># enough to keep arrow's vectorized paths warm.</span>
 <span class="n">_ROW_GROUP_BATCH</span> <span class="o">=</span> <span class="mi">50_000</span>
 <span class="n">_PRE_BUFFER</span> <span class="o">=</span> <span class="kc">True</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_scan_one_file</span><span class="p">(</span><span class="n">pq_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Single-pass per-file scan: corrupt? dup count? column union?</span>
+<span class="w">    </span><span class="sd">"""Single-pass per-file scan: corrupt? dup count? column union?</span>
 
 <span class="sd">    One ``pq.ParquetFile`` open feeds all three checks. The duplicate</span>
 <span class="sd">    counter walks ``shot_number`` via ``iter_batches`` with capped</span>
-<span class="sd">    readahead (so per-batch I/O is bounded), accumulates each batch&#39;s</span>
+<span class="sd">    readahead (so per-batch I/O is bounded), accumulates each batch's</span>
 <span class="sd">    column slice into a chunked array, and runs ``pc.value_counts``</span>
-<span class="sd">    once globally — that&#39;s the only correct way to count duplicates</span>
+<span class="sd">    once globally — that's the only correct way to count duplicates</span>
 <span class="sd">    that span row groups, since GEDI partitions interleave shot_number</span>
 <span class="sd">    ranges across row groups by design (each row group comes from a</span>
 <span class="sd">    different granule).</span>
 
-<span class="sd">    Memory scales with the file&#39;s ``shot_number`` column size (8 B/row,</span>
+<span class="sd">    Memory scales with the file's ``shot_number`` column size (8 B/row,</span>
 <span class="sd">    typically &lt;50 MB on production partitions) plus the value_counts</span>
 <span class="sd">    hashmap. Capped pyarrow readahead (``pre_buffer=True``,</span>
 <span class="sd">    ``batch_readahead=1``, ``fragment_readahead=1``) keeps transient</span>
@@ -843,17 +843,17 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Returns a dict (never raises): keys ``corrupt`` (bool), ``error``</span>
 <span class="sd">    (str|None), ``duplicates`` (int), ``unreadable_shot_number`` (bool),</span>
 <span class="sd">    ``columns`` (list[str]).</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.compute</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pc</span>
 
     <span class="n">out</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s1">&#39;corrupt&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-        <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="s1">&#39;duplicates&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
-        <span class="s1">&#39;unreadable_shot_number&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-        <span class="s1">&#39;columns&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">'corrupt'</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="s1">'error'</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="s1">'duplicates'</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="s1">'unreadable_shot_number'</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="s1">'columns'</span><span class="p">:</span> <span class="p">[],</span>
     <span class="p">}</span>
 
     <span class="n">pf</span> <span class="o">=</span> <span class="kc">None</span>
@@ -862,21 +862,21 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># Header validity gate (touches metadata to force lazy errors).</span>
         <span class="n">_</span> <span class="o">=</span> <span class="n">pf</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">num_row_groups</span>
         <span class="n">schema_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">pf</span><span class="o">.</span><span class="n">schema_arrow</span><span class="o">.</span><span class="n">names</span><span class="p">)</span>
-        <span class="n">out</span><span class="p">[</span><span class="s1">&#39;columns&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">schema_names</span>
+        <span class="n">out</span><span class="p">[</span><span class="s1">'columns'</span><span class="p">]</span> <span class="o">=</span> <span class="n">schema_names</span>
 
-        <span class="k">if</span> <span class="s1">&#39;shot_number&#39;</span> <span class="ow">in</span> <span class="n">schema_names</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s1">'shot_number'</span> <span class="ow">in</span> <span class="n">schema_names</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="c1"># Exact global duplicate count via streaming iter_batches +</span>
                 <span class="c1"># a single ``pc.value_counts`` over the chunked column.</span>
                 <span class="c1">#</span>
                 <span class="c1"># Cross-row-group dups are the realistic case here: a</span>
-                <span class="c1"># partition&#39;s row groups come from different granules</span>
+                <span class="c1"># partition's row groups come from different granules</span>
                 <span class="c1"># whose shot_numbers can interleave (overlapping min/max</span>
                 <span class="c1"># is the normal post-merge state, NOT a defect signal).</span>
                 <span class="c1"># An exact global count is the only correct signal.</span>
                 <span class="c1">#</span>
-                <span class="c1"># Memory: chunked_array holds references to each batch&#39;s</span>
-                <span class="c1"># int64 column (~8 B/row of the file&#39;s shot_number), and</span>
+                <span class="c1"># Memory: chunked_array holds references to each batch's</span>
+                <span class="c1"># int64 column (~8 B/row of the file's shot_number), and</span>
                 <span class="c1"># ``pc.value_counts`` builds a native C++ hashmap of size</span>
                 <span class="c1"># O(unique shot_numbers). For typical GEDI partitions</span>
                 <span class="c1"># (~100k rows) this is well under 5 MB total. For</span>
@@ -887,10 +887,10 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">chunks</span> <span class="o">=</span> <span class="p">[]</span>
                 <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">pf</span><span class="o">.</span><span class="n">iter_batches</span><span class="p">(</span>
                     <span class="n">batch_size</span><span class="o">=</span><span class="n">_ROW_GROUP_BATCH</span><span class="p">,</span>
-                    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">],</span>
+                    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'shot_number'</span><span class="p">],</span>
                     <span class="n">use_threads</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                 <span class="p">):</span>
-                    <span class="n">chunks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">batch</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">&#39;shot_number&#39;</span><span class="p">))</span>
+                    <span class="n">chunks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">batch</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s1">'shot_number'</span><span class="p">))</span>
                     <span class="k">del</span> <span class="n">batch</span>
                 <span class="k">if</span> <span class="n">chunks</span><span class="p">:</span>
                     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">chunks</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
@@ -898,15 +898,15 @@ window.runMermaid = runMermaid;</script>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">column</span> <span class="o">=</span> <span class="n">pa</span><span class="o">.</span><span class="n">chunked_array</span><span class="p">(</span><span class="n">chunks</span><span class="p">)</span>
                     <span class="n">vc</span> <span class="o">=</span> <span class="n">pc</span><span class="o">.</span><span class="n">value_counts</span><span class="p">(</span><span class="n">column</span><span class="p">)</span>
-                    <span class="n">counts_np</span> <span class="o">=</span> <span class="n">vc</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="s1">&#39;counts&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="n">zero_copy_only</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                    <span class="n">counts_np</span> <span class="o">=</span> <span class="n">vc</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="s1">'counts'</span><span class="p">)</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="n">zero_copy_only</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">counts_np</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
-                        <span class="n">out</span><span class="p">[</span><span class="s1">&#39;duplicates&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">counts_np</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+                        <span class="n">out</span><span class="p">[</span><span class="s1">'duplicates'</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">counts_np</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
                     <span class="k">del</span> <span class="n">vc</span><span class="p">,</span> <span class="n">counts_np</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">chunks</span>
             <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-                <span class="n">out</span><span class="p">[</span><span class="s1">&#39;unreadable_shot_number&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="n">out</span><span class="p">[</span><span class="s1">'unreadable_shot_number'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-        <span class="n">out</span><span class="p">[</span><span class="s1">&#39;corrupt&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="n">out</span><span class="p">[</span><span class="s1">&#39;error&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">out</span><span class="p">[</span><span class="s1">'corrupt'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">out</span><span class="p">[</span><span class="s1">'error'</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span>
     <span class="k">finally</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">pf</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
@@ -924,7 +924,7 @@ window.runMermaid = runMermaid;</script>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">shared</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Worker: scan one partition, return per-file findings + column union.</span>
+<span class="w">    </span><span class="sd">"""Worker: scan one partition, return per-file findings + column union.</span>
 
 <span class="sd">    Per-file work goes through :func:`_scan_one_file` so each parquet</span>
 <span class="sd">    is opened exactly once (header + shot_number stream + schema all in</span>
@@ -932,56 +932,56 @@ window.runMermaid = runMermaid;</script>
 
 <span class="sd">    Fused-aware: when ``shared`` is provided, reads the cached parquet</span>
 <span class="sd">    listing instead of re-globbing.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="n">shared</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">&#39;parquet_files&#39;</span> <span class="ow">in</span> <span class="n">shared</span><span class="p">:</span>
-        <span class="n">files</span> <span class="o">=</span> <span class="n">shared</span><span class="p">[</span><span class="s1">&#39;parquet_files&#39;</span><span class="p">]</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">shared</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">'parquet_files'</span> <span class="ow">in</span> <span class="n">shared</span><span class="p">:</span>
+        <span class="n">files</span> <span class="o">=</span> <span class="n">shared</span><span class="p">[</span><span class="s1">'parquet_files'</span><span class="p">]</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">files</span> <span class="o">=</span> <span class="n">partition_parquet_files</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">)</span>
     <span class="n">findings</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">cols_union</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">pq_file</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
         <span class="n">info</span> <span class="o">=</span> <span class="n">_scan_one_file</span><span class="p">(</span><span class="n">pq_file</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;corrupt&#39;</span><span class="p">]:</span>
-            <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;corrupt&#39;</span><span class="p">,</span> <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">pq_file</span><span class="p">,</span> <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;error&#39;</span><span class="p">]})</span>
+        <span class="k">if</span> <span class="n">info</span><span class="p">[</span><span class="s1">'corrupt'</span><span class="p">]:</span>
+            <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'corrupt'</span><span class="p">,</span> <span class="s1">'path'</span><span class="p">:</span> <span class="n">pq_file</span><span class="p">,</span> <span class="s1">'error'</span><span class="p">:</span> <span class="n">info</span><span class="p">[</span><span class="s1">'error'</span><span class="p">]})</span>
             <span class="k">continue</span>
-        <span class="k">if</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;unreadable_shot_number&#39;</span><span class="p">]:</span>
-            <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;unreadable_shot_number&#39;</span><span class="p">,</span> <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">pq_file</span><span class="p">})</span>
-        <span class="k">if</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;duplicates&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">info</span><span class="p">[</span><span class="s1">'unreadable_shot_number'</span><span class="p">]:</span>
+            <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'unreadable_shot_number'</span><span class="p">,</span> <span class="s1">'path'</span><span class="p">:</span> <span class="n">pq_file</span><span class="p">})</span>
+        <span class="k">if</span> <span class="n">info</span><span class="p">[</span><span class="s1">'duplicates'</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;duplicate_shots&#39;</span><span class="p">,</span> <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">pq_file</span><span class="p">,</span>
-                <span class="s1">&#39;duplicates&#39;</span><span class="p">:</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;duplicates&#39;</span><span class="p">],</span>
+                <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'duplicate_shots'</span><span class="p">,</span> <span class="s1">'path'</span><span class="p">:</span> <span class="n">pq_file</span><span class="p">,</span>
+                <span class="s1">'duplicates'</span><span class="p">:</span> <span class="n">info</span><span class="p">[</span><span class="s1">'duplicates'</span><span class="p">],</span>
             <span class="p">})</span>
-        <span class="n">cols_union</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">info</span><span class="p">[</span><span class="s1">&#39;columns&#39;</span><span class="p">])</span>
+        <span class="n">cols_union</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">info</span><span class="p">[</span><span class="s1">'columns'</span><span class="p">])</span>
 
-    <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;findings&#39;</span><span class="p">:</span> <span class="n">findings</span><span class="p">,</span> <span class="s1">&#39;columns&#39;</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">cols_union</span><span class="p">)}</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s1">'findings'</span><span class="p">:</span> <span class="n">findings</span><span class="p">,</span> <span class="s1">'columns'</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">cols_union</span><span class="p">)}</span>
 
 
-<span class="n">register_scan</span><span class="p">(</span><span class="s1">&#39;parquet_health&#39;</span><span class="p">,</span> <span class="n">_scan_partition</span><span class="p">)</span>
+<span class="n">register_scan</span><span class="p">(</span><span class="s1">'parquet_health'</span><span class="p">,</span> <span class="n">_scan_partition</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_finalize_parquet_health_check</span><span class="p">(</span>
     <span class="n">ctx</span><span class="p">:</span> <span class="n">DoctorContext</span><span class="p">,</span>
     <span class="n">per_partition</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">],</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Report</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Driver-side aggregation of parquet_health per-partition results.</span>
+<span class="w">    </span><span class="sd">"""Driver-side aggregation of parquet_health per-partition results.</span>
 
 <span class="sd">    Computes schema-drift findings post-hoc from the per-partition</span>
 <span class="sd">    column unions (requires all partitions seen before the modal</span>
 <span class="sd">    schema is known).</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">findings</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">schema_by_part</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">frozenset</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
 
     <span class="k">for</span> <span class="n">part_dir</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">per_partition</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
             <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;scan_error&#39;</span><span class="p">,</span>
-                <span class="s1">&#39;partition_dir&#39;</span><span class="p">:</span> <span class="n">part_dir</span><span class="p">,</span>
-                <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'scan_error'</span><span class="p">,</span>
+                <span class="s1">'partition_dir'</span><span class="p">:</span> <span class="n">part_dir</span><span class="p">,</span>
+                <span class="s1">'error'</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
             <span class="p">})</span>
             <span class="k">continue</span>
-        <span class="n">findings</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;findings&#39;</span><span class="p">])</span>
-        <span class="n">schema_by_part</span><span class="p">[</span><span class="n">part_dir</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;columns&#39;</span><span class="p">]</span>
+        <span class="n">findings</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'findings'</span><span class="p">])</span>
+        <span class="n">schema_by_part</span><span class="p">[</span><span class="n">part_dir</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s1">'columns'</span><span class="p">]</span>
 
     <span class="c1"># Schema drift: find the modal column set and flag partitions that differ.</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">schema_by_part</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">3</span><span class="p">:</span>
@@ -992,16 +992,16 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">missing</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">modal_schema</span> <span class="o">-</span> <span class="n">cols</span><span class="p">)</span>
                 <span class="n">extra</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">cols</span> <span class="o">-</span> <span class="n">modal_schema</span><span class="p">)</span>
                 <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                    <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;schema_drift&#39;</span><span class="p">,</span>
-                    <span class="s1">&#39;partition_dir&#39;</span><span class="p">:</span> <span class="n">part_dir</span><span class="p">,</span>
-                    <span class="s1">&#39;missing_columns&#39;</span><span class="p">:</span> <span class="n">missing</span><span class="p">,</span>
-                    <span class="s1">&#39;extra_columns&#39;</span><span class="p">:</span> <span class="n">extra</span><span class="p">,</span>
+                    <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'schema_drift'</span><span class="p">,</span>
+                    <span class="s1">'partition_dir'</span><span class="p">:</span> <span class="n">part_dir</span><span class="p">,</span>
+                    <span class="s1">'missing_columns'</span><span class="p">:</span> <span class="n">missing</span><span class="p">,</span>
+                    <span class="s1">'extra_columns'</span><span class="p">:</span> <span class="n">extra</span><span class="p">,</span>
                 <span class="p">})</span>
 
-    <span class="n">n_corrupt</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;corrupt&#39;</span><span class="p">)</span>
-    <span class="n">n_dup</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;duplicate_shots&#39;</span><span class="p">)</span>
-    <span class="n">n_drift</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;schema_drift&#39;</span><span class="p">)</span>
-    <span class="n">n_scan_err</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;scan_error&#39;</span><span class="p">)</span>
+    <span class="n">n_corrupt</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'corrupt'</span><span class="p">)</span>
+    <span class="n">n_dup</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'duplicate_shots'</span><span class="p">)</span>
+    <span class="n">n_drift</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'schema_drift'</span><span class="p">)</span>
+    <span class="n">n_scan_err</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'scan_error'</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">n_corrupt</span> <span class="ow">or</span> <span class="n">n_scan_err</span><span class="p">:</span>
         <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
@@ -1010,22 +1010,22 @@ window.runMermaid = runMermaid;</script>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span>
 
-    <span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_corrupt</span><span class="si">}</span><span class="s2"> corrupt, </span><span class="si">{</span><span class="n">n_dup</span><span class="si">}</span><span class="s2"> files with duplicates, </span><span class="si">{</span><span class="n">n_drift</span><span class="si">}</span><span class="s2"> schema-drift partitions&quot;</span>
+    <span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_corrupt</span><span class="si">}</span><span class="s2"> corrupt, </span><span class="si">{</span><span class="n">n_dup</span><span class="si">}</span><span class="s2"> files with duplicates, </span><span class="si">{</span><span class="n">n_drift</span><span class="si">}</span><span class="s2"> schema-drift partitions"</span>
     <span class="k">if</span> <span class="n">n_scan_err</span><span class="p">:</span>
-        <span class="n">summary</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;, </span><span class="si">{</span><span class="n">n_scan_err</span><span class="si">}</span><span class="s2"> partitions errored during scan&quot;</span>
+        <span class="n">summary</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">", </span><span class="si">{</span><span class="n">n_scan_err</span><span class="si">}</span><span class="s2"> partitions errored during scan"</span>
 
     <span class="n">recommendations</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">if</span> <span class="n">n_drift</span><span class="p">:</span>
         <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-            <span class="s2">&quot;gh3_doctor --fix backfill   # refill missing-column partitions from source&quot;</span>
+            <span class="s2">"gh3_doctor --fix backfill   # refill missing-column partitions from source"</span>
         <span class="p">)</span>
     <span class="k">if</span> <span class="n">n_corrupt</span><span class="p">:</span>
         <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-            <span class="s2">&quot;Review corrupt files before deletion; gh3_doctor will not auto-delete data.&quot;</span>
+            <span class="s2">"Review corrupt files before deletion; gh3_doctor will not auto-delete data."</span>
         <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">Report</span><span class="p">(</span>
-        <span class="n">name</span><span class="o">=</span><span class="s1">&#39;parquet_health&#39;</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">severity</span><span class="p">,</span>
+        <span class="n">name</span><span class="o">=</span><span class="s1">'parquet_health'</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">severity</span><span class="p">,</span>
         <span class="n">findings</span><span class="o">=</span><span class="n">findings</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="n">summary</span><span class="p">,</span> <span class="n">recommendations</span><span class="o">=</span><span class="n">recommendations</span><span class="p">,</span>
     <span class="p">)</span>
 
@@ -1037,9 +1037,9 @@ window.runMermaid = runMermaid;</script>
     <span class="k">for</span> <span class="n">part_dir</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">partition_dirs</span><span class="p">,</span>
         <span class="n">_scan_partition</span><span class="p">,</span>
-        <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">&#39;args&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-        <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;parquet_health: scanning partitions&#39;</span><span class="p">,</span>
-        <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;part&#39;</span><span class="p">,</span>
+        <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">'args'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="n">desc</span><span class="o">=</span><span class="s1">'parquet_health: scanning partitions'</span><span class="p">,</span>
+        <span class="n">unit</span><span class="o">=</span><span class="s1">'part'</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="n">per_partition</span><span class="p">[</span><span class="n">part_dir</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span>
     <span class="k">return</span> <span class="n">_finalize_parquet_health_check</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">per_partition</span><span class="p">)</span></div>
@@ -1049,43 +1049,43 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="parquet_health_fix">
 <a class="viewcode-back" href="../../../../autoapi/gedih3/doctor/diagnoses/parquet_health/index.html#gedih3.doctor.diagnoses.parquet_health.parquet_health_fix">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">parquet_health_fix</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">DoctorContext</span><span class="p">,</span> <span class="n">report</span><span class="p">:</span> <span class="n">Report</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Report</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fix only what&#39;s safely fixable: duplicate_shots.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Fix only what's safely fixable: duplicate_shots."""</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">..parquet_ops</span><span class="w"> </span><span class="kn">import</span> <span class="n">parquet_dedup_partition</span>
 
     <span class="n">fixed</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span><span class="p">:</span>
-        <span class="n">kind</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;kind&#39;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;duplicate_shots&#39;</span><span class="p">:</span>
+        <span class="n">kind</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'kind'</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">'duplicate_shots'</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="n">dropped</span> <span class="o">=</span> <span class="n">parquet_dedup_partition</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">])</span>
-                <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;action&#39;</span><span class="p">:</span> <span class="s1">&#39;deduplicated&#39;</span><span class="p">,</span> <span class="s1">&#39;dropped&#39;</span><span class="p">:</span> <span class="n">dropped</span><span class="p">})</span>
+                <span class="n">dropped</span> <span class="o">=</span> <span class="n">parquet_dedup_partition</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">'path'</span><span class="p">])</span>
+                <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">'action'</span><span class="p">:</span> <span class="s1">'deduplicated'</span><span class="p">,</span> <span class="s1">'dropped'</span><span class="p">:</span> <span class="n">dropped</span><span class="p">})</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;fix_error&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">})</span>
-        <span class="k">elif</span> <span class="n">kind</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;corrupt&#39;</span><span class="p">,</span> <span class="s1">&#39;schema_drift&#39;</span><span class="p">,</span> <span class="s1">&#39;unreadable_shot_number&#39;</span><span class="p">,</span> <span class="s1">&#39;scan_error&#39;</span><span class="p">):</span>
+                <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">'fix_error'</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">})</span>
+        <span class="k">elif</span> <span class="n">kind</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'corrupt'</span><span class="p">,</span> <span class="s1">'schema_drift'</span><span class="p">,</span> <span class="s1">'unreadable_shot_number'</span><span class="p">,</span> <span class="s1">'scan_error'</span><span class="p">):</span>
             <span class="c1"># Preserve as-is — no auto-fix.</span>
-            <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;action&#39;</span><span class="p">:</span> <span class="s1">&#39;reported_only&#39;</span><span class="p">})</span>
+            <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">f</span><span class="p">,</span> <span class="s1">'action'</span><span class="p">:</span> <span class="s1">'reported_only'</span><span class="p">})</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">fixed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
 
-    <span class="n">n_errors</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">fixed</span> <span class="k">if</span> <span class="s1">&#39;fix_error&#39;</span> <span class="ow">in</span> <span class="n">x</span><span class="p">)</span>
-    <span class="n">n_corrupt</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">fixed</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;corrupt&#39;</span><span class="p">)</span>
+    <span class="n">n_errors</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">fixed</span> <span class="k">if</span> <span class="s1">'fix_error'</span> <span class="ow">in</span> <span class="n">x</span><span class="p">)</span>
+    <span class="n">n_corrupt</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">fixed</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'corrupt'</span><span class="p">)</span>
     <span class="n">report</span><span class="o">.</span><span class="n">applied</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">report</span><span class="o">.</span><span class="n">findings</span> <span class="o">=</span> <span class="n">fixed</span>
     <span class="k">if</span> <span class="n">n_errors</span> <span class="ow">or</span> <span class="n">n_corrupt</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span> <span class="k">if</span> <span class="n">n_corrupt</span> <span class="k">else</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span>
         <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">sum</span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">fixed</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">x</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;action&#39;</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s1">&#39;deduplicated&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2"> dedups; &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_corrupt</span><span class="si">}</span><span class="s2"> corrupt unresolved; </span><span class="si">{</span><span class="n">n_errors</span><span class="si">}</span><span class="s2"> fix errors&quot;</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">sum</span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">fixed</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">x</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'action'</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s1">'deduplicated'</span><span class="p">)</span><span class="si">}</span><span class="s2"> dedups; "</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_corrupt</span><span class="si">}</span><span class="s2"> corrupt unresolved; </span><span class="si">{</span><span class="n">n_errors</span><span class="si">}</span><span class="s2"> fix errors"</span>
         <span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span>
-        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">sum</span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">fixed</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">x</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;action&#39;</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s1">&#39;deduplicated&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2"> dedups complete&quot;</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">sum</span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">fixed</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">x</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'action'</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s1">'deduplicated'</span><span class="p">)</span><span class="si">}</span><span class="s2"> dedups complete"</span>
     <span class="k">return</span> <span class="n">report</span></div>
 
 
 
-<span class="n">register</span><span class="p">(</span><span class="s1">&#39;parquet_health&#39;</span><span class="p">,</span> <span class="s1">&#39;corrupt files + duplicate shots + schema drift&#39;</span><span class="p">,</span>
-         <span class="n">scope</span><span class="o">=</span><span class="s1">&#39;global&#39;</span><span class="p">,</span> <span class="n">fix</span><span class="o">=</span><span class="n">parquet_health_fix</span><span class="p">)(</span><span class="n">parquet_health_check</span><span class="p">)</span>
+<span class="n">register</span><span class="p">(</span><span class="s1">'parquet_health'</span><span class="p">,</span> <span class="s1">'corrupt files + duplicate shots + schema drift'</span><span class="p">,</span>
+         <span class="n">scope</span><span class="o">=</span><span class="s1">'global'</span><span class="p">,</span> <span class="n">fix</span><span class="o">=</span><span class="n">parquet_health_fix</span><span class="p">)(</span><span class="n">parquet_health_check</span><span class="p">)</span>
 </pre></div>
 
                 </article>

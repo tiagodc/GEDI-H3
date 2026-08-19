@@ -760,20 +760,20 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="sd">Logging configuration for gedih3 package.</span>
 
 <span class="sd">Provides a consistent logging interface across all modules and CLI tools.</span>
-<span class="sd">Uses Python&#39;s standard logging module with configurable levels and handlers.</span>
+<span class="sd">Uses Python's standard logging module with configurable levels and handlers.</span>
 
 <span class="sd">Usage:</span>
 <span class="sd">    from gedih3.logging_config import get_logger</span>
 <span class="sd">    logger = get_logger(__name__)</span>
-<span class="sd">    logger.info(&quot;Processing started&quot;)</span>
-<span class="sd">    logger.debug(&quot;Detailed information&quot;)</span>
-<span class="sd">    logger.warning(&quot;Something unexpected&quot;)</span>
-<span class="sd">    logger.error(&quot;An error occurred&quot;)</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    logger.info("Processing started")</span>
+<span class="sd">    logger.debug("Detailed information")</span>
+<span class="sd">    logger.warning("Something unexpected")</span>
+<span class="sd">    logger.error("An error occurred")</span>
+<span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
@@ -781,13 +781,13 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="c1"># Default format strings</span>
-<span class="n">CONSOLE_FORMAT</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%(message)s</span><span class="s2">&quot;</span>
-<span class="n">CONSOLE_FORMAT_VERBOSE</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%(asctime)s</span><span class="s2"> [</span><span class="si">%(levelname)s</span><span class="s2">] </span><span class="si">%(name)s</span><span class="s2">: </span><span class="si">%(message)s</span><span class="s2">&quot;</span>
-<span class="n">FILE_FORMAT</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%(asctime)s</span><span class="s2"> [</span><span class="si">%(levelname)s</span><span class="s2">] </span><span class="si">%(name)s</span><span class="s2"> (</span><span class="si">%(filename)s</span><span class="s2">:</span><span class="si">%(lineno)d</span><span class="s2">): </span><span class="si">%(message)s</span><span class="s2">&quot;</span>
-<span class="n">DATE_FORMAT</span> <span class="o">=</span> <span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S&quot;</span>
+<span class="n">CONSOLE_FORMAT</span> <span class="o">=</span> <span class="s2">"</span><span class="si">%(message)s</span><span class="s2">"</span>
+<span class="n">CONSOLE_FORMAT_VERBOSE</span> <span class="o">=</span> <span class="s2">"</span><span class="si">%(asctime)s</span><span class="s2"> [</span><span class="si">%(levelname)s</span><span class="s2">] </span><span class="si">%(name)s</span><span class="s2">: </span><span class="si">%(message)s</span><span class="s2">"</span>
+<span class="n">FILE_FORMAT</span> <span class="o">=</span> <span class="s2">"</span><span class="si">%(asctime)s</span><span class="s2"> [</span><span class="si">%(levelname)s</span><span class="s2">] </span><span class="si">%(name)s</span><span class="s2"> (</span><span class="si">%(filename)s</span><span class="s2">:</span><span class="si">%(lineno)d</span><span class="s2">): </span><span class="si">%(message)s</span><span class="s2">"</span>
+<span class="n">DATE_FORMAT</span> <span class="o">=</span> <span class="s2">"%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S"</span>
 
 <span class="c1"># Package root logger name</span>
-<span class="n">ROOT_LOGGER_NAME</span> <span class="o">=</span> <span class="s2">&quot;gedih3&quot;</span>
+<span class="n">ROOT_LOGGER_NAME</span> <span class="o">=</span> <span class="s2">"gedih3"</span>
 
 <span class="c1"># Track if logging has been configured</span>
 <span class="n">_logging_configured</span> <span class="o">=</span> <span class="kc">False</span>
@@ -801,7 +801,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">log_file</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">quiet</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">logging</span><span class="o">.</span><span class="n">Logger</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Configure the gedih3 logging system.</span>
 
 <span class="sd">    Parameters</span>
@@ -824,9 +824,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; from gedih3.logging_config import configure_logging</span>
 <span class="sd">    &gt;&gt;&gt; configure_logging(level=logging.DEBUG, verbose=True)</span>
-<span class="sd">    &gt;&gt;&gt; configure_logging(log_file=&quot;/tmp/gedih3.log&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; configure_logging(log_file="/tmp/gedih3.log")</span>
 <span class="sd">    &gt;&gt;&gt; configure_logging(quiet=True)  # Suppress console output</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">global</span> <span class="n">_logging_configured</span>
 
     <span class="c1"># Get or create the root logger for gedih3</span>
@@ -847,7 +847,7 @@ window.runMermaid = runMermaid;</script>
 
     <span class="c1"># File handler (if specified)</span>
     <span class="k">if</span> <span class="n">log_file</span><span class="p">:</span>
-        <span class="n">file_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">FileHandler</span><span class="p">(</span><span class="n">log_file</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;a&#39;</span><span class="p">)</span>
+        <span class="n">file_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">FileHandler</span><span class="p">(</span><span class="n">log_file</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">'a'</span><span class="p">)</span>
         <span class="n">file_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
         <span class="n">file_formatter</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span><span class="n">FILE_FORMAT</span><span class="p">,</span> <span class="n">datefmt</span><span class="o">=</span><span class="n">DATE_FORMAT</span><span class="p">)</span>
         <span class="n">file_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">file_formatter</span><span class="p">)</span>
@@ -864,7 +864,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="get_logger">
 <a class="viewcode-back" href="../../autoapi/gedih3/logging_config/index.html#gedih3.logging_config.get_logger">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_logger</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">logging</span><span class="o">.</span><span class="n">Logger</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Get a logger for the specified module.</span>
 
 <span class="sd">    Parameters</span>
@@ -881,8 +881,8 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; from gedih3.logging_config import get_logger</span>
 <span class="sd">    &gt;&gt;&gt; logger = get_logger(__name__)</span>
-<span class="sd">    &gt;&gt;&gt; logger.info(&quot;Processing started&quot;)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    &gt;&gt;&gt; logger.info("Processing started")</span>
+<span class="sd">    """</span>
     <span class="k">global</span> <span class="n">_logging_configured</span>
 
     <span class="c1"># Auto-configure with defaults if not yet configured</span>
@@ -896,21 +896,21 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">ROOT_LOGGER_NAME</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ROOT_LOGGER_NAME</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ROOT_LOGGER_NAME</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span></div>
 
 
 
 <div class="viewcode-block" id="set_level">
 <a class="viewcode-back" href="../../autoapi/gedih3/logging_config/index.html#gedih3.logging_config.set_level">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">set_level</span><span class="p">(</span><span class="n">level</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Change the logging level for all gedih3 loggers.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    level : int</span>
 <span class="sd">        New logging level (logging.DEBUG, logging.INFO, etc.)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">ROOT_LOGGER_NAME</span><span class="p">)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">handler</span> <span class="ow">in</span> <span class="n">logger</span><span class="o">.</span><span class="n">handlers</span><span class="p">:</span>
@@ -921,7 +921,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="silence">
 <a class="viewcode-back" href="../../autoapi/gedih3/logging_config/index.html#gedih3.logging_config.silence">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">silence</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Silence all gedih3 logging output.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Silence all gedih3 logging output."""</span>
     <span class="n">set_level</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">CRITICAL</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span></div>
 
 
@@ -929,7 +929,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="enable_debug">
 <a class="viewcode-back" href="../../autoapi/gedih3/logging_config/index.html#gedih3.logging_config.enable_debug">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">enable_debug</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enable debug-level logging.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Enable debug-level logging."""</span>
     <span class="n">set_level</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span></div>
 
 
@@ -937,7 +937,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="LoggingContext">
 <a class="viewcode-back" href="../../autoapi/gedih3/logging_config/index.html#gedih3.logging_config.LoggingContext">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">LoggingContext</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Context manager for temporarily changing log level.</span>
 
 <span class="sd">    Examples</span>
@@ -946,7 +946,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ...     # Debug logging enabled here</span>
 <span class="sd">    ...     pass</span>
 <span class="sd">    &gt;&gt;&gt; # Original log level restored</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">level</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">level</span> <span class="o">=</span> <span class="n">level</span>

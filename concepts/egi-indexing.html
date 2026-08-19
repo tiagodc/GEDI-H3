@@ -564,14 +564,14 @@
 
 <span class="c1"># Load from H3 database, partitioned by EGI tiles (~160 km × ~160 km)</span>
 <span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">egi_load</span><span class="p">(</span>
-    <span class="n">source</span><span class="o">=</span><span class="s1">&#39;~/gedi_data/h3/&#39;</span><span class="p">,</span>
-    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">],</span>
+    <span class="n">source</span><span class="o">=</span><span class="s1">'~/gedi_data/h3/'</span><span class="p">,</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'agbd_l4a'</span><span class="p">],</span>
     <span class="n">index_level</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span>       <span class="c1"># ~1 km EGI pixels</span>
     <span class="n">partition_level</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>  <span class="c1"># ~160 km tiles (default)</span>
 <span class="p">)</span>
 
 <span class="c1"># Aggregate to ~1 km (same as L4B resolution)</span>
-<span class="n">agg</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">egi_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_level</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">)</span>
+<span class="n">agg</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">egi_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_level</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="s1">'mean'</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>

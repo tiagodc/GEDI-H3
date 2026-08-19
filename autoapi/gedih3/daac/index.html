@@ -635,10 +635,10 @@ vector file path, or GeoDataFrame.</p>
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">accessor</span> <span class="o">=</span> <span class="n">GEDIAccessor</span><span class="p">(</span>
 <span class="gp">... </span>    <span class="n">spatial</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mi">51</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">50</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
-<span class="gp">... </span>    <span class="n">temporal</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;2020-01-01&#39;</span><span class="p">,</span> <span class="s1">&#39;2021-01-01&#39;</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="n">temporal</span><span class="o">=</span><span class="p">(</span><span class="s1">'2020-01-01'</span><span class="p">,</span> <span class="s1">'2021-01-01'</span><span class="p">)</span>
 <span class="gp">... </span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">granules</span> <span class="o">=</span> <span class="n">accessor</span><span class="o">.</span><span class="n">search_data</span><span class="p">(</span><span class="s1">&#39;L4A&#39;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">paths</span> <span class="o">=</span> <span class="n">accessor</span><span class="o">.</span><span class="n">download_all</span><span class="p">(</span><span class="s1">&#39;/path/to/output&#39;</span><span class="p">,</span> <span class="n">product</span><span class="o">=</span><span class="s1">&#39;L4A&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">granules</span> <span class="o">=</span> <span class="n">accessor</span><span class="o">.</span><span class="n">search_data</span><span class="p">(</span><span class="s1">'L4A'</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">paths</span> <span class="o">=</span> <span class="n">accessor</span><span class="o">.</span><span class="n">download_all</span><span class="p">(</span><span class="s1">'/path/to/output'</span><span class="p">,</span> <span class="n">product</span><span class="o">=</span><span class="s1">'L4A'</span><span class="p">)</span>
 </pre></div>
 </div>
 <dl class="py attribute">
@@ -719,9 +719,9 @@ returns the latest version by default.</p>
 </dd>
 </dl>
 <p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">accessor</span><span class="o">.</span><span class="n">search_data</span><span class="p">(</span><span class="s1">&#39;L4A&#39;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">accessor</span><span class="o">.</span><span class="n">search_data</span><span class="p">(</span><span class="s1">&#39;L4A&#39;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">accessor</span><span class="o">.</span><span class="n">search_data</span><span class="p">(</span><span class="n">short_name</span><span class="o">=</span><span class="s1">&#39;MY_PRIVATE_DATASET&#39;</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s1">&#39;001&#39;</span><span class="p">)</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">accessor</span><span class="o">.</span><span class="n">search_data</span><span class="p">(</span><span class="s1">'L4A'</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">accessor</span><span class="o">.</span><span class="n">search_data</span><span class="p">(</span><span class="s1">'L4A'</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">accessor</span><span class="o">.</span><span class="n">search_data</span><span class="p">(</span><span class="n">short_name</span><span class="o">=</span><span class="s1">'MY_PRIVATE_DATASET'</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s1">'001'</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -879,10 +879,10 @@ one of <code class="docutils literal notranslate"><span class="pre">'PENDING'</s
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.daac</span><span class="w"> </span><span class="kn">import</span> <span class="n">gedi_download</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">paths</span> <span class="o">=</span> <span class="n">gedi_download</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="n">product_vars</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;L2A&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;default&#39;</span><span class="p">],</span> <span class="s1">&#39;L4A&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;agbd&#39;</span><span class="p">]},</span>
-<span class="gp">... </span>    <span class="n">odir</span><span class="o">=</span><span class="s1">&#39;/path/to/output&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">product_vars</span><span class="o">=</span><span class="p">{</span><span class="s1">'L2A'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'default'</span><span class="p">],</span> <span class="s1">'L4A'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'agbd'</span><span class="p">]},</span>
+<span class="gp">... </span>    <span class="n">odir</span><span class="o">=</span><span class="s1">'/path/to/output'</span><span class="p">,</span>
 <span class="gp">... </span>    <span class="n">spatial</span><span class="o">=</span><span class="p">[</span><span class="o">-</span><span class="mi">51</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">50</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
-<span class="gp">... </span>    <span class="n">temporal</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;2020-01-01&#39;</span><span class="p">,</span> <span class="s1">&#39;2021-01-01&#39;</span><span class="p">),</span>
+<span class="gp">... </span>    <span class="n">temporal</span><span class="o">=</span><span class="p">(</span><span class="s1">'2020-01-01'</span><span class="p">,</span> <span class="s1">'2021-01-01'</span><span class="p">),</span>
 <span class="gp">... </span>    <span class="n">resume</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
 <span class="gp">... </span><span class="p">)</span>
 </pre></div>

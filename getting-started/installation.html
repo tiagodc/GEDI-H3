@@ -539,7 +539,7 @@ already installed — while pip, left to itself, always selects the newest
 release. The version must be matched by hand:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Debian / Ubuntu</span>
 sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>libgdal-dev<span class="w"> </span>gdal-bin
-pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;GDAL==</span><span class="k">$(</span>gdal-config<span class="w"> </span>--version<span class="k">)</span><span class="s2">&quot;</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"GDAL==</span><span class="k">$(</span>gdal-config<span class="w"> </span>--version<span class="k">)</span><span class="s2">"</span>
 </pre></div>
 </div>
 <p>Or simply install gedih3 from conda-forge, where the <code class="docutils literal notranslate"><span class="pre">gdal</span></code> bindings are pulled
@@ -558,7 +558,7 @@ conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> <
 conda<span class="w"> </span>activate<span class="w"> </span>gedih3
 
 <span class="c1"># ...or into any virtualenv, no system libraries required:</span>
-<span class="c1"># pip install -e &quot;.[test]&quot;</span>
+<span class="c1"># pip install -e ".[test]"</span>
 
 gh3_build<span class="w"> </span>--help
 </pre></div>
@@ -583,7 +583,7 @@ Authentication is required for downloads.</p>
 <ol class="arabic simple" start="3">
 <li><p>Verify authentication:</p></li>
 </ol>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import earthaccess; earthaccess.login()&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import earthaccess; earthaccess.login()"</span>
 </pre></div>
 </div>
 </section>

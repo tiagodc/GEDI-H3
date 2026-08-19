@@ -760,7 +760,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;Streaming parquet operations specific to gh3_doctor.</span>
+<span class="sd">"""Streaming parquet operations specific to gh3_doctor.</span>
 
 <span class="sd">Both functions process parquet files row-group by row-group to bound memory.</span>
 <span class="sd">They live here (not in :mod:`gedih3.utils`) so the doctor introduces no edits</span>
@@ -774,7 +774,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">  preserved and NaN values get filled from the patch.</span>
 <span class="sd">- :func:`parquet_dedup_partition` rewrites a single parquet file dropping</span>
 <span class="sd">  duplicate ``shot_number`` rows, keeping the first occurrence.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
@@ -790,10 +790,10 @@ window.runMermaid = runMermaid;</script>
     <span class="n">base_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">patch_files</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
     <span class="n">ofile</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">key_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;shot_number&#39;</span><span class="p">,</span>
-    <span class="n">tmp_suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;.fill.tmp&#39;</span><span class="p">,</span>
+    <span class="n">key_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'shot_number'</span><span class="p">,</span>
+    <span class="n">tmp_suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'.fill.tmp'</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fill NaN values in ``base_file`` from one or more ``patch_files``.</span>
+<span class="w">    </span><span class="sd">"""Fill NaN values in ``base_file`` from one or more ``patch_files``.</span>
 
 <span class="sd">    For each column shared by the base and patch:</span>
 
@@ -807,7 +807,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    The output is streamed row-group by row-group; only one row group plus the</span>
 <span class="sd">    full patch frames are held in memory at once. Patches are read in full,</span>
 <span class="sd">    indexed by ``key_col``, so callers should pre-restrict patches to one</span>
-<span class="sd">    partition&#39;s relevant rows.</span>
+<span class="sd">    partition's relevant rows.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -817,7 +817,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Parquet files containing ``key_col`` plus the columns to merge in.</span>
 <span class="sd">    ofile : str, optional</span>
 <span class="sd">        Output path. Defaults to ``base_file`` (in-place rewrite via temp).</span>
-<span class="sd">    key_col : str, default &#39;shot_number&#39;</span>
+<span class="sd">    key_col : str, default 'shot_number'</span>
 <span class="sd">        Join key (column, not index).</span>
 <span class="sd">    tmp_suffix : str</span>
 <span class="sd">        Suffix for the temp file used during atomic rewrite.</span>
@@ -826,13 +826,13 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    str</span>
 <span class="sd">        Path to the written file.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">patch_files</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;patch_files must contain at least one path&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"patch_files must contain at least one path"</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">ofile</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">ofile</span> <span class="o">=</span> <span class="n">base_file</span>
@@ -853,7 +853,7 @@ window.runMermaid = runMermaid;</script>
         <span class="n">pf_schema</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">read_schema</span><span class="p">(</span><span class="n">pf_path</span><span class="p">)</span>
         <span class="n">pf_cols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">pf_schema</span><span class="o">.</span><span class="n">names</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">key_col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">pf_cols</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;patch file </span><span class="si">{</span><span class="n">pf_path</span><span class="si">!r}</span><span class="s2"> missing key column </span><span class="si">{</span><span class="n">key_col</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"patch file </span><span class="si">{</span><span class="n">pf_path</span><span class="si">!r}</span><span class="s2"> missing key column </span><span class="si">{</span><span class="n">key_col</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
 
         <span class="n">fill_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">pf_cols</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">base_col_set</span> <span class="ow">and</span> <span class="n">c</span> <span class="o">!=</span> <span class="n">key_col</span><span class="p">]</span>
         <span class="n">new_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">pf_cols</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">base_col_set</span> <span class="ow">and</span> <span class="n">c</span> <span class="o">!=</span> <span class="n">key_col</span><span class="p">]</span>
@@ -864,7 +864,7 @@ window.runMermaid = runMermaid;</script>
         <span class="n">cols_to_load</span> <span class="o">=</span> <span class="p">[</span><span class="n">key_col</span><span class="p">]</span> <span class="o">+</span> <span class="n">fill_cols</span> <span class="o">+</span> <span class="n">new_cols</span>
         <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">pf_path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">cols_to_load</span><span class="p">)</span>
         <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="n">key_col</span><span class="p">)</span>
-        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="o">~</span><span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">duplicated</span><span class="p">(</span><span class="n">keep</span><span class="o">=</span><span class="s1">&#39;first&#39;</span><span class="p">)]</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="o">~</span><span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">duplicated</span><span class="p">(</span><span class="n">keep</span><span class="o">=</span><span class="s1">'first'</span><span class="p">)]</span>
 
         <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">fill_cols</span><span class="p">:</span>
             <span class="c1"># Last patch wins for fills targeting the same column.</span>
@@ -882,11 +882,11 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="n">base_schema</span><span class="o">.</span><span class="n">metadata</span><span class="p">:</span>
         <span class="n">combined_schema</span> <span class="o">=</span> <span class="n">combined_schema</span><span class="o">.</span><span class="n">with_metadata</span><span class="p">(</span><span class="n">base_schema</span><span class="o">.</span><span class="n">metadata</span><span class="p">)</span>
 
-    <span class="n">pardir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">ofile</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">&#39;.&#39;</span>
+    <span class="n">pardir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">ofile</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">'.'</span>
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">pardir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">temp_ofile</span> <span class="o">=</span> <span class="n">ofile</span> <span class="o">+</span> <span class="n">tmp_suffix</span>
 
-    <span class="k">with</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetWriter</span><span class="p">(</span><span class="n">temp_ofile</span><span class="p">,</span> <span class="n">combined_schema</span><span class="p">,</span> <span class="n">compression</span><span class="o">=</span><span class="s1">&#39;zstd&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">writer</span><span class="p">:</span>
+    <span class="k">with</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetWriter</span><span class="p">(</span><span class="n">temp_ofile</span><span class="p">,</span> <span class="n">combined_schema</span><span class="p">,</span> <span class="n">compression</span><span class="o">=</span><span class="s1">'zstd'</span><span class="p">)</span> <span class="k">as</span> <span class="n">writer</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">rg_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">base_pf</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">num_row_groups</span><span class="p">):</span>
             <span class="n">batch</span> <span class="o">=</span> <span class="n">base_pf</span><span class="o">.</span><span class="n">read_row_group</span><span class="p">(</span><span class="n">rg_idx</span><span class="p">)</span><span class="o">.</span><span class="n">to_pandas</span><span class="p">()</span>
 
@@ -905,7 +905,7 @@ window.runMermaid = runMermaid;</script>
 
             <span class="c1"># Append: left-join new columns.</span>
             <span class="k">for</span> <span class="n">new_df</span> <span class="ow">in</span> <span class="n">append_data</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-                <span class="n">batch_indexed</span> <span class="o">=</span> <span class="n">batch_indexed</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">new_df</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">)</span>
+                <span class="n">batch_indexed</span> <span class="o">=</span> <span class="n">batch_indexed</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">new_df</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s1">'left'</span><span class="p">)</span>
 
             <span class="n">batch</span> <span class="o">=</span> <span class="n">batch_indexed</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
             <span class="k">if</span> <span class="n">idx_name</span><span class="p">:</span>
@@ -918,7 +918,7 @@ window.runMermaid = runMermaid;</script>
 
     <span class="n">base_pf</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
     <span class="k">del</span> <span class="n">base_pf</span>
-    <span class="c1"># Drain pyarrow&#39;s allocator now so the temp buffers don&#39;t drag into</span>
+    <span class="c1"># Drain pyarrow's allocator now so the temp buffers don't drag into</span>
     <span class="c1"># the next worker task. Mirrors parquet_merge_files (utils.py).</span>
     <span class="n">release_arrow_pool</span><span class="p">()</span>
     <span class="k">try</span><span class="p">:</span>
@@ -936,11 +936,11 @@ window.runMermaid = runMermaid;</script>
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/parquet_ops/index.html#gedih3.doctor.parquet_ops.parquet_dedup_partition">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">parquet_dedup_partition</span><span class="p">(</span>
     <span class="n">pq_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">key_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;shot_number&#39;</span><span class="p">,</span>
-    <span class="n">keep</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;first&#39;</span><span class="p">,</span>
-    <span class="n">tmp_suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;.dedup.tmp&#39;</span><span class="p">,</span>
+    <span class="n">key_col</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'shot_number'</span><span class="p">,</span>
+    <span class="n">keep</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'first'</span><span class="p">,</span>
+    <span class="n">tmp_suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'.dedup.tmp'</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Rewrite a parquet file dropping duplicate ``key_col`` rows.</span>
+<span class="w">    </span><span class="sd">"""Rewrite a parquet file dropping duplicate ``key_col`` rows.</span>
 
 <span class="sd">    Streams row-group by row-group: only one row group plus the cumulative</span>
 <span class="sd">    set of seen keys is held in memory. ``shot_number`` is int64 so the seen-set</span>
@@ -950,10 +950,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ----------</span>
 <span class="sd">    pq_file : str</span>
 <span class="sd">        Parquet file to rewrite in-place (via temp + atomic rename).</span>
-<span class="sd">    key_col : str, default &#39;shot_number&#39;</span>
+<span class="sd">    key_col : str, default 'shot_number'</span>
 <span class="sd">        Column to deduplicate on.</span>
-<span class="sd">    keep : {&#39;first&#39;, &#39;last&#39;}, default &#39;first&#39;</span>
-<span class="sd">        Which duplicate to keep. ``&#39;last&#39;`` requires a second pass.</span>
+<span class="sd">    keep : {'first', 'last'}, default 'first'</span>
+<span class="sd">        Which duplicate to keep. ``'last'`` requires a second pass.</span>
 <span class="sd">    tmp_suffix : str</span>
 <span class="sd">        Suffix for the temp file used during atomic rewrite.</span>
 
@@ -961,17 +961,17 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    int</span>
 <span class="sd">        Number of rows dropped.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
 
-    <span class="k">if</span> <span class="n">keep</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;first&#39;</span><span class="p">,</span> <span class="s1">&#39;last&#39;</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;keep must be &#39;first&#39; or &#39;last&#39;, got </span><span class="si">{</span><span class="n">keep</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">keep</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'first'</span><span class="p">,</span> <span class="s1">'last'</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"keep must be 'first' or 'last', got </span><span class="si">{</span><span class="n">keep</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="n">pf</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetFile</span><span class="p">(</span><span class="n">pq_file</span><span class="p">,</span> <span class="n">pre_buffer</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">schema</span> <span class="o">=</span> <span class="n">pf</span><span class="o">.</span><span class="n">schema_arrow</span>
 
-    <span class="k">if</span> <span class="n">keep</span> <span class="o">==</span> <span class="s1">&#39;last&#39;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">keep</span> <span class="o">==</span> <span class="s1">'last'</span><span class="p">:</span>
         <span class="c1"># Walk once to find the last row-group index for each key, then walk</span>
         <span class="c1"># again writing only those rows. Memory cost: one int64 set + one int set.</span>
         <span class="n">last_rg_for_key</span> <span class="o">=</span> <span class="p">{}</span>
@@ -979,8 +979,8 @@ window.runMermaid = runMermaid;</script>
             <span class="n">keys</span> <span class="o">=</span> <span class="n">pf</span><span class="o">.</span><span class="n">read_row_group</span><span class="p">(</span><span class="n">rg_idx</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="n">key_col</span><span class="p">])</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="n">key_col</span><span class="p">)</span><span class="o">.</span><span class="n">to_pylist</span><span class="p">()</span>
             <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
                 <span class="n">last_rg_for_key</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">rg_idx</span>
-        <span class="c1"># Group keys to drop by row group: every row whose RG isn&#39;t its last</span>
-        <span class="c1"># must be excluded. Easier path: invert into a &quot;keep&quot; set per RG.</span>
+        <span class="c1"># Group keys to drop by row group: every row whose RG isn't its last</span>
+        <span class="c1"># must be excluded. Easier path: invert into a "keep" set per RG.</span>
         <span class="n">keep_set_per_rg</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">rg</span> <span class="ow">in</span> <span class="n">last_rg_for_key</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">keep_set_per_rg</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">rg</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
@@ -988,17 +988,17 @@ window.runMermaid = runMermaid;</script>
         <span class="n">keep_set_per_rg</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 
-    <span class="n">pardir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">pq_file</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">&#39;.&#39;</span>
+    <span class="n">pardir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">pq_file</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">'.'</span>
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">pardir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">temp_ofile</span> <span class="o">=</span> <span class="n">pq_file</span> <span class="o">+</span> <span class="n">tmp_suffix</span>
     <span class="n">dropped</span> <span class="o">=</span> <span class="mi">0</span>
 
-    <span class="k">with</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetWriter</span><span class="p">(</span><span class="n">temp_ofile</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">compression</span><span class="o">=</span><span class="s1">&#39;zstd&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">writer</span><span class="p">:</span>
+    <span class="k">with</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetWriter</span><span class="p">(</span><span class="n">temp_ofile</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">compression</span><span class="o">=</span><span class="s1">'zstd'</span><span class="p">)</span> <span class="k">as</span> <span class="n">writer</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">rg_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">pf</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">num_row_groups</span><span class="p">):</span>
             <span class="n">table</span> <span class="o">=</span> <span class="n">pf</span><span class="o">.</span><span class="n">read_row_group</span><span class="p">(</span><span class="n">rg_idx</span><span class="p">)</span>
             <span class="n">keys</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="n">key_col</span><span class="p">)</span><span class="o">.</span><span class="n">to_pylist</span><span class="p">()</span>
 
-            <span class="k">if</span> <span class="n">keep</span> <span class="o">==</span> <span class="s1">&#39;first&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">keep</span> <span class="o">==</span> <span class="s1">'first'</span><span class="p">:</span>
                 <span class="n">mask</span> <span class="o">=</span> <span class="p">[]</span>
                 <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
                     <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
@@ -1009,8 +1009,8 @@ window.runMermaid = runMermaid;</script>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">rg_keep</span> <span class="o">=</span> <span class="n">keep_set_per_rg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">rg_idx</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span>
                 <span class="n">mask</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="ow">in</span> <span class="n">rg_keep</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">]</span>
-                <span class="c1"># For &#39;last&#39; keep semantics, also collapse intra-RG duplicates</span>
-                <span class="c1"># by tracking which keys we&#39;ve already emitted in this RG.</span>
+                <span class="c1"># For 'last' keep semantics, also collapse intra-RG duplicates</span>
+                <span class="c1"># by tracking which keys we've already emitted in this RG.</span>
                 <span class="n">emitted</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
                 <span class="n">final_mask</span> <span class="o">=</span> <span class="p">[]</span>
                 <span class="k">for</span> <span class="n">keep_row</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">keys</span><span class="p">):</span>

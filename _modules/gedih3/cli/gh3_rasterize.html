@@ -762,7 +762,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="sd">GEDI H3/EGI Rasterization Tool</span>
 
 <span class="sd">Convert pre-aggregated GEDI datasets to GeoTIFF raster format.</span>
@@ -775,7 +775,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">IMPORTANT: This tool does NOT perform aggregation. To aggregate raw GEDI</span>
 <span class="sd">shots to coarser resolutions before rasterization, use gh3_aggregate first</span>
 <span class="sd">(optionally with the --rasterize flag to do both in one step).</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
@@ -785,34 +785,34 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="get_cmd_args">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_rasterize/index.html#gedih3.cli.gh3_rasterize.get_cmd_args">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_cmd_args</span><span class="p">():</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Parse command line arguments for GEDI rasterization&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Parse command line arguments for GEDI rasterization"""</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">add_dask_args</span><span class="p">,</span> <span class="n">add_verbosity_args</span><span class="p">,</span> <span class="n">add_storage_args</span>
 
     <span class="n">p</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span>
-        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Convert aggregated GEDI datasets to GeoTIFF raster format&quot;</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">"Convert aggregated GEDI datasets to GeoTIFF raster format"</span><span class="p">,</span>
         <span class="n">formatter_class</span><span class="o">=</span><span class="n">argparse</span><span class="o">.</span><span class="n">RawTextHelpFormatter</span>
     <span class="p">)</span>
 
     <span class="c1"># Input/output configuration</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-d&quot;</span><span class="p">,</span> <span class="s2">&quot;--dataset&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;dataset&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;path to aggregated dataset (from gh3_aggregate or gh3_extract)&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-o&quot;</span><span class="p">,</span> <span class="s2">&quot;--output&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;output&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;output directory or file path&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-m&quot;</span><span class="p">,</span> <span class="s2">&quot;--merge&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;merge&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;merge all partitions into single file&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--compress&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;compress&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;LZW&#39;</span><span class="p">,</span>
-                   <span class="n">choices</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;LZW&#39;</span><span class="p">,</span> <span class="s1">&#39;ZSTD&#39;</span><span class="p">,</span> <span class="s1">&#39;DEFLATE&#39;</span><span class="p">,</span> <span class="s1">&#39;PACKBITS&#39;</span><span class="p">,</span> <span class="s1">&#39;NONE&#39;</span><span class="p">],</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;GeoTIFF compression [default=LZW]&quot;</span><span class="p">)</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--no-cog&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;cog&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_false&#39;</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;write plain GeoTIFFs instead of Cloud Optimized GeoTIFFs&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-d"</span><span class="p">,</span> <span class="s2">"--dataset"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"dataset"</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"path to aggregated dataset (from gh3_aggregate or gh3_extract)"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-o"</span><span class="p">,</span> <span class="s2">"--output"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"output"</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"output directory or file path"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-m"</span><span class="p">,</span> <span class="s2">"--merge"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"merge"</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">'store_true'</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"merge all partitions into single file"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--compress"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"compress"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">'LZW'</span><span class="p">,</span>
+                   <span class="n">choices</span><span class="o">=</span><span class="p">[</span><span class="s1">'LZW'</span><span class="p">,</span> <span class="s1">'ZSTD'</span><span class="p">,</span> <span class="s1">'DEFLATE'</span><span class="p">,</span> <span class="s1">'PACKBITS'</span><span class="p">,</span> <span class="s1">'NONE'</span><span class="p">],</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"GeoTIFF compression [default=LZW]"</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--no-cog"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"cog"</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">'store_false'</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"write plain GeoTIFFs instead of Cloud Optimized GeoTIFFs"</span><span class="p">)</span>
 
     <span class="c1"># Variable selection</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-l&quot;</span><span class="p">,</span> <span class="s2">&quot;--list&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;list&quot;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;variables to rasterize (space-separated or wildcards like &#39;agbd_*&#39;)&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-l"</span><span class="p">,</span> <span class="s2">"--list"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"list"</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">'+'</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"variables to rasterize (space-separated or wildcards like 'agbd_*')"</span><span class="p">)</span>
 
     <span class="c1"># Filtering</span>
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;-q&quot;</span><span class="p">,</span> <span class="s2">&quot;--query&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;query&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">&quot;pandas query string for filtering before rasterization&quot;</span><span class="p">)</span>
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-q"</span><span class="p">,</span> <span class="s2">"--query"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"query"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"pandas query string for filtering before rasterization"</span><span class="p">)</span>
 
     <span class="c1"># Dask, storage, and verbosity</span>
     <span class="n">add_dask_args</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
@@ -824,35 +824,35 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_rasterize_dataset</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">,</span> <span class="n">output_path</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">logger</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Rasterize a single dataset directory to raster output.</span>
+<span class="w">    </span><span class="sd">"""Rasterize a single dataset directory to raster output.</span>
 
 <span class="sd">    Thin delegate to ``gh3.gh3_rasterize()`` — index-type dispatch, column</span>
 <span class="sd">    resolution and partition-level derivation all live in the library so the</span>
 <span class="sd">    CLI and the Python API cannot diverge.</span>
 
 <span class="sd">    Must be called inside a Dask Client context.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">gedih3</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gh3</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_dataset_index_info</span>
 
     <span class="c1"># Informational only — gh3_rasterize() does its own resolution and</span>
     <span class="c1"># validation. json_read_cached makes this sidecar read free.</span>
     <span class="n">info</span> <span class="o">=</span> <span class="n">get_dataset_index_info</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">)</span>
-    <span class="n">index_type</span><span class="p">,</span> <span class="n">index_level</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_type&#39;</span><span class="p">),</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;index_level&#39;</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">index_type</span> <span class="o">==</span> <span class="s1">&#39;egi&#39;</span> <span class="ow">and</span> <span class="n">index_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">index_type</span><span class="p">,</span> <span class="n">index_level</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'index_type'</span><span class="p">),</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'index_level'</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">index_type</span> <span class="o">==</span> <span class="s1">'egi'</span> <span class="ow">and</span> <span class="n">index_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3</span><span class="w"> </span><span class="kn">import</span> <span class="n">egi</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dataset type: EGI level </span><span class="si">{</span><span class="n">index_level</span><span class="si">}</span><span class="s2"> &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;(~</span><span class="si">{</span><span class="n">egi</span><span class="o">.</span><span class="n">get_resolution</span><span class="p">(</span><span class="n">index_level</span><span class="p">)</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">m)&quot;</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="n">index_type</span> <span class="o">==</span> <span class="s1">&#39;h3&#39;</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dataset type: H3 level </span><span class="si">{</span><span class="n">index_level</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dataset type: EGI level </span><span class="si">{</span><span class="n">index_level</span><span class="si">}</span><span class="s2"> "</span>
+                    <span class="sa">f</span><span class="s2">"(~</span><span class="si">{</span><span class="n">egi</span><span class="o">.</span><span class="n">get_resolution</span><span class="p">(</span><span class="n">index_level</span><span class="p">)</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">m)"</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">index_type</span> <span class="o">==</span> <span class="s1">'h3'</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dataset type: H3 level </span><span class="si">{</span><span class="n">index_level</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
-    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Input: </span><span class="si">{</span><span class="n">dataset_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Input: </span><span class="si">{</span><span class="n">dataset_path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">list</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Variables to rasterize: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">list</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Variables to rasterize: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">list</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">query</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Query filter: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">query</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Query filter: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">query</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
-    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Rasterizing...&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Rasterizing..."</span><span class="p">)</span>
     <span class="n">result</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_rasterize</span><span class="p">(</span>
         <span class="n">dataset_path</span><span class="p">,</span> <span class="n">output_path</span><span class="p">,</span>
         <span class="n">columns</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">list</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">list</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
@@ -861,9 +861,9 @@ window.runMermaid = runMermaid;</script>
     <span class="p">)</span>
 
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">merge</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Merged raster exported to </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Merged raster exported to </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Exported </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="si">}</span><span class="s2"> raster files to </span><span class="si">{</span><span class="n">output_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Exported </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="si">}</span><span class="s2"> raster files to </span><span class="si">{</span><span class="n">output_path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="main">
@@ -885,21 +885,21 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># Setup logging and print banner</span>
         <span class="n">logger</span> <span class="o">=</span> <span class="n">setup_logging</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
         <span class="n">setup_storage</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
-        <span class="n">print_banner</span><span class="p">(</span><span class="s2">&quot;GEDI Rasterization Tool&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+        <span class="n">print_banner</span><span class="p">(</span><span class="s2">"GEDI Rasterization Tool"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
 
-        <span class="n">resolve_path_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;dataset&#39;</span><span class="p">,</span> <span class="s1">&#39;output&#39;</span><span class="p">],</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+        <span class="n">resolve_path_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">[</span><span class="s1">'dataset'</span><span class="p">,</span> <span class="s1">'output'</span><span class="p">],</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
 
         <span class="c1"># Validate input dataset exists</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">smart_exists</span><span class="p">,</span> <span class="n">smart_isdir</span><span class="p">,</span> <span class="n">smart_glob</span><span class="p">,</span>
                                   <span class="n">smart_database_exists</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">smart_database_exists</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">dataset</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dataset not found: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">dataset</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dataset not found: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">dataset</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
         <span class="n">dask_kwargs</span> <span class="o">=</span> <span class="n">parse_dask_args</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
 
         <span class="k">with</span> <span class="n">Client</span><span class="p">(</span><span class="o">**</span><span class="n">dask_kwargs</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dask dashboard: </span><span class="si">{</span><span class="n">client</span><span class="o">.</span><span class="n">dashboard_link</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dask dashboard: </span><span class="si">{</span><span class="n">client</span><span class="o">.</span><span class="n">dashboard_link</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
             <span class="c1"># Detect dataset type</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_join</span>
@@ -908,41 +908,41 @@ window.runMermaid = runMermaid;</script>
             <span class="k">if</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">dataset_meta_path</span><span class="p">):</span>
                 <span class="c1"># Single dataset (existing behavior)</span>
                 <span class="n">_rasterize_dataset</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">dataset</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">logger</span><span class="p">)</span>
-                <span class="n">print_success</span><span class="p">(</span><span class="s2">&quot;Rasterization complete&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+                <span class="n">print_success</span><span class="p">(</span><span class="s2">"Rasterization complete"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
 
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># Check for time-series (subdirectories with metadata)</span>
                 <span class="n">window_dirs</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">([</span>
-                    <span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">smart_glob</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">dataset</span><span class="p">,</span> <span class="s1">&#39;*&#39;</span><span class="p">))</span>
+                    <span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">smart_glob</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">dataset</span><span class="p">,</span> <span class="s1">'*'</span><span class="p">))</span>
                     <span class="k">if</span> <span class="n">smart_isdir</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="ow">and</span>
                        <span class="n">smart_exists</span><span class="p">(</span><span class="n">smart_join</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">DATASET_META_FILENAME</span><span class="p">))</span>
                 <span class="p">])</span>
 
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">window_dirs</span><span class="p">:</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dataset metadata not found: </span><span class="si">{</span><span class="n">dataset_meta_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;This tool requires a dataset produced by &quot;</span>
-                                 <span class="s2">&quot;gh3_aggregate or gh3_extract.&quot;</span><span class="p">)</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;For raw GEDI data, use gh3_aggregate with &quot;</span>
-                                 <span class="s2">&quot;--rasterize flag instead.&quot;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dataset metadata not found: </span><span class="si">{</span><span class="n">dataset_meta_path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">"This tool requires a dataset produced by "</span>
+                                 <span class="s2">"gh3_aggregate or gh3_extract."</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">"For raw GEDI data, use gh3_aggregate with "</span>
+                                 <span class="s2">"--rasterize flag instead."</span><span class="p">)</span>
                     <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
                 <span class="c1"># Time-series mode</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Time-series dataset: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">window_dirs</span><span class="p">)</span><span class="si">}</span><span class="s2"> windows&quot;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Time-series dataset: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">window_dirs</span><span class="p">)</span><span class="si">}</span><span class="s2"> windows"</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">window_dir</span> <span class="ow">in</span> <span class="n">window_dirs</span><span class="p">:</span>
                     <span class="n">window_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">window_dir</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">merge</span><span class="p">:</span>
-                        <span class="n">window_output</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">window_name</span><span class="si">}</span><span class="s2">.tif&quot;</span><span class="p">)</span>
+                        <span class="n">window_output</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">window_name</span><span class="si">}</span><span class="s2">.tif"</span><span class="p">)</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">window_output</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">window_name</span><span class="p">)</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;── Window: </span><span class="si">{</span><span class="n">window_name</span><span class="si">}</span><span class="s2"> ──&quot;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"── Window: </span><span class="si">{</span><span class="n">window_name</span><span class="si">}</span><span class="s2"> ──"</span><span class="p">)</span>
                     <span class="n">_rasterize_dataset</span><span class="p">(</span><span class="n">window_dir</span><span class="p">,</span> <span class="n">window_output</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">logger</span><span class="p">)</span>
 
-                <span class="n">print_success</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Time-series rasterization complete: &quot;</span>
-                              <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">window_dirs</span><span class="p">)</span><span class="si">}</span><span class="s2"> windows&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span></div>
+                <span class="n">print_success</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Time-series rasterization complete: "</span>
+                              <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">window_dirs</span><span class="p">)</span><span class="si">}</span><span class="s2"> windows"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span></div>
 
 
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
     <span class="n">main</span><span class="p">()</span>
 </pre></div>
 

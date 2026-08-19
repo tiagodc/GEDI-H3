@@ -486,7 +486,7 @@ gh3_extract<span class="w"> </span>-d<span class="w"> </span>http://192.169.0.33
 <p>In the gedih3 database, every shot is a <strong>row</strong> and every variable is a <strong>column</strong>. The beam structure is dissolved — shots from all 8 beams are unified into a single flat table. The file can be read with any tool that handles Parquet: pandas, R’s <code class="docutils literal notranslate"><span class="pre">arrow</span></code>, DuckDB, QGIS, or any dataframe library.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Read a single year partition directly with pandas — no gedih3 required</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="s1">&#39;~/gedih3_db/h3/h3_03=8031fffffffffff/year=2020/8031fffffffffff.2020.0.parquet&#39;</span><span class="p">)</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="s1">'~/gedih3_db/h3/h3_03=8031fffffffffff/year=2020/8031fffffffffff.2020.0.parquet'</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>This interoperability is intentional. The database is your data asset — it does not lock you in to any particular processing stack.</p>
@@ -644,23 +644,23 @@ gh3_extract<span class="w"> </span>-d<span class="w"> </span>http://192.169.0.33
 <h3>Variable selection keywords<a class="headerlink" href="#variable-selection-keywords" title="Link to this heading">#</a></h3>
 <p>After each product flag, pass one of the following:</p>
 <p><strong><code class="docutils literal notranslate"><span class="pre">minimal</span></code></strong> — the smallest usable set. Geolocation, timestamp, quality flag, and the primary headline variable for each product. Use this when disk space is very limited or you only need one or few metrics.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>minimal<span class="w"> </span>-l4a<span class="w"> </span>minimal
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>minimal<span class="w"> </span>-l4a<span class="w"> </span>minimal
 </pre></div>
 </div>
 <p><strong><code class="docutils literal notranslate"><span class="pre">default</span></code></strong> — the recommended science-ready set. An expert-curated selection covering all variables needed for common research workflows, including uncertainty estimates, alternative algorithm outputs, and land-cover ancillary data. This is a good choice for most projects.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
 </pre></div>
 </div>
 <p><strong>Explicit variable names</strong> — list specific HDF5 variable names after the flag. Consult the data dictionaries for each GEDI product for reference.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>rh<span class="w"> </span>elev_lowestmode<span class="w"> </span>quality_flag<span class="w"> </span>-l4a<span class="w"> </span>agbd<span class="w"> </span>agbd_se<span class="w"> </span>l4_quality_flag
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>rh<span class="w"> </span>elev_lowestmode<span class="w"> </span>quality_flag<span class="w"> </span>-l4a<span class="w"> </span>agbd<span class="w"> </span>agbd_se<span class="w"> </span>l4_quality_flag
 </pre></div>
 </div>
 <p><strong><code class="docutils literal notranslate"><span class="pre">all</span></code> or <code class="docutils literal notranslate"><span class="pre">*</span></code> or bare flag</strong> — every variable in the product. Produces very large databases. Use with caution and only if you have a specific reason to need the full variable set.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span><span class="s2">&quot;*&quot;</span><span class="w">  </span><span class="c1"># all L2A variables</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span><span class="s2">"*"</span><span class="w">  </span><span class="c1"># all L2A variables</span>
 </pre></div>
 </div>
 <p><strong>A text file</strong> — one HDF5 variable name per line. Useful for reproducible builds with large custom variable lists.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>/path/to/my_variables.txt<span class="w"> </span>-l4a<span class="w"> </span>default
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>/path/to/my_variables.txt<span class="w"> </span>-l4a<span class="w"> </span>default
 </pre></div>
 </div>
 <blockquote>
@@ -675,10 +675,10 @@ gh3_extract<span class="w"> </span>-d<span class="w"> </span>http://192.169.0.33
 <p><strong><code class="docutils literal notranslate"><span class="pre">-h3r</span> <span class="pre">INDEX_LEVEL</span></code></strong> (default: <code class="docutils literal notranslate"><span class="pre">12</span></code>) — the H3 resolution at which each shot is indexed. Each shot gets assigned to the H3 cell at this level that contains its coordinates. Level 12 cells are ~307 m² — approximately the size of a GEDI footprint, so each footprint’s center coordinate falls in its own cell.</p>
 <p><strong><code class="docutils literal notranslate"><span class="pre">-h3p</span> <span class="pre">PARTITION_LEVEL</span></code></strong> (default: <code class="docutils literal notranslate"><span class="pre">3</span></code>) — the H3 resolution used to partition files on disk. Level 3 cells are ~12,393 km². All shots within the same level-3 cell are stored in the same partition file. This controls the granularity of spatial skipping during queries.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Default: index at level 12, partition at level 3</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l4a<span class="w"> </span>default
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l4a<span class="w"> </span>default
 
 <span class="c1"># Custom: index at level 10, partition at level 5</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-h3r<span class="w"> </span><span class="m">10</span><span class="w"> </span>-h3p<span class="w"> </span><span class="m">5</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-h3r<span class="w"> </span><span class="m">10</span><span class="w"> </span>-h3p<span class="w"> </span><span class="m">5</span>
 </pre></div>
 </div>
 <p><strong>When to change the defaults:</strong></p>
@@ -700,10 +700,10 @@ gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quo
 <h3>Mode 1: Local HDF5 files (default)<a class="headerlink" href="#mode-1-local-hdf5-files-default" title="Link to this heading">#</a></h3>
 <p>The default mode reads HDF5 files that you have already downloaded to disk. As long as the original names of the GEDI files are preserved, no specific file organization standard is required - as long as all GEDI HDF5 files are in the same directory. The file structure layout adopted by <code class="docutils literal notranslate"><span class="pre">gh3_download</span></code> is the SOC (Science Operation Center) directory structure: <code class="docutils literal notranslate"><span class="pre">soc/LXXX/year/doy/*.h5</span></code>.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download first</span>
-gh3_download<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
+gh3_download<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
 
 <span class="c1"># Then build</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
 </pre></div>
 </div>
 <p><strong>Best for</strong>: workstations and HPC clusters with fast local or network-attached storage, or when you plan to build multiple databases from the same raw files. The raw HDF5 files remain on disk after the build and can be re-used.</p>
@@ -712,7 +712,7 @@ gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quo
 <h3>Mode 2: Embedded download (<code class="docutils literal notranslate"><span class="pre">-dl</span></code>)<a class="headerlink" href="#mode-2-embedded-download-dl" title="Link to this heading">#</a></h3>
 <p>With <code class="docutils literal notranslate"><span class="pre">-dl</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> automatically calls <code class="docutils literal notranslate"><span class="pre">gh3_download</span></code> as a first step before building. This is a convenience shortcut — it does not change the build behavior, only the workflow.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and build in one command</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-dl
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-dl
 </pre></div>
 </div>
 <p><strong>Best for</strong>: good network connections where you want a single command to handle the full pipeline. The raw HDF5 files are kept on disk after the build.</p>
@@ -721,7 +721,7 @@ gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quo
 <h3>Mode 3: S3 ETL (<code class="docutils literal notranslate"><span class="pre">-s3</span></code>)<a class="headerlink" href="#mode-3-s3-etl-s3" title="Link to this heading">#</a></h3>
 <p>With <code class="docutils literal notranslate"><span class="pre">-s3</span></code>, <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> streams GEDI data directly from NASA’s S3 bucket into a temporary location and converts it to Parquet without writing the full HDF5 files to persistent storage. Each granule is streamed, processed, and discarded.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Stream from NASA S3 — no HDF5 files on disk</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-s3
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-s3
 </pre></div>
 </div>
 <p><strong>Best for</strong>: environments with slow or expensive local disk, cloud computing instances, or any situation where you want to avoid storing the raw HDF5 files (~1–3 GB per granule). S3 mode requires a good network connection to NASA’s servers.</p>
@@ -786,7 +786,7 @@ the right ones.</p>
 <h3>1. Spatial subsetting (<code class="docutils literal notranslate"><span class="pre">-r</span></code>)<a class="headerlink" href="#spatial-subsetting-r" title="Link to this heading">#</a></h3>
 <p>Pass a region specification to restrict the build to shots within your area of interest. Only granules that intersect the region are downloaded/processed, and only shots belonging to H3 hexagons intersecting the region are written to the database.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Bounding box: W,S,E,N (degrees)</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-60,-10,-40,5&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-60,-10,-40,5"</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
 
 <span class="c1"># Vector file (any format readable by GeoPandas: Shapefile, GeoPackage, GeoJSON, ...)</span>
 gh3_build<span class="w"> </span>-r<span class="w"> </span>/path/to/country_boundary.shp<span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
@@ -801,10 +801,10 @@ gh3_build<span class="w"> </span>-r<span class="w"> </span>USA<span class="w"> <
 <h3>2. Temporal subsetting (<code class="docutils literal notranslate"><span class="pre">-t0</span></code> / <code class="docutils literal notranslate"><span class="pre">-t1</span></code>)<a class="headerlink" href="#temporal-subsetting-t0-t1" title="Link to this heading">#</a></h3>
 <p>Pass start and end dates to restrict the build to a specific time window. Granules outside the window are skipped.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Build only data from 2020</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-t0<span class="w"> </span><span class="m">2020</span>-01-01<span class="w"> </span>-t1<span class="w"> </span><span class="m">2020</span>-12-31
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-t0<span class="w"> </span><span class="m">2020</span>-01-01<span class="w"> </span>-t1<span class="w"> </span><span class="m">2020</span>-12-31
 
 <span class="c1"># Build from launch through end of 2021</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-t1<span class="w"> </span><span class="m">2021</span>-12-31
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-t1<span class="w"> </span><span class="m">2021</span>-12-31
 </pre></div>
 </div>
 <p>GEDI has been collecting data since April 2019. Without temporal subsetting, the build will include all available data — which grows every periodically.</p>
@@ -847,7 +847,7 @@ gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quo
 </pre></div>
 </div>
 <p><strong>Multi-year time series:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-80,-20,20,20&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-t0<span class="w"> </span><span class="m">2019</span>-01-01<span class="w"> </span>-t1<span class="w"> </span><span class="m">2023</span>-12-31
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-80,-20,20,20"</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-t0<span class="w"> </span><span class="m">2019</span>-01-01<span class="w"> </span>-t1<span class="w"> </span><span class="m">2023</span>-12-31
 </pre></div>
 </div>
 <p><strong>Global build on a cloud instance with limited disk:</strong></p>
@@ -863,7 +863,7 @@ gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quo
 <h3>Resuming an interrupted build<a class="headerlink" href="#resuming-an-interrupted-build" title="Link to this heading">#</a></h3>
 <p>If a build is interrupted (power loss, time limit, Ctrl-C), simply re-run the exact same command. <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> tracks which HDF5 granules have been successfully processed and skips them on the next run. No data is lost.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Interrupted — re-run the same command to resume</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default
 </pre></div>
 </div>
 </section>
@@ -996,13 +996,13 @@ gh3_build<span class="w"> </span>-r<span class="w"> </span>wider_region.shp<span
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">ARROW_DEFAULT_MEMORY_POOL</span><span class="o">=</span>system
 <span class="nb">export</span><span class="w"> </span><span class="nv">MALLOC_TRIM_THRESHOLD_</span><span class="o">=</span><span class="m">0</span>
 
-<span class="nv">PRELOAD</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from gedih3.config import get_package_data_path; \</span>
-<span class="s2">                     print(get_package_data_path(&#39;dask-worker-trim.py&#39;))&quot;</span><span class="k">)</span>
+<span class="nv">PRELOAD</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"from gedih3.config import get_package_data_path; \</span>
+<span class="s2">                     print(get_package_data_path('dask-worker-trim.py'))"</span><span class="k">)</span>
 
 dask<span class="w"> </span>worker<span class="w"> </span>tcp://localhost:8786<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--nworkers<span class="w"> </span><span class="m">32</span><span class="w"> </span>--nthreads<span class="w"> </span><span class="m">1</span><span class="w"> </span>--memory-limit<span class="w"> </span>25GB<span class="w"> </span>--nanny<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--local-directory<span class="w"> </span>./tmp/dask-worker-space<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--preload<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PRELOAD</span><span class="s2">&quot;</span>
+<span class="w">  </span>--preload<span class="w"> </span><span class="s2">"</span><span class="nv">$PRELOAD</span><span class="s2">"</span>
 </pre></div>
 </div>
 <p><strong>3. Build</strong> (attach to the existing scheduler):</p>
@@ -1056,20 +1056,20 @@ dask<span class="w"> </span>worker<span class="w"> </span>tcp://localhost:8786<s
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dask.distributed</span><span class="w"> </span><span class="kn">import</span> <span class="n">Client</span>
 
-<span class="n">c</span> <span class="o">=</span> <span class="n">Client</span><span class="p">(</span><span class="s1">&#39;tcp://localhost:8786&#39;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;workers:&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">scheduler_info</span><span class="p">()[</span><span class="s1">&#39;workers&#39;</span><span class="p">]))</span>
+<span class="n">c</span> <span class="o">=</span> <span class="n">Client</span><span class="p">(</span><span class="s1">'tcp://localhost:8786'</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">'workers:'</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">scheduler_info</span><span class="p">()[</span><span class="s1">'workers'</span><span class="p">]))</span>
 
 <span class="n">env</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="p">{</span>
-    <span class="s1">&#39;MALLOC_TRIM_THRESHOLD_&#39;</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;MALLOC_TRIM_THRESHOLD_&#39;</span><span class="p">),</span>
-    <span class="s1">&#39;ARROW_DEFAULT_MEMORY_POOL&#39;</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;ARROW_DEFAULT_MEMORY_POOL&#39;</span><span class="p">),</span>
+    <span class="s1">'MALLOC_TRIM_THRESHOLD_'</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'MALLOC_TRIM_THRESHOLD_'</span><span class="p">),</span>
+    <span class="s1">'ARROW_DEFAULT_MEMORY_POOL'</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'ARROW_DEFAULT_MEMORY_POOL'</span><span class="p">),</span>
 <span class="p">})</span>
-<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;MALLOC_TRIM_THRESHOLD_:&#39;</span><span class="p">,</span> <span class="n">Counter</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="s1">&#39;MALLOC_TRIM_THRESHOLD_&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
-<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;ARROW pool env:        &#39;</span><span class="p">,</span> <span class="n">Counter</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="s1">&#39;ARROW_DEFAULT_MEMORY_POOL&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
-<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;arrow pool backend:    &#39;</span><span class="p">,</span> <span class="n">Counter</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="nb">__import__</span><span class="p">(</span><span class="s1">&#39;pyarrow&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">default_memory_pool</span><span class="p">()</span><span class="o">.</span><span class="n">backend_name</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">'MALLOC_TRIM_THRESHOLD_:'</span><span class="p">,</span> <span class="n">Counter</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="s1">'MALLOC_TRIM_THRESHOLD_'</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">'ARROW pool env:        '</span><span class="p">,</span> <span class="n">Counter</span><span class="p">(</span><span class="n">v</span><span class="p">[</span><span class="s1">'ARROW_DEFAULT_MEMORY_POOL'</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">'arrow pool backend:    '</span><span class="p">,</span> <span class="n">Counter</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="nb">__import__</span><span class="p">(</span><span class="s1">'pyarrow'</span><span class="p">)</span><span class="o">.</span><span class="n">default_memory_pool</span><span class="p">()</span><span class="o">.</span><span class="n">backend_name</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
 
 <span class="c1"># Preload registered the per-task trim plugin?</span>
 <span class="n">plugins</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="k">lambda</span> <span class="n">dask_worker</span><span class="o">=</span><span class="kc">None</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">dask_worker</span><span class="o">.</span><span class="n">plugins</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
-<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;plugins per worker:    &#39;</span><span class="p">,</span> <span class="n">Counter</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">plugins</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">'plugins per worker:    '</span><span class="p">,</span> <span class="n">Counter</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">plugins</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
 </pre></div>
 </div>
 <p>Every worker should report <code class="docutils literal notranslate"><span class="pre">'0'</span></code>, <code class="docutils literal notranslate"><span class="pre">'system'</span></code>, backend <code class="docutils literal notranslate"><span class="pre">'system'</span></code>, and <code class="docutils literal notranslate"><span class="pre">gh3-trim</span></code> in the plugin list. If any worker reports <code class="docutils literal notranslate"><span class="pre">None</span></code> or backend <code class="docutils literal notranslate"><span class="pre">'jemalloc'</span></code>, your <code class="docutils literal notranslate"><span class="pre">export</span></code> didn’t reach the worker spawn — restart the worker terminal and put the <code class="docutils literal notranslate"><span class="pre">export</span></code> lines BEFORE <code class="docutils literal notranslate"><span class="pre">dask</span> <span class="pre">worker</span></code>.</p>
@@ -1112,22 +1112,22 @@ python<span class="w"> </span>scripts/gh3_resume_recovery.py<span class="w"> </s
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">yaml</span><span class="o">,</span><span class="w"> </span><span class="nn">dask</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_package_data_path</span>
 
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">get_package_data_path</span><span class="p">(</span><span class="s1">&#39;dask-config-massive-build.yaml&#39;</span><span class="p">))</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">get_package_data_path</span><span class="p">(</span><span class="s1">'dask-config-massive-build.yaml'</span><span class="p">))</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
     <span class="n">dask</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>
 <span class="c1"># Now spawn the cluster — the config is in dask.config for any new Client/LocalCluster</span>
 </pre></div>
 </div>
 <p>Equivalently, point the standalone <code class="docutils literal notranslate"><span class="pre">dask</span> <span class="pre">scheduler</span></code> / <code class="docutils literal notranslate"><span class="pre">dask</span> <span class="pre">worker</span></code> CLIs at the file via the <code class="docutils literal notranslate"><span class="pre">DASK_CONFIG</span></code> env var (Dask reads it at import time; <code class="docutils literal notranslate"><span class="pre">dask</span></code> has no <code class="docutils literal notranslate"><span class="pre">--config-file</span></code> flag):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">DASK_CONFIG</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from gedih3.config import get_package_data_path; \</span>
-<span class="s2">                                print(get_package_data_path(&#39;dask-config-massive-build.yaml&#39;))&quot;</span><span class="k">)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">DASK_CONFIG</span><span class="o">=</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"from gedih3.config import get_package_data_path; \</span>
+<span class="s2">                                print(get_package_data_path('dask-config-massive-build.yaml'))"</span><span class="k">)</span>
 dask<span class="w"> </span>scheduler<span class="w"> </span>--host<span class="w"> </span><span class="m">0</span>.0.0.0<span class="w"> </span>--port<span class="w"> </span><span class="m">8786</span>
-dask<span class="w"> </span>worker<span class="w"> </span>tcp://localhost:8786<span class="w"> </span>--nworkers<span class="w"> </span><span class="m">32</span><span class="w"> </span>--memory-limit<span class="w"> </span>25GB<span class="w"> </span>--preload<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$PRELOAD</span><span class="s2">&quot;</span>
+dask<span class="w"> </span>worker<span class="w"> </span>tcp://localhost:8786<span class="w"> </span>--nworkers<span class="w"> </span><span class="m">32</span><span class="w"> </span>--memory-limit<span class="w"> </span>25GB<span class="w"> </span>--preload<span class="w"> </span><span class="s2">"</span><span class="nv">$PRELOAD</span><span class="s2">"</span>
 </pre></div>
 </div>
 <p>Or copy/symlink the YAML to <code class="docutils literal notranslate"><span class="pre">~/.config/dask/</span></code> so dask auto-loads it for every invocation:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>~/.config/dask
-ln<span class="w"> </span>-s<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from gedih3.config import get_package_data_path; \</span>
-<span class="s2">                    print(get_package_data_path(&#39;dask-config-massive-build.yaml&#39;))&quot;</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+ln<span class="w"> </span>-s<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"from gedih3.config import get_package_data_path; \</span>
+<span class="s2">                    print(get_package_data_path('dask-config-massive-build.yaml'))"</span><span class="k">)</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
 <span class="w">      </span>~/.config/dask/gedih3-massive-build.yaml
 </pre></div>
 </div>
@@ -1157,7 +1157,7 @@ ln<span class="w"> </span>-s<span class="w"> </span><span class="s2">&quot;</spa
 <section id="quick-reference">
 <h2>Quick Reference<a class="headerlink" href="#quick-reference" title="Link to this heading">#</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Minimal example — small area, minimal variables</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>minimal<span class="w"> </span>-l4a<span class="w"> </span>minimal
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>minimal<span class="w"> </span>-l4a<span class="w"> </span>minimal
 
 <span class="c1"># Recommended — default variables with download embedded</span>
 gh3_build<span class="w"> </span>-r<span class="w"> </span>study_area.shp<span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-dl
@@ -1166,7 +1166,7 @@ gh3_build<span class="w"> </span>-r<span class="w"> </span>study_area.shp<span c
 gh3_build<span class="w"> </span>-r<span class="w"> </span>COL<span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span>-s3
 
 <span class="c1"># Multi-product with temporal filter</span>
-gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l2b<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span><span class="se">\</span>
+gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>default<span class="w"> </span>-l2b<span class="w"> </span>default<span class="w"> </span>-l4a<span class="w"> </span>default<span class="w"> </span><span class="se">\</span>
 <span class="w">          </span>-t0<span class="w"> </span><span class="m">2020</span>-01-01<span class="w"> </span>-t1<span class="w"> </span><span class="m">2022</span>-12-31
 
 <span class="c1"># Add a missing variable to an existing database</span>

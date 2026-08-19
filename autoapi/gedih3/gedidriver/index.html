@@ -693,11 +693,11 @@ If to_list=True: list of product dicts.</p>
 </dd>
 </dl>
 <p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">tree</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="s1">&#39;/path/to/soc&#39;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">tree</span><span class="p">[</span><span class="s1">&#39;O12345_01_T00001&#39;</span><span class="p">]</span>
-<span class="go">{&#39;L2A&#39;: &#39;/path/to/GEDI02_A_...h5&#39;, &#39;L4A&#39;: &#39;/path/to/GEDI04_A_...h5&#39;}</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">tree</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="s1">'/path/to/soc'</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">tree</span><span class="p">[</span><span class="s1">'O12345_01_T00001'</span><span class="p">]</span>
+<span class="go">{'L2A': '/path/to/GEDI02_A_...h5', 'L4A': '/path/to/GEDI04_A_...h5'}</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># Exclude NASA SGS internal files from discovery</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">tree</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="s1">&#39;/path/to/soc&#39;</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;*_SGS.h5&#39;</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">tree</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="s1">'/path/to/soc'</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="p">[</span><span class="s1">'*_SGS.h5'</span><span class="p">])</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -811,7 +811,7 @@ track, version, and date information.</p>
 </dd>
 </dl>
 <p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">gf</span> <span class="o">=</span> <span class="n">GEDIFile</span><span class="p">(</span><span class="s1">&#39;/path/to/GEDI02_A_2020123120000_O12345_01_T00001_02_003_01_V002.h5&#39;</span><span class="p">)</span>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">gf</span> <span class="o">=</span> <span class="n">GEDIFile</span><span class="p">(</span><span class="s1">'/path/to/GEDI02_A_2020123120000_O12345_01_T00001_02_003_01_V002.h5'</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">gf</span><span class="o">.</span><span class="n">orbit</span>
 <span class="go">12345</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">gf</span><span class="o">.</span><span class="n">version</span>
@@ -877,7 +877,7 @@ The shot number is a 64-bit integer encoding multiple fields.</p>
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">shot</span> <span class="o">=</span> <span class="n">GEDIShot</span><span class="p">(</span><span class="mi">12345678901234567890</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">shot</span><span class="o">.</span><span class="n">beam_str</span>
-<span class="go">&#39;BEAM0101&#39;</span>
+<span class="go">'BEAM0101'</span>
 </pre></div>
 </div>
 <dl class="py method">

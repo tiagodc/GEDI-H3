@@ -760,7 +760,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;Doctor-internal scandir helpers + back-compat re-export of</span>
+<span class="sd">"""Doctor-internal scandir helpers + back-compat re-export of</span>
 <span class="sd">:func:`gedih3.parallel.parallel_map`.</span>
 
 <span class="sd">The general parallelism primitive has been promoted to</span>
@@ -769,7 +769,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">module now keeps only the doctor-internal O(1) scandir helpers used by</span>
 <span class="sd">``doctor/diagnoses/orphans.py`` and re-exports ``parallel_map`` so any</span>
 <span class="sd">external caller importing from here keeps working.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
@@ -783,20 +783,20 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="partition_is_empty">
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/parallel/index.html#gedih3.doctor.parallel.partition_is_empty">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">partition_is_empty</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;O(1) emptiness check via :func:`os.scandir` — no recursive glob.</span>
+<span class="w">    </span><span class="sd">"""O(1) emptiness check via :func:`os.scandir` — no recursive glob.</span>
 
-<span class="sd">    Mirrors the build pipeline&#39;s emptiness check at</span>
+<span class="sd">    Mirrors the build pipeline's emptiness check at</span>
 <span class="sd">    ``gh3builder.py:1356-1362``. A partition is considered empty when</span>
 <span class="sd">    it contains no parquet file at any depth (year subdir or root).</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.parquet&#39;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">'.parquet'</span><span class="p">):</span>
                 <span class="k">return</span> <span class="kc">False</span>
             <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">is_dir</span><span class="p">(</span><span class="n">follow_symlinks</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">path</span><span class="p">):</span>
-                        <span class="k">if</span> <span class="n">sub</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.parquet&#39;</span><span class="p">):</span>
+                        <span class="k">if</span> <span class="n">sub</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">'.parquet'</span><span class="p">):</span>
                             <span class="k">return</span> <span class="kc">False</span>
                 <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
                     <span class="k">continue</span>
@@ -809,11 +809,11 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="list_year_dirs">
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/parallel/index.html#gedih3.doctor.parallel.list_year_dirs">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">list_year_dirs</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;List immediate subdirectories of a partition directory.</span>
+<span class="w">    </span><span class="sd">"""List immediate subdirectories of a partition directory.</span>
 
-<span class="sd">    Single ``os.scandir`` call instead of ``glob.glob(&#39;*/&#39;)``; same</span>
+<span class="sd">    Single ``os.scandir`` call instead of ``glob.glob('*/')``; same</span>
 <span class="sd">    primitive the build pipeline uses to enumerate per-h3 work units.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">):</span>
@@ -828,10 +828,10 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="year_dir_is_empty">
 <a class="viewcode-back" href="../../../autoapi/gedih3/doctor/parallel/index.html#gedih3.doctor.parallel.year_dir_is_empty">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">year_dir_is_empty</span><span class="p">(</span><span class="n">year_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;O(1) parquet presence check inside one year=*/ directory.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""O(1) parquet presence check inside one year=*/ directory."""</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">year_dir</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.parquet&#39;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">'.parquet'</span><span class="p">):</span>
                 <span class="k">return</span> <span class="kc">False</span>
     <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">True</span>

@@ -775,26 +775,26 @@ window.runMermaid = runMermaid;</script>
 
     <span class="n">p</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span>
         <span class="n">description</span><span class="o">=</span><span class="p">(</span>
-            <span class="s2">&quot;Build a DuckLake metadata table from an existing H3 parquet database &quot;</span>
-            <span class="s2">&quot;to enable SQL queries on GEDI data via DuckDB. &quot;</span>
-            <span class="s2">&quot;Files are expected to follow the layout: &quot;</span>
-            <span class="s2">&quot;h3_XX=*/year=*/&lt;hex&gt;.&lt;year&gt;.0.parquet &quot;</span>
-            <span class="s2">&quot;where XX is the H3 partition level stored in the build log.&quot;</span>
+            <span class="s2">"Build a DuckLake metadata table from an existing H3 parquet database "</span>
+            <span class="s2">"to enable SQL queries on GEDI data via DuckDB. "</span>
+            <span class="s2">"Files are expected to follow the layout: "</span>
+            <span class="s2">"h3_XX=*/year=*/&lt;hex&gt;.&lt;year&gt;.0.parquet "</span>
+            <span class="s2">"where XX is the H3 partition level stored in the build log."</span>
         <span class="p">)</span>
     <span class="p">)</span>
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;-d&quot;</span><span class="p">,</span> <span class="s2">&quot;--database&quot;</span><span class="p">,</span>
-        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;database&quot;</span><span class="p">,</span>
+        <span class="s2">"-d"</span><span class="p">,</span> <span class="s2">"--database"</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">"database"</span><span class="p">,</span>
         <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
         <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;H3 database directory (default: GH3_DEFAULT_H3_DIR)&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"H3 database directory (default: GH3_DEFAULT_H3_DIR)"</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;-t&quot;</span><span class="p">,</span> <span class="s2">&quot;--tmpdir&quot;</span><span class="p">,</span>
-        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;tmpdir&quot;</span><span class="p">,</span>
+        <span class="s2">"-t"</span><span class="p">,</span> <span class="s2">"--tmpdir"</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">"tmpdir"</span><span class="p">,</span>
         <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
         <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;temporary directory for DuckLake data files (default: GH3_DEFAULT_TMP_DIR/ducklake_temp)&quot;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"temporary directory for DuckLake data files (default: GH3_DEFAULT_TMP_DIR/ducklake_temp)"</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">add_verbosity_args</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span></div>
@@ -804,7 +804,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="get_file_list">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_build_ducklake/index.html#gedih3.cli.gh3_build_ducklake.get_file_list">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_file_list</span><span class="p">(</span><span class="n">root_dir</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;List the parquet files of the H3 database.</span>
+<span class="w">    </span><span class="sd">"""List the parquet files of the H3 database.</span>
 
 <span class="sd">    Uses the manifest-aware ``smart_glob`` (the `_manifest.txt` sentinel is</span>
 <span class="sd">    O(1) on the GPFS metadata server) instead of guessing filenames from a</span>
@@ -821,16 +821,16 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    list of pathlib.Path</span>
 <span class="sd">        Paths to parquet files, ordered so the first element is guaranteed</span>
 <span class="sd">        to exist (used to infer the table schema).</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="kn">import</span> <span class="n">gh3_read_meta</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_glob</span><span class="p">,</span> <span class="n">smart_join</span>
 
     <span class="n">root_dir</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">root_dir</span><span class="p">)</span>
-    <span class="n">part_level</span> <span class="o">=</span> <span class="n">gh3_read_meta</span><span class="p">(</span><span class="s2">&quot;h3_partition_level&quot;</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">root_dir</span><span class="p">))</span>
+    <span class="n">part_level</span> <span class="o">=</span> <span class="n">gh3_read_meta</span><span class="p">(</span><span class="s2">"h3_partition_level"</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">root_dir</span><span class="p">))</span>
     <span class="k">if</span> <span class="n">part_level</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">part_level</span> <span class="o">=</span> <span class="mi">3</span>
 
-    <span class="n">pattern</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">root_dir</span><span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;h3_</span><span class="si">{</span><span class="n">part_level</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">=*/year=*/*.parquet&quot;</span><span class="p">)</span>
+    <span class="n">pattern</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">root_dir</span><span class="p">),</span> <span class="sa">f</span><span class="s2">"h3_</span><span class="si">{</span><span class="n">part_level</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">=*/year=*/*.parquet"</span><span class="p">)</span>
     <span class="n">files</span> <span class="o">=</span> <span class="p">[</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">smart_glob</span><span class="p">(</span><span class="n">pattern</span><span class="p">))]</span>
 
     <span class="c1"># Guarantee the first element exists — it is used to create the table</span>
@@ -852,55 +852,55 @@ window.runMermaid = runMermaid;</script>
 
     <span class="n">args</span> <span class="o">=</span> <span class="n">get_cmd_args</span><span class="p">()</span>
     <span class="n">logger</span> <span class="o">=</span> <span class="n">setup_logging</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
-    <span class="n">print_banner</span><span class="p">(</span><span class="s2">&quot;GEDI DuckLake Builder Tool&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+    <span class="n">print_banner</span><span class="p">(</span><span class="s2">"GEDI DuckLake Builder Tool"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
 
-    <span class="n">resolve_path_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;database&#39;</span><span class="p">,</span> <span class="s1">&#39;tmpdir&#39;</span><span class="p">],</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+    <span class="n">resolve_path_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">[</span><span class="s1">'database'</span><span class="p">,</span> <span class="s1">'tmpdir'</span><span class="p">],</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
     <span class="n">database</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">database</span> <span class="ow">or</span> <span class="n">GH3_DEFAULT_H3_DIR</span><span class="p">)</span>
-    <span class="n">tmpdir</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">GH3_DEFAULT_TMP_DIR</span><span class="si">}</span><span class="s2">/ducklake_temp&quot;</span>
+    <span class="n">tmpdir</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">GH3_DEFAULT_TMP_DIR</span><span class="si">}</span><span class="s2">/ducklake_temp"</span>
 
     <span class="k">with</span> <span class="n">cli_exception_handler</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">):</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Generating list of parquet files ...&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Generating list of parquet files ..."</span><span class="p">)</span>
         <span class="n">files</span> <span class="o">=</span> <span class="n">get_file_list</span><span class="p">(</span><span class="n">database</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">files</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No parquet files found in </span><span class="si">{</span><span class="n">database</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"No parquet files found in </span><span class="si">{</span><span class="n">database</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
 
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span><span class="si">}</span><span class="s2"> files to process&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span><span class="si">}</span><span class="s2"> files to process"</span><span class="p">)</span>
 
         <span class="n">con</span> <span class="o">=</span> <span class="n">sqlutils</span><span class="o">.</span><span class="n">init_duckdb</span><span class="p">(</span><span class="n">temp_directory</span><span class="o">=</span><span class="n">tmpdir</span><span class="p">)</span>
 
         <span class="c1"># The DATA_PATH stores no actual data and can be deleted after load</span>
         <span class="c1"># because the data lives in the existing parquet files.</span>
-        <span class="n">con</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&quot;&quot;--sql</span>
-<span class="s2">            ATTACH &#39;ducklake:gedi.ducklake&#39; AS gedi_dl (</span>
-<span class="s2">            DATA_PATH &#39;</span><span class="si">{</span><span class="n">tmpdir</span><span class="si">}</span><span class="s2">&#39;);</span>
-<span class="s2">        &quot;&quot;&quot;</span><span class="p">)</span>
+        <span class="n">con</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="sa">f</span><span class="s2">"""--sql</span>
+<span class="s2">            ATTACH 'ducklake:gedi.ducklake' AS gedi_dl (</span>
+<span class="s2">            DATA_PATH '</span><span class="si">{</span><span class="n">tmpdir</span><span class="si">}</span><span class="s2">');</span>
+<span class="s2">        """</span><span class="p">)</span>
 
         <span class="c1"># Build schema from the first file. Geometry is excluded because</span>
         <span class="c1"># ducklake only supports GeoParquet V2, but the H3 files are V1.</span>
-        <span class="n">con</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;&quot;&quot;--sql</span>
+        <span class="n">con</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="sa">f</span><span class="s2">"""--sql</span>
 <span class="s2">            CREATE OR REPLACE TABLE gedi_dl.data AS</span>
 <span class="s2">            SELECT * EXCLUDE geometry</span>
-<span class="s2">            FROM read_parquet(&#39;</span><span class="si">{</span><span class="n">files</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&#39;, hive_partitioning=true)</span>
+<span class="s2">            FROM read_parquet('</span><span class="si">{</span><span class="n">files</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">', hive_partitioning=true)</span>
 <span class="s2">            WITH NO DATA;</span>
-<span class="s2">        &quot;&quot;&quot;</span><span class="p">)</span>
+<span class="s2">        """</span><span class="p">)</span>
 
-        <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="o">.</span><span class="n">tqdm</span><span class="p">(</span><span class="n">files</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Loading parquet files&quot;</span><span class="p">,</span> <span class="n">disable</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">quiet</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="o">.</span><span class="n">tqdm</span><span class="p">(</span><span class="n">files</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">"Loading parquet files"</span><span class="p">,</span> <span class="n">disable</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">quiet</span><span class="p">):</span>
             <span class="c1"># fmt: off</span>
             <span class="k">if</span> <span class="n">file</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-                <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;CALL ducklake_add_data_files(&#39;gedi_dl&#39;, &#39;data&#39;, &#39;</span><span class="si">{</span><span class="n">file</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39;, ignore_extra_columns =&gt; true);&quot;</span><span class="p">)</span>
+                <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="sa">f</span><span class="s2">"CALL ducklake_add_data_files('gedi_dl', 'data', '</span><span class="si">{</span><span class="n">file</span><span class="o">.</span><span class="n">as_posix</span><span class="p">()</span><span class="si">}</span><span class="s2">', ignore_extra_columns =&gt; true);"</span><span class="p">)</span>
             <span class="c1"># fmt: on</span>
 
-        <span class="n">ducklake_dest</span> <span class="o">=</span> <span class="n">database</span> <span class="o">/</span> <span class="s2">&quot;gedi.ducklake&quot;</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Saving DuckLake metadata to </span><span class="si">{</span><span class="n">ducklake_dest</span><span class="si">}</span><span class="s2"> ...&quot;</span><span class="p">)</span>
-        <span class="n">shutil</span><span class="o">.</span><span class="n">move</span><span class="p">(</span><span class="s2">&quot;gedi.ducklake&quot;</span><span class="p">,</span> <span class="n">ducklake_dest</span><span class="p">)</span>
+        <span class="n">ducklake_dest</span> <span class="o">=</span> <span class="n">database</span> <span class="o">/</span> <span class="s2">"gedi.ducklake"</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Saving DuckLake metadata to </span><span class="si">{</span><span class="n">ducklake_dest</span><span class="si">}</span><span class="s2"> ..."</span><span class="p">)</span>
+        <span class="n">shutil</span><span class="o">.</span><span class="n">move</span><span class="p">(</span><span class="s2">"gedi.ducklake"</span><span class="p">,</span> <span class="n">ducklake_dest</span><span class="p">)</span>
 
-        <span class="n">print_success</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;DuckLake metadata saved to </span><span class="si">{</span><span class="n">ducklake_dest</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span></div>
+        <span class="n">print_success</span><span class="p">(</span><span class="sa">f</span><span class="s2">"DuckLake metadata saved to </span><span class="si">{</span><span class="n">ducklake_dest</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span></div>
 
 
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
     <span class="n">main</span><span class="p">()</span>
 </pre></div>
 

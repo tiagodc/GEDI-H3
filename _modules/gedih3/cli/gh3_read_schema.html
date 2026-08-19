@@ -762,14 +762,14 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 <span class="sd">Inspect schema of parquet, feather, geopackage, HDF5 files, or H3 databases.</span>
 
 <span class="sd">Read and display column names and data types from output datasets,</span>
 <span class="sd">useful for understanding extracted data structure. Supports single</span>
 <span class="sd">files, dataset directories, and H3 databases (auto-detects format).</span>
 <span class="sd">When no path is given, reads from the default H3 database.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
@@ -779,62 +779,62 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="get_cmd_args">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_read_schema/index.html#gedih3.cli.gh3_read_schema.get_cmd_args">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_cmd_args</span><span class="p">():</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Parse command line arguments&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Parse command line arguments"""</span>
     <span class="n">p</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span>
-        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Inspect schema of parquet, feather, geopackage, HDF5 files, or H3 databases&quot;</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">"Inspect schema of parquet, feather, geopackage, HDF5 files, or H3 databases"</span>
     <span class="p">)</span>
 
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;path&quot;</span><span class="p">,</span>
+        <span class="s2">"path"</span><span class="p">,</span>
         <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
-        <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;?&#39;</span><span class="p">,</span>
+        <span class="n">nargs</span><span class="o">=</span><span class="s1">'?'</span><span class="p">,</span>
         <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;path to file or directory to inspect [default: GH3_DEFAULT_H3_DIR]&quot;</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"path to file or directory to inspect [default: GH3_DEFAULT_H3_DIR]"</span>
     <span class="p">)</span>
 
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;-p&quot;</span><span class="p">,</span> <span class="s2">&quot;--product&quot;</span><span class="p">,</span>
-        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;product&quot;</span><span class="p">,</span>
-        <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
-        <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;filter columns by product suffix (e.g., L2A -&gt; columns ending in _l2a)&quot;</span>
-    <span class="p">)</span>
-
-    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;--grep&quot;</span><span class="p">,</span>
-        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;grep&quot;</span><span class="p">,</span>
+        <span class="s2">"-p"</span><span class="p">,</span> <span class="s2">"--product"</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">"product"</span><span class="p">,</span>
         <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
         <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;filter columns by pattern (case-insensitive)&quot;</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"filter columns by product suffix (e.g., L2A -&gt; columns ending in _l2a)"</span>
     <span class="p">)</span>
 
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;-g&quot;</span><span class="p">,</span> <span class="s2">&quot;--group&quot;</span><span class="p">,</span>
-        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;group&quot;</span><span class="p">,</span>
+        <span class="s2">"--grep"</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">"grep"</span><span class="p">,</span>
         <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
         <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;for HDF5 files, specific group/beam to inspect (e.g., &#39;BEAM0101&#39;)&quot;</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"filter columns by pattern (case-insensitive)"</span>
     <span class="p">)</span>
 
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;--json&quot;</span><span class="p">,</span>
-        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;json_output&quot;</span><span class="p">,</span>
-        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;output in JSON format&quot;</span>
+        <span class="s2">"-g"</span><span class="p">,</span> <span class="s2">"--group"</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">"group"</span><span class="p">,</span>
+        <span class="nb">type</span><span class="o">=</span><span class="nb">str</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"for HDF5 files, specific group/beam to inspect (e.g., 'BEAM0101')"</span>
     <span class="p">)</span>
 
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;--csv&quot;</span><span class="p">,</span>
-        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;csv_output&quot;</span><span class="p">,</span>
-        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;output in CSV format&quot;</span>
+        <span class="s2">"--json"</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">"json_output"</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="s2">"store_true"</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"output in JSON format"</span>
     <span class="p">)</span>
 
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;--no-header&quot;</span><span class="p">,</span>
-        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;no_header&quot;</span><span class="p">,</span>
-        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;suppress headers in output&quot;</span>
+        <span class="s2">"--csv"</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">"csv_output"</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="s2">"store_true"</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"output in CSV format"</span>
+    <span class="p">)</span>
+
+    <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">"--no-header"</span><span class="p">,</span>
+        <span class="n">dest</span><span class="o">=</span><span class="s2">"no_header"</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="s2">"store_true"</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s2">"suppress headers in output"</span>
     <span class="p">)</span>
 
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">add_storage_args</span>
@@ -845,85 +845,85 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_detect_file_type</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Detect display name for the file/directory type.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Detect display name for the file/directory type."""</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_exists</span><span class="p">,</span> <span class="n">smart_isfile</span><span class="p">,</span> <span class="n">smart_join</span>
     <span class="n">path_lower</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
-    <span class="k">if</span> <span class="n">path_lower</span><span class="o">.</span><span class="n">endswith</span><span class="p">((</span><span class="s1">&#39;.h5&#39;</span><span class="p">,</span> <span class="s1">&#39;.hdf5&#39;</span><span class="p">)):</span>
-        <span class="k">return</span> <span class="s2">&quot;HDF5&quot;</span>
+    <span class="k">if</span> <span class="n">path_lower</span><span class="o">.</span><span class="n">endswith</span><span class="p">((</span><span class="s1">'.h5'</span><span class="p">,</span> <span class="s1">'.hdf5'</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="s2">"HDF5"</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">smart_isfile</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">BUILD_LOG_FILENAME</span>
         <span class="n">build_log</span> <span class="o">=</span> <span class="n">smart_join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">smart_exists</span><span class="p">(</span><span class="n">build_log</span><span class="p">):</span>
-            <span class="k">return</span> <span class="s2">&quot;H3 Database&quot;</span>
+            <span class="k">return</span> <span class="s2">"H3 Database"</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">detect_dataset_format</span>
         <span class="n">fmt</span> <span class="o">=</span> <span class="n">detect_dataset_format</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;parquet&#39;</span><span class="p">:</span> <span class="s1">&#39;Parquet&#39;</span><span class="p">,</span> <span class="s1">&#39;feather&#39;</span><span class="p">:</span> <span class="s1">&#39;Feather&#39;</span><span class="p">,</span> <span class="s1">&#39;gpkg&#39;</span><span class="p">:</span> <span class="s1">&#39;GeoPackage&#39;</span><span class="p">}</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">fmt</span><span class="p">)</span>
-    <span class="n">ext</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">path</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;parquet&#39;</span><span class="p">:</span> <span class="s1">&#39;Parquet&#39;</span><span class="p">,</span> <span class="s1">&#39;feather&#39;</span><span class="p">:</span> <span class="s1">&#39;Feather&#39;</span><span class="p">,</span> <span class="s1">&#39;gpkg&#39;</span><span class="p">:</span> <span class="s1">&#39;GeoPackage&#39;</span><span class="p">}</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ext</span><span class="p">,</span> <span class="n">ext</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s1">'parquet'</span><span class="p">:</span> <span class="s1">'Parquet'</span><span class="p">,</span> <span class="s1">'feather'</span><span class="p">:</span> <span class="s1">'Feather'</span><span class="p">,</span> <span class="s1">'gpkg'</span><span class="p">:</span> <span class="s1">'GeoPackage'</span><span class="p">}</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">fmt</span><span class="p">)</span>
+    <span class="n">ext</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">path</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s1">'.'</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s1">'parquet'</span><span class="p">:</span> <span class="s1">'Parquet'</span><span class="p">,</span> <span class="s1">'feather'</span><span class="p">:</span> <span class="s1">'Feather'</span><span class="p">,</span> <span class="s1">'gpkg'</span><span class="p">:</span> <span class="s1">'GeoPackage'</span><span class="p">}</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ext</span><span class="p">,</span> <span class="n">ext</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_format_shape</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Format HDF5 dataset shape as a string.&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="n">rows</span><span class="si">}</span><span class="s2">,)&quot;</span> <span class="k">if</span> <span class="n">cols</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="n">rows</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">cols</span><span class="si">}</span><span class="s2">)&quot;</span>
+<span class="w">    </span><span class="sd">"""Format HDF5 dataset shape as a string."""</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="n">rows</span><span class="si">}</span><span class="s2">,)"</span> <span class="k">if</span> <span class="n">cols</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="n">rows</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">cols</span><span class="si">}</span><span class="s2">)"</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_print_table</span><span class="p">(</span><span class="n">schema_df</span><span class="p">,</span> <span class="n">file_type</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">group</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">no_header</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Print schema as a formatted terminal table.&quot;&quot;&quot;</span>
-    <span class="n">is_hdf5</span> <span class="o">=</span> <span class="s1">&#39;path&#39;</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">columns</span>
+<span class="w">    </span><span class="sd">"""Print schema as a formatted terminal table."""</span>
+    <span class="n">is_hdf5</span> <span class="o">=</span> <span class="s1">'path'</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">columns</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">no_header</span><span class="p">:</span>
         <span class="nb">print</span><span class="p">()</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">file_type</span><span class="si">}</span><span class="s2"> Schema: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">file_type</span><span class="si">}</span><span class="s2"> Schema: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">group</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Group: </span><span class="si">{</span><span class="n">group</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;=&quot;</span> <span class="o">*</span> <span class="mi">70</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Group: </span><span class="si">{</span><span class="n">group</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"="</span> <span class="o">*</span> <span class="mi">70</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">()</span>
 
     <span class="k">if</span> <span class="n">is_hdf5</span><span class="p">:</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">no_header</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="s1">&#39;Dataset Path&#39;</span><span class="si">:</span><span class="s2">&lt;40</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">&#39;Type&#39;</span><span class="si">:</span><span class="s2">&lt;15</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">&#39;Shape&#39;</span><span class="si">:</span><span class="s2">&lt;15</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">70</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'Dataset Path'</span><span class="si">:</span><span class="s2">&lt;40</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">'Type'</span><span class="si">:</span><span class="s2">&lt;15</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">'Shape'</span><span class="si">:</span><span class="s2">&lt;15</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"-"</span> <span class="o">*</span> <span class="mi">70</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">():</span>
-            <span class="n">shape</span> <span class="o">=</span> <span class="n">_format_shape</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;rows&#39;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;cols&#39;</span><span class="p">])</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">&lt;40</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">])</span><span class="si">:</span><span class="s2">&lt;15</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">shape</span><span class="si">:</span><span class="s2">&lt;15</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="n">_format_shape</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">'rows'</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s1">'cols'</span><span class="p">])</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'path'</span><span class="p">]</span><span class="si">:</span><span class="s2">&lt;40</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">'dtype'</span><span class="p">])</span><span class="si">:</span><span class="s2">&lt;15</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">shape</span><span class="si">:</span><span class="s2">&lt;15</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">no_header</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="s1">&#39;Column&#39;</span><span class="si">:</span><span class="s2">&lt;40</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">&#39;Type&#39;</span><span class="si">:</span><span class="s2">&lt;30</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">70</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'Column'</span><span class="si">:</span><span class="s2">&lt;40</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">'Type'</span><span class="si">:</span><span class="s2">&lt;30</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"-"</span> <span class="o">*</span> <span class="mi">70</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">():</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;column&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">&lt;40</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">])</span><span class="si">:</span><span class="s2">&lt;30</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'column'</span><span class="p">]</span><span class="si">:</span><span class="s2">&lt;40</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">'dtype'</span><span class="p">])</span><span class="si">:</span><span class="s2">&lt;30</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">no_header</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-&quot;</span> <span class="o">*</span> <span class="mi">70</span><span class="p">)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Total: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">schema_df</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">&#39;datasets&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">is_hdf5</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">&#39;columns&#39;</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"-"</span> <span class="o">*</span> <span class="mi">70</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Total: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">schema_df</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">'datasets'</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">is_hdf5</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">'columns'</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">()</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_print_json</span><span class="p">(</span><span class="n">schema_df</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Print schema as JSON.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Print schema as JSON."""</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-    <span class="n">is_hdf5</span> <span class="o">=</span> <span class="s1">&#39;path&#39;</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">columns</span>
+    <span class="n">is_hdf5</span> <span class="o">=</span> <span class="s1">'path'</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">columns</span>
     <span class="k">if</span> <span class="n">is_hdf5</span><span class="p">:</span>
-        <span class="n">data</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">],</span> <span class="s2">&quot;dtype&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">]),</span>
-                 <span class="s2">&quot;shape&quot;</span><span class="p">:</span> <span class="n">_format_shape</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;rows&#39;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;cols&#39;</span><span class="p">])}</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">"name"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">'path'</span><span class="p">],</span> <span class="s2">"dtype"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">'dtype'</span><span class="p">]),</span>
+                 <span class="s2">"shape"</span><span class="p">:</span> <span class="n">_format_shape</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">'rows'</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s1">'cols'</span><span class="p">])}</span>
                 <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">()]</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">data</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;column&#39;</span><span class="p">],</span> <span class="s2">&quot;dtype&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">])}</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">"name"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">'column'</span><span class="p">],</span> <span class="s2">"dtype"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">'dtype'</span><span class="p">])}</span>
                 <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">()]</span>
     <span class="nb">print</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_print_csv</span><span class="p">(</span><span class="n">schema_df</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Print schema as CSV.&quot;&quot;&quot;</span>
-    <span class="n">is_hdf5</span> <span class="o">=</span> <span class="s1">&#39;path&#39;</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">columns</span>
+<span class="w">    </span><span class="sd">"""Print schema as CSV."""</span>
+    <span class="n">is_hdf5</span> <span class="o">=</span> <span class="s1">'path'</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">columns</span>
     <span class="k">if</span> <span class="n">is_hdf5</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;name,dtype,shape&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"name,dtype,shape"</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">():</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">_format_shape</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;rows&#39;</span><span class="p">],</span><span class="w"> </span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;cols&#39;</span><span class="p">])</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'path'</span><span class="p">]</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'dtype'</span><span class="p">]</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">_format_shape</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">'rows'</span><span class="p">],</span><span class="w"> </span><span class="n">row</span><span class="p">[</span><span class="s1">'cols'</span><span class="p">])</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;name,dtype&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">"name,dtype"</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">():</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;column&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'column'</span><span class="p">]</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">'dtype'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="main">
@@ -939,32 +939,32 @@ window.runMermaid = runMermaid;</script>
         <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">GH3_DEFAULT_H3_DIR</span>
         <span class="n">args</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="n">GH3_DEFAULT_H3_DIR</span>
 
-    <span class="n">resolve_path_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;path&#39;</span><span class="p">])</span>
+    <span class="n">resolve_path_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="p">[</span><span class="s1">'path'</span><span class="p">])</span>
 
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_database_exists</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">smart_database_exists</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">path</span><span class="p">):</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error: Path not found: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Error: Path not found: </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
         <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">read_schema</span>
         <span class="n">schema_df</span> <span class="o">=</span> <span class="n">read_schema</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">root</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">group</span><span class="p">)</span>
         <span class="c1"># Sort by name column for user-friendly output</span>
-        <span class="n">sort_col</span> <span class="o">=</span> <span class="s1">&#39;path&#39;</span> <span class="k">if</span> <span class="s1">&#39;path&#39;</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">columns</span> <span class="k">else</span> <span class="s1">&#39;column&#39;</span>
+        <span class="n">sort_col</span> <span class="o">=</span> <span class="s1">'path'</span> <span class="k">if</span> <span class="s1">'path'</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">columns</span> <span class="k">else</span> <span class="s1">'column'</span>
         <span class="n">schema_df</span> <span class="o">=</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">sort_col</span><span class="p">)</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="n">file_type</span> <span class="o">=</span> <span class="n">_detect_file_type</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error reading schema: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Error reading schema: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
         <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
     <span class="c1"># Apply column filters (only for non-HDF5 schemas)</span>
-    <span class="k">if</span> <span class="s1">&#39;column&#39;</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+    <span class="k">if</span> <span class="s1">'column'</span> <span class="ow">in</span> <span class="n">schema_df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">product</span><span class="p">:</span>
-            <span class="n">suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;_</span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">product</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
-            <span class="n">mask</span> <span class="o">=</span> <span class="n">schema_df</span><span class="p">[</span><span class="s1">&#39;column&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">suffix</span><span class="p">)</span>
+            <span class="n">suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"_</span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">product</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">schema_df</span><span class="p">[</span><span class="s1">'column'</span><span class="p">]</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">suffix</span><span class="p">)</span>
             <span class="n">schema_df</span> <span class="o">=</span> <span class="n">schema_df</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">grep</span><span class="p">:</span>
-            <span class="n">mask</span> <span class="o">=</span> <span class="n">schema_df</span><span class="p">[</span><span class="s1">&#39;column&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">grep</span><span class="p">,</span> <span class="n">case</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">schema_df</span><span class="p">[</span><span class="s1">'column'</span><span class="p">]</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">grep</span><span class="p">,</span> <span class="n">case</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
             <span class="n">schema_df</span> <span class="o">=</span> <span class="n">schema_df</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
 
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">json_output</span><span class="p">:</span>
@@ -976,7 +976,7 @@ window.runMermaid = runMermaid;</script>
 
 
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">'__main__'</span><span class="p">:</span>
     <span class="n">main</span><span class="p">()</span>
 </pre></div>
 

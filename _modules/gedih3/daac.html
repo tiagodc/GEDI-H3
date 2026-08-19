@@ -802,21 +802,21 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_make_group_accessible</span><span class="p">(</span><span class="n">paths</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Add group read/write mode bits to freshly downloaded files.</span>
+<span class="w">    </span><span class="sd">"""Add group read/write mode bits to freshly downloaded files.</span>
 
 <span class="sd">    NASA granules are usually written into shared, ACL-controlled trees whose</span>
 <span class="sd">    directory *default ACLs* already grant the relevant data groups access. A</span>
-<span class="sd">    restrictive download-process umask can clobber a new file&#39;s POSIX ACL</span>
+<span class="sd">    restrictive download-process umask can clobber a new file's POSIX ACL</span>
 <span class="sd">    *mask* to ``---``, which silently nullifies those inherited group entries</span>
 <span class="sd">    and leaves the file readable by the owner only. Re-adding the group</span>
 <span class="sd">    read/write mode bits resets the mask so the inherited group ACLs stay</span>
 <span class="sd">    effective.</span>
 
 <span class="sd">    Deliberately generic: it hardcodes no group names or paths (the policy</span>
-<span class="sd">    lives in the directory&#39;s default ACL), preserves the owner and ``other``</span>
+<span class="sd">    lives in the directory's default ACL), preserves the owner and ``other``</span>
 <span class="sd">    bits (never widens world access), and is a harmless no-op where POSIX modes</span>
-<span class="sd">    don&#39;t apply (e.g. Windows) or when the caller doesn&#39;t own the file.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    don't apply (e.g. Windows) or when the caller doesn't own the file.</span>
+<span class="sd">    """</span>
     <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">paths</span> <span class="ow">or</span> <span class="p">():</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">os</span><span class="o">.</span><span class="n">chmod</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="o">.</span><span class="n">st_mode</span> <span class="o">|</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IRGRP</span> <span class="o">|</span> <span class="n">stat</span><span class="o">.</span><span class="n">S_IWGRP</span><span class="p">)</span>
@@ -828,7 +828,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">connect_timeout</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">read_timeout</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Inject default per-request timeouts into earthaccess&#39;s HTTP sessions.</span>
+<span class="w">    </span><span class="sd">"""Inject default per-request timeouts into earthaccess's HTTP sessions.</span>
 
 <span class="sd">    Monkey-patches ``earthaccess.auth.SessionWithHeaderRedirection.request``</span>
 <span class="sd">    so any call without an explicit ``timeout=`` gets ``(connect, read)``</span>
@@ -842,23 +842,23 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    (connect_timeout, read_timeout) : tuple of float</span>
 <span class="sd">        The values installed on the session class.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">earthaccess.auth</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionWithHeaderRedirection</span>
 
     <span class="k">if</span> <span class="n">connect_timeout</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">connect_timeout</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span>
-            <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;GH3_DOWNLOAD_CONNECT_TIMEOUT&#39;</span><span class="p">,</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GH3_DOWNLOAD_CONNECT_TIMEOUT'</span><span class="p">,</span>
                            <span class="n">DOWNLOAD_CONNECT_TIMEOUT_DEFAULT</span><span class="p">)</span>
         <span class="p">)</span>
     <span class="k">if</span> <span class="n">read_timeout</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">read_timeout</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span>
-            <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;GH3_DOWNLOAD_READ_TIMEOUT&#39;</span><span class="p">,</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'GH3_DOWNLOAD_READ_TIMEOUT'</span><span class="p">,</span>
                            <span class="n">DOWNLOAD_READ_TIMEOUT_DEFAULT</span><span class="p">)</span>
         <span class="p">)</span>
 
     <span class="c1"># Idempotent: bail out if already installed with the same values.</span>
     <span class="c1"># Re-install if values changed (lets callers override after the fact).</span>
-    <span class="n">existing</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">SessionWithHeaderRedirection</span><span class="p">,</span> <span class="s1">&#39;_gh3_timeouts_installed&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">existing</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">SessionWithHeaderRedirection</span><span class="p">,</span> <span class="s1">'_gh3_timeouts_installed'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">existing</span> <span class="o">==</span> <span class="p">(</span><span class="n">connect_timeout</span><span class="p">,</span> <span class="n">read_timeout</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">existing</span>
 
@@ -872,15 +872,15 @@ window.runMermaid = runMermaid;</script>
     <span class="k">def</span><span class="w"> </span><span class="nf">request_with_timeout</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="c1"># Preserve explicit timeout — earthaccess uses timeout=1 for token</span>
         <span class="c1"># probes, and callers may legitimately pass their own values.</span>
-        <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;timeout&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;timeout&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">connect_timeout</span><span class="p">,</span> <span class="n">read_timeout</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'timeout'</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">'timeout'</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">connect_timeout</span><span class="p">,</span> <span class="n">read_timeout</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">original_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="n">SessionWithHeaderRedirection</span><span class="o">.</span><span class="n">request</span> <span class="o">=</span> <span class="n">request_with_timeout</span>
     <span class="n">SessionWithHeaderRedirection</span><span class="o">.</span><span class="n">_gh3_timeouts_installed</span> <span class="o">=</span> <span class="p">(</span><span class="n">connect_timeout</span><span class="p">,</span> <span class="n">read_timeout</span><span class="p">)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;Installed earthaccess HTTP timeouts: &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;connect=</span><span class="si">{</span><span class="n">connect_timeout</span><span class="si">}</span><span class="s2">s, read=</span><span class="si">{</span><span class="n">read_timeout</span><span class="si">}</span><span class="s2">s&quot;</span>
+        <span class="sa">f</span><span class="s2">"Installed earthaccess HTTP timeouts: "</span>
+        <span class="sa">f</span><span class="s2">"connect=</span><span class="si">{</span><span class="n">connect_timeout</span><span class="si">}</span><span class="s2">s, read=</span><span class="si">{</span><span class="n">read_timeout</span><span class="si">}</span><span class="s2">s"</span>
     <span class="p">)</span>
     <span class="k">return</span> <span class="p">(</span><span class="n">connect_timeout</span><span class="p">,</span> <span class="n">read_timeout</span><span class="p">)</span>
 
@@ -888,23 +888,23 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="gedi_list_versions">
 <a class="viewcode-back" href="../../autoapi/gedih3/daac/index.html#gedih3.daac.gedi_list_versions">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">gedi_list_versions</span><span class="p">(</span><span class="n">product</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Query NASA CMR for all available versions of a GEDI product.</span>
+<span class="w">    </span><span class="sd">"""Query NASA CMR for all available versions of a GEDI product.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    product : str</span>
-<span class="sd">        Product code (e.g., &#39;L2A&#39;, &#39;L4A&#39;)</span>
+<span class="sd">        Product code (e.g., 'L2A', 'L4A')</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    list of dict</span>
 <span class="sd">        Available versions with metadata, sorted by version string.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">product</span> <span class="o">=</span> <span class="n">product</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">product</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">GEDI_PRODUCTS</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">GediProductError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Product must be one of: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">GEDI_PRODUCTS</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">GediProductError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Product must be one of: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">GEDI_PRODUCTS</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
-    <span class="n">short_name</span> <span class="o">=</span> <span class="n">GEDI_PRODUCTS</span><span class="p">[</span><span class="n">product</span><span class="p">][</span><span class="s1">&#39;short_name&#39;</span><span class="p">]</span>
+    <span class="n">short_name</span> <span class="o">=</span> <span class="n">GEDI_PRODUCTS</span><span class="p">[</span><span class="n">product</span><span class="p">][</span><span class="s1">'short_name'</span><span class="p">]</span>
     <span class="c1"># LPDAAC short_names are version-agnostic strings; ORNL DAAC short_names</span>
     <span class="c1"># are version-pinned and stored as {version: short_name} dicts — query</span>
     <span class="c1"># each registered short_name and union the results.</span>
@@ -914,62 +914,62 @@ window.runMermaid = runMermaid;</script>
         <span class="n">collections</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">earthaccess</span><span class="o">.</span><span class="n">search_datasets</span><span class="p">(</span><span class="n">short_name</span><span class="o">=</span><span class="n">sn</span><span class="p">))</span>
     <span class="n">versions</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">collections</span><span class="p">:</span>
-        <span class="n">umm</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;umm&#39;</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">umm</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'umm'</span><span class="p">,</span> <span class="p">{})</span>
         <span class="n">versions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-            <span class="s1">&#39;version&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;meta&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;native-id&#39;</span><span class="p">,</span> <span class="n">umm</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Version&#39;</span><span class="p">,</span> <span class="s1">&#39;unknown&#39;</span><span class="p">))</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="n">umm</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Version&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="n">umm</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Version&#39;</span><span class="p">),</span>
-            <span class="s1">&#39;doi&#39;</span><span class="p">:</span> <span class="n">umm</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DOI&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DOI&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">umm</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DOI&#39;</span><span class="p">),</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-            <span class="s1">&#39;concept_id&#39;</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;meta&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;concept-id&#39;</span><span class="p">),</span>
-            <span class="s1">&#39;title&#39;</span><span class="p">:</span> <span class="n">umm</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;EntryTitle&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span>
+            <span class="s1">'version'</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'meta'</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'native-id'</span><span class="p">,</span> <span class="n">umm</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'Version'</span><span class="p">,</span> <span class="s1">'unknown'</span><span class="p">))</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'.'</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">umm</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'Version'</span><span class="p">)</span> <span class="k">else</span> <span class="n">umm</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'Version'</span><span class="p">),</span>
+            <span class="s1">'doi'</span><span class="p">:</span> <span class="n">umm</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'DOI'</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'DOI'</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">umm</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'DOI'</span><span class="p">),</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s1">'concept_id'</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'meta'</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'concept-id'</span><span class="p">),</span>
+            <span class="s1">'title'</span><span class="p">:</span> <span class="n">umm</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'EntryTitle'</span><span class="p">,</span> <span class="s1">''</span><span class="p">),</span>
         <span class="p">})</span>
-    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">versions</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;version&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">))</span></div>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">versions</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'version'</span><span class="p">,</span> <span class="s1">''</span><span class="p">))</span></div>
 
 
 
 <div class="viewcode-block" id="gedi_latest_version">
 <a class="viewcode-back" href="../../autoapi/gedih3/daac/index.html#gedih3.daac.gedi_latest_version">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">gedi_latest_version</span><span class="p">(</span><span class="n">product</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the latest available version string for a GEDI product.</span>
+<span class="w">    </span><span class="sd">"""Return the latest available version string for a GEDI product.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    product : str</span>
-<span class="sd">        Product code (e.g., &#39;L2A&#39;, &#39;L4A&#39;)</span>
+<span class="sd">        Product code (e.g., 'L2A', 'L4A')</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    str</span>
-<span class="sd">        Latest version string (e.g., &#39;002&#39;)</span>
+<span class="sd">        Latest version string (e.g., '002')</span>
 
 <span class="sd">    Raises</span>
 <span class="sd">    ------</span>
 <span class="sd">    GediProductError</span>
 <span class="sd">        If no versions are found</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">versions</span> <span class="o">=</span> <span class="n">gedi_list_versions</span><span class="p">(</span><span class="n">product</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">versions</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">GediProductError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No versions found for </span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">versions</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s1">&#39;version&#39;</span><span class="p">]</span></div>
+        <span class="k">raise</span> <span class="n">GediProductError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"No versions found for </span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">versions</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s1">'version'</span><span class="p">]</span></div>
 
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_cmr_hits</span><span class="p">(</span><span class="n">search_params</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Authoritative CMR-Hits count for a query — one lightweight header request.</span>
+<span class="w">    </span><span class="sd">"""Authoritative CMR-Hits count for a query — one lightweight header request.</span>
 
 <span class="sd">    Mirrors how ``earthaccess.api.search_data`` builds its query, so the count is</span>
 <span class="sd">    computed from the *identical* parameters (short_name/version/doi + spatial/</span>
 <span class="sd">    temporal filters). Isolated as a module-level seam so callers can reconcile</span>
 <span class="sd">    against it and tests can monkeypatch it offline.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">auth</span> <span class="o">=</span> <span class="n">earthaccess</span><span class="o">.</span><span class="n">__auth__</span>
     <span class="n">query</span> <span class="o">=</span> <span class="n">earthaccess</span><span class="o">.</span><span class="n">DataGranules</span><span class="p">(</span><span class="n">auth</span><span class="p">)</span> <span class="k">if</span> <span class="n">auth</span><span class="o">.</span><span class="n">authenticated</span> <span class="k">else</span> <span class="n">earthaccess</span><span class="o">.</span><span class="n">DataGranules</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">query</span><span class="o">.</span><span class="n">parameters</span><span class="p">(</span><span class="o">**</span><span class="n">search_params</span><span class="p">)</span><span class="o">.</span><span class="n">hits</span><span class="p">()</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_paginated_granules</span><span class="p">(</span><span class="n">search_params</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Direct CMR ``CMR-Search-After`` walk that terminates on cursor exhaustion.</span>
+<span class="w">    </span><span class="sd">"""Direct CMR ``CMR-Search-After`` walk that terminates on cursor exhaustion.</span>
 
-<span class="sd">    Fallback backend for when earthaccess&#39;s own pagination</span>
+<span class="sd">    Fallback backend for when earthaccess's own pagination</span>
 <span class="sd">    (``utils/_search.get_results``) silently truncates. That code stops on the</span>
 <span class="sd">    first under-full page (``page_size &lt;= len(latest)``) instead of following the</span>
 <span class="sd">    ``cmr-search-after`` cursor it just captured, so a degraded-but-HTTP-200 short</span>
@@ -980,7 +980,7 @@ window.runMermaid = runMermaid;</script>
 
 <span class="sd">    Mirrors ``_cmr_hits`` auth/query construction, so the spatial/temporal/</span>
 <span class="sd">    short_name/doi filters baked into ``search_params`` are inherited verbatim.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="c1"># Internal earthaccess surface used to drive the raw cursor walk. Confined to</span>
     <span class="c1"># this one function so the rest of gedih3 stays on the public API.</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">earthaccess.results</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataGranule</span>
@@ -992,30 +992,30 @@ window.runMermaid = runMermaid;</script>
     <span class="n">headers</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">query</span><span class="o">.</span><span class="n">headers</span> <span class="ow">or</span> <span class="p">{})</span>
     <span class="n">raw</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-        <span class="n">resp</span> <span class="o">=</span> <span class="n">query</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;page_size&quot;</span><span class="p">:</span> <span class="mi">2000</span><span class="p">})</span>
+        <span class="n">resp</span> <span class="o">=</span> <span class="n">query</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="p">{</span><span class="s2">"page_size"</span><span class="p">:</span> <span class="mi">2000</span><span class="p">})</span>
         <span class="n">resp</span><span class="o">.</span><span class="n">raise_for_status</span><span class="p">()</span>
-        <span class="n">cursor</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;cmr-search-after&quot;</span><span class="p">)</span>
-        <span class="n">page</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s2">&quot;items&quot;</span><span class="p">]</span>
+        <span class="n">cursor</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"cmr-search-after"</span><span class="p">)</span>
+        <span class="n">page</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s2">"items"</span><span class="p">]</span>
         <span class="n">raw</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">page</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">cursor</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">page</span><span class="p">:</span>             <span class="c1"># cursor exhausted -&gt; genuine end</span>
             <span class="k">break</span>
-        <span class="n">headers</span><span class="p">[</span><span class="s2">&quot;cmr-search-after&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">cursor</span>
+        <span class="n">headers</span><span class="p">[</span><span class="s2">"cmr-search-after"</span><span class="p">]</span> <span class="o">=</span> <span class="n">cursor</span>
     <span class="n">cloud</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">query</span><span class="o">.</span><span class="n">_is_cloud_hosted</span><span class="p">(</span><span class="n">raw</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
     <span class="k">return</span> <span class="p">[</span><span class="n">DataGranule</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">cloud_hosted</span><span class="o">=</span><span class="n">cloud</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">raw</span><span class="p">]</span>
 
 
 <span class="c1"># Tolerance for the fallback acceptance gate. The cursor walk reads the umm_json</span>
 <span class="c1"># endpoint, whose item count is structurally &lt;= the format-independent CMR-Hits</span>
-<span class="c1"># whenever a granule&#39;s UMM-G document isn&#39;t renderable (e.g. anomalous</span>
+<span class="c1"># whenever a granule's UMM-G document isn't renderable (e.g. anomalous</span>
 <span class="c1"># `_T00000_`-track records counted in the index but with un-rendered metadata).</span>
 <span class="c1"># Cursor exhaustion already guarantees the full result set was retrieved, so a</span>
-<span class="c1"># sub-percent shortfall is endpoint skew, not truncation. 0.5% mirrors soc_tools&#39;</span>
+<span class="c1"># sub-percent shortfall is endpoint skew, not truncation. 0.5% mirrors soc_tools'</span>
 <span class="c1"># downstream reconcile (`len &lt; hits * 0.995` =&gt; incomplete).</span>
 <span class="n">_LISTING_TOLERANCE</span> <span class="o">=</span> <span class="mf">0.005</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_search_verified</span><span class="p">(</span><span class="n">search_params</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Search granules, reconcile against CMR-Hits, fall back to a direct CMR walk.</span>
+<span class="w">    </span><span class="sd">"""Search granules, reconcile against CMR-Hits, fall back to a direct CMR walk.</span>
 
 <span class="sd">    Primary backend is ``earthaccess.search_data`` (fast path when its pagination</span>
 <span class="sd">    behaves). When it returns fewer granules than the authoritative ``CMR-Hits``</span>
@@ -1034,18 +1034,18 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    persists rather than letting a partial list masquerade as complete.</span>
 
 <span class="sd">    An empty-but-legitimate result (``hits == 0``) reads as complete.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">expected</span> <span class="o">=</span> <span class="n">_cmr_hits</span><span class="p">(</span><span class="n">search_params</span><span class="p">)</span>
     <span class="n">granules</span> <span class="o">=</span> <span class="n">earthaccess</span><span class="o">.</span><span class="n">search_data</span><span class="p">(</span><span class="o">**</span><span class="n">search_params</span><span class="p">)</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">granules</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">expected</span><span class="p">:</span>              <span class="c1"># fast path: strict; hits == 0 -&gt; complete</span>
         <span class="k">return</span> <span class="n">granules</span>
 
     <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;earthaccess returned </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">granules</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">expected</span><span class="si">}</span><span class="s2"> granules for </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">; &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;falling back to direct CMR search-after pagination &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;(earthaccess get_results truncates on degraded HTTP-200 short pages)&quot;</span>
+        <span class="sa">f</span><span class="s2">"earthaccess returned </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">granules</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">expected</span><span class="si">}</span><span class="s2"> granules for </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">; "</span>
+        <span class="sa">f</span><span class="s2">"falling back to direct CMR search-after pagination "</span>
+        <span class="sa">f</span><span class="s2">"(earthaccess get_results truncates on degraded HTTP-200 short pages)"</span>
     <span class="p">)</span>
-    <span class="n">attempts</span> <span class="o">=</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">&#39;max_attempts&#39;</span><span class="p">]</span>
+    <span class="n">attempts</span> <span class="o">=</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">'max_attempts'</span><span class="p">]</span>
     <span class="n">last</span> <span class="o">=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">granules</span><span class="p">),</span> <span class="n">expected</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">attempt</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">attempts</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
         <span class="n">expected</span> <span class="o">=</span> <span class="n">_cmr_hits</span><span class="p">(</span><span class="n">search_params</span><span class="p">)</span>
@@ -1053,23 +1053,23 @@ window.runMermaid = runMermaid;</script>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">granules</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">expected</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">_LISTING_TOLERANCE</span><span class="p">):</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">granules</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">expected</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Accepting </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">granules</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">expected</span><span class="si">}</span><span class="s2"> granules for </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> via direct &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;CMR walk (umm_json renders &lt;= CMR-Hits; within &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">_LISTING_TOLERANCE</span><span class="si">:</span><span class="s2">.1%</span><span class="si">}</span><span class="s2"> tolerance, cursor exhausted)&quot;</span>
+                    <span class="sa">f</span><span class="s2">"Accepting </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">granules</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">expected</span><span class="si">}</span><span class="s2"> granules for </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> via direct "</span>
+                    <span class="sa">f</span><span class="s2">"CMR walk (umm_json renders &lt;= CMR-Hits; within "</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">_LISTING_TOLERANCE</span><span class="si">:</span><span class="s2">.1%</span><span class="si">}</span><span class="s2"> tolerance, cursor exhausted)"</span>
                 <span class="p">)</span>
             <span class="k">return</span> <span class="n">granules</span>
         <span class="n">last</span> <span class="o">=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">granules</span><span class="p">),</span> <span class="n">expected</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">attempt</span> <span class="o">&lt;</span> <span class="n">attempts</span><span class="p">:</span>
-            <span class="n">sleep</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">&#39;initial_wait&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">**</span> <span class="p">(</span><span class="n">attempt</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">&#39;max_wait&#39;</span><span class="p">])</span>
+            <span class="n">sleep</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">'initial_wait'</span><span class="p">]</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">**</span> <span class="p">(</span><span class="n">attempt</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">'max_wait'</span><span class="p">])</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Incomplete CMR listing for </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">last</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">last</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2"> granules via &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;direct CMR walk; retrying </span><span class="si">{</span><span class="n">attempt</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">attempts</span><span class="si">}</span><span class="s2"> in </span><span class="si">{</span><span class="n">sleep</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">s &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;(CMR may be degraded — see &#39;An Internal Error has occurred.&#39;)&quot;</span>
+                <span class="sa">f</span><span class="s2">"Incomplete CMR listing for </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">last</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">last</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2"> granules via "</span>
+                <span class="sa">f</span><span class="s2">"direct CMR walk; retrying </span><span class="si">{</span><span class="n">attempt</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">attempts</span><span class="si">}</span><span class="s2"> in </span><span class="si">{</span><span class="n">sleep</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">s "</span>
+                <span class="sa">f</span><span class="s2">"(CMR may be degraded — see 'An Internal Error has occurred.')"</span>
             <span class="p">)</span>
             <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">sleep</span><span class="p">)</span>
     <span class="k">raise</span> <span class="n">GediIncompleteListingError</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;CMR returned </span><span class="si">{</span><span class="n">last</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="n">last</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2"> granules for </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> after </span><span class="si">{</span><span class="n">attempts</span><span class="si">}</span><span class="s2"> attempts &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;(silent truncation; CMR is degraded or data is unavailable upstream)&quot;</span><span class="p">,</span>
+        <span class="sa">f</span><span class="s2">"CMR returned </span><span class="si">{</span><span class="n">last</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="n">last</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2"> granules for </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> after </span><span class="si">{</span><span class="n">attempts</span><span class="si">}</span><span class="s2"> attempts "</span>
+        <span class="sa">f</span><span class="s2">"(silent truncation; CMR is degraded or data is unavailable upstream)"</span><span class="p">,</span>
         <span class="n">expected</span><span class="o">=</span><span class="n">last</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">received</span><span class="o">=</span><span class="n">last</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
     <span class="p">)</span>
 
@@ -1077,7 +1077,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GEDIAccessor">
 <a class="viewcode-back" href="../../autoapi/gedih3/daac/index.html#gedih3.daac.GEDIAccessor">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">GEDIAccessor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;NASA Earthdata accessor for searching and downloading GEDI granules.</span>
+<span class="w">    </span><span class="sd">"""NASA Earthdata accessor for searching and downloading GEDI granules.</span>
 
 <span class="sd">    Provides authentication, spatial/temporal filtering, granule search,</span>
 <span class="sd">    and batch download functionality using the earthaccess library.</span>
@@ -1091,7 +1091,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        vector file path, or GeoDataFrame.</span>
 <span class="sd">    temporal : tuple or list of str, optional</span>
 <span class="sd">        Temporal filter as ``(start_date, end_date)``, e.g.</span>
-<span class="sd">        ``(&#39;2020-01-01&#39;, &#39;2021-01-01&#39;)``.</span>
+<span class="sd">        ``('2020-01-01', '2021-01-01')``.</span>
 
 <span class="sd">    Raises</span>
 <span class="sd">    ------</span>
@@ -1102,11 +1102,11 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; accessor = GEDIAccessor(</span>
 <span class="sd">    ...     spatial=[-51, 0, -50, 1],</span>
-<span class="sd">    ...     temporal=(&#39;2020-01-01&#39;, &#39;2021-01-01&#39;)</span>
+<span class="sd">    ...     temporal=('2020-01-01', '2021-01-01')</span>
 <span class="sd">    ... )</span>
-<span class="sd">    &gt;&gt;&gt; granules = accessor.search_data(&#39;L4A&#39;)</span>
-<span class="sd">    &gt;&gt;&gt; paths = accessor.download_all(&#39;/path/to/output&#39;, product=&#39;L4A&#39;)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    &gt;&gt;&gt; granules = accessor.search_data('L4A')</span>
+<span class="sd">    &gt;&gt;&gt; paths = accessor.download_all('/path/to/output', product='L4A')</span>
+<span class="sd">    """</span>
     
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">authenticate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> 
                  <span class="n">spatial</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="n">Polygon</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1127,17 +1127,17 @@ window.runMermaid = runMermaid;</script>
     
 <div class="viewcode-block" id="GEDIAccessor.login">
 <a class="viewcode-back" href="../../autoapi/gedih3/daac/index.html#gedih3.daac.GEDIAccessor.login">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">login</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;netrc&#39;</span><span class="p">,</span> <span class="n">persist</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">max_attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">login</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strategy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'netrc'</span><span class="p">,</span> <span class="n">persist</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">max_attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""</span>
 <span class="sd">        Authenticate with NASA Earthdata Login.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        strategy : str</span>
-<span class="sd">            Authentication strategy (&#39;netrc&#39;, &#39;environment&#39;, &#39;interactive&#39;).</span>
-<span class="sd">            Default is &#39;netrc&#39; which reads credentials from ~/.netrc file.</span>
-<span class="sd">            Use &#39;environment&#39; for EDL_USERNAME/EDL_PASSWORD env vars.</span>
-<span class="sd">            Use &#39;interactive&#39; only in interactive terminals (may crash VSCode).</span>
+<span class="sd">            Authentication strategy ('netrc', 'environment', 'interactive').</span>
+<span class="sd">            Default is 'netrc' which reads credentials from ~/.netrc file.</span>
+<span class="sd">            Use 'environment' for EDL_USERNAME/EDL_PASSWORD env vars.</span>
+<span class="sd">            Use 'interactive' only in interactive terminals (may crash VSCode).</span>
 <span class="sd">        persist : bool</span>
 <span class="sd">            Whether to persist credentials</span>
 <span class="sd">        max_attempts : int</span>
@@ -1162,57 +1162,57 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        EARTHDATA_TOKEN environment variable. When set, earthaccess</span>
 <span class="sd">        uses the token directly regardless of the strategy parameter.</span>
 <span class="sd">        This is the recommended approach for HPC environments.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+<span class="sd">        """</span>
         <span class="c1"># Check if netrc credentials exist before attempting login</span>
-        <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s1">&#39;netrc&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">strategy</span> <span class="o">==</span> <span class="s1">'netrc'</span><span class="p">:</span>
             <span class="kn">import</span><span class="w"> </span><span class="nn">netrc</span>
             <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-            <span class="n">netrc_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s1">&#39;~/.netrc&#39;</span><span class="p">)</span>
+            <span class="n">netrc_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s1">'~/.netrc'</span><span class="p">)</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">netrc_path</span><span class="p">):</span>
                 <span class="k">raise</span> <span class="n">GediAuthenticationError</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;No ~/.netrc file found. Please create one with your NASA Earthdata credentials:</span><span class="se">\n\n</span><span class="s2">&quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;  machine urs.earthdata.nasa.gov</span><span class="se">\n</span><span class="s2">&quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;      login YOUR_USERNAME</span><span class="se">\n</span><span class="s2">&quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;      password YOUR_PASSWORD</span><span class="se">\n\n</span><span class="s2">&quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;Create an account at https://urs.earthdata.nasa.gov/ if needed.&quot;</span>
+                    <span class="sa">f</span><span class="s2">"No ~/.netrc file found. Please create one with your NASA Earthdata credentials:</span><span class="se">\n\n</span><span class="s2">"</span>
+                    <span class="sa">f</span><span class="s2">"  machine urs.earthdata.nasa.gov</span><span class="se">\n</span><span class="s2">"</span>
+                    <span class="sa">f</span><span class="s2">"      login YOUR_USERNAME</span><span class="se">\n</span><span class="s2">"</span>
+                    <span class="sa">f</span><span class="s2">"      password YOUR_PASSWORD</span><span class="se">\n\n</span><span class="s2">"</span>
+                    <span class="sa">f</span><span class="s2">"Create an account at https://urs.earthdata.nasa.gov/ if needed."</span>
                 <span class="p">)</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">nrc</span> <span class="o">=</span> <span class="n">netrc</span><span class="o">.</span><span class="n">netrc</span><span class="p">(</span><span class="n">netrc_path</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">nrc</span><span class="o">.</span><span class="n">authenticators</span><span class="p">(</span><span class="s1">&#39;urs.earthdata.nasa.gov&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">nrc</span><span class="o">.</span><span class="n">authenticators</span><span class="p">(</span><span class="s1">'urs.earthdata.nasa.gov'</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="n">GediAuthenticationError</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;No NASA Earthdata credentials found in ~/.netrc. Please add:</span><span class="se">\n\n</span><span class="s2">&quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;  machine urs.earthdata.nasa.gov</span><span class="se">\n</span><span class="s2">&quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;      login YOUR_USERNAME</span><span class="se">\n</span><span class="s2">&quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;      password YOUR_PASSWORD</span><span class="se">\n\n</span><span class="s2">&quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;Create an account at https://urs.earthdata.nasa.gov/ if needed.&quot;</span>
+                        <span class="sa">f</span><span class="s2">"No NASA Earthdata credentials found in ~/.netrc. Please add:</span><span class="se">\n\n</span><span class="s2">"</span>
+                        <span class="sa">f</span><span class="s2">"  machine urs.earthdata.nasa.gov</span><span class="se">\n</span><span class="s2">"</span>
+                        <span class="sa">f</span><span class="s2">"      login YOUR_USERNAME</span><span class="se">\n</span><span class="s2">"</span>
+                        <span class="sa">f</span><span class="s2">"      password YOUR_PASSWORD</span><span class="se">\n\n</span><span class="s2">"</span>
+                        <span class="sa">f</span><span class="s2">"Create an account at https://urs.earthdata.nasa.gov/ if needed."</span>
                     <span class="p">)</span>
             <span class="k">except</span> <span class="n">netrc</span><span class="o">.</span><span class="n">NetrcParseError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="n">GediAuthenticationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error parsing ~/.netrc file: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="n">GediAuthenticationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Error parsing ~/.netrc file: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
         <span class="n">last_error</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">for</span> <span class="n">attempt</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_attempts</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">auth</span> <span class="o">=</span> <span class="n">earthaccess</span><span class="o">.</span><span class="n">login</span><span class="p">(</span><span class="n">strategy</span><span class="o">=</span><span class="n">strategy</span><span class="p">,</span> <span class="n">persist</span><span class="o">=</span><span class="n">persist</span><span class="p">)</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">authenticated</span> <span class="o">=</span> <span class="kc">True</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Successfully authenticated with Earthdata Login&quot;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Successfully authenticated with Earthdata Login"</span><span class="p">)</span>
                 <span class="k">return</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="n">last_error</span> <span class="o">=</span> <span class="n">e</span>
                 <span class="k">if</span> <span class="n">attempt</span> <span class="o">&lt;</span> <span class="n">max_attempts</span><span class="p">:</span>
                     <span class="n">wait_time</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">**</span> <span class="n">attempt</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Authentication attempt </span><span class="si">{</span><span class="n">attempt</span><span class="si">}</span><span class="s2"> failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">. Retrying in </span><span class="si">{</span><span class="n">wait_time</span><span class="si">}</span><span class="s2">s...&quot;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Authentication attempt </span><span class="si">{</span><span class="n">attempt</span><span class="si">}</span><span class="s2"> failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">. Retrying in </span><span class="si">{</span><span class="n">wait_time</span><span class="si">}</span><span class="s2">s..."</span><span class="p">)</span>
                     <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">wait_time</span><span class="p">)</span>
 
-        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Authentication failed after </span><span class="si">{</span><span class="n">max_attempts</span><span class="si">}</span><span class="s2"> attempts: </span><span class="si">{</span><span class="n">last_error</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Authentication failed after </span><span class="si">{</span><span class="n">max_attempts</span><span class="si">}</span><span class="s2"> attempts: </span><span class="si">{</span><span class="n">last_error</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">auth</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">authenticated</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="k">raise</span> <span class="n">GediAuthenticationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to authenticate after </span><span class="si">{</span><span class="n">max_attempts</span><span class="si">}</span><span class="s2"> attempts: </span><span class="si">{</span><span class="n">last_error</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+        <span class="k">raise</span> <span class="n">GediAuthenticationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Failed to authenticate after </span><span class="si">{</span><span class="n">max_attempts</span><span class="si">}</span><span class="s2"> attempts: </span><span class="si">{</span><span class="n">last_error</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span></div>
 
     
 <div class="viewcode-block" id="GEDIAccessor.search_data">
 <a class="viewcode-back" href="../../autoapi/gedih3/daac/index.html#gedih3.daac.GEDIAccessor.search_data">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">search_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">product</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">"""</span>
 <span class="sd">        Search for GEDI granules with spatial and temporal filtering.</span>
 
 <span class="sd">        Uses short_name + version for GEDI product searches (preferred over DOI).</span>
@@ -1221,10 +1221,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        product : str, optional</span>
-<span class="sd">            GEDI product level (&#39;L1B&#39;, &#39;L2A&#39;, &#39;L2B&#39;, &#39;L4A&#39;, &#39;L4C&#39;).</span>
+<span class="sd">            GEDI product level ('L1B', 'L2A', 'L2B', 'L4A', 'L4C').</span>
 <span class="sd">            If None, uses kwargs directly for custom dataset searches.</span>
 <span class="sd">        version : str or int, optional</span>
-<span class="sd">            GEDI data version (e.g., &#39;002&#39; or 2). If None, earthaccess</span>
+<span class="sd">            GEDI data version (e.g., '002' or 2). If None, earthaccess</span>
 <span class="sd">            returns the latest version by default.</span>
 <span class="sd">        **kwargs : dict</span>
 <span class="sd">            Additional search parameters passed to earthaccess.search_data().</span>
@@ -1236,40 +1236,40 @@ window.runMermaid = runMermaid;</script>
 
 <span class="sd">        Examples</span>
 <span class="sd">        --------</span>
-<span class="sd">        &gt;&gt;&gt; accessor.search_data(&#39;L4A&#39;)</span>
-<span class="sd">        &gt;&gt;&gt; accessor.search_data(&#39;L4A&#39;, version=2)</span>
-<span class="sd">        &gt;&gt;&gt; accessor.search_data(short_name=&#39;MY_PRIVATE_DATASET&#39;, version=&#39;001&#39;)</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+<span class="sd">        &gt;&gt;&gt; accessor.search_data('L4A')</span>
+<span class="sd">        &gt;&gt;&gt; accessor.search_data('L4A', version=2)</span>
+<span class="sd">        &gt;&gt;&gt; accessor.search_data(short_name='MY_PRIVATE_DATASET', version='001')</span>
+<span class="sd">        """</span>
         <span class="n">search_params</span> <span class="o">=</span> <span class="p">{}</span>
 
         <span class="k">if</span> <span class="n">product</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">product</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">GEDI_PRODUCTS</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="n">GediProductError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Product must be one of: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">GEDI_PRODUCTS</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="n">GediProductError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Product must be one of: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">GEDI_PRODUCTS</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
             <span class="bp">self</span><span class="o">.</span><span class="n">product</span> <span class="o">=</span> <span class="n">GEDI_PRODUCTS</span><span class="p">[</span><span class="n">product</span><span class="o">.</span><span class="n">upper</span><span class="p">()]</span>
             <span class="n">product_upper</span> <span class="o">=</span> <span class="n">product</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
 
-            <span class="c1"># Default to the product&#39;s registered version when caller didn&#39;t</span>
+            <span class="c1"># Default to the product's registered version when caller didn't</span>
             <span class="c1"># pass one, so per-version short_name/doi resolution always has a</span>
             <span class="c1"># numeric input (matches the prior implicit default from the field).</span>
-            <span class="n">resolved_version</span> <span class="o">=</span> <span class="n">version</span> <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;version&#39;</span><span class="p">)</span>
+            <span class="n">resolved_version</span> <span class="o">=</span> <span class="n">version</span> <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'version'</span><span class="p">)</span>
 
             <span class="c1"># Prefer short_name + version over DOI</span>
-            <span class="k">if</span> <span class="s1">&#39;short_name&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="p">:</span>
-                <span class="n">raw_short_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="p">[</span><span class="s1">&#39;short_name&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="s1">'short_name'</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="p">:</span>
+                <span class="n">raw_short_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="p">[</span><span class="s1">'short_name'</span><span class="p">]</span>
                 <span class="k">try</span><span class="p">:</span>
-                    <span class="n">search_params</span><span class="p">[</span><span class="s1">&#39;short_name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_resolve_identifier</span><span class="p">(</span>
+                    <span class="n">search_params</span><span class="p">[</span><span class="s1">'short_name'</span><span class="p">]</span> <span class="o">=</span> <span class="n">_resolve_identifier</span><span class="p">(</span>
                         <span class="n">raw_short_name</span><span class="p">,</span> <span class="n">resolved_version</span><span class="p">,</span>
-                        <span class="n">product</span><span class="o">=</span><span class="n">product_upper</span><span class="p">,</span> <span class="n">field</span><span class="o">=</span><span class="s1">&#39;short_name&#39;</span><span class="p">,</span>
+                        <span class="n">product</span><span class="o">=</span><span class="n">product_upper</span><span class="p">,</span> <span class="n">field</span><span class="o">=</span><span class="s1">'short_name'</span><span class="p">,</span>
                     <span class="p">)</span>
                 <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
                     <span class="c1"># Unregistered version on a version-pinned short_name dict</span>
-                    <span class="c1"># (ORNL DAAC L4A/L4C). Treat as &quot;no data available yet&quot;</span>
+                    <span class="c1"># (ORNL DAAC L4A/L4C). Treat as "no data available yet"</span>
                     <span class="c1"># instead of crashing downstream callers — mirrors the</span>
                     <span class="c1"># LPDAAC behavior where an unknown version just returns</span>
                     <span class="c1"># zero CMR results.</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2"> Returning empty granule list.&quot;</span>
+                        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2"> Returning empty granule list."</span>
                     <span class="p">)</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">granules</span> <span class="o">=</span> <span class="p">[]</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">search_params</span> <span class="o">=</span> <span class="n">search_params</span>
@@ -1282,21 +1282,21 @@ window.runMermaid = runMermaid;</script>
                 <span class="c1"># → 0 results → DOI fallback warning. The resolved short_name</span>
                 <span class="c1"># is sufficient.</span>
                 <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">raw_short_name</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-                    <span class="c1"># LPDAAC uses zero-padded versions (e.g., &#39;002&#39;)</span>
-                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;daac&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;LPDAAC&#39;</span><span class="p">:</span>
-                        <span class="n">search_params</span><span class="p">[</span><span class="s1">&#39;version&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">version</span><span class="p">)</span><span class="si">:</span><span class="s1">03d</span><span class="si">}</span><span class="s1">&#39;</span>
+                    <span class="c1"># LPDAAC uses zero-padded versions (e.g., '002')</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'daac'</span><span class="p">)</span> <span class="o">==</span> <span class="s1">'LPDAAC'</span><span class="p">:</span>
+                        <span class="n">search_params</span><span class="p">[</span><span class="s1">'version'</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">version</span><span class="p">)</span><span class="si">:</span><span class="s1">03d</span><span class="si">}</span><span class="s1">'</span>
                     <span class="k">else</span><span class="p">:</span>
-                        <span class="n">search_params</span><span class="p">[</span><span class="s1">&#39;version&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">version</span><span class="p">)</span>
+                        <span class="n">search_params</span><span class="p">[</span><span class="s1">'version'</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">version</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># Fallback to DOI</span>
                 <span class="k">try</span><span class="p">:</span>
-                    <span class="n">search_params</span><span class="p">[</span><span class="s1">&#39;doi&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_resolve_identifier</span><span class="p">(</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="p">[</span><span class="s1">&#39;doi&#39;</span><span class="p">],</span> <span class="n">resolved_version</span><span class="p">,</span>
-                        <span class="n">product</span><span class="o">=</span><span class="n">product_upper</span><span class="p">,</span> <span class="n">field</span><span class="o">=</span><span class="s1">&#39;doi&#39;</span><span class="p">,</span>
+                    <span class="n">search_params</span><span class="p">[</span><span class="s1">'doi'</span><span class="p">]</span> <span class="o">=</span> <span class="n">_resolve_identifier</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="p">[</span><span class="s1">'doi'</span><span class="p">],</span> <span class="n">resolved_version</span><span class="p">,</span>
+                        <span class="n">product</span><span class="o">=</span><span class="n">product_upper</span><span class="p">,</span> <span class="n">field</span><span class="o">=</span><span class="s1">'doi'</span><span class="p">,</span>
                     <span class="p">)</span>
                 <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2"> Returning empty granule list.&quot;</span>
+                        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2"> Returning empty granule list."</span>
                     <span class="p">)</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">granules</span> <span class="o">=</span> <span class="p">[]</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">search_params</span> <span class="o">=</span> <span class="n">search_params</span>
@@ -1306,51 +1306,51 @@ window.runMermaid = runMermaid;</script>
             <span class="bp">self</span><span class="o">.</span><span class="n">product</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="c1"># Handle spatial filtering</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;spatial&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'spatial'</span><span class="p">):</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_bounding_box</span><span class="p">:</span>
-                <span class="n">search_params</span><span class="p">[</span><span class="s1">&#39;bounding_box&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spatial</span>
+                <span class="n">search_params</span><span class="p">[</span><span class="s1">'bounding_box'</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spatial</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">search_params</span><span class="p">[</span><span class="s1">&#39;polygon&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spatial</span>
+                <span class="n">search_params</span><span class="p">[</span><span class="s1">'polygon'</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spatial</span>
 
         <span class="c1"># Handle temporal filtering</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;temporal&#39;</span><span class="p">):</span>
-            <span class="n">search_params</span><span class="p">[</span><span class="s1">&#39;temporal&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">temporal</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'temporal'</span><span class="p">):</span>
+            <span class="n">search_params</span><span class="p">[</span><span class="s1">'temporal'</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">temporal</span>
 
         <span class="c1"># Add any additional parameters</span>
         <span class="n">search_params</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">search_params</span> <span class="o">=</span> <span class="n">search_params</span>
-        <span class="n">primary_label</span> <span class="o">=</span> <span class="n">product</span> <span class="ow">or</span> <span class="n">search_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;short_name&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;concept_id&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">&#39;custom search&#39;</span>
+        <span class="n">primary_label</span> <span class="o">=</span> <span class="n">product</span> <span class="ow">or</span> <span class="n">search_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'short_name'</span><span class="p">)</span> <span class="ow">or</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'concept_id'</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">'custom search'</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">granules</span> <span class="o">=</span> <span class="n">_search_verified</span><span class="p">(</span><span class="n">search_params</span><span class="p">,</span> <span class="n">primary_label</span><span class="p">)</span>
 
         <span class="c1"># DOI fallback: if short_name search returned 0 results, retry with DOI</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">granules</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">product</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">&#39;short_name&#39;</span> <span class="ow">in</span> <span class="n">search_params</span> <span class="ow">and</span> <span class="s1">&#39;doi&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">granules</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">product</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">'short_name'</span> <span class="ow">in</span> <span class="n">search_params</span> <span class="ow">and</span> <span class="s1">'doi'</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">fallback_doi</span> <span class="o">=</span> <span class="n">_resolve_identifier</span><span class="p">(</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="p">[</span><span class="s1">&#39;doi&#39;</span><span class="p">],</span> <span class="n">resolved_version</span><span class="p">,</span>
-                    <span class="n">product</span><span class="o">=</span><span class="n">product</span><span class="o">.</span><span class="n">upper</span><span class="p">(),</span> <span class="n">field</span><span class="o">=</span><span class="s1">&#39;doi&#39;</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="p">[</span><span class="s1">'doi'</span><span class="p">],</span> <span class="n">resolved_version</span><span class="p">,</span>
+                    <span class="n">product</span><span class="o">=</span><span class="n">product</span><span class="o">.</span><span class="n">upper</span><span class="p">(),</span> <span class="n">field</span><span class="o">=</span><span class="s1">'doi'</span><span class="p">,</span>
                 <span class="p">)</span>
             <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;No granules found for short_name=</span><span class="si">{</span><span class="n">search_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;short_name&#39;</span><span class="p">)</span><span class="si">!r}</span><span class="s2">&quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot; version=</span><span class="si">{</span><span class="n">search_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;version&#39;</span><span class="p">)</span><span class="si">!r}</span><span class="s2">; cannot apply DOI fallback: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="sa">f</span><span class="s2">"No granules found for short_name=</span><span class="si">{</span><span class="n">search_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'short_name'</span><span class="p">)</span><span class="si">!r}</span><span class="s2">"</span>
+                    <span class="sa">f</span><span class="s2">" version=</span><span class="si">{</span><span class="n">search_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'version'</span><span class="p">)</span><span class="si">!r}</span><span class="s2">; cannot apply DOI fallback: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span>
                 <span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">dropped</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;short_name&#39;</span><span class="p">,</span> <span class="s1">&#39;version&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">search_params</span><span class="p">]</span>
+                <span class="n">dropped</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'short_name'</span><span class="p">,</span> <span class="s1">'version'</span><span class="p">)</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">search_params</span><span class="p">]</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;No granules found for short_name=</span><span class="si">{</span><span class="n">search_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;short_name&#39;</span><span class="p">)</span><span class="si">!r}</span><span class="s2">&quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot; version=</span><span class="si">{</span><span class="n">search_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;version&#39;</span><span class="p">)</span><span class="si">!r}</span><span class="s2">; dropping </span><span class="si">{</span><span class="n">dropped</span><span class="si">}</span><span class="s2"> and&quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot; retrying with DOI </span><span class="si">{</span><span class="n">fallback_doi</span><span class="si">}</span><span class="s2"> (search will broaden across all versions)&quot;</span>
+                    <span class="sa">f</span><span class="s2">"No granules found for short_name=</span><span class="si">{</span><span class="n">search_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'short_name'</span><span class="p">)</span><span class="si">!r}</span><span class="s2">"</span>
+                    <span class="sa">f</span><span class="s2">" version=</span><span class="si">{</span><span class="n">search_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'version'</span><span class="p">)</span><span class="si">!r}</span><span class="s2">; dropping </span><span class="si">{</span><span class="n">dropped</span><span class="si">}</span><span class="s2"> and"</span>
+                    <span class="sa">f</span><span class="s2">" retrying with DOI </span><span class="si">{</span><span class="n">fallback_doi</span><span class="si">}</span><span class="s2"> (search will broaden across all versions)"</span>
                 <span class="p">)</span>
-                <span class="n">fallback_params</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">search_params</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;short_name&#39;</span><span class="p">,</span> <span class="s1">&#39;version&#39;</span><span class="p">)}</span>
-                <span class="n">fallback_params</span><span class="p">[</span><span class="s1">&#39;doi&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fallback_doi</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">granules</span> <span class="o">=</span> <span class="n">_search_verified</span><span class="p">(</span><span class="n">fallback_params</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2"> (DOI fallback)&quot;</span><span class="p">)</span>
+                <span class="n">fallback_params</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">search_params</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'short_name'</span><span class="p">,</span> <span class="s1">'version'</span><span class="p">)}</span>
+                <span class="n">fallback_params</span><span class="p">[</span><span class="s1">'doi'</span><span class="p">]</span> <span class="o">=</span> <span class="n">fallback_doi</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">granules</span> <span class="o">=</span> <span class="n">_search_verified</span><span class="p">(</span><span class="n">fallback_params</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2"> (DOI fallback)"</span><span class="p">)</span>
 
-        <span class="n">product_key</span> <span class="o">=</span> <span class="n">product</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="k">if</span> <span class="n">product</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s1">&#39;CUSTOM&#39;</span>
+        <span class="n">product_key</span> <span class="o">=</span> <span class="n">product</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="k">if</span> <span class="n">product</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s1">'CUSTOM'</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">product_files</span><span class="p">[</span><span class="n">product_key</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">granules</span>
 
-        <span class="n">dataset_name</span> <span class="o">=</span> <span class="n">product</span> <span class="k">if</span> <span class="n">product</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;short_name&#39;</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;concept_id&#39;</span><span class="p">,</span> <span class="s1">&#39;custom dataset&#39;</span><span class="p">))</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">granules</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">dataset_name</span><span class="si">}</span><span class="s2"> granules&quot;</span><span class="p">)</span>
+        <span class="n">dataset_name</span> <span class="o">=</span> <span class="n">product</span> <span class="k">if</span> <span class="n">product</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'short_name'</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'concept_id'</span><span class="p">,</span> <span class="s1">'custom dataset'</span><span class="p">))</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Found </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">granules</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">dataset_name</span><span class="si">}</span><span class="s2"> granules"</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">granules</span></div>
 
     
@@ -1366,7 +1366,7 @@ window.runMermaid = runMermaid;</script>
             <span class="k">return</span> <span class="n">geo_to_umm</span><span class="p">(</span><span class="n">spatial</span><span class="p">)</span>
             
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not process spatial filter: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not process spatial filter: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="k">return</span> <span class="kc">None</span>
     
     <span class="k">def</span><span class="w"> </span><span class="nf">_process_temporal_filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">temporal</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
@@ -1375,7 +1375,7 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GEDIAccessor.download_all">
 <a class="viewcode-back" href="../../autoapi/gedih3/daac/index.html#gedih3.daac.GEDIAccessor.download_all">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">download_all</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">download_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">product</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Download all searched granules.</span>
+<span class="w">        </span><span class="sd">"""Download all searched granules.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
@@ -1388,12 +1388,12 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">            to earthaccess.download() via ``**kwargs``.</span>
 <span class="sd">        **kwargs</span>
 <span class="sd">            Additional arguments passed to earthaccess.download().</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+<span class="sd">        """</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">authenticated</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">GediAuthenticationError</span><span class="p">(</span><span class="s2">&quot;Must authenticate before downloading&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">GediAuthenticationError</span><span class="p">(</span><span class="s2">"Must authenticate before downloading"</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;granules&#39;</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="n">GediNetworkError</span><span class="p">(</span><span class="s2">&quot;No granules found. Please run search_data() first.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granules'</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">GediNetworkError</span><span class="p">(</span><span class="s2">"No granules found. Please run search_data() first."</span><span class="p">)</span>
        
         <span class="k">if</span> <span class="n">download_dir</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">download_dir</span> <span class="o">=</span> <span class="n">GH3_DEFAULT_DOWNLOAD_DIR</span>
@@ -1410,28 +1410,28 @@ window.runMermaid = runMermaid;</script>
 <a class="viewcode-back" href="../../autoapi/gedih3/daac/index.html#gedih3.daac.GEDIAccessor.link_s3">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">link_s3</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">product</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">authenticated</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="n">GediAuthenticationError</span><span class="p">(</span><span class="s2">&quot;Must authenticate before accessing S3&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">GediAuthenticationError</span><span class="p">(</span><span class="s2">"Must authenticate before accessing S3"</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;granules&#39;</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="n">GediNetworkError</span><span class="p">(</span><span class="s2">&quot;No granules found. Please run search_data() first.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granules'</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">GediNetworkError</span><span class="p">(</span><span class="s2">"No granules found. Please run search_data() first."</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">product</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">granules</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">granules</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># Handle both standard product keys and &#39;CUSTOM&#39;</span>
-            <span class="n">product_key</span> <span class="o">=</span> <span class="n">product</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="k">if</span> <span class="n">product</span> <span class="k">else</span> <span class="s1">&#39;CUSTOM&#39;</span>
+            <span class="c1"># Handle both standard product keys and 'CUSTOM'</span>
+            <span class="n">product_key</span> <span class="o">=</span> <span class="n">product</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="k">if</span> <span class="n">product</span> <span class="k">else</span> <span class="s1">'CUSTOM'</span>
             <span class="n">granules</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">product_files</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">product_key</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">granules</span><span class="p">)</span>
 
         <span class="n">s3_files</span> <span class="o">=</span> <span class="n">earthaccess</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">granules</span><span class="p">,</span> <span class="n">show_progress</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-                                     <span class="n">open_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;block_size&#39;</span><span class="p">:</span> <span class="mi">16</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">})</span>
+                                     <span class="n">open_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s1">'block_size'</span><span class="p">:</span> <span class="mi">16</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">})</span>
         <span class="k">return</span> <span class="n">s3_files</span>    </div>
 
     
 <div class="viewcode-block" id="GEDIAccessor.merge_paths">
 <a class="viewcode-back" href="../../autoapi/gedih3/daac/index.html#gedih3.daac.GEDIAccessor.merge_paths">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">merge_paths</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">open_s3</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;product_files&#39;</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="n">GediNetworkError</span><span class="p">(</span><span class="s2">&quot;No products found. Please run search_data() first.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'product_files'</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">GediNetworkError</span><span class="p">(</span><span class="s2">"No products found. Please run search_data() first."</span><span class="p">)</span>
         
         <span class="n">paths</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">product_files</span>        
         <span class="k">if</span> <span class="n">open_s3</span><span class="p">:</span>
@@ -1446,11 +1446,11 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">_download_with_retry</span><span class="p">(</span>
     <span class="n">granule</span><span class="p">,</span>
     <span class="n">odir_soc</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">max_attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">&#39;max_attempts&#39;</span><span class="p">],</span>
-    <span class="n">initial_wait</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">&#39;initial_wait&#39;</span><span class="p">],</span>
-    <span class="n">max_wait</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">&#39;max_wait&#39;</span><span class="p">]</span>
+    <span class="n">max_attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">'max_attempts'</span><span class="p">],</span>
+    <span class="n">initial_wait</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">'initial_wait'</span><span class="p">],</span>
+    <span class="n">max_wait</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">'max_wait'</span><span class="p">]</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Download a granule with automatic retry on transient failures.</span>
 
 <span class="sd">    Parameters</span>
@@ -1475,24 +1475,24 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ------</span>
 <span class="sd">    GediDownloadError</span>
 <span class="sd">        If download fails after all retry attempts</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">granule_id</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="n">granule_id</span> <span class="o">=</span> <span class="n">granule</span><span class="o">.</span><span class="n">data_links</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">granule_id</span> <span class="o">=</span> <span class="n">granule</span><span class="o">.</span><span class="n">data_links</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
     <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
         <span class="n">granule_id</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">granule</span><span class="p">)</span>
 
     <span class="c1"># Install HTTP timeouts here, not only in gedi_download(): callers that</span>
     <span class="c1"># invoke download_granule/_download_with_retry directly via pqdm.processes</span>
     <span class="c1"># (e.g. soc_tools.downloader_cli) spawn fresh worker processes that never</span>
-    <span class="c1"># run gedi_download, so without this they&#39;d stream with no read timeout and</span>
+    <span class="c1"># run gedi_download, so without this they'd stream with no read timeout and</span>
     <span class="c1"># block forever on a CDN connection that drops mid-transfer. Idempotent.</span>
     <span class="n">_install_request_timeouts</span><span class="p">()</span>
 
     <span class="c1"># Ensure authentication in worker processes (pqdm/Dask spawn fresh processes</span>
-    <span class="c1"># that don&#39;t inherit the main-process earthaccess session)</span>
+    <span class="c1"># that don't inherit the main-process earthaccess session)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">earthaccess</span><span class="o">.</span><span class="n">__auth__</span><span class="o">.</span><span class="n">authenticated</span><span class="p">:</span>
-        <span class="n">earthaccess</span><span class="o">.</span><span class="n">login</span><span class="p">(</span><span class="n">strategy</span><span class="o">=</span><span class="s1">&#39;netrc&#39;</span><span class="p">,</span> <span class="n">persist</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">earthaccess</span><span class="o">.</span><span class="n">login</span><span class="p">(</span><span class="n">strategy</span><span class="o">=</span><span class="s1">'netrc'</span><span class="p">,</span> <span class="n">persist</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
     <span class="n">last_error</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">for</span> <span class="n">attempt</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_attempts</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
@@ -1502,7 +1502,7 @@ window.runMermaid = runMermaid;</script>
 
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">opath</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="n">GediDownloadError</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Download returned empty result for </span><span class="si">{</span><span class="n">granule_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="sa">f</span><span class="s2">"Download returned empty result for </span><span class="si">{</span><span class="n">granule_id</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
                     <span class="n">granule_id</span><span class="o">=</span><span class="n">granule_id</span><span class="p">,</span>
                     <span class="n">attempts</span><span class="o">=</span><span class="n">attempt</span>
                 <span class="p">)</span>
@@ -1513,9 +1513,9 @@ window.runMermaid = runMermaid;</script>
             <span class="n">last_error</span> <span class="o">=</span> <span class="n">e</span>
 
             <span class="k">if</span> <span class="ow">not</span> <span class="n">is_retryable_error</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Non-retryable error downloading </span><span class="si">{</span><span class="n">granule_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Non-retryable error downloading </span><span class="si">{</span><span class="n">granule_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                 <span class="k">raise</span> <span class="n">GediDownloadError</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Download failed for </span><span class="si">{</span><span class="n">granule_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="sa">f</span><span class="s2">"Download failed for </span><span class="si">{</span><span class="n">granule_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
                     <span class="n">granule_id</span><span class="o">=</span><span class="n">granule_id</span><span class="p">,</span>
                     <span class="n">attempts</span><span class="o">=</span><span class="n">attempt</span>
                 <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
@@ -1523,13 +1523,13 @@ window.runMermaid = runMermaid;</script>
             <span class="k">if</span> <span class="n">attempt</span> <span class="o">&lt;</span> <span class="n">max_attempts</span><span class="p">:</span>
                 <span class="n">wait_time</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">initial_wait</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="p">(</span><span class="n">attempt</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)),</span> <span class="n">max_wait</span><span class="p">)</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">&quot;Download attempt </span><span class="si">{</span><span class="n">attempt</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">max_attempts</span><span class="si">}</span><span class="s2"> failed for </span><span class="si">{</span><span class="n">granule_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">. &quot;</span>
-                    <span class="sa">f</span><span class="s2">&quot;Retrying in </span><span class="si">{</span><span class="n">wait_time</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">s...&quot;</span>
+                    <span class="sa">f</span><span class="s2">"Download attempt </span><span class="si">{</span><span class="n">attempt</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">max_attempts</span><span class="si">}</span><span class="s2"> failed for </span><span class="si">{</span><span class="n">granule_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">. "</span>
+                    <span class="sa">f</span><span class="s2">"Retrying in </span><span class="si">{</span><span class="n">wait_time</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">s..."</span>
                 <span class="p">)</span>
                 <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">wait_time</span><span class="p">)</span>
 
     <span class="k">raise</span> <span class="n">GediDownloadError</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;Download failed after </span><span class="si">{</span><span class="n">max_attempts</span><span class="si">}</span><span class="s2"> attempts for </span><span class="si">{</span><span class="n">granule_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">last_error</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="sa">f</span><span class="s2">"Download failed after </span><span class="si">{</span><span class="n">max_attempts</span><span class="si">}</span><span class="s2"> attempts for </span><span class="si">{</span><span class="n">granule_id</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">last_error</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
         <span class="n">granule_id</span><span class="o">=</span><span class="n">granule_id</span><span class="p">,</span>
         <span class="n">attempts</span><span class="o">=</span><span class="n">max_attempts</span>
     <span class="p">)</span>
@@ -1541,9 +1541,9 @@ window.runMermaid = runMermaid;</script>
     <span class="n">granule</span><span class="p">,</span>
     <span class="n">odir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">resume</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">max_attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">&#39;max_attempts&#39;</span><span class="p">]</span>
+    <span class="n">max_attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">'max_attempts'</span><span class="p">]</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Download a custom (non-GEDI) granule with retry logic.</span>
 
 <span class="sd">    This function handles granules from any NASA dataset without requiring</span>
@@ -1565,11 +1565,11 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    str or None</span>
 <span class="sd">        Path to downloaded file, or None on failure</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="c1"># Extract filename from data link</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">data_link</span> <span class="o">=</span> <span class="n">granule</span><span class="o">.</span><span class="n">data_links</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="n">filename</span> <span class="o">=</span> <span class="n">data_link</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">data_link</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
     <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
         <span class="n">filename</span> <span class="o">=</span> <span class="kc">None</span>
 
@@ -1579,7 +1579,7 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="n">resume</span> <span class="ow">and</span> <span class="n">filename</span><span class="p">:</span>
         <span class="n">expected_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">odir</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">expected_path</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Skipping </span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2"> (already exists)&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Skipping </span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2"> (already exists)"</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">expected_path</span>
 
     <span class="c1"># Download with retry</span>
@@ -1587,7 +1587,7 @@ window.runMermaid = runMermaid;</script>
         <span class="n">opath</span> <span class="o">=</span> <span class="n">_download_with_retry</span><span class="p">(</span><span class="n">granule</span><span class="p">,</span> <span class="n">odir</span><span class="p">,</span> <span class="n">max_attempts</span><span class="o">=</span><span class="n">max_attempts</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">opath</span>
     <span class="k">except</span> <span class="n">GediDownloadError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Download failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Download failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
 
@@ -1599,9 +1599,9 @@ window.runMermaid = runMermaid;</script>
     <span class="n">odir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">subset_vars</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">resume</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">max_attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">&#39;max_attempts&#39;</span><span class="p">]</span>
+    <span class="n">max_attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">'max_attempts'</span><span class="p">]</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Download a GEDI granule with retry logic and optional variable subsetting.</span>
 
 <span class="sd">    Parameters</span>
@@ -1621,15 +1621,15 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    str or None</span>
 <span class="sd">        Path to downloaded/existing file, or None on failure</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">gfile</span> <span class="o">=</span> <span class="n">GEDIFile</span><span class="p">(</span><span class="n">granule</span><span class="o">.</span><span class="n">data_links</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span>
-    <span class="n">odir_soc</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">odir</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">gfile</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">year</span><span class="p">),</span> <span class="n">gfile</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%j&#39;</span><span class="p">))</span>
+    <span class="n">odir_soc</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">odir</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">gfile</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">year</span><span class="p">),</span> <span class="n">gfile</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">'%j'</span><span class="p">))</span>
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">odir_soc</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="n">expected_filename</span> <span class="o">=</span> <span class="n">gfile</span><span class="o">.</span><span class="n">full_name</span>
     <span class="n">expected_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">odir_soc</span><span class="p">,</span> <span class="n">expected_filename</span><span class="p">)</span>
 
-    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;download_granule: </span><span class="si">{</span><span class="n">expected_filename</span><span class="si">}</span><span class="s2">, subset_vars=</span><span class="si">{</span><span class="s1">&#39;None&#39;</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">subset_vars</span><span class="w"> </span><span class="ow">is</span><span class="w"> </span><span class="kc">None</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">subset_vars</span><span class="p">)</span><span class="si">}</span><span class="s1"> vars&#39;</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"download_granule: </span><span class="si">{</span><span class="n">expected_filename</span><span class="si">}</span><span class="s2">, subset_vars=</span><span class="si">{</span><span class="s1">'None'</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">subset_vars</span><span class="w"> </span><span class="ow">is</span><span class="w"> </span><span class="kc">None</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">subset_vars</span><span class="p">)</span><span class="si">}</span><span class="s1"> vars'</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="c1"># Check for existing file if resume mode. Use h5_is_valid (cheap HDF5</span>
     <span class="c1"># header open) instead of os.path.exists so a SIGKILL/network drop</span>
@@ -1641,33 +1641,33 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">existing_vars</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">gedi_vars_from_h5</span><span class="p">(</span><span class="n">expected_path</span><span class="p">))</span>
                 <span class="n">requested_vars</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">subset_vars</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">requested_vars</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="n">existing_vars</span><span class="p">):</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Skipping </span><span class="si">{</span><span class="n">expected_filename</span><span class="si">}</span><span class="s2"> (already exists with required variables)&quot;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Skipping </span><span class="si">{</span><span class="n">expected_filename</span><span class="si">}</span><span class="s2"> (already exists with required variables)"</span><span class="p">)</span>
                     <span class="k">return</span> <span class="n">expected_path</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">missing</span> <span class="o">=</span> <span class="n">requested_vars</span> <span class="o">-</span> <span class="n">existing_vars</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Re-downloading </span><span class="si">{</span><span class="n">expected_filename</span><span class="si">}</span><span class="s2"> (missing </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">missing</span><span class="p">)</span><span class="si">}</span><span class="s2"> variables)&quot;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Re-downloading </span><span class="si">{</span><span class="n">expected_filename</span><span class="si">}</span><span class="s2"> (missing </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">missing</span><span class="p">)</span><span class="si">}</span><span class="s2"> variables)"</span><span class="p">)</span>
                     <span class="c1"># Preserve union of existing + requested vars after re-download</span>
                     <span class="n">subset_vars</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">existing_vars</span> <span class="o">|</span> <span class="n">requested_vars</span><span class="p">)</span>
                     <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">expected_path</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not read existing file </span><span class="si">{</span><span class="n">expected_filename</span><span class="si">}</span><span class="s2">, re-downloading: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not read existing file </span><span class="si">{</span><span class="n">expected_filename</span><span class="si">}</span><span class="s2">, re-downloading: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                 <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">expected_path</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="c1"># h5_is_valid above is the validity gate; no need for a second</span>
             <span class="c1"># full HDF5 enumeration just to discard the result.</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Skipping </span><span class="si">{</span><span class="n">expected_filename</span><span class="si">}</span><span class="s2"> (already exists)&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Skipping </span><span class="si">{</span><span class="n">expected_filename</span><span class="si">}</span><span class="s2"> (already exists)"</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">expected_path</span>
     <span class="k">elif</span> <span class="n">resume</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">expected_path</span><span class="p">):</span>
         <span class="c1"># File exists but failed the h5_is_valid header check — treat as</span>
         <span class="c1"># truncated/corrupt and re-download fresh.</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Existing </span><span class="si">{</span><span class="n">expected_filename</span><span class="si">}</span><span class="s2"> is unreadable, re-downloading&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Existing </span><span class="si">{</span><span class="n">expected_filename</span><span class="si">}</span><span class="s2"> is unreadable, re-downloading"</span><span class="p">)</span>
         <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">expected_path</span><span class="p">)</span>
 
     <span class="c1"># Download with retry</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">opath</span> <span class="o">=</span> <span class="n">_download_with_retry</span><span class="p">(</span><span class="n">granule</span><span class="p">,</span> <span class="n">odir_soc</span><span class="p">,</span> <span class="n">max_attempts</span><span class="o">=</span><span class="n">max_attempts</span><span class="p">)</span>
     <span class="k">except</span> <span class="n">GediDownloadError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Download failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Download failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">None</span>
 
     <span class="k">if</span> <span class="n">opath</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -1675,15 +1675,15 @@ window.runMermaid = runMermaid;</script>
 
     <span class="c1"># Apply variable subsetting if requested</span>
     <span class="k">if</span> <span class="n">subset_vars</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Subsetting </span><span class="si">{</span><span class="n">expected_filename</span><span class="si">}</span><span class="s2"> with </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">subset_vars</span><span class="p">)</span><span class="si">}</span><span class="s2"> vars: </span><span class="si">{</span><span class="n">subset_vars</span><span class="p">[:</span><span class="mi">5</span><span class="p">]</span><span class="si">}</span><span class="s2">...&quot;</span><span class="p">)</span>
-        <span class="n">osub</span> <span class="o">=</span> <span class="n">opath</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;.h5&#39;</span><span class="p">,</span> <span class="s1">&#39;_subset.h5&#39;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Subsetting </span><span class="si">{</span><span class="n">expected_filename</span><span class="si">}</span><span class="s2"> with </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">subset_vars</span><span class="p">)</span><span class="si">}</span><span class="s2"> vars: </span><span class="si">{</span><span class="n">subset_vars</span><span class="p">[:</span><span class="mi">5</span><span class="p">]</span><span class="si">}</span><span class="s2">..."</span><span class="p">)</span>
+        <span class="n">osub</span> <span class="o">=</span> <span class="n">opath</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">'.h5'</span><span class="p">,</span> <span class="s1">'_subset.h5'</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">osub</span> <span class="o">=</span> <span class="n">gedi_subset</span><span class="p">(</span><span class="n">opath</span><span class="p">,</span> <span class="n">osub</span><span class="p">,</span> <span class="n">subset_vars</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">osub</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">opath</span><span class="p">)</span>
                 <span class="n">os</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">osub</span><span class="p">,</span> <span class="n">opath</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Subsetting failed for </span><span class="si">{</span><span class="n">opath</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">. Keeping full file.&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Subsetting failed for </span><span class="si">{</span><span class="n">opath</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">. Keeping full file."</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">opath</span></div>
 
@@ -1699,12 +1699,12 @@ window.runMermaid = runMermaid;</script>
     <span class="n">n_jobs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
     <span class="n">to_list</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">resume</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">max_attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">&#39;max_attempts&#39;</span><span class="p">],</span>
+    <span class="n">max_attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">RETRY_DEFAULTS</span><span class="p">[</span><span class="s1">'max_attempts'</span><span class="p">],</span>
     <span class="n">search_kwargs</span><span class="p">:</span> <span class="n">Dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">granule_names</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">on_granule_complete</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Download GEDI granules for specified products and variables.</span>
 
 <span class="sd">    Parameters</span>
@@ -1719,7 +1719,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    temporal : tuple, optional</span>
 <span class="sd">        Temporal filter as (start_date, end_date)</span>
 <span class="sd">    version : int or str, optional</span>
-<span class="sd">        GEDI data version (e.g., 2 or &#39;002&#39;). If None, uses latest available.</span>
+<span class="sd">        GEDI data version (e.g., 2 or '002'). If None, uses latest available.</span>
 <span class="sd">    n_jobs : int</span>
 <span class="sd">        Number of parallel download jobs (when not using Dask)</span>
 <span class="sd">    to_list : bool</span>
@@ -1740,9 +1740,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Callback ``(granule_info_dict, status_str) -&gt; None`` called after</span>
 <span class="sd">        each granule completes. ``granule_info_dict`` has ``orbit``,</span>
 <span class="sd">        ``granule``, ``track``, and ``path`` keys. ``path`` is the target</span>
-<span class="sd">        SOC path on ``&#39;PENDING&#39;``, the actual downloaded file path on</span>
-<span class="sd">        ``&#39;DOWNLOADED&#39;``, and ``None`` on ``&#39;FAILED&#39;``. ``status_str`` is</span>
-<span class="sd">        one of ``&#39;PENDING&#39;``, ``&#39;DOWNLOADED&#39;``, or ``&#39;FAILED&#39;``.</span>
+<span class="sd">        SOC path on ``'PENDING'``, the actual downloaded file path on</span>
+<span class="sd">        ``'DOWNLOADED'``, and ``None`` on ``'FAILED'``. ``status_str`` is</span>
+<span class="sd">        one of ``'PENDING'``, ``'DOWNLOADED'``, or ``'FAILED'``.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -1762,13 +1762,13 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; from gedih3.daac import gedi_download</span>
 <span class="sd">    &gt;&gt;&gt; paths = gedi_download(</span>
-<span class="sd">    ...     product_vars={&#39;L2A&#39;: [&#39;default&#39;], &#39;L4A&#39;: [&#39;agbd&#39;]},</span>
-<span class="sd">    ...     odir=&#39;/path/to/output&#39;,</span>
+<span class="sd">    ...     product_vars={'L2A': ['default'], 'L4A': ['agbd']},</span>
+<span class="sd">    ...     odir='/path/to/output',</span>
 <span class="sd">    ...     spatial=[-51, 0, -50, 1],</span>
-<span class="sd">    ...     temporal=(&#39;2020-01-01&#39;, &#39;2021-01-01&#39;),</span>
+<span class="sd">    ...     temporal=('2020-01-01', '2021-01-01'),</span>
 <span class="sd">    ...     resume=True,</span>
 <span class="sd">    ... )</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="c1"># Install HTTP timeouts before any auth/download call so the main</span>
     <span class="c1"># process + pqdm subprocesses inherit them. Dask workers get them</span>
     <span class="c1"># via _init_earthaccess_worker below.</span>
@@ -1780,9 +1780,9 @@ window.runMermaid = runMermaid;</script>
 
     <span class="c1"># Handle custom dataset download (no product_vars, using search_kwargs)</span>
     <span class="k">if</span> <span class="n">product_vars</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">search_kwargs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">product_vars</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;CUSTOM&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>  <span class="c1"># Placeholder for custom dataset</span>
+        <span class="n">product_vars</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'CUSTOM'</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>  <span class="c1"># Placeholder for custom dataset</span>
     <span class="k">elif</span> <span class="n">product_vars</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span><span class="s2">&quot;Either product_vars or search_kwargs must be provided&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span><span class="s2">"Either product_vars or search_kwargs must be provided"</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># Thread the requested version so a direct min/default call resolves to</span>
         <span class="c1"># version-correct names (e.g. l2a_quality_flag_rel3 for v3). CLI callers</span>
@@ -1792,42 +1792,42 @@ window.runMermaid = runMermaid;</script>
 
     <span class="n">dask_client</span> <span class="o">=</span> <span class="n">get_dask_client</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">dask_client</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Using Dask client: </span><span class="si">{</span><span class="n">dask_client</span><span class="o">.</span><span class="n">dashboard_link</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Using Dask client: </span><span class="si">{</span><span class="n">dask_client</span><span class="o">.</span><span class="n">dashboard_link</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">.gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">_init_earthaccess_worker</span>
         <span class="n">dask_client</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">_init_earthaccess_worker</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No Dask client detected, using pqdm with </span><span class="si">{</span><span class="n">n_jobs</span><span class="si">}</span><span class="s2"> jobs&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"No Dask client detected, using pqdm with </span><span class="si">{</span><span class="n">n_jobs</span><span class="si">}</span><span class="s2"> jobs"</span><span class="p">)</span>
 
     <span class="n">failed_products</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="nb">vars</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="c1"># Use custom search kwargs for CUSTOM product or standard product search</span>
-            <span class="k">if</span> <span class="n">prod</span> <span class="o">==</span> <span class="s1">&#39;CUSTOM&#39;</span> <span class="ow">and</span> <span class="n">search_kwargs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">prod</span> <span class="o">==</span> <span class="s1">'CUSTOM'</span> <span class="ow">and</span> <span class="n">search_kwargs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">granules</span> <span class="o">=</span> <span class="n">gass</span><span class="o">.</span><span class="n">search_data</span><span class="p">(</span><span class="n">product</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">search_kwargs</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># Use per-product config version when --gedi-version not specified</span>
-                <span class="n">prod_version</span> <span class="o">=</span> <span class="n">version</span> <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">GEDI_PRODUCTS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">prod</span><span class="o">.</span><span class="n">upper</span><span class="p">(),</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;version&#39;</span><span class="p">)</span>
+                <span class="n">prod_version</span> <span class="o">=</span> <span class="n">version</span> <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">GEDI_PRODUCTS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">prod</span><span class="o">.</span><span class="n">upper</span><span class="p">(),</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'version'</span><span class="p">)</span>
                 <span class="n">search_extra</span> <span class="o">=</span> <span class="p">{}</span>
                 <span class="k">if</span> <span class="n">granule_names</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="c1"># CMR&#39;s readable_granule_name matches the stem, not the full filename.</span>
-                    <span class="n">search_extra</span><span class="p">[</span><span class="s1">&#39;granule_name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
-                        <span class="n">n</span><span class="p">[:</span><span class="o">-</span><span class="mi">3</span><span class="p">]</span> <span class="k">if</span> <span class="n">n</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.h5&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">granule_names</span>
+                    <span class="c1"># CMR's readable_granule_name matches the stem, not the full filename.</span>
+                    <span class="n">search_extra</span><span class="p">[</span><span class="s1">'granule_name'</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+                        <span class="n">n</span><span class="p">[:</span><span class="o">-</span><span class="mi">3</span><span class="p">]</span> <span class="k">if</span> <span class="n">n</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">'.h5'</span><span class="p">)</span> <span class="k">else</span> <span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">granule_names</span>
                     <span class="p">]</span>
                 <span class="n">granules</span> <span class="o">=</span> <span class="n">gass</span><span class="o">.</span><span class="n">search_data</span><span class="p">(</span><span class="n">product</span><span class="o">=</span><span class="n">prod</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">prod_version</span><span class="p">,</span> <span class="o">**</span><span class="n">search_extra</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">granules</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;No granules found for product </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"No granules found for product </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                 <span class="n">prod_paths</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
                 <span class="k">continue</span>
 
             <span class="k">if</span> <span class="n">odir</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="c1"># Return S3 links for streaming access</span>
-                <span class="n">product_key</span> <span class="o">=</span> <span class="n">prod</span> <span class="k">if</span> <span class="n">prod</span> <span class="o">!=</span> <span class="s1">&#39;CUSTOM&#39;</span> <span class="k">else</span> <span class="kc">None</span>
+                <span class="n">product_key</span> <span class="o">=</span> <span class="n">prod</span> <span class="k">if</span> <span class="n">prod</span> <span class="o">!=</span> <span class="s1">'CUSTOM'</span> <span class="k">else</span> <span class="kc">None</span>
                 <span class="n">opaths</span> <span class="o">=</span> <span class="n">gass</span><span class="o">.</span><span class="n">link_s3</span><span class="p">(</span><span class="n">product</span><span class="o">=</span><span class="n">product_key</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># Select appropriate download function</span>
-                <span class="k">if</span> <span class="n">prod</span> <span class="o">==</span> <span class="s1">&#39;CUSTOM&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">prod</span> <span class="o">==</span> <span class="s1">'CUSTOM'</span><span class="p">:</span>
                     <span class="c1"># Use simpler download function for custom datasets</span>
                     <span class="n">download_func</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
                         <span class="n">download_custom_granule</span><span class="p">,</span>
@@ -1837,7 +1837,7 @@ window.runMermaid = runMermaid;</script>
                     <span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="c1"># Use GEDI-specific download with variable subsetting</span>
-                    <span class="c1"># None means &quot;download all variables&quot; — no subsetting</span>
+                    <span class="c1"># None means "download all variables" — no subsetting</span>
                     <span class="n">prod_subset</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">vars</span><span class="p">)</span> <span class="k">if</span> <span class="nb">vars</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
                     <span class="n">download_func</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span>
                         <span class="n">download_granule</span><span class="p">,</span>
@@ -1848,19 +1848,19 @@ window.runMermaid = runMermaid;</script>
                     <span class="p">)</span>
 
                 <span class="c1"># Register all granules as PENDING before download</span>
-                <span class="k">if</span> <span class="n">on_granule_complete</span> <span class="ow">and</span> <span class="n">prod</span> <span class="o">!=</span> <span class="s1">&#39;CUSTOM&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">on_granule_complete</span> <span class="ow">and</span> <span class="n">prod</span> <span class="o">!=</span> <span class="s1">'CUSTOM'</span><span class="p">:</span>
                     <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">granules</span><span class="p">:</span>
                         <span class="n">gfile</span> <span class="o">=</span> <span class="n">GEDIFile</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">data_links</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span>
                         <span class="n">expected_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
-                            <span class="n">odir</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">gfile</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">year</span><span class="p">),</span> <span class="n">gfile</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%j&#39;</span><span class="p">),</span> <span class="n">gfile</span><span class="o">.</span><span class="n">full_name</span>
+                            <span class="n">odir</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">gfile</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">year</span><span class="p">),</span> <span class="n">gfile</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">'%j'</span><span class="p">),</span> <span class="n">gfile</span><span class="o">.</span><span class="n">full_name</span>
                         <span class="p">)</span>
                         <span class="n">ginfo</span> <span class="o">=</span> <span class="p">{</span>
-                            <span class="s1">&#39;orbit&#39;</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">orbit</span><span class="p">,</span>
-                            <span class="s1">&#39;granule&#39;</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">orbit_granule</span><span class="p">,</span>
-                            <span class="s1">&#39;track&#39;</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">track</span><span class="p">,</span>
-                            <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">expected_path</span><span class="p">,</span>
+                            <span class="s1">'orbit'</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">orbit</span><span class="p">,</span>
+                            <span class="s1">'granule'</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">orbit_granule</span><span class="p">,</span>
+                            <span class="s1">'track'</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">track</span><span class="p">,</span>
+                            <span class="s1">'path'</span><span class="p">:</span> <span class="n">expected_path</span><span class="p">,</span>
                         <span class="p">}</span>
-                        <span class="n">on_granule_complete</span><span class="p">(</span><span class="n">ginfo</span><span class="p">,</span> <span class="s1">&#39;PENDING&#39;</span><span class="p">)</span>
+                        <span class="n">on_granule_complete</span><span class="p">(</span><span class="n">ginfo</span><span class="p">,</span> <span class="s1">'PENDING'</span><span class="p">)</span>
 
                 <span class="k">if</span> <span class="n">dask_client</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="c1"># pure=False: downloads are impure (write files, mutate</span>
@@ -1868,7 +1868,7 @@ window.runMermaid = runMermaid;</script>
                     <span class="c1"># same-process resubmission of identical granules.</span>
                     <span class="n">futures</span> <span class="o">=</span> <span class="n">dask_client</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">download_func</span><span class="p">,</span> <span class="n">granules</span><span class="p">,</span> <span class="n">pure</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
-                    <span class="k">if</span> <span class="n">on_granule_complete</span> <span class="ow">and</span> <span class="n">prod</span> <span class="o">!=</span> <span class="s1">&#39;CUSTOM&#39;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">on_granule_complete</span> <span class="ow">and</span> <span class="n">prod</span> <span class="o">!=</span> <span class="s1">'CUSTOM'</span><span class="p">:</span>
                         <span class="c1"># Real-time per-file tracking via as_completed</span>
                         <span class="kn">from</span><span class="w"> </span><span class="nn">distributed</span><span class="w"> </span><span class="kn">import</span> <span class="n">as_completed</span> <span class="k">as</span> <span class="n">dask_as_completed</span>
                         <span class="n">future_to_granule</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">futures</span><span class="p">,</span> <span class="n">granules</span><span class="p">))</span>
@@ -1879,14 +1879,14 @@ window.runMermaid = runMermaid;</script>
                             <span class="n">g</span> <span class="o">=</span> <span class="n">future_to_granule</span><span class="p">[</span><span class="n">future</span><span class="p">]</span>
                             <span class="n">gfile</span> <span class="o">=</span> <span class="n">GEDIFile</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">data_links</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span>
                             <span class="n">ginfo</span> <span class="o">=</span> <span class="p">{</span>
-                                <span class="s1">&#39;orbit&#39;</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">orbit</span><span class="p">,</span>
-                                <span class="s1">&#39;granule&#39;</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">orbit_granule</span><span class="p">,</span>
-                                <span class="s1">&#39;track&#39;</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">track</span><span class="p">,</span>
-                                <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">result</span><span class="p">,</span>
+                                <span class="s1">'orbit'</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">orbit</span><span class="p">,</span>
+                                <span class="s1">'granule'</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">orbit_granule</span><span class="p">,</span>
+                                <span class="s1">'track'</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">track</span><span class="p">,</span>
+                                <span class="s1">'path'</span><span class="p">:</span> <span class="n">result</span><span class="p">,</span>
                             <span class="p">}</span>
-                            <span class="n">status</span> <span class="o">=</span> <span class="s1">&#39;DOWNLOADED&#39;</span> <span class="k">if</span> <span class="n">result</span> <span class="k">else</span> <span class="s1">&#39;FAILED&#39;</span>
+                            <span class="n">status</span> <span class="o">=</span> <span class="s1">'DOWNLOADED'</span> <span class="k">if</span> <span class="n">result</span> <span class="k">else</span> <span class="s1">'FAILED'</span>
                             <span class="n">on_granule_complete</span><span class="p">(</span><span class="n">ginfo</span><span class="p">,</span> <span class="n">status</span><span class="p">)</span>
-                            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">n_total</span><span class="si">}</span><span class="s2"> granules processed&quot;</span><span class="p">)</span>
+                            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[</span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">] </span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">n_total</span><span class="si">}</span><span class="s2"> granules processed"</span><span class="p">)</span>
                         <span class="c1"># Reconstruct in original order</span>
                         <span class="n">opaths</span> <span class="o">=</span> <span class="p">[</span><span class="n">opaths_map</span><span class="p">[</span><span class="n">f</span><span class="p">]</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">futures</span><span class="p">]</span>
                     <span class="k">else</span><span class="p">:</span>
@@ -1897,7 +1897,7 @@ window.runMermaid = runMermaid;</script>
                         <span class="kn">from</span><span class="w"> </span><span class="nn">distributed</span><span class="w"> </span><span class="kn">import</span> <span class="n">as_completed</span> <span class="k">as</span> <span class="n">dask_as_completed</span>
                         <span class="kn">from</span><span class="w"> </span><span class="nn">tqdm</span><span class="w"> </span><span class="kn">import</span> <span class="n">tqdm</span> <span class="k">as</span> <span class="n">tqdm_bar</span>
                         <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm_bar</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">futures</span><span class="p">),</span>
-                                        <span class="n">desc</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;DAAC download [</span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">]&quot;</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">&quot;file&quot;</span><span class="p">)</span>
+                                        <span class="n">desc</span><span class="o">=</span><span class="sa">f</span><span class="s2">"DAAC download [</span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">]"</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"file"</span><span class="p">)</span>
                         <span class="k">try</span><span class="p">:</span>
                             <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">dask_as_completed</span><span class="p">(</span><span class="n">futures</span><span class="p">):</span>
                                 <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
@@ -1907,16 +1907,16 @@ window.runMermaid = runMermaid;</script>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">opaths</span> <span class="o">=</span> <span class="n">pqdm</span><span class="p">(</span><span class="n">granules</span><span class="p">,</span> <span class="n">download_func</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="n">n_jobs</span><span class="p">)</span>
                     <span class="c1"># Batch update after pqdm completion</span>
-                    <span class="k">if</span> <span class="n">on_granule_complete</span> <span class="ow">and</span> <span class="n">prod</span> <span class="o">!=</span> <span class="s1">&#39;CUSTOM&#39;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">on_granule_complete</span> <span class="ow">and</span> <span class="n">prod</span> <span class="o">!=</span> <span class="s1">'CUSTOM'</span><span class="p">:</span>
                         <span class="k">for</span> <span class="n">g</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">granules</span><span class="p">,</span> <span class="n">opaths</span><span class="p">):</span>
                             <span class="n">gfile</span> <span class="o">=</span> <span class="n">GEDIFile</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">data_links</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span>
                             <span class="n">ginfo</span> <span class="o">=</span> <span class="p">{</span>
-                                <span class="s1">&#39;orbit&#39;</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">orbit</span><span class="p">,</span>
-                                <span class="s1">&#39;granule&#39;</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">orbit_granule</span><span class="p">,</span>
-                                <span class="s1">&#39;track&#39;</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">track</span><span class="p">,</span>
-                                <span class="s1">&#39;path&#39;</span><span class="p">:</span> <span class="n">result</span><span class="p">,</span>
+                                <span class="s1">'orbit'</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">orbit</span><span class="p">,</span>
+                                <span class="s1">'granule'</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">orbit_granule</span><span class="p">,</span>
+                                <span class="s1">'track'</span><span class="p">:</span> <span class="n">gfile</span><span class="o">.</span><span class="n">track</span><span class="p">,</span>
+                                <span class="s1">'path'</span><span class="p">:</span> <span class="n">result</span><span class="p">,</span>
                             <span class="p">}</span>
-                            <span class="n">status</span> <span class="o">=</span> <span class="s1">&#39;DOWNLOADED&#39;</span> <span class="k">if</span> <span class="n">result</span> <span class="k">else</span> <span class="s1">&#39;FAILED&#39;</span>
+                            <span class="n">status</span> <span class="o">=</span> <span class="s1">'DOWNLOADED'</span> <span class="k">if</span> <span class="n">result</span> <span class="k">else</span> <span class="s1">'FAILED'</span>
                             <span class="n">on_granule_complete</span><span class="p">(</span><span class="n">ginfo</span><span class="p">,</span> <span class="n">status</span><span class="p">)</span>
 
                 <span class="c1"># Filter out None values (failed downloads)</span>
@@ -1924,22 +1924,22 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">failed_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">opaths</span><span class="p">)</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">successful</span><span class="p">)</span>
 
                 <span class="k">if</span> <span class="n">failed_count</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Product </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">failed_count</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">opaths</span><span class="p">)</span><span class="si">}</span><span class="s2"> granules failed to download&quot;</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Product </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">failed_count</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">opaths</span><span class="p">)</span><span class="si">}</span><span class="s2"> granules failed to download"</span><span class="p">)</span>
 
                 <span class="n">opaths</span> <span class="o">=</span> <span class="n">successful</span>
 
             <span class="n">prod_paths</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="n">opaths</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Product </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">opaths</span><span class="p">)</span><span class="si">}</span><span class="s2"> files ready&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Product </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">opaths</span><span class="p">)</span><span class="si">}</span><span class="s2"> files ready"</span><span class="p">)</span>
 
         <span class="k">except</span> <span class="n">GediAuthenticationError</span><span class="p">:</span>
             <span class="k">raise</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error processing product </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Error processing product </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">failed_products</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">prod</span><span class="p">)</span>
             <span class="n">prod_paths</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="k">if</span> <span class="n">failed_products</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed products: </span><span class="si">{</span><span class="n">failed_products</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Failed products: </span><span class="si">{</span><span class="n">failed_products</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">to_list</span><span class="p">:</span>
         <span class="n">prod_paths</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="o">*</span><span class="n">prod_paths</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>

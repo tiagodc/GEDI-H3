@@ -603,8 +603,8 @@ drop the rest).</p>
 <p>This guarantees one polygon = one pixel with no extrapolation.</p>
 <p class="rubric">Examples</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Rasterize aggregated GEDI data</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">raster</span> <span class="o">=</span> <span class="n">geodf_to_raster</span><span class="p">(</span><span class="n">agg_gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;rh_098_mean&#39;</span><span class="p">])</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">raster</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">to_raster</span><span class="p">(</span><span class="s2">&quot;output.tif&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">raster</span> <span class="o">=</span> <span class="n">geodf_to_raster</span><span class="p">(</span><span class="n">agg_gdf</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'agbd_mean'</span><span class="p">,</span> <span class="s1">'rh_098_mean'</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">raster</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">to_raster</span><span class="p">(</span><span class="s2">"output.tif"</span><span class="p">)</span>
 </pre></div>
 </div>
 </dd></dl>

@@ -760,7 +760,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;backfill diagnosis — fill NaN gaps in product columns from source HDF5s.</span>
+<span class="sd">"""backfill diagnosis — fill NaN gaps in product columns from source HDF5s.</span>
 
 <span class="sd">The detection runs row-level: for each partition × product, we count nulls per</span>
 <span class="sd">granule by grouping on ``root_file_l2a``. Findings include the partition file,</span>
@@ -770,12 +770,12 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">  1. Group findings by source granule × product to compute the minimal set of</span>
 <span class="sd">     HDF5 files to read.</span>
 <span class="sd">  2. (S3 mode) run :func:`s3_etl_subset` to populate a temp dir with just those</span>
-<span class="sd">     granules&#39; source files for the requested products. Cleanup in ``finally``.</span>
+<span class="sd">     granules' source files for the requested products. Cleanup in ``finally``.</span>
 <span class="sd">  3. For each affected partition file, read the relevant ``[shot_number, vars]``</span>
 <span class="sd">     from the source HDF5(s), suffix columns with ``_&lt;prod&gt;``, write to a</span>
 <span class="sd">     temporary patch parquet, and call :func:`parquet_fill_columns` to merge.</span>
 <span class="sd">  4. Mark each healed granule × product as ``INDEXED`` in the build log.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
@@ -809,12 +809,12 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_vars_for_product</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">DoctorContext</span><span class="p">,</span> <span class="n">product</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the variable list recorded for a product in the build log.</span>
+<span class="w">    </span><span class="sd">"""Return the variable list recorded for a product in the build log.</span>
 
 <span class="sd">    Doctor never widens the schema — it only fills columns that should be there.</span>
 <span class="sd">    The variable list comes from the build log so we read exactly the columns</span>
 <span class="sd">    that gh3_build / _build_add_variables would have written.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="p">[]</span>
     <span class="n">vars_list</span> <span class="o">=</span> <span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">product_vars</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">product</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
@@ -823,13 +823,13 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_expected_product_columns</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">DoctorContext</span><span class="p">,</span> <span class="n">product</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute the suffixed column names a product *should* contribute.&quot;&quot;&quot;</span>
-    <span class="n">suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;_</span><span class="si">{</span><span class="n">product</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="w">    </span><span class="sd">"""Compute the suffixed column names a product *should* contribute."""</span>
+    <span class="n">suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"_</span><span class="si">{</span><span class="n">product</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span>
     <span class="n">cols</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">_vars_for_product</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">product</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">v</span> <span class="o">==</span> <span class="s1">&#39;shot_number&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="o">==</span> <span class="s1">'shot_number'</span><span class="p">:</span>
             <span class="k">continue</span>
-        <span class="n">cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">suffix</span><span class="p">)</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">v</span><span class="si">}{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span> <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">suffix</span><span class="p">)</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">v</span><span class="si">}{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">cols</span>
 
 
@@ -840,7 +840,7 @@ window.runMermaid = runMermaid;</script>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">shared</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Worker: scan one partition for missing/NaN gaps. Returns finding dicts.</span>
+<span class="w">    </span><span class="sd">"""Worker: scan one partition for missing/NaN gaps. Returns finding dicts.</span>
 
 <span class="sd">    Self-contained — receives only the partition path and the small per-</span>
 <span class="sd">    product expected-columns map (computed once on the driver and</span>
@@ -848,20 +848,20 @@ window.runMermaid = runMermaid;</script>
 
 <span class="sd">    Fused-aware: when ``shared`` is provided, reads the cached partition</span>
 <span class="sd">    meta dict and parquet listing rather than re-opening / re-globbing.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">findings</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">if</span> <span class="n">shared</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">&#39;meta_dict&#39;</span> <span class="ow">in</span> <span class="n">shared</span><span class="p">:</span>
-        <span class="n">meta</span> <span class="o">=</span> <span class="n">shared</span><span class="p">[</span><span class="s1">&#39;meta_dict&#39;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">shared</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">'meta_dict'</span> <span class="ow">in</span> <span class="n">shared</span><span class="p">:</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="n">shared</span><span class="p">[</span><span class="s1">'meta_dict'</span><span class="p">]</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">meta</span> <span class="o">=</span> <span class="n">load_partition_meta</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">meta</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">findings</span>
 
-    <span class="n">partition_cols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;columns&#39;</span><span class="p">,</span> <span class="p">[]))</span>
+    <span class="n">partition_cols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'columns'</span><span class="p">,</span> <span class="p">[]))</span>
     <span class="n">partition_cols_lower</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">partition_cols</span><span class="p">}</span>
 
     <span class="c1"># 1. MISSING_COLUMN: a product the log expects whose suffix</span>
-    <span class="c1"># doesn&#39;t appear in this partition&#39;s columns.</span>
+    <span class="c1"># doesn't appear in this partition's columns.</span>
     <span class="k">for</span> <span class="n">prod</span> <span class="ow">in</span> <span class="n">products</span><span class="p">:</span>
         <span class="n">expected</span> <span class="o">=</span> <span class="n">expected_by_product</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">prod</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">expected</span><span class="p">:</span>
@@ -869,11 +869,11 @@ window.runMermaid = runMermaid;</script>
         <span class="n">present</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="n">partition_cols_lower</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">expected</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">present</span><span class="p">:</span>
             <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;missing_column&#39;</span><span class="p">,</span>
-                <span class="s1">&#39;partition_dir&#39;</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">,</span>
-                <span class="s1">&#39;product&#39;</span><span class="p">:</span> <span class="n">prod</span><span class="p">,</span>
-                <span class="s1">&#39;expected_columns&#39;</span><span class="p">:</span> <span class="n">expected</span><span class="p">,</span>
-                <span class="s1">&#39;granules&#39;</span><span class="p">:</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;granules&#39;</span><span class="p">,</span> <span class="p">[]),</span>
+                <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'missing_column'</span><span class="p">,</span>
+                <span class="s1">'partition_dir'</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">,</span>
+                <span class="s1">'product'</span><span class="p">:</span> <span class="n">prod</span><span class="p">,</span>
+                <span class="s1">'expected_columns'</span><span class="p">:</span> <span class="n">expected</span><span class="p">,</span>
+                <span class="s1">'granules'</span><span class="p">:</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granules'</span><span class="p">,</span> <span class="p">[]),</span>
             <span class="p">})</span>
 
     <span class="c1"># 2. PARTIAL_NAN: column present but specific granules have NaN.</span>
@@ -881,8 +881,8 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">prod_columns</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">findings</span>
 
-    <span class="k">if</span> <span class="n">shared</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">&#39;parquet_files&#39;</span> <span class="ow">in</span> <span class="n">shared</span><span class="p">:</span>
-        <span class="n">files_iter</span> <span class="o">=</span> <span class="n">shared</span><span class="p">[</span><span class="s1">&#39;parquet_files&#39;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">shared</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">'parquet_files'</span> <span class="ow">in</span> <span class="n">shared</span><span class="p">:</span>
+        <span class="n">files_iter</span> <span class="o">=</span> <span class="n">shared</span><span class="p">[</span><span class="s1">'parquet_files'</span><span class="p">]</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">files_iter</span> <span class="o">=</span> <span class="n">partition_parquet_files</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">pq_file</span> <span class="ow">in</span> <span class="n">files_iter</span><span class="p">:</span>
@@ -890,69 +890,69 @@ window.runMermaid = runMermaid;</script>
             <span class="n">nulls</span> <span class="o">=</span> <span class="n">per_granule_null_counts</span><span class="p">(</span><span class="n">pq_file</span><span class="p">,</span> <span class="n">prod_columns</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;scan_error&#39;</span><span class="p">,</span>
-                <span class="s1">&#39;partition_dir&#39;</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">,</span>
-                <span class="s1">&#39;parquet_file&#39;</span><span class="p">:</span> <span class="n">pq_file</span><span class="p">,</span>
-                <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'scan_error'</span><span class="p">,</span>
+                <span class="s1">'partition_dir'</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">,</span>
+                <span class="s1">'parquet_file'</span><span class="p">:</span> <span class="n">pq_file</span><span class="p">,</span>
+                <span class="s1">'error'</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
             <span class="p">})</span>
             <span class="k">continue</span>
         <span class="k">for</span> <span class="n">gran_key</span><span class="p">,</span> <span class="n">per_prod</span> <span class="ow">in</span> <span class="n">nulls</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">n_nulls</span> <span class="ow">in</span> <span class="n">per_prod</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                 <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                    <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;partial_nan&#39;</span><span class="p">,</span>
-                    <span class="s1">&#39;partition_dir&#39;</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">,</span>
-                    <span class="s1">&#39;parquet_file&#39;</span><span class="p">:</span> <span class="n">pq_file</span><span class="p">,</span>
-                    <span class="s1">&#39;product&#39;</span><span class="p">:</span> <span class="n">prod</span><span class="p">,</span>
-                    <span class="s1">&#39;granule&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;orbit&#39;</span><span class="p">:</span> <span class="n">gran_key</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;granule&#39;</span><span class="p">:</span> <span class="n">gran_key</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39;track&#39;</span><span class="p">:</span> <span class="n">gran_key</span><span class="p">[</span><span class="mi">2</span><span class="p">]},</span>
-                    <span class="s1">&#39;null_rows&#39;</span><span class="p">:</span> <span class="n">n_nulls</span><span class="p">,</span>
+                    <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'partial_nan'</span><span class="p">,</span>
+                    <span class="s1">'partition_dir'</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">,</span>
+                    <span class="s1">'parquet_file'</span><span class="p">:</span> <span class="n">pq_file</span><span class="p">,</span>
+                    <span class="s1">'product'</span><span class="p">:</span> <span class="n">prod</span><span class="p">,</span>
+                    <span class="s1">'granule'</span><span class="p">:</span> <span class="p">{</span><span class="s1">'orbit'</span><span class="p">:</span> <span class="n">gran_key</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'granule'</span><span class="p">:</span> <span class="n">gran_key</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">'track'</span><span class="p">:</span> <span class="n">gran_key</span><span class="p">[</span><span class="mi">2</span><span class="p">]},</span>
+                    <span class="s1">'null_rows'</span><span class="p">:</span> <span class="n">n_nulls</span><span class="p">,</span>
                 <span class="p">})</span>
 
     <span class="k">return</span> <span class="n">findings</span>
 
 
-<span class="n">register_scan</span><span class="p">(</span><span class="s1">&#39;backfill&#39;</span><span class="p">,</span> <span class="n">_scan_partition_backfill</span><span class="p">)</span>
+<span class="n">register_scan</span><span class="p">(</span><span class="s1">'backfill'</span><span class="p">,</span> <span class="n">_scan_partition_backfill</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_finalize_backfill_check</span><span class="p">(</span>
     <span class="n">ctx</span><span class="p">:</span> <span class="n">DoctorContext</span><span class="p">,</span>
     <span class="n">per_partition</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">]],</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Report</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Driver-side aggregation of backfill per-partition findings.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Driver-side aggregation of backfill per-partition findings."""</span>
     <span class="n">findings</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">part_dir</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">per_partition</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
             <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                <span class="s1">&#39;kind&#39;</span><span class="p">:</span> <span class="s1">&#39;scan_error&#39;</span><span class="p">,</span>
-                <span class="s1">&#39;partition_dir&#39;</span><span class="p">:</span> <span class="n">part_dir</span><span class="p">,</span>
-                <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'scan_error'</span><span class="p">,</span>
+                <span class="s1">'partition_dir'</span><span class="p">:</span> <span class="n">part_dir</span><span class="p">,</span>
+                <span class="s1">'error'</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
             <span class="p">})</span>
             <span class="k">continue</span>
         <span class="n">findings</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
 
-    <span class="n">n_missing</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;missing_column&#39;</span><span class="p">)</span>
-    <span class="n">n_partial</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;partial_nan&#39;</span><span class="p">)</span>
-    <span class="n">n_errors</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;scan_error&#39;</span><span class="p">)</span>
+    <span class="n">n_missing</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'missing_column'</span><span class="p">)</span>
+    <span class="n">n_partial</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'partial_nan'</span><span class="p">)</span>
+    <span class="n">n_errors</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'scan_error'</span><span class="p">)</span>
 
     <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">findings</span> <span class="k">else</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span>
     <span class="k">if</span> <span class="n">n_errors</span><span class="p">:</span>
         <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
 
     <span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_missing</span><span class="si">}</span><span class="s2"> (partition × product) missing-column gaps, &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">n_partial</span><span class="si">}</span><span class="s2"> (granule × product) partial-NaN gaps&quot;</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_missing</span><span class="si">}</span><span class="s2"> (partition × product) missing-column gaps, "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_partial</span><span class="si">}</span><span class="s2"> (granule × product) partial-NaN gaps"</span>
     <span class="p">)</span>
 
     <span class="n">recommendations</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">if</span> <span class="n">findings</span><span class="p">:</span>
-        <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;gh3_doctor --fix backfill           # heal from local SOC dir&quot;</span><span class="p">)</span>
-        <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;gh3_doctor --fix backfill --s3      # heal via NASA S3 ETL temp&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="s1">&#39;online&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
-            <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;gh3_doctor --online                 # see per-gap availability&quot;</span><span class="p">)</span>
+        <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"gh3_doctor --fix backfill           # heal from local SOC dir"</span><span class="p">)</span>
+        <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"gh3_doctor --fix backfill --s3      # heal via NASA S3 ETL temp"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="s1">'online'</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"gh3_doctor --online                 # see per-gap availability"</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;gh3_doctor --online                 # check NASA upstream availability&quot;</span><span class="p">)</span>
+            <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"gh3_doctor --online                 # check NASA upstream availability"</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">Report</span><span class="p">(</span>
-        <span class="n">name</span><span class="o">=</span><span class="s1">&#39;backfill&#39;</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">severity</span><span class="p">,</span>
+        <span class="n">name</span><span class="o">=</span><span class="s1">'backfill'</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">severity</span><span class="p">,</span>
         <span class="n">findings</span><span class="o">=</span><span class="n">findings</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="n">summary</span><span class="p">,</span> <span class="n">recommendations</span><span class="o">=</span><span class="n">recommendations</span><span class="p">,</span>
     <span class="p">)</span>
 
@@ -963,21 +963,21 @@ window.runMermaid = runMermaid;</script>
     <span class="n">products</span> <span class="o">=</span> <span class="n">_active_products</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">products</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">Report</span><span class="p">(</span>
-            <span class="n">name</span><span class="o">=</span><span class="s1">&#39;backfill&#39;</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span>
-            <span class="n">summary</span><span class="o">=</span><span class="s1">&#39;no active products in build log; nothing to backfill&#39;</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="s1">'backfill'</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span>
+            <span class="n">summary</span><span class="o">=</span><span class="s1">'no active products in build log; nothing to backfill'</span><span class="p">,</span>
         <span class="p">)</span>
 
     <span class="c1"># Compute the per-product expected-column lists once on the driver</span>
-    <span class="c1"># so workers don&#39;t need DoctorContext.</span>
+    <span class="c1"># so workers don't need DoctorContext.</span>
     <span class="n">expected_by_product</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="n">_expected_product_columns</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">products</span><span class="p">}</span>
 
     <span class="n">per_partition</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">dict</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">part_dir</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">partition_dirs</span><span class="p">,</span>
         <span class="n">_scan_partition_backfill</span><span class="p">,</span>
-        <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">&#39;args&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-        <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;backfill: scanning partitions&#39;</span><span class="p">,</span>
-        <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;part&#39;</span><span class="p">,</span>
+        <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">'args'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="n">desc</span><span class="o">=</span><span class="s1">'backfill: scanning partitions'</span><span class="p">,</span>
+        <span class="n">unit</span><span class="o">=</span><span class="s1">'part'</span><span class="p">,</span>
         <span class="n">products</span><span class="o">=</span><span class="n">products</span><span class="p">,</span>
         <span class="n">expected_by_product</span><span class="o">=</span><span class="n">expected_by_product</span><span class="p">,</span>
     <span class="p">):</span>
@@ -987,20 +987,20 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_granules_needing_fill</span><span class="p">(</span><span class="n">report</span><span class="p">:</span> <span class="n">Report</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Set</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Collect (orbit, granule, track, product) tuples that need source data.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Collect (orbit, granule, track, product) tuples that need source data."""</span>
     <span class="n">needed</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;missing_column&#39;</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;granules&#39;</span><span class="p">,</span> <span class="p">[]):</span>
-                <span class="n">needed</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">&#39;orbit&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;granule&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;track&#39;</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;product&#39;</span><span class="p">]))</span>
-        <span class="k">elif</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;kind&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;partial_nan&#39;</span><span class="p">:</span>
-            <span class="n">g</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;granule&#39;</span><span class="p">]</span>
-            <span class="n">needed</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">&#39;orbit&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;granule&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;track&#39;</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;product&#39;</span><span class="p">]))</span>
+        <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'missing_column'</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granules'</span><span class="p">,</span> <span class="p">[]):</span>
+                <span class="n">needed</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="s1">'product'</span><span class="p">]))</span>
+        <span class="k">elif</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'partial_nan'</span><span class="p">:</span>
+            <span class="n">g</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">]</span>
+            <span class="n">needed</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="s1">'product'</span><span class="p">]))</span>
     <span class="k">return</span> <span class="n">needed</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_build_soc_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Wrap soc_file_tree to handle string paths uniformly.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Wrap soc_file_tree to handle string paths uniformly."""</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">...gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">soc_file_tree</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
@@ -1018,7 +1018,7 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_get_soc_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Process-local cache of ``soc_file_tree`` for a given source path.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Process-local cache of ``soc_file_tree`` for a given source path."""</span>
     <span class="n">cached</span> <span class="o">=</span> <span class="n">_soc_tree_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">soc_source</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">cached</span>
@@ -1032,7 +1032,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">soc_tree</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
     <span class="n">vars_per_product</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build a single patch parquet containing [shot_number] + product cols.</span>
+<span class="w">    </span><span class="sd">"""Build a single patch parquet containing [shot_number] + product cols.</span>
 
 <span class="sd">    Returns the path to a temp parquet (caller must delete) or None when no</span>
 <span class="sd">    source files were available. Takes ``vars_per_product`` directly</span>
@@ -1047,19 +1047,19 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        affected granule × every requested column into memory at once</span>
 <span class="sd">        (multi-GB on partitions affecting many granules).</span>
 <span class="sd">      * Cross-granule ``shot_number`` deduplication uses an int64 set as</span>
-<span class="sd">        an &quot;already-emitted&quot; gate so a duplicate shot from a later</span>
+<span class="sd">        an "already-emitted" gate so a duplicate shot from a later</span>
 <span class="sd">        granule is dropped at write time. The set is bounded to the</span>
 <span class="sd">        unique shots already written (which equals patch row count, not</span>
 <span class="sd">        column-times-row product) — same lower bound the build pipeline</span>
 <span class="sd">        accepts in ``parquet_dedup_partition``.</span>
 <span class="sd">      * Frame buffers are released between granules (``del df``) and the</span>
 <span class="sd">        arrow allocator is drained at writer close.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">...gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_h5</span>
 
-    <span class="n">tmp</span> <span class="o">=</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">NamedTemporaryFile</span><span class="p">(</span><span class="n">suffix</span><span class="o">=</span><span class="s1">&#39;.parquet&#39;</span><span class="p">,</span> <span class="n">delete</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">tmp</span> <span class="o">=</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">NamedTemporaryFile</span><span class="p">(</span><span class="n">suffix</span><span class="o">=</span><span class="s1">'.parquet'</span><span class="p">,</span> <span class="n">delete</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
     <span class="n">tmp</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
     <span class="n">out_path</span> <span class="o">=</span> <span class="n">tmp</span><span class="o">.</span><span class="n">name</span>
 
@@ -1075,10 +1075,10 @@ window.runMermaid = runMermaid;</script>
             <span class="n">var_list</span> <span class="o">=</span> <span class="n">vars_per_product</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">prod</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">var_list</span><span class="p">:</span>
                 <span class="k">continue</span>
-            <span class="n">cols_to_read</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">var_list</span> <span class="k">if</span> <span class="n">v</span> <span class="o">!=</span> <span class="s1">&#39;shot_number&#39;</span><span class="p">]</span>
-            <span class="n">suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">cols_to_read</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'shot_number'</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">var_list</span> <span class="k">if</span> <span class="n">v</span> <span class="o">!=</span> <span class="s1">'shot_number'</span><span class="p">]</span>
+            <span class="n">suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span>
             <span class="k">for</span> <span class="n">orbit</span><span class="p">,</span> <span class="n">gran</span><span class="p">,</span> <span class="n">track</span> <span class="ow">in</span> <span class="n">granules</span><span class="p">:</span>
-                <span class="n">orb_track</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;O</span><span class="si">{</span><span class="n">orbit</span><span class="si">:</span><span class="s2">05d</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">gran</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">_T</span><span class="si">{</span><span class="n">track</span><span class="si">:</span><span class="s2">05d</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="n">orb_track</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"O</span><span class="si">{</span><span class="n">orbit</span><span class="si">:</span><span class="s2">05d</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">gran</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">_T</span><span class="si">{</span><span class="n">track</span><span class="si">:</span><span class="s2">05d</span><span class="si">}</span><span class="s2">"</span>
                 <span class="n">soc_files</span> <span class="o">=</span> <span class="n">soc_tree</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">orb_track</span><span class="p">)</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">soc_files</span> <span class="ow">or</span> <span class="n">prod</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">soc_files</span><span class="p">:</span>
                     <span class="k">continue</span>
@@ -1090,18 +1090,18 @@ window.runMermaid = runMermaid;</script>
                 <span class="k">if</span> <span class="n">df</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
                     <span class="k">continue</span>
 
-                <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="k">if</span> <span class="n">x</span> <span class="o">==</span> <span class="s1">&#39;shot_number&#39;</span> <span class="ow">or</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">suffix</span><span class="p">)</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">x</span><span class="si">}{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;shot_number&#39;</span><span class="p">:</span>
+                <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="k">if</span> <span class="n">x</span> <span class="o">==</span> <span class="s1">'shot_number'</span> <span class="ow">or</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">suffix</span><span class="p">)</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">x</span><span class="si">}{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">'shot_number'</span><span class="p">:</span>
                     <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
 
                 <span class="c1"># Drop already-emitted shot_numbers from prior granules.</span>
                 <span class="k">if</span> <span class="n">seen_shots</span><span class="p">:</span>
-                    <span class="n">keep_mask</span> <span class="o">=</span> <span class="o">~</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">seen_shots</span><span class="p">)</span>
+                    <span class="n">keep_mask</span> <span class="o">=</span> <span class="o">~</span><span class="n">df</span><span class="p">[</span><span class="s1">'shot_number'</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">seen_shots</span><span class="p">)</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">keep_mask</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
                         <span class="k">del</span> <span class="n">df</span>
                         <span class="k">continue</span>
                     <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">keep_mask</span><span class="p">]</span>
-                <span class="n">seen_shots</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s1">&#39;shot_number&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+                <span class="n">seen_shots</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">df</span><span class="p">[</span><span class="s1">'shot_number'</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
 
                 <span class="k">if</span> <span class="n">writer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="c1"># Lock the schema on the first non-empty frame so</span>
@@ -1109,7 +1109,7 @@ window.runMermaid = runMermaid;</script>
                     <span class="n">columns_order</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
                     <span class="n">table</span> <span class="o">=</span> <span class="n">pa</span><span class="o">.</span><span class="n">Table</span><span class="o">.</span><span class="n">from_pandas</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">preserve_index</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
                     <span class="n">schema_pa</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">schema</span>
-                    <span class="n">writer</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetWriter</span><span class="p">(</span><span class="n">out_path</span><span class="p">,</span> <span class="n">schema_pa</span><span class="p">,</span> <span class="n">compression</span><span class="o">=</span><span class="s1">&#39;zstd&#39;</span><span class="p">)</span>
+                    <span class="n">writer</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetWriter</span><span class="p">(</span><span class="n">out_path</span><span class="p">,</span> <span class="n">schema_pa</span><span class="p">,</span> <span class="n">compression</span><span class="o">=</span><span class="s1">'zstd'</span><span class="p">)</span>
                     <span class="n">writer</span><span class="o">.</span><span class="n">write_table</span><span class="p">(</span><span class="n">table</span><span class="p">)</span>
                     <span class="n">n_written</span> <span class="o">+=</span> <span class="n">table</span><span class="o">.</span><span class="n">num_rows</span>
                     <span class="k">del</span> <span class="n">table</span><span class="p">,</span> <span class="n">df</span>
@@ -1131,7 +1131,7 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># cleanup path below is unreachable on exception (the</span>
         <span class="c1"># ``return`` is past the try/finally), and the caller in</span>
         <span class="c1"># ``_heal_partition`` only knows the path through this</span>
-        <span class="c1"># function&#39;s return value — when we raise, ``patch`` stays</span>
+        <span class="c1"># function's return value — when we raise, ``patch`` stays</span>
         <span class="c1"># ``None`` on the caller side and its finally cleanup skips</span>
         <span class="c1"># the unlink.</span>
         <span class="n">raised</span> <span class="o">=</span> <span class="kc">True</span>
@@ -1166,7 +1166,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">soc_source</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">vars_per_product</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Worker: read source HDF5 patch, apply parquet_fill_columns to every</span>
+<span class="w">    </span><span class="sd">"""Worker: read source HDF5 patch, apply parquet_fill_columns to every</span>
 <span class="sd">    parquet under one partition, return healed/unavailable/error finding lists.</span>
 
 <span class="sd">    ``item`` carries the per-partition payload as a tuple</span>
@@ -1174,13 +1174,13 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    serializes only its own work — no whole-database broadcast dict.</span>
 <span class="sd">    Self-contained — no DoctorContext serialization. The build-log</span>
 <span class="sd">    INDEXED marking stays on the driver because it mutates shared state.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">partition_dir</span><span class="p">,</span> <span class="n">affected_granules_by_product</span> <span class="o">=</span> <span class="n">item</span>
     <span class="n">healed</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">not_available</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">error_actions</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[]</span>
 
-    <span class="c1"># Process-local soc_tree cache (v0.8.x lesson: don&#39;t redo work</span>
+    <span class="c1"># Process-local soc_tree cache (v0.8.x lesson: don't redo work</span>
     <span class="c1"># the structure of the data already answers).</span>
     <span class="n">soc_tree</span> <span class="o">=</span> <span class="n">_get_soc_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">)</span>
     <span class="n">patch</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1192,11 +1192,11 @@ window.runMermaid = runMermaid;</script>
             <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">grans</span> <span class="ow">in</span> <span class="n">affected_granules_by_product</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                 <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">grans</span><span class="p">:</span>
                     <span class="n">not_available</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                        <span class="s1">&#39;partition_dir&#39;</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">,</span> <span class="s1">&#39;product&#39;</span><span class="p">:</span> <span class="n">prod</span><span class="p">,</span>
-                        <span class="s1">&#39;granule&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;orbit&#39;</span><span class="p">:</span> <span class="n">g</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;granule&#39;</span><span class="p">:</span> <span class="n">g</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39;track&#39;</span><span class="p">:</span> <span class="n">g</span><span class="p">[</span><span class="mi">2</span><span class="p">]},</span>
-                        <span class="s1">&#39;reason&#39;</span><span class="p">:</span> <span class="s1">&#39;source_not_in_soc_tree&#39;</span><span class="p">,</span>
+                        <span class="s1">'partition_dir'</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">,</span> <span class="s1">'product'</span><span class="p">:</span> <span class="n">prod</span><span class="p">,</span>
+                        <span class="s1">'granule'</span><span class="p">:</span> <span class="p">{</span><span class="s1">'orbit'</span><span class="p">:</span> <span class="n">g</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'granule'</span><span class="p">:</span> <span class="n">g</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">'track'</span><span class="p">:</span> <span class="n">g</span><span class="p">[</span><span class="mi">2</span><span class="p">]},</span>
+                        <span class="s1">'reason'</span><span class="p">:</span> <span class="s1">'source_not_in_soc_tree'</span><span class="p">,</span>
                     <span class="p">})</span>
-            <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;healed&#39;</span><span class="p">:</span> <span class="n">healed</span><span class="p">,</span> <span class="s1">&#39;not_available&#39;</span><span class="p">:</span> <span class="n">not_available</span><span class="p">,</span> <span class="s1">&#39;error_actions&#39;</span><span class="p">:</span> <span class="n">error_actions</span><span class="p">}</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s1">'healed'</span><span class="p">:</span> <span class="n">healed</span><span class="p">,</span> <span class="s1">'not_available'</span><span class="p">:</span> <span class="n">not_available</span><span class="p">,</span> <span class="s1">'error_actions'</span><span class="p">:</span> <span class="n">error_actions</span><span class="p">}</span>
 
         <span class="n">had_error</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="k">for</span> <span class="n">pq_file</span> <span class="ow">in</span> <span class="n">partition_parquet_files</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">):</span>
@@ -1205,17 +1205,17 @@ window.runMermaid = runMermaid;</script>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="n">had_error</span> <span class="o">=</span> <span class="kc">True</span>
                 <span class="n">error_actions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                    <span class="s1">&#39;partition_dir&#39;</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">,</span> <span class="s1">&#39;parquet_file&#39;</span><span class="p">:</span> <span class="n">pq_file</span><span class="p">,</span>
-                    <span class="s1">&#39;fix_error&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="s1">'partition_dir'</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">,</span> <span class="s1">'parquet_file'</span><span class="p">:</span> <span class="n">pq_file</span><span class="p">,</span>
+                    <span class="s1">'fix_error'</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
                 <span class="p">})</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">had_error</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">grans</span> <span class="ow">in</span> <span class="n">affected_granules_by_product</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                 <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">grans</span><span class="p">:</span>
                     <span class="n">healed</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                        <span class="s1">&#39;partition_dir&#39;</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">,</span> <span class="s1">&#39;product&#39;</span><span class="p">:</span> <span class="n">prod</span><span class="p">,</span>
-                        <span class="s1">&#39;granule&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;orbit&#39;</span><span class="p">:</span> <span class="n">g</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;granule&#39;</span><span class="p">:</span> <span class="n">g</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">&#39;track&#39;</span><span class="p">:</span> <span class="n">g</span><span class="p">[</span><span class="mi">2</span><span class="p">]},</span>
-                        <span class="s1">&#39;action&#39;</span><span class="p">:</span> <span class="s1">&#39;filled&#39;</span><span class="p">,</span>
+                        <span class="s1">'partition_dir'</span><span class="p">:</span> <span class="n">partition_dir</span><span class="p">,</span> <span class="s1">'product'</span><span class="p">:</span> <span class="n">prod</span><span class="p">,</span>
+                        <span class="s1">'granule'</span><span class="p">:</span> <span class="p">{</span><span class="s1">'orbit'</span><span class="p">:</span> <span class="n">g</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'granule'</span><span class="p">:</span> <span class="n">g</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">'track'</span><span class="p">:</span> <span class="n">g</span><span class="p">[</span><span class="mi">2</span><span class="p">]},</span>
+                        <span class="s1">'action'</span><span class="p">:</span> <span class="s1">'filled'</span><span class="p">,</span>
                     <span class="p">})</span>
     <span class="k">finally</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">patch</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">patch</span><span class="p">):</span>
@@ -1228,7 +1228,7 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># the build side.</span>
         <span class="n">release_arrow_pool</span><span class="p">()</span>
 
-    <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;healed&#39;</span><span class="p">:</span> <span class="n">healed</span><span class="p">,</span> <span class="s1">&#39;not_available&#39;</span><span class="p">:</span> <span class="n">not_available</span><span class="p">,</span> <span class="s1">&#39;error_actions&#39;</span><span class="p">:</span> <span class="n">error_actions</span><span class="p">}</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s1">'healed'</span><span class="p">:</span> <span class="n">healed</span><span class="p">,</span> <span class="s1">'not_available'</span><span class="p">:</span> <span class="n">not_available</span><span class="p">,</span> <span class="s1">'error_actions'</span><span class="p">:</span> <span class="n">error_actions</span><span class="p">}</span>
 
 
 <div class="viewcode-block" id="backfill_fix">
@@ -1236,10 +1236,10 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">backfill_fix</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">DoctorContext</span><span class="p">,</span> <span class="n">report</span><span class="p">:</span> <span class="n">Report</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Report</span><span class="p">:</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">report</span><span class="o">.</span><span class="n">has_findings</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">applied</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="s2">&quot;nothing to fix&quot;</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="s2">"nothing to fix"</span>
         <span class="k">return</span> <span class="n">report</span>
 
-    <span class="n">use_s3</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="s1">&#39;s3&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+    <span class="n">use_s3</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="s1">'s3'</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
     <span class="n">s3_tmp_dir</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="c1"># Build the soc_source: either local SOC dir or an S3 ETL temp dir.</span>
@@ -1249,7 +1249,7 @@ window.runMermaid = runMermaid;</script>
         <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">report</span><span class="o">.</span><span class="n">applied</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
-            <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="s2">&quot;S3 backfill requires a build log to know spatial/temporal/products&quot;</span>
+            <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="s2">"S3 backfill requires a build log to know spatial/temporal/products"</span>
             <span class="k">return</span> <span class="n">report</span>
 
         <span class="c1"># Gather products + variable lists for the granules that need filling.</span>
@@ -1260,14 +1260,14 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">vars_list</span> <span class="o">=</span> <span class="n">_vars_for_product</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">prod</span><span class="p">)</span>
                 <span class="n">product_vars</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="n">vars_list</span> <span class="k">if</span> <span class="n">vars_list</span> <span class="k">else</span> <span class="kc">None</span>
 
-        <span class="n">s3_tmp_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">tmp_dir</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_dir</span><span class="p">,</span> <span class="s1">&#39;.tmp&#39;</span><span class="p">),</span> <span class="s1">&#39;_doctor_s3_backfill&#39;</span><span class="p">)</span>
+        <span class="n">s3_tmp_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">tmp_dir</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_dir</span><span class="p">,</span> <span class="s1">'.tmp'</span><span class="p">),</span> <span class="s1">'_doctor_s3_backfill'</span><span class="p">)</span>
         <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">s3_tmp_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">s3_etl_subset</span><span class="p">(</span>
                 <span class="n">product_vars</span><span class="o">=</span><span class="n">product_vars</span><span class="p">,</span>
-                <span class="n">spatial</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">&#39;spatial&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-                <span class="n">temporal</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">&#39;temporal&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-                <span class="n">version</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">&#39;gedi_version&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                <span class="n">spatial</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'spatial'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                <span class="n">temporal</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'temporal'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                <span class="n">version</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'gedi_version'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
                 <span class="n">odir</span><span class="o">=</span><span class="n">s3_tmp_dir</span><span class="p">,</span>
                 <span class="n">ensure_l2a</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
             <span class="p">)</span>
@@ -1276,7 +1276,7 @@ window.runMermaid = runMermaid;</script>
             <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">s3_tmp_dir</span><span class="p">,</span> <span class="n">ignore_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="n">report</span><span class="o">.</span><span class="n">applied</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
-            <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;S3 ETL failed: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"S3 ETL failed: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span>
             <span class="k">return</span> <span class="n">report</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">soc_source</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">soc_dir</span>
@@ -1285,8 +1285,8 @@ window.runMermaid = runMermaid;</script>
         <span class="n">report</span><span class="o">.</span><span class="n">applied</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
         <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;no SOC source available (use --s3 or set --soc-dir or GH3_DEFAULT_SOC_DIR). &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;Source attempted: </span><span class="si">{</span><span class="n">soc_source</span><span class="si">!r}</span><span class="s2">&quot;</span>
+            <span class="sa">f</span><span class="s2">"no SOC source available (use --s3 or set --soc-dir or GH3_DEFAULT_SOC_DIR). "</span>
+            <span class="sa">f</span><span class="s2">"Source attempted: </span><span class="si">{</span><span class="n">soc_source</span><span class="si">!r}</span><span class="s2">"</span>
         <span class="p">)</span>
         <span class="k">return</span> <span class="n">report</span>
 
@@ -1295,17 +1295,17 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># Group findings by partition directory so we minimize file rewrites.</span>
     <span class="n">by_partition</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Set</span><span class="p">[</span><span class="n">GranuleKey</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span><span class="p">:</span>
-        <span class="n">kind</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;kind&#39;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;partial_nan&#39;</span><span class="p">:</span>
-            <span class="n">part</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;partition_dir&#39;</span><span class="p">]</span>
-            <span class="n">prod</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;product&#39;</span><span class="p">]</span>
-            <span class="n">g</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;granule&#39;</span><span class="p">]</span>
-            <span class="n">by_partition</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">part</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">prod</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">&#39;orbit&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;granule&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;track&#39;</span><span class="p">]))</span>
-        <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;missing_column&#39;</span><span class="p">:</span>
-            <span class="n">part</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;partition_dir&#39;</span><span class="p">]</span>
-            <span class="n">prod</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;product&#39;</span><span class="p">]</span>
-            <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;granules&#39;</span><span class="p">,</span> <span class="p">[]):</span>
-                <span class="n">by_partition</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">part</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">prod</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">&#39;orbit&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;granule&#39;</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">&#39;track&#39;</span><span class="p">]))</span>
+        <span class="n">kind</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'kind'</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">'partial_nan'</span><span class="p">:</span>
+            <span class="n">part</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">'partition_dir'</span><span class="p">]</span>
+            <span class="n">prod</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">'product'</span><span class="p">]</span>
+            <span class="n">g</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">]</span>
+            <span class="n">by_partition</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">part</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">prod</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]))</span>
+        <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">'missing_column'</span><span class="p">:</span>
+            <span class="n">part</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">'partition_dir'</span><span class="p">]</span>
+            <span class="n">prod</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">'product'</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granules'</span><span class="p">,</span> <span class="p">[]):</span>
+                <span class="n">by_partition</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">part</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">prod</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]))</span>
 
     <span class="n">healed</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">not_available</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[]</span>
@@ -1318,7 +1318,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">products_in_use</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">({</span><span class="n">p</span> <span class="k">for</span> <span class="n">prod_grans</span> <span class="ow">in</span> <span class="n">by_partition</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">prod_grans</span><span class="p">})</span>
     <span class="n">vars_per_product</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="n">_vars_for_product</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">products_in_use</span><span class="p">}</span>
 
-    <span class="c1"># Pack each partition&#39;s payload into the work item itself so dask</span>
+    <span class="c1"># Pack each partition's payload into the work item itself so dask</span>
     <span class="c1"># serializes only the slice each task needs — no whole-database</span>
     <span class="c1"># broadcast dict. ``_heal_partition`` unpacks the tuple worker-side.</span>
     <span class="n">items</span> <span class="o">=</span> <span class="p">[</span>
@@ -1331,29 +1331,29 @@ window.runMermaid = runMermaid;</script>
         <span class="k">for</span> <span class="n">item</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span>
             <span class="n">items</span><span class="p">,</span>
             <span class="n">_heal_partition</span><span class="p">,</span>
-            <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">&#39;args&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-            <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;backfill: healing partitions&#39;</span><span class="p">,</span>
-            <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;part&#39;</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s1">'args'</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="n">desc</span><span class="o">=</span><span class="s1">'backfill: healing partitions'</span><span class="p">,</span>
+            <span class="n">unit</span><span class="o">=</span><span class="s1">'part'</span><span class="p">,</span>
             <span class="n">soc_source</span><span class="o">=</span><span class="n">soc_source</span><span class="p">,</span>
             <span class="n">vars_per_product</span><span class="o">=</span><span class="n">vars_per_product</span><span class="p">,</span>
         <span class="p">):</span>
-            <span class="n">part_dir</span> <span class="o">=</span> <span class="n">item</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">item</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s1">&#39;&lt;unknown&gt;&#39;</span>
+            <span class="n">part_dir</span> <span class="o">=</span> <span class="n">item</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">item</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s1">'&lt;unknown&gt;'</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
                 <span class="n">error_actions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                    <span class="s1">&#39;partition_dir&#39;</span><span class="p">:</span> <span class="n">part_dir</span><span class="p">,</span>
-                    <span class="s1">&#39;fix_error&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="s1">'partition_dir'</span><span class="p">:</span> <span class="n">part_dir</span><span class="p">,</span>
+                    <span class="s1">'fix_error'</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
                 <span class="p">})</span>
                 <span class="k">continue</span>
-            <span class="n">healed</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;healed&#39;</span><span class="p">])</span>
-            <span class="n">not_available</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;not_available&#39;</span><span class="p">])</span>
-            <span class="n">error_actions</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;error_actions&#39;</span><span class="p">])</span>
+            <span class="n">healed</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'healed'</span><span class="p">])</span>
+            <span class="n">not_available</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'not_available'</span><span class="p">])</span>
+            <span class="n">error_actions</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'error_actions'</span><span class="p">])</span>
 
         <span class="c1"># Build-log INDEXED marking stays on the driver — it mutates</span>
-        <span class="c1"># shared state (the in-memory log) that the workers don&#39;t have.</span>
+        <span class="c1"># shared state (the in-memory log) that the workers don't have.</span>
         <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="n">healed</span><span class="p">:</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">mark_granule_product</span><span class="p">(</span>
-                    <span class="n">h</span><span class="p">[</span><span class="s1">&#39;granule&#39;</span><span class="p">],</span> <span class="n">h</span><span class="p">[</span><span class="s1">&#39;product&#39;</span><span class="p">],</span> <span class="s1">&#39;INDEXED&#39;</span><span class="p">,</span>
+                    <span class="n">h</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">h</span><span class="p">[</span><span class="s1">'product'</span><span class="p">],</span> <span class="s1">'INDEXED'</span><span class="p">,</span>
                 <span class="p">)</span>
     <span class="k">finally</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">s3_tmp_dir</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">s3_tmp_dir</span><span class="p">):</span>
@@ -1365,25 +1365,25 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="n">error_actions</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
         <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">healed</span><span class="p">)</span><span class="si">}</span><span class="s2"> healed, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">not_available</span><span class="p">)</span><span class="si">}</span><span class="s2"> unavailable, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">error_actions</span><span class="p">)</span><span class="si">}</span><span class="s2"> errors&quot;</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">healed</span><span class="p">)</span><span class="si">}</span><span class="s2"> healed, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">not_available</span><span class="p">)</span><span class="si">}</span><span class="s2"> unavailable, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">error_actions</span><span class="p">)</span><span class="si">}</span><span class="s2"> errors"</span>
         <span class="p">)</span>
     <span class="k">elif</span> <span class="n">not_available</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span>
-        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">healed</span><span class="p">)</span><span class="si">}</span><span class="s2"> healed; </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">not_available</span><span class="p">)</span><span class="si">}</span><span class="s2"> still unavailable&quot;</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">healed</span><span class="p">)</span><span class="si">}</span><span class="s2"> healed; </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">not_available</span><span class="p">)</span><span class="si">}</span><span class="s2"> still unavailable"</span>
         <span class="n">report</span><span class="o">.</span><span class="n">recommendations</span> <span class="o">=</span> <span class="p">[</span>
-            <span class="s2">&quot;gh3_doctor --fix backfill --s3   # try S3 if local SOC tree is incomplete&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;gh3_doctor --online              # check whether NASA has the missing granules&quot;</span><span class="p">,</span>
+            <span class="s2">"gh3_doctor --fix backfill --s3   # try S3 if local SOC tree is incomplete"</span><span class="p">,</span>
+            <span class="s2">"gh3_doctor --online              # check whether NASA has the missing granules"</span><span class="p">,</span>
         <span class="p">]</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span>
-        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;healed </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">healed</span><span class="p">)</span><span class="si">}</span><span class="s2"> (granule × product) gaps&quot;</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"healed </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">healed</span><span class="p">)</span><span class="si">}</span><span class="s2"> (granule × product) gaps"</span>
 
     <span class="k">return</span> <span class="n">report</span></div>
 
 
 
-<span class="n">register</span><span class="p">(</span><span class="s1">&#39;backfill&#39;</span><span class="p">,</span> <span class="s1">&#39;fill NaN/missing-column gaps from source HDF5s&#39;</span><span class="p">,</span>
-         <span class="n">scope</span><span class="o">=</span><span class="s1">&#39;global&#39;</span><span class="p">,</span> <span class="n">fix</span><span class="o">=</span><span class="n">backfill_fix</span><span class="p">)(</span><span class="n">backfill_check</span><span class="p">)</span>
+<span class="n">register</span><span class="p">(</span><span class="s1">'backfill'</span><span class="p">,</span> <span class="s1">'fill NaN/missing-column gaps from source HDF5s'</span><span class="p">,</span>
+         <span class="n">scope</span><span class="o">=</span><span class="s1">'global'</span><span class="p">,</span> <span class="n">fix</span><span class="o">=</span><span class="n">backfill_fix</span><span class="p">)(</span><span class="n">backfill_check</span><span class="p">)</span>
 </pre></div>
 
                 </article>

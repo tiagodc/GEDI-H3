@@ -452,7 +452,7 @@
 <hr class="docutils" />
 <section id="step-1-download-gedi-data">
 <h2>Step 1: Download GEDI Data<a class="headerlink" href="#step-1-download-gedi-data" title="Link to this heading">#</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_download<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>minimal<span class="w"> </span>-l4a<span class="w"> </span>minimal
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_download<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>minimal<span class="w"> </span>-l4a<span class="w"> </span>minimal
 </pre></div>
 </div>
 <p>Downloads GEDI L2A and L4A granules covering the bounding box (W,S,E,N). Files are saved to <code class="docutils literal notranslate"><span class="pre">~/gedi_data/soc/</span></code> by default.</p>
@@ -461,7 +461,7 @@
 <hr class="docutils" />
 <section id="step-2-build-the-h3-database">
 <h2>Step 2: Build the H3 Database<a class="headerlink" href="#step-2-build-the-h3-database" title="Link to this heading">#</a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;-51,0,-50,1&quot;</span><span class="w"> </span>-l2a<span class="w"> </span>minimal<span class="w"> </span>-l4a<span class="w"> </span>minimal
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-r<span class="w"> </span><span class="s2">"-51,0,-50,1"</span><span class="w"> </span>-l2a<span class="w"> </span>minimal<span class="w"> </span>-l4a<span class="w"> </span>minimal
 </pre></div>
 </div>
 <p>Converts downloaded HDF5 files into an H3-indexed Parquet database at <code class="docutils literal notranslate"><span class="pre">~/gedi_data/h3/</span></code>. This is a one-time step; the database can be queried and re-used without rebuilding.</p>
@@ -534,17 +534,17 @@ For exact pixel matches consider using the <a class="reference internal" href=".
 
 <span class="c1"># Load from the H3 database</span>
 <span class="n">ddf</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_load</span><span class="p">(</span>
-    <span class="n">source</span><span class="o">=</span><span class="s1">&#39;~/gedi_data/h3/&#39;</span><span class="p">,</span>
-    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;agbd_l4a&#39;</span><span class="p">,</span> <span class="s1">&#39;rh_098_l2a&#39;</span><span class="p">],</span>
-    <span class="n">query</span><span class="o">=</span><span class="s1">&#39;quality_flag_l2a == 1 and agbd_l4a &gt; 0&#39;</span><span class="p">,</span>
+    <span class="n">source</span><span class="o">=</span><span class="s1">'~/gedi_data/h3/'</span><span class="p">,</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'agbd_l4a'</span><span class="p">,</span> <span class="s1">'rh_098_l2a'</span><span class="p">],</span>
+    <span class="n">query</span><span class="o">=</span><span class="s1">'quality_flag_l2a == 1 and agbd_l4a &gt; 0'</span><span class="p">,</span>
 <span class="p">)</span>
 
 <span class="c1"># Aggregate to H3 level 6</span>
-<span class="n">agg</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_res</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">,</span> <span class="s1">&#39;std&#39;</span><span class="p">,</span> <span class="s1">&#39;count&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
+<span class="n">agg</span> <span class="o">=</span> <span class="n">gh3</span><span class="o">.</span><span class="n">gh3_aggregate</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">target_res</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">agg</span><span class="o">=</span><span class="p">[</span><span class="s1">'mean'</span><span class="p">,</span> <span class="s1">'std'</span><span class="p">,</span> <span class="s1">'count'</span><span class="p">])</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
 
 <span class="c1"># Export to GeoTIFF</span>
 <span class="n">xras</span> <span class="o">=</span> <span class="n">raster</span><span class="o">.</span><span class="n">h3_to_raster</span><span class="p">(</span><span class="n">agg</span><span class="p">)</span>
-<span class="n">raster</span><span class="o">.</span><span class="n">export_raster</span><span class="p">(</span><span class="n">xras</span><span class="p">,</span> <span class="s1">&#39;agbd_mean.tif&#39;</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="s1">&#39;LZW&#39;</span><span class="p">)</span>
+<span class="n">raster</span><span class="o">.</span><span class="n">export_raster</span><span class="p">(</span><span class="n">xras</span><span class="p">,</span> <span class="s1">'agbd_mean.tif'</span><span class="p">,</span> <span class="n">compress</span><span class="o">=</span><span class="s1">'LZW'</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>For advanced Python API usage (custom aggregation functions, ancillary data integration, and more), see <a class="reference internal" href="../user-guide/python-api.html"><span class="std std-doc">Python API</span></a>.</p>

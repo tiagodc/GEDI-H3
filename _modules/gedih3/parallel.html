@@ -760,7 +760,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Authors: Tiago de Conto, Amelia Grace Holcomb</span>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
-<span class="sd">&quot;&quot;&quot;Package-wide parallelism primitives for gedih3.</span>
+<span class="sd">"""Package-wide parallelism primitives for gedih3.</span>
 
 <span class="sd">Houses the always-parallel ``parallel_map`` (originally introduced for</span>
 <span class="sd">gh3_doctor diagnoses; promoted here because the build, download, and</span>
@@ -776,7 +776,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    callers must wrap their call site in ``with Client(...) as c: ...``.</span>
 <span class="sd">    Single code path means no quietly-different behavior on small inputs.</span>
 <span class="sd">  * **Workers receive only what they need.** Filter args (exclude</span>
-<span class="sd">    patterns, glob patterns, …) flow through ``parallel_map``&#39;s</span>
+<span class="sd">    patterns, glob patterns, …) flow through ``parallel_map``'s</span>
 <span class="sd">    ``**broadcast`` kwargs — never via closure capture — so worker fns</span>
 <span class="sd">    stay picklable as top-level module functions.</span>
 <span class="sd">  * **Stream ``as_completed``** instead of ``persist + compute``.</span>
@@ -787,7 +787,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    materialized intermediates.</span>
 <span class="sd">  * **Fail loud.** A worker exception in a walker aborts the walk;</span>
 <span class="sd">    an incomplete manifest is a worse footgun than a slow re-walk.</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">"""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
@@ -812,12 +812,12 @@ window.runMermaid = runMermaid;</script>
     <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-    <span class="n">desc</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
-    <span class="n">unit</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;item&#39;</span><span class="p">,</span>
+    <span class="n">desc</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span><span class="p">,</span>
+    <span class="n">unit</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'item'</span><span class="p">,</span>
     <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
     <span class="o">**</span><span class="n">broadcast</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Map ``fn`` across ``items`` on a dask cluster.</span>
+<span class="w">    </span><span class="sd">"""Map ``fn`` across ``items`` on a dask cluster.</span>
 
 <span class="sd">    Yields ``(item, result)`` tuples in completion order. When ``fn``</span>
 <span class="sd">    raises on a worker, ``result`` is the exception instance — callers</span>
@@ -837,7 +837,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Top-level (picklable) function. Signature: ``fn(item, **broadcast)``.</span>
 <span class="sd">    args : argparse.Namespace, optional</span>
 <span class="sd">        Accepted for API compatibility with callers that pass it; not</span>
-<span class="sd">        consumed because the always-parallel path doesn&#39;t need a tqdm</span>
+<span class="sd">        consumed because the always-parallel path doesn't need a tqdm</span>
 <span class="sd">        progress bar — the dask dashboard is the live view.</span>
 <span class="sd">    desc, unit : str</span>
 <span class="sd">        Dispatch log prefix and unit name used in the periodic</span>
@@ -851,7 +851,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        beyond ~10k tasks.</span>
 <span class="sd">    **broadcast</span>
 <span class="sd">        Constant keyword arguments forwarded to every call of ``fn``.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">del</span> <span class="n">args</span>  <span class="c1"># accepted for API stability; not used in always-parallel path</span>
     <span class="n">items</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">items</span><span class="p">:</span>
@@ -865,10 +865,10 @@ window.runMermaid = runMermaid;</script>
     <span class="n">client</span> <span class="o">=</span> <span class="n">get_dask_client</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">client</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">GediError</span><span class="p">(</span>
-            <span class="s2">&quot;parallel_map requires a registered dask.distributed Client. &quot;</span>
-            <span class="s2">&quot;CLI tools (gh3_doctor, gh3_extract, gh3_aggregate, …) create &quot;</span>
-            <span class="s2">&quot;one automatically; library / notebook callers must wrap their &quot;</span>
-            <span class="s2">&quot;code in `with dask.distributed.Client(...) as client: ...`.&quot;</span>
+            <span class="s2">"parallel_map requires a registered dask.distributed Client. "</span>
+            <span class="s2">"CLI tools (gh3_doctor, gh3_extract, gh3_aggregate, …) create "</span>
+            <span class="s2">"one automatically; library / notebook callers must wrap their "</span>
+            <span class="s2">"code in `with dask.distributed.Client(...) as client: ...`."</span>
         <span class="p">)</span>
 
     <span class="kn">from</span><span class="w"> </span><span class="nn">dask.distributed</span><span class="w"> </span><span class="kn">import</span> <span class="n">as_completed</span> <span class="k">as</span> <span class="n">dask_as_completed</span>
@@ -879,19 +879,19 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># cluster view. Set ``GH3_LOG_PROGRESS=1`` to re-enable the 5%-step</span>
     <span class="c1"># INFO lines for detached / tail-followed log workflows.</span>
     <span class="n">log_progress</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
-        <span class="s1">&#39;GH3_LOG_PROGRESS&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;1&#39;</span><span class="p">,</span> <span class="s1">&#39;true&#39;</span><span class="p">,</span> <span class="s1">&#39;yes&#39;</span><span class="p">,</span> <span class="s1">&#39;on&#39;</span><span class="p">)</span>
+        <span class="s1">'GH3_LOG_PROGRESS'</span><span class="p">,</span> <span class="s1">''</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'1'</span><span class="p">,</span> <span class="s1">'true'</span><span class="p">,</span> <span class="s1">'yes'</span><span class="p">,</span> <span class="s1">'on'</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">batch_size</span> <span class="ow">and</span> <span class="n">batch_size</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">batch_size</span><span class="p">:</span>
         <span class="n">chunks</span> <span class="o">=</span> <span class="p">[</span><span class="n">items</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">i</span> <span class="o">+</span> <span class="n">batch_size</span><span class="p">]</span>
                   <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">),</span> <span class="n">batch_size</span><span class="p">)]</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">desc</span><span class="si">}</span><span class="s2">: dispatching </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">chunks</span><span class="p">)</span><span class="si">}</span><span class="s2"> batches &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;of up to </span><span class="si">{</span><span class="n">batch_size</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">unit</span><span class="si">}</span><span class="s2">s &quot;</span>
-            <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span><span class="si">}</span><span class="s2"> total) to dask cluster (progress on dashboard)&quot;</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">desc</span><span class="si">}</span><span class="s2">: dispatching </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">chunks</span><span class="p">)</span><span class="si">}</span><span class="s2"> batches "</span>
+            <span class="sa">f</span><span class="s2">"of up to </span><span class="si">{</span><span class="n">batch_size</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">unit</span><span class="si">}</span><span class="s2">s "</span>
+            <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span><span class="si">}</span><span class="s2"> total) to dask cluster (progress on dashboard)"</span>
         <span class="p">)</span>
         <span class="c1"># pure=False: every fn shipped through parallel_map reads live</span>
         <span class="c1"># filesystem state (directory scans, h5 validity, metadata reads).</span>
-        <span class="c1"># Dask&#39;s default pure=True hashes (fn, args) into a deterministic</span>
+        <span class="c1"># Dask's default pure=True hashes (fn, args) into a deterministic</span>
         <span class="c1"># task key and reuses cached results for identical keys — a repeat</span>
         <span class="c1"># of the same scan in one process (manifest write -&gt; doctor scan,</span>
         <span class="c1"># --fix -&gt; re-scan) could silently return stale pre-mutation</span>
@@ -903,7 +903,7 @@ window.runMermaid = runMermaid;</script>
         <span class="n">log_every</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">chunks</span><span class="p">)</span> <span class="o">//</span> <span class="mi">20</span><span class="p">)</span>
         <span class="n">n_done_chunks</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="n">n_done_items</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm_bar</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="n">desc</span> <span class="ow">or</span> <span class="s1">&#39;parallel_map&#39;</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="n">unit</span><span class="p">)</span>
+        <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm_bar</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="n">desc</span> <span class="ow">or</span> <span class="s1">'parallel_map'</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="n">unit</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">fut</span> <span class="ow">in</span> <span class="n">dask_as_completed</span><span class="p">(</span><span class="n">futures</span><span class="p">):</span>
                 <span class="k">try</span><span class="p">:</span>
@@ -921,16 +921,16 @@ window.runMermaid = runMermaid;</script>
                     <span class="ow">or</span> <span class="n">n_done_chunks</span> <span class="o">%</span> <span class="n">log_every</span> <span class="o">==</span> <span class="mi">0</span>
                 <span class="p">):</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">desc</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">n_done_chunks</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">chunks</span><span class="p">)</span><span class="si">}</span><span class="s2"> batches &quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="n">n_done_items</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">unit</span><span class="si">}</span><span class="s2">s) done&quot;</span>
+                        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">desc</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">n_done_chunks</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">chunks</span><span class="p">)</span><span class="si">}</span><span class="s2"> batches "</span>
+                        <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="n">n_done_items</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">unit</span><span class="si">}</span><span class="s2">s) done"</span>
                     <span class="p">)</span>
         <span class="k">finally</span><span class="p">:</span>
             <span class="n">pbar</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
         <span class="k">return</span>
 
     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">desc</span><span class="si">}</span><span class="s2">: dispatching </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span><span class="si">}</span><span class="s2"> tasks to dask cluster &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;(progress on dashboard)&quot;</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">desc</span><span class="si">}</span><span class="s2">: dispatching </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span><span class="si">}</span><span class="s2"> tasks to dask cluster "</span>
+        <span class="sa">f</span><span class="s2">"(progress on dashboard)"</span>
     <span class="p">)</span>
     <span class="c1"># pure=False — see the batched branch above: parallel_map fns are</span>
     <span class="c1"># impure filesystem readers; key-cached results would be stale.</span>
@@ -939,7 +939,7 @@ window.runMermaid = runMermaid;</script>
 
     <span class="n">log_every</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span> <span class="o">//</span> <span class="mi">20</span><span class="p">)</span>
     <span class="n">n_done</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm_bar</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="n">desc</span> <span class="ow">or</span> <span class="s1">&#39;parallel_map&#39;</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="n">unit</span><span class="p">)</span>
+    <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm_bar</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="n">desc</span> <span class="ow">or</span> <span class="s1">'parallel_map'</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="n">unit</span><span class="p">)</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">fut</span> <span class="ow">in</span> <span class="n">dask_as_completed</span><span class="p">(</span><span class="n">futures</span><span class="p">):</span>
             <span class="n">item</span> <span class="o">=</span> <span class="n">fut2item</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">fut</span><span class="p">)</span>
@@ -952,7 +952,7 @@ window.runMermaid = runMermaid;</script>
             <span class="k">if</span> <span class="n">log_progress</span> <span class="ow">and</span> <span class="p">(</span>
                 <span class="n">n_done</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">n_done</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span> <span class="ow">or</span> <span class="n">n_done</span> <span class="o">%</span> <span class="n">log_every</span> <span class="o">==</span> <span class="mi">0</span>
             <span class="p">):</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">desc</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">n_done</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">unit</span><span class="si">}</span><span class="s2">s done&quot;</span><span class="p">)</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">desc</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">n_done</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">unit</span><span class="si">}</span><span class="s2">s done"</span><span class="p">)</span>
             <span class="k">yield</span> <span class="n">item</span><span class="p">,</span> <span class="n">res</span>
     <span class="k">finally</span><span class="p">:</span>
         <span class="n">pbar</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
@@ -961,8 +961,8 @@ window.runMermaid = runMermaid;</script>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_run_chunk</span><span class="p">(</span><span class="n">chunk</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
                <span class="n">broadcast</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Worker entry point for batched dispatch. Top-level so dask can</span>
-<span class="sd">    pickle it; not for direct use.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Worker entry point for batched dispatch. Top-level so dask can</span>
+<span class="sd">    pickle it; not for direct use."""</span>
     <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">it</span> <span class="ow">in</span> <span class="n">chunk</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
@@ -980,14 +980,14 @@ window.runMermaid = runMermaid;</script>
 <span class="c1">#   3. driver flattens + sorts + returns</span>
 <span class="c1">#   4. fail-loud on any worker exception (no partial result)</span>
 <span class="c1">#</span>
-<span class="c1"># All filter args (pattern, exclude) flow through parallel_map&#39;s</span>
+<span class="c1"># All filter args (pattern, exclude) flow through parallel_map's</span>
 <span class="c1"># **broadcast — never as closure capture — so worker fns are top-level</span>
 <span class="c1"># and picklable.</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_scan_doy_dir</span><span class="p">(</span><span class="n">doy_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">pattern</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
                   <span class="n">exclude</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;SOC walker worker. One non-recursive scandir per doy directory.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""SOC walker worker. One non-recursive scandir per doy directory."""</span>
     <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">doy_dir</span><span class="p">):</span>
@@ -1002,20 +1002,20 @@ window.runMermaid = runMermaid;</script>
     <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
         <span class="c1"># Re-raise so parallel_map surfaces the failure and the walker</span>
         <span class="c1"># aborts (R2 contract: never produce a partial manifest).</span>
-        <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;scandir failed at </span><span class="si">{</span><span class="n">doy_dir</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
+        <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"scandir failed at </span><span class="si">{</span><span class="n">doy_dir</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
     <span class="k">return</span> <span class="n">out</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_scan_h3_partition</span><span class="p">(</span><span class="n">part_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">pattern</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;H3-DB walker worker. Recursive scan inside one h3 partition dir.</span>
+<span class="w">    </span><span class="sd">"""H3-DB walker worker. Recursive scan inside one h3 partition dir.</span>
 <span class="sd">    Handles both flat (``h3_NN=*/foo.parquet``) and year-nested</span>
-<span class="sd">    (``h3_NN=*/year=NNNN/foo.parquet``) layouts.&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">part_dir</span><span class="p">,</span> <span class="s1">&#39;**&#39;</span><span class="p">,</span> <span class="n">pattern</span><span class="p">),</span>
+<span class="sd">    (``h3_NN=*/year=NNNN/foo.parquet``) layouts."""</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">part_dir</span><span class="p">,</span> <span class="s1">'**'</span><span class="p">,</span> <span class="n">pattern</span><span class="p">),</span>
                             <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_scan_flat_dir</span><span class="p">(</span><span class="n">dir_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">pattern</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Flat-tree worker. One non-recursive scandir.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Flat-tree worker. One non-recursive scandir."""</span>
     <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">dir_path</span><span class="p">):</span>
@@ -1023,7 +1023,7 @@ window.runMermaid = runMermaid;</script>
                     <span class="n">entry</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">pattern</span><span class="p">):</span>
                 <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;scandir failed at </span><span class="si">{</span><span class="n">dir_path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
+        <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"scandir failed at </span><span class="si">{</span><span class="n">dir_path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
     <span class="k">return</span> <span class="n">out</span>
 
 
@@ -1032,11 +1032,11 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">walk_soc_parallel</span><span class="p">(</span>
     <span class="n">soc_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
-    <span class="n">pattern</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;GEDI*.h5&#39;</span><span class="p">,</span>
+    <span class="n">pattern</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'GEDI*.h5'</span><span class="p">,</span>
     <span class="n">exclude</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">32</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Parallel year/doy walk over a SOC tree.</span>
+<span class="w">    </span><span class="sd">"""Parallel year/doy walk over a SOC tree.</span>
 
 <span class="sd">    Driver enumerates year and doy subdirs via :func:`os.scandir`</span>
 <span class="sd">    (bounded: ~7 years × ~300 doys = ~2000 single-level syscalls on</span>
@@ -1045,7 +1045,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    locally so we never ship unwanted paths back across the network.</span>
 
 <span class="sd">    Always parallel — requires a registered dask Client.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">year_dirs</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">soc_dir</span><span class="p">):</span>
@@ -1074,16 +1074,16 @@ window.runMermaid = runMermaid;</script>
     <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">res</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span>
             <span class="nb">sorted</span><span class="p">(</span><span class="n">doy_dirs</span><span class="p">),</span>
             <span class="n">_scan_doy_dir</span><span class="p">,</span>
-            <span class="n">desc</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;walk_soc_parallel(</span><span class="si">{</span><span class="n">soc_dir</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">,</span>
-            <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;doy&#39;</span><span class="p">,</span>
+            <span class="n">desc</span><span class="o">=</span><span class="sa">f</span><span class="s2">"walk_soc_parallel(</span><span class="si">{</span><span class="n">soc_dir</span><span class="si">}</span><span class="s2">)"</span><span class="p">,</span>
+            <span class="n">unit</span><span class="o">=</span><span class="s1">'doy'</span><span class="p">,</span>
             <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span>
             <span class="n">pattern</span><span class="o">=</span><span class="n">pattern</span><span class="p">,</span>
             <span class="n">exclude</span><span class="o">=</span><span class="n">exclude</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
             <span class="k">raise</span> <span class="n">GediError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;walk_soc_parallel: worker failed — aborting walk to avoid &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;writing a partial manifest. Original: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">res</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">res</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">"walk_soc_parallel: worker failed — aborting walk to avoid "</span>
+                <span class="sa">f</span><span class="s2">"writing a partial manifest. Original: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">res</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">res</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
         <span class="n">files</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
 
@@ -1096,10 +1096,10 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">walk_h3db_parallel</span><span class="p">(</span>
     <span class="n">db_root</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
-    <span class="n">pattern</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;*.parquet&#39;</span><span class="p">,</span>
+    <span class="n">pattern</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'*.parquet'</span><span class="p">,</span>
     <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">64</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Parallel per-partition walk over an H3 database.</span>
+<span class="w">    </span><span class="sd">"""Parallel per-partition walk over an H3 database.</span>
 
 <span class="sd">    Driver enumerates ``h3_NN=*`` partition directories via one</span>
 <span class="sd">    :func:`os.scandir` on the DB root (typically ~10k entries at</span>
@@ -1107,11 +1107,11 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    (handles both flat and ``year=NNNN/``-nested layouts).</span>
 
 <span class="sd">    Always parallel — requires a registered dask Client.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="n">partition_dirs</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">db_root</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">is_dir</span><span class="p">(</span><span class="n">follow_symlinks</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="ow">and</span> <span class="n">entry</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;h3_&#39;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">is_dir</span><span class="p">(</span><span class="n">follow_symlinks</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="ow">and</span> <span class="n">entry</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'h3_'</span><span class="p">):</span>
                 <span class="n">partition_dirs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
         <span class="k">return</span> <span class="p">[]</span>
@@ -1123,15 +1123,15 @@ window.runMermaid = runMermaid;</script>
     <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">res</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span>
             <span class="nb">sorted</span><span class="p">(</span><span class="n">partition_dirs</span><span class="p">),</span>
             <span class="n">_scan_h3_partition</span><span class="p">,</span>
-            <span class="n">desc</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;walk_h3db_parallel(</span><span class="si">{</span><span class="n">db_root</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">,</span>
-            <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;partition&#39;</span><span class="p">,</span>
+            <span class="n">desc</span><span class="o">=</span><span class="sa">f</span><span class="s2">"walk_h3db_parallel(</span><span class="si">{</span><span class="n">db_root</span><span class="si">}</span><span class="s2">)"</span><span class="p">,</span>
+            <span class="n">unit</span><span class="o">=</span><span class="s1">'partition'</span><span class="p">,</span>
             <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span>
             <span class="n">pattern</span><span class="o">=</span><span class="n">pattern</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
             <span class="k">raise</span> <span class="n">GediError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;walk_h3db_parallel: worker failed — aborting walk to avoid &quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;writing a partial manifest. Original: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">res</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">res</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="sa">f</span><span class="s2">"walk_h3db_parallel: worker failed — aborting walk to avoid "</span>
+                <span class="sa">f</span><span class="s2">"writing a partial manifest. Original: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">res</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">res</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
         <span class="n">files</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
 
@@ -1144,10 +1144,10 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">walk_flat_parallel</span><span class="p">(</span>
     <span class="n">dir_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
-    <span class="n">pattern</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;*.parquet&#39;</span><span class="p">,</span>
+    <span class="n">pattern</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'*.parquet'</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Flat single-directory listing. Provided for API symmetry with the</span>
-<span class="sd">    other two walkers; no dask dispatch (the tree has a single leaf).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">"""Flat single-directory listing. Provided for API symmetry with the</span>
+<span class="sd">    other two walkers; no dask dispatch (the tree has a single leaf)."""</span>
     <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">_scan_flat_dir</span><span class="p">(</span><span class="n">dir_path</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="n">pattern</span><span class="p">))</span></div>
 
 
@@ -1161,8 +1161,8 @@ window.runMermaid = runMermaid;</script>
 <span class="c1">#</span>
 <span class="c1"># This cheap smoke check (two ``os.stat`` calls) catches that case and</span>
 <span class="c1"># emits a loud, actionable error directing the user to the doctor remedy.</span>
-<span class="c1"># It does NOT auto-refresh — that would violate R2&#39;s &quot;consumers trust the</span>
-<span class="c1"># manifest&quot; contract. The check is constant-time regardless of tree size.</span>
+<span class="c1"># It does NOT auto-refresh — that would violate R2's "consumers trust the</span>
+<span class="c1"># manifest" contract. The check is constant-time regardless of tree size.</span>
 
 
 <div class="viewcode-block" id="check_manifest_freshness">
@@ -1172,12 +1172,12 @@ window.runMermaid = runMermaid;</script>
     <span class="n">root_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">raise_on_stale</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">remedy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+    <span class="n">remedy</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">''</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compare ``mtime(manifest_path)`` against ``mtime(root_dir)``.</span>
+<span class="w">    </span><span class="sd">"""Compare ``mtime(manifest_path)`` against ``mtime(root_dir)``.</span>
 
 <span class="sd">    Returns True when the manifest is at least as new as the root</span>
-<span class="sd">    directory&#39;s mtime. Returns False (and logs a loud error / raises)</span>
+<span class="sd">    directory's mtime. Returns False (and logs a loud error / raises)</span>
 <span class="sd">    when the root dir was touched after the manifest was written —</span>
 <span class="sd">    indicating either a producer crashed before refreshing the manifest</span>
 <span class="sd">    or files were dropped in externally (e.g. NASA delivery, manual</span>
@@ -1195,24 +1195,24 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    remedy</span>
 <span class="sd">        Shell command the user should run to refresh the manifest,</span>
 <span class="sd">        included in the error message.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    """</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">m_mtime</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">manifest_path</span><span class="p">)</span><span class="o">.</span><span class="n">st_mtime_ns</span>
         <span class="n">r_mtime</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">root_dir</span><span class="p">)</span><span class="o">.</span><span class="n">st_mtime_ns</span>
     <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
-        <span class="c1"># Manifest or root missing — leave the decision to the caller&#39;s</span>
+        <span class="c1"># Manifest or root missing — leave the decision to the caller's</span>
         <span class="c1"># existing missing-manifest fallback. Not our case to flag.</span>
         <span class="k">return</span> <span class="kc">True</span>
     <span class="k">if</span> <span class="n">m_mtime</span> <span class="o">&gt;=</span> <span class="n">r_mtime</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">True</span>
     <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;manifest </span><span class="si">{</span><span class="n">manifest_path</span><span class="si">}</span><span class="s2"> is older than </span><span class="si">{</span><span class="n">root_dir</span><span class="si">}</span><span class="s2"> &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;(</span><span class="si">{</span><span class="n">m_mtime</span><span class="si">}</span><span class="s2"> &lt; </span><span class="si">{</span><span class="n">r_mtime</span><span class="si">}</span><span class="s2">). The tree was modified after the last &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;producer refresh — likely a producer crash or external &quot;</span>
-        <span class="sa">f</span><span class="s2">&quot;population (NASA delivery, manual rsync).&quot;</span>
+        <span class="sa">f</span><span class="s2">"manifest </span><span class="si">{</span><span class="n">manifest_path</span><span class="si">}</span><span class="s2"> is older than </span><span class="si">{</span><span class="n">root_dir</span><span class="si">}</span><span class="s2"> "</span>
+        <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="n">m_mtime</span><span class="si">}</span><span class="s2"> &lt; </span><span class="si">{</span><span class="n">r_mtime</span><span class="si">}</span><span class="s2">). The tree was modified after the last "</span>
+        <span class="sa">f</span><span class="s2">"producer refresh — likely a producer crash or external "</span>
+        <span class="sa">f</span><span class="s2">"population (NASA delivery, manual rsync)."</span>
     <span class="p">)</span>
     <span class="k">if</span> <span class="n">remedy</span><span class="p">:</span>
-        <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot; Remedy: </span><span class="si">{</span><span class="n">remedy</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">" Remedy: </span><span class="si">{</span><span class="n">remedy</span><span class="si">}</span><span class="s2">"</span>
     <span class="k">if</span> <span class="n">raise_on_stale</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">GediError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
     <span class="c1"># WARNING, not ERROR — the check is a heuristic on directory mtime, not a</span>
