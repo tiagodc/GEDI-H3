@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.17.2] - 2026-08-21
+
+### Fixed
+- **A `minimal`/`default` product request resolved under a provisional GEDI version could leave a stale, version-mismatched essential/quality-flag variable name in the resolved list.** `H3BuildLogger.__init__` resolves preset keywords using whatever version it has at construction time (falling back to V002 for a fresh build with no explicit `--gedi-version`); by the time `_expand_product_vars` ran with the real, auto-detected archive version, the keyword was already replaced with concrete names, so a plain union/append of the correct-version name only added it alongside the stale one rather than replacing it. Since the real HDF5 reader raises on any missing column with no partial-skip, the stale name failed every beam of every orbit for that product, silently shrinking the database relative to a build that resolved under the correct version from the start. `_expand_product_vars` now purges any essential/quality-flag name exclusive to another version before re-adding the current version's, in both the L2A essentials union and the per-product quality-flag injection loop.
+- **`gh3_download` resumed without `--gedi-version` could reintroduce the same stale-name hazard via a different path.** `SOCDownloadLogger` correctly resolves `product_vars` against the persisted download log's version on resume, but `gh3_download.py`'s `main()` threaded the raw, still-`None` `--gedi-version` CLI arg into `download_soc`/`s3_etl_subset` instead of the logger's resolved version — so their quality-flag injection resolved against the wrong fallback version and appended a stale name alongside the already-correct one. Both call sites now receive `soc_logger.gedi_version`, matching the convention `gh3_build.py` already followed.
+
 ## [0.17.1] - 2026-08-13
 
 ### Fixed
