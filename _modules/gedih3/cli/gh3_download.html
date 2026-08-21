@@ -872,7 +872,11 @@ window.runMermaid = runMermaid;</script>
                         <span class="n">product_vars</span><span class="o">=</span><span class="n">soc_logger</span><span class="o">.</span><span class="n">product_vars</span><span class="p">,</span>
                         <span class="n">spatial</span><span class="o">=</span><span class="n">soc_logger</span><span class="o">.</span><span class="n">get_spatial</span><span class="p">(),</span>
                         <span class="n">temporal</span><span class="o">=</span><span class="n">soc_logger</span><span class="o">.</span><span class="n">get_temporal</span><span class="p">(),</span>
-                        <span class="n">version</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">version</span><span class="p">,</span>
+                        <span class="c1"># soc_logger.gedi_version, not args.version: on resume it</span>
+                        <span class="c1"># carries the persisted version even when --gedi-version</span>
+                        <span class="c1"># was omitted, matching the version soc_logger.product_vars</span>
+                        <span class="c1"># was already resolved under (see SOCDownloadLogger).</span>
+                        <span class="n">version</span><span class="o">=</span><span class="n">soc_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">,</span>
                         <span class="n">odir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span>
                         <span class="n">ensure_l2a</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                     <span class="p">)</span>
@@ -884,7 +888,7 @@ window.runMermaid = runMermaid;</script>
                         <span class="n">temporal</span><span class="o">=</span><span class="n">soc_logger</span><span class="o">.</span><span class="n">get_temporal</span><span class="p">(),</span>
                         <span class="n">direct_access</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                         <span class="n">update</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                        <span class="n">version</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">version</span><span class="p">,</span>
+                        <span class="n">version</span><span class="o">=</span><span class="n">soc_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">,</span>
                         <span class="n">odir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">output</span>
                     <span class="p">)</span>
 
