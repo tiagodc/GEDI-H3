@@ -22,7 +22,7 @@ from .config import TIME_UNITS, GEDI_START_DATE_STR
 
 
 # GEDI mission start date
-GEDI_START_DATE = pd.Timestamp(GEDI_START_DATE_STR)
+GEDI_START_DATE = pd.Timestamp(GEDI_START_DATE_STR, tz='UTC')
 
 
 def parse_datetime_column(
