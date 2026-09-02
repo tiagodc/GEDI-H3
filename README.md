@@ -109,7 +109,13 @@ conda activate gedih3
 > `pip`/`uv` need nothing installed system-wide. On conda-forge these are shared
 > system libraries resolved by the solver. See the
 > [installation guide](https://tiagodc.github.io/GEDI-H3/getting-started/installation.html)
-> for platform coverage and the optional GDAL Python bindings.
+> for platform coverage, environment files and the optional GDAL Python bindings.
+
+> In a conda `environment.yml`, list `gedih3` on its own rather than repeating
+> its dependencies — and do not add `duckdb`, which on conda-forge is the CLI
+> binary and pins `python-duckdb` against the version gedih3 requires. The
+> `duckdb` module you `import` comes from `python-duckdb`, installed with
+> gedih3.
 
 ## Quick Start
 
