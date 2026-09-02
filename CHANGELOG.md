@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.17.3] - 2026-09-02
+
+### Fixed
+- **`GEDI_START_DATE` was a naive datetime, so `.timestamp()` resolved it in the host's local timezone rather than UTC**, baking a flat offset into every row's derived `datetime` column in `add_special_columns()` and `convert_delta_time_to_datetime()` (5h on a US-Eastern host, with no DST variation since the offset comes from a single epoch constant computed for 2018-01-01). Both definitions are now timezone-aware UTC, so `.timestamp()` returns the correct epoch regardless of host timezone.
+
+### Changed
+- **DuckDB floor relaxed from `>=1.4.4` to `>=1.4.0`**, the lowest version the DuckLake path is tested against; `constraints-min.txt` moves with it so the `minimum-versions` job installs and exercises the new floor rather than leaving it an untested claim.
+
+### Contributors
+- Amelia Holcomb
+
 ## [0.17.2] - 2026-08-21
 
 ### Fixed
