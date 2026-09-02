@@ -763,7 +763,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># For commercial licensing inquiries, contact UM Ventures at umdtechtransfer@umd.edu</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timezone</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dotenv</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_dotenv</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">importlib.resources</span><span class="w"> </span><span class="kn">import</span> <span class="n">files</span>
@@ -897,7 +897,7 @@ window.runMermaid = runMermaid;</script>
 
 <span class="n">configure_environment</span><span class="p">()</span>
 
-<span class="n">GEDI_START_DATE</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="s1">'2018-01-01'</span><span class="p">,</span> <span class="s1">'%Y-%m-</span><span class="si">%d</span><span class="s1">'</span><span class="p">)</span>
+<span class="n">GEDI_START_DATE</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2018</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">tzinfo</span><span class="o">=</span><span class="n">timezone</span><span class="o">.</span><span class="n">utc</span><span class="p">)</span>
 <span class="n">GEDI_MISSION_START</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2018</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">13</span><span class="p">)</span>
 <span class="n">GEDI_BEAMS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'BEAM0000'</span><span class="p">,</span><span class="s1">'BEAM0001'</span><span class="p">,</span><span class="s1">'BEAM0010'</span><span class="p">,</span><span class="s1">'BEAM0011'</span><span class="p">,</span><span class="s1">'BEAM0101'</span><span class="p">,</span><span class="s1">'BEAM0110'</span><span class="p">,</span><span class="s1">'BEAM1000'</span><span class="p">,</span><span class="s1">'BEAM1011'</span><span class="p">]</span>
 <span class="n">_GEDI_L2A_ESSENTIALS</span> <span class="o">=</span> <span class="p">{</span>

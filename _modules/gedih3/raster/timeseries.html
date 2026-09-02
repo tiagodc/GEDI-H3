@@ -782,7 +782,7 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="c1"># GEDI mission start date</span>
-<span class="n">GEDI_START_DATE</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Timestamp</span><span class="p">(</span><span class="n">GEDI_START_DATE_STR</span><span class="p">)</span>
+<span class="n">GEDI_START_DATE</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Timestamp</span><span class="p">(</span><span class="n">GEDI_START_DATE_STR</span><span class="p">,</span> <span class="n">tz</span><span class="o">=</span><span class="s1">'UTC'</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="parse_datetime_column">
