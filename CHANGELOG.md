@@ -12,6 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 - **DuckDB floor relaxed from `>=1.4.4` to `>=1.4.0`**, the lowest version the DuckLake path is tested against; `constraints-min.txt` moves with it so the `minimum-versions` job installs and exercises the new floor rather than leaving it an untested claim.
 
+### Documentation
+- **The installation guide now covers conda environment files**, where naming `duckdb` alongside gedih3 costs solver time without ever failing. On conda-forge `duckdb` is the CLI binary, and it pins `python-duckdb` to its own exact version — contradicting gedih3's `python-duckdb >=1.4.0,<1.5`, since the DuckLake catalog format is version-locked to the 1.4.x series. Left unpinned it resolves to a newer release first, and the solver backtracks through every version in between; a Python floor wider than gedih3's own `>=3.12` multiplies that cost by every build variant it must expand and reject. Neither symptom raises an error, so a solve that should take seconds can run for tens of minutes with nothing to point at. The `duckdb` module users import is supplied by `python-duckdb`, already a run dependency; anyone who also needs the CLI binary should constrain it to match (`duckdb >=1.4.0,<1.5`).
+
 ### Contributors
 - Amelia Holcomb
 
