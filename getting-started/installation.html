@@ -442,6 +442,35 @@ mamba<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> <
 </div>
 <p>conda-forge resolves the full native stack as one coherent set of shared
 libraries, which is why it is the recommended choice on HPC and shared systems.</p>
+<section id="in-an-environment-file">
+<h3>In an environment file<a class="headerlink" href="#in-an-environment-file" title="Link to this heading">#</a></h3>
+<p>List <code class="docutils literal notranslate"><span class="pre">gedih3</span></code> and let the solver pull its own stack. Re-declaring its
+dependencies is redundant, and a loose re-declaration can pin one below the
+floor gedih3 asks for:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="nt">channels</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">conda-forge</span>
+<span class="nt">dependencies</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python &gt;=3.12</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gedih3</span>
+</pre></div>
+</div>
+<p>Two things to avoid, both of which cost solver time rather than failing
+outright:</p>
+<ul class="simple">
+<li><p><strong>Do not add <code class="docutils literal notranslate"><span class="pre">duckdb</span></code>.</strong> On conda-forge that name is the DuckDB CLI, and it
+pins <code class="docutils literal notranslate"><span class="pre">python-duckdb</span></code> to its own exact version. gedih3 requires
+<code class="docutils literal notranslate"><span class="pre">python-duckdb</span> <span class="pre">&gt;=1.4.0,&lt;1.5</span></code> — the DuckLake catalog format is version-locked
+to the 1.4.x series — so an unpinned <code class="docutils literal notranslate"><span class="pre">duckdb</span></code> resolves to a newer release
+that contradicts it, and the solver backtracks through every version in
+between before settling. The <code class="docutils literal notranslate"><span class="pre">duckdb</span></code> module you <code class="docutils literal notranslate"><span class="pre">import</span></code> is provided by
+<code class="docutils literal notranslate"><span class="pre">python-duckdb</span></code>, which gedih3 already installs. If you also need the CLI
+binary, constrain it to match: <code class="docutils literal notranslate"><span class="pre">duckdb</span> <span class="pre">&gt;=1.4.0,&lt;1.5</span></code>.</p></li>
+<li><p><strong>Do not widen the Python floor below <code class="docutils literal notranslate"><span class="pre">&gt;=3.12</span></code>.</strong> A bound such as
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">&gt;=3.10</span></code> makes the solver expand build variants for every compiled
+package at Python versions gedih3 will ultimately reject.</p></li>
+</ul>
+</section>
 </section>
 <section id="pip">
 <h2>pip<a class="headerlink" href="#pip" title="Link to this heading">#</a></h2>
@@ -654,7 +683,10 @@ gh3_list_resolutions
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#conda-mamba-recommended-for-hpc-and-shared-clusters">conda / mamba (recommended for HPC and shared clusters)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#conda-mamba-recommended-for-hpc-and-shared-clusters">conda / mamba (recommended for HPC and shared clusters)</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#in-an-environment-file">In an environment file</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pip">pip</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#uv">uv</a><ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#platform-support">Platform support</a></li>

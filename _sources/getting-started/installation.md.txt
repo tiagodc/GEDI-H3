@@ -22,6 +22,37 @@ mamba install -c conda-forge gedih3
 conda-forge resolves the full native stack as one coherent set of shared
 libraries, which is why it is the recommended choice on HPC and shared systems.
 
+### In an environment file
+
+List `gedih3` and let the solver pull its own stack. Re-declaring its
+dependencies is redundant, and a loose re-declaration can pin one below the
+floor gedih3 asks for:
+
+```yaml
+name: my-project
+channels:
+  - conda-forge
+dependencies:
+  - python >=3.12
+  - gedih3
+```
+
+Two things to avoid, both of which cost solver time rather than failing
+outright:
+
+- **Do not add `duckdb`.** On conda-forge that name is the DuckDB CLI, and it
+  pins `python-duckdb` to its own exact version. gedih3 requires
+  `python-duckdb >=1.4.0,<1.5` — the DuckLake catalog format is version-locked
+  to the 1.4.x series — so an unpinned `duckdb` resolves to a newer release
+  that contradicts it, and the solver backtracks through every version in
+  between before settling. The `duckdb` module you `import` is provided by
+  `python-duckdb`, which gedih3 already installs. If you also need the CLI
+  binary, constrain it to match: `duckdb >=1.4.0,<1.5`.
+
+- **Do not widen the Python floor below `>=3.12`.** A bound such as
+  `python >=3.10` makes the solver expand build variants for every compiled
+  package at Python versions gedih3 will ultimately reject.
+
 ## pip
 
 ```bash
