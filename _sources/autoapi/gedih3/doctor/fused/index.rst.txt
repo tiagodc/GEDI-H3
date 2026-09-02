@@ -43,7 +43,7 @@ Functions
 Module Contents
 ---------------
 
-.. py:function:: register_scan(name: str, fn: Callable[Ellipsis, Any]) -> None
+.. py:function:: register_scan(name: str, fn: Callable[..., Any]) -> None
 
    
    Register a per-partition scan worker under ``name``.

@@ -62,7 +62,7 @@ Module Contents
 
 .. py:data:: logger
 
-.. py:function:: parallel_map(items: List[Any], fn: Callable[Ellipsis, Any], *, args=None, desc: str = '', unit: str = 'item', batch_size: int = 0, **broadcast) -> Iterator[Tuple[Any, Any]]
+.. py:function:: parallel_map(items: List[Any], fn: Callable[..., Any], *, args=None, desc: str = '', unit: str = 'item', batch_size: int = 0, **broadcast) -> Iterator[Tuple[Any, Any]]
 
    
    Map ``fn`` across ``items`` on a dask cluster.
