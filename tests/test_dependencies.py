@@ -84,7 +84,7 @@ def _declared_floors():
         pyproject = tomllib.load(handle)
     floors = {}
     for spec in pyproject['project']['dependencies']:
-        # 'duckdb >=1.4.4,<1.5  # comment' -> name 'duckdb', floor '1.4.4'
+        # 'duckdb >=1.4.0,<1.5  # comment' -> name 'duckdb', floor '1.4.0'
         spec = spec.split('#')[0].strip()
         name = spec
         for delimiter in ('>', '<', '=', '!', '~', '[', ';', ' '):

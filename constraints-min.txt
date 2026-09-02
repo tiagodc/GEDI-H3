@@ -37,4 +37,4 @@ pqdm==0.2.0
 tqdm==4.60.0
 pyyaml==6.0.1
 scipy==1.11.2
-duckdb==1.4.4
+duckdb==1.4.0
