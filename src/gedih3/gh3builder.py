@@ -42,6 +42,46 @@ def _init_earthaccess_worker():
     _install_request_timeouts()
 
 
+def _ensure_download_essentials(product_vars: Dict, version=None, ensure_l2a: bool = True) -> Dict:
+    """Complete an expanded ``product_vars`` so the files it fetches can be built.
+
+    Mirrors what :func:`_expand_product_vars` does at build time, applied at
+    download time so a subset fetched with an *explicit* L2A list (or via
+    S3 ETL, which stores only what was asked for) is not missing the
+    columns every build needs:
+
+    * the version-specific L2A essentials (lat/lon/elev lowestmode, quality
+      + degrade flags, sensitivity) are unioned into an explicit L2A list,
+      or L2A is added outright when ``ensure_l2a`` and it is absent;
+    * ``shot_number`` on every explicit list;
+    * each product's quality flags for the resolved release.
+
+    ``None`` (download everything) lists are left alone. ``ensure_l2a=False``
+    (variable-only updates against a DB that already holds L2A) never adds
+    L2A, but still completes the lists that are present.
+    """
+    if ensure_l2a:
+        essentials = _get_versioned(_GEDI_L2A_ESSENTIALS, version)
+        if 'L2A' not in product_vars:
+            product_vars['L2A'] = list(essentials)
+        elif product_vars['L2A'] is not None:
+            product_vars['L2A'] = list(dict.fromkeys(list(product_vars['L2A']) + list(essentials)))
+
+    for _prod, val in product_vars.items():
+        if val is None:
+            continue
+        if 'shot_number' not in val:
+            val.append('shot_number')
+
+    for prod, val in product_vars.items():
+        flag_map = _PRODUCT_QUALITY_FLAGS.get(prod)
+        if flag_map and val is not None:
+            for flag_name, _condition in _get_versioned(flag_map, version):
+                if flag_name not in val:
+                    val.append(flag_name)
+    return product_vars
+
+
 def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=False, update=False, version=None, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5, on_granule_complete=None, ensure_l2a=True):
     """
     Download GEDI HDF5 files in SOC (Science Operation Center) format.
@@ -63,7 +103,7 @@ def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=
     update : bool, default False
         If True, resume a previous download (skip already-downloaded files).
     version : int or str, optional
-        GEDI data version (e.g., 2). If None, uses latest available.
+        GEDI data version (e.g., 3). If None, uses the package default (``GEDI_DEFAULT_VERSION``).
     odir : str
         Output directory for downloaded HDF5 files.
     n_jobs : int, default 5
@@ -84,25 +124,7 @@ def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=
         List of downloaded SOC file paths or EarthAccessFile objects.
     """
     product_vars = gedi_vars_expand(product_vars, version=version)
-
-    if ensure_l2a and 'L2A' not in product_vars:
-        essentials = _get_versioned(_GEDI_L2A_ESSENTIALS, version)
-        product_vars.update({'L2A': essentials})
-
-    for k, val in product_vars.items():
-        if val is None:
-            continue
-        if 'shot_number' not in val:
-            val.append('shot_number')
-
-    # Ensure quality flag variables are included for every product with an explicit var list.
-    for prod, val in product_vars.items():
-        flag_map = _PRODUCT_QUALITY_FLAGS.get(prod)
-        if flag_map and val is not None:
-            flags = _get_versioned(flag_map, version)
-            for flag_name, _condition in flags:
-                if flag_name not in val:
-                    val.append(flag_name)
+    product_vars = _ensure_download_essentials(product_vars, version=version, ensure_l2a=ensure_l2a)
 
     soc_files = gedi_download(
         product_vars=product_vars,
@@ -237,7 +259,7 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
     temporal : tuple of str, optional
         Temporal range as (start_date, end_date) in 'YYYY-MM-DD' format.
     version : int or str, optional
-        GEDI data version. If None, uses latest available.
+        GEDI data version. If None, uses the package default (``GEDI_DEFAULT_VERSION``).
     odir : str
         Output directory for compact local HDF5 files in SOC structure.
     ensure_l2a : bool, default True
@@ -257,18 +279,12 @@ def s3_etl_subset(product_vars, spatial=None, temporal=None, version=None, odir=
     """
     from .daac import GEDIAccessor
 
-    # Expand variable specifications and ensure L2A essentials + shot_number
+    # Expand variable specifications and complete them with the L2A
+    # essentials, shot_number and per-product quality flags — the compact
+    # files written here hold *only* what is listed, so anything the build
+    # needs must be requested now.
     product_vars = gedi_vars_expand(product_vars, version=version)
-
-    if ensure_l2a and 'L2A' not in product_vars:
-        essentials = _get_versioned(_GEDI_L2A_ESSENTIALS, version)
-        product_vars.update({'L2A': essentials})
-
-    for k, val in product_vars.items():
-        if val is None:
-            continue
-        if 'shot_number' not in val:
-            val.append('shot_number')
+    product_vars = _ensure_download_essentials(product_vars, version=version, ensure_l2a=ensure_l2a)
 
     # Search for granules per product (no S3 handles opened yet)
     logger.info("Searching NASA DAAC for GEDI granules")
@@ -3654,7 +3670,7 @@ def build_h3db(
         - ``str``: path to local directory containing GEDI SOC HDF5 files
         - ``list``: pre-acquired list of file paths or EarthAccessFile objects
     version : int or None
-        GEDI data version. If None, uses latest available.
+        GEDI data version. If None, uses the package default (``GEDI_DEFAULT_VERSION``).
         Also used to filter local files by version when soc_source is a directory.
     tmp_dir : str
         Path to temporary directory for intermediate files.

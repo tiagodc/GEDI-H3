@@ -621,10 +621,25 @@ class TestGetProductQualityConditions:
         result = get_product_quality_conditions(['L1B'], version=2, available_columns=cols)
         assert result == []
 
-    def test_version_none_defaults_to_v2(self):
-        cols = ['quality_flag_l2a', 'degrade_flag_l2a']
+    def test_version_none_defaults_to_package_default(self):
+        from gedih3.config import GEDI_DEFAULT_VERSION
+        assert GEDI_DEFAULT_VERSION == 3
+        cols = ['l2a_quality_flag_rel3_l2a', 'quality_flag_l2a', 'degrade_flag_l2a']
         result = get_product_quality_conditions(['L2A'], version=None, available_columns=cols)
-        assert result == [('quality_flag_l2a', '== 1'), ('degrade_flag_l2a', '== 0')]
+        assert result == [('l2a_quality_flag_rel3_l2a', '== 1'), ('degrade_flag_l2a', '== 0')]
+
+    def test_version_none_falls_back_to_release_present_in_columns(self):
+        # Simplified dataset without a build log, extracted from a v2 DB:
+        # the v3 flag names are absent, the v2 ones identify the release.
+        cols = ['quality_flag_l2a', 'degrade_flag_l2a', 'l4_quality_flag_l4a']
+        result = get_product_quality_conditions(['L2A', 'L4A'], version=None, available_columns=cols)
+        assert result == [('quality_flag_l2a', '== 1'), ('degrade_flag_l2a', '== 0'),
+                          ('l4_quality_flag_l4a', '== 1')]
+
+    def test_explicit_version_falls_back_when_its_flags_are_absent(self):
+        cols = ['wsci_quality_flag_l4c', 'wsci_l4c']
+        result = get_product_quality_conditions(['L4C'], version=3, available_columns=cols)
+        assert result == [('wsci_quality_flag_l4c', '== 1')]
 
     def test_l2b_v3(self):
         cols = ['l2b_quality_flag_rel3_l2b']

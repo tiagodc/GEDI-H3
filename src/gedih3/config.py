@@ -14,6 +14,15 @@ def get_package_data_path(filename):
     except ModuleNotFoundError:
         return Path(__file__).parent.joinpath('data', filename)
 
+# Package-wide GEDI data version applied whenever a caller passes
+# ``version=None`` and no persisted (build/download log) or detected (SOC
+# filename) version is available. Every product defaults to the same
+# release: a gedih3 database is single-version by contract — L1B/L2A/L2B/
+# L4A/L4C must all come from the same GEDI release. Existing databases keep
+# the version recorded in their build log (see ``H3BuildLogger``).
+GEDI_DEFAULT_VERSION = 3
+
+
 def _get_versioned(version_dict, version=None):
     """Resolve a version-keyed dict. Falls back to nearest lower version.
 
@@ -22,7 +31,7 @@ def _get_versioned(version_dict, version=None):
     version_dict : dict
         Mapping of integer version numbers to values.
     version : int or None
-        Target version. If None, defaults to 2.
+        Target version. If None, defaults to ``GEDI_DEFAULT_VERSION``.
 
     Returns
     -------
@@ -30,7 +39,7 @@ def _get_versioned(version_dict, version=None):
         The value for the requested version, or the nearest lower version.
     """
     if version is None:
-        version = 2
+        version = GEDI_DEFAULT_VERSION
     if version in version_dict:
         return version_dict[version]
     available = sorted(v for v in version_dict if v <= version)
@@ -195,26 +204,29 @@ _PRODUCT_QUALITY_FLAGS = {
 
 GEDI_PRODUCTS = {
     'L1B': {
+        # LPDAAC short_names are version-agnostic; the CMR ``version``
+        # filter (zero-padded, e.g. '003') selects the release. The DOI
+        # below is informational (the ``.003`` suffix tracks the default).
         'short_name': 'GEDI01_B',
-        'doi': '10.5067/GEDI/GEDI01_B.002',
+        'doi': '10.5067/GEDI/GEDI01_B.003',
         'daac': 'LPDAAC',
-        'version': 2,
+        'version': GEDI_DEFAULT_VERSION,
         'format': '.h5',
         'description': 'Geolocated waveforms'
     },
     'L2A': {
         'short_name': 'GEDI02_A',
-        'doi': '10.5067/GEDI/GEDI02_A.002',
+        'doi': '10.5067/GEDI/GEDI02_A.003',
         'daac': 'LPDAAC',
-        'version': 2,
+        'version': GEDI_DEFAULT_VERSION,
         'format': '.h5',
         'description': 'Elevation and height metrics'
     },
     'L2B': {
         'short_name': 'GEDI02_B',
-        'doi': '10.5067/GEDI/GEDI02_B.002',
+        'doi': '10.5067/GEDI/GEDI02_B.003',
         'daac': 'LPDAAC',
-        'version': 2,
+        'version': GEDI_DEFAULT_VERSION,
         'format': '.h5',
         'description': 'Canopy cover and vertical profile metrics'
     },
@@ -229,12 +241,14 @@ GEDI_PRODUCTS = {
     'L4A': {
         # ORNL DAAC short_names and DOIs encode the release ID, so they are
         # version-pinned. Resolve per requested version via _resolve_identifier().
+        # V2.1: https://daac.ornl.gov/GEDI/guides/GEDI_L4A_AGB_Density_V2_1.html
+        # V3:   https://daac.ornl.gov/GEDI/guides/GEDI_L4A_AGB_Density_V3.html
         'short_name': {2.1: 'GEDI_L4A_AGB_Density_V2_1_2056',
                        3:   'GEDI_L4A_AGB_Density_V3_2508'},
         'doi':        {2.1: '10.3334/ORNLDAAC/2056',
                        3:   '10.3334/ORNLDAAC/2508'},
         'daac': 'ORNLDAAC',
-        'version': 2.1,
+        'version': GEDI_DEFAULT_VERSION,
         'format': '.h5',
         'description': 'Footprint level aboveground biomass'
     },
@@ -248,10 +262,14 @@ GEDI_PRODUCTS = {
     # },
     'L4C': {
         # See L4A note re: ORNL DAAC version-pinned identifiers.
-        'short_name': {2: 'GEDI_L4C_WSCI_2338'},
-        'doi':        {2: '10.3334/ORNLDAAC/2338'},
+        # V2: https://daac.ornl.gov/GEDI/guides/GEDI_L4C_WSCI.html
+        # V3: https://daac.ornl.gov/GEDI/guides/GEDI_L4C_WSCI_V3.html
+        'short_name': {2: 'GEDI_L4C_WSCI_2338',
+                       3: 'GEDI_L4C_WSCI_V3_2520'},
+        'doi':        {2: '10.3334/ORNLDAAC/2338',
+                       3: '10.3334/ORNLDAAC/2520'},
         'daac': 'ORNLDAAC',
-        'version': 2,
+        'version': GEDI_DEFAULT_VERSION,
         'format': '.h5',
         'description': 'Footprint level structural complexity'
     }
@@ -269,7 +287,7 @@ def get_default_vars_file(product, version=None):
     product : str
         Product code (e.g., 'L2A', 'L4A')
     version : int or None
-        GEDI data version. If None, falls back to known version 2.
+        GEDI data version. If None, falls back to ``GEDI_DEFAULT_VERSION``.
 
     Returns
     -------
@@ -280,7 +298,7 @@ def get_default_vars_file(product, version=None):
     if product not in GEDI_PRODUCTS:
         raise ValueError(f"Unknown product: {product}")
     if version is None:
-        version = 2
+        version = GEDI_DEFAULT_VERSION
     # Derive canonical prefix from product key (e.g., 'L2A' → 'GEDI02_A')
     # instead of short_name, which is DAAC-specific for L4A/L4C.
     prefix = f"GEDI0{product[1]}_{product[2]}"

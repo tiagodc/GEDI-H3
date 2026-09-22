@@ -28,7 +28,7 @@ gh3_download --s3  # Stream from NASA S3 without local download
 | `-r, --region` | Spatial filter: bbox, vector file, or ISO3 code |
 | `-t0, -t1` | Start/end date (YYYY-MM-DD) |
 | `-l1b, -l2a, -l2b, -l4a, -l4c` | Products to download (`default`, `minimal`, or list) |
-| `--gedi-version` | GEDI data version (default: latest) |
+| `--gedi-version` | GEDI data release for every product (default: the release already in the target directory's log or files, else v3). All products of a download or database come from one release |
 | `--s3` | S3 streaming mode |
 
 ---
