@@ -34,6 +34,7 @@ Functions
    gedih3.logger.load_log_data
    gedih3.logger.merge_temporal
    gedih3.logger.merge_product_vars
+   gedih3.logger.resolve_soc_version
 
 
 Module Contents
@@ -68,6 +69,41 @@ Module Contents
 .. py:function:: merge_temporal(existing, new)
 
 .. py:function:: merge_product_vars(existing_product_vars, new_product_vars=None)
+
+.. py:function:: resolve_soc_version(soc_dir)
+
+   
+   Return the GEDI data version a local SOC tree was populated with, or None.
+
+   A-priori lookup — no HDF5 open, no recursive walk:
+
+   1. the download log's ``gedi_version`` (``gedih3_download_log.json`` at
+      the SOC root), written by every gh3 producer;
+   2. else the ``_V00N`` field of the first ``GEDI*.h5`` found by a bounded
+      ``year/doy`` scandir (externally populated trees: manual rsync, NASA
+      delivery).
+
+   Used by ``gh3_build`` / ``gh3_download`` to pin a *fresh* build or
+   resumed download to the release already on disk when the user did not
+   pass ``--gedi-version``; the package default (``GEDI_DEFAULT_VERSION``)
+   only applies when nothing on disk answers the question.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
 
 .. py:class:: SOCDownloadLogger(product_vars, spatial=None, temporal=None, version=None, dir=None)
 

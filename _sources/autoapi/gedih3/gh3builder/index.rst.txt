@@ -66,7 +66,7 @@ Module Contents
            If True, resume a previous download (skip already-downloaded files).
 
        **version** : int or str, optional
-           GEDI data version (e.g., 2). If None, uses latest available.
+           GEDI data version (e.g., 3). If None, uses the package default (``GEDI_DEFAULT_VERSION``).
 
        **odir** : str
            Output directory for downloaded HDF5 files.
@@ -130,7 +130,7 @@ Module Contents
            Temporal range as (start_date, end_date) in 'YYYY-MM-DD' format.
 
        **version** : int or str, optional
-           GEDI data version. If None, uses latest available.
+           GEDI data version. If None, uses the package default (``GEDI_DEFAULT_VERSION``).
 
        **odir** : str
            Output directory for compact local HDF5 files in SOC structure.
@@ -562,7 +562,7 @@ Module Contents
            - ``list``: pre-acquired list of file paths or EarthAccessFile objects
 
        **version** : int or None
-           GEDI data version. If None, uses latest available.
+           GEDI data version. If None, uses the package default (``GEDI_DEFAULT_VERSION``).
            Also used to filter local files by version when soc_source is a directory.
 
        **tmp_dir** : str

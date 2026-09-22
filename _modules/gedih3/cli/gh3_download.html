@@ -790,7 +790,9 @@ window.runMermaid = runMermaid;</script>
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"-s3"</span><span class="p">,</span> <span class="s2">"--s3"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"s3"</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">'store_true'</span><span class="p">,</span>
                    <span class="n">help</span><span class="o">=</span><span class="s2">"use S3 ETL mode: stream and subset from NASA S3. Best when the subset is narrow (&lt;~10</span><span class="si">%%</span><span class="s2"> of the granule) or bandwidth is constrained. On fast links with broad subsets (e.g. L2A default including rh), plain DAAC download is usually faster"</span><span class="p">)</span>
     <span class="n">p</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">"--gedi-version"</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s2">"version"</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                   <span class="n">help</span><span class="o">=</span><span class="s2">"GEDI data version [default=latest available]"</span><span class="p">)</span>
+                   <span class="n">help</span><span class="o">=</span><span class="s2">"GEDI data release for every product (e.g. 3). Default: the version "</span>
+                        <span class="s2">"recorded in the output directory's download log or already on disk, "</span>
+                        <span class="s2">"else the package default (v3). All products are fetched from the same release."</span><span class="p">)</span>
 
     <span class="c1"># Dask and verbosity</span>
     <span class="n">add_dask_args</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="s1">'build'</span><span class="p">)</span>
@@ -809,7 +811,7 @@ window.runMermaid = runMermaid;</script>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">GH3_DEFAULT_SOC_DIR</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_gedi_args</span><span class="p">,</span> <span class="n">parse_dask_args</span><span class="p">,</span> <span class="n">parse_region</span><span class="p">,</span> <span class="n">setup_logging</span><span class="p">,</span> <span class="n">print_banner</span><span class="p">,</span> <span class="n">print_success</span><span class="p">,</span> <span class="n">resolve_path_args</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">download_soc</span><span class="p">,</span> <span class="n">s3_etl_subset</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOCDownloadLogger</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOCDownloadLogger</span><span class="p">,</span> <span class="n">resolve_soc_version</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">dask.distributed</span><span class="w"> </span><span class="kn">import</span> <span class="n">Client</span>
 
     <span class="c1"># Setup logging and print banner</span>
@@ -826,6 +828,15 @@ window.runMermaid = runMermaid;</script>
     <span class="n">temporal</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">time_start</span> <span class="ow">or</span> <span class="n">args</span><span class="o">.</span><span class="n">time_end</span><span class="p">:</span>
         <span class="n">temporal</span> <span class="o">=</span> <span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">time_start</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">time_end</span><span class="p">)</span>
+
+    <span class="c1"># Pin to the release already on disk (download log, else first file)</span>
+    <span class="c1"># when the user did not ask for one — a SOC tree should hold a single</span>
+    <span class="c1"># GEDI release so the build it feeds is single-version.</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">version</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">detected</span> <span class="o">=</span> <span class="n">resolve_soc_version</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">detected</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">version</span> <span class="o">=</span> <span class="n">detected</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"GEDI version </span><span class="si">{</span><span class="n">detected</span><span class="si">}</span><span class="s2"> detected in </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2">; downloading that release"</span><span class="p">)</span>
 
     <span class="n">soc_logger</span> <span class="o">=</span> <span class="n">SOCDownloadLogger</span><span class="p">(</span>
         <span class="n">product_vars</span><span class="o">=</span><span class="n">product_vars</span><span class="p">,</span>

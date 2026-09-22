@@ -950,6 +950,63 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="n">merged_product_vars</span><span class="p">,</span> <span class="n">new_product_vars</span></div>
 
 
+<div class="viewcode-block" id="resolve_soc_version">
+<a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.resolve_soc_version">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_soc_version</span><span class="p">(</span><span class="n">soc_dir</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the GEDI data version a local SOC tree was populated with, or None.</span>
+
+<span class="sd">    A-priori lookup — no HDF5 open, no recursive walk:</span>
+
+<span class="sd">    1. the download log's ``gedi_version`` (``gedih3_download_log.json`` at</span>
+<span class="sd">       the SOC root), written by every gh3 producer;</span>
+<span class="sd">    2. else the ``_V00N`` field of the first ``GEDI*.h5`` found by a bounded</span>
+<span class="sd">       ``year/doy`` scandir (externally populated trees: manual rsync, NASA</span>
+<span class="sd">       delivery).</span>
+
+<span class="sd">    Used by ``gh3_build`` / ``gh3_download`` to pin a *fresh* build or</span>
+<span class="sd">    resumed download to the release already on disk when the user did not</span>
+<span class="sd">    pass ``--gedi-version``; the package default (``GEDI_DEFAULT_VERSION``)</span>
+<span class="sd">    only applies when nothing on disk answers the question.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">soc_dir</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">soc_dir</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">log_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">soc_dir</span><span class="p">,</span> <span class="n">SOCDownloadLogger</span><span class="o">.</span><span class="n">_LOG_FILE_NAME</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">log_path</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">json_read</span><span class="p">(</span><span class="n">log_path</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'gedi_version'</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+            <span class="k">pass</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">soc_dir</span><span class="p">)</span> <span class="k">as</span> <span class="n">years</span><span class="p">:</span>
+            <span class="n">year_dirs</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">path</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">years</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">isdigit</span><span class="p">()),</span>
+                <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="p">)</span>
+    <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">ydir</span> <span class="ow">in</span> <span class="n">year_dirs</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">ydir</span><span class="p">)</span> <span class="k">as</span> <span class="n">doys</span><span class="p">:</span>
+                <span class="n">doy_dirs</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">((</span><span class="n">e</span><span class="o">.</span><span class="n">path</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">doys</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">for</span> <span class="n">ddir</span> <span class="ow">in</span> <span class="n">doy_dirs</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">with</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">ddir</span><span class="p">)</span> <span class="k">as</span> <span class="n">files</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'GEDI'</span><span class="p">)</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">'.h5'</span><span class="p">):</span>
+                            <span class="k">try</span><span class="p">:</span>
+                                <span class="k">return</span> <span class="n">GEDIFile</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">version</span>
+                            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                                <span class="k">continue</span>
+            <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+                <span class="k">continue</span>
+    <span class="k">return</span> <span class="kc">None</span></div>
+
+
+
 <div class="viewcode-block" id="SOCDownloadLogger">
 <a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.SOCDownloadLogger">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">SOCDownloadLogger</span><span class="p">:</span>
@@ -968,14 +1025,28 @@ window.runMermaid = runMermaid;</script>
         <span class="bp">self</span><span class="o">.</span><span class="n">updating</span> <span class="o">=</span> <span class="kc">False</span>
 
         <span class="c1"># Resume-mode `default`/`minimal` expansion must target the</span>
-        <span class="c1"># existing DB's version, not the package fallback (v2). Otherwise</span>
-        <span class="c1"># `gh3_download -l4c default` against a v3 download tree expands</span>
-        <span class="c1"># against the v2 manifest and writes the wrong variable names.</span>
-        <span class="c1"># Peek the log before expansion so an absent `--gedi-version` CLI</span>
-        <span class="c1"># arg adopts the persisted version.</span>
+        <span class="c1"># existing tree's version, not the package fallback</span>
+        <span class="c1"># (GEDI_DEFAULT_VERSION). Otherwise `gh3_download -l4c default`</span>
+        <span class="c1"># against a v2 download tree expands against the v3 manifest and</span>
+        <span class="c1"># writes the wrong variable names. Peek the log before expansion</span>
+        <span class="c1"># so an absent `--gedi-version` CLI arg adopts the persisted version.</span>
         <span class="n">effective_version</span> <span class="o">=</span> <span class="n">version</span>
         <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_data</span><span class="p">:</span>
             <span class="n">effective_version</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'gedi_version'</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
+        <span class="n">persisted_version</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'gedi_version'</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_data</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">persisted_version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">int</span><span class="p">(</span><span class="n">version</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">int</span><span class="p">(</span><span class="n">persisted_version</span><span class="p">):</span>
+            <span class="c1"># A SOC tree *can* hold two releases side by side (filenames carry</span>
+            <span class="c1"># the version and every consumer globs by it), so this is not</span>
+            <span class="c1"># fatal — but the log records one version, and a later</span>
+            <span class="c1"># `gh3_build -i` with no --gedi-version pins to whatever is</span>
+            <span class="c1"># written there. Say so loudly.</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.logging_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_logger</span>
+            <span class="n">get_logger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"GEDI version mismatch: download log at </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_PARENT_DIR</span><span class="si">}</span><span class="s2"> records "</span>
+                <span class="sa">f</span><span class="s2">"version </span><span class="si">{</span><span class="n">persisted_version</span><span class="si">}</span><span class="s2">, but version </span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s2"> was requested. "</span>
+                <span class="sa">f</span><span class="s2">"The tree will hold both releases and the log will now record "</span>
+                <span class="sa">f</span><span class="s2">"version </span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s2">; prefer one SOC directory per release."</span>
+            <span class="p">)</span>
 
         <span class="k">if</span> <span class="n">product_vars</span><span class="p">:</span>
             <span class="n">product_vars</span> <span class="o">=</span> <span class="n">gedi_vars_expand</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">effective_version</span><span class="p">)</span>
@@ -1252,12 +1323,15 @@ window.runMermaid = runMermaid;</script>
         <span class="bp">self</span><span class="o">.</span><span class="n">log_data</span> <span class="o">=</span> <span class="n">load_log_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_file</span><span class="p">)</span>
 
         <span class="c1"># Resume-mode `default`/`minimal` expansion must target the</span>
-        <span class="c1"># existing DB's gedi_version, not the package fallback (v2).</span>
-        <span class="c1"># Otherwise `gh3_build -l4c default` against an existing v3 DB</span>
-        <span class="c1"># expands against the v2 manifest, requesting variable names that</span>
-        <span class="c1"># don't exist in the v3 h5 files and aborting at validation. Peek</span>
-        <span class="c1"># the log before expansion so an absent `--gedi-version` CLI arg</span>
-        <span class="c1"># adopts the persisted version.</span>
+        <span class="c1"># existing DB's gedi_version, not the package fallback</span>
+        <span class="c1"># (GEDI_DEFAULT_VERSION). Otherwise `gh3_build -l4c default`</span>
+        <span class="c1"># against an existing v2 DB expands against the v3 manifest,</span>
+        <span class="c1"># requesting variable names that don't exist in the v2 h5 files</span>
+        <span class="c1"># and aborting at validation. Peek the log before expansion so an</span>
+        <span class="c1"># absent `--gedi-version` CLI arg adopts the persisted version.</span>
+        <span class="c1"># A database is single-version by contract: every product in it</span>
+        <span class="c1"># comes from the same GEDI release (enforced by the mismatch check</span>
+        <span class="c1"># below and by the per-version SOC glob in the build).</span>
         <span class="n">effective_version</span> <span class="o">=</span> <span class="n">version</span>
         <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_data</span><span class="p">:</span>
             <span class="n">effective_version</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'gedi_version'</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>

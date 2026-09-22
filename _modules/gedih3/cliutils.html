@@ -2288,11 +2288,11 @@ window.runMermaid = runMermaid;</script>
         <span class="n">available_columns</span> <span class="o">=</span> <span class="n">gh3_read_meta</span><span class="p">(</span><span class="s1">'h3_columns'</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">database</span><span class="p">)</span>
     <span class="c1"># min/default expand to version-specific variable names (e.g. quality_flag in</span>
     <span class="c1"># v2 vs l2a_quality_flag_rel3 in v3). Resolve against the DB's actual version</span>
-    <span class="c1"># rather than letting gedi_vars_expand fall back to its v2 default.</span>
+    <span class="c1"># rather than letting gedi_vars_expand fall back to GEDI_DEFAULT_VERSION.</span>
     <span class="c1"># gh3_aggregate also accepts a pre-extracted/aggregated flat dataset whose</span>
     <span class="c1"># directory has no build log; tolerate the missing/unreadable log and let</span>
-    <span class="c1"># gedi_vars_expand fall back to its v2 default (concrete column names in a</span>
-    <span class="c1"># flat source are validated against available_columns regardless).</span>
+    <span class="c1"># gedi_vars_expand fall back to the package default (concrete column names</span>
+    <span class="c1"># in a flat source are validated against available_columns regardless).</span>
     <span class="n">gedi_version</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="s1">'database'</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
@@ -2378,7 +2378,12 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    selected_products : list[str]</span>
 <span class="sd">        Product keys that were requested (e.g. ['L2A', 'L4A']).</span>
 <span class="sd">    version : int or None</span>
-<span class="sd">        GEDI data version from build log (e.g. 2 or 3). None defaults to 2.</span>
+<span class="sd">        GEDI data version from build log (e.g. 2 or 3). None defaults to</span>
+<span class="sd">        ``GEDI_DEFAULT_VERSION``. When none of the resolved version's flag</span>
+<span class="sd">        columns exist but another release's do (a simplified dataset</span>
+<span class="sd">        without a build log, extracted from an older database), that</span>
+<span class="sd">        release's flags are used instead — the column names themselves</span>
+<span class="sd">        identify the release, so this never mixes versions.</span>
 <span class="sd">    available_columns : list[str]</span>
 <span class="sd">        Columns present in the database (suffixed form e.g. 'quality_flag_l2a').</span>
 
@@ -2388,17 +2393,30 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Pairs of (column_name, condition_str) to use in the quality filter query,</span>
 <span class="sd">        e.g. ``[('quality_flag_l2a', '== 1'), ('degrade_flag_l2a', '== 0')]``.</span>
 <span class="sd">    """</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">_PRODUCT_QUALITY_FLAGS</span><span class="p">,</span> <span class="n">_get_versioned</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">_PRODUCT_QUALITY_FLAGS</span><span class="p">,</span> <span class="n">_get_versioned</span><span class="p">,</span> <span class="n">GEDI_DEFAULT_VERSION</span>
+    <span class="n">available</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">available_columns</span><span class="p">)</span>
     <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">prod</span> <span class="ow">in</span> <span class="n">selected_products</span><span class="p">:</span>
         <span class="n">flag_map</span> <span class="o">=</span> <span class="n">_PRODUCT_QUALITY_FLAGS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">prod</span><span class="o">.</span><span class="n">upper</span><span class="p">())</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">flag_map</span><span class="p">:</span>
             <span class="k">continue</span>
-        <span class="n">flags</span> <span class="o">=</span> <span class="n">_get_versioned</span><span class="p">(</span><span class="n">flag_map</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">flag_name</span><span class="p">,</span> <span class="n">condition</span> <span class="ow">in</span> <span class="n">flags</span><span class="p">:</span>
-            <span class="n">col</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">flag_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span>
-            <span class="k">if</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">available_columns</span><span class="p">:</span>
-                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">col</span><span class="p">,</span> <span class="n">condition</span><span class="p">))</span>
+        <span class="n">resolved</span> <span class="o">=</span> <span class="n">version</span> <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">GEDI_DEFAULT_VERSION</span>
+        <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span><span class="n">_get_versioned</span><span class="p">(</span><span class="n">flag_map</span><span class="p">,</span> <span class="n">resolved</span><span class="p">)]</span>
+        <span class="n">candidates</span> <span class="o">+=</span> <span class="p">[</span><span class="n">flags</span> <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">flags</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">flag_map</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                       <span class="k">if</span> <span class="n">flags</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">candidates</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+        <span class="c1"># Prefer the release whose flag set is fully present; then the one</span>
+        <span class="c1"># with the most flags present; ties keep the resolved release first.</span>
+        <span class="c1"># A partial match on a shared name (degrade_flag exists in every</span>
+        <span class="c1"># L2A release) must not shadow the release the other columns name.</span>
+        <span class="n">best</span><span class="p">,</span> <span class="n">best_score</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">flags</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+            <span class="n">present</span> <span class="o">=</span> <span class="p">[(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">flag_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">condition</span><span class="p">)</span>
+                       <span class="k">for</span> <span class="n">flag_name</span><span class="p">,</span> <span class="n">condition</span> <span class="ow">in</span> <span class="n">flags</span>
+                       <span class="k">if</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">flag_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span> <span class="ow">in</span> <span class="n">available</span><span class="p">]</span>
+            <span class="n">score</span> <span class="o">=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">present</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">flags</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">bool</span><span class="p">(</span><span class="n">present</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">present</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">score</span> <span class="o">&gt;</span> <span class="n">best_score</span><span class="p">:</span>
+                <span class="n">best</span><span class="p">,</span> <span class="n">best_score</span> <span class="o">=</span> <span class="n">present</span><span class="p">,</span> <span class="n">score</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">best</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">result</span></div>
 
 

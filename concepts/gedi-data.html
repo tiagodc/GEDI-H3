@@ -582,8 +582,8 @@
 <td><p><strong>Shot longitude</strong> (primary geolocation)</p></td>
 <td><p>Longitude of the ground return</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">quality_flag</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">quality_flag_l2a</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">l2a_quality_flag_rel3</span></code> (V3) / <code class="docutils literal notranslate"><span class="pre">quality_flag</span></code> (V2)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">l2a_quality_flag_rel3_l2a</span></code> / <code class="docutils literal notranslate"><span class="pre">quality_flag_l2a</span></code></p></td>
 <td><p>Shot usability filter</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">1</span></code> = high quality ; <code class="docutils literal notranslate"><span class="pre">0</span></code> = low quality</p></td>
 </tr>
@@ -646,8 +646,8 @@
 <td><p>Canopy gap fraction</p></td>
 <td><p>Probability of a laser pulse passing through the canopy without interception at the mean beam zenith angle. Directly related to canopy transmittance and light penetration to the forest floor</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">l2b_quality_flag</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">l2b_quality_flag_l2b</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">l2b_quality_flag_rel3</span></code> (V3) / <code class="docutils literal notranslate"><span class="pre">l2b_quality_flag</span></code> (V2)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">l2b_quality_flag_rel3_l2b</span></code> / <code class="docutils literal notranslate"><span class="pre">l2b_quality_flag_l2b</span></code></p></td>
 <td><p>Shot usability filter</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">1</span></code> = valid L2B retrieval</p></td>
 </tr>
@@ -696,16 +696,21 @@
 <td><p>Allometric model identifier</p></td>
 <td><p>Character identifier of plant functional type (PFT) and continental region</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">l4_quality_flag</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">l4_quality_flag_l4a</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">l4a_quality_flag_rel3</span></code> (V3) / <code class="docutils literal notranslate"><span class="pre">l4_quality_flag</span></code> (V2.1)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">l4a_quality_flag_rel3_l4a</span></code> / <code class="docutils literal notranslate"><span class="pre">l4_quality_flag_l4a</span></code></p></td>
 <td><p>Shot usability filter</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">1</span></code> = valid AGBD estimate</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">elev_highestreturn_outlier_flag</span></code> (V3)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">elev_highestreturn_outlier_flag_l4a</span></code></p></td>
+<td><p>Geolocation outlier filter</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0</span></code> = highest return elevation is consistent with the reference DEM</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <blockquote>
-<div><p><strong>Data dictionary &amp; user guide:</strong> <a class="reference external" href="https://daac.ornl.gov/GEDI/guides/GEDI_L4A_AGB_Density_V2_1.html">ORNL DAAC L4A Guide</a> · <a class="reference external" href="https://data.ornldaac.earthdata.nasa.gov/public/gedi/GEDI_L4A_AGB_Density_V2_1/comp/GEDI_L4A_V2_Product_Data_Dictionary.pdf">L4A Data Dictionary PDF</a> · <a class="reference external" href="https://daac.ornl.gov/cgi-bin/dsviewer.pl?ds_id=2056">ORNL DAAC product page (V2.1)</a></p>
+<div><p><strong>Data dictionary &amp; user guide:</strong> <a class="reference external" href="https://daac.ornl.gov/GEDI/guides/GEDI_L4A_AGB_Density_V3.html">ORNL DAAC L4A V3 Guide</a> · <a class="reference external" href="https://doi.org/10.3334/ORNLDAAC/2508">ORNL DAAC product page (V3, DOI 10.3334/ORNLDAAC/2508)</a> · <a class="reference external" href="https://daac.ornl.gov/GEDI/guides/GEDI_L4A_AGB_Density_V2_1.html">L4A V2.1 Guide</a> · <a class="reference external" href="https://data.ornldaac.earthdata.nasa.gov/public/gedi/GEDI_L4A_AGB_Density_V2_1/comp/GEDI_L4A_V2_Product_Data_Dictionary.pdf">L4A V2 Data Dictionary PDF</a></p>
 </div></blockquote>
 </section>
 <hr class="docutils" />
@@ -746,16 +751,21 @@
 <td><p>WSCI upper prediction bound</p></td>
 <td><p>Upper bound of the 95% prediction interval around <code class="docutils literal notranslate"><span class="pre">wsci</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">wsci_quality_flag</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">wsci_quality_flag_l4c</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">l4c_quality_flag_rel3</span></code> (V3) / <code class="docutils literal notranslate"><span class="pre">wsci_quality_flag</span></code> (V2)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">l4c_quality_flag_rel3_l4c</span></code> / <code class="docutils literal notranslate"><span class="pre">wsci_quality_flag_l4c</span></code></p></td>
 <td><p>Shot usability filter</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">1</span></code> = valid WSCI estimate</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">elev_highestreturn_outlier_flag</span></code> (V3)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">elev_highestreturn_outlier_flag_l4c</span></code></p></td>
+<td><p>Geolocation outlier filter</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0</span></code> = highest return elevation is consistent with the reference DEM</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <blockquote>
-<div><p><strong>Data dictionary &amp; user guide:</strong> <a class="reference external" href="https://daac.ornl.gov/GEDI/guides/GEDI_L4C_WSCI.html">ORNL DAAC L4C Guide</a> · <a class="reference external" href="https://data.ornldaac.earthdata.nasa.gov/public/gedi/GEDI_L4C_WSCI/comp/GEDI_L4C_WSCI_Data_Dictionary.pdf">L4C Data Dictionary PDF</a> · <a class="reference external" href="https://daac.ornl.gov/cgi-bin/dsviewer.pl?ds_id=2338">ORNL DAAC product page (V2)</a></p>
+<div><p><strong>Data dictionary &amp; user guide:</strong> <a class="reference external" href="https://daac.ornl.gov/GEDI/guides/GEDI_L4C_WSCI_V3.html">ORNL DAAC L4C V3 Guide</a> · <a class="reference external" href="https://doi.org/10.3334/ORNLDAAC/2520">ORNL DAAC product page (V3, DOI 10.3334/ORNLDAAC/2520)</a> · <a class="reference external" href="https://daac.ornl.gov/GEDI/guides/GEDI_L4C_WSCI.html">L4C V2 Guide</a> · <a class="reference external" href="https://data.ornldaac.earthdata.nasa.gov/public/gedi/GEDI_L4C_WSCI/comp/GEDI_L4C_WSCI_Data_Dictionary.pdf">L4C V2 Data Dictionary PDF</a></p>
 </div></blockquote>
 </section>
 </section>
@@ -768,7 +778,7 @@ GEDI files are organized by acquisition time (year/day-of-year), not by geograph
 <p><strong>2. Complex HDF5 file format</strong>
 Each granule is a large HDF5 file (~1–3 GB) with a deeply nested structure: 8 beams per file, hundreds of variables per beam, and a non-intuitive hierarchy. Reading GEDI data correctly requires understanding this structure and using <code class="docutils literal notranslate"><span class="pre">h5py</span></code> or similar specialized libraries.</p>
 <p><strong>3. Quality filtering is non-trivial</strong>
-Each product has its own quality flags (<code class="docutils literal notranslate"><span class="pre">quality_flag</span></code>, <code class="docutils literal notranslate"><span class="pre">l4_quality_flag</span></code>, <code class="docutils literal notranslate"><span class="pre">degrade_flag</span></code>, <code class="docutils literal notranslate"><span class="pre">sensitivity</span></code>), and best practices for data filtering involve combining multiple criteria. Getting this wrong leads to noisy or biased results.</p>
+Each product has its own quality flags (<code class="docutils literal notranslate"><span class="pre">l2a_quality_flag_rel3</span></code>, <code class="docutils literal notranslate"><span class="pre">l4a_quality_flag_rel3</span></code>, <code class="docutils literal notranslate"><span class="pre">degrade_flag</span></code>, <code class="docutils literal notranslate"><span class="pre">sensitivity</span></code> — and different names in every release), and best practices for data filtering involve combining multiple criteria. Getting this wrong leads to noisy or biased results.</p>
 <p><strong>4. Scale</strong>
 The full GEDI dataset spans billions of footprints across thousands of HDF5 files. Even simple regional analyses can take hours without proper spatial indexing and distributed processing.</p>
 <p><strong>5. Variable proliferation</strong>

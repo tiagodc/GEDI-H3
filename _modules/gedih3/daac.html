@@ -1226,8 +1226,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">            GEDI product level ('L1B', 'L2A', 'L2B', 'L4A', 'L4C').</span>
 <span class="sd">            If None, uses kwargs directly for custom dataset searches.</span>
 <span class="sd">        version : str or int, optional</span>
-<span class="sd">            GEDI data version (e.g., '002' or 2). If None, earthaccess</span>
-<span class="sd">            returns the latest version by default.</span>
+<span class="sd">            GEDI data version (e.g., '003' or 3). If None, the product's</span>
+<span class="sd">            registered default (``GEDI_PRODUCTS[product]['version']``,</span>
+<span class="sd">            i.e. ``GEDI_DEFAULT_VERSION``) is used.</span>
 <span class="sd">        **kwargs : dict</span>
 <span class="sd">            Additional search parameters passed to earthaccess.search_data().</span>
 
@@ -1282,13 +1283,16 @@ window.runMermaid = runMermaid;</script>
                 <span class="c1"># the short_name is version-pinned (e.g. `..._V2_1_2056`) and</span>
                 <span class="c1"># an additional `version=` filter only invites a contradiction</span>
                 <span class="c1"># → 0 results → DOI fallback warning. The resolved short_name</span>
-                <span class="c1"># is sufficient.</span>
-                <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">raw_short_name</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-                    <span class="c1"># LPDAAC uses zero-padded versions (e.g., '002')</span>
+                <span class="c1"># is sufficient. LPDAAC collections share one short_name</span>
+                <span class="c1"># across releases (GEDI02_A 002 *and* 003 both exist in CMR),</span>
+                <span class="c1"># so the filter is always attached there — an unfiltered</span>
+                <span class="c1"># search would return both releases interleaved.</span>
+                <span class="k">if</span> <span class="n">resolved_version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">raw_short_name</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                    <span class="c1"># LPDAAC uses zero-padded versions (e.g., '003')</span>
                     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">product</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'daac'</span><span class="p">)</span> <span class="o">==</span> <span class="s1">'LPDAAC'</span><span class="p">:</span>
-                        <span class="n">search_params</span><span class="p">[</span><span class="s1">'version'</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">version</span><span class="p">)</span><span class="si">:</span><span class="s1">03d</span><span class="si">}</span><span class="s1">'</span>
+                        <span class="n">search_params</span><span class="p">[</span><span class="s1">'version'</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">resolved_version</span><span class="p">)</span><span class="si">:</span><span class="s1">03d</span><span class="si">}</span><span class="s1">'</span>
                     <span class="k">else</span><span class="p">:</span>
-                        <span class="n">search_params</span><span class="p">[</span><span class="s1">'version'</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">version</span><span class="p">)</span>
+                        <span class="n">search_params</span><span class="p">[</span><span class="s1">'version'</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">resolved_version</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># Fallback to DOI</span>
                 <span class="k">try</span><span class="p">:</span>
@@ -1721,7 +1725,8 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    temporal : tuple, optional</span>
 <span class="sd">        Temporal filter as (start_date, end_date)</span>
 <span class="sd">    version : int or str, optional</span>
-<span class="sd">        GEDI data version (e.g., 2 or '002'). If None, uses latest available.</span>
+<span class="sd">        GEDI data version (e.g., 3 or '003'). If None, uses the package</span>
+<span class="sd">        default (``GEDI_DEFAULT_VERSION``).</span>
 <span class="sd">    n_jobs : int</span>
 <span class="sd">        Number of parallel download jobs (when not using Dask)</span>
 <span class="sd">    to_list : bool</span>

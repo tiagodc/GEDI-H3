@@ -240,8 +240,9 @@ Module Contents
               If None, uses kwargs directly for custom dataset searches.
 
           **version** : str or int, optional
-              GEDI data version (e.g., '002' or 2). If None, earthaccess
-              returns the latest version by default.
+              GEDI data version (e.g., '003' or 3). If None, the product's
+              registered default (``GEDI_PRODUCTS[product]['version']``,
+              i.e. ``GEDI_DEFAULT_VERSION``) is used.
 
           **\*\*kwargs** : dict
               Additional search parameters passed to earthaccess.search_data().
@@ -424,7 +425,8 @@ Module Contents
            Temporal filter as (start_date, end_date)
 
        **version** : int or str, optional
-           GEDI data version (e.g., 2 or '002'). If None, uses latest available.
+           GEDI data version (e.g., 3 or '003'). If None, uses the package
+           default (``GEDI_DEFAULT_VERSION``).
 
        **n_jobs** : int
            Number of parallel download jobs (when not using Dask)

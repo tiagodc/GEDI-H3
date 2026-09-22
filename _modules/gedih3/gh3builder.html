@@ -802,6 +802,62 @@ window.runMermaid = runMermaid;</script>
     <span class="n">_install_request_timeouts</span><span class="p">()</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_complete_essentials_and_flags</span><span class="p">(</span><span class="n">product_vars</span><span class="p">:</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ensure_l2a</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Union the release's L2A essentials and per-product quality flags into</span>
+<span class="sd">    every explicit variable list, purging names that belong only to another</span>
+<span class="sd">    release.</span>
+
+<span class="sd">    Shared by the download paths (:func:`_ensure_download_essentials`) and the</span>
+<span class="sd">    build path (:func:`_expand_product_vars`) so the two cannot drift. A</span>
+<span class="sd">    ``minimal``/``default`` keyword resolved under a different release (a</span>
+<span class="sd">    provisional fallback, or a ``product_vars`` persisted by an older run)</span>
+<span class="sd">    bakes that release's essential/flag names into the list; a plain union</span>
+<span class="sd">    would only add the correct names alongside, leaving a stale name that</span>
+<span class="sd">    does not exist in the real archive and fails every beam that requests it.</span>
+<span class="sd">    Only names from the known essentials / quality-flag tables are purged —</span>
+<span class="sd">    names shared across releases (``degrade_flag``) and explicit non-preset</span>
+<span class="sd">    requests are never touched. ``None`` ("all variables") lists are left</span>
+<span class="sd">    alone. ``ensure_l2a=False`` never adds L2A but still completes the lists</span>
+<span class="sd">    that are present.</span>
+<span class="sd">    """</span>
+    <span class="n">essentials</span> <span class="o">=</span> <span class="n">_get_versioned</span><span class="p">(</span><span class="n">_GEDI_L2A_ESSENTIALS</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
+    <span class="k">if</span> <span class="s1">'L2A'</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">product_vars</span><span class="p">[</span><span class="s1">'L2A'</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">stale</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span> <span class="k">for</span> <span class="n">vs</span> <span class="ow">in</span> <span class="n">_GEDI_L2A_ESSENTIALS</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">vs</span><span class="p">}</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">essentials</span><span class="p">)</span>
+            <span class="n">kept</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="p">[</span><span class="s1">'L2A'</span><span class="p">]</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">stale</span><span class="p">]</span>
+            <span class="n">product_vars</span><span class="p">[</span><span class="s1">'L2A'</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">kept</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">essentials</span><span class="p">)))</span>
+    <span class="k">elif</span> <span class="n">ensure_l2a</span><span class="p">:</span>
+        <span class="n">product_vars</span><span class="p">[</span><span class="s1">'L2A'</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">essentials</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">flag_map</span> <span class="o">=</span> <span class="n">_PRODUCT_QUALITY_FLAGS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">prod</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">flag_map</span> <span class="ow">and</span> <span class="n">val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">flags</span> <span class="o">=</span> <span class="n">_get_versioned</span><span class="p">(</span><span class="n">flag_map</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
+            <span class="n">flag_names</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">flags</span><span class="p">}</span>
+            <span class="n">stale</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span> <span class="k">for</span> <span class="n">fl</span> <span class="ow">in</span> <span class="n">flag_map</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">fl</span><span class="p">}</span> <span class="o">-</span> <span class="n">flag_names</span>
+            <span class="n">val</span><span class="p">[:]</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">val</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">stale</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">flag_name</span><span class="p">,</span> <span class="n">_condition</span> <span class="ow">in</span> <span class="n">flags</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">flag_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">val</span><span class="p">:</span>
+                    <span class="n">val</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">flag_name</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">product_vars</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_ensure_download_essentials</span><span class="p">(</span><span class="n">product_vars</span><span class="p">:</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ensure_l2a</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Complete an expanded ``product_vars`` so the files it fetches can be built.</span>
+
+<span class="sd">    Applies the build-time completion (:func:`_complete_essentials_and_flags`:</span>
+<span class="sd">    L2A essentials, per-product quality flags, stale-release purge) at download</span>
+<span class="sd">    time, so a subset fetched with an *explicit* L2A list (or via S3 ETL, which</span>
+<span class="sd">    stores only what was asked for) is not missing the columns every build</span>
+<span class="sd">    needs, and appends ``shot_number`` to every explicit list.</span>
+<span class="sd">    """</span>
+    <span class="n">_complete_essentials_and_flags</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">,</span> <span class="n">ensure_l2a</span><span class="o">=</span><span class="n">ensure_l2a</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">'shot_number'</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">val</span><span class="p">:</span>
+            <span class="n">val</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">'shot_number'</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">product_vars</span>
+
+
 <div class="viewcode-block" id="download_soc">
 <a class="viewcode-back" href="../../autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.download_soc">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">download_soc</span><span class="p">(</span><span class="n">product_vars</span><span class="p">:</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">spatial</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">temporal</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">direct_access</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">update</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">odir</span><span class="o">=</span><span class="n">GH3_DEFAULT_SOC_DIR</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">on_granule_complete</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ensure_l2a</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
@@ -825,7 +881,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    update : bool, default False</span>
 <span class="sd">        If True, resume a previous download (skip already-downloaded files).</span>
 <span class="sd">    version : int or str, optional</span>
-<span class="sd">        GEDI data version (e.g., 2). If None, uses latest available.</span>
+<span class="sd">        GEDI data version (e.g., 3). If None, uses the package default (``GEDI_DEFAULT_VERSION``).</span>
 <span class="sd">    odir : str</span>
 <span class="sd">        Output directory for downloaded HDF5 files.</span>
 <span class="sd">    n_jobs : int, default 5</span>
@@ -846,25 +902,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        List of downloaded SOC file paths or EarthAccessFile objects.</span>
 <span class="sd">    """</span>
     <span class="n">product_vars</span> <span class="o">=</span> <span class="n">gedi_vars_expand</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="n">ensure_l2a</span> <span class="ow">and</span> <span class="s1">'L2A'</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="p">:</span>
-        <span class="n">essentials</span> <span class="o">=</span> <span class="n">_get_versioned</span><span class="p">(</span><span class="n">_GEDI_L2A_ESSENTIALS</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
-        <span class="n">product_vars</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">'L2A'</span><span class="p">:</span> <span class="n">essentials</span><span class="p">})</span>
-
-    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">continue</span>
-        <span class="k">if</span> <span class="s1">'shot_number'</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">val</span><span class="p">:</span>
-            <span class="n">val</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">'shot_number'</span><span class="p">)</span>
-
-    <span class="c1"># Ensure quality flag variables are included for every product with an explicit var list.</span>
-    <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">flag_map</span> <span class="o">=</span> <span class="n">_PRODUCT_QUALITY_FLAGS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">prod</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">flag_map</span> <span class="ow">and</span> <span class="n">val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">flags</span> <span class="o">=</span> <span class="n">_get_versioned</span><span class="p">(</span><span class="n">flag_map</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
-            <span class="k">for</span> <span class="n">flag_name</span><span class="p">,</span> <span class="n">_condition</span> <span class="ow">in</span> <span class="n">flags</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">flag_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">val</span><span class="p">:</span>
-                    <span class="n">val</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">flag_name</span><span class="p">)</span>
+    <span class="n">product_vars</span> <span class="o">=</span> <span class="n">_ensure_download_essentials</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">,</span> <span class="n">ensure_l2a</span><span class="o">=</span><span class="n">ensure_l2a</span><span class="p">)</span>
 
     <span class="n">soc_files</span> <span class="o">=</span> <span class="n">gedi_download</span><span class="p">(</span>
         <span class="n">product_vars</span><span class="o">=</span><span class="n">product_vars</span><span class="p">,</span>
@@ -1002,7 +1040,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    temporal : tuple of str, optional</span>
 <span class="sd">        Temporal range as (start_date, end_date) in 'YYYY-MM-DD' format.</span>
 <span class="sd">    version : int or str, optional</span>
-<span class="sd">        GEDI data version. If None, uses latest available.</span>
+<span class="sd">        GEDI data version. If None, uses the package default (``GEDI_DEFAULT_VERSION``).</span>
 <span class="sd">    odir : str</span>
 <span class="sd">        Output directory for compact local HDF5 files in SOC structure.</span>
 <span class="sd">    ensure_l2a : bool, default True</span>
@@ -1022,18 +1060,12 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.daac</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEDIAccessor</span>
 
-    <span class="c1"># Expand variable specifications and ensure L2A essentials + shot_number</span>
+    <span class="c1"># Expand variable specifications and complete them with the L2A</span>
+    <span class="c1"># essentials, shot_number and per-product quality flags — the compact</span>
+    <span class="c1"># files written here hold *only* what is listed, so anything the build</span>
+    <span class="c1"># needs must be requested now.</span>
     <span class="n">product_vars</span> <span class="o">=</span> <span class="n">gedi_vars_expand</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="n">ensure_l2a</span> <span class="ow">and</span> <span class="s1">'L2A'</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="p">:</span>
-        <span class="n">essentials</span> <span class="o">=</span> <span class="n">_get_versioned</span><span class="p">(</span><span class="n">_GEDI_L2A_ESSENTIALS</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
-        <span class="n">product_vars</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">'L2A'</span><span class="p">:</span> <span class="n">essentials</span><span class="p">})</span>
-
-    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">continue</span>
-        <span class="k">if</span> <span class="s1">'shot_number'</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">val</span><span class="p">:</span>
-            <span class="n">val</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">'shot_number'</span><span class="p">)</span>
+    <span class="n">product_vars</span> <span class="o">=</span> <span class="n">_ensure_download_essentials</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">,</span> <span class="n">ensure_l2a</span><span class="o">=</span><span class="n">ensure_l2a</span><span class="p">)</span>
 
     <span class="c1"># Search for granules per product (no S3 handles opened yet)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Searching NASA DAAC for GEDI granules"</span><span class="p">)</span>
@@ -1679,37 +1711,9 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">available</span> <span class="o">=</span> <span class="n">gedi_vars_from_h5</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
                 <span class="n">product_vars</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">expand_var_wildcards</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">available</span><span class="p">)</span>
 
-    <span class="n">essentials</span> <span class="o">=</span> <span class="n">_get_versioned</span><span class="p">(</span><span class="n">_GEDI_L2A_ESSENTIALS</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
-    <span class="k">if</span> <span class="s1">'L2A'</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">product_vars</span><span class="p">[</span><span class="s1">'L2A'</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="c1"># A `minimal`/`default` keyword resolved under a provisional</span>
-            <span class="c1"># version (e.g. the fresh-build fallback, before the real</span>
-            <span class="c1"># version is auto-detected) bakes that version's essential</span>
-            <span class="c1"># name into the list. A plain union only adds the correct</span>
-            <span class="c1"># name alongside it rather than replacing it, leaving a stale</span>
-            <span class="c1"># name that doesn't exist in the real archive and fails every</span>
-            <span class="c1"># beam that requests it. Purge any essential name unique to</span>
-            <span class="c1"># another version before re-adding the current version's.</span>
-            <span class="n">stale</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span> <span class="k">for</span> <span class="n">vs</span> <span class="ow">in</span> <span class="n">_GEDI_L2A_ESSENTIALS</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">vs</span><span class="p">}</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">essentials</span><span class="p">)</span>
-            <span class="n">product_vars</span><span class="p">[</span><span class="s1">'L2A'</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">((</span><span class="nb">set</span><span class="p">(</span><span class="n">product_vars</span><span class="p">[</span><span class="s1">'L2A'</span><span class="p">])</span> <span class="o">-</span> <span class="n">stale</span><span class="p">)</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">essentials</span><span class="p">))</span>
-        <span class="c1"># None means "all variables" — essentials already included</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">product_vars</span><span class="p">[</span><span class="s1">'L2A'</span><span class="p">]</span> <span class="o">=</span> <span class="n">essentials</span>
-
-    <span class="c1"># Ensure quality flag variables are included for every product with an explicit var list.</span>
-    <span class="c1"># (None means "all variables" — quality flags already included.)</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">_PRODUCT_QUALITY_FLAGS</span>
-    <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">flag_map</span> <span class="o">=</span> <span class="n">_PRODUCT_QUALITY_FLAGS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">prod</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">flag_map</span> <span class="ow">and</span> <span class="n">val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">flags</span> <span class="o">=</span> <span class="n">_get_versioned</span><span class="p">(</span><span class="n">flag_map</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
-            <span class="n">flag_names</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">flags</span><span class="p">}</span>
-            <span class="c1"># Same stale-name hazard as the L2A essentials above.</span>
-            <span class="n">stale</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span> <span class="k">for</span> <span class="n">fl</span> <span class="ow">in</span> <span class="n">flag_map</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">fl</span><span class="p">}</span> <span class="o">-</span> <span class="n">flag_names</span>
-            <span class="n">val</span><span class="p">[:]</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">val</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">stale</span><span class="p">]</span>
-            <span class="k">for</span> <span class="n">flag_name</span><span class="p">,</span> <span class="n">_condition</span> <span class="ow">in</span> <span class="n">flags</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">flag_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">val</span><span class="p">:</span>
-                    <span class="n">val</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">flag_name</span><span class="p">)</span>
+    <span class="c1"># L2A essentials + per-product quality flags, stale-release names purged.</span>
+    <span class="c1"># (None means "all variables" — essentials and flags already included.)</span>
+    <span class="n">_complete_essentials_and_flags</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">,</span> <span class="n">ensure_l2a</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -4530,7 +4534,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        - ``str``: path to local directory containing GEDI SOC HDF5 files</span>
 <span class="sd">        - ``list``: pre-acquired list of file paths or EarthAccessFile objects</span>
 <span class="sd">    version : int or None</span>
-<span class="sd">        GEDI data version. If None, uses latest available.</span>
+<span class="sd">        GEDI data version. If None, uses the package default (``GEDI_DEFAULT_VERSION``).</span>
 <span class="sd">        Also used to filter local files by version when soc_source is a directory.</span>
 <span class="sd">    tmp_dir : str</span>
 <span class="sd">        Path to temporary directory for intermediate files.</span>

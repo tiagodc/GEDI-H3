@@ -9,6 +9,7 @@ Attributes
 
 .. autoapisummary::
 
+   gedih3.config.GEDI_DEFAULT_VERSION
    gedih3.config.ISO3_COUNTRIES_URL
    gedih3.config.GH3_DEFAULT_DOWNLOAD_DIR
    gedih3.config.GH3_DEFAULT_TMP_DIR
@@ -40,6 +41,10 @@ Module Contents
 ---------------
 
 .. py:function:: get_package_data_path(filename)
+
+.. py:data:: GEDI_DEFAULT_VERSION
+   :value: 3
+
 
 .. py:data:: ISO3_COUNTRIES_URL
    :value: 'https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/country_shapes/exports/geojson/'
@@ -103,7 +108,7 @@ Module Contents
            Product code (e.g., 'L2A', 'L4A')
 
        **version** : int or None
-           GEDI data version. If None, falls back to known version 2.
+           GEDI data version. If None, falls back to ``GEDI_DEFAULT_VERSION``.
 
 
 

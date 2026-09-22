@@ -1199,7 +1199,12 @@ Module Contents
            Product keys that were requested (e.g. ['L2A', 'L4A']).
 
        **version** : int or None
-           GEDI data version from build log (e.g. 2 or 3). None defaults to 2.
+           GEDI data version from build log (e.g. 2 or 3). None defaults to
+           ``GEDI_DEFAULT_VERSION``. When none of the resolved version's flag
+           columns exist but another release's do (a simplified dataset
+           without a build log, extracted from an older database), that
+           release's flags are used instead — the column names themselves
+           identify the release, so this never mixes versions.
 
        **available_columns** : list[str]
            Columns present in the database (suffixed form e.g. 'quality_flag_l2a').

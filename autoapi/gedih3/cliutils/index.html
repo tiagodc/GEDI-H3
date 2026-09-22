@@ -1231,7 +1231,7 @@ Falls back to legacy parsing when <code class="docutils literal notranslate"><sp
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.cliutils.format_dask_cluster_info">
-<span class="sig-prename descclassname"><span class="pre">gedih3.cliutils.</span></span><span class="sig-name descname"><span class="pre">format_dask_cluster_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">client</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/cliutils.html#format_dask_cluster_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.cliutils.format_dask_cluster_info" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">gedih3.cliutils.</span></span><span class="sig-name descname"><span class="pre">format_dask_cluster_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">client</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/cliutils.html#format_dask_cluster_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.cliutils.format_dask_cluster_info" title="Link to this definition">#</a></dt>
 <dd><p>One-line summary of a live dask Client’s cluster — workers, total threads, total RAM.</p>
 <p>Use after <cite>Client(…)</cite> is up so that external –dask-scheduler connections
 report the cluster’s real shape instead of the local-cluster CLI defaults.</p>
@@ -1239,7 +1239,7 @@ report the cluster’s real shape instead of the local-cluster CLI defaults.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.cliutils.parse_region">
-<span class="sig-prename descclassname"><span class="pre">gedih3.cliutils.</span></span><span class="sig-name descname"><span class="pre">parse_region</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">region_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/cliutils.html#parse_region"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.cliutils.parse_region" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">gedih3.cliutils.</span></span><span class="sig-name descname"><span class="pre">parse_region</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">region_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/cliutils.html#parse_region"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.cliutils.parse_region" title="Link to this definition">#</a></dt>
 <dd><p>Parse region argument into GeoDataFrame or bbox</p>
 </dd></dl>
 
@@ -1259,7 +1259,12 @@ Returns: (column_list, product_map)</p>
 <dd class="field-odd"><dl class="simple">
 <dt><strong>selected_products</strong><span class="classifier">list[str]</span></dt><dd><p>Product keys that were requested (e.g. [‘L2A’, ‘L4A’]).</p>
 </dd>
-<dt><strong>version</strong><span class="classifier">int or None</span></dt><dd><p>GEDI data version from build log (e.g. 2 or 3). None defaults to 2.</p>
+<dt><strong>version</strong><span class="classifier">int or None</span></dt><dd><p>GEDI data version from build log (e.g. 2 or 3). None defaults to
+<code class="docutils literal notranslate"><span class="pre">GEDI_DEFAULT_VERSION</span></code>. When none of the resolved version’s flag
+columns exist but another release’s do (a simplified dataset
+without a build log, extracted from an older database), that
+release’s flags are used instead — the column names themselves
+identify the release, so this never mixes versions.</p>
 </dd>
 <dt><strong>available_columns</strong><span class="classifier">list[str]</span></dt><dd><p>Columns present in the database (suffixed form e.g. ‘quality_flag_l2a’).</p>
 </dd>
