@@ -108,15 +108,49 @@ class TestGeodfToRasterTileGuard:
         assert 'skipping 5 pixel(s)' in raster_caplog.text
 
 
-class TestRasterizePartitionMultiTile:
-    def test_no_pixels_lost_across_tiles(self):
+class TestRasterizePartitionInvariant:
+    """One partition = one outer tile = one raster.
+
+    A Dask partition nests in exactly one level-12 tile by construction (see
+    ``gh3driver.egi_export_part`` and ``_prepare_egi_loading``), so a partition
+    spanning several tiles is upstream corruption. It is reported loudly and
+    the largest tile is rasterized — never silently split into several files.
+    """
+
+    def test_multi_tile_partition_warns_and_keeps_majority(self, raster_caplog):
         gdf = _egi_gdf({(100, 50): 5, (101, 50): 2})
         rasters = egi.rasterize_partition(gdf)
-        assert len(rasters) == 2
-        total = sum(int(np.isfinite(r['val'].values).sum()) for r in rasters)
-        assert total == 7
-        ids = sorted(r['val'].attrs['egi12_id'] for r in rasters)
-        assert ids == sorted([_egi12_id(100, 50), _egi12_id(101, 50)])
+
+        assert len(rasters) == 1
+        ras = rasters.iat[0]
+        assert ras['val'].attrs['egi12_id'] == _egi12_id(100, 50)
+        assert int(np.isfinite(ras['val'].values).sum()) == 5
+        assert 'spans 2 outer tiles' in raster_caplog.text
+        assert 'skipping 2 pixel(s)' in raster_caplog.text
+
+    def test_single_tile_partition_is_silent(self, raster_caplog):
+        rasters = egi.rasterize_partition(_egi_gdf({(100, 50): 5}))
+
+        assert len(rasters) == 1
+        assert int(np.isfinite(rasters.iat[0]['val'].values).sum()) == 5
+        assert not raster_caplog.records
+
+
+class TestSplitByOuterTile:
+    """The explicit escape hatch for callers that legitimately hold many tiles."""
+
+    def test_splits_largest_first_and_keeps_every_pixel(self):
+        gdf = _egi_gdf({(100, 50): 5, (101, 50): 2})
+        parts = egi.split_by_outer_tile(gdf)
+
+        assert [pid for pid, _ in parts] == [_egi12_id(100, 50), _egi12_id(101, 50)]
+        assert [len(sub) for _, sub in parts] == [5, 2]
+        assert sum(len(sub) for _, sub in parts) == len(gdf)
+
+    def test_single_tile_and_empty(self):
+        gdf = _egi_gdf({(100, 50): 3})
+        assert len(egi.split_by_outer_tile(gdf)) == 1
+        assert egi.split_by_outer_tile(gdf.iloc[0:0]) == []
 
 
 class TestTimeSeriesRasterizerMultiTile:

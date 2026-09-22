@@ -17,6 +17,17 @@ GEOTIFF_DEFAULTS: Dict[str, Any] = {
     'blockxsize': 256,
     'blockysize': 256,
     'bigtiff': True,
+    'cog': True,
+}
+
+# Cloud Optimized GeoTIFF is the default layout for image output: internal
+# tiling plus overviews, so a viewer or a range-reading client fetches only
+# the bytes it needs. A COG is a valid GeoTIFF, so nothing that could read
+# the old output stops working; the cost is the overview pyramid on disk
+# (~30% on a dense tile).
+COG_DEFAULTS: Dict[str, Any] = {
+    'overviews': 'AUTO',
+    'resampling': 'AVERAGE',
 }
 
 # Compression options (for user selection)
@@ -66,6 +77,51 @@ def get_geotiff_options(
         'BLOCKXSIZE': blocksize,
         'BLOCKYSIZE': blocksize,
         'BIGTIFF': 'YES' if bigtiff else 'NO',
+    }
+
+
+def get_cog_options(
+    compress: str = 'LZW',
+    blocksize: int = 256,
+    bigtiff: bool = True,
+    overviews: str = 'AUTO',
+    resampling: str = 'AVERAGE'
+) -> Dict[str, Any]:
+    """
+    Generate rasterio creation options for the GDAL COG driver.
+
+    The COG driver takes its own option names — ``BLOCKSIZE`` rather than
+    ``TILED``/``BLOCKXSIZE``, and it is always tiled. Passing the GeoTIFF
+    option names instead is silently ignored and you get the driver defaults
+    (512-pixel blocks), which is why this is a separate builder rather than a
+    flag on :func:`get_geotiff_options`.
+
+    Parameters
+    ----------
+    compress : str
+        Compression method ('LZW', 'ZSTD', 'DEFLATE', 'PACKBITS', 'NONE')
+    blocksize : int
+        Internal tile size in pixels
+    bigtiff : bool
+        Use BigTIFF for large files
+    overviews : str
+        COG ``OVERVIEWS`` policy — 'AUTO' builds the pyramid when the image is
+        larger than one block, 'NONE' skips it
+    resampling : str
+        Resampling used to build the overviews
+
+    Returns
+    -------
+    dict
+        Options for ``rio.to_raster()``, including ``driver='COG'``
+    """
+    return {
+        'driver': 'COG',
+        'COMPRESS': compress,
+        'BLOCKSIZE': blocksize,
+        'BIGTIFF': 'YES' if bigtiff else 'NO',
+        'OVERVIEWS': overviews,
+        'RESAMPLING': resampling,
     }
 
 

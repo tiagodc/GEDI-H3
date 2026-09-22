@@ -16,7 +16,10 @@ from .utils import NON_LOCAL_PREFIXES as _URL_PREFIXES
 from .exceptions import GediValidationError, GediDatabaseNotFoundError
 # Note: gh3driver imports are done lazily to avoid circular imports
 
-VALID_FORMATS = ['parquet', 'feather', 'shp', 'geojson', 'gpkg', 'txt', 'csv', 'h5', 'hdf5']
+VALID_FORMATS = ['parquet', 'feather', 'shp', 'geojson', 'gpkg', 'txt', 'csv', 'h5', 'hdf5',
+                 # Raster formats: gh3_export routes these through gh3_rasterize,
+                 # for both index types. Keep in sync with raster.RASTER_FORMATS.
+                 'tif', 'tiff', 'geotiff', 'nc', 'netcdf']
 
 # Formats that support downstream processing (column selection at read time, fast schema reading)
 PIPELINE_FORMATS = {'parquet', 'feather', 'gpkg'}
@@ -154,7 +157,7 @@ def read_dataset_schema(filepath, fmt):
         raise GediValidationError(f"Unsupported format for schema reading: {fmt}")
 
 
-def make_dataset_reader(fmt, columns=None, geo=True):
+def make_dataset_reader(fmt, columns=None, geo=True, filters=None):
     """Return a callable that reads a single file into a DataFrame or GeoDataFrame.
 
     The returned callable supports column selection at read time.
@@ -168,6 +171,10 @@ def make_dataset_reader(fmt, columns=None, geo=True):
     geo : bool
         If True, use geopandas readers (for files with geometry metadata).
         If False, use pandas readers (for files without geometry metadata).
+    filters : list or pyarrow.compute.Expression, optional
+        PyArrow predicate pushed into the read so non-matching row groups are
+        never decompressed. Parquet only — callers gate this with
+        ``gh3driver._check_filters_supported``.
 
     Returns
     -------
@@ -178,6 +185,10 @@ def make_dataset_reader(fmt, columns=None, geo=True):
     import pandas as pd
 
     if fmt == 'parquet':
+        # Kept out of the call when absent so the no-filters call shape is
+        # byte-for-byte the legacy one.
+        xf = {'filters': filters} if filters is not None else {}
+
         def reader(f):
             from .utils import (is_remote_path, smart_open_columnar,
                                 read_parquet_coalesced)
@@ -186,9 +197,9 @@ def make_dataset_reader(fmt, columns=None, geo=True):
                 # column-projected read then transfers the column chunks
                 # and nothing else (see smart_open_columnar).
                 with smart_open_columnar(f) as fobj:
-                    return read_parquet_coalesced(fobj, columns=columns, geo=geo)
+                    return read_parquet_coalesced(fobj, columns=columns, geo=geo, **xf)
             read_fn = gpd.read_parquet if geo else pd.read_parquet
-            return read_fn(f, columns=columns)
+            return read_fn(f, columns=columns, **xf)
         return reader
     elif fmt == 'feather':
         def reader(f):

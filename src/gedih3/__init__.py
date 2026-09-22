@@ -19,7 +19,7 @@ Examples
 >>> gedih3.raster.h3_to_raster(agg_gdf)
 """
 
-__version__ = "0.16.1"
+__version__ = "0.17.3"
 __author__ = "Tiago de Conto and Amelia Grace Holcomb"
 __email__ = "tiagodc@umd.edu"
 __copyright__ = "(C) 2026, University of Maryland. All Rights Reserved."
@@ -105,6 +105,7 @@ from .gh3driver import (
     egi_aggregate,
     egi_extract,
     gh3_to_raster,
+    gh3_rasterize,
     gh3_rasterize_partitions,
 )
 
@@ -189,6 +190,7 @@ __all__ = [
     "egi_aggregate",
     "egi_extract",
     "gh3_to_raster",
+    "gh3_rasterize",
     "gh3_rasterize_partitions",
     # spatial selection helpers (direct / external database access)
     "intersect_h3_geometries",

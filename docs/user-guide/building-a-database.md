@@ -258,6 +258,38 @@ gh3_build -r "-51,0,-50,1" -l2a default -l4a default -s3
 
 > **Download requires Earthdata credentials for all modes.** If you have not already authenticated, run `python -c "import earthaccess; earthaccess.login()"` and follow the prompts. Credentials are stored in `~/.netrc`.
 
+#### Choosing between S3 ETL and plain download
+
+S3 ETL is not universally faster — its advantage depends almost entirely on how
+narrow your variable subset is. Streaming avoids moving bytes you will discard,
+but HDF5's access pattern means a broad subset ends up fetching most of the
+granule anyway, at which point a plain download is just as fast and simpler.
+
+**Rule of thumb**: use `-s3` when the subset is narrow (under roughly 10% of the
+granule) **or** when bandwidth is constrained or local disk is scarce. Use plain
+download for broad subsets on a fast link.
+
+In L2A, `rh` is the cost driver — the full relative-height array dominates the
+granule, and whether you request it flips the recommendation on its own.
+
+::::{note} Indicative measurements, single L2A granule, May 2026, earthaccess
+0.18 with its default block cache, on a well-provisioned link. Absolute numbers
+will differ on your network; the *ratios* are the transferable part.
+
+| Mode | Wall time | Transferred |
+|------|-----------|-------------|
+| Download + local subset | ~3:04 | 2.3 GB |
+| S3 ETL, broad subset (with `rh`) | ~2:49 | — |
+| S3 ETL, narrow subset (8 variables, no `rh`) | ~1:50 | ~40 MB |
+::::
+
+Do not try to tune this with `block_size`. Enlarging the fetch block regressed
+both the broad and the narrow case in testing, and switching off earthaccess's
+speculative-prefetch cache was 2–3× slower still: the prefetch overlaps network
+I/O with HDF5 decode on the same connection, which helps even though HDF5's
+jumpy read pattern makes it look wrong on paper. The stock defaults are already
+the right ones.
+
 ---
 
 ## Subsetting Strategies

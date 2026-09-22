@@ -1,0 +1,59 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(wc:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git remote:*)",
+      "Bash(git ls-files:*)",
+      "Bash(gh run:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh workflow view:*)",
+      "Bash(gh api:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff check:*)",
+      "Bash(pip show:*)",
+      "Bash(python -c:*)",
+      "Bash(python -m json.tool)",
+      "Bash(gh3_list_resolutions:*)",
+      "Bash(gh3_read_schema:*)",
+      "WebSearch",
+      "WebFetch(domain:code.claude.com)",
+      "WebFetch(domain:docs.dask.org)",
+      "WebFetch(domain:docs.h5py.org)",
+      "WebFetch(domain:filesystem-spec.readthedocs.io)",
+      "WebFetch(domain:earthaccess.readthedocs.io)",
+      "WebFetch(domain:arrow.apache.org)",
+      "WebFetch(domain:h3geo.org)",
+      "WebFetch(domain:docs.astral.sh)",
+      "WebFetch(domain:cmr.earthdata.nasa.gov)",
+      "WebFetch(domain:www.earthdata.nasa.gov)",
+      "WebFetch(domain:lpdaac.usgs.gov)",
+      "WebFetch(domain:daac.ornl.gov)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh release:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./**/.env)",
+      "Read(./**/.netrc)",
+      "Read(//home/**/.netrc)",
+      "Read(//home/**/.gedih3.env)",
+      "Bash(twine upload:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(rm -rf:*)"
+    ]
+  }
+}

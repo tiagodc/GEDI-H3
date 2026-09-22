@@ -501,6 +501,19 @@ def _select_dataset_files(data_files, region, logger=None, dataset_path=None,
     return sorted(selected)
 
 
+def _check_filters_supported(fmt, filters):
+    """Reject ``filters=`` on formats with no predicate-pushdown reader.
+
+    Only parquet carries row-group statistics. Silently ignoring the
+    predicate on feather / gpkg would hand back unfiltered rows that the
+    caller believes are filtered — the one failure mode worth a hard error.
+    """
+    if filters is not None and fmt != 'parquet':
+        raise GediValidationError(
+            f"filters= requires a parquet dataset (got '{fmt}'); predicate "
+            f"pushdown has no equivalent in this format. Use query= instead.")
+
+
 def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filters=None):
     """Internal: load from simplified dataset (H3 or EGI).
 
@@ -518,8 +531,9 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         Spatial filter for clipping.
     lazy : bool
         If True, return Dask DataFrame. If False, return computed DataFrame.
-    filters : list, optional
-        PyArrow predicate pushdown filters (only for lazy=False + parquet).
+    filters : list or pyarrow.compute.Expression, optional
+        PyArrow predicate pushdown filters, applied per file at read time in
+        both eager and lazy mode. Parquet only — see ``_check_filters_supported``.
 
     Returns
     -------
@@ -534,11 +548,14 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         if smart_isfile(path):
             ext = os.path.splitext(path)[1].lstrip('.').lower()
             fmt = ext if ext in ('parquet', 'feather', 'gpkg') else 'parquet'
+            _check_filters_supported(fmt, filters)
             _, has_geo = read_dataset_schema(path, fmt)
-            reader = make_dataset_reader(fmt, columns=columns, geo=has_geo)
+            reader = make_dataset_reader(fmt, columns=columns, geo=has_geo,
+                                         filters=filters)
             return reader(path)
 
         fmt = detect_dataset_format(path)
+        _check_filters_supported(fmt, filters)
         data_files, fmt = _find_dataset_files(path, fmt)
         data_files = _select_dataset_files(data_files, region, dataset_path=path)
         _, has_geo = read_dataset_schema(data_files[0], fmt)
@@ -579,6 +596,7 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
 
     # --- Lazy mode ---
     fmt = detect_dataset_format(path)
+    _check_filters_supported(fmt, filters)
 
     # Handle query-column expansion
     load_columns = columns
@@ -606,8 +624,11 @@ def _load_dataset(path, columns=None, query=None, region=None, lazy=True, filter
         if index_col and index_col not in load_cols and index_col in col_names:
             load_cols.append(index_col)
 
-    # Build reader and metadata
-    reader = make_dataset_reader(fmt, columns=load_cols, geo=has_geometry)
+    # Build reader and metadata. `filters` rides along in the reader closure,
+    # so every per-file task in the from_map graph pushes the predicate down
+    # to the parquet row-group stats — the rows never enter worker memory.
+    reader = make_dataset_reader(fmt, columns=load_cols, geo=has_geometry,
+                                 filters=filters)
     _meta = reader(data_files[0])
 
     # Wrap reader to propagate storage credentials to Dask workers
@@ -870,7 +891,26 @@ def _pick_bbox_strategy(sample_file):
     return result
 
 
-def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat_col, lon_col):
+def _combine_filters(base, extra):
+    """AND two pyarrow predicate specs into one the parquet readers accept.
+
+    Either side may be a conjunctive ``[(col, op, val), ...]`` list, a DNF
+    ``[[...], [...]]`` list, or a ``pyarrow.compute.Expression``. Plain
+    concatenation is only correct for two conjunctive lists — it silently
+    produces a malformed spec when either side is DNF — so both are lifted
+    to Expressions and combined with ``&``. ``pq.read_table`` and
+    ``gpd.read_parquet`` both take an Expression wherever they take a list.
+    """
+    if extra is None or (isinstance(extra, (list, tuple)) and not extra):
+        return base
+    if base is None or (isinstance(base, (list, tuple)) and not base):
+        return extra
+    import pyarrow.parquet as pq
+    return pq.filters_to_expression(base) & pq.filters_to_expression(extra)
+
+
+def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat_col, lon_col,
+                       extra_filters=None):
     """Single-file bbox-filtered parquet read, routed by `strategy`.
 
     All three paths return a DataFrame whose rows satisfy the bbox predicate
@@ -878,6 +918,14 @@ def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat
     parquet-stats layer so the peak working set is bounded by the
     bbox-clipped result; the fallback materializes the full column-projected
     file before clipping in memory.
+
+    ``extra_filters`` is a caller-supplied pyarrow predicate spec ANDed with
+    whatever the strategy builds, so it is pushed down to the same row-group
+    stats layer on every path (including the fallback, where only the bbox
+    part degrades to an in-memory clip). Predicate columns need NOT appear in
+    ``columns``: pyarrow reads them for the filter and drops them from the
+    output. A file whose schema lacks a predicate column raises rather than
+    silently returning unfiltered rows.
     """
     from contextlib import nullcontext
 
@@ -886,17 +934,25 @@ def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat
     remote = is_remote_path(path)
     source_ctx = smart_open_columnar(path) if remote else nullcontext(path)
 
+    # Passed through to every reader below. Kept out of the call when absent
+    # so the no-filters call shape is byte-for-byte the legacy one.
+    xf = {'filters': extra_filters} if extra_filters is not None else {}
+
     with source_ctx as src:
         if strategy == 'point':
+            # geopandas splices `bbox` and `filters` into one expression
+            # (_splice_bbox_and_filters), so both are honored.
             if remote:
                 return read_parquet_coalesced(src, columns=columns, geo=True,
-                                              bbox=bbox_4326)
-            return gpd.read_parquet(src, bbox=bbox_4326, columns=columns)
+                                              bbox=bbox_4326, **xf)
+            return gpd.read_parquet(src, bbox=bbox_4326, columns=columns, **xf)
 
         if strategy == 'coord_filter':
             x0, y0, x1, y1 = bbox_4326
-            filt = [(lon_col, '>=', x0), (lon_col, '<=', x1),
-                    (lat_col, '>=', y0), (lat_col, '<=', y1)]
+            filt = _combine_filters(
+                [(lon_col, '>=', x0), (lon_col, '<=', x1),
+                 (lat_col, '>=', y0), (lat_col, '<=', y1)],
+                extra_filters)
             # Pyarrow's `filters=` requires the predicate columns to be in the
             # read column list; append + drop them if the caller didn't ask for
             # them. The extra column is already on disk in the same row groups
@@ -931,8 +987,10 @@ def _read_parquet_bbox(path, *, bbox_4326, clip_box, columns, geo, strategy, lat
                     raise
 
         # 'fallback' — full read + in-memory geometric clip. Last resort.
-        df = (read_parquet_coalesced(src, columns=columns, geo=True) if remote
-              else gpd.read_parquet(src, columns=columns))
+        # `extra_filters` still pushes down here: only the bbox half of the
+        # predicate degrades to an in-memory clip.
+        df = (read_parquet_coalesced(src, columns=columns, geo=True, **xf) if remote
+              else gpd.read_parquet(src, columns=columns, **xf))
         if len(df) > 0:
             df = df[df.geometry.intersects(clip_box)]
         return df
@@ -1388,10 +1446,14 @@ def gh3_load_hex(d, _bbox_index=None, part_col=None, _storage_cfg=None, **kwargs
     def _read_one(f):
         if bbox4326 is not None:
             strategy, lat_col, lon_col = bbox_strategy
+            # The caller's pyarrow predicate (set by _load_h3_database from
+            # `gh3_load(filters=...)`) is ANDed with the bbox predicate
+            # inside the reader — both are pushed down, neither is dropped.
             return _read_parquet_bbox(
                 f, bbox_4326=bbox4326, clip_box=clip_geom,
                 columns=cols, geo=use_geo,
-                strategy=strategy, lat_col=lat_col, lon_col=lon_col)
+                strategy=strategy, lat_col=lat_col, lon_col=lon_col,
+                extra_filters=kwargs.get('filters'))
         return _read_parquet_files([f], geo=use_geo, **kwargs)
 
     # Per-file read so we can attach the `year` hive partition column from
@@ -1546,12 +1608,13 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
         # whole year files a-priori via the `_bbox_index.parquet` data
         # envelopes when the sidecar exists. Both are supersets of the exact
         # `ddf.clip(region)` applied below, so results are unchanged.
-        # Disabled when the caller passed their own pyarrow `filters` — the
-        # bbox read path cannot compose arbitrary predicates with the bbox
-        # ones on every strategy, and dropping user filters would change
-        # results; that combination keeps the legacy read.
+        # Applies unconditionally, including alongside a caller-supplied
+        # `filters`: `_read_parquet_bbox` ANDs the two predicates together
+        # (`_combine_filters`) on every strategy, so neither is dropped.
+        # Before that existed, region + filters silently fell back to a full
+        # read + in-memory clip — the one combination that lost the pushdown.
         _per_dir_bbox = None
-        if region is not None and filters is None:
+        if region is not None:
             from .utils import region_to_geometry
             _bbox = tuple(region_to_geometry(region).bounds)
             _lat, _lon = _bbox_cols_from_meta(gh3_dir)
@@ -1604,6 +1667,18 @@ def _load_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT
         if 'geometry' in ddf.columns:
             ddf = dask_geopandas.from_dask_dataframe(ddf, geometry='geometry')
     else:
+        # DEPRECATED — slated for removal, along with the `from_map` argument
+        # itself. This is the original dask_geopandas.read_parquet path; the
+        # from_map branch above superseded it and is the default, so this one
+        # never received the work the primary path did. It reads `_metadata`
+        # (the cost from_map exists to avoid on databases with thousands of
+        # partitions), it has no region bbox pushdown and no `_bbox_index`
+        # file skipping, and `filters` here still drive dask's own hive
+        # partition pruning — which is why the region + user predicate
+        # combination is left as plain list concatenation instead of the
+        # `_combine_filters` expression the from_map path uses (an Expression
+        # may not prune h3_part_col the same way). Do not extend it; when
+        # `from_map=False` goes, this whole branch goes with it.
         storage_kwargs = {}
         if is_remote_path(gh3_dir):
             from .utils import get_storage_options
@@ -1659,15 +1734,23 @@ def gh3_load(source=None, *, columns=None, region=None, query=None,
     query : str, optional
         Pandas query string for filtering.
     from_map : bool
-        Use from_map loading for H3 databases (default True).
+        Use from_map loading for H3 databases (default True). DEPRECATED —
+        ``from_map=False`` selects the original ``dask_geopandas.read_parquet``
+        path, which is unmaintained and slower on every axis (reads
+        ``_metadata``, no region bbox pushdown, no ``_bbox_index`` file
+        skipping). The argument and that branch are slated for removal; leave
+        it at the default.
     lazy : bool
         If True (default), return Dask DataFrame. If False, return computed
         pandas DataFrame.
-    filters : list, optional
+    filters : list or pyarrow.compute.Expression, optional
         PyArrow predicate pushdown filters (conjunctive list of
-        ``(column, op, value)`` tuples), applied as per-file row-group pushdown
-        during the read. Works for H3 databases and simplified parquet datasets,
-        and combines (AND) with ``region`` when both are given.
+        ``(column, op, value)`` tuples, a DNF list-of-lists, or an Expression),
+        applied as per-file row-group pushdown during the read. Works for H3
+        databases and simplified parquet datasets, and combines (AND) with
+        ``region`` when both are given — the region bbox prefilter stays on,
+        both predicates are pushed to the same row-group stats layer.
+        Predicate columns do not have to be listed in ``columns``.
 
     Returns
     -------
@@ -2070,7 +2153,8 @@ def _detect_export_params(ddf, index_type=None):
 def gh3_export(ddf, output, fmt='parquet', merge=False,
                show_progress=True, drop_internal=False,
                write_metadata=True, source_database=None,
-               tool=None, h3_partition_level=None, **metadata_kwargs):
+               tool=None, h3_partition_level=None, cog=True,
+               **metadata_kwargs):
     """
     Export a Dask DataFrame to simplified flat files with metadata.
 
@@ -2108,6 +2192,9 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
         files are named by the parent cell at this level (via h3.cell_to_parent).
         Useful for aggregated data where the original partition column was lost.
         If None, auto-detected from source_database metadata when available.
+    cog : bool
+        For raster formats, write Cloud Optimized GeoTIFFs (default). Ignored
+        for every other format.
     **metadata_kwargs
         Additional key-value pairs to include in the dataset metadata.
         Common keys: query_filter, aggregation, egi_index_level,
@@ -2169,6 +2256,33 @@ def gh3_export(ddf, output, fmt='parquet', merge=False,
                 naming_partition_level = gh3_read_meta("h3_partition_level", gh3_root_dir=source_database)
             except Exception:
                 pass
+
+    # Raster formats go through the rasterization pipeline rather than the
+    # per-format file writers. There is one rasterization implementation, so
+    # both index types behave the same: EGI used to have its own raster branch
+    # inside _write_egi_file (bypassing the outer-tile invariant and the VRT)
+    # while H3 had none at all and raised "Unsupported export format: tif".
+    from .raster import RASTER_FORMATS
+    if fmt in RASTER_FORMATS:
+        result = gh3_rasterize(
+            ddf, output, merge=merge, fmt=fmt, index_type=index_type,
+            partition_level=(h3_partition_level or naming_partition_level
+                             if index_type == 'h3' else None),
+            cog=cog, show_progress=show_progress,
+        )
+        ofiles = [result] if merge else list(result)
+        if not ofiles:
+            raise GediProcessingError("No output files were created.")
+        if write_metadata and not merge:
+            if h3_partition_level is not None:
+                metadata_kwargs.setdefault('h3_partition_level', h3_partition_level)
+            gh3_write_dataset_meta(
+                opath=output, index_type=index_type or 'unknown',
+                index_level=index_level, columns=list(ddf.columns),
+                source_database=source_database, tool=tool, file_format=fmt,
+                **metadata_kwargs
+            )
+        return ofiles
 
     # Export data
     if merge:
@@ -2345,7 +2459,7 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
                             query, index_level, partition_level, set_index=True,
                             tile_egi_id=None,
                             bbox_strategy='fallback', bbox_lat_col=None, bbox_lon_col=None,
-                            file_bboxes=None):
+                            file_bboxes=None, filters=None):
     """
     Load data for a single EGI tile from its intersecting H3 partitions.
 
@@ -2392,6 +2506,11 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
         partitions. Year files whose envelope cannot intersect the tile are
         skipped without being opened. Files absent from the dict (or the
         dict being ``None``) are always read — fail-safe.
+    filters : list or pyarrow.compute.Expression, optional
+        Pyarrow predicate pushed into each year-file read (ANDed with the
+        tile's bbox predicate), so non-matching row groups are never
+        decompressed. Applied BEFORE ``query``, EGI indexing and the
+        spillover filter.
 
     Returns
     -------
@@ -2466,6 +2585,7 @@ def _load_egi_tile_from_h3(egi_bbox, h3_list, gh3_dir, h3_part_col, load_cols,
                 pf, bbox_4326=wgs84_bbox, clip_box=clip_box,
                 columns=load_cols, geo=True,
                 strategy=bbox_strategy, lat_col=bbox_lat_col, lon_col=bbox_lon_col,
+                extra_filters=filters,
             )
             if len(year_df) == 0:
                 continue
@@ -2665,7 +2785,7 @@ def _build_egi_load_meta(load_cols, gh3_dir, index_level, partition_level, inclu
 
 
 def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH3_DEFAULT_H3_DIR,
-                               index_level=1, partition_level=12):
+                               index_level=1, partition_level=12, filters=None):
     """Internal: load H3 database directly into EGI partitions (original egi_load body)."""
     import dask
     from dask import dataframe as ddf
@@ -2786,6 +2906,7 @@ def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH
             bbox_lat_col=bbox_lat_col,
             bbox_lon_col=bbox_lon_col,
             file_bboxes=file_bboxes,
+            filters=filters,
         )
 
     # Build metadata from schema (avoids empty sample issue)
@@ -2818,7 +2939,7 @@ def _load_egi_from_h3_database(columns=None, region=None, query=None, gh3_dir=GH
 
 
 def egi_load(source=None, *, columns=None, region=None, query=None,
-             index_level=1, partition_level=12, lazy=True):
+             index_level=1, partition_level=12, lazy=True, filters=None):
     """Load EGI-indexed GEDI data from any source.
 
     Auto-detects whether the source is an H3 database (direct EGI loading)
@@ -2846,6 +2967,17 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
     lazy : bool
         If True (default), return Dask DataFrame. If False, return computed
         pandas DataFrame.
+    filters : list or pyarrow.compute.Expression, optional
+        PyArrow predicate pushdown filters (conjunctive list of
+        ``(column, op, value)`` tuples, a DNF list-of-lists, or an
+        Expression) — same contract as ``gh3_load(filters=...)``. Pushed
+        straight into each per-year parquet read, so row groups that cannot
+        match are never decompressed, and ANDed with the tile bbox predicate
+        when both apply. Unlike ``query``, which filters in pandas after the
+        read, the rows never enter worker memory. Predicate columns do not
+        have to be listed in ``columns``. A file whose schema lacks a
+        predicate column raises rather than silently returning unfiltered
+        rows.
 
     Returns
     -------
@@ -2872,6 +3004,15 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
     ...     partition_level=12,
     ... )
     >>> agg = gh3.egi_aggregate(ddf, target_level=6, agg='mean')
+
+    >>> # Predicate pushdown: quality-flag rows are dropped at the parquet
+    >>> # row-group layer, before anything reaches worker memory.
+    >>> ddf = gh3.egi_load(
+    ...     source='/path/to/h3_database',
+    ...     columns=['agbd_l4a'],
+    ...     region='region.shp',
+    ...     filters=[('l2_quality_flag_l4a', '==', 1), ('agbd_l4a', '>', 0)],
+    ... )
     """
     path, info = _detect_source(source)
     columns = _resolve_columns(columns, path, info)
@@ -2880,11 +3021,13 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
         # Direct EGI loading from H3 database (no shuffle)
         ddf = _load_egi_from_h3_database(
             columns=columns, region=region, query=query,
-            gh3_dir=path, index_level=index_level, partition_level=partition_level
+            gh3_dir=path, index_level=index_level, partition_level=partition_level,
+            filters=filters
         )
     elif info.get('index_type') == 'egi':
         # Simplified EGI dataset
-        ddf = _load_dataset(path, columns=columns, query=query, region=region, lazy=True)
+        ddf = _load_dataset(path, columns=columns, query=query, region=region,
+                            lazy=True, filters=filters)
     elif info.get('index_type') == 'h3':
         raise GediValidationError(
             f"Source '{path}' is an H3 dataset. Use gh3_load() for H3 data, "
@@ -2892,7 +3035,8 @@ def egi_load(source=None, *, columns=None, region=None, query=None,
         )
     else:
         # Parquet directory with unknown index — try loading as dataset
-        ddf = _load_dataset(path, columns=columns, query=query, region=region, lazy=True)
+        ddf = _load_dataset(path, columns=columns, query=query, region=region,
+                            lazy=True, filters=filters)
 
     if not lazy:
         return dask_safe_collect(ddf)
@@ -3878,15 +4022,19 @@ def gh3_to_raster(
     compress='LZW'
 ):
     """
-    Convert H3-indexed GeoDataFrame to raster.
+    Convert a single spatially-indexed GeoDataFrame to raster.
 
-    This is a convenience function that wraps the raster module's
-    h3_to_raster function with sensible defaults.
+    Dispatches on the frame's spatial index: H3 frames go through
+    ``raster.h3_to_raster``, EGI frames through ``egi.geodf_to_raster``.
+
+    This handles ONE in-memory frame. To rasterize every partition of a Dask
+    DataFrame — or a dataset directory — in a single call, use
+    :func:`gh3_rasterize`.
 
     Parameters
     ----------
     gdf : GeoDataFrame
-        H3-indexed GeoDataFrame with polygon geometries
+        H3- or EGI-indexed GeoDataFrame.
     columns : list of str, optional
         Columns to rasterize. If None, all numeric columns.
     output_path : str, optional
@@ -3897,7 +4045,18 @@ def gh3_to_raster(
     Returns
     -------
     xr.Dataset
-        Raster dataset
+        Raster dataset. The CRS follows the index type: EPSG:4326 for H3,
+        EPSG:6933 (EASE-Grid 2.0) for EGI. EGI rasters are never reprojected
+        — that alignment is the reason EGI exists.
+
+    Raises
+    ------
+    GediValidationError
+        If the spatial index type cannot be determined from the frame.
+    GediRasterizationError
+        Propagated from the rasterizer. Notably, an EGI frame spanning more
+        than one level-12 outer tile is refused rather than silently reduced
+        — use ``gh3_rasterize(..., merge=True)`` for that.
 
     Examples
     --------
@@ -3907,15 +4066,314 @@ def gh3_to_raster(
     >>>
     >>> # Or save directly
     >>> raster = gh3_to_raster(agg_gdf, output_path="output.tif")
-    """
-    from .raster import h3_to_raster, export_raster
 
-    xras = h3_to_raster(gdf, columns=columns)
+    See Also
+    --------
+    gh3_rasterize : Dask DataFrame or dataset directory to rasters, one call.
+    """
+    index_type = get_spatial_index_type(gdf)
+
+    if index_type == 'egi':
+        from . import egi
+        xras = egi.geodf_to_raster(gdf, columns=columns)
+    elif index_type == 'h3':
+        from .raster import h3_to_raster
+        xras = h3_to_raster(gdf, columns=columns)
+    else:
+        raise GediValidationError(
+            "Cannot determine the spatial index type of the input frame: no 'h3_*' or "
+            "'egi*' index name or column found. Pass an H3- or EGI-indexed GeoDataFrame."
+        )
 
     if output_path:
+        from .raster import export_raster
         export_raster(xras, output_path, compress=compress)
 
     return xras
+
+
+def _h3_partition_level_from_dataset(path, info):
+    """Resolve the H3 partition level of a simplified dataset directory.
+
+    ``cliutils.get_dataset_index_info`` already covers the sidecar
+    ``h3_partition_level`` and the ``partition_ids[0]`` fallback; this adds the
+    two steps it does not: deriving the level from the parquet filenames, and
+    cross-checking a sidecar value against them.
+
+    Filenames are ground truth — a sidecar can go stale when a dataset is
+    regenerated in place at another level, and a wrong partition level produces
+    silently wrong tiling rather than an error. One local basename is free to
+    check; remote paths keep the sidecar fast path.
+
+    Parameters
+    ----------
+    path : str
+        Dataset directory.
+    info : dict
+        The ``get_dataset_index_info`` result for ``path``.
+
+    Returns
+    -------
+    tuple
+        ``(level, source_label)``. ``level`` is None when undeterminable, in
+        which case the rasterizer falls back to detecting it from the frame's
+        ``h3_NN`` columns.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    partition_level = info.get('partition_level')
+    source = 'metadata'
+
+    if partition_level is None:
+        candidates = [
+            os.path.splitext(os.path.basename(f))[0]
+            for f in smart_glob(smart_join(path, '*.parquet'))
+        ]
+        source = 'filenames'
+        for cell in candidates:
+            try:
+                partition_level = h3.get_resolution(cell)
+                break
+            except (ValueError, TypeError):
+                continue
+    elif not is_remote_path(path):
+        for f in smart_glob(smart_join(path, '*.parquet'))[:1]:
+            cell = os.path.splitext(os.path.basename(f))[0]
+            try:
+                actual = h3.get_resolution(cell)
+            except (ValueError, TypeError):
+                break
+            if actual != partition_level:
+                logger.warning(
+                    f"Sidecar h3_partition_level={partition_level} disagrees with "
+                    f"filenames (H3 {actual}); using the filenames"
+                )
+                partition_level = actual
+                source = 'filenames (sidecar stale)'
+
+    return partition_level, source
+
+
+def _egi_partition_level(ddf, info):
+    """Resolve the EGI level a frame or dataset is partitioned at.
+
+    The sidecar knows it for a dataset; for a bare frame the coarsest ``egiNN``
+    column is the partition column (see ``_detect_export_params``). Returns
+    None when neither is available, which leaves the rasterizer on its
+    level-12 default.
+
+    Parameters
+    ----------
+    ddf : DataFrame
+        Dask or in-memory EGI-indexed frame.
+    info : dict
+        ``get_dataset_index_info`` result, or ``{}`` for frame input.
+
+    Returns
+    -------
+    int or None
+    """
+    level = info.get('egi_partition_level') or info.get('partition_level')
+    if level is not None:
+        return int(level)
+
+    _, part_col, _, _ = _detect_export_params(ddf, index_type='egi')
+    if part_col:
+        return int(str(part_col).replace('egi', ''))
+    return None
+
+
+def gh3_rasterize(data, output, columns=None, merge=False, query=None,
+                  index_type=None, partition_level=None, fmt='tif',
+                  compress='LZW', cog=True, show_progress=True):
+    """
+    Rasterize a dataset or Dask DataFrame to GeoTIFF in a single call.
+
+    Works for both spatial index types: EGI partitions are rasterized with
+    ``egi.rasterize_partition`` (EASE-Grid 2.0 aligned, EPSG:6933) and H3
+    partitions with ``raster.rasterize_h3_partition`` (EPSG:4326). The index
+    type is detected, so callers do not pick a rasterizer.
+
+    This is the library form of the ``gh3_rasterize`` CLI, which delegates to
+    it — the two cannot diverge.
+
+    Parameters
+    ----------
+    data : str or DataFrame
+        Either a dataset directory written by ``gh3_extract`` / ``gh3_aggregate``
+        (i.e. holding a ``gedih3_dataset.json`` sidecar), or an already-loaded
+        Dask / in-memory (Geo)DataFrame. A raw H3 *database* is not accepted —
+        aggregate or extract from it first.
+    output : str
+        Output directory (``merge=False``) or output file path (``merge=True``,
+        a missing ``.tif`` suffix is appended).
+    columns : list of str, optional
+        Columns to rasterize; None means every numeric column. fnmatch
+        wildcards (e.g. ``'agbd_*'``) are expanded for dataset-path input; for
+        a frame the caller already knows its columns.
+    merge : bool
+        False (default) writes one GeoTIFF per spatial tile plus a
+        ``mosaic.vrt``. True merges every tile into a single GeoTIFF (no VRT);
+        note this gathers all tiles on the driver.
+    query : str, optional
+        Pandas query applied at load time. Dataset-path input only — for a
+        frame, call ``.query()`` before passing it in.
+    index_type : {'h3', 'egi'}, optional
+        Override the detected index type.
+    partition_level : int, optional
+        H3 tiling level. Ignored for EGI, which always tiles at level 12. When
+        None it is resolved from the dataset (path input) or from the frame's
+        ``h3_NN`` columns.
+    fmt : str
+        Tile format ('tif', 'nc'). Ignored when ``merge=True``, which always
+        writes GeoTIFF.
+    compress : str
+        GeoTIFF compression (default LZW).
+    cog : bool
+        Write Cloud Optimized GeoTIFFs — internally tiled, with an overview
+        pyramid (default). A COG is a valid GeoTIFF, so readers are unaffected;
+        pass False for a plain GeoTIFF with no overviews.
+    show_progress : bool
+        Show the Dask progress bar.
+
+    Returns
+    -------
+    str or list of str
+        The written file path when ``merge=True``; otherwise a flat list of
+        the written tile paths (``mosaic.vrt`` is not included).
+
+    Raises
+    ------
+    GediValidationError
+        If ``data`` is an H3 database, if the index type cannot be determined,
+        or if ``query`` is given with an already-loaded frame.
+    GediRasterizationError
+        Propagated from the rasterizers (e.g. nothing valid to merge).
+
+    Examples
+    --------
+    >>> ddf = egi_load(source=db, region='region.shp', level=6)
+    >>> paths = gh3_rasterize(ddf, 'tiles/')
+    >>>
+    >>> # From a dataset directory, merged into one file
+    >>> gh3_rasterize('/data/agg_egi', 'agbd.tif', merge=True)
+
+    See Also
+    --------
+    gh3_to_raster : single in-memory frame to an ``xr.Dataset``.
+    gh3_rasterize_partitions : H3-only variant returning per-partition results.
+    """
+    import logging
+    from . import raster
+
+    logger = logging.getLogger(__name__)
+
+    if isinstance(data, str):
+        path, info = _detect_source(data)
+        if info.get('source_type') == 'h3_database':
+            raise GediValidationError(
+                f"'{path}' is an H3 database, not a rasterizable dataset. Rasterization "
+                f"needs a dataset produced by gh3_aggregate or gh3_extract — run one of "
+                f"those on the database first."
+            )
+        if index_type is None:
+            index_type = info.get('index_type')
+        columns = _resolve_columns(columns, path, info)
+        # _load_dataset, not gh3_load: the latter refuses EGI-indexed datasets.
+        ddf = _load_dataset(path, columns=columns, query=query)
+    else:
+        if query is not None:
+            raise GediValidationError(
+                "query= applies to dataset-path input only. Call .query() on the frame "
+                "before passing it to gh3_rasterize()."
+            )
+        path, info = None, {}
+        ddf = data
+        if index_type is None:
+            index_type = get_spatial_index_type(ddf._meta if hasattr(ddf, '_meta') else ddf)
+
+    if index_type not in ('h3', 'egi'):
+        raise GediValidationError(
+            "Cannot determine the spatial index type to rasterize. Pass index_type='h3' "
+            "or index_type='egi', or supply data carrying an 'h3_*' / 'egi*' index."
+        )
+
+    # Rasterizing needs geometry: the rasterizers reproject and burn polygons,
+    # and a plain DataFrame fails on the missing .crs deep inside a worker,
+    # where the per-partition handler swallows it and the run ends with the
+    # unhelpful "No output files were created".
+    meta = ddf._meta if hasattr(ddf, '_meta') else ddf
+    if 'geometry' not in getattr(meta, 'columns', []):
+        raise GediValidationError(
+            "Rasterization needs a 'geometry' column and this data has none. Re-run the "
+            "extract/aggregate step including geometry (add it to -l/--list), or load the "
+            "dataset with geometry before calling gh3_rasterize()."
+        )
+
+    rasterize_kwargs = {}
+    if index_type == 'egi':
+        from . import egi
+        rasterize_func = egi.rasterize_partition
+        # Output files are named from the partition id. Below level 12 several
+        # partitions share an outer tile, so the rasterizer needs the level to
+        # name them apart — otherwise they all collide on the tile id.
+        if partition_level is None:
+            partition_level = _egi_partition_level(ddf, info)
+        if partition_level is not None:
+            rasterize_kwargs['partition_level'] = partition_level
+        logger.info(f"Rasterizing EGI-indexed data ({ddf.npartitions} partitions)"
+                    if hasattr(ddf, 'npartitions') else "Rasterizing EGI-indexed data")
+    else:
+        rasterize_func = raster.rasterize_h3_partition
+        if partition_level is None and path is not None:
+            partition_level, source = _h3_partition_level_from_dataset(path, info)
+            if partition_level is not None:
+                logger.info(f"  Partition level: H3 {partition_level} (from {source})")
+        if partition_level is not None:
+            rasterize_kwargs['partition_level'] = partition_level
+
+    if merge:
+        if fmt not in ('tif', 'tiff', 'geotiff'):
+            raise GediValidationError(
+                f"merge=True writes GeoTIFF only; fmt='{fmt}' is not supported there. "
+                f"Use merge=False for tiled {fmt} output, or fmt='tif' to merge."
+            )
+        merged_output = output if output.endswith('.tif') else f"{output}.tif"
+        os.makedirs(os.path.dirname(os.path.abspath(merged_output)), exist_ok=True)
+        return raster.merge_and_export_rasters(
+            ddf, merged_output, rasterize_func,
+            columns=columns, compress=compress, cog=cog,
+            show_progress=show_progress, **rasterize_kwargs
+        )
+
+    os.makedirs(output, exist_ok=True)
+    result = raster.rasterize_and_export_partitions(
+        ddf, output, rasterize_func,
+        columns=columns, fmt=fmt, compress=compress, cog=cog,
+        show_progress=show_progress, **rasterize_kwargs
+    )
+    # export_raster_partition comma-joins when a partition yields several tiles.
+    # EGI never does (one partition = one tile); H3 can when a partition holds
+    # cells from several parents. Flatten so the return is always file paths.
+    paths = [p for entry in result if entry for p in entry.split(',') if p]
+
+    # Tiles are named from the partition id carried in the raster attributes.
+    # If two partitions resolve to the same id they write to the same path and
+    # the last one silently replaces the rest — never let that pass quietly.
+    # The usual cause is EGI partitions finer than level 12 on a frame that
+    # carries no egiNN partition column, so the level cannot be recovered.
+    duplicates = {p for p in paths if paths.count(p) > 1}
+    if duplicates:
+        logger.error(
+            f"{len(paths) - len(set(paths))} raster tile(s) were overwritten: "
+            f"{sorted(duplicates)[:3]}{'...' if len(duplicates) > 3 else ''}. Several "
+            f"partitions resolved to the same output name, so only the last write "
+            f"survives. Pass partition_level= explicitly, or rasterize data that "
+            f"still carries its partition column."
+        )
+
+    return paths
 
 
 def gh3_rasterize_partitions(
@@ -3948,7 +4406,13 @@ def gh3_rasterize_partitions(
     Returns
     -------
     list of str
-        Paths to output files
+        One entry per Dask partition, comma-joined when a partition produced
+        several tiles. Use :func:`gh3_rasterize` for a flat list of paths.
+
+    See Also
+    --------
+    gh3_rasterize : index-aware equivalent; also handles EGI, dataset
+        directories and merged output.
     """
     from .raster import rasterize_and_export_partitions, rasterize_h3_partition
 
