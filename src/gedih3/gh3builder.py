@@ -42,43 +42,59 @@ def _init_earthaccess_worker():
     _install_request_timeouts()
 
 
-def _ensure_download_essentials(product_vars: Dict, version=None, ensure_l2a: bool = True) -> Dict:
-    """Complete an expanded ``product_vars`` so the files it fetches can be built.
+def _complete_essentials_and_flags(product_vars: Dict, version=None, ensure_l2a: bool = True) -> Dict:
+    """Union the release's L2A essentials and per-product quality flags into
+    every explicit variable list, purging names that belong only to another
+    release.
 
-    Mirrors what :func:`_expand_product_vars` does at build time, applied at
-    download time so a subset fetched with an *explicit* L2A list (or via
-    S3 ETL, which stores only what was asked for) is not missing the
-    columns every build needs:
-
-    * the version-specific L2A essentials (lat/lon/elev lowestmode, quality
-      + degrade flags, sensitivity) are unioned into an explicit L2A list,
-      or L2A is added outright when ``ensure_l2a`` and it is absent;
-    * ``shot_number`` on every explicit list;
-    * each product's quality flags for the resolved release.
-
-    ``None`` (download everything) lists are left alone. ``ensure_l2a=False``
-    (variable-only updates against a DB that already holds L2A) never adds
-    L2A, but still completes the lists that are present.
+    Shared by the download paths (:func:`_ensure_download_essentials`) and the
+    build path (:func:`_expand_product_vars`) so the two cannot drift. A
+    ``minimal``/``default`` keyword resolved under a different release (a
+    provisional fallback, or a ``product_vars`` persisted by an older run)
+    bakes that release's essential/flag names into the list; a plain union
+    would only add the correct names alongside, leaving a stale name that
+    does not exist in the real archive and fails every beam that requests it.
+    Only names from the known essentials / quality-flag tables are purged —
+    names shared across releases (``degrade_flag``) and explicit non-preset
+    requests are never touched. ``None`` ("all variables") lists are left
+    alone. ``ensure_l2a=False`` never adds L2A but still completes the lists
+    that are present.
     """
-    if ensure_l2a:
-        essentials = _get_versioned(_GEDI_L2A_ESSENTIALS, version)
-        if 'L2A' not in product_vars:
-            product_vars['L2A'] = list(essentials)
-        elif product_vars['L2A'] is not None:
-            product_vars['L2A'] = list(dict.fromkeys(list(product_vars['L2A']) + list(essentials)))
-
-    for _prod, val in product_vars.items():
-        if val is None:
-            continue
-        if 'shot_number' not in val:
-            val.append('shot_number')
+    essentials = _get_versioned(_GEDI_L2A_ESSENTIALS, version)
+    if 'L2A' in product_vars:
+        if product_vars['L2A'] is not None:
+            stale = {v for vs in _GEDI_L2A_ESSENTIALS.values() for v in vs} - set(essentials)
+            kept = [v for v in product_vars['L2A'] if v not in stale]
+            product_vars['L2A'] = list(dict.fromkeys(kept + list(essentials)))
+    elif ensure_l2a:
+        product_vars['L2A'] = list(essentials)
 
     for prod, val in product_vars.items():
         flag_map = _PRODUCT_QUALITY_FLAGS.get(prod)
         if flag_map and val is not None:
-            for flag_name, _condition in _get_versioned(flag_map, version):
+            flags = _get_versioned(flag_map, version)
+            flag_names = {f for f, _ in flags}
+            stale = {f for fl in flag_map.values() for f, _ in fl} - flag_names
+            val[:] = [v for v in val if v not in stale]
+            for flag_name, _condition in flags:
                 if flag_name not in val:
                     val.append(flag_name)
+    return product_vars
+
+
+def _ensure_download_essentials(product_vars: Dict, version=None, ensure_l2a: bool = True) -> Dict:
+    """Complete an expanded ``product_vars`` so the files it fetches can be built.
+
+    Applies the build-time completion (:func:`_complete_essentials_and_flags`:
+    L2A essentials, per-product quality flags, stale-release purge) at download
+    time, so a subset fetched with an *explicit* L2A list (or via S3 ETL, which
+    stores only what was asked for) is not missing the columns every build
+    needs, and appends ``shot_number`` to every explicit list.
+    """
+    _complete_essentials_and_flags(product_vars, version=version, ensure_l2a=ensure_l2a)
+    for val in product_vars.values():
+        if val is not None and 'shot_number' not in val:
+            val.append('shot_number')
     return product_vars
 
 
@@ -908,37 +924,9 @@ def _expand_product_vars(
                 available = gedi_vars_from_h5(file)
                 product_vars[k] = expand_var_wildcards(val, available)
 
-    essentials = _get_versioned(_GEDI_L2A_ESSENTIALS, version)
-    if 'L2A' in product_vars:
-        if product_vars['L2A'] is not None:
-            # A `minimal`/`default` keyword resolved under a provisional
-            # version (e.g. the fresh-build fallback, before the real
-            # version is auto-detected) bakes that version's essential
-            # name into the list. A plain union only adds the correct
-            # name alongside it rather than replacing it, leaving a stale
-            # name that doesn't exist in the real archive and fails every
-            # beam that requests it. Purge any essential name unique to
-            # another version before re-adding the current version's.
-            stale = {v for vs in _GEDI_L2A_ESSENTIALS.values() for v in vs} - set(essentials)
-            product_vars['L2A'] = list((set(product_vars['L2A']) - stale) | set(essentials))
-        # None means "all variables" — essentials already included
-    else:
-        product_vars['L2A'] = essentials
-
-    # Ensure quality flag variables are included for every product with an explicit var list.
-    # (None means "all variables" — quality flags already included.)
-    from .config import _PRODUCT_QUALITY_FLAGS
-    for prod, val in product_vars.items():
-        flag_map = _PRODUCT_QUALITY_FLAGS.get(prod)
-        if flag_map and val is not None:
-            flags = _get_versioned(flag_map, version)
-            flag_names = {f for f, _ in flags}
-            # Same stale-name hazard as the L2A essentials above.
-            stale = {f for fl in flag_map.values() for f, _ in fl} - flag_names
-            val[:] = [v for v in val if v not in stale]
-            for flag_name, _condition in flags:
-                if flag_name not in val:
-                    val.append(flag_name)
+    # L2A essentials + per-product quality flags, stale-release names purged.
+    # (None means "all variables" — essentials and flags already included.)
+    _complete_essentials_and_flags(product_vars, version=version, ensure_l2a=True)
 
     for k, val in product_vars.items():
         if val is None:

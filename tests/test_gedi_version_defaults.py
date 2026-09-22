@@ -237,10 +237,40 @@ def test_download_essentials_adds_l2a_when_absent_and_respects_ensure_l2a_false(
     assert 'wsci_quality_flag' in pv['L4C']
     pv = _ensure_download_essentials({'L4C': ['wsci']}, version=2, ensure_l2a=False)
     assert 'L2A' not in pv
-    assert pv['L4C'] == ['wsci', 'shot_number', 'wsci_quality_flag']
+    assert sorted(pv['L4C']) == sorted(['wsci', 'shot_number', 'wsci_quality_flag'])
 
 
 def test_download_essentials_leaves_dump_all_alone():
     from gedih3.gh3builder import _ensure_download_essentials
     pv = _ensure_download_essentials({'L2A': None, 'L4A': None}, version=3)
     assert pv == {'L2A': None, 'L4A': None}
+
+
+def test_download_essentials_purges_other_release_names():
+    # A product_vars persisted by an older run (or resolved under another
+    # release) carries v2 essential/flag names. Downloading v3 must drop
+    # them — S3 ETL would otherwise request a variable the v3 granule lacks —
+    # while keeping shared names (degrade_flag) and explicit requests.
+    from gedih3.gh3builder import _ensure_download_essentials
+    pv = _ensure_download_essentials(
+        {'L2A': ['quality_flag', 'degrade_flag', 'rh'], 'L4A': ['agbd', 'l4_quality_flag']},
+        version=3,
+    )
+    assert 'quality_flag' not in pv['L2A']
+    assert {'l2a_quality_flag_rel3', 'degrade_flag', 'rh'} <= set(pv['L2A'])
+    assert 'l4_quality_flag' not in pv['L4A']
+    assert {'agbd', 'l4a_quality_flag_rel3', 'elev_highestreturn_outlier_flag'} <= set(pv['L4A'])
+
+
+def test_minimal_expansion_never_aliases_preset_table():
+    # gedi_vars_expand must hand out a copy of the `minimal` preset: the
+    # essentials/flag completion mutates lists in place, and an alias would
+    # rewrite _GEDI_MIN_VARS for the rest of the process.
+    from gedih3.config import _GEDI_MIN_VARS
+    from gedih3.gedidriver import gedi_vars_expand
+    from gedih3.gh3builder import _ensure_download_essentials
+    before = list(_GEDI_MIN_VARS['L4A'][2])
+    pv = gedi_vars_expand({'L4A': ['minimal']}, version=2)
+    assert pv['L4A'] is not _GEDI_MIN_VARS['L4A'][2]
+    _ensure_download_essentials(pv, version=3)
+    assert _GEDI_MIN_VARS['L4A'][2] == before
