@@ -181,6 +181,60 @@ def merge_product_vars(existing_product_vars, new_product_vars=None):
 
     return merged_product_vars, new_product_vars
 
+def resolve_soc_version(soc_dir):
+    """Return the GEDI data version a local SOC tree was populated with, or None.
+
+    A-priori lookup — no HDF5 open, no recursive walk:
+
+    1. the download log's ``gedi_version`` (``gedih3_download_log.json`` at
+       the SOC root), written by every gh3 producer;
+    2. else the ``_V00N`` field of the first ``GEDI*.h5`` found by a bounded
+       ``year/doy`` scandir (externally populated trees: manual rsync, NASA
+       delivery).
+
+    Used by ``gh3_build`` / ``gh3_download`` to pin a *fresh* build or
+    resumed download to the release already on disk when the user did not
+    pass ``--gedi-version``; the package default (``GEDI_DEFAULT_VERSION``)
+    only applies when nothing on disk answers the question.
+    """
+    if not soc_dir or not os.path.isdir(soc_dir):
+        return None
+    log_path = os.path.join(soc_dir, SOCDownloadLogger._LOG_FILE_NAME)
+    if os.path.isfile(log_path):
+        try:
+            v = json_read(log_path).get('gedi_version')
+            if v is not None:
+                return int(v)
+        except (OSError, ValueError, TypeError):
+            pass
+    try:
+        with os.scandir(soc_dir) as years:
+            year_dirs = sorted(
+                (e.path for e in years if e.is_dir() and e.name.isdigit()),
+                reverse=True,
+            )
+    except OSError:
+        return None
+    for ydir in year_dirs:
+        try:
+            with os.scandir(ydir) as doys:
+                doy_dirs = sorted((e.path for e in doys if e.is_dir()), reverse=True)
+        except OSError:
+            continue
+        for ddir in doy_dirs:
+            try:
+                with os.scandir(ddir) as files:
+                    for e in files:
+                        if e.name.startswith('GEDI') and e.name.endswith('.h5'):
+                            try:
+                                return GEDIFile(e.path).version
+                            except Exception:
+                                continue
+            except OSError:
+                continue
+    return None
+
+
 class SOCDownloadLogger:
     _LOG_FILE_NAME = 'gedih3_download_log.json'
     _PARENT_DIR = GH3_DEFAULT_SOC_DIR
@@ -197,14 +251,28 @@ class SOCDownloadLogger:
         self.updating = False
 
         # Resume-mode `default`/`minimal` expansion must target the
-        # existing DB's version, not the package fallback (v2). Otherwise
-        # `gh3_download -l4c default` against a v3 download tree expands
-        # against the v2 manifest and writes the wrong variable names.
-        # Peek the log before expansion so an absent `--gedi-version` CLI
-        # arg adopts the persisted version.
+        # existing tree's version, not the package fallback
+        # (GEDI_DEFAULT_VERSION). Otherwise `gh3_download -l4c default`
+        # against a v2 download tree expands against the v3 manifest and
+        # writes the wrong variable names. Peek the log before expansion
+        # so an absent `--gedi-version` CLI arg adopts the persisted version.
         effective_version = version
         if version is None and self.log_data:
             effective_version = self.log_data.get('gedi_version', version)
+        persisted_version = self.log_data.get('gedi_version') if self.log_data else None
+        if version is not None and persisted_version is not None and int(version) != int(persisted_version):
+            # A SOC tree *can* hold two releases side by side (filenames carry
+            # the version and every consumer globs by it), so this is not
+            # fatal — but the log records one version, and a later
+            # `gh3_build -i` with no --gedi-version pins to whatever is
+            # written there. Say so loudly.
+            from .logging_config import get_logger
+            get_logger(__name__).warning(
+                f"GEDI version mismatch: download log at {self._PARENT_DIR} records "
+                f"version {persisted_version}, but version {version} was requested. "
+                f"The tree will hold both releases and the log will now record "
+                f"version {version}; prefer one SOC directory per release."
+            )
 
         if product_vars:
             product_vars = gedi_vars_expand(product_vars, version=effective_version)
@@ -451,12 +519,15 @@ class H3BuildLogger:
         self.log_data = load_log_data(self.log_file)
 
         # Resume-mode `default`/`minimal` expansion must target the
-        # existing DB's gedi_version, not the package fallback (v2).
-        # Otherwise `gh3_build -l4c default` against an existing v3 DB
-        # expands against the v2 manifest, requesting variable names that
-        # don't exist in the v3 h5 files and aborting at validation. Peek
-        # the log before expansion so an absent `--gedi-version` CLI arg
-        # adopts the persisted version.
+        # existing DB's gedi_version, not the package fallback
+        # (GEDI_DEFAULT_VERSION). Otherwise `gh3_build -l4c default`
+        # against an existing v2 DB expands against the v3 manifest,
+        # requesting variable names that don't exist in the v2 h5 files
+        # and aborting at validation. Peek the log before expansion so an
+        # absent `--gedi-version` CLI arg adopts the persisted version.
+        # A database is single-version by contract: every product in it
+        # comes from the same GEDI release (enforced by the mismatch check
+        # below and by the per-version SOC glob in the build).
         effective_version = version
         if version is None and self.log_data:
             effective_version = self.log_data.get('gedi_version', version)

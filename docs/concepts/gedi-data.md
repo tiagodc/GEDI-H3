@@ -75,7 +75,7 @@ L2A is the workhorse product for canopy height studies. It decomposes the receiv
 | `elev_lowestmode` | `elev_lowestmode_l2a` | **Ground elevation** | WGS-84 ellipsoidal elevation of the centre of the lowest waveform mode (the ground return) |
 | `lat_lowestmode` | `lat_lowestmode_l2a` | **Shot latitude** (primary geolocation) | Latitude of the ground return — the most precise geolocation point for each GEDI shot |
 | `lon_lowestmode` | `lon_lowestmode_l2a` | **Shot longitude** (primary geolocation) | Longitude of the ground return |
-| `quality_flag` | `quality_flag_l2a` | Shot usability filter | `1` = high quality ; `0` = low quality |
+| `l2a_quality_flag_rel3` (V3) / `quality_flag` (V2) | `l2a_quality_flag_rel3_l2a` / `quality_flag_l2a` | Shot usability filter | `1` = high quality ; `0` = low quality |
 | `sensitivity` | `sensitivity_l2a` | Canopy penetration detectability | Maximum canopy cover that the algorithm could penetrate given the ambient noise conditions (0–1). Values below ~0.9 in dense forests indicate the ground return may be unreliable |
 
 > **Data dictionary:** [GEDI L2A Data Dictionary (V2)](https://lpdaac.usgs.gov/documents/982/gedi_l2a_dictionary_P003_v2.html) · [LP DAAC product page](https://lpdaac.usgs.gov/products/gedi02_av002/)
@@ -97,7 +97,7 @@ L2B uses the full waveform to estimate the vertical distribution of plant materi
 | `pavd_z` | `pavd_z_000_l2b` … `pavd_z_018_l2b` (**19 columns**) | Vertical foliage density profile | Plant Area Volume Density at each 5 m height bin (m² m⁻³); describes where foliage is concentrated in the vertical column — distinguishes emergent, canopy, sub-canopy, and understorey layers |
 | `cover_z` | `cover_z_000_l2b` … `cover_z_018_l2b` (**19 columns**) | Cumulative canopy cover profile | Cumulative fraction of canopy cover from each height bin down to the ground; complements `pavd_z` for characterising canopy layering |
 | `pgap_theta` | `pgap_theta_l2b` | Canopy gap fraction | Probability of a laser pulse passing through the canopy without interception at the mean beam zenith angle. Directly related to canopy transmittance and light penetration to the forest floor |
-| `l2b_quality_flag` | `l2b_quality_flag_l2b` | Shot usability filter | `1` = valid L2B retrieval |
+| `l2b_quality_flag_rel3` (V3) / `l2b_quality_flag` (V2) | `l2b_quality_flag_rel3_l2b` / `l2b_quality_flag_l2b` | Shot usability filter | `1` = valid L2B retrieval |
 
 > **Data dictionary:** [GEDI L2B Data Dictionary (V2)](https://lpdaac.usgs.gov/documents/980/gedi_l2b_dictionary_P003_v2.html) · [LP DAAC product page](https://lpdaac.usgs.gov/products/gedi02_bv002/)
 
@@ -114,9 +114,10 @@ L4A predicts aboveground biomass density (AGBD) at each GEDI footprint by applyi
 | `agbd_pi_lower` | `agbd_pi_lower_l4a` | Biomass lower prediction bound | Lower bound of the 95% prediction interval around `agbd` |
 | `agbd_pi_upper` | `agbd_pi_upper_l4a` | Biomass upper prediction bound | Upper bound of the 95% prediction interval around `agbd` |
 | `predict_stratum` | `predict_stratum_l4a` | Allometric model identifier | Character identifier of plant functional type (PFT) and continental region |
-| `l4_quality_flag` | `l4_quality_flag_l4a` | Shot usability filter | `1` = valid AGBD estimate |
+| `l4a_quality_flag_rel3` (V3) / `l4_quality_flag` (V2.1) | `l4a_quality_flag_rel3_l4a` / `l4_quality_flag_l4a` | Shot usability filter | `1` = valid AGBD estimate |
+| `elev_highestreturn_outlier_flag` (V3) | `elev_highestreturn_outlier_flag_l4a` | Geolocation outlier filter | `0` = highest return elevation is consistent with the reference DEM |
 
-> **Data dictionary & user guide:** [ORNL DAAC L4A Guide](https://daac.ornl.gov/GEDI/guides/GEDI_L4A_AGB_Density_V2_1.html) · [L4A Data Dictionary PDF](https://data.ornldaac.earthdata.nasa.gov/public/gedi/GEDI_L4A_AGB_Density_V2_1/comp/GEDI_L4A_V2_Product_Data_Dictionary.pdf) · [ORNL DAAC product page (V2.1)](https://daac.ornl.gov/cgi-bin/dsviewer.pl?ds_id=2056)
+> **Data dictionary & user guide:** [ORNL DAAC L4A V3 Guide](https://daac.ornl.gov/GEDI/guides/GEDI_L4A_AGB_Density_V3.html) · [ORNL DAAC product page (V3, DOI 10.3334/ORNLDAAC/2508)](https://doi.org/10.3334/ORNLDAAC/2508) · [L4A V2.1 Guide](https://daac.ornl.gov/GEDI/guides/GEDI_L4A_AGB_Density_V2_1.html) · [L4A V2 Data Dictionary PDF](https://data.ornldaac.earthdata.nasa.gov/public/gedi/GEDI_L4A_AGB_Density_V2_1/comp/GEDI_L4A_V2_Product_Data_Dictionary.pdf)
 
 ---
 
@@ -131,9 +132,10 @@ L4C provides the Waveform Structural Complexity Index (WSCI) — a machine-learn
 | `wsci_xy` | `wsci_xy_l4c` | Horizontal structural complexity | The horizontal component of WSCI; captures spatial heterogeneity within the 25 m footprint — related to gap fraction heterogeneity and canopy patchiness |
 | `wsci_pi_lower` | `wsci_pi_lower_l4c` | WSCI lower prediction bound | Lower bound of the 95% prediction interval around `wsci` |
 | `wsci_pi_upper` | `wsci_pi_upper_l4c` | WSCI upper prediction bound | Upper bound of the 95% prediction interval around `wsci` |
-| `wsci_quality_flag` | `wsci_quality_flag_l4c` | Shot usability filter | `1` = valid WSCI estimate |
+| `l4c_quality_flag_rel3` (V3) / `wsci_quality_flag` (V2) | `l4c_quality_flag_rel3_l4c` / `wsci_quality_flag_l4c` | Shot usability filter | `1` = valid WSCI estimate |
+| `elev_highestreturn_outlier_flag` (V3) | `elev_highestreturn_outlier_flag_l4c` | Geolocation outlier filter | `0` = highest return elevation is consistent with the reference DEM |
 
-> **Data dictionary & user guide:** [ORNL DAAC L4C Guide](https://daac.ornl.gov/GEDI/guides/GEDI_L4C_WSCI.html) · [L4C Data Dictionary PDF](https://data.ornldaac.earthdata.nasa.gov/public/gedi/GEDI_L4C_WSCI/comp/GEDI_L4C_WSCI_Data_Dictionary.pdf) · [ORNL DAAC product page (V2)](https://daac.ornl.gov/cgi-bin/dsviewer.pl?ds_id=2338)
+> **Data dictionary & user guide:** [ORNL DAAC L4C V3 Guide](https://daac.ornl.gov/GEDI/guides/GEDI_L4C_WSCI_V3.html) · [ORNL DAAC product page (V3, DOI 10.3334/ORNLDAAC/2520)](https://doi.org/10.3334/ORNLDAAC/2520) · [L4C V2 Guide](https://daac.ornl.gov/GEDI/guides/GEDI_L4C_WSCI.html) · [L4C V2 Data Dictionary PDF](https://data.ornldaac.earthdata.nasa.gov/public/gedi/GEDI_L4C_WSCI/comp/GEDI_L4C_WSCI_Data_Dictionary.pdf)
 
 ---
 
@@ -148,7 +150,7 @@ GEDI files are organized by acquisition time (year/day-of-year), not by geograph
 Each granule is a large HDF5 file (~1–3 GB) with a deeply nested structure: 8 beams per file, hundreds of variables per beam, and a non-intuitive hierarchy. Reading GEDI data correctly requires understanding this structure and using `h5py` or similar specialized libraries.
 
 **3. Quality filtering is non-trivial**
-Each product has its own quality flags (`quality_flag`, `l4_quality_flag`, `degrade_flag`, `sensitivity`), and best practices for data filtering involve combining multiple criteria. Getting this wrong leads to noisy or biased results.
+Each product has its own quality flags (`l2a_quality_flag_rel3`, `l4a_quality_flag_rel3`, `degrade_flag`, `sensitivity` — and different names in every release), and best practices for data filtering involve combining multiple criteria. Getting this wrong leads to noisy or biased results.
 
 **4. Scale**
 The full GEDI dataset spans billions of footprints across thousands of HDF5 files. Even simple regional analyses can take hours without proper spatial indexing and distributed processing.

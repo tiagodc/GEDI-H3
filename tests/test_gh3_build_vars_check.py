@@ -132,10 +132,11 @@ class TestPresetProductsExemptsMinimalAtRealCallSite:
     def test_minimal_resolved_under_fallback_version_is_exempted(self, tmp_path):
         from gedih3.logger import H3BuildLogger
 
-        # No `version` passed and no existing build log -> effective_version
-        # falls back to 2, so 'minimal' expands to the v2 L2B essentials,
-        # including the v2-only name 'l2b_quality_flag'.
-        h3_logger = H3BuildLogger({'L2B': ['minimal']}, dir=str(tmp_path))
+        # 'minimal' resolved under a provisional release (v2 here, set
+        # explicitly so the test does not depend on GEDI_DEFAULT_VERSION)
+        # expands to the v2 L2B essentials, including the v2-only name
+        # 'l2b_quality_flag'.
+        h3_logger = H3BuildLogger({'L2B': ['minimal']}, version=2, dir=str(tmp_path))
         assert 'l2b_quality_flag' in h3_logger.product_vars['L2B']
         assert h3_logger.preset_products == {'L2B'}
         # Pre-fix behavior: 'minimal' was never added to `default_products`,

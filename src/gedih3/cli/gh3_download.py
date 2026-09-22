@@ -28,7 +28,9 @@ def get_cmd_args():
     p.add_argument("-s3", "--s3", dest="s3", action='store_true',
                    help="use S3 ETL mode: stream and subset from NASA S3. Best when the subset is narrow (<~10%% of the granule) or bandwidth is constrained. On fast links with broad subsets (e.g. L2A default including rh), plain DAAC download is usually faster")
     p.add_argument("--gedi-version", dest="version", type=int, default=None,
-                   help="GEDI data version [default=latest available]")
+                   help="GEDI data release for every product (e.g. 3). Default: the version "
+                        "recorded in the output directory's download log or already on disk, "
+                        "else the package default (v3). All products are fetched from the same release.")
 
     # Dask and verbosity
     add_dask_args(p, profile='build')
@@ -44,7 +46,7 @@ def main():
     from gedih3.config import GH3_DEFAULT_SOC_DIR
     from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success, resolve_path_args
     from gedih3.gh3builder import download_soc, s3_etl_subset
-    from gedih3.logger import SOCDownloadLogger
+    from gedih3.logger import SOCDownloadLogger, resolve_soc_version
     from dask.distributed import Client
 
     # Setup logging and print banner
@@ -61,6 +63,15 @@ def main():
     temporal = None
     if args.time_start or args.time_end:
         temporal = (args.time_start, args.time_end)
+
+    # Pin to the release already on disk (download log, else first file)
+    # when the user did not ask for one — a SOC tree should hold a single
+    # GEDI release so the build it feeds is single-version.
+    if args.version is None:
+        detected = resolve_soc_version(args.output)
+        if detected is not None:
+            args.version = detected
+            logger.info(f"GEDI version {detected} detected in {args.output}; downloading that release")
 
     soc_logger = SOCDownloadLogger(
         product_vars=product_vars,

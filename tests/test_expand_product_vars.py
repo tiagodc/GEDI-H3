@@ -6,8 +6,11 @@ resolved under a provisional version before the real archive version was
 known.
 
 Regression scenario: ``H3BuildLogger.__init__`` resolves a preset keyword
-using whatever version it has at construction time (falling back to 2 for a
-fresh build with no explicit ``--gedi-version``). By the time
+using whatever version it has at construction time (the package default,
+``GEDI_DEFAULT_VERSION``, for a fresh build with no explicit
+``--gedi-version`` and nothing on disk to pin it). The tests construct the
+logger with ``version=2`` to bake in another release's names explicitly,
+independent of what the package default currently is. By the time
 ``_expand_product_vars`` runs with the real, auto-detected version, the
 keyword is already gone -- replaced with concrete names -- so a plain
 union/append of the correct-version essential/quality-flag name only adds it
@@ -24,8 +27,8 @@ from gedih3.gh3builder import _expand_product_vars
 class TestExpandProductVarsPurgesStaleVersionNames:
 
     def test_minimal_l2b_drops_stale_v2_flag_keeps_v3(self):
-        h3_logger = H3BuildLogger({'L2B': ['minimal']}, dir='/tmp/_test_expand_minimal_l2b')
-        # Fallback resolution (no explicit --gedi-version) baked in the v2 name.
+        h3_logger = H3BuildLogger({'L2B': ['minimal']}, version=2, dir='/tmp/_test_expand_minimal_l2b')
+        # Resolution under another release (v2) baked in the v2 name.
         assert 'l2b_quality_flag' in h3_logger.product_vars['L2B']
 
         expanded = _expand_product_vars(dict(h3_logger.product_vars), soc_files=[], version=3)
@@ -33,7 +36,7 @@ class TestExpandProductVarsPurgesStaleVersionNames:
         assert 'l2b_quality_flag_rel3' in expanded['L2B']
 
     def test_default_l2b_drops_stale_v2_flag_keeps_v3(self):
-        h3_logger = H3BuildLogger({'L2B': ['default']}, dir='/tmp/_test_expand_default_l2b')
+        h3_logger = H3BuildLogger({'L2B': ['default']}, version=2, dir='/tmp/_test_expand_default_l2b')
         assert 'l2b_quality_flag' in h3_logger.product_vars['L2B']
 
         expanded = _expand_product_vars(dict(h3_logger.product_vars), soc_files=[], version=3)
@@ -41,7 +44,7 @@ class TestExpandProductVarsPurgesStaleVersionNames:
         assert 'l2b_quality_flag_rel3' in expanded['L2B']
 
     def test_l2a_essentials_drop_stale_v2_name_keep_shared_flag(self):
-        h3_logger = H3BuildLogger({'L2A': ['minimal']}, dir='/tmp/_test_expand_l2a_essentials')
+        h3_logger = H3BuildLogger({'L2A': ['minimal']}, version=2, dir='/tmp/_test_expand_l2a_essentials')
         assert 'quality_flag' in h3_logger.product_vars['L2A']
 
         expanded = _expand_product_vars(dict(h3_logger.product_vars), soc_files=[], version=3)
@@ -53,7 +56,7 @@ class TestExpandProductVarsPurgesStaleVersionNames:
     def test_l4a_quality_flag_purge_keeps_version_specific_extra_flag(self):
         # v3 adds elev_highestreturn_outlier_flag with no v2 equivalent --
         # a pure addition, not a rename, and must not be affected by the purge.
-        h3_logger = H3BuildLogger({'L4A': ['minimal']}, dir='/tmp/_test_expand_l4a')
+        h3_logger = H3BuildLogger({'L4A': ['minimal']}, version=2, dir='/tmp/_test_expand_l4a')
         assert 'l4_quality_flag' in h3_logger.product_vars['L4A']
 
         expanded = _expand_product_vars(dict(h3_logger.product_vars), soc_files=[], version=3)

@@ -1421,11 +1421,11 @@ def collect_columns(args, available_columns=None):
         available_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)
     # min/default expand to version-specific variable names (e.g. quality_flag in
     # v2 vs l2a_quality_flag_rel3 in v3). Resolve against the DB's actual version
-    # rather than letting gedi_vars_expand fall back to its v2 default.
+    # rather than letting gedi_vars_expand fall back to GEDI_DEFAULT_VERSION.
     # gh3_aggregate also accepts a pre-extracted/aggregated flat dataset whose
     # directory has no build log; tolerate the missing/unreadable log and let
-    # gedi_vars_expand fall back to its v2 default (concrete column names in a
-    # flat source are validated against available_columns regardless).
+    # gedi_vars_expand fall back to the package default (concrete column names
+    # in a flat source are validated against available_columns regardless).
     gedi_version = None
     if getattr(args, 'database', None):
         try:
@@ -1508,7 +1508,12 @@ def get_product_quality_conditions(selected_products, version, available_columns
     selected_products : list[str]
         Product keys that were requested (e.g. ['L2A', 'L4A']).
     version : int or None
-        GEDI data version from build log (e.g. 2 or 3). None defaults to 2.
+        GEDI data version from build log (e.g. 2 or 3). None defaults to
+        ``GEDI_DEFAULT_VERSION``. When none of the resolved version's flag
+        columns exist but another release's do (a simplified dataset
+        without a build log, extracted from an older database), that
+        release's flags are used instead — the column names themselves
+        identify the release, so this never mixes versions.
     available_columns : list[str]
         Columns present in the database (suffixed form e.g. 'quality_flag_l2a').
 
@@ -1518,17 +1523,30 @@ def get_product_quality_conditions(selected_products, version, available_columns
         Pairs of (column_name, condition_str) to use in the quality filter query,
         e.g. ``[('quality_flag_l2a', '== 1'), ('degrade_flag_l2a', '== 0')]``.
     """
-    from .config import _PRODUCT_QUALITY_FLAGS, _get_versioned
+    from .config import _PRODUCT_QUALITY_FLAGS, _get_versioned, GEDI_DEFAULT_VERSION
+    available = set(available_columns)
     result = []
     for prod in selected_products:
         flag_map = _PRODUCT_QUALITY_FLAGS.get(prod.upper())
         if not flag_map:
             continue
-        flags = _get_versioned(flag_map, version)
-        for flag_name, condition in flags:
-            col = f"{flag_name}_{prod.lower()}"
-            if col in available_columns:
-                result.append((col, condition))
+        resolved = version if version is not None else GEDI_DEFAULT_VERSION
+        candidates = [_get_versioned(flag_map, resolved)]
+        candidates += [flags for v, flags in sorted(flag_map.items(), reverse=True)
+                       if flags is not candidates[0]]
+        # Prefer the release whose flag set is fully present; then the one
+        # with the most flags present; ties keep the resolved release first.
+        # A partial match on a shared name (degrade_flag exists in every
+        # L2A release) must not shadow the release the other columns name.
+        best, best_score = [], (False, 0)
+        for flags in candidates:
+            present = [(f"{flag_name}_{prod.lower()}", condition)
+                       for flag_name, condition in flags
+                       if f"{flag_name}_{prod.lower()}" in available]
+            score = (len(present) == len(flags) and bool(present), len(present))
+            if score > best_score:
+                best, best_score = present, score
+        result.extend(best)
     return result
 
 

@@ -264,7 +264,9 @@ def gedi_vars_expand(product_vars, version=None):
             with open(vars[0], 'r') as f:
                 product_vars[prod] = [line.strip() for line in f if line.strip() and not line.startswith('#')]
         elif "minimal" in vars or "min" in vars:
-            product_vars[prod] = _get_versioned(_GEDI_MIN_VARS[prod], version)
+            # Copy: callers append/purge essentials and quality flags in
+            # place, which must never rewrite the module-level preset table.
+            product_vars[prod] = list(_get_versioned(_GEDI_MIN_VARS[prod], version))
         elif 'default' in vars or 'def' in vars:
             with open(get_default_vars_file(prod, version=version), 'r') as f:
                 product_vars[prod] = [line.strip() for line in f if line.strip() and not line.startswith('#')]

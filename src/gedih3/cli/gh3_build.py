@@ -137,7 +137,10 @@ def get_cmd_args():
     p.add_argument("-s3", "--s3", dest="s3", action='store_true',
                    help="download from NASA S3 to temp directory (no persistent local download)")
     p.add_argument("--gedi-version", dest="version", type=int, default=None,
-                   help="GEDI data version [default=latest available]")
+                   help="GEDI data release for every product (e.g. 3). A database is single-version: "
+                        "on resume the build log's version is authoritative (passing a different one "
+                        "is an error). Fresh local builds default to the release already in the SOC "
+                        "directory (download log / filenames), else the package default (v3).")
     p.add_argument("--exclude", dest="exclude", action='append', default=None,
                    metavar='PATTERN',
                    help="exclude files whose basename matches the given fnmatch pattern. "
@@ -243,12 +246,12 @@ def main():
     import sys
     import glob
     import warnings
-    from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR
+    from gedih3.config import GH3_DEFAULT_H3_DIR, GH3_DEFAULT_SOC_DIR, BUILD_LOG_FILENAME
     from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success, format_dask_cluster_info
     from gedih3.utils import get_system_resources
     from gedih3.gh3builder import build_h3db, download_soc, soc_file_tree, _reconcile_granules_from_disk, _merge_and_finalize
     from gedih3.gedidriver import GEDIFile, validate_soc_files, gedi_vars_expand
-    from gedih3.logger import H3BuildLogger, SOCDownloadLogger
+    from gedih3.logger import H3BuildLogger, SOCDownloadLogger, resolve_soc_version
     from dask.distributed import Client
 
     # Setup logging and print banner
@@ -295,6 +298,18 @@ def main():
     temporal = None
     if args.time_start or args.time_end:
         temporal = (args.time_start, args.time_end)
+
+    # Fresh build from a local SOC tree with no --gedi-version: pin to the
+    # release already on disk (download log, else the first file's _V00N
+    # field) instead of the package default, so `default`/`minimal`
+    # expansion and the per-version SOC glob match the files that exist.
+    # On resume the build log is authoritative (H3BuildLogger peeks it).
+    if (args.version is None and soc_source is not None
+            and not os.path.isfile(os.path.join(args.output, BUILD_LOG_FILENAME))):
+        detected = resolve_soc_version(soc_source)
+        if detected is not None:
+            args.version = detected
+            logger.info(f"GEDI version {detected} detected in {soc_source}; building that release")
 
     h3_logger = H3BuildLogger(
         product_vars=product_vars,

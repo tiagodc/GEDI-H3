@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Changed
+- **GEDI release 3 is the default for every product.** `GEDI_DEFAULT_VERSION = 3` (`config.py`) replaces the scattered `version=None → 2` fallbacks in `_get_versioned`, `get_default_vars_file`, variable expansion, quality-flag resolution and CMR search. L4C V3 is registered (`GEDI_L4C_WSCI_V3_2520`, DOI `10.3334/ORNLDAAC/2520`) alongside the already-registered L4A V3 (`GEDI_L4A_AGB_Density_V3_2508`, DOI `10.3334/ORNLDAAC/2508`); the LP DAAC DOIs now point at the `.003` collections. A gedih3 database is single-version by contract — L1B/L2A/L2B/L4A/L4C all come from the same release — so `--gedi-version` applies to every product of a build or download at once.
+- **Existing databases and SOC trees keep their release.** `H3BuildLogger` already adopted the build log's `gedi_version` on resume (and refuses a contradicting `--gedi-version`); `gh3_build` now also pins a *fresh* local build to the release already in the SOC directory (download log, else the first file's `_V00N` field — `logger.resolve_soc_version`, a bounded scandir, no HDF5 open), and `gh3_download` pins a resumed or externally populated tree the same way (0.17.2 already threads the resolved version into `download_soc` / `s3_etl_subset`). The package default only applies when nothing on disk answers the question.
+- `GEDIAccessor.search_data` always attaches the CMR `version` filter for LP DAAC products (resolved default included). `GEDI02_A` 002 and 003 share one short_name in CMR, so an unfiltered search returned both releases interleaved.
+- `get_product_quality_conditions` falls back to another release's flag columns when the resolved release's are absent (simplified datasets carry no build log; the column names identify the release, so nothing is mixed).
+- `SOCDownloadLogger` warns when an explicit `--gedi-version` contradicts the download log (a SOC tree can hold two releases side by side, so this is not fatal — but prefer one directory per release).
+
+### Fixed
+- Downloads with an *explicit* L2A variable list (`-l2a elev_highestreturn`) or through S3 ETL fetched files the build could not use: `download_soc` only added the L2A essentials when L2A was absent, and `s3_etl_subset` never appended the per-product quality flags — the compact files then lacked lat/lon/quality columns and `gh3_build` failed at the metadata sample. Both paths now share `_ensure_download_essentials` with the build-time `_expand_product_vars`, which unions the release's L2A essentials into an explicit L2A list, appends `shot_number` and each product's quality flags, and purges essential/flag names that belong only to another release (the 0.17.2 stale-name fix now covers downloads too). `ensure_l2a=False` still never adds L2A. Verified end to end on GEDI V3: S3 ETL download of L2A/L2B/L4A/L4C → `gh3_build` (`gedi_version: 3` detected from the SOC tree) → quality-filtered `gh3_extract`.
+
 ## [0.17.3] - 2026-09-02
 
 ### Fixed

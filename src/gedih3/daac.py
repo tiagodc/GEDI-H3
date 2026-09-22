@@ -453,8 +453,9 @@ class GEDIAccessor:
             GEDI product level ('L1B', 'L2A', 'L2B', 'L4A', 'L4C').
             If None, uses kwargs directly for custom dataset searches.
         version : str or int, optional
-            GEDI data version (e.g., '002' or 2). If None, earthaccess
-            returns the latest version by default.
+            GEDI data version (e.g., '003' or 3). If None, the product's
+            registered default (``GEDI_PRODUCTS[product]['version']``,
+            i.e. ``GEDI_DEFAULT_VERSION``) is used.
         **kwargs : dict
             Additional search parameters passed to earthaccess.search_data().
 
@@ -509,13 +510,16 @@ class GEDIAccessor:
                 # the short_name is version-pinned (e.g. `..._V2_1_2056`) and
                 # an additional `version=` filter only invites a contradiction
                 # → 0 results → DOI fallback warning. The resolved short_name
-                # is sufficient.
-                if version is not None and not isinstance(raw_short_name, dict):
-                    # LPDAAC uses zero-padded versions (e.g., '002')
+                # is sufficient. LPDAAC collections share one short_name
+                # across releases (GEDI02_A 002 *and* 003 both exist in CMR),
+                # so the filter is always attached there — an unfiltered
+                # search would return both releases interleaved.
+                if resolved_version is not None and not isinstance(raw_short_name, dict):
+                    # LPDAAC uses zero-padded versions (e.g., '003')
                     if self.product.get('daac') == 'LPDAAC':
-                        search_params['version'] = f'{int(version):03d}'
+                        search_params['version'] = f'{int(resolved_version):03d}'
                     else:
-                        search_params['version'] = str(version)
+                        search_params['version'] = str(resolved_version)
             else:
                 # Fallback to DOI
                 try:
@@ -929,7 +933,8 @@ def gedi_download(
     temporal : tuple, optional
         Temporal filter as (start_date, end_date)
     version : int or str, optional
-        GEDI data version (e.g., 2 or '002'). If None, uses latest available.
+        GEDI data version (e.g., 3 or '003'). If None, uses the package
+        default (``GEDI_DEFAULT_VERSION``).
     n_jobs : int
         Number of parallel download jobs (when not using Dask)
     to_list : bool

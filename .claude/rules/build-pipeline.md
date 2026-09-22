@@ -45,6 +45,11 @@ not 12 / 3; fresh-build fallbacks live in the logger. `H3BuildLogger.__init__` r
 mirroring the `gedi_version` check. A naked resume on a non-default DB is therefore safe.
 One GEDI version per database.
 
+**One GEDI release per database, v3 by default.** `GEDI_DEFAULT_VERSION` (`config.py`) is
+the only `version=None` fallback; `--gedi-version` applies to every product. Resolution
+order: explicit arg > build log `gedi_version` (resume; a contradicting arg raises) >
+`resolve_soc_version(soc_dir)` (download log, else first `_V00N` filename) > package default.
+
 ## Merge-failure recovery
 
 When `_merge_and_finalize` hits a known-bad fragment class (0-byte parquet, missing magic
