@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- **`sqlutils.geoseries_to_filter` stopped pruning hive partitions for regions covering more than 50 H3 cells.** It emitted `h3_03 = ANY([...])`, which DuckDB plans as a semi-join instead of a scan filter; the runtime join filter only carries the exact cell set up to `dynamic_or_filter_threshold` (default 50), and above that just a min/max range reaches the DuckLake scan, so it opens nearly every partition. The 0.17 ring-1 expansion pushed ordinary queries over that limit (15 scattered CONUS hexagons: 22 → 123 cells). The filter is now a literal `h3_03 IN ('…', …)`, which appears in the scan as `Filters: optional: h3_03 IN (...)`; on the 123-cell example a `count(*)` reads 840 files in 76 s, where the `ANY` form was still running after 8 minutes at 41 GB.
+
 ## [0.18.0] - 2026-09-22
 
 ### Changed
