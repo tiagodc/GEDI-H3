@@ -100,9 +100,18 @@ def geoseries_to_filter(shp, resolution: int = 3, expand_ring: int = 1):
     The filter column follows *resolution* (``h3_03`` for the default
     partition level 3) — pass the database's ``h3_partition_level`` when it
     differs.
+
+    Emits a literal ``IN (...)`` list rather than ``= ANY([...])``: DuckDB
+    pushes an IN list into the scan as a partition filter, but plans
+    ``= ANY(list)`` as a semi-join whose runtime filter only carries the
+    exact values when the list has <= ``dynamic_or_filter_threshold``
+    (default 50) cells. Above that only a min/max range reaches the scan,
+    so almost no hive partitions get pruned.
     """
     cells_out = geoseries_to_cells(shp, resolution, expand_ring)
-    return "h3_{:02d} = ANY({})".format(resolution, cells_out)
+    return "h3_{:02d} IN ({})".format(
+        resolution, ", ".join(f"'{c}'" for c in cells_out)
+    )
 
 
 def duck_to_gdf(

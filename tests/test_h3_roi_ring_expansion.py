@@ -183,8 +183,8 @@ class TestGeoseriesFilterPropagation:
         from gedih3.sqlutils import geoseries_to_filter
 
         small = gpd.GeoSeries([box(-50.6, 0.4, -50.4, 0.6)], crs=4326)
-        assert geoseries_to_filter(small).startswith('h3_03 = ANY(')
-        assert geoseries_to_filter(small, resolution=4).startswith('h3_04 = ANY(')
+        assert geoseries_to_filter(small).startswith('h3_03 IN (')
+        assert geoseries_to_filter(small, resolution=4).startswith('h3_04 IN (')
 
     def test_projected_crs_and_bbox_forms_agree(self):
         """A projected GeoSeries used to be fed to h3 as lat/lng degrees."""
