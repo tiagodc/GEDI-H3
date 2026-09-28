@@ -243,3 +243,137 @@ class TestCorruptDestFallback:
         # detected and overwritten with the freshly-merged content.
         meta = pq.ParquetFile(corrupt_dest).metadata
         assert meta.num_rows == 7
+
+
+# ---------------------------------------------------------------------------
+# _cleanup_merged_tmp — tmp/partitions is dropped after a clean merge
+# ---------------------------------------------------------------------------
+#
+# A successful build used to leave _merge_progress.txt, one _complete/
+# sentinel per granule × beam and the emptied h3_* dirs behind. The stale
+# progress file is the L2 merge-resume signal: the next update's gh3_build
+# took the merge-only shortcut and silently did nothing.
+
+def _scaffold(parquet_dir, n_sentinels=3):
+    """Post-merge tmp/partitions as a clean build leaves it."""
+    from gedih3.gh3builder import _COMPLETE_SENTINEL_DIRNAME
+    os.makedirs(os.path.join(parquet_dir, 'h3_03=830001fffffffff'))
+    complete = os.path.join(parquet_dir, _COMPLETE_SENTINEL_DIRNAME)
+    os.makedirs(complete)
+    for i in range(n_sentinels):
+        open(os.path.join(complete, f'O{i:05d}_G01_T00001.BEAM0000.done'), 'w').close()
+    with open(os.path.join(parquet_dir, '_merge_progress.txt'), 'w') as f:
+        f.write(os.path.join(parquet_dir, 'h3_03=830001fffffffff', 'year=2020') + '\n')
+
+
+class TestCleanupMergedTmp:
+    def test_clean_merge_removes_partitions_dir_only(self, tmp_dir):
+        from gedih3.gh3builder import _cleanup_merged_tmp
+        parquet_dir = os.path.join(tmp_dir, 'partitions')
+        _scaffold(parquet_dir)
+        # A user-supplied --tmpdir may hold unrelated files next to partitions/.
+        sibling = os.path.join(tmp_dir, 'update_log.log')
+        open(sibling, 'w').close()
+
+        _cleanup_merged_tmp(parquet_dir, merge_failed=False)
+
+        assert not os.path.exists(parquet_dir)
+        assert os.path.isfile(sibling)
+
+    def test_clean_merge_clears_l2_resume_signal(self, tmp_dir):
+        from gedih3.cli.gh3_build import _detect_merge_resume_signal
+        from gedih3.gh3builder import _cleanup_merged_tmp
+        parquet_dir = os.path.join(tmp_dir, 'partitions')
+        _scaffold(parquet_dir)
+        log = types.SimpleNamespace(previous_status='COMPLETED', granule_info=[])
+        assert _detect_merge_resume_signal(log, parquet_dir) == 'merge progress file present'
+
+        _cleanup_merged_tmp(parquet_dir, merge_failed=False)
+
+        assert _detect_merge_resume_signal(log, parquet_dir) is None
+
+    def test_merge_failure_keeps_everything(self, tmp_dir):
+        from gedih3.gh3builder import _cleanup_merged_tmp
+        parquet_dir = os.path.join(tmp_dir, 'partitions')
+        _scaffold(parquet_dir)
+
+        _cleanup_merged_tmp(parquet_dir, merge_failed=True)
+
+        assert os.path.isfile(os.path.join(parquet_dir, '_merge_progress.txt'))
+        assert os.path.isdir(os.path.join(parquet_dir, 'h3_03=830001fffffffff'))
+
+    def test_unfolded_merge_failed_granules_keeps_everything(self, tmp_dir):
+        """A merge-only resume after a crash: preclean dropped the sentinels,
+        but the granule flip-back sidecar still awaits the CLI fold."""
+        from gedih3.gh3builder import _cleanup_merged_tmp, _MERGE_FAILED_GRANULES_FILENAME
+        parquet_dir = os.path.join(tmp_dir, 'partitions')
+        _scaffold(parquet_dir)
+        sidecar = os.path.join(parquet_dir, _MERGE_FAILED_GRANULES_FILENAME)
+        with open(sidecar, 'w') as f:
+            f.write(json.dumps({'orbit': 1, 'granule': 1, 'track': 1}) + '\n')
+
+        _cleanup_merged_tmp(parquet_dir, merge_failed=False)
+
+        assert os.path.isfile(sidecar)
+        assert os.path.isfile(os.path.join(parquet_dir, '_merge_progress.txt'))
+
+    def test_granule_failures_keep_forensics_but_drop_progress(self, tmp_dir):
+        from gedih3.gh3builder import _cleanup_merged_tmp, _GRANULE_FAILURES_FILENAME
+        parquet_dir = os.path.join(tmp_dir, 'partitions')
+        _scaffold(parquet_dir)
+        sidecar = os.path.join(parquet_dir, _GRANULE_FAILURES_FILENAME)
+        with open(sidecar, 'w') as f:
+            f.write(json.dumps({'kind': 'other'}) + '\n')
+
+        _cleanup_merged_tmp(parquet_dir, merge_failed=False)
+
+        assert os.path.isfile(sidecar)
+        assert not os.path.exists(os.path.join(parquet_dir, '_merge_progress.txt'))
+
+    def test_missing_dir_is_noop(self, tmp_dir):
+        from gedih3.gh3builder import _cleanup_merged_tmp
+        _cleanup_merged_tmp(os.path.join(tmp_dir, 'partitions'), merge_failed=False)
+
+    def test_wide_tree_fans_out_to_workers(self, tmp_dir, monkeypatch):
+        from dask.distributed import Client
+        import gedih3.gh3builder as gb
+        monkeypatch.setattr(gb, '_REMOVE_FANOUT_MIN_ENTRIES', 2)
+        parquet_dir = os.path.join(tmp_dir, 'partitions')
+        _scaffold(parquet_dir, n_sentinels=50)
+        import gedih3.parallel as gp
+        dispatched = []
+        real_parallel_map = gp.parallel_map
+
+        # Spy on the driver side: dask serializes the worker fn even for
+        # in-process workers, so a spy on _remove_path could not report back.
+        def _spy(items, fn, **kw):
+            dispatched.extend(items)
+            return real_parallel_map(items, fn, **kw)
+
+        monkeypatch.setattr(gp, 'parallel_map', _spy)
+        with Client(n_workers=2, threads_per_worker=1, processes=False,
+                    dashboard_address=None, silence_logs='ERROR'):
+            gb._cleanup_merged_tmp(parquet_dir, merge_failed=False)
+
+        assert not os.path.exists(parquet_dir)
+        assert len(dispatched) >= 50
+
+
+class TestMergeAndFinalizeCleansTmp:
+    def test_successful_merge_leaves_no_tmp_partitions(self, tmp_dir):
+        from dask.distributed import Client
+        from gedih3.gh3builder import _merge_and_finalize
+        parquet_dir = os.path.join(tmp_dir, 'tmp', 'partitions')
+        h3_dir = os.path.join(tmp_dir, 'database')
+        os.makedirs(h3_dir)
+        _write_minimal_partition(parquet_dir, '830001fffffffff', '2020')
+
+        with Client(n_workers=2, threads_per_worker=1, processes=False,
+                    dashboard_address=None, silence_logs='ERROR'):
+            h3_files = _merge_and_finalize(parquet_dir, h3_dir)
+
+        # The returned paths are derived from _merge_progress.txt, which the
+        # cleanup deletes — it must run after the derivation.
+        assert any('830001fffffffff' in f for f in h3_files)
+        assert all(os.path.isfile(f) for f in h3_files)
+        assert not os.path.exists(parquet_dir)
