@@ -238,12 +238,21 @@ def _granules_needing_fill(report: Report) -> Set[Tuple[int, int, int, str]]:
     return needed
 
 
-def _build_soc_tree(soc_source):
-    """Wrap soc_file_tree to handle string paths uniformly."""
+def _build_soc_tree(soc_source, version=None):
+    """Wrap soc_file_tree to handle string paths uniformly.
+
+    ``version`` is the database's GEDI release. Backfill writes source values
+    into the database, so the listing must never pair in files of another
+    release that shares the SOC tree.
+    """
     from ...gh3builder import soc_file_tree
+    glob_kwargs = {'version': version} if version is not None else None
     if isinstance(soc_source, str):
-        return soc_file_tree(soc_source, to_list=False)
+        return soc_file_tree(soc_source, to_list=False, glob_kwargs=glob_kwargs)
     if isinstance(soc_source, list):
+        from ...gedidriver import GEDIFile
+        if version is not None:
+            soc_source = [p for p in soc_source if GEDIFile(getattr(p, 'path', p)).version == version]
         return soc_file_tree(soc_source, to_list=False)
     return {}
 
@@ -256,13 +265,14 @@ def _build_soc_tree(soc_source):
 _soc_tree_cache: Dict[str, dict] = {}
 
 
-def _get_soc_tree(soc_source: str) -> dict:
-    """Process-local cache of ``soc_file_tree`` for a given source path."""
-    cached = _soc_tree_cache.get(soc_source)
+def _get_soc_tree(soc_source: str, version=None) -> dict:
+    """Process-local cache of ``soc_file_tree`` for a given source path and release."""
+    key = (soc_source, version)
+    cached = _soc_tree_cache.get(key)
     if cached is not None:
         return cached
-    tree = _build_soc_tree(soc_source)
-    _soc_tree_cache[soc_source] = tree
+    tree = _build_soc_tree(soc_source, version=version)
+    _soc_tree_cache[key] = tree
     return tree
 
 
@@ -404,6 +414,7 @@ def _heal_partition(
     *,
     soc_source: str,
     vars_per_product: Dict[str, List[str]],
+    version: Optional[int] = None,
 ) -> Dict[str, list]:
     """Worker: read source HDF5 patch, apply parquet_fill_columns to every
     parquet under one partition, return healed/unavailable/error finding lists.
@@ -421,7 +432,7 @@ def _heal_partition(
 
     # Process-local soc_tree cache (v0.8.x lesson: don't redo work
     # the structure of the data already answers).
-    soc_tree = _get_soc_tree(soc_source)
+    soc_tree = _get_soc_tree(soc_source, version=version)
     patch = None
     try:
         patch = _read_patch_for_partition(
@@ -527,7 +538,8 @@ def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
         )
         return report
 
-    soc_tree = _build_soc_tree(soc_source)
+    version = getattr(ctx.h3_logger, 'gedi_version', None)
+    soc_tree = _build_soc_tree(soc_source, version=version)
 
     # Group findings by partition directory so we minimize file rewrites.
     by_partition: Dict[str, Dict[str, Set[GranuleKey]]] = {}
@@ -573,6 +585,7 @@ def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
             unit='part',
             soc_source=soc_source,
             vars_per_product=vars_per_product,
+            version=version,
         ):
             part_dir = item[0] if item is not None else '<unknown>'
             if isinstance(result, Exception):

@@ -833,8 +833,11 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
         # overwrite the bad dest atomically via .merge.tmp + os.replace.
         try:
             pq.ParquetFile(out_file).metadata  # cheap header check
-            files.insert(0, out_file)
-            files = list(set(files))
+            # The existing partition goes FIRST and the order is kept:
+            # parquet_merge_files takes its target schema from files[0]
+            # (the database's schema must win), and check_shots dedup
+            # keeps the first occurrence (existing rows must win).
+            files = [out_file] + [f for f in files if f != out_file]
             out_file += '.tmp'
         except Exception as e:
             logger.warning(
@@ -1361,7 +1364,9 @@ def apply_merge_failures_to_logger(h3_logger, tmp_dir: str) -> int:
 # object (object 'X' doesn't exist)" — used by ``_classify_load_h5_failure``
 # to recognize the missing-variable case so downstream tooling
 # (``gh3_update --recover-missing-vars``) can offer a precise recipe.
-_MISSING_VAR_RE = re.compile(r"object\s+['\"]([^'\"]+)['\"]\s+doesn'?t\s+exist", re.IGNORECASE)
+# ``str(KeyError(msg))`` is the repr of ``msg``, which backslash-escapes the
+# quotes h5py puts around the object name (``object \'x\' doesn\'t exist``).
+_MISSING_VAR_RE = re.compile(r"object\s+\\?['\"]([^'\"\\]+)\\?['\"]\s+doesn\\?'?t\s+exist", re.IGNORECASE)
 
 
 def _classify_load_h5_failure(exc: BaseException, soc_dict: Dict[str, str]) -> Dict[str, Any]:
@@ -1578,6 +1583,82 @@ def _schema_resolve_null_fields(schema):
     for i in null_positions:
         schema = schema.set(i, schema.field(i).with_type(pa.string()))
     return schema
+
+
+def _parquet_storage_type(arrow_type):
+    """``arrow_type`` as it reads back from Parquet.
+
+    Parquet has no seconds timestamp unit, so pyarrow stores ``timestamp[s]``
+    (what the row-less Stage 1 meta infers for ``datetime``) as
+    ``timestamp[ms]``. Comparisons between a derived schema and files on disk
+    must use the stored form, or every database reports a phantom drift.
+    """
+    import pyarrow as pa
+    if pa.types.is_timestamp(arrow_type) and arrow_type.unit == 's':
+        return pa.timestamp('ms', tz=arrow_type.tz)
+    return arrow_type
+
+
+# Arrow offset width is a representation, not a value type: pandas 3 infers
+# ``large_string`` where pandas 2 inferred ``string`` (both are supported), and
+# Parquet stores both as the same UTF8 byte array.
+_OFFSET_WIDTH_TWINS = {'large_string': 'string', 'large_binary': 'binary'}
+
+
+def _same_value_type(a: str, b: str) -> bool:
+    """Whether two stored dtype strings hold the same values, offset width aside."""
+    return _OFFSET_WIDTH_TWINS.get(a, a) == _OFFSET_WIDTH_TWINS.get(b, b)
+
+
+def _align_schema_to_db(schema, h3_dir: str):
+    """Retype *schema* fields to the dtypes the existing database records.
+
+    The Stage 1 schema is derived from the source HDF5 of the build's
+    release. When an update meets a database whose recorded dtype for a
+    column differs (e.g. a database built by an older gedih3 whose schema
+    came from another release), new data must still land: fragments are
+    written in the database's types so every later merge is homogeneous.
+    Casting is left to the per-leaf ``Table.cast`` (``safe=True``), so a value
+    that does not fit fails its task instead of being truncated.
+
+    A-priori: reads only the build log's ``h3_columns_dtypes``, no parquet I/O.
+
+    Parameters
+    ----------
+    schema : pyarrow.Schema
+        Source-derived canonical write schema.
+    h3_dir : str
+        Database root. No build log, or no recorded dtypes, is a no-op.
+
+    Returns
+    -------
+    tuple of (pyarrow.Schema, dict)
+        The aligned schema (metadata preserved) and ``{column: (source, db)}``
+        for every retyped column whose values differ in type. An offset-width
+        difference alone (``large_string`` vs ``string``) is aligned but not
+        reported. A recorded ``null`` is never a target: real values cannot
+        cast to it, so every leaf write would fail.
+    """
+    import pyarrow as pa
+
+    log_path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
+    if not os.path.isfile(log_path):
+        return schema, {}
+    db_dtypes = json_read(log_path).get('h3_columns_dtypes') or {}
+    drift = {}
+    for i, field in enumerate(schema):
+        db_type = db_dtypes.get(field.name)
+        src_type = str(_parquet_storage_type(field.type))
+        if db_type in (None, 'null', src_type):
+            continue
+        try:
+            target = pa.type_for_alias(db_type)
+        except (ValueError, KeyError):
+            continue
+        schema = schema.set(i, field.with_type(target))
+        if not _same_value_type(src_type, db_type):
+            drift[field.name] = (str(field.type), db_type)
+    return schema, drift
 
 
 def _derive_merged_output_paths(merge_progress_file: str, h3_dir: str) -> List[str]:
@@ -2544,6 +2625,15 @@ def _write_partitioned_streaming(
     if 'datetime' in meta.columns:
         meta = meta.assign(year=meta['datetime'].dt.year.astype('int32'))
     canonical_schema = _canonical_write_schema(meta, part=part)
+    canonical_schema, dtype_drift = _align_schema_to_db(canonical_schema, h3_dir)
+    if dtype_drift:
+        cols = ', '.join(f"{c} (source {a}, database {b})" for c, (a, b) in sorted(dtype_drift.items()))
+        logger.warning(
+            f"Source schema differs from the existing database for {len(dtype_drift)} column(s): {cols}. "
+            f"New data is written in the database's types (lossless cast; a value that does not fit "
+            f"fails its task instead of being truncated). To move the database to the source types: "
+            f"gh3_doctor -i {h3_dir} --check dtype_drift --fix"
+        )
 
     # 2) Spatial tile set — replaces _apply_spatial_filter's isin branch.
     spatial_h3_tiles: Optional[List[str]] = None
@@ -3806,6 +3896,49 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     return updated_files if updated_files else None
 
 
+def _resolve_build_version(h3_dir: str, soc_source=None) -> int:
+    """GEDI release for a build called with ``version=None``.
+
+    Resolution order, all a-priori (no HDF5 open): the existing database's
+    build log ``gedi_version`` (an update must stay on its release) >
+    :func:`gedih3.logger.resolve_soc_version` for a local SOC tree, or the
+    ``_V00N`` shared by every file of a pre-acquired list >
+    ``GEDI_DEFAULT_VERSION``. Never a random file sample: a tree that holds
+    two releases side by side would make that a coin flip.
+
+    Parameters
+    ----------
+    h3_dir : str
+        Target database root; its build log, when present, is authoritative.
+    soc_source : str, list, or None
+        Local SOC directory, pre-acquired file list, or ``None`` (S3).
+
+    Returns
+    -------
+    int
+        The resolved release number.
+    """
+    from .config import GEDI_DEFAULT_VERSION
+    from .logger import resolve_soc_version
+    log_path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
+    if os.path.isfile(log_path):
+        v = json_read(log_path).get('gedi_version')
+        if v is not None:
+            return int(v)
+    if isinstance(soc_source, str):
+        v = resolve_soc_version(soc_source)
+        if v is not None:
+            return int(v)
+    elif isinstance(soc_source, list):
+        # Filenames only (no stat): a single-release list pins itself; a mixed
+        # one falls through, and the version filter reports what it drops.
+        releases = {m.group(1) for p in soc_source
+                    if (m := re.search(r'_V(\d{3})[^/]*\.h5$', str(getattr(p, 'path', p))))}
+        if len(releases) == 1:
+            return int(releases.pop())
+    return GEDI_DEFAULT_VERSION
+
+
 def build_h3db(
     product_vars: Dict[str, List[str]],
     res: int = 12,
@@ -3842,8 +3975,10 @@ def build_h3db(
         - ``str``: path to local directory containing GEDI SOC HDF5 files
         - ``list``: pre-acquired list of file paths or EarthAccessFile objects
     version : int or None
-        GEDI data version. If None, uses the package default (``GEDI_DEFAULT_VERSION``).
-        Also used to filter local files by version when soc_source is a directory.
+        GEDI data release for every product. ``None`` resolves via
+        :func:`_resolve_build_version` (build log > SOC tree > package
+        default). Every SOC listing is filtered to this release, so the
+        Stage 1 schema is derived from files of exactly that release.
     tmp_dir : str
         Path to temporary directory for intermediate files.
     h3_dir : str
@@ -3872,6 +4007,8 @@ def build_h3db(
     # Validate parameters
     logger.debug("Validating build parameters")
     res, part = validate_h3_params(res, part)
+    if version is None:
+        version = _resolve_build_version(h3_dir, soc_source)
 
     # Track temp directory for S3 download cleanup
     _s3_tmp_dir = None
@@ -3927,37 +4064,27 @@ def build_h3db(
     if isinstance(soc_source, list):
         # Pre-acquired file list (local or EarthAccessFile)
         logger.info(f"Using {len(soc_source)} pre-acquired source files")
-        if version is not None:
-            before = len(soc_source)
-            def _matches_version(p):
-                try:
-                    pp = p.path if isinstance(p, EarthAccessFile) else p
-                    return GEDIFile(pp).version == version
-                except Exception:
-                    return False
-            soc_source = [p for p in soc_source if _matches_version(p)]
-            dropped = before - len(soc_source)
-            if dropped:
-                logger.warning(f"Dropped {dropped} pre-acquired file(s) not matching version V{version:03d}")
+        before = len(soc_source)
+        def _matches_version(p):
+            try:
+                pp = p.path if isinstance(p, EarthAccessFile) else p
+                return GEDIFile(pp).version == version
+            except Exception:
+                return False
+        soc_source = [p for p in soc_source if _matches_version(p)]
+        dropped = before - len(soc_source)
+        if dropped:
+            logger.warning(f"Dropped {dropped} pre-acquired file(s) not matching version V{version:03d}")
         all_soc_files = soc_file_tree(soc_source, to_list=True, exclude=exclude)
     elif isinstance(soc_source, str):
         # Local directory mode (also used after S3 download to temp dir)
         if not os.path.exists(soc_source):
             raise GediFileError(f"SOC source directory not found: {soc_source}")
-        # Resolve version BEFORE listing so the glob filter excludes other
-        # versions and soc_file_tree's pivot key (orb_track, no version) cannot
-        # collide same-orbit granules across versions.
-        if version is None:
-            sample = next(iter(glob.glob(os.path.join(soc_source, '**', 'GEDI*.h5'), recursive=True)), None)
-            if sample is not None:
-                try:
-                    version = GEDIFile(sample).version
-                    logger.info(f"Auto-detected GEDI version V{version:03d} from {os.path.basename(sample)}")
-                except Exception:
-                    logger.warning("Could not auto-detect GEDI version from sample file; listing without version filter")
-        logger.info("Listing source SOC files")
-        glob_kwargs = {'version': version} if version is not None else None
-        all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs=glob_kwargs, exclude=exclude)
+        # Version is resolved at entry, so the glob filter always excludes
+        # other releases and soc_file_tree's pivot key (orb_track, no
+        # version) cannot collide same-orbit granules across releases.
+        logger.info(f"Listing source SOC files (GEDI release V{version:03d})")
+        all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs={'version': version}, exclude=exclude)
     else:
         raise GediValidationError(f"Invalid soc_source type: {type(soc_source)}")
 

@@ -155,10 +155,15 @@ def get_cmd_args():
 
 
 def _has_new_local_granules(soc_source, h3_logger):
-    """Check if SOC directory has HDF5 files not tracked in the build log."""
+    """Check if SOC directory has HDF5 files not tracked in the build log.
+
+    Only files of the database's GEDI release count: a tree that holds
+    another release side by side must not make a finished database look
+    stale (those granules can never be built into it).
+    """
     import os
     import glob as globmod
-    from gedih3.gedidriver import GEDIFile
+    from gedih3.gedidriver import GEDIFile, gedi_file_glob
 
     if not soc_source or not os.path.isdir(soc_source):
         return False
@@ -168,7 +173,8 @@ def _has_new_local_granules(soc_source, h3_logger):
         for g in h3_logger.granule_info:
             tracked.add((g['orbit'], g['granule'], g['track']))
 
-    for f in globmod.glob(os.path.join(soc_source, '**', 'GEDI*.h5'), recursive=True):
+    pattern = gedi_file_glob(version=h3_logger.gedi_version) if h3_logger.gedi_version else 'GEDI*.h5'
+    for f in globmod.glob(os.path.join(soc_source, '**', pattern), recursive=True):
         try:
             gf = GEDIFile(f)
             if (gf.orbit, gf.orbit_granule, gf.track) not in tracked:
@@ -177,6 +183,34 @@ def _has_new_local_granules(soc_source, h3_logger):
             continue
 
     return False
+
+
+def _count_merge_failures(parquet_dir):
+    """Number of partition merges still failed, from the persisted sentinels.
+
+    ``_merge_and_finalize`` writes one ``_merge_failures/`` sentinel per failed
+    merge and the next merge's pre-clean consumes them, so any sentinel left
+    at the end of a run is an unresolved failure. O(N_failures), no tree walk.
+    """
+    from gedih3.gh3builder import _scan_merge_failure_sentinels
+    return len(_scan_merge_failure_sentinels(parquet_dir))
+
+
+def _exit_merge_incomplete(n_failed, parquet_dir, h3_dir, logger):
+    """Report a build whose merge phase did not finish and exit non-zero.
+
+    The build log is left at ``MERGING`` so the next ``gh3_build`` resumes
+    straight into the merge; the unmerged fragments stay in ``parquet_dir``.
+    Exit code 4 is the CLI's database-error code.
+    """
+    logger.error(
+        f"{n_failed} partition merge(s) failed: their new data is kept in {parquet_dir} and is NOT in "
+        f"the database yet. Fix the cause shown in the 'Merge failed' lines above, then re-run the "
+        f"same gh3_build command to retry only the merge. Details: "
+        f"gh3_doctor -i {h3_dir} -t {parquet_dir} --check tmp_partitions_health"
+    )
+    import sys
+    sys.exit(4)
 
 
 def _detect_merge_resume_signal(h3_logger, parquet_dir, *, has_pending_new_work=False):
@@ -366,8 +400,12 @@ def main():
 
     # Early exit: database is already up-to-date with requested parameters
     # Only when a valid build log exists with partition data to confirm completeness
+    # A previous run whose merges failed leaves status MERGING with its
+    # fragments in tmp/partitions; declaring that database up to date would
+    # strand them, so it always goes on to the merge-resume path below.
     if (h3_logger.is_up_to_date()
             and not pending_var_update
+            and h3_logger.previous_status != 'MERGING'
             and hasattr(h3_logger, 'h3_partition_ids')
             and h3_logger.h3_partition_ids):
         # S3/download modes: skip early exit — let the pipeline query CMR
@@ -746,13 +784,16 @@ def main():
                     )
                 h3_logger.set_post_build_info()
                 h3_logger.log_data.pop('_pending_variable_update', None)
-                h3_logger.save_log('COMPLETED')
-                build_completed = True
+                _n_merge_failed = _count_merge_failures(_parquet_dir)
+                h3_logger.save_log('MERGING' if _n_merge_failed else 'COMPLETED')
+                build_completed = not _n_merge_failed
                 # AFTER the final log save — an index older than the log is
                 # treated as stale by the loaders.
                 from gedih3.gh3driver import refresh_bbox_index_after_build
                 refresh_bbox_index_after_build(args.output, enabled=args.bbox_index,
                                                logger=logger)
+                if _n_merge_failed:
+                    _exit_merge_incomplete(_n_merge_failed, _parquet_dir, args.output, logger)
                 _n = len(h3_files) if h3_files else 0
                 print_success(
                     f"{_n} files exported to {args.output} (merge-only resume)",
@@ -769,7 +810,10 @@ def main():
                 # Only for local download mode (-i); S3 mode has no local SOC directory
                 if soc_source is not None and isinstance(soc_source, str) and os.path.isdir(soc_source):
                     logger.info("Listing SOC files for granule registration")
-                    _soc_for_build = soc_file_tree(soc_source, to_list=True, exclude=args.exclude)
+                    _soc_for_build = soc_file_tree(
+                        soc_source, to_list=True, exclude=args.exclude,
+                        glob_kwargs={'version': h3_logger.gedi_version},
+                    )
                     # GEDI filename: GEDInn_L_DATE_O{orbit}_{granule}_T{track}_PPDS_PGE_GEN_V{ver}.h5
                     # Parse orbit/granule/track from the basename directly — no
                     # GEDIFile() so we skip the unused os.path.getsize call per
@@ -898,14 +942,17 @@ def main():
                 # Crash safety: if crash between pop and save, disk still has
                 # PROCESSING status with the flag → next run resumes correctly.
                 h3_logger.log_data.pop('_pending_variable_update', None)
-                h3_logger.save_log('COMPLETED')
-                build_completed = True
+                _n_merge_failed = _count_merge_failures(_parquet_dir_for_fold)
+                h3_logger.save_log('MERGING' if _n_merge_failed else 'COMPLETED')
+                build_completed = not _n_merge_failed
 
                 # AFTER the final log save — an index older than the log is
                 # treated as stale by the loaders.
                 from gedih3.gh3driver import refresh_bbox_index_after_build
                 refresh_bbox_index_after_build(args.output, enabled=args.bbox_index,
                                                logger=logger)
+                if _n_merge_failed:
+                    _exit_merge_incomplete(_n_merge_failed, _parquet_dir_for_fold, args.output, logger)
 
                 n_files = len(h3_files) if h3_files else 0
                 print_success(f"{n_files} files exported to {args.output}", logger=logger)

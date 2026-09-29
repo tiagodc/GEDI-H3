@@ -675,3 +675,91 @@ class TestFilterSocFilesByTemporal:
         entries = [{'L2A': '/soc/not_a_gedi_filename.h5'}]
         result = _filter_soc_files_by_temporal(entries, ('2020-06-01', '2020-06-30'))
         assert result == entries
+
+
+# ---------------------------------------------------------------------------
+# One GEDI release per listing
+# ---------------------------------------------------------------------------
+#
+# soc_file_tree keys granules by orbit/track only. A tree holding two
+# releases side by side (a supported layout) must be listed with a version
+# filter; an unfiltered listing used to pair files of different releases
+# under one key, last-sorted path winning.
+
+_MIXED_RELEASE_NAMES = [
+    'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V002.h5',
+    'GEDI04_C_2019108002012_O01956_03_T03909_02_001_01_V002.h5',
+    'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+    'GEDI04_C_2019108002012_O01956_03_T03909_02_001_01_V003.h5',
+]
+
+
+@pytest.fixture
+def soc_tree_two_releases(tmp_path):
+    for n in _MIXED_RELEASE_NAMES:
+        (tmp_path / n).touch()
+    return str(tmp_path)
+
+
+def test_soc_file_tree_refuses_unpinned_mixed_releases(soc_tree_two_releases):
+    from gedih3.exceptions import GediValidationError
+    with pytest.raises(GediValidationError, match='mixes GEDI releases'):
+        soc_file_tree(soc_tree_two_releases, to_list=True)
+
+
+@pytest.mark.parametrize('version', [2, 3])
+def test_soc_file_tree_version_filter_pairs_one_release(soc_tree_two_releases, version):
+    tree = soc_file_tree(soc_tree_two_releases, to_list=True, glob_kwargs={'version': version})
+    assert len(tree) == 1
+    assert all(p.endswith(f'_V{version:03d}.h5') for p in tree[0].values())
+
+
+def test_soc_file_tree_refuses_mixed_release_file_list(soc_tree_two_releases):
+    from gedih3.exceptions import GediValidationError
+    paths = [os.path.join(soc_tree_two_releases, n) for n in _MIXED_RELEASE_NAMES]
+    with pytest.raises(GediValidationError):
+        soc_file_tree(paths, to_list=True)
+
+
+def test_resolve_build_version_prefers_build_log(tmp_path, soc_tree_two_releases):
+    import json
+    from gedih3.config import BUILD_LOG_FILENAME
+    from gedih3.gh3builder import _resolve_build_version
+    (tmp_path / 'db').mkdir()
+    (tmp_path / 'db' / BUILD_LOG_FILENAME).write_text(json.dumps({'gedi_version': 2}))
+    assert _resolve_build_version(str(tmp_path / 'db'), soc_tree_two_releases) == 2
+
+
+def test_resolve_build_version_falls_back_to_package_default(tmp_path):
+    from gedih3.config import GEDI_DEFAULT_VERSION
+    from gedih3.gh3builder import _resolve_build_version
+    assert _resolve_build_version(str(tmp_path / 'no_db'), None) == GEDI_DEFAULT_VERSION
+
+
+def test_resolve_build_version_from_single_release_file_list(tmp_path, soc_tree_two_releases):
+    """A pre-acquired list pins its own release; before, version=None let the
+    package default filter drop every file of a V002-only list."""
+    from gedih3.config import GEDI_DEFAULT_VERSION
+    from gedih3.gh3builder import _resolve_build_version
+    paths = [os.path.join(soc_tree_two_releases, n) for n in _MIXED_RELEASE_NAMES]
+    no_db = str(tmp_path / 'no_db')
+    assert _resolve_build_version(no_db, [p for p in paths if p.endswith('_V002.h5')]) == 2
+    assert _resolve_build_version(no_db, paths) == GEDI_DEFAULT_VERSION
+
+
+def test_has_new_local_granules_ignores_other_release(soc_tree_two_releases):
+    import types
+    from gedih3.cli.gh3_build import _has_new_local_granules
+    log = types.SimpleNamespace(
+        gedi_version=3,
+        granule_info=[{'orbit': 1956, 'granule': 3, 'track': 3909}],
+    )
+    assert _has_new_local_granules(soc_tree_two_releases, log) is False
+    # A V002-only granule is invisible to a V3 database...
+    (open(os.path.join(soc_tree_two_releases,
+                       'GEDI02_A_2019108002012_O01999_03_T03909_02_003_01_V002.h5'), 'w')).close()
+    assert _has_new_local_granules(soc_tree_two_releases, log) is False
+    # ...a new V003 granule is not.
+    (open(os.path.join(soc_tree_two_releases,
+                       'GEDI02_A_2019108002012_O01999_03_T03909_02_003_01_V003.h5'), 'w')).close()
+    assert _has_new_local_granules(soc_tree_two_releases, log) is True

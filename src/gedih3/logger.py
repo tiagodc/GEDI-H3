@@ -367,7 +367,11 @@ class SOCDownloadLogger:
             # downstream glob fallback still produces correct results.
             # Defer the count to the post-glob fallback below.
             n_files = None
-        soc_files = soc_file_tree(self._PARENT_DIR, to_list=True)
+        # One release per listing: the tree may hold another release side
+        # by side, and this log records only the release it tracks.
+        version = self.gedi_version if self.gedi_version is not None else resolve_soc_version(self._PARENT_DIR)
+        glob_kwargs = {'version': version} if version is not None else None
+        soc_files = soc_file_tree(self._PARENT_DIR, to_list=True, glob_kwargs=glob_kwargs)
         if n_files is None:
             # Manifest write failed; recover the count from the discovery
             # step so downstream summary lines stay correct.
@@ -789,15 +793,15 @@ class H3BuildLogger:
         # Used to derive per-granule per-product status (INDEXED vs MISSING_COLUMN).
         active_products = set(self.product_vars.keys())
         gran_observed_products = {}
-        # Schema accumulators: track the union of columns observed and
-        # the first non-empty per-column dtype map. Aggregating inside
+        # Schema accumulators: track the union of columns observed and,
+        # per column, how many partitions store each dtype. Aggregating inside
         # the loop (rather than reading the last fmeta) survives mixed
         # builds where some partitions predate ``column_dtypes`` — the
         # last metadata in glob order may be a legacy partition without
         # the field, and reading from it would silently zero the cache
         # for the whole DB.
         observed_columns: set = set()
-        observed_dtypes: dict = {}
+        observed_dtypes: dict = {}   # {column: {dtype: n_partitions}}
 
         # Stream per-partition results. parallel_map yields (item, result)
         # pairs as workers finish; we fold them into the aggregates with
@@ -826,7 +830,8 @@ class H3BuildLogger:
                 self.gedi_version = part_result['l2a_version']
             observed_columns.update(part_result.get('columns', []))
             for col_name, dtype in (part_result.get('column_dtypes') or {}).items():
-                observed_dtypes.setdefault(col_name, dtype)
+                counts = observed_dtypes.setdefault(col_name, {})
+                counts[dtype] = counts.get(dtype, 0) + 1
 
         from .utils import get_dask_client
         client = None
@@ -874,7 +879,19 @@ class H3BuildLogger:
         self.date_range = (date_min, date_max)
         self.h3_columns = sorted(observed_columns)
         # Empty dict when every partition metadata predates this field.
-        self.h3_columns_dtypes = dict(observed_dtypes)
+        # A column stored in several dtypes records the one most partitions
+        # hold (never "whichever partition was scanned first"): updates align
+        # new data to this, so it must describe the bulk of the database.
+        self.h3_columns_dtypes = {c: max(n, key=n.get) for c, n in observed_dtypes.items()}
+        mixed = {c: n for c, n in observed_dtypes.items() if len(n) > 1}
+        if mixed:
+            from .logging_config import get_logger
+            desc = '; '.join(f"{c}: {n}" for c, n in sorted(mixed.items()))
+            get_logger(__name__).warning(
+                f"{len(mixed)} column(s) are stored in more than one dtype across partitions "
+                f"(partitions per dtype): {desc}. Recording the majority dtype. "
+                f"Run gh3_doctor --check dtype_drift to compare against the source."
+            )
         self.h3_partition_ids = sorted(h3_parts)
 
         # Merge with existing tracked granules (preserve PENDING for unindexed)

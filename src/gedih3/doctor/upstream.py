@@ -89,12 +89,12 @@ def query_available_granules(
     return out
 
 
-def _local_soc_keys_for_product(soc_dir: Optional[str], product: str) -> Set[GranuleKey]:
-    """Return granule keys for a product whose source HDF5 is on disk."""
+def _local_soc_keys_for_product(soc_dir: Optional[str], product: str, version: Optional[int] = None) -> Set[GranuleKey]:
+    """Return granule keys for a product whose source HDF5 of the database's release is on disk."""
     if not soc_dir or not os.path.isdir(soc_dir):
         return set()
     from ..gh3builder import soc_file_tree
-    tree = soc_file_tree(soc_dir, to_list=False)
+    tree = soc_file_tree(soc_dir, to_list=False, glob_kwargs={'version': version} if version is not None else None)
     out = set()
     for orb_track, files in tree.items():
         if product not in files:
@@ -241,7 +241,7 @@ def gather_upstream(ctx, logger=None) -> UpstreamReport:
             if status == 'INDEXED':
                 db_per_product[prod].add(key)
 
-    local_per_product = {p: _local_soc_keys_for_product(ctx.soc_dir, p) for p in products}
+    local_per_product = {p: _local_soc_keys_for_product(ctx.soc_dir, p, version=version) for p in products}
 
     classes = _classify(db_granules, dict(db_per_product), available, local_per_product, products)
     recs = _emit_recommendations(classes, ctx.h3_dir, ctx.soc_dir)

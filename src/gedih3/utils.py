@@ -11,7 +11,7 @@ import re
 from typing import Union, List, Dict, Optional, Tuple, Any
 
 from .exceptions import (GediDatabaseNotFoundError, GediFileError, GediValidationError,
-                         GediSpatialError, GediTemporalError)
+                         GediSpatialError, GediTemporalError, GediMergeError)
 
 
 # =============================================================================
@@ -1826,12 +1826,14 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
       and any extras the file might have are dropped at read time (less I/O).
       When the file goes out of scope, its IO state is released —
       deterministic per-file lifecycle.
-    - **Invariant assumed by design**: all input fragments share an identical
-      column set and dtypes (true in gh3_build because all fragments come
-      from the same ``dask_geopandas.to_parquet`` call). A fragment with a
-      missing target column will raise from pyarrow — that's the right
-      behavior; it surfaces a serious data invariant violation rather than
-      silently null-filling.
+    - **The first file's schema wins.** Callers merging into an existing
+      partition put that file first (``gh3builder.h3_merge_files``), so the
+      database's schema is the target. Inputs share the column set; a file
+      whose dtypes differ is cast to the target with ``safe=True`` — lossless
+      or a :class:`GediMergeError` naming the columns, never truncation. A
+      fragment with a missing target column raises from pyarrow — that
+      surfaces a serious data invariant violation rather than silently
+      null-filling.
     - Bbox is **provided by the caller** via the ``bbox`` argument when the
       input has a ``geometry`` column. ``gh3builder.h3_merge_files`` derives
       it directly from the H3 partition geometry (no data scan).
@@ -1931,6 +1933,13 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
                 batch_iter = pf.iter_batches(batch_size=rows_per_group, columns=target_names)
             except Exception as e:
                 raise type(e)(f"{e} [file={f}]").with_traceback(e.__traceback__) from None
+            # Footer-only dtype comparison (already parsed by the open above):
+            # cast only the files that need it, one decision per file.
+            file_schema = pf.schema_arrow
+            drift = {
+                n: (file_schema.field(n).type, schema.field(n).type) for n in target_names
+                if n in file_schema.names and file_schema.field(n).type != schema.field(n).type
+            }
             for batch in _iter_batches_with_path(batch_iter, f):
                 if check_shots and has_shot_number:
                     arr = batch["shot_number"].to_numpy().astype(np.uint64)
@@ -1950,7 +1959,16 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
                     acc.clear()
                     acc_rows = 0
 
-                acc.append(pa.Table.from_batches([batch], schema=schema))
+                if drift:
+                    try:
+                        acc.append(pa.Table.from_batches([batch]).cast(schema, safe=True))
+                    except (pa.ArrowInvalid, pa.ArrowNotImplementedError) as e:
+                        cols = ', '.join(f"{n} ({a} -> {b})" for n, (a, b) in drift.items())
+                        raise GediMergeError(
+                            f"Cannot losslessly cast {cols} to the destination schema: {e} [file={f}]"
+                        ) from e
+                else:
+                    acc.append(pa.Table.from_batches([batch], schema=schema))
                 acc_rows += batch.num_rows
 
                 # Collect per-batch stats for h3_write_metadata.
@@ -1976,9 +1994,21 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
             writer.write_table(pa.concat_tables(acc))
         writer.close()
         os.replace(tmp_ofile, ofile)  # Atomic rename
-    except:
+    except BaseException:
+        # Release the half-written output and the accumulated batches
+        # before re-raising: a failed merge must not leave its buffers
+        # pinned on the worker (repeated failures otherwise climb RSS).
+        try:
+            writer.close()
+        except Exception:
+            pass
+        acc = []
         if os.path.exists(tmp_ofile):
             os.unlink(tmp_ofile)
+        try:
+            pa.default_memory_pool().release_unused()
+        except Exception:
+            pass
         raise
 
     if rm_src:
