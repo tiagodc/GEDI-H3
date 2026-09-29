@@ -1086,6 +1086,12 @@ Every <code class="docutils literal notranslate"><span class="pre">gh3_build</sp
 <p>No separate recovery step is required. Stage 1 will print
 <code class="docutils literal notranslate"><span class="pre">Skipped</span> <span class="pre">N</span> <span class="pre">granules</span> <span class="pre">(already</span> <span class="pre">indexed,</span> <span class="pre">...)</span></code> and stage 2 will print
 <code class="docutils literal notranslate"><span class="pre">Resuming</span> <span class="pre">merge:</span> <span class="pre">N</span> <span class="pre">partitions</span> <span class="pre">already</span> <span class="pre">merged</span></code>.</p>
+<p>Once every partition has merged, <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> deletes <code class="docutils literal notranslate"><span class="pre">&lt;tmpdir&gt;/partitions/</span></code>
+itself. It is kept when a merge failed, since the next run resumes from it, and
+when Stage 1 recorded granule failures, so <code class="docutils literal notranslate"><span class="pre">gh3_doctor</span> <span class="pre">-i</span> <span class="pre">&lt;database&gt;</span> <span class="pre">-t</span> <span class="pre">&lt;tmpdir&gt;/partitions</span> <span class="pre">--check</span> <span class="pre">tmp_partitions_health</span></code> can report them. In that
+second case only the stale
+<code class="docutils literal notranslate"><span class="pre">_merge_progress.txt</span></code> is removed; delete the directory once you have reviewed
+the failures. Other files in <code class="docutils literal notranslate"><span class="pre">--tmpdir</span></code> are never touched.</p>
 <p>The package also ships an <strong>optional</strong> read-only inspection script,
 <code class="docutils literal notranslate"><span class="pre">scripts/gh3_resume_recovery.py</span></code>, useful in two specific cases:</p>
 <ul class="simple">

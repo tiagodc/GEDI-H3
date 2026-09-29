@@ -2111,6 +2111,13 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    """</span>
     <span class="n">records</span> <span class="o">=</span> <span class="n">_read_merge_failed_granules</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">records</span><span class="p">:</span>
+        <span class="c1"># Nothing parseable (empty, or one torn line from a kill mid-append):</span>
+        <span class="c1"># drop it, or it keeps ``_cleanup_merged_tmp`` from ever clearing</span>
+        <span class="c1"># tmp/partitions.</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_MERGE_FAILED_GRANULES_FILENAME</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="k">pass</span>
         <span class="k">return</span> <span class="mi">0</span>
     <span class="n">flipped</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="k">for</span> <span class="n">rec</span> <span class="ow">in</span> <span class="n">records</span><span class="p">:</span>
@@ -3634,6 +3641,124 @@ window.runMermaid = runMermaid;</script>
         <span class="k">return</span> <span class="kc">False</span>
 
 
+<span class="c1"># Below this many entries a single driver-side ``shutil.rmtree`` is cheaper</span>
+<span class="c1"># than dispatching; above it (e.g. one ``_complete/`` sentinel per</span>
+<span class="c1"># granule × beam at continental scale) the removals fan out across workers.</span>
+<span class="n">_REMOVE_FANOUT_MIN_ENTRIES</span> <span class="o">=</span> <span class="mi">10000</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_remove_path</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Worker: best-effort removal of one file or directory tree. Picklable</span>
+<span class="sd">    top-level fn for parallel cleanup of large sentinel/fragment sets via</span>
+<span class="sd">    ``parallel_map``. Idempotent — a missing path is success (already</span>
+<span class="sd">    cleaned). Returns the error string on failure, ``None`` otherwise."""</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">islink</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_remove_tree_fanout</span><span class="p">(</span><span class="n">root</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">desc</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Remove ``root`` and everything under it without a serial driver sweep.</span>
+
+<span class="sd">    One ``os.scandir`` of ``root`` (a single readdir), then — when it holds at</span>
+<span class="sd">    least ``_REMOVE_FANOUT_MIN_ENTRIES`` entries and a dask Client is</span>
+<span class="sd">    registered — each entry is removed on a worker via :func:`_remove_path`</span>
+<span class="sd">    in batches, and the emptied ``root`` last. Narrow trees, or no Client,</span>
+<span class="sd">    take a plain ``shutil.rmtree``. Best-effort: failures are logged as a</span>
+<span class="sd">    WARNING and never raised — cleanup must not fail a finished build.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    root : str</span>
+<span class="sd">        Directory to remove. A missing directory is a no-op.</span>
+<span class="sd">    desc : str</span>
+<span class="sd">        Label for the ``parallel_map`` dispatch log line.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">root</span><span class="p">):</span>
+        <span class="k">return</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">entries</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">path</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">root</span><span class="p">)]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">entries</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">_REMOVE_FANOUT_MIN_ENTRIES</span> <span class="ow">and</span> <span class="n">get_dask_client</span><span class="p">()</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.parallel</span><span class="w"> </span><span class="kn">import</span> <span class="n">parallel_map</span>
+            <span class="k">for</span> <span class="n">path</span><span class="p">,</span> <span class="n">err</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span><span class="n">entries</span><span class="p">,</span> <span class="n">_remove_path</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="n">desc</span><span class="p">,</span>
+                                          <span class="n">unit</span><span class="o">=</span><span class="s1">'entry'</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">2000</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">err</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not remove </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">err</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not clean up </span><span class="si">{</span><span class="n">root</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_cleanup_merged_tmp</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">merge_failed</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Drop the Stage 1 scaffolding under ``tmp_dir`` once a merge succeeded.</span>
+
+<span class="sd">    Every successful ``h3_merge_files`` already deleted its fragment dir</span>
+<span class="sd">    (``rm_src=True``), so what remains is resume/forensics scaffolding:</span>
+<span class="sd">    ``_merge_progress.txt``, one ``_complete/`` sentinel per granule × beam,</span>
+<span class="sd">    the emptied ``h3_*`` dirs, and the failure sidecars. Once every partition</span>
+<span class="sd">    is merged the finalized partition metadata is the resume record</span>
+<span class="sd">    (reconcile Pass A), so none of it is needed — and a stale</span>
+<span class="sd">    ``_merge_progress.txt`` is actively harmful: it is the L2 merge-resume</span>
+<span class="sd">    signal, and would turn the next update's ``gh3_build`` into a silent</span>
+<span class="sd">    merge-only no-op.</span>
+
+<span class="sd">    Tiers, each gated on O(1) signals the build already persisted:</span>
+
+<span class="sd">    * any merge failed in this run → keep everything (the next resume needs</span>
+<span class="sd">      the progress file, the unmerged fragments and the failure records);</span>
+<span class="sd">    * merge clean → drop ``_merge_progress.txt`` first (a crash mid-cleanup</span>
+<span class="sd">      must not leave the one hazardous file behind). It goes even when a</span>
+<span class="sd">      failure sidecar remains: every partition it lists is merged, and a</span>
+<span class="sd">      kept copy would also make the next merge skip those partitions' new</span>
+<span class="sd">      fragments;</span>
+<span class="sd">    * then keep the rest while ``_merge_failed_granules.jsonl`` awaits the</span>
+<span class="sd">      CLI fold into the build log, or ``_granule_failures.jsonl`` holds</span>
+<span class="sd">      Stage 1 forensics (read by the end-of-build advisory and</span>
+<span class="sd">      ``gh3_doctor``'s ``tmp_partitions_health``); otherwise remove</span>
+<span class="sd">      ``tmp_dir`` entirely.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    tmp_dir : str</span>
+<span class="sd">        The Stage 1 partitions directory (``&lt;build tmp&gt;/partitions``). Only</span>
+<span class="sd">        this directory is touched — never its parent, which may be a</span>
+<span class="sd">        user-supplied ``--tmpdir`` holding unrelated files.</span>
+<span class="sd">    merge_failed : bool</span>
+<span class="sd">        Whether any partition merge failed in this run.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">merge_failed</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Keeping </span><span class="si">{</span><span class="n">tmp_dir</span><span class="si">}</span><span class="s2"> for resume: merge failures are pending recovery"</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="s1">'_merge_progress.txt'</span><span class="p">))</span>
+    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not remove stale merge progress file in </span><span class="si">{</span><span class="n">tmp_dir</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_MERGE_FAILED_GRANULES_FILENAME</span><span class="p">)):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Keeping </span><span class="si">{</span><span class="n">tmp_dir</span><span class="si">}</span><span class="s2">: merge-failed granules await the build-log fold"</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_GRANULE_FAILURES_FILENAME</span><span class="p">)):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Keeping </span><span class="si">{</span><span class="n">tmp_dir</span><span class="si">}</span><span class="s2"> for Stage 1 failure forensics "</span>
+            <span class="sa">f</span><span class="s2">"(gh3_doctor -i &lt;database&gt; -t </span><span class="si">{</span><span class="n">tmp_dir</span><span class="si">}</span><span class="s2"> --check tmp_partitions_health); "</span>
+            <span class="sa">f</span><span class="s2">"delete it once reviewed"</span>
+        <span class="p">)</span>
+        <span class="k">return</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Cleaning up build scaffolding in </span><span class="si">{</span><span class="n">tmp_dir</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">_remove_tree_fanout</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_COMPLETE_SENTINEL_DIRNAME</span><span class="p">),</span>
+                        <span class="n">desc</span><span class="o">=</span><span class="s2">"Cleaning completion sentinels"</span><span class="p">)</span>
+    <span class="n">_remove_tree_fanout</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">"Cleaning tmp partitions"</span><span class="p">)</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_merge_and_finalize</span><span class="p">(</span>
     <span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span>
@@ -3642,7 +3767,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Merge temporary partitioned files into the final H3 database.</span>
 
 <span class="sd">    Tracks progress via an append-only ``_merge_progress.txt`` file in</span>
-<span class="sd">    ``tmp_dir``. On resume, already-merged partitions are skipped.</span>
+<span class="sd">    ``tmp_dir``. On resume, already-merged partitions are skipped. When every</span>
+<span class="sd">    partition merged, ``tmp_dir`` is cleaned up before returning — see</span>
+<span class="sd">    :func:`_cleanup_merged_tmp` for what is kept, and when.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -3722,6 +3849,7 @@ window.runMermaid = runMermaid;</script>
 
     <span class="n">remaining_dirs</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">tmp_h3_dirs</span> <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">merged_parts</span><span class="p">]</span>
 
+    <span class="n">failed_count</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">remaining_dirs</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"All partitions already merged (resume)"</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
@@ -3747,7 +3875,6 @@ window.runMermaid = runMermaid;</script>
         <span class="n">futures</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">futures_list</span><span class="p">,</span> <span class="n">remaining_dirs</span><span class="p">))</span>
 
         <span class="n">merged_count</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="n">failed_count</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm_bar</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">remaining_dirs</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">"Merging partitions"</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"part"</span><span class="p">)</span>
 
         <span class="c1"># Incremental manifest refresh: at continental scale the merge</span>
@@ -3864,6 +3991,10 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># write — so nothing here can bump the root dir mtime after this.)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Generating file manifest"</span><span class="p">)</span>
     <span class="n">generate_manifest</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">tree_shape</span><span class="o">=</span><span class="s1">'h3db'</span><span class="p">)</span>
+
+    <span class="c1"># Last: h3_files was derived from _merge_progress.txt above, and the</span>
+    <span class="c1"># cleanup deletes it.</span>
+    <span class="n">_cleanup_merged_tmp</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">merge_failed</span><span class="o">=</span><span class="n">failed_count</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">h3_files</span>
 
@@ -4052,19 +4183,6 @@ window.runMermaid = runMermaid;</script>
 
     <span class="n">_emit_var_fan_sentinel</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">granule_key</span><span class="p">)</span>
     <span class="k">return</span> <span class="p">{</span><span class="s1">'granule'</span><span class="p">:</span> <span class="n">granule_key</span><span class="p">,</span> <span class="s1">'fragments'</span><span class="p">:</span> <span class="n">n_frag</span><span class="p">}</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_unlink_path</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""Worker: best-effort unlink of one file. Picklable top-level fn for</span>
-<span class="sd">    parallel cleanup of large sentinel/fragment sets via ``parallel_map``.</span>
-<span class="sd">    Idempotent — a missing file is success (already cleaned)."""</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
-    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
-        <span class="k">pass</span>
-    <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span>
-    <span class="k">return</span> <span class="kc">None</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_var_merge_cell_year</span><span class="p">(</span><span class="n">year_pf</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="p">):</span>
@@ -4468,23 +4586,8 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">frag_root</span><span class="p">)</span>  <span class="c1"># empty after per-merge rm_src — cheap</span>
             <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not clean up </span><span class="si">{</span><span class="n">frag_root</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-        <span class="n">fan_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_VAR_FAN_COMPLETE_DIRNAME</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">fan_dir</span><span class="p">):</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">sentinels</span> <span class="o">=</span> <span class="p">[</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">fan_dir</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-                             <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">fan_dir</span><span class="p">)</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_file</span><span class="p">()]</span>
-                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sentinels</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">10000</span><span class="p">:</span>
-                    <span class="c1"># Parallel unlink across the cluster — the same anti-</span>
-                    <span class="c1"># serial-rmtree fix as the per-merge fragment drop.</span>
-                    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span><span class="n">sentinels</span><span class="p">,</span> <span class="n">_unlink_path</span><span class="p">,</span>
-                                          <span class="n">desc</span><span class="o">=</span><span class="s2">"Cleaning fan sentinels"</span><span class="p">,</span>
-                                          <span class="n">unit</span><span class="o">=</span><span class="s2">"file"</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">2000</span><span class="p">):</span>
-                        <span class="k">pass</span>
-                    <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">fan_dir</span><span class="p">,</span> <span class="n">ignore_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">fan_dir</span><span class="p">)</span>
-            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not clean up </span><span class="si">{</span><span class="n">fan_dir</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">_remove_tree_fanout</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_VAR_FAN_COMPLETE_DIRNAME</span><span class="p">),</span>
+                            <span class="n">desc</span><span class="o">=</span><span class="s2">"Cleaning fan sentinels"</span><span class="p">)</span>
         <span class="n">p</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_VAR_MERGE_PROGRESS_FILENAME</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
