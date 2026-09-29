@@ -322,15 +322,19 @@ class TestAlignSchemaToDb:
         from gedih3.config import BUILD_LOG_FILENAME
         from gedih3.gh3builder import _align_schema_to_db
         with open(os.path.join(tmp_dir, BUILD_LOG_FILENAME), 'w') as f:
-            json.dump({'h3_columns_dtypes': {'a': 'int32', 'b': 'uint8', 'c': 'not_a_type'}}, f)
-        src = pa.schema([('a', pa.uint8()), ('b', pa.uint8()), ('c', pa.int16()), ('d', pa.float32())],
-                        metadata={b'geo': b'{}'})
+            json.dump({'h3_columns_dtypes': {'a': 'int32', 'b': 'uint8', 'c': 'not_a_type',
+                                             'datetime': 'timestamp[ms]'}}, f)
+        # datetime: the row-less meta infers timestamp[s], which Parquet
+        # stores as timestamp[ms] -- not a drift.
+        src = pa.schema([('a', pa.uint8()), ('b', pa.uint8()), ('c', pa.int16()), ('d', pa.float32()),
+                         ('datetime', pa.timestamp('s'))], metadata={b'geo': b'{}'})
 
         out, drift = _align_schema_to_db(src, tmp_dir)
 
         assert drift == {'a': ('uint8', 'int32')}
         assert out.field('a').type == pa.int32()
         assert [out.field(n).type for n in 'bcd'] == [pa.uint8(), pa.int16(), pa.float32()]
+        assert out.field('datetime').type == pa.timestamp('s')
         assert out.metadata == src.metadata
 
     def test_fresh_build_is_noop(self, tmp_dir):

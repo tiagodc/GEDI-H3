@@ -1578,6 +1578,20 @@ def _schema_resolve_null_fields(schema):
     return schema
 
 
+def _parquet_storage_type(arrow_type):
+    """``arrow_type`` as it reads back from Parquet.
+
+    Parquet has no seconds timestamp unit, so pyarrow stores ``timestamp[s]``
+    (what the row-less Stage 1 meta infers for ``datetime``) as
+    ``timestamp[ms]``. Comparisons between a derived schema and files on disk
+    must use the stored form, or every database reports a phantom drift.
+    """
+    import pyarrow as pa
+    if pa.types.is_timestamp(arrow_type) and arrow_type.unit == 's':
+        return pa.timestamp('ms', tz=arrow_type.tz)
+    return arrow_type
+
+
 def _align_schema_to_db(schema, h3_dir: str):
     """Retype *schema* fields to the dtypes the existing database records.
 
@@ -1613,7 +1627,7 @@ def _align_schema_to_db(schema, h3_dir: str):
     drift = {}
     for i, field in enumerate(schema):
         db_type = db_dtypes.get(field.name)
-        if db_type is None or str(field.type) == db_type:
+        if db_type is None or str(_parquet_storage_type(field.type)) == db_type:
             continue
         try:
             target = pa.type_for_alias(db_type)
