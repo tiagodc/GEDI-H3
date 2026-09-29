@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.18.1] - 2026-09-29
 
 ### Added
 - **`gh3_doctor --check dtype_drift`** reports partition columns stored in a type other than the source HDF5 of the database's own release. The reference comes from one sample granule pushed through the same Stage 1 schema derivation `gh3_build` uses (`_source_write_schema`). The granule is found a-priori, starting at the build log's `date_range` end, with a bounded day-directory scan that only accepts public-release filenames. The check compares each partition file's footer against that reference, in Parquet's stored form (`string` vs `large_string`, which follows the pandas major version, is not drift). `--fix` rewrites affected files with a lossless cast through the new `utils.parquet_cast_columns`, which streams row group by row group and keeps the row-group layout and GeoParquet `geo`/bbox metadata. The fix is resumable, refuses to run while a `gh3_build` is live or the build log shows one in flight, and updates the per-year and per-cell `column_dtypes` and the build log's `h3_columns_dtypes`; a column that fails anywhere keeps its old record. It then refreshes the manifest and recommends `gh3_build_ducklake`. It is part of the default `db` group. Motivating case: a 0.12.7 V3 database stored `worldcover_class_l4c` as `int32` (the L4C V002 type) while V003 is `uint8`.
@@ -21,6 +21,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - **Listings of a SOC tree that holds two GEDI releases side by side could pair files of different releases.** `soc_file_tree` keys granules by orbit/track only. Several callers listed without a version filter, so whichever release sorted last won per product: `gh3_doctor` backfill (which writes source values into the database), the CLI's granule registration, the new-granule check, the `--online` local-presence check, and the download log's post-download scan. Every caller now filters to the database's (or download log's) release, and `soc_file_tree` raises `GediValidationError` when a listing spans more than one release. `build_h3db(version=None)` resolves through the build log, then `resolve_soc_version` (or the one release a pre-acquired file list holds), then `GEDI_DEFAULT_VERSION` (`_resolve_build_version`), instead of a random file sample. Stage 1's schema therefore always comes from files of the database's own release.
 - Stage 1 `missing_var` failures were reported as `other` when h5py's message carried both quote kinds (`repr()` escapes them). `_MISSING_VAR_RE` now accepts the escaped form, so O20752–O20767 get their recovery recipe again.
 - **`sqlutils.geoseries_to_filter` stopped pruning hive partitions for regions covering more than 50 H3 cells.** It emitted `h3_03 = ANY([...])`, which DuckDB plans as a semi-join instead of a scan filter; the runtime join filter only carries the exact cell set up to `dynamic_or_filter_threshold` (default 50), and above that just a min/max range reaches the DuckLake scan, so it opens nearly every partition. The 0.17 ring-1 expansion pushed ordinary queries over that limit (15 scattered CONUS hexagons: 22 → 123 cells). The filter is now a literal `h3_03 IN ('…', …)`, which appears in the scan as `Filters: optional: h3_03 IN (...)`; on the 123-cell example a `count(*)` reads 840 files in 76 s, where the `ANY` form was still running after 8 minutes at 41 GB.
+
+### Contributors
+- Amelia Holcomb
+- Tiago de Conto
 
 ## [0.18.0] - 2026-09-22
 
