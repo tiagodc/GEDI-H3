@@ -367,7 +367,11 @@ class SOCDownloadLogger:
             # downstream glob fallback still produces correct results.
             # Defer the count to the post-glob fallback below.
             n_files = None
-        soc_files = soc_file_tree(self._PARENT_DIR, to_list=True)
+        # One release per listing: the tree may hold another release side
+        # by side, and this log records only the release it tracks.
+        version = self.gedi_version if self.gedi_version is not None else resolve_soc_version(self._PARENT_DIR)
+        glob_kwargs = {'version': version} if version is not None else None
+        soc_files = soc_file_tree(self._PARENT_DIR, to_list=True, glob_kwargs=glob_kwargs)
         if n_files is None:
             # Manifest write failed; recover the count from the discovery
             # step so downstream summary lines stay correct.

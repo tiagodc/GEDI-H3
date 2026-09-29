@@ -243,3 +243,114 @@ class TestCorruptDestFallback:
         # detected and overwritten with the freshly-merged content.
         meta = pq.ParquetFile(corrupt_dest).metadata
         assert meta.num_rows == 7
+
+
+# ---------------------------------------------------------------------------
+# Schema drift between an existing partition and new fragments
+# ---------------------------------------------------------------------------
+#
+# Reproduced in production: a database built by gedih3 0.12.7 stored
+# land_cover_data/worldcover_class_l4c as int32 (the L4C V002 type) while
+# the V003 source files — and so every new fragment — are uint8. The merge
+# took its target schema from a *random* file (list(set(files))) and never
+# cast, so 14,060 of 14,151 partition merges failed with ArrowInvalid.
+
+def _write_part(path, col_type, values, shots):
+    df = pd.DataFrame({
+        'shot_number': np.asarray(shots, dtype=np.uint64),
+        'root_file_l2a': ['/soc/GEDI02_A_2020001000000_O00077_03_T00099_02_003_02_V003.h5'] * len(shots),
+        'datetime': pd.to_datetime(['2020-01-01'] * len(shots)),
+        'worldcover_class_l4c': np.asarray(values, dtype=col_type),
+    })
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    pq.write_table(pa.Table.from_pandas(df, preserve_index=False), path)
+
+
+class TestMergeSchemaDrift:
+    def _setup(self, tmp_dir, dest_type, frag_type, frag_values):
+        in_dir = os.path.join(tmp_dir, 'tmp', 'h3_03=830001fffffffff', 'year=2020') + '/'
+        out_dir = os.path.join(tmp_dir, 'database')
+        dest = os.path.join(out_dir, 'h3_03=830001fffffffff', 'year=2020', '830001fffffffff.2020.0.parquet')
+        _write_part(dest, dest_type, [10, 20], [1, 2])
+        # Several fragments so a set()-scrambled order would put one first.
+        for i in range(4):
+            _write_part(os.path.join(in_dir, f'O0000{i}_G01_T00001.BEAM0000.parquet'),
+                        frag_type, frag_values, [100 + 2 * i, 101 + 2 * i])
+        return in_dir, out_dir, dest
+
+    def test_new_fragments_cast_to_existing_schema(self, tmp_dir):
+        from gedih3.gh3builder import h3_merge_files
+        in_dir, out_dir, dest = self._setup(tmp_dir, 'int32', 'uint8', [30, 95])
+
+        h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+
+        schema = pq.read_schema(dest)
+        assert schema.field('worldcover_class_l4c').type == pa.int32()
+        t = pq.read_table(dest)
+        assert t.num_rows == 2 + 4 * 2
+        assert sorted(set(t['worldcover_class_l4c'].to_pylist())) == [10, 20, 30, 95]
+        assert not os.path.exists(in_dir)
+
+    def test_lossy_cast_fails_loudly_and_keeps_fragments(self, tmp_dir):
+        from gedih3.exceptions import GediMergeError
+        from gedih3.gh3builder import h3_merge_files
+        in_dir, out_dir, dest = self._setup(tmp_dir, 'uint8', 'int32', [30, 300])
+        before = pq.read_table(dest)
+
+        with pytest.raises(GediMergeError, match='worldcover_class_l4c'):
+            h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+
+        # Destination untouched, fragments kept for the retry.
+        assert pq.read_table(dest).equals(before)
+        assert len(os.listdir(in_dir)) == 4
+        assert not any(n.endswith('.tmp') for n in os.listdir(os.path.dirname(dest)))
+
+    def test_existing_rows_win_shot_dedup(self, tmp_dir):
+        from gedih3.gh3builder import h3_merge_files
+        in_dir, out_dir, dest = self._setup(tmp_dir, 'int32', 'int32', [30, 95])
+        # A fragment re-delivering shot 1 with a different value.
+        _write_part(os.path.join(in_dir, 'O00009_G01_T00001.BEAM0000.parquet'), 'int32', [77], [1])
+
+        h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+
+        t = pq.read_table(dest).to_pandas()
+        assert t.loc[t.shot_number == 1, 'worldcover_class_l4c'].tolist() == [10]
+
+
+class TestAlignSchemaToDb:
+    def test_retypes_only_recorded_drift(self, tmp_dir):
+        from gedih3.config import BUILD_LOG_FILENAME
+        from gedih3.gh3builder import _align_schema_to_db
+        with open(os.path.join(tmp_dir, BUILD_LOG_FILENAME), 'w') as f:
+            json.dump({'h3_columns_dtypes': {'a': 'int32', 'b': 'uint8', 'c': 'not_a_type'}}, f)
+        src = pa.schema([('a', pa.uint8()), ('b', pa.uint8()), ('c', pa.int16()), ('d', pa.float32())],
+                        metadata={b'geo': b'{}'})
+
+        out, drift = _align_schema_to_db(src, tmp_dir)
+
+        assert drift == {'a': ('uint8', 'int32')}
+        assert out.field('a').type == pa.int32()
+        assert [out.field(n).type for n in 'bcd'] == [pa.uint8(), pa.int16(), pa.float32()]
+        assert out.metadata == src.metadata
+
+    def test_fresh_build_is_noop(self, tmp_dir):
+        from gedih3.gh3builder import _align_schema_to_db
+        src = pa.schema([('a', pa.uint8())])
+        assert _align_schema_to_db(src, tmp_dir) == (src, {})
+
+
+class TestMergeIncompleteStatus:
+    def test_count_merge_failures_reads_sentinels(self, tmp_dir):
+        from gedih3.cli.gh3_build import _count_merge_failures
+        from gedih3.gh3builder import _emit_merge_failure_sentinel
+        assert _count_merge_failures(tmp_dir) == 0
+        _emit_merge_failure_sentinel(tmp_dir, os.path.join(tmp_dir, 'h3_03=a', 'year=2020'), ValueError('x'))
+        _emit_merge_failure_sentinel(tmp_dir, os.path.join(tmp_dir, 'h3_03=b', 'year=2020'), ValueError('y'))
+        assert _count_merge_failures(tmp_dir) == 2
+
+    def test_merge_incomplete_exits_with_database_error_code(self, tmp_dir):
+        import logging
+        from gedih3.cli.gh3_build import _exit_merge_incomplete
+        with pytest.raises(SystemExit) as exc:
+            _exit_merge_incomplete(3, tmp_dir, '/db', logging.getLogger('t'))
+        assert exc.value.code == 4

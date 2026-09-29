@@ -231,6 +231,16 @@ class TestMergeFailureSentinels:
 
 class TestGranuleFailures:
 
+    def test_classify_missing_var_keyerror_with_escaped_quotes(self):
+        # Production h5py message carries both quote kinds, so repr() of the
+        # KeyError picks single quotes and backslash-escapes the inner ones
+        # (O20752-O20767 were reported as ``other`` until this was handled).
+        msg = ("object 'geolocation/l2a_quality_flag_rel3_a1' doesn't exist (h5py: \"Unable to "
+               "synchronously open object (object 'l2a_quality_flag_rel3_a1' doesn't exist)\")")
+        out = _classify_load_h5_failure(KeyError(msg), {'L2A': '/soc/GEDI02_A_xxx.h5'})
+        assert out['kind'] == 'missing_var'
+        assert out['var'] == 'geolocation/l2a_quality_flag_rel3_a1'
+
     def test_classify_missing_var_keyerror(self):
         msg = (
             "Unable to synchronously open object "

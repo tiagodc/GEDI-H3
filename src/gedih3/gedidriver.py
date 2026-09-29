@@ -150,7 +150,9 @@ def soc_file_tree(
         If True, return a list of dicts instead of a nested dict.
     glob_kwargs : dict, optional
         Keyword arguments passed to gedi_file_glob() for filtering files
-        (e.g., version, orbit).
+        (e.g., version, orbit). Pass ``version`` whenever the tree may hold
+        more than one GEDI release: granules are keyed by orbit/track only,
+        so two releases of the same granule would collide under one key.
     exclude : list of str, optional
         fnmatch-style patterns matched against each file's basename.
         Any file whose basename matches any pattern is dropped from the
@@ -163,6 +165,13 @@ def soc_file_tree(
         If to_list=False: dict keyed by orbit_track identifier, with values
         being dicts mapping product codes to file paths.
         If to_list=True: list of product dicts.
+
+    Raises
+    ------
+    GediValidationError
+        When the listed files span more than one GEDI release (``_V00N``).
+        One release per tree is the contract; a mixed listing would silently
+        pair files of different releases under one granule key.
 
     Examples
     --------
@@ -217,6 +226,14 @@ def soc_file_tree(
     valid = fidx.notna().all(axis=1)
     flist = flist.loc[valid].copy()
     fidx = fidx.loc[valid]
+
+    releases = sorted(flist.file_paths.str.extract(r'_V(\d{3})[^/]*\.h5$')[0].dropna().unique())
+    if len(releases) > 1:
+        raise GediValidationError(
+            f"SOC listing mixes GEDI releases {['V' + r for r in releases]}; granules are keyed by "
+            f"orbit/track only, so files of different releases would be paired silently. Pin one "
+            f"release (glob_kwargs={{'version': N}}, or a version-filtered file list)."
+        )
 
     flist['prod'] = 'L' + fidx[0].astype(int).astype(str) + fidx[1]
     flist['orb_track'] = fidx[2]
