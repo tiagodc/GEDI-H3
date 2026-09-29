@@ -925,8 +925,10 @@ variable names to extract. Use ‘default’, ‘minimal’, or explicit lists.<
 <li><p><code class="docutils literal notranslate"><span class="pre">list</span></code>: pre-acquired list of file paths or EarthAccessFile objects</p></li>
 </ul>
 </dd>
-<dt><strong>version</strong><span class="classifier">int or None</span></dt><dd><p>GEDI data version. If None, uses the package default (<code class="docutils literal notranslate"><span class="pre">GEDI_DEFAULT_VERSION</span></code>).
-Also used to filter local files by version when soc_source is a directory.</p>
+<dt><strong>version</strong><span class="classifier">int or None</span></dt><dd><p>GEDI data release for every product. <code class="docutils literal notranslate"><span class="pre">None</span></code> resolves via
+<code class="xref py py-func docutils literal notranslate"><span class="pre">_resolve_build_version()</span></code> (build log &gt; SOC tree &gt; package
+default). Every SOC listing is filtered to this release, so the
+Stage 1 schema is derived from files of exactly that release.</p>
 </dd>
 <dt><strong>tmp_dir</strong><span class="classifier">str</span></dt><dd><p>Path to temporary directory for intermediate files.</p>
 </dd>

@@ -1186,12 +1186,14 @@ Module Contents
      and any extras the file might have are dropped at read time (less I/O).
      When the file goes out of scope, its IO state is released —
      deterministic per-file lifecycle.
-   - **Invariant assumed by design**: all input fragments share an identical
-     column set and dtypes (true in gh3_build because all fragments come
-     from the same ``dask_geopandas.to_parquet`` call). A fragment with a
-     missing target column will raise from pyarrow — that's the right
-     behavior; it surfaces a serious data invariant violation rather than
-     silently null-filling.
+   - **The first file's schema wins.** Callers merging into an existing
+     partition put that file first (``gh3builder.h3_merge_files``), so the
+     database's schema is the target. Inputs share the column set; a file
+     whose dtypes differ is cast to the target with ``safe=True`` — lossless
+     or a :class:`GediMergeError` naming the columns, never truncation. A
+     fragment with a missing target column raises from pyarrow — that
+     surfaces a serious data invariant violation rather than silently
+     null-filling.
    - Bbox is **provided by the caller** via the ``bbox`` argument when the
      input has a ``geometry`` column. ``gh3builder.h3_merge_files`` derives
      it directly from the H3 partition geometry (no data scan).

@@ -562,8 +562,10 @@ Module Contents
            - ``list``: pre-acquired list of file paths or EarthAccessFile objects
 
        **version** : int or None
-           GEDI data version. If None, uses the package default (``GEDI_DEFAULT_VERSION``).
-           Also used to filter local files by version when soc_source is a directory.
+           GEDI data release for every product. ``None`` resolves via
+           :func:`_resolve_build_version` (build log > SOC tree > package
+           default). Every SOC listing is filtered to this release, so the
+           Stage 1 schema is derived from files of exactly that release.
 
        **tmp_dir** : str
            Path to temporary directory for intermediate files.

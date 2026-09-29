@@ -770,7 +770,7 @@ window.runMermaid = runMermaid;</script>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Union</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">GediDatabaseNotFoundError</span><span class="p">,</span> <span class="n">GediFileError</span><span class="p">,</span> <span class="n">GediValidationError</span><span class="p">,</span>
-                         <span class="n">GediSpatialError</span><span class="p">,</span> <span class="n">GediTemporalError</span><span class="p">)</span>
+                         <span class="n">GediSpatialError</span><span class="p">,</span> <span class="n">GediTemporalError</span><span class="p">,</span> <span class="n">GediMergeError</span><span class="p">)</span>
 
 
 <span class="c1"># =============================================================================</span>
@@ -2728,12 +2728,14 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">      and any extras the file might have are dropped at read time (less I/O).</span>
 <span class="sd">      When the file goes out of scope, its IO state is released —</span>
 <span class="sd">      deterministic per-file lifecycle.</span>
-<span class="sd">    - **Invariant assumed by design**: all input fragments share an identical</span>
-<span class="sd">      column set and dtypes (true in gh3_build because all fragments come</span>
-<span class="sd">      from the same ``dask_geopandas.to_parquet`` call). A fragment with a</span>
-<span class="sd">      missing target column will raise from pyarrow — that's the right</span>
-<span class="sd">      behavior; it surfaces a serious data invariant violation rather than</span>
-<span class="sd">      silently null-filling.</span>
+<span class="sd">    - **The first file's schema wins.** Callers merging into an existing</span>
+<span class="sd">      partition put that file first (``gh3builder.h3_merge_files``), so the</span>
+<span class="sd">      database's schema is the target. Inputs share the column set; a file</span>
+<span class="sd">      whose dtypes differ is cast to the target with ``safe=True`` — lossless</span>
+<span class="sd">      or a :class:`GediMergeError` naming the columns, never truncation. A</span>
+<span class="sd">      fragment with a missing target column raises from pyarrow — that</span>
+<span class="sd">      surfaces a serious data invariant violation rather than silently</span>
+<span class="sd">      null-filling.</span>
 <span class="sd">    - Bbox is **provided by the caller** via the ``bbox`` argument when the</span>
 <span class="sd">      input has a ``geometry`` column. ``gh3builder.h3_merge_files`` derives</span>
 <span class="sd">      it directly from the H3 partition geometry (no data scan).</span>
@@ -2833,6 +2835,13 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">batch_iter</span> <span class="o">=</span> <span class="n">pf</span><span class="o">.</span><span class="n">iter_batches</span><span class="p">(</span><span class="n">batch_size</span><span class="o">=</span><span class="n">rows_per_group</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">target_names</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2"> [file=</span><span class="si">{</span><span class="n">f</span><span class="si">}</span><span class="s2">]"</span><span class="p">)</span><span class="o">.</span><span class="n">with_traceback</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">__traceback__</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+            <span class="c1"># Footer-only dtype comparison (already parsed by the open above):</span>
+            <span class="c1"># cast only the files that need it, one decision per file.</span>
+            <span class="n">file_schema</span> <span class="o">=</span> <span class="n">pf</span><span class="o">.</span><span class="n">schema_arrow</span>
+            <span class="n">drift</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="n">n</span><span class="p">:</span> <span class="p">(</span><span class="n">file_schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">type</span><span class="p">)</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">target_names</span>
+                <span class="k">if</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">file_schema</span><span class="o">.</span><span class="n">names</span> <span class="ow">and</span> <span class="n">file_schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">type</span> <span class="o">!=</span> <span class="n">schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">type</span>
+            <span class="p">}</span>
             <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">_iter_batches_with_path</span><span class="p">(</span><span class="n">batch_iter</span><span class="p">,</span> <span class="n">f</span><span class="p">):</span>
                 <span class="k">if</span> <span class="n">check_shots</span> <span class="ow">and</span> <span class="n">has_shot_number</span><span class="p">:</span>
                     <span class="n">arr</span> <span class="o">=</span> <span class="n">batch</span><span class="p">[</span><span class="s2">"shot_number"</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
@@ -2852,7 +2861,16 @@ window.runMermaid = runMermaid;</script>
                     <span class="n">acc</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
                     <span class="n">acc_rows</span> <span class="o">=</span> <span class="mi">0</span>
 
-                <span class="n">acc</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">Table</span><span class="o">.</span><span class="n">from_batches</span><span class="p">([</span><span class="n">batch</span><span class="p">],</span> <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">drift</span><span class="p">:</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">acc</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">Table</span><span class="o">.</span><span class="n">from_batches</span><span class="p">([</span><span class="n">batch</span><span class="p">])</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">safe</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+                    <span class="k">except</span> <span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">ArrowInvalid</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">ArrowNotImplementedError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                        <span class="n">cols</span> <span class="o">=</span> <span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">a</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">b</span><span class="si">}</span><span class="s2">)"</span> <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="ow">in</span> <span class="n">drift</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+                        <span class="k">raise</span> <span class="n">GediMergeError</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">"Cannot losslessly cast </span><span class="si">{</span><span class="n">cols</span><span class="si">}</span><span class="s2"> to the destination schema: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2"> [file=</span><span class="si">{</span><span class="n">f</span><span class="si">}</span><span class="s2">]"</span>
+                        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">acc</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">Table</span><span class="o">.</span><span class="n">from_batches</span><span class="p">([</span><span class="n">batch</span><span class="p">],</span> <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">))</span>
                 <span class="n">acc_rows</span> <span class="o">+=</span> <span class="n">batch</span><span class="o">.</span><span class="n">num_rows</span>
 
                 <span class="c1"># Collect per-batch stats for h3_write_metadata.</span>
@@ -2878,9 +2896,21 @@ window.runMermaid = runMermaid;</script>
             <span class="n">writer</span><span class="o">.</span><span class="n">write_table</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">concat_tables</span><span class="p">(</span><span class="n">acc</span><span class="p">))</span>
         <span class="n">writer</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
         <span class="n">os</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">tmp_ofile</span><span class="p">,</span> <span class="n">ofile</span><span class="p">)</span>  <span class="c1"># Atomic rename</span>
-    <span class="k">except</span><span class="p">:</span>
+    <span class="k">except</span> <span class="ne">BaseException</span><span class="p">:</span>
+        <span class="c1"># Release the half-written output and the accumulated batches</span>
+        <span class="c1"># before re-raising: a failed merge must not leave its buffers</span>
+        <span class="c1"># pinned on the worker (repeated failures otherwise climb RSS).</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">writer</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="n">acc</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">tmp_ofile</span><span class="p">):</span>
             <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">tmp_ofile</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">pa</span><span class="o">.</span><span class="n">default_memory_pool</span><span class="p">()</span><span class="o">.</span><span class="n">release_unused</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">pass</span>
         <span class="k">raise</span>
 
     <span class="k">if</span> <span class="n">rm_src</span><span class="p">:</span>

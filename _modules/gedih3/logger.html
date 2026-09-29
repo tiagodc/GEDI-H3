@@ -1148,7 +1148,11 @@ window.runMermaid = runMermaid;</script>
             <span class="c1"># downstream glob fallback still produces correct results.</span>
             <span class="c1"># Defer the count to the post-glob fallback below.</span>
             <span class="n">n_files</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="n">soc_files</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_PARENT_DIR</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># One release per listing: the tree may hold another release side</span>
+        <span class="c1"># by side, and this log records only the release it tracks.</span>
+        <span class="n">version</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gedi_version</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">gedi_version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">resolve_soc_version</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_PARENT_DIR</span><span class="p">)</span>
+        <span class="n">glob_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'version'</span><span class="p">:</span> <span class="n">version</span><span class="p">}</span> <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">soc_files</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_PARENT_DIR</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">glob_kwargs</span><span class="o">=</span><span class="n">glob_kwargs</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">n_files</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="c1"># Manifest write failed; recover the count from the discovery</span>
             <span class="c1"># step so downstream summary lines stay correct.</span>
@@ -1615,15 +1619,15 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># Used to derive per-granule per-product status (INDEXED vs MISSING_COLUMN).</span>
         <span class="n">active_products</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">product_vars</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
         <span class="n">gran_observed_products</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="c1"># Schema accumulators: track the union of columns observed and</span>
-        <span class="c1"># the first non-empty per-column dtype map. Aggregating inside</span>
+        <span class="c1"># Schema accumulators: track the union of columns observed and,</span>
+        <span class="c1"># per column, how many partitions store each dtype. Aggregating inside</span>
         <span class="c1"># the loop (rather than reading the last fmeta) survives mixed</span>
         <span class="c1"># builds where some partitions predate ``column_dtypes`` — the</span>
         <span class="c1"># last metadata in glob order may be a legacy partition without</span>
         <span class="c1"># the field, and reading from it would silently zero the cache</span>
         <span class="c1"># for the whole DB.</span>
         <span class="n">observed_columns</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
-        <span class="n">observed_dtypes</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">observed_dtypes</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}</span>   <span class="c1"># {column: {dtype: n_partitions}}</span>
 
         <span class="c1"># Stream per-partition results. parallel_map yields (item, result)</span>
         <span class="c1"># pairs as workers finish; we fold them into the aggregates with</span>
@@ -1652,7 +1656,8 @@ window.runMermaid = runMermaid;</script>
                 <span class="bp">self</span><span class="o">.</span><span class="n">gedi_version</span> <span class="o">=</span> <span class="n">part_result</span><span class="p">[</span><span class="s1">'l2a_version'</span><span class="p">]</span>
             <span class="n">observed_columns</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">part_result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'columns'</span><span class="p">,</span> <span class="p">[]))</span>
             <span class="k">for</span> <span class="n">col_name</span><span class="p">,</span> <span class="n">dtype</span> <span class="ow">in</span> <span class="p">(</span><span class="n">part_result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'column_dtypes'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="n">observed_dtypes</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">col_name</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+                <span class="n">counts</span> <span class="o">=</span> <span class="n">observed_dtypes</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">col_name</span><span class="p">,</span> <span class="p">{})</span>
+                <span class="n">counts</span><span class="p">[</span><span class="n">dtype</span><span class="p">]</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">dtype</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
 
         <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_dask_client</span>
         <span class="n">client</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1700,7 +1705,19 @@ window.runMermaid = runMermaid;</script>
         <span class="bp">self</span><span class="o">.</span><span class="n">date_range</span> <span class="o">=</span> <span class="p">(</span><span class="n">date_min</span><span class="p">,</span> <span class="n">date_max</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">h3_columns</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">observed_columns</span><span class="p">)</span>
         <span class="c1"># Empty dict when every partition metadata predates this field.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">h3_columns_dtypes</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">observed_dtypes</span><span class="p">)</span>
+        <span class="c1"># A column stored in several dtypes records the one most partitions</span>
+        <span class="c1"># hold (never "whichever partition was scanned first"): updates align</span>
+        <span class="c1"># new data to this, so it must describe the bulk of the database.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h3_columns_dtypes</span> <span class="o">=</span> <span class="p">{</span><span class="n">c</span><span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">n</span><span class="o">.</span><span class="n">get</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">observed_dtypes</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="n">mixed</span> <span class="o">=</span> <span class="p">{</span><span class="n">c</span><span class="p">:</span> <span class="n">n</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">observed_dtypes</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">mixed</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.logging_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_logger</span>
+            <span class="n">desc</span> <span class="o">=</span> <span class="s1">'; '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">mixed</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+            <span class="n">get_logger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">mixed</span><span class="p">)</span><span class="si">}</span><span class="s2"> column(s) are stored in more than one dtype across partitions "</span>
+                <span class="sa">f</span><span class="s2">"(partitions per dtype): </span><span class="si">{</span><span class="n">desc</span><span class="si">}</span><span class="s2">. Recording the majority dtype. "</span>
+                <span class="sa">f</span><span class="s2">"Run gh3_doctor --check dtype_drift to compare against the source."</span>
+            <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">h3_partition_ids</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">h3_parts</span><span class="p">)</span>
 
         <span class="c1"># Merge with existing tracked granules (preserve PENDING for unindexed)</span>

@@ -1378,12 +1378,14 @@ target order</strong> — no Python-side reordering, no per-batch reconciler,
 and any extras the file might have are dropped at read time (less I/O).
 When the file goes out of scope, its IO state is released —
 deterministic per-file lifecycle.</p></li>
-<li><p><strong>Invariant assumed by design</strong>: all input fragments share an identical
-column set and dtypes (true in gh3_build because all fragments come
-from the same <code class="docutils literal notranslate"><span class="pre">dask_geopandas.to_parquet</span></code> call). A fragment with a
-missing target column will raise from pyarrow — that’s the right
-behavior; it surfaces a serious data invariant violation rather than
-silently null-filling.</p></li>
+<li><p><strong>The first file’s schema wins.</strong> Callers merging into an existing
+partition put that file first (<code class="docutils literal notranslate"><span class="pre">gh3builder.h3_merge_files</span></code>), so the
+database’s schema is the target. Inputs share the column set; a file
+whose dtypes differ is cast to the target with <code class="docutils literal notranslate"><span class="pre">safe=True</span></code> — lossless
+or a <code class="xref py py-class docutils literal notranslate"><span class="pre">GediMergeError</span></code> naming the columns, never truncation. A
+fragment with a missing target column raises from pyarrow — that
+surfaces a serious data invariant violation rather than silently
+null-filling.</p></li>
 <li><p>Bbox is <strong>provided by the caller</strong> via the <code class="docutils literal notranslate"><span class="pre">bbox</span></code> argument when the
 input has a <code class="docutils literal notranslate"><span class="pre">geometry</span></code> column. <code class="docutils literal notranslate"><span class="pre">gh3builder.h3_merge_files</span></code> derives
 it directly from the H3 partition geometry (no data scan).</p></li>

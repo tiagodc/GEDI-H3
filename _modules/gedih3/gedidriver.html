@@ -920,7 +920,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        If True, return a list of dicts instead of a nested dict.</span>
 <span class="sd">    glob_kwargs : dict, optional</span>
 <span class="sd">        Keyword arguments passed to gedi_file_glob() for filtering files</span>
-<span class="sd">        (e.g., version, orbit).</span>
+<span class="sd">        (e.g., version, orbit). Pass ``version`` whenever the tree may hold</span>
+<span class="sd">        more than one GEDI release: granules are keyed by orbit/track only,</span>
+<span class="sd">        so two releases of the same granule would collide under one key.</span>
 <span class="sd">    exclude : list of str, optional</span>
 <span class="sd">        fnmatch-style patterns matched against each file's basename.</span>
 <span class="sd">        Any file whose basename matches any pattern is dropped from the</span>
@@ -933,6 +935,13 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        If to_list=False: dict keyed by orbit_track identifier, with values</span>
 <span class="sd">        being dicts mapping product codes to file paths.</span>
 <span class="sd">        If to_list=True: list of product dicts.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    GediValidationError</span>
+<span class="sd">        When the listed files span more than one GEDI release (``_V00N``).</span>
+<span class="sd">        One release per tree is the contract; a mixed listing would silently</span>
+<span class="sd">        pair files of different releases under one granule key.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
@@ -987,6 +996,14 @@ window.runMermaid = runMermaid;</script>
     <span class="n">valid</span> <span class="o">=</span> <span class="n">fidx</span><span class="o">.</span><span class="n">notna</span><span class="p">()</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
     <span class="n">flist</span> <span class="o">=</span> <span class="n">flist</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">valid</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
     <span class="n">fidx</span> <span class="o">=</span> <span class="n">fidx</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">valid</span><span class="p">]</span>
+
+    <span class="n">releases</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">flist</span><span class="o">.</span><span class="n">file_paths</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="sa">r</span><span class="s1">'_V(\d</span><span class="si">{3}</span><span class="s1">)[^/]*\.h5$'</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span><span class="o">.</span><span class="n">unique</span><span class="p">())</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">releases</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"SOC listing mixes GEDI releases </span><span class="si">{</span><span class="p">[</span><span class="s1">'V'</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">releases</span><span class="p">]</span><span class="si">}</span><span class="s2">; granules are keyed by "</span>
+            <span class="sa">f</span><span class="s2">"orbit/track only, so files of different releases would be paired silently. Pin one "</span>
+            <span class="sa">f</span><span class="s2">"release (glob_kwargs=</span><span class="se">{{</span><span class="s2">'version': N</span><span class="se">}}</span><span class="s2">, or a version-filtered file list)."</span>
+        <span class="p">)</span>
 
     <span class="n">flist</span><span class="p">[</span><span class="s1">'prod'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'L'</span> <span class="o">+</span> <span class="n">fidx</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span> <span class="o">+</span> <span class="n">fidx</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
     <span class="n">flist</span><span class="p">[</span><span class="s1">'orb_track'</span><span class="p">]</span> <span class="o">=</span> <span class="n">fidx</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>

@@ -923,10 +923,15 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_has_new_local_granules</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""Check if SOC directory has HDF5 files not tracked in the build log."""</span>
+<span class="w">    </span><span class="sd">"""Check if SOC directory has HDF5 files not tracked in the build log.</span>
+
+<span class="sd">    Only files of the database's GEDI release count: a tree that holds</span>
+<span class="sd">    another release side by side must not make a finished database look</span>
+<span class="sd">    stale (those granules can never be built into it).</span>
+<span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">glob</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">globmod</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEDIFile</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEDIFile</span><span class="p">,</span> <span class="n">gedi_file_glob</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">soc_source</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">soc_source</span><span class="p">):</span>
         <span class="k">return</span> <span class="kc">False</span>
@@ -936,7 +941,8 @@ window.runMermaid = runMermaid;</script>
         <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">granule_info</span><span class="p">:</span>
             <span class="n">tracked</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]))</span>
 
-    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">globmod</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="s1">'**'</span><span class="p">,</span> <span class="s1">'GEDI*.h5'</span><span class="p">),</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="n">pattern</span> <span class="o">=</span> <span class="n">gedi_file_glob</span><span class="p">(</span><span class="n">version</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">)</span> <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span> <span class="k">else</span> <span class="s1">'GEDI*.h5'</span>
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">globmod</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="s1">'**'</span><span class="p">,</span> <span class="n">pattern</span><span class="p">),</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">gf</span> <span class="o">=</span> <span class="n">GEDIFile</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
             <span class="k">if</span> <span class="p">(</span><span class="n">gf</span><span class="o">.</span><span class="n">orbit</span><span class="p">,</span> <span class="n">gf</span><span class="o">.</span><span class="n">orbit_granule</span><span class="p">,</span> <span class="n">gf</span><span class="o">.</span><span class="n">track</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">tracked</span><span class="p">:</span>
@@ -945,6 +951,34 @@ window.runMermaid = runMermaid;</script>
             <span class="k">continue</span>
 
     <span class="k">return</span> <span class="kc">False</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_count_merge_failures</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Number of partition merges still failed, from the persisted sentinels.</span>
+
+<span class="sd">    ``_merge_and_finalize`` writes one ``_merge_failures/`` sentinel per failed</span>
+<span class="sd">    merge and the next merge's pre-clean consumes them, so any sentinel left</span>
+<span class="sd">    at the end of a run is an unresolved failure. O(N_failures), no tree walk.</span>
+<span class="sd">    """</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">_scan_merge_failure_sentinels</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">_scan_merge_failure_sentinels</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_exit_merge_incomplete</span><span class="p">(</span><span class="n">n_failed</span><span class="p">,</span> <span class="n">parquet_dir</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">,</span> <span class="n">logger</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Report a build whose merge phase did not finish and exit non-zero.</span>
+
+<span class="sd">    The build log is left at ``MERGING`` so the next ``gh3_build`` resumes</span>
+<span class="sd">    straight into the merge; the unmerged fragments stay in ``parquet_dir``.</span>
+<span class="sd">    Exit code 4 is the CLI's database-error code.</span>
+<span class="sd">    """</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_failed</span><span class="si">}</span><span class="s2"> partition merge(s) failed: their new data is kept in </span><span class="si">{</span><span class="n">parquet_dir</span><span class="si">}</span><span class="s2"> and is NOT in "</span>
+        <span class="sa">f</span><span class="s2">"the database yet. Fix the cause shown in the 'Merge failed' lines above, then re-run the "</span>
+        <span class="sa">f</span><span class="s2">"same gh3_build command to retry only the merge. Details: "</span>
+        <span class="sa">f</span><span class="s2">"gh3_doctor -i </span><span class="si">{</span><span class="n">h3_dir</span><span class="si">}</span><span class="s2"> -t </span><span class="si">{</span><span class="n">parquet_dir</span><span class="si">}</span><span class="s2"> --check tmp_partitions_health"</span>
+    <span class="p">)</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_detect_merge_resume_signal</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">parquet_dir</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">has_pending_new_work</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
@@ -1136,8 +1170,12 @@ window.runMermaid = runMermaid;</script>
 
     <span class="c1"># Early exit: database is already up-to-date with requested parameters</span>
     <span class="c1"># Only when a valid build log exists with partition data to confirm completeness</span>
+    <span class="c1"># A previous run whose merges failed leaves status MERGING with its</span>
+    <span class="c1"># fragments in tmp/partitions; declaring that database up to date would</span>
+    <span class="c1"># strand them, so it always goes on to the merge-resume path below.</span>
     <span class="k">if</span> <span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">is_up_to_date</span><span class="p">()</span>
             <span class="ow">and</span> <span class="ow">not</span> <span class="n">pending_var_update</span>
+            <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">previous_status</span> <span class="o">!=</span> <span class="s1">'MERGING'</span>
             <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'h3_partition_ids'</span><span class="p">)</span>
             <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">h3_partition_ids</span><span class="p">):</span>
         <span class="c1"># S3/download modes: skip early exit — let the pipeline query CMR</span>
@@ -1516,13 +1554,16 @@ window.runMermaid = runMermaid;</script>
                     <span class="p">)</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'_pending_variable_update'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'COMPLETED'</span><span class="p">)</span>
-                <span class="n">build_completed</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="n">_n_merge_failed</span> <span class="o">=</span> <span class="n">_count_merge_failures</span><span class="p">(</span><span class="n">_parquet_dir</span><span class="p">)</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'MERGING'</span> <span class="k">if</span> <span class="n">_n_merge_failed</span> <span class="k">else</span> <span class="s1">'COMPLETED'</span><span class="p">)</span>
+                <span class="n">build_completed</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">_n_merge_failed</span>
                 <span class="c1"># AFTER the final log save — an index older than the log is</span>
                 <span class="c1"># treated as stale by the loaders.</span>
                 <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="kn">import</span> <span class="n">refresh_bbox_index_after_build</span>
                 <span class="n">refresh_bbox_index_after_build</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">enabled</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">bbox_index</span><span class="p">,</span>
                                                <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">_n_merge_failed</span><span class="p">:</span>
+                    <span class="n">_exit_merge_incomplete</span><span class="p">(</span><span class="n">_n_merge_failed</span><span class="p">,</span> <span class="n">_parquet_dir</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">logger</span><span class="p">)</span>
                 <span class="n">_n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">h3_files</span><span class="p">)</span> <span class="k">if</span> <span class="n">h3_files</span> <span class="k">else</span> <span class="mi">0</span>
                 <span class="n">print_success</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">_n</span><span class="si">}</span><span class="s2"> files exported to </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2"> (merge-only resume)"</span><span class="p">,</span>
@@ -1539,7 +1580,10 @@ window.runMermaid = runMermaid;</script>
                 <span class="c1"># Only for local download mode (-i); S3 mode has no local SOC directory</span>
                 <span class="k">if</span> <span class="n">soc_source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">soc_source</span><span class="p">):</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Listing SOC files for granule registration"</span><span class="p">)</span>
-                    <span class="n">_soc_for_build</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">)</span>
+                    <span class="n">_soc_for_build</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span>
+                        <span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">,</span>
+                        <span class="n">glob_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s1">'version'</span><span class="p">:</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">},</span>
+                    <span class="p">)</span>
                     <span class="c1"># GEDI filename: GEDInn_L_DATE_O{orbit}_{granule}_T{track}_PPDS_PGE_GEN_V{ver}.h5</span>
                     <span class="c1"># Parse orbit/granule/track from the basename directly — no</span>
                     <span class="c1"># GEDIFile() so we skip the unused os.path.getsize call per</span>
@@ -1668,14 +1712,17 @@ window.runMermaid = runMermaid;</script>
                 <span class="c1"># Crash safety: if crash between pop and save, disk still has</span>
                 <span class="c1"># PROCESSING status with the flag → next run resumes correctly.</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'_pending_variable_update'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'COMPLETED'</span><span class="p">)</span>
-                <span class="n">build_completed</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="n">_n_merge_failed</span> <span class="o">=</span> <span class="n">_count_merge_failures</span><span class="p">(</span><span class="n">_parquet_dir_for_fold</span><span class="p">)</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'MERGING'</span> <span class="k">if</span> <span class="n">_n_merge_failed</span> <span class="k">else</span> <span class="s1">'COMPLETED'</span><span class="p">)</span>
+                <span class="n">build_completed</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">_n_merge_failed</span>
 
                 <span class="c1"># AFTER the final log save — an index older than the log is</span>
                 <span class="c1"># treated as stale by the loaders.</span>
                 <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3driver</span><span class="w"> </span><span class="kn">import</span> <span class="n">refresh_bbox_index_after_build</span>
                 <span class="n">refresh_bbox_index_after_build</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">enabled</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">bbox_index</span><span class="p">,</span>
                                                <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">_n_merge_failed</span><span class="p">:</span>
+                    <span class="n">_exit_merge_incomplete</span><span class="p">(</span><span class="n">_n_merge_failed</span><span class="p">,</span> <span class="n">_parquet_dir_for_fold</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">logger</span><span class="p">)</span>
 
                 <span class="n">n_files</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">h3_files</span><span class="p">)</span> <span class="k">if</span> <span class="n">h3_files</span> <span class="k">else</span> <span class="mi">0</span>
                 <span class="n">print_success</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_files</span><span class="si">}</span><span class="s2"> files exported to </span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>

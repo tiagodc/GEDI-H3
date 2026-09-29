@@ -1618,8 +1618,11 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># overwrite the bad dest atomically via .merge.tmp + os.replace.</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">pq</span><span class="o">.</span><span class="n">ParquetFile</span><span class="p">(</span><span class="n">out_file</span><span class="p">)</span><span class="o">.</span><span class="n">metadata</span>  <span class="c1"># cheap header check</span>
-            <span class="n">files</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">out_file</span><span class="p">)</span>
-            <span class="n">files</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">files</span><span class="p">))</span>
+            <span class="c1"># The existing partition goes FIRST and the order is kept:</span>
+            <span class="c1"># parquet_merge_files takes its target schema from files[0]</span>
+            <span class="c1"># (the database's schema must win), and check_shots dedup</span>
+            <span class="c1"># keeps the first occurrence (existing rows must win).</span>
+            <span class="n">files</span> <span class="o">=</span> <span class="p">[</span><span class="n">out_file</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span> <span class="k">if</span> <span class="n">f</span> <span class="o">!=</span> <span class="n">out_file</span><span class="p">]</span>
             <span class="n">out_file</span> <span class="o">+=</span> <span class="s1">'.tmp'</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
@@ -2153,7 +2156,9 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># object (object 'X' doesn't exist)" — used by ``_classify_load_h5_failure``</span>
 <span class="c1"># to recognize the missing-variable case so downstream tooling</span>
 <span class="c1"># (``gh3_update --recover-missing-vars``) can offer a precise recipe.</span>
-<span class="n">_MISSING_VAR_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"object\s+['</span><span class="se">\"</span><span class="s2">]([^'</span><span class="se">\"</span><span class="s2">]+)['</span><span class="se">\"</span><span class="s2">]\s+doesn'?t\s+exist"</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">)</span>
+<span class="c1"># ``str(KeyError(msg))`` is the repr of ``msg``, which backslash-escapes the</span>
+<span class="c1"># quotes h5py puts around the object name (``object \'x\' doesn\'t exist``).</span>
+<span class="n">_MISSING_VAR_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"object\s+</span><span class="se">\\</span><span class="s2">?['</span><span class="se">\"</span><span class="s2">]([^'</span><span class="se">\"\\</span><span class="s2">]+)</span><span class="se">\\</span><span class="s2">?['</span><span class="se">\"</span><span class="s2">]\s+doesn</span><span class="se">\\</span><span class="s2">?'?t\s+exist"</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_classify_load_h5_failure</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">BaseException</span><span class="p">,</span> <span class="n">soc_dict</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
@@ -2370,6 +2375,82 @@ window.runMermaid = runMermaid;</script>
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">null_positions</span><span class="p">:</span>
         <span class="n">schema</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="o">.</span><span class="n">with_type</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">()))</span>
     <span class="k">return</span> <span class="n">schema</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_parquet_storage_type</span><span class="p">(</span><span class="n">arrow_type</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""``arrow_type`` as it reads back from Parquet.</span>
+
+<span class="sd">    Parquet has no seconds timestamp unit, so pyarrow stores ``timestamp[s]``</span>
+<span class="sd">    (what the row-less Stage 1 meta infers for ``datetime``) as</span>
+<span class="sd">    ``timestamp[ms]``. Comparisons between a derived schema and files on disk</span>
+<span class="sd">    must use the stored form, or every database reports a phantom drift.</span>
+<span class="sd">    """</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+    <span class="k">if</span> <span class="n">pa</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">is_timestamp</span><span class="p">(</span><span class="n">arrow_type</span><span class="p">)</span> <span class="ow">and</span> <span class="n">arrow_type</span><span class="o">.</span><span class="n">unit</span> <span class="o">==</span> <span class="s1">'s'</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">pa</span><span class="o">.</span><span class="n">timestamp</span><span class="p">(</span><span class="s1">'ms'</span><span class="p">,</span> <span class="n">tz</span><span class="o">=</span><span class="n">arrow_type</span><span class="o">.</span><span class="n">tz</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">arrow_type</span>
+
+
+<span class="c1"># Arrow offset width is a representation, not a value type: pandas 3 infers</span>
+<span class="c1"># ``large_string`` where pandas 2 inferred ``string`` (both are supported), and</span>
+<span class="c1"># Parquet stores both as the same UTF8 byte array.</span>
+<span class="n">_OFFSET_WIDTH_TWINS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'large_string'</span><span class="p">:</span> <span class="s1">'string'</span><span class="p">,</span> <span class="s1">'large_binary'</span><span class="p">:</span> <span class="s1">'binary'</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_same_value_type</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Whether two stored dtype strings hold the same values, offset width aside."""</span>
+    <span class="k">return</span> <span class="n">_OFFSET_WIDTH_TWINS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">a</span><span class="p">)</span> <span class="o">==</span> <span class="n">_OFFSET_WIDTH_TWINS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_align_schema_to_db</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Retype *schema* fields to the dtypes the existing database records.</span>
+
+<span class="sd">    The Stage 1 schema is derived from the source HDF5 of the build's</span>
+<span class="sd">    release. When an update meets a database whose recorded dtype for a</span>
+<span class="sd">    column differs (e.g. a database built by an older gedih3 whose schema</span>
+<span class="sd">    came from another release), new data must still land: fragments are</span>
+<span class="sd">    written in the database's types so every later merge is homogeneous.</span>
+<span class="sd">    Casting is left to the per-leaf ``Table.cast`` (``safe=True``), so a value</span>
+<span class="sd">    that does not fit fails its task instead of being truncated.</span>
+
+<span class="sd">    A-priori: reads only the build log's ``h3_columns_dtypes``, no parquet I/O.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    schema : pyarrow.Schema</span>
+<span class="sd">        Source-derived canonical write schema.</span>
+<span class="sd">    h3_dir : str</span>
+<span class="sd">        Database root. No build log, or no recorded dtypes, is a no-op.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple of (pyarrow.Schema, dict)</span>
+<span class="sd">        The aligned schema (metadata preserved) and ``{column: (source, db)}``</span>
+<span class="sd">        for every retyped column whose values differ in type. An offset-width</span>
+<span class="sd">        difference alone (``large_string`` vs ``string``) is aligned but not</span>
+<span class="sd">        reported. A recorded ``null`` is never a target: real values cannot</span>
+<span class="sd">        cast to it, so every leaf write would fail.</span>
+<span class="sd">    """</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+
+    <span class="n">log_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">log_path</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">schema</span><span class="p">,</span> <span class="p">{}</span>
+    <span class="n">db_dtypes</span> <span class="o">=</span> <span class="n">json_read</span><span class="p">(</span><span class="n">log_path</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'h3_columns_dtypes'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="n">drift</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">field</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">schema</span><span class="p">):</span>
+        <span class="n">db_type</span> <span class="o">=</span> <span class="n">db_dtypes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">src_type</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">_parquet_storage_type</span><span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">type</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">db_type</span> <span class="ow">in</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="s1">'null'</span><span class="p">,</span> <span class="n">src_type</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">target</span> <span class="o">=</span> <span class="n">pa</span><span class="o">.</span><span class="n">type_for_alias</span><span class="p">(</span><span class="n">db_type</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">KeyError</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">field</span><span class="o">.</span><span class="n">with_type</span><span class="p">(</span><span class="n">target</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_same_value_type</span><span class="p">(</span><span class="n">src_type</span><span class="p">,</span> <span class="n">db_type</span><span class="p">):</span>
+            <span class="n">drift</span><span class="p">[</span><span class="n">field</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">type</span><span class="p">),</span> <span class="n">db_type</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">schema</span><span class="p">,</span> <span class="n">drift</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_derive_merged_output_paths</span><span class="p">(</span><span class="n">merge_progress_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
@@ -3336,6 +3417,15 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="s1">'datetime'</span> <span class="ow">in</span> <span class="n">meta</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
         <span class="n">meta</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">year</span><span class="o">=</span><span class="n">meta</span><span class="p">[</span><span class="s1">'datetime'</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">year</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">'int32'</span><span class="p">))</span>
     <span class="n">canonical_schema</span> <span class="o">=</span> <span class="n">_canonical_write_schema</span><span class="p">(</span><span class="n">meta</span><span class="p">,</span> <span class="n">part</span><span class="o">=</span><span class="n">part</span><span class="p">)</span>
+    <span class="n">canonical_schema</span><span class="p">,</span> <span class="n">dtype_drift</span> <span class="o">=</span> <span class="n">_align_schema_to_db</span><span class="p">(</span><span class="n">canonical_schema</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">dtype_drift</span><span class="p">:</span>
+        <span class="n">cols</span> <span class="o">=</span> <span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2"> (source </span><span class="si">{</span><span class="n">a</span><span class="si">}</span><span class="s2">, database </span><span class="si">{</span><span class="n">b</span><span class="si">}</span><span class="s2">)"</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">dtype_drift</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Source schema differs from the existing database for </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">dtype_drift</span><span class="p">)</span><span class="si">}</span><span class="s2"> column(s): </span><span class="si">{</span><span class="n">cols</span><span class="si">}</span><span class="s2">. "</span>
+            <span class="sa">f</span><span class="s2">"New data is written in the database's types (lossless cast; a value that does not fit "</span>
+            <span class="sa">f</span><span class="s2">"fails its task instead of being truncated). To move the database to the source types: "</span>
+            <span class="sa">f</span><span class="s2">"gh3_doctor -i </span><span class="si">{</span><span class="n">h3_dir</span><span class="si">}</span><span class="s2"> --check dtype_drift --fix"</span>
+        <span class="p">)</span>
 
     <span class="c1"># 2) Spatial tile set — replaces _apply_spatial_filter's isin branch.</span>
     <span class="n">spatial_h3_tiles</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
@@ -4598,6 +4688,49 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="n">updated_files</span> <span class="k">if</span> <span class="n">updated_files</span> <span class="k">else</span> <span class="kc">None</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_build_version</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">soc_source</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""GEDI release for a build called with ``version=None``.</span>
+
+<span class="sd">    Resolution order, all a-priori (no HDF5 open): the existing database's</span>
+<span class="sd">    build log ``gedi_version`` (an update must stay on its release) &gt;</span>
+<span class="sd">    :func:`gedih3.logger.resolve_soc_version` for a local SOC tree, or the</span>
+<span class="sd">    ``_V00N`` shared by every file of a pre-acquired list &gt;</span>
+<span class="sd">    ``GEDI_DEFAULT_VERSION``. Never a random file sample: a tree that holds</span>
+<span class="sd">    two releases side by side would make that a coin flip.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    h3_dir : str</span>
+<span class="sd">        Target database root; its build log, when present, is authoritative.</span>
+<span class="sd">    soc_source : str, list, or None</span>
+<span class="sd">        Local SOC directory, pre-acquired file list, or ``None`` (S3).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    int</span>
+<span class="sd">        The resolved release number.</span>
+<span class="sd">    """</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEDI_DEFAULT_VERSION</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_soc_version</span>
+    <span class="n">log_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">log_path</span><span class="p">):</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">json_read</span><span class="p">(</span><span class="n">log_path</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'gedi_version'</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">resolve_soc_version</span><span class="p">(</span><span class="n">soc_source</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="c1"># Filenames only (no stat): a single-release list pins itself; a mixed</span>
+        <span class="c1"># one falls through, and the version filter reports what it drops.</span>
+        <span class="n">releases</span> <span class="o">=</span> <span class="p">{</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">soc_source</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="n">m</span> <span class="o">:=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">r</span><span class="s1">'_V(\d</span><span class="si">{3}</span><span class="s1">)[^/]*\.h5$'</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s1">'path'</span><span class="p">,</span> <span class="n">p</span><span class="p">))))}</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">releases</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">releases</span><span class="o">.</span><span class="n">pop</span><span class="p">())</span>
+    <span class="k">return</span> <span class="n">GEDI_DEFAULT_VERSION</span>
+
+
 <div class="viewcode-block" id="build_h3db">
 <a class="viewcode-back" href="../../autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.build_h3db">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">build_h3db</span><span class="p">(</span>
@@ -4636,8 +4769,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        - ``str``: path to local directory containing GEDI SOC HDF5 files</span>
 <span class="sd">        - ``list``: pre-acquired list of file paths or EarthAccessFile objects</span>
 <span class="sd">    version : int or None</span>
-<span class="sd">        GEDI data version. If None, uses the package default (``GEDI_DEFAULT_VERSION``).</span>
-<span class="sd">        Also used to filter local files by version when soc_source is a directory.</span>
+<span class="sd">        GEDI data release for every product. ``None`` resolves via</span>
+<span class="sd">        :func:`_resolve_build_version` (build log &gt; SOC tree &gt; package</span>
+<span class="sd">        default). Every SOC listing is filtered to this release, so the</span>
+<span class="sd">        Stage 1 schema is derived from files of exactly that release.</span>
 <span class="sd">    tmp_dir : str</span>
 <span class="sd">        Path to temporary directory for intermediate files.</span>
 <span class="sd">    h3_dir : str</span>
@@ -4666,6 +4801,8 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># Validate parameters</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Validating build parameters"</span><span class="p">)</span>
     <span class="n">res</span><span class="p">,</span> <span class="n">part</span> <span class="o">=</span> <span class="n">validate_h3_params</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">part</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">version</span> <span class="o">=</span> <span class="n">_resolve_build_version</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">soc_source</span><span class="p">)</span>
 
     <span class="c1"># Track temp directory for S3 download cleanup</span>
     <span class="n">_s3_tmp_dir</span> <span class="o">=</span> <span class="kc">None</span>
@@ -4721,37 +4858,27 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
         <span class="c1"># Pre-acquired file list (local or EarthAccessFile)</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Using </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">soc_source</span><span class="p">)</span><span class="si">}</span><span class="s2"> pre-acquired source files"</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">before</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">soc_source</span><span class="p">)</span>
-            <span class="k">def</span><span class="w"> </span><span class="nf">_matches_version</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
-                <span class="k">try</span><span class="p">:</span>
-                    <span class="n">pp</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">path</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">EarthAccessFile</span><span class="p">)</span> <span class="k">else</span> <span class="n">p</span>
-                    <span class="k">return</span> <span class="n">GEDIFile</span><span class="p">(</span><span class="n">pp</span><span class="p">)</span><span class="o">.</span><span class="n">version</span> <span class="o">==</span> <span class="n">version</span>
-                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-                    <span class="k">return</span> <span class="kc">False</span>
-            <span class="n">soc_source</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">soc_source</span> <span class="k">if</span> <span class="n">_matches_version</span><span class="p">(</span><span class="n">p</span><span class="p">)]</span>
-            <span class="n">dropped</span> <span class="o">=</span> <span class="n">before</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">soc_source</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">dropped</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dropped </span><span class="si">{</span><span class="n">dropped</span><span class="si">}</span><span class="s2"> pre-acquired file(s) not matching version V</span><span class="si">{</span><span class="n">version</span><span class="si">:</span><span class="s2">03d</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">before</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">soc_source</span><span class="p">)</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">_matches_version</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">pp</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">path</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">EarthAccessFile</span><span class="p">)</span> <span class="k">else</span> <span class="n">p</span>
+                <span class="k">return</span> <span class="n">GEDIFile</span><span class="p">(</span><span class="n">pp</span><span class="p">)</span><span class="o">.</span><span class="n">version</span> <span class="o">==</span> <span class="n">version</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+        <span class="n">soc_source</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">soc_source</span> <span class="k">if</span> <span class="n">_matches_version</span><span class="p">(</span><span class="n">p</span><span class="p">)]</span>
+        <span class="n">dropped</span> <span class="o">=</span> <span class="n">before</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">soc_source</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">dropped</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dropped </span><span class="si">{</span><span class="n">dropped</span><span class="si">}</span><span class="s2"> pre-acquired file(s) not matching version V</span><span class="si">{</span><span class="n">version</span><span class="si">:</span><span class="s2">03d</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="n">all_soc_files</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">exclude</span><span class="p">)</span>
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
         <span class="c1"># Local directory mode (also used after S3 download to temp dir)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">soc_source</span><span class="p">):</span>
             <span class="k">raise</span> <span class="n">GediFileError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"SOC source directory not found: </span><span class="si">{</span><span class="n">soc_source</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-        <span class="c1"># Resolve version BEFORE listing so the glob filter excludes other</span>
-        <span class="c1"># versions and soc_file_tree's pivot key (orb_track, no version) cannot</span>
-        <span class="c1"># collide same-orbit granules across versions.</span>
-        <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">sample</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="s1">'**'</span><span class="p">,</span> <span class="s1">'GEDI*.h5'</span><span class="p">),</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)),</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">sample</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="k">try</span><span class="p">:</span>
-                    <span class="n">version</span> <span class="o">=</span> <span class="n">GEDIFile</span><span class="p">(</span><span class="n">sample</span><span class="p">)</span><span class="o">.</span><span class="n">version</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Auto-detected GEDI version V</span><span class="si">{</span><span class="n">version</span><span class="si">:</span><span class="s2">03d</span><span class="si">}</span><span class="s2"> from </span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">sample</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"Could not auto-detect GEDI version from sample file; listing without version filter"</span><span class="p">)</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Listing source SOC files"</span><span class="p">)</span>
-        <span class="n">glob_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'version'</span><span class="p">:</span> <span class="n">version</span><span class="p">}</span> <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
-        <span class="n">all_soc_files</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">glob_kwargs</span><span class="o">=</span><span class="n">glob_kwargs</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">exclude</span><span class="p">)</span>
+        <span class="c1"># Version is resolved at entry, so the glob filter always excludes</span>
+        <span class="c1"># other releases and soc_file_tree's pivot key (orb_track, no</span>
+        <span class="c1"># version) cannot collide same-orbit granules across releases.</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Listing source SOC files (GEDI release V</span><span class="si">{</span><span class="n">version</span><span class="si">:</span><span class="s2">03d</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
+        <span class="n">all_soc_files</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">glob_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s1">'version'</span><span class="p">:</span> <span class="n">version</span><span class="p">},</span> <span class="n">exclude</span><span class="o">=</span><span class="n">exclude</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid soc_source type: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">soc_source</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
