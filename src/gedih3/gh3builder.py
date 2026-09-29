@@ -1320,6 +1320,13 @@ def apply_merge_failures_to_logger(h3_logger, tmp_dir: str) -> int:
     """
     records = _read_merge_failed_granules(tmp_dir)
     if not records:
+        # Nothing parseable (empty, or one torn line from a kill mid-append):
+        # drop it, or it keeps ``_cleanup_merged_tmp`` from ever clearing
+        # tmp/partitions.
+        try:
+            os.unlink(os.path.join(tmp_dir, _MERGE_FAILED_GRANULES_FILENAME))
+        except OSError:
+            pass
         return 0
     flipped = 0
     for rec in records:
@@ -2910,16 +2917,20 @@ def _cleanup_merged_tmp(tmp_dir: str, merge_failed: bool) -> None:
     signal, and would turn the next update's ``gh3_build`` into a silent
     merge-only no-op.
 
-    Two tiers, each gated on O(1) signals the build already persisted:
+    Tiers, each gated on O(1) signals the build already persisted:
 
-    * any merge failed, or ``_merge_failed_granules.jsonl`` still awaits the
-      CLI fold into the build log → keep everything (the next resume needs
+    * any merge failed in this run → keep everything (the next resume needs
       the progress file, the unmerged fragments and the failure records);
     * merge clean → drop ``_merge_progress.txt`` first (a crash mid-cleanup
-      must not leave the one hazardous file behind), then — unless
-      ``_granule_failures.jsonl`` exists, which the end-of-build advisory and
-      ``gh3_doctor``'s ``tmp_partitions_health`` read — remove ``tmp_dir``
-      entirely.
+      must not leave the one hazardous file behind). It goes even when a
+      failure sidecar remains: every partition it lists is merged, and a
+      kept copy would also make the next merge skip those partitions' new
+      fragments;
+    * then keep the rest while ``_merge_failed_granules.jsonl`` awaits the
+      CLI fold into the build log, or ``_granule_failures.jsonl`` holds
+      Stage 1 forensics (read by the end-of-build advisory and
+      ``gh3_doctor``'s ``tmp_partitions_health``); otherwise remove
+      ``tmp_dir`` entirely.
 
     Parameters
     ----------
@@ -2930,7 +2941,7 @@ def _cleanup_merged_tmp(tmp_dir: str, merge_failed: bool) -> None:
     merge_failed : bool
         Whether any partition merge failed in this run.
     """
-    if merge_failed or os.path.exists(os.path.join(tmp_dir, _MERGE_FAILED_GRANULES_FILENAME)):
+    if merge_failed:
         logger.info(f"Keeping {tmp_dir} for resume: merge failures are pending recovery")
         return
     try:
@@ -2940,10 +2951,14 @@ def _cleanup_merged_tmp(tmp_dir: str, merge_failed: bool) -> None:
     except OSError as e:
         logger.warning(f"Could not remove stale merge progress file in {tmp_dir}: {e}")
         return
+    if os.path.exists(os.path.join(tmp_dir, _MERGE_FAILED_GRANULES_FILENAME)):
+        logger.info(f"Keeping {tmp_dir}: merge-failed granules await the build-log fold")
+        return
     if os.path.exists(os.path.join(tmp_dir, _GRANULE_FAILURES_FILENAME)):
         logger.info(
             f"Keeping {tmp_dir} for Stage 1 failure forensics "
-            f"(gh3_doctor --check tmp_partitions_health); delete it once reviewed"
+            f"(gh3_doctor -i <database> -t {tmp_dir} --check tmp_partitions_health); "
+            f"delete it once reviewed"
         )
         return
     logger.info(f"Cleaning up build scaffolding in {tmp_dir}")

@@ -302,9 +302,13 @@ class TestCleanupMergedTmp:
         assert os.path.isfile(os.path.join(parquet_dir, '_merge_progress.txt'))
         assert os.path.isdir(os.path.join(parquet_dir, 'h3_03=830001fffffffff'))
 
-    def test_unfolded_merge_failed_granules_keeps_everything(self, tmp_dir):
+    def test_unfolded_merge_failed_granules_keeps_sidecar_but_drops_progress(self, tmp_dir):
         """A merge-only resume after a crash: preclean dropped the sentinels,
-        but the granule flip-back sidecar still awaits the CLI fold."""
+        but the granule flip-back sidecar still awaits the CLI fold. The
+        sidecar stays for the fold; the progress file must not, or the next
+        update takes the L2 shortcut (and a library caller, which never folds,
+        would keep it forever and skip those partitions' new fragments)."""
+        from gedih3.cli.gh3_build import _detect_merge_resume_signal
         from gedih3.gh3builder import _cleanup_merged_tmp, _MERGE_FAILED_GRANULES_FILENAME
         parquet_dir = os.path.join(tmp_dir, 'partitions')
         _scaffold(parquet_dir)
@@ -315,7 +319,29 @@ class TestCleanupMergedTmp:
         _cleanup_merged_tmp(parquet_dir, merge_failed=False)
 
         assert os.path.isfile(sidecar)
-        assert os.path.isfile(os.path.join(parquet_dir, '_merge_progress.txt'))
+        assert not os.path.exists(os.path.join(parquet_dir, '_merge_progress.txt'))
+        log = types.SimpleNamespace(previous_status='COMPLETED', granule_info=[])
+        assert _detect_merge_resume_signal(log, parquet_dir) is None
+
+    def test_fold_drops_unparseable_sidecar(self, tmp_dir):
+        """A torn line (kill mid-append) parses to no records; the fold must
+        still remove it, or it pins tmp/partitions forever."""
+        from gedih3.gh3builder import (
+            _cleanup_merged_tmp, _MERGE_FAILED_GRANULES_FILENAME, apply_merge_failures_to_logger,
+        )
+        parquet_dir = os.path.join(tmp_dir, 'partitions')
+        _scaffold(parquet_dir)
+        sidecar = os.path.join(parquet_dir, _MERGE_FAILED_GRANULES_FILENAME)
+        with open(sidecar, 'w') as f:
+            f.write('{"orbit": 1, "gran')
+
+        _cleanup_merged_tmp(parquet_dir, merge_failed=False)
+        log = types.SimpleNamespace(granule_info=[{'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED'}])
+        assert apply_merge_failures_to_logger(log, parquet_dir) == 0
+        assert not os.path.exists(sidecar)
+
+        _cleanup_merged_tmp(parquet_dir, merge_failed=False)
+        assert not os.path.exists(parquet_dir)
 
     def test_granule_failures_keep_forensics_but_drop_progress(self, tmp_dir):
         from gedih3.gh3builder import _cleanup_merged_tmp, _GRANULE_FAILURES_FILENAME

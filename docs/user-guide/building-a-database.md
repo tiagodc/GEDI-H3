@@ -568,8 +568,9 @@ No separate recovery step is required. Stage 1 will print
 
 Once every partition has merged, `gh3_build` deletes `<tmpdir>/partitions/`
 itself. It is kept when a merge failed, since the next run resumes from it, and
-when Stage 1 recorded granule failures, so `gh3_doctor --check
-tmp_partitions_health` can report them. In that second case only the stale
+when Stage 1 recorded granule failures, so `gh3_doctor -i <database> -t
+<tmpdir>/partitions --check tmp_partitions_health` can report them. In that
+second case only the stale
 `_merge_progress.txt` is removed; delete the directory once you have reviewed
 the failures. Other files in `--tmpdir` are never touched.
 
