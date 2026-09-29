@@ -337,6 +337,22 @@ class TestAlignSchemaToDb:
         assert out.field('datetime').type == pa.timestamp('s')
         assert out.metadata == src.metadata
 
+    def test_offset_width_aligned_silently_and_null_never_a_target(self, tmp_dir):
+        """pandas 3 infers large_string where a pandas-2-built database stores
+        string: aligned (the database stays homogeneous) but not reported as
+        drift. A recorded ``null`` would fail every leaf cast, so it is skipped."""
+        from gedih3.config import BUILD_LOG_FILENAME
+        from gedih3.gh3builder import _align_schema_to_db
+        with open(os.path.join(tmp_dir, BUILD_LOG_FILENAME), 'w') as f:
+            json.dump({'h3_columns_dtypes': {'root_file_l2a': 'string', 'x': 'null'}}, f)
+        src = pa.schema([('root_file_l2a', pa.large_string()), ('x', pa.float32())])
+
+        out, drift = _align_schema_to_db(src, tmp_dir)
+
+        assert drift == {}
+        assert out.field('root_file_l2a').type == pa.string()
+        assert out.field('x').type == pa.float32()
+
     def test_fresh_build_is_noop(self, tmp_dir):
         from gedih3.gh3builder import _align_schema_to_db
         src = pa.schema([('a', pa.uint8())])
@@ -352,9 +368,11 @@ class TestMergeIncompleteStatus:
         _emit_merge_failure_sentinel(tmp_dir, os.path.join(tmp_dir, 'h3_03=b', 'year=2020'), ValueError('y'))
         assert _count_merge_failures(tmp_dir) == 2
 
-    def test_merge_incomplete_exits_with_database_error_code(self, tmp_dir):
+    def test_merge_incomplete_exits_with_database_error_code(self, tmp_dir, caplog):
         import logging
         from gedih3.cli.gh3_build import _exit_merge_incomplete
         with pytest.raises(SystemExit) as exc:
             _exit_merge_incomplete(3, tmp_dir, '/db', logging.getLogger('t'))
         assert exc.value.code == 4
+        # tmp_partitions_health has no default tmp dir: the recipe must name it.
+        assert f'-t {tmp_dir} --check tmp_partitions_health' in caplog.text
