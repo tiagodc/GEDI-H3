@@ -695,6 +695,49 @@ class TestH3ColumnsDtypesCache:
         # (here they match, but the union path is what matters).
         assert set(log.h3_columns) == {'shot_number', 'agbd_l4a'}
 
+    def test_set_post_build_info_records_majority_dtype(self, tmp_dir):
+        """A column stored in several dtypes records the one most partitions
+        hold, never the first partition scanned. Reproduced in production:
+        91 freshly merged uint8 cells, scanned first, made the log claim
+        uint8 for a column ~86k int32 files still stored as int32."""
+        import json as _json
+        import logging
+        from gedih3.logger import H3BuildLogger
+        from gedih3.config import BUILD_LOG_FILENAME, PARTITION_META_FILENAME
+
+        db_dir = os.path.join(tmp_dir, 'drift_db')
+        cells = [('83184afffffffff', 'uint8'), ('83184bfffffffff', 'int32'), ('83184cfffffffff', 'int32')]
+        for i, (cell, dtype) in enumerate(cells):
+            pdir = os.path.join(db_dir, f'h3_03={cell}')
+            os.makedirs(pdir, exist_ok=True)
+            with open(os.path.join(pdir, f'{cell}{PARTITION_META_FILENAME}'), 'w') as f:
+                _json.dump({
+                    'h3_partition': cell,
+                    'granules': [{'orbit': i + 1, 'granule': 1, 'track': 1}],
+                    'date_range': ['2020-01-01', '2020-01-31'],
+                    'columns': ['shot_number', 'worldcover_class_l4c'],
+                    'column_dtypes': {'shot_number': 'uint64', 'worldcover_class_l4c': dtype},
+                    'l2a_version': 3,
+                }, f)
+        with open(os.path.join(db_dir, BUILD_LOG_FILENAME), 'w') as f:
+            _json.dump({'gedi_version': 3, 'h3_resolution_level': 12, 'h3_partition_level': 3,
+                        'products': {'L4C': {'variables': ['worldcover_class']}}}, f)
+
+        log = H3BuildLogger(product_vars=None, dir=db_dir, version=3)
+        # gedih3 loggers set propagate=False; attach to the emitting logger.
+        records = []
+        handler = logging.Handler()
+        handler.emit = records.append
+        module_logger = logging.getLogger('gedih3.logger')
+        module_logger.addHandler(handler)
+        try:
+            log.set_post_build_info()
+        finally:
+            module_logger.removeHandler(handler)
+
+        assert log.h3_columns_dtypes['worldcover_class_l4c'] == 'int32'
+        assert any('more than one dtype' in r.getMessage() for r in records)
+
 
 # ===========================================================================
 # P1: DATA CORRECTNESS TESTS
