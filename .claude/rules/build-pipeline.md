@@ -48,8 +48,7 @@ mirroring the `gedi_version` check. A naked resume on a non-default DB is theref
 the only `version=None` fallback; `--gedi-version` applies to every product. Resolution
 order: explicit arg > build log `gedi_version` (resume; a contradicting arg raises) >
 `resolve_soc_version(soc_dir)` (download log, else first `_V00N` filename) > package default.
-Every SOC listing filters to that release — `soc_file_tree` raises on a mixed listing.
-The existing partition's dtypes win: Stage 1 aligns to `h3_columns_dtypes`, merges safe-cast.
+Listings pin it (`soc_file_tree` raises on a mix); updates align to `h3_columns_dtypes`.
 
 ## Merge-failure recovery
 
