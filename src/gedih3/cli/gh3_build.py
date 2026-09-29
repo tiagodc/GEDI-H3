@@ -207,7 +207,7 @@ def _exit_merge_incomplete(n_failed, parquet_dir, h3_dir, logger):
         f"{n_failed} partition merge(s) failed: their new data is kept in {parquet_dir} and is NOT in "
         f"the database yet. Fix the cause shown in the 'Merge failed' lines above, then re-run the "
         f"same gh3_build command to retry only the merge. Details: "
-        f"gh3_doctor -i {h3_dir} --check tmp_partitions_health"
+        f"gh3_doctor -i {h3_dir} -t {parquet_dir} --check tmp_partitions_health"
     )
     import sys
     sys.exit(4)

@@ -1592,6 +1592,17 @@ def _parquet_storage_type(arrow_type):
     return arrow_type
 
 
+# Arrow offset width is a representation, not a value type: pandas 3 infers
+# ``large_string`` where pandas 2 inferred ``string`` (both are supported), and
+# Parquet stores both as the same UTF8 byte array.
+_OFFSET_WIDTH_TWINS = {'large_string': 'string', 'large_binary': 'binary'}
+
+
+def _same_value_type(a: str, b: str) -> bool:
+    """Whether two stored dtype strings hold the same values, offset width aside."""
+    return _OFFSET_WIDTH_TWINS.get(a, a) == _OFFSET_WIDTH_TWINS.get(b, b)
+
+
 def _align_schema_to_db(schema, h3_dir: str):
     """Retype *schema* fields to the dtypes the existing database records.
 
@@ -1616,7 +1627,10 @@ def _align_schema_to_db(schema, h3_dir: str):
     -------
     tuple of (pyarrow.Schema, dict)
         The aligned schema (metadata preserved) and ``{column: (source, db)}``
-        for every retyped column.
+        for every retyped column whose values differ in type. An offset-width
+        difference alone (``large_string`` vs ``string``) is aligned but not
+        reported. A recorded ``null`` is never a target: real values cannot
+        cast to it, so every leaf write would fail.
     """
     import pyarrow as pa
 
@@ -1627,14 +1641,16 @@ def _align_schema_to_db(schema, h3_dir: str):
     drift = {}
     for i, field in enumerate(schema):
         db_type = db_dtypes.get(field.name)
-        if db_type is None or str(_parquet_storage_type(field.type)) == db_type:
+        src_type = str(_parquet_storage_type(field.type))
+        if db_type in (None, 'null', src_type):
             continue
         try:
             target = pa.type_for_alias(db_type)
         except (ValueError, KeyError):
             continue
-        drift[field.name] = (str(field.type), db_type)
         schema = schema.set(i, field.with_type(target))
+        if not _same_value_type(src_type, db_type):
+            drift[field.name] = (str(field.type), db_type)
     return schema, drift
 
 
@@ -3782,7 +3798,8 @@ def _resolve_build_version(h3_dir: str, soc_source=None) -> int:
 
     Resolution order, all a-priori (no HDF5 open): the existing database's
     build log ``gedi_version`` (an update must stay on its release) >
-    :func:`gedih3.logger.resolve_soc_version` for a local SOC tree >
+    :func:`gedih3.logger.resolve_soc_version` for a local SOC tree, or the
+    ``_V00N`` shared by every file of a pre-acquired list >
     ``GEDI_DEFAULT_VERSION``. Never a random file sample: a tree that holds
     two releases side by side would make that a coin flip.
 
@@ -3809,6 +3826,13 @@ def _resolve_build_version(h3_dir: str, soc_source=None) -> int:
         v = resolve_soc_version(soc_source)
         if v is not None:
             return int(v)
+    elif isinstance(soc_source, list):
+        # Filenames only (no stat): a single-release list pins itself; a mixed
+        # one falls through, and the version filter reports what it drops.
+        releases = {m.group(1) for p in soc_source
+                    if (m := re.search(r'_V(\d{3})[^/]*\.h5$', str(getattr(p, 'path', p))))}
+        if len(releases) == 1:
+            return int(releases.pop())
     return GEDI_DEFAULT_VERSION
 
 

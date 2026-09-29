@@ -736,6 +736,17 @@ def test_resolve_build_version_falls_back_to_package_default(tmp_path):
     assert _resolve_build_version(str(tmp_path / 'no_db'), None) == GEDI_DEFAULT_VERSION
 
 
+def test_resolve_build_version_from_single_release_file_list(tmp_path, soc_tree_two_releases):
+    """A pre-acquired list pins its own release; before, version=None let the
+    package default filter drop every file of a V002-only list."""
+    from gedih3.config import GEDI_DEFAULT_VERSION
+    from gedih3.gh3builder import _resolve_build_version
+    paths = [os.path.join(soc_tree_two_releases, n) for n in _MIXED_RELEASE_NAMES]
+    no_db = str(tmp_path / 'no_db')
+    assert _resolve_build_version(no_db, [p for p in paths if p.endswith('_V002.h5')]) == 2
+    assert _resolve_build_version(no_db, paths) == GEDI_DEFAULT_VERSION
+
+
 def test_has_new_local_granules_ignores_other_release(soc_tree_two_releases):
     import types
     from gedih3.cli.gh3_build import _has_new_local_granules
