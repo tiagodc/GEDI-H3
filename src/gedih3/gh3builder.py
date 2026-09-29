@@ -1323,6 +1323,13 @@ def apply_merge_failures_to_logger(h3_logger, tmp_dir: str) -> int:
     """
     records = _read_merge_failed_granules(tmp_dir)
     if not records:
+        # Nothing parseable (empty, or one torn line from a kill mid-append):
+        # drop it, or it keeps ``_cleanup_merged_tmp`` from ever clearing
+        # tmp/partitions.
+        try:
+            os.unlink(os.path.join(tmp_dir, _MERGE_FAILED_GRANULES_FILENAME))
+        except OSError:
+            pass
         return 0
     flipped = 0
     for rec in records:
@@ -2932,6 +2939,124 @@ def _write_partitioned(
         return False
 
 
+# Below this many entries a single driver-side ``shutil.rmtree`` is cheaper
+# than dispatching; above it (e.g. one ``_complete/`` sentinel per
+# granule × beam at continental scale) the removals fan out across workers.
+_REMOVE_FANOUT_MIN_ENTRIES = 10000
+
+
+def _remove_path(path):
+    """Worker: best-effort removal of one file or directory tree. Picklable
+    top-level fn for parallel cleanup of large sentinel/fragment sets via
+    ``parallel_map``. Idempotent — a missing path is success (already
+    cleaned). Returns the error string on failure, ``None`` otherwise."""
+    try:
+        if os.path.isdir(path) and not os.path.islink(path):
+            shutil.rmtree(path)
+        else:
+            os.unlink(path)
+    except FileNotFoundError:
+        pass
+    except OSError as e:
+        return f"{type(e).__name__}: {e}"
+    return None
+
+
+def _remove_tree_fanout(root: str, desc: str) -> None:
+    """Remove ``root`` and everything under it without a serial driver sweep.
+
+    One ``os.scandir`` of ``root`` (a single readdir), then — when it holds at
+    least ``_REMOVE_FANOUT_MIN_ENTRIES`` entries and a dask Client is
+    registered — each entry is removed on a worker via :func:`_remove_path`
+    in batches, and the emptied ``root`` last. Narrow trees, or no Client,
+    take a plain ``shutil.rmtree``. Best-effort: failures are logged as a
+    WARNING and never raised — cleanup must not fail a finished build.
+
+    Parameters
+    ----------
+    root : str
+        Directory to remove. A missing directory is a no-op.
+    desc : str
+        Label for the ``parallel_map`` dispatch log line.
+    """
+    if not os.path.isdir(root):
+        return
+    try:
+        entries = [e.path for e in os.scandir(root)]
+        if len(entries) >= _REMOVE_FANOUT_MIN_ENTRIES and get_dask_client() is not None:
+            from .parallel import parallel_map
+            for path, err in parallel_map(entries, _remove_path, desc=desc,
+                                          unit='entry', batch_size=2000):
+                if err:
+                    logger.debug(f"Could not remove {path}: {err}")
+        shutil.rmtree(root)
+    except Exception as e:
+        logger.warning(f"Could not clean up {root}: {type(e).__name__}: {e}")
+
+
+def _cleanup_merged_tmp(tmp_dir: str, merge_failed: bool) -> None:
+    """Drop the Stage 1 scaffolding under ``tmp_dir`` once a merge succeeded.
+
+    Every successful ``h3_merge_files`` already deleted its fragment dir
+    (``rm_src=True``), so what remains is resume/forensics scaffolding:
+    ``_merge_progress.txt``, one ``_complete/`` sentinel per granule × beam,
+    the emptied ``h3_*`` dirs, and the failure sidecars. Once every partition
+    is merged the finalized partition metadata is the resume record
+    (reconcile Pass A), so none of it is needed — and a stale
+    ``_merge_progress.txt`` is actively harmful: it is the L2 merge-resume
+    signal, and would turn the next update's ``gh3_build`` into a silent
+    merge-only no-op.
+
+    Tiers, each gated on O(1) signals the build already persisted:
+
+    * any merge failed in this run → keep everything (the next resume needs
+      the progress file, the unmerged fragments and the failure records);
+    * merge clean → drop ``_merge_progress.txt`` first (a crash mid-cleanup
+      must not leave the one hazardous file behind). It goes even when a
+      failure sidecar remains: every partition it lists is merged, and a
+      kept copy would also make the next merge skip those partitions' new
+      fragments;
+    * then keep the rest while ``_merge_failed_granules.jsonl`` awaits the
+      CLI fold into the build log, or ``_granule_failures.jsonl`` holds
+      Stage 1 forensics (read by the end-of-build advisory and
+      ``gh3_doctor``'s ``tmp_partitions_health``); otherwise remove
+      ``tmp_dir`` entirely.
+
+    Parameters
+    ----------
+    tmp_dir : str
+        The Stage 1 partitions directory (``<build tmp>/partitions``). Only
+        this directory is touched — never its parent, which may be a
+        user-supplied ``--tmpdir`` holding unrelated files.
+    merge_failed : bool
+        Whether any partition merge failed in this run.
+    """
+    if merge_failed:
+        logger.info(f"Keeping {tmp_dir} for resume: merge failures are pending recovery")
+        return
+    try:
+        os.unlink(os.path.join(tmp_dir, '_merge_progress.txt'))
+    except FileNotFoundError:
+        pass
+    except OSError as e:
+        logger.warning(f"Could not remove stale merge progress file in {tmp_dir}: {e}")
+        return
+    if os.path.exists(os.path.join(tmp_dir, _MERGE_FAILED_GRANULES_FILENAME)):
+        logger.info(f"Keeping {tmp_dir}: merge-failed granules await the build-log fold")
+        return
+    if os.path.exists(os.path.join(tmp_dir, _GRANULE_FAILURES_FILENAME)):
+        logger.info(
+            f"Keeping {tmp_dir} for Stage 1 failure forensics "
+            f"(gh3_doctor -i <database> -t {tmp_dir} --check tmp_partitions_health); "
+            f"delete it once reviewed"
+        )
+        return
+    logger.info(f"Cleaning up build scaffolding in {tmp_dir}")
+    _remove_tree_fanout(os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME),
+                        desc="Cleaning completion sentinels")
+    _remove_tree_fanout(tmp_dir, desc="Cleaning tmp partitions")
+
+
 def _merge_and_finalize(
     tmp_dir: str,
     h3_dir: str
@@ -2940,7 +3065,9 @@ def _merge_and_finalize(
     Merge temporary partitioned files into the final H3 database.
 
     Tracks progress via an append-only ``_merge_progress.txt`` file in
-    ``tmp_dir``. On resume, already-merged partitions are skipped.
+    ``tmp_dir``. On resume, already-merged partitions are skipped. When every
+    partition merged, ``tmp_dir`` is cleaned up before returning — see
+    :func:`_cleanup_merged_tmp` for what is kept, and when.
 
     Parameters
     ----------
@@ -3020,6 +3147,7 @@ def _merge_and_finalize(
 
     remaining_dirs = [d for d in tmp_h3_dirs if d.rstrip('/') not in merged_parts]
 
+    failed_count = 0
     if not remaining_dirs:
         logger.info("All partitions already merged (resume)")
     else:
@@ -3045,7 +3173,6 @@ def _merge_and_finalize(
         futures: Dict[Any, str] = dict(zip(futures_list, remaining_dirs))
 
         merged_count = 0
-        failed_count = 0
         pbar = tqdm_bar(total=len(remaining_dirs), desc="Merging partitions", unit="part")
 
         # Incremental manifest refresh: at continental scale the merge
@@ -3162,6 +3289,10 @@ def _merge_and_finalize(
     # write — so nothing here can bump the root dir mtime after this.)
     logger.info("Generating file manifest")
     generate_manifest(h3_dir, tree_shape='h3db')
+
+    # Last: h3_files was derived from _merge_progress.txt above, and the
+    # cleanup deletes it.
+    _cleanup_merged_tmp(tmp_dir, merge_failed=failed_count > 0)
 
     return h3_files
 
@@ -3350,19 +3481,6 @@ def _var_fan_granule(task, *, new_product_vars, tmp_dir):
 
     _emit_var_fan_sentinel(tmp_dir, granule_key)
     return {'granule': granule_key, 'fragments': n_frag}
-
-
-def _unlink_path(path):
-    """Worker: best-effort unlink of one file. Picklable top-level fn for
-    parallel cleanup of large sentinel/fragment sets via ``parallel_map``.
-    Idempotent — a missing file is success (already cleaned)."""
-    try:
-        os.unlink(path)
-    except FileNotFoundError:
-        pass
-    except OSError as e:
-        return f"{type(e).__name__}: {e}"
-    return None
 
 
 def _var_merge_cell_year(year_pf, *, tmp_dir):
@@ -3766,23 +3884,8 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
                 shutil.rmtree(frag_root)  # empty after per-merge rm_src — cheap
             except OSError as e:
                 logger.warning(f"Could not clean up {frag_root}: {e}")
-        fan_dir = os.path.join(tmp_dir, _VAR_FAN_COMPLETE_DIRNAME)
-        if os.path.isdir(fan_dir):
-            try:
-                sentinels = [os.path.join(fan_dir, e.name)
-                             for e in os.scandir(fan_dir) if e.is_file()]
-                if len(sentinels) > 10000:
-                    # Parallel unlink across the cluster — the same anti-
-                    # serial-rmtree fix as the per-merge fragment drop.
-                    for _ in parallel_map(sentinels, _unlink_path,
-                                          desc="Cleaning fan sentinels",
-                                          unit="file", batch_size=2000):
-                        pass
-                    shutil.rmtree(fan_dir, ignore_errors=True)
-                else:
-                    shutil.rmtree(fan_dir)
-            except Exception as e:
-                logger.warning(f"Could not clean up {fan_dir}: {e}")
+        _remove_tree_fanout(os.path.join(tmp_dir, _VAR_FAN_COMPLETE_DIRNAME),
+                            desc="Cleaning fan sentinels")
         p = os.path.join(tmp_dir, _VAR_MERGE_PROGRESS_FILENAME)
         try:
             if os.path.exists(p):

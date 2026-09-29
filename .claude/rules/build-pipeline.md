@@ -112,11 +112,12 @@ by recomputing H3 from the new product's coordinates. `parquet_join_columns` wri
 `.join.tmp` + `os.replace` and filters columns already present, so re-running against a
 partially-updated year file never duplicates columns.
 
-## Backfilling into a completed build
+## Post-merge tmp cleanup
 
-A resume on a `COMPLETED` build takes a merge-only shortcut and will silently no-op.
-Delete `tmp/partitions/_merge_progress.txt` first; keep the `_complete/` sentinels. Verify
-the resume did real work by checking the `Streaming write: … skipped_by_resume` line.
+A stale `_merge_progress.txt` is the L2 merge-resume signal and turns the next update into
+a silent no-op, so `_merge_and_finalize` ends with `_cleanup_merged_tmp` (tiers in its
+docstring). A new tmp artifact must fit one of its tiers. Trees from older builds: delete
+`_merge_progress.txt` by hand before backfilling, then check `skipped_by_resume`.
 
 ## Pre-flight validation
 
