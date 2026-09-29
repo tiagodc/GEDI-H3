@@ -1592,6 +1592,52 @@ def _parquet_storage_type(arrow_type):
     return arrow_type
 
 
+def _stage1_write_schema(ddf, lat_col: str, lon_col: str, dat_col: str, part: int):
+    """The pyarrow schema Stage 1 writes every leaf in, from a source ddf's meta.
+
+    Applies the same transforms the streaming worker applies to data
+    (special columns, ``year``) to the row-less meta, then
+    :func:`_canonical_write_schema`. Single source of truth for "what a build
+    writes", shared by the build and :func:`_source_write_schema`.
+    """
+    meta = ddf._meta.copy()
+    meta = add_special_columns(meta, lon_col=lon_col, lat_col=lat_col, dat_col=dat_col)
+    if 'datetime' in meta.columns:
+        meta = meta.assign(year=meta['datetime'].dt.year.astype('int32'))
+    return _canonical_write_schema(meta, part=part)
+
+
+def _source_write_schema(soc_dict: Dict[str, str], product_vars: Dict[str, List[str]],
+                         res: int, part: int, version: int):
+    """Stage 1 write schema for one source granule, exactly as a build derives it.
+
+    Used to answer "which dtypes would ``gh3_build`` write for this release"
+    without building anything: one granule goes through the build's own
+    variable expansion, meta inference (one HDF5 read on the driver) and
+    :func:`_stage1_write_schema`.
+
+    Parameters
+    ----------
+    soc_dict : dict
+        ``{product: hdf5_path}`` for one granule, all of release ``version``.
+    product_vars : dict
+        Products and variables as recorded in the build log.
+    res, part : int
+        H3 index and partition levels of the database.
+    version : int
+        GEDI release of the database (and of ``soc_dict``).
+
+    Returns
+    -------
+    pyarrow.Schema
+    """
+    import copy
+    pv = _expand_product_vars(copy.deepcopy(product_vars), [soc_dict], version=version)
+    soc = {p: f for p, f in soc_dict.items() if p in pv}
+    ddf, lat_col, lon_col, dat_col, _ = _create_h3_dataframe([soc], pv, res, part)
+    return _stage1_write_schema(ddf, lat_col, lon_col, dat_col, part)
+
+
 def _align_schema_to_db(schema, h3_dir: str):
     """Retype *schema* fields to the dtypes the existing database records.
 
@@ -2597,11 +2643,7 @@ def _write_partitioned_streaming(
     # 1) Canonical schema — apply the streaming-side transforms to the
     #    ddf._meta and let _canonical_write_schema produce the pyarrow
     #    schema we'll cast each leaf to. Locks column order + dtypes.
-    meta = ddf._meta.copy()
-    meta = add_special_columns(meta, lon_col=lon_col, lat_col=lat_col, dat_col=dat_col)
-    if 'datetime' in meta.columns:
-        meta = meta.assign(year=meta['datetime'].dt.year.astype('int32'))
-    canonical_schema = _canonical_write_schema(meta, part=part)
+    canonical_schema = _stage1_write_schema(ddf, lat_col, lon_col, dat_col, part)
     canonical_schema, dtype_drift = _align_schema_to_db(canonical_schema, h3_dir)
     if dtype_drift:
         cols = ', '.join(f"{c} (source {a}, database {b})" for c, (a, b) in sorted(dtype_drift.items()))

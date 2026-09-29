@@ -1793,6 +1793,78 @@ def parquet_backfill_bbox(path):
     return 'rewritten'
 
 
+def parquet_cast_columns(path, targets):
+    """Rewrite one parquet file in place with some columns retyped.
+
+    Streams one row group at a time (memory bounded by the file's row-group
+    size, row-group layout preserved) and casts with ``safe=True``: every
+    value survives or the call raises and the file is left untouched. The
+    GeoParquet ``geo`` metadata (bbox included) is carried over verbatim; the
+    ``pandas`` metadata entries of retyped numeric columns are updated so a
+    pandas round-trip reports the new dtype. Written through
+    :class:`AtomicFileWriter`.
+
+    Parameters
+    ----------
+    path : str
+        Parquet file to rewrite.
+    targets : dict
+        ``{column: arrow_type_alias}`` (e.g. ``{'worldcover_class_l4c': 'uint8'}``).
+        Columns absent from the file, or already of the target type, are ignored.
+
+    Returns
+    -------
+    str
+        ``'rewritten'`` when at least one column changed type, ``'ok'`` when
+        nothing needed casting (no write).
+
+    Raises
+    ------
+    pyarrow.ArrowInvalid
+        A value does not fit the target type (the file is not modified).
+    """
+    import json
+    import numpy as np
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    pf = pq.ParquetFile(path)
+    schema = pf.schema_arrow
+    new_schema = schema
+    changed = {}
+    for name, alias in targets.items():
+        if name not in schema.names:
+            continue
+        target = pa.type_for_alias(alias)
+        if schema.field(name).type == target:
+            continue
+        new_schema = new_schema.set(new_schema.get_field_index(name), schema.field(name).with_type(target))
+        changed[name] = target
+    if not changed:
+        return 'ok'
+
+    md = dict(new_schema.metadata or {})
+    if b'pandas' in md:
+        pmeta = json.loads(md[b'pandas'])
+        for col in pmeta.get('columns', []):
+            target = changed.get(col.get('name'))
+            if target is not None and (pa.types.is_integer(target) or pa.types.is_floating(target)
+                                       or pa.types.is_boolean(target)):
+                col['numpy_type'] = col['pandas_type'] = str(np.dtype(target.to_pandas_dtype()))
+        md[b'pandas'] = json.dumps(pmeta).encode('utf-8')
+        new_schema = new_schema.with_metadata(md)
+
+    with AtomicFileWriter(path) as tmp_path:
+        writer = pq.ParquetWriter(tmp_path, new_schema, compression='zstd')
+        try:
+            for i in range(pf.num_row_groups):
+                writer.write_table(pf.read_row_group(i).cast(new_schema, safe=True))
+        finally:
+            writer.close()
+            del pf
+    return 'rewritten'
+
+
 def _iter_batches_with_path(batch_iter, path):
     """Wrap a pyarrow ``iter_batches`` generator and re-raise any exception
     with the source file ``path`` appended to the message.
