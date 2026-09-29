@@ -2402,6 +2402,52 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="n">_OFFSET_WIDTH_TWINS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">a</span><span class="p">)</span> <span class="o">==</span> <span class="n">_OFFSET_WIDTH_TWINS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_stage1_write_schema</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">lat_col</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">lon_col</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">dat_col</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">part</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""The pyarrow schema Stage 1 writes every leaf in, from a source ddf's meta.</span>
+
+<span class="sd">    Applies the same transforms the streaming worker applies to data</span>
+<span class="sd">    (special columns, ``year``) to the row-less meta, then</span>
+<span class="sd">    :func:`_canonical_write_schema`. Single source of truth for "what a build</span>
+<span class="sd">    writes", shared by the build and :func:`_source_write_schema`.</span>
+<span class="sd">    """</span>
+    <span class="n">meta</span> <span class="o">=</span> <span class="n">ddf</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">meta</span> <span class="o">=</span> <span class="n">add_special_columns</span><span class="p">(</span><span class="n">meta</span><span class="p">,</span> <span class="n">lon_col</span><span class="o">=</span><span class="n">lon_col</span><span class="p">,</span> <span class="n">lat_col</span><span class="o">=</span><span class="n">lat_col</span><span class="p">,</span> <span class="n">dat_col</span><span class="o">=</span><span class="n">dat_col</span><span class="p">)</span>
+    <span class="k">if</span> <span class="s1">'datetime'</span> <span class="ow">in</span> <span class="n">meta</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">year</span><span class="o">=</span><span class="n">meta</span><span class="p">[</span><span class="s1">'datetime'</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">year</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">'int32'</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">_canonical_write_schema</span><span class="p">(</span><span class="n">meta</span><span class="p">,</span> <span class="n">part</span><span class="o">=</span><span class="n">part</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_source_write_schema</span><span class="p">(</span><span class="n">soc_dict</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">product_vars</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span>
+                         <span class="n">res</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">part</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">version</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Stage 1 write schema for one source granule, exactly as a build derives it.</span>
+
+<span class="sd">    Used to answer "which dtypes would ``gh3_build`` write for this release"</span>
+<span class="sd">    without building anything: one granule goes through the build's own</span>
+<span class="sd">    variable expansion, meta inference (one HDF5 read on the driver) and</span>
+<span class="sd">    :func:`_stage1_write_schema`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    soc_dict : dict</span>
+<span class="sd">        ``{product: hdf5_path}`` for one granule, all of release ``version``.</span>
+<span class="sd">    product_vars : dict</span>
+<span class="sd">        Products and variables as recorded in the build log.</span>
+<span class="sd">    res, part : int</span>
+<span class="sd">        H3 index and partition levels of the database.</span>
+<span class="sd">    version : int</span>
+<span class="sd">        GEDI release of the database (and of ``soc_dict``).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    pyarrow.Schema</span>
+<span class="sd">    """</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+    <span class="n">pv</span> <span class="o">=</span> <span class="n">_expand_product_vars</span><span class="p">(</span><span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">product_vars</span><span class="p">),</span> <span class="p">[</span><span class="n">soc_dict</span><span class="p">],</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">)</span>
+    <span class="n">soc</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="n">f</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">soc_dict</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">pv</span><span class="p">}</span>
+    <span class="n">ddf</span><span class="p">,</span> <span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="p">,</span> <span class="n">dat_col</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_create_h3_dataframe</span><span class="p">([</span><span class="n">soc</span><span class="p">],</span> <span class="n">pv</span><span class="p">,</span> <span class="n">res</span><span class="p">,</span> <span class="n">part</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">_stage1_write_schema</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="p">,</span> <span class="n">dat_col</span><span class="p">,</span> <span class="n">part</span><span class="p">)</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_align_schema_to_db</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Retype *schema* fields to the dtypes the existing database records.</span>
 
@@ -3412,11 +3458,7 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># 1) Canonical schema — apply the streaming-side transforms to the</span>
     <span class="c1">#    ddf._meta and let _canonical_write_schema produce the pyarrow</span>
     <span class="c1">#    schema we'll cast each leaf to. Locks column order + dtypes.</span>
-    <span class="n">meta</span> <span class="o">=</span> <span class="n">ddf</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-    <span class="n">meta</span> <span class="o">=</span> <span class="n">add_special_columns</span><span class="p">(</span><span class="n">meta</span><span class="p">,</span> <span class="n">lon_col</span><span class="o">=</span><span class="n">lon_col</span><span class="p">,</span> <span class="n">lat_col</span><span class="o">=</span><span class="n">lat_col</span><span class="p">,</span> <span class="n">dat_col</span><span class="o">=</span><span class="n">dat_col</span><span class="p">)</span>
-    <span class="k">if</span> <span class="s1">'datetime'</span> <span class="ow">in</span> <span class="n">meta</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
-        <span class="n">meta</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">assign</span><span class="p">(</span><span class="n">year</span><span class="o">=</span><span class="n">meta</span><span class="p">[</span><span class="s1">'datetime'</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">year</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">'int32'</span><span class="p">))</span>
-    <span class="n">canonical_schema</span> <span class="o">=</span> <span class="n">_canonical_write_schema</span><span class="p">(</span><span class="n">meta</span><span class="p">,</span> <span class="n">part</span><span class="o">=</span><span class="n">part</span><span class="p">)</span>
+    <span class="n">canonical_schema</span> <span class="o">=</span> <span class="n">_stage1_write_schema</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="p">,</span> <span class="n">dat_col</span><span class="p">,</span> <span class="n">part</span><span class="p">)</span>
     <span class="n">canonical_schema</span><span class="p">,</span> <span class="n">dtype_drift</span> <span class="o">=</span> <span class="n">_align_schema_to_db</span><span class="p">(</span><span class="n">canonical_schema</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">dtype_drift</span><span class="p">:</span>
         <span class="n">cols</span> <span class="o">=</span> <span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2"> (source </span><span class="si">{</span><span class="n">a</span><span class="si">}</span><span class="s2">, database </span><span class="si">{</span><span class="n">b</span><span class="si">}</span><span class="s2">)"</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">dtype_drift</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>

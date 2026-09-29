@@ -2693,6 +2693,95 @@ window.runMermaid = runMermaid;</script>
 
 
 
+<div class="viewcode-block" id="parquet_cast_columns">
+<a class="viewcode-back" href="../../autoapi/gedih3/utils/index.html#gedih3.utils.parquet_cast_columns">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">parquet_cast_columns</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">targets</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Rewrite one parquet file in place with some columns retyped.</span>
+
+<span class="sd">    Streams one row group at a time (memory bounded by the file's row-group</span>
+<span class="sd">    size, row-group layout preserved) and casts with ``safe=True``: every</span>
+<span class="sd">    value survives or the call raises and the file is left untouched. The</span>
+<span class="sd">    GeoParquet ``geo`` metadata (bbox included) is carried over verbatim; the</span>
+<span class="sd">    ``pandas`` metadata entries of retyped numeric columns are updated so a</span>
+<span class="sd">    pandas round-trip reports the new dtype. Written through</span>
+<span class="sd">    :class:`AtomicFileWriter`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    path : str</span>
+<span class="sd">        Parquet file to rewrite.</span>
+<span class="sd">    targets : dict</span>
+<span class="sd">        ``{column: arrow_type_alias}`` (e.g. ``{'worldcover_class_l4c': 'uint8'}``).</span>
+<span class="sd">        Columns absent from the file, or already of the target type, are ignored.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    str</span>
+<span class="sd">        ``'rewritten'`` when at least one column changed type, ``'ok'`` when</span>
+<span class="sd">        nothing needed casting (no write).</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    pyarrow.ArrowInvalid</span>
+<span class="sd">        A value does not fit the target type (the file is not modified).</span>
+<span class="sd">    """</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+
+    <span class="n">pf</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetFile</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="n">schema</span> <span class="o">=</span> <span class="n">pf</span><span class="o">.</span><span class="n">schema_arrow</span>
+    <span class="n">new_schema</span> <span class="o">=</span> <span class="n">schema</span>
+    <span class="n">changed</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">alias</span> <span class="ow">in</span> <span class="n">targets</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">schema</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="n">pa</span><span class="o">.</span><span class="n">type_for_alias</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="n">target</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">new_schema</span> <span class="o">=</span> <span class="n">new_schema</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">new_schema</span><span class="o">.</span><span class="n">get_field_index</span><span class="p">(</span><span class="n">name</span><span class="p">),</span> <span class="n">schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">with_type</span><span class="p">(</span><span class="n">target</span><span class="p">))</span>
+        <span class="n">changed</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">target</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">changed</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s1">'ok'</span>
+
+    <span class="n">md</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">new_schema</span><span class="o">.</span><span class="n">metadata</span> <span class="ow">or</span> <span class="p">{})</span>
+    <span class="k">if</span> <span class="sa">b</span><span class="s1">'pandas'</span> <span class="ow">in</span> <span class="n">md</span><span class="p">:</span>
+        <span class="n">pmeta</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">md</span><span class="p">[</span><span class="sa">b</span><span class="s1">'pandas'</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">pmeta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'columns'</span><span class="p">,</span> <span class="p">[]):</span>
+            <span class="n">target</span> <span class="o">=</span> <span class="n">changed</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'name'</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">target</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">is_integer</span><span class="p">(</span><span class="n">target</span><span class="p">)</span> <span class="ow">or</span> <span class="n">pa</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">is_floating</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+                                       <span class="ow">or</span> <span class="n">pa</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">is_boolean</span><span class="p">(</span><span class="n">target</span><span class="p">)):</span>
+                <span class="n">np_name</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">target</span><span class="o">.</span><span class="n">to_pandas_dtype</span><span class="p">()))</span>
+                <span class="n">col</span><span class="p">[</span><span class="s1">'pandas_type'</span><span class="p">]</span> <span class="o">=</span> <span class="n">np_name</span>
+                <span class="c1"># A nullable extension dtype (Int32, Float32, boolean) stays</span>
+                <span class="c1"># nullable at the new width: as plain numpy, nulls read back</span>
+                <span class="c1"># as NaN in a float column.</span>
+                <span class="n">numpy_type</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'numpy_type'</span><span class="p">,</span> <span class="s1">''</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">numpy_type</span><span class="p">[:</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">isupper</span><span class="p">()</span> <span class="ow">or</span> <span class="n">numpy_type</span> <span class="o">==</span> <span class="s1">'boolean'</span><span class="p">:</span>
+                    <span class="n">ext</span> <span class="o">=</span> <span class="s1">'boolean'</span> <span class="k">if</span> <span class="n">np_name</span> <span class="o">==</span> <span class="s1">'bool'</span> <span class="k">else</span> <span class="n">np_name</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">'Uint'</span><span class="p">,</span> <span class="s1">'UInt'</span><span class="p">)</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">pd</span><span class="o">.</span><span class="n">api</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">pandas_dtype</span><span class="p">(</span><span class="n">ext</span><span class="p">)</span>
+                        <span class="n">np_name</span> <span class="o">=</span> <span class="n">ext</span>
+                    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                        <span class="k">pass</span>
+                <span class="n">col</span><span class="p">[</span><span class="s1">'numpy_type'</span><span class="p">]</span> <span class="o">=</span> <span class="n">np_name</span>
+        <span class="n">md</span><span class="p">[</span><span class="sa">b</span><span class="s1">'pandas'</span><span class="p">]</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">pmeta</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">'utf-8'</span><span class="p">)</span>
+        <span class="n">new_schema</span> <span class="o">=</span> <span class="n">new_schema</span><span class="o">.</span><span class="n">with_metadata</span><span class="p">(</span><span class="n">md</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">AtomicFileWriter</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">as</span> <span class="n">tmp_path</span><span class="p">:</span>
+        <span class="n">writer</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetWriter</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="n">new_schema</span><span class="p">,</span> <span class="n">compression</span><span class="o">=</span><span class="s1">'zstd'</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">pf</span><span class="o">.</span><span class="n">num_row_groups</span><span class="p">):</span>
+                <span class="n">writer</span><span class="o">.</span><span class="n">write_table</span><span class="p">(</span><span class="n">pf</span><span class="o">.</span><span class="n">read_row_group</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">new_schema</span><span class="p">,</span> <span class="n">safe</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="n">writer</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">del</span> <span class="n">pf</span>
+    <span class="k">return</span> <span class="s1">'rewritten'</span></div>
+
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_iter_batches_with_path</span><span class="p">(</span><span class="n">batch_iter</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Wrap a pyarrow ``iter_batches`` generator and re-raise any exception</span>
 <span class="sd">    with the source file ``path`` appended to the message.</span>

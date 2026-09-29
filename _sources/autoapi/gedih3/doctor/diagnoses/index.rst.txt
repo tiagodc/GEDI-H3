@@ -36,6 +36,7 @@ Submodules
    :maxdepth: 1
 
    /autoapi/gedih3/doctor/diagnoses/backfill/index
+   /autoapi/gedih3/doctor/diagnoses/dtype_drift/index
    /autoapi/gedih3/doctor/diagnoses/geoparquet_bbox/index
    /autoapi/gedih3/doctor/diagnoses/log_state/index
    /autoapi/gedih3/doctor/diagnoses/metadata/index

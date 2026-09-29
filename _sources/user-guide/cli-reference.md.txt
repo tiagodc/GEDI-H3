@@ -280,7 +280,7 @@ group alias:
 
 | Alias | Runs |
 |-------|------|
-| `db` | the default: `backfill`, `orphans`, `log_state`, `metadata`, `parquet_health`, `geoparquet_bbox` |
+| `db` | the default: `backfill`, `orphans`, `log_state`, `metadata`, `parquet_health`, `geoparquet_bbox`, `dtype_drift` |
 | `soc` | `soc_health` |
 | `all` | every registered diagnosis |
 
@@ -297,6 +297,7 @@ plain `gh3_doctor -i /db` does not run them. Ask for them by name, or use `all`.
 | `metadata` | partition JSON sidecars and the manifest |
 | `parquet_health` | corrupt files, duplicate shots, schema drift |
 | `geoparquet_bbox` | GeoParquet bbox metadata coverage |
+| `dtype_drift` | columns stored in a type other than the source HDF5 of the database's release (needs the SOC tree: `--soc-dir`) |
 | `soc_health` | invalid HDF5 files, and download-log drift |
 | `tmp_partitions_health` | post-build forensics on `tmp/partitions/`: merge-failure sentinels, granule-failure summaries, and progress↔manifest drift |
 
@@ -304,7 +305,22 @@ plain `gh3_doctor -i /db` does not run them. Ask for them by name, or use `all`.
 concrete `gh3_download` / `gh3_build` commands to recover what is missing.
 
 Exit codes: **0** clean, **1** findings remain, **2** errors occurred during a
-fix. `tmp_partitions_health --fix` refuses to act while a `gh3_build` is live.
+fix. `tmp_partitions_health --fix` and `dtype_drift --fix` refuse to act while a
+`gh3_build` is live.
+
+`dtype_drift` derives the reference types by pushing one sample granule of the
+database's own release through the same schema derivation `gh3_build` uses, then
+compares every partition file's footer against it (`string` vs `large_string`
+is not drift: it follows the pandas major version). `--fix` rewrites each
+affected file with a lossless cast (a value that does not fit leaves that file
+untouched and is reported), so it costs a full read and write of those files.
+It is resumable: files already in the source types are skipped. It also refuses
+while the build log is at `PARTITIONING`, `PROCESSING` or `MERGING`: finish that
+build first. Afterwards
+rebuild the DuckLake catalog with `gh3_build_ducklake` if you use one.
+
+Until then, updates keep working: `gh3_build` writes new data in the database's
+stored types and says so in one warning at the start of the run.
 
 ---
 

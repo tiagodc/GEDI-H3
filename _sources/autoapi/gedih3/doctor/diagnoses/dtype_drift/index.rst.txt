@@ -1,0 +1,75 @@
+gedih3.doctor.diagnoses.dtype_drift
+===================================
+
+.. py:module:: gedih3.doctor.diagnoses.dtype_drift
+
+.. autoapi-nested-parse::
+
+   dtype_drift diagnosis — partition columns stored in a type other than the source's.
+
+   The reference is the source HDF5 of the database's own GEDI release: one
+   sample granule is pushed through the exact Stage 1 schema derivation a build
+   uses (:func:`gedih3.gh3builder._source_write_schema`), so "correct" means
+   "what ``gh3_build`` writes for this release today". Every partition file's
+   footer is then compared against it.
+
+   Typical origin: a database built by an older gedih3 whose schema sample came
+   from another release sharing the SOC tree — e.g. ``worldcover_class`` is
+   ``int32`` in L4C V002 but ``uint8`` in V003. Since 0.18 an update aligns new
+   data to the database's stored types (so nothing is lost), and this diagnosis
+   is how the database itself is moved to the source types.
+
+   Findings:
+     - ``dtype_drift``: file stores one or more columns in a non-source type.
+       Fixable: the file is rewritten with a safe cast (lossless, or the file is
+       left untouched and the error reported).
+     - ``unreadable``: footer could not be read. Reported only.
+     - ``no_reference``: no SOC source of the database's release was found, so
+       there is nothing to compare against. Reported only.
+
+   The fix rewrites whole files (Parquet cannot retype a column in place), so it
+   costs a full read + write of every affected file. It is resumable — files
+   already in the source types are skipped — and refuses to run while a
+   ``gh3_build`` is live, since a concurrent merge could replace the same file.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.doctor.diagnoses.dtype_drift.dtype_drift_check
+   gedih3.doctor.diagnoses.dtype_drift.dtype_drift_fix
+
+
+Module Contents
+---------------
+
+.. py:function:: dtype_drift_check(ctx: gedih3.doctor.report.DoctorContext) -> gedih3.doctor.report.Report
+
+.. py:function:: dtype_drift_fix(ctx: gedih3.doctor.report.DoctorContext, report: gedih3.doctor.report.Report) -> gedih3.doctor.report.Report
+
+   
+   Rewrite drifted files in the source types, then refresh the metadata that caches dtypes.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+

@@ -378,6 +378,7 @@
 <li class="toctree-l2 has-children"><a class="reference internal" href="../doctor/index.html">gedih3.doctor</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3 has-children"><a class="reference internal" href="../doctor/diagnoses/index.html">gedih3.doctor.diagnoses</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/backfill/index.html">gedih3.doctor.diagnoses.backfill</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/dtype_drift/index.html">gedih3.doctor.diagnoses.dtype_drift</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/geoparquet_bbox/index.html">gedih3.doctor.diagnoses.geoparquet_bbox</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/log_state/index.html">gedih3.doctor.diagnoses.log_state</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/metadata/index.html">gedih3.doctor.diagnoses.metadata</a></li>
@@ -658,34 +659,37 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_backfill_bbox" title="gedih3.utils.parquet_backfill_bbox"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_backfill_bbox</span></code></a>(path)</p></td>
 <td><p>Rewrite a single parquet file in place so its GeoParquet <code class="docutils literal notranslate"><span class="pre">geo</span></code> metadata</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parquet_merge_files" title="gedih3.utils.parquet_merge_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_merge_files</span></code></a>(ofile, flist[, check_shots, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parquet_cast_columns" title="gedih3.utils.parquet_cast_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_cast_columns</span></code></a>(path, targets)</p></td>
+<td><p>Rewrite one parquet file in place with some columns retyped.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_merge_files" title="gedih3.utils.parquet_merge_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_merge_files</span></code></a>(ofile, flist[, check_shots, ...])</p></td>
 <td><p>Stream-merge parquet files into a single output with a bounded memory footprint.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parquet_join_columns" title="gedih3.utils.parquet_join_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_join_columns</span></code></a>(flist, ofile[, key_col, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parquet_join_columns" title="gedih3.utils.parquet_join_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_join_columns</span></code></a>(flist, ofile[, key_col, ...])</p></td>
 <td><p>Memory-efficient column-wise join of parquet files. Equivalent to pd.concat(axis=1)</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parse_temporal" title="gedih3.utils.parse_temporal"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_temporal</span></code></a>(temporal)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parse_temporal" title="gedih3.utils.parse_temporal"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_temporal</span></code></a>(temporal)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.region_to_geometry" title="gedih3.utils.region_to_geometry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">region_to_geometry</span></code></a>(spatial)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.region_to_geometry" title="gedih3.utils.region_to_geometry"><code class="xref py py-obj docutils literal notranslate"><span class="pre">region_to_geometry</span></code></a>(spatial)</p></td>
 <td><p>Normalize any accepted region argument to one shapely geometry in EPSG:4326.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.parse_spatial" title="gedih3.utils.parse_spatial"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_spatial</span></code></a>(spatial)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.parse_spatial" title="gedih3.utils.parse_spatial"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_spatial</span></code></a>(spatial)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.merge_spatial" title="gedih3.utils.merge_spatial"><code class="xref py py-obj docutils literal notranslate"><span class="pre">merge_spatial</span></code></a>(existing, new)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.merge_spatial" title="gedih3.utils.merge_spatial"><code class="xref py py-obj docutils literal notranslate"><span class="pre">merge_spatial</span></code></a>(existing, new)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.get_dask_client" title="gedih3.utils.get_dask_client"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_dask_client</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.get_dask_client" title="gedih3.utils.get_dask_client"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_dask_client</span></code></a>()</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.dask_safe_wait" title="gedih3.utils.dask_safe_wait"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dask_safe_wait</span></code></a>(persisted[, show_progress])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.dask_safe_wait" title="gedih3.utils.dask_safe_wait"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dask_safe_wait</span></code></a>(persisted[, show_progress])</p></td>
 <td><p>Wait for a persisted Dask collection to finish and re-raise the first</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.dask_safe_collect" title="gedih3.utils.dask_safe_collect"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dask_safe_collect</span></code></a>(collection[, show_progress])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.dask_safe_collect" title="gedih3.utils.dask_safe_collect"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dask_safe_collect</span></code></a>(collection[, show_progress])</p></td>
 <td><p>Persist a Dask DataFrame/Series on the cluster, then gather each</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.utils.atomic_parquet_write" title="gedih3.utils.atomic_parquet_write"><code class="xref py py-obj docutils literal notranslate"><span class="pre">atomic_parquet_write</span></code></a>(df, opath, *[, compression, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.utils.atomic_parquet_write" title="gedih3.utils.atomic_parquet_write"><code class="xref py py-obj docutils literal notranslate"><span class="pre">atomic_parquet_write</span></code></a>(df, opath, *[, compression, ...])</p></td>
 <td><p>Atomic parquet write with post-write page-level integrity check + retry.</p></td>
 </tr>
 </tbody>
@@ -1365,6 +1369,43 @@ streaming scanner (<code class="docutils literal notranslate"><span class="pre">
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="gedih3.utils.parquet_cast_columns">
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">parquet_cast_columns</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">targets</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#parquet_cast_columns"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.parquet_cast_columns" title="Link to this definition">#</a></dt>
+<dd><p>Rewrite one parquet file in place with some columns retyped.</p>
+<p>Streams one row group at a time (memory bounded by the file’s row-group
+size, row-group layout preserved) and casts with <code class="docutils literal notranslate"><span class="pre">safe=True</span></code>: every
+value survives or the call raises and the file is left untouched. The
+GeoParquet <code class="docutils literal notranslate"><span class="pre">geo</span></code> metadata (bbox included) is carried over verbatim; the
+<code class="docutils literal notranslate"><span class="pre">pandas</span></code> metadata entries of retyped numeric columns are updated so a
+pandas round-trip reports the new dtype. Written through
+<a class="reference internal" href="#gedih3.utils.AtomicFileWriter" title="gedih3.utils.AtomicFileWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">AtomicFileWriter</span></code></a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>path</strong><span class="classifier">str</span></dt><dd><p>Parquet file to rewrite.</p>
+</dd>
+<dt><strong>targets</strong><span class="classifier">dict</span></dt><dd><p><code class="docutils literal notranslate"><span class="pre">{column:</span> <span class="pre">arrow_type_alias}</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">{'worldcover_class_l4c':</span> <span class="pre">'uint8'}</span></code>).
+Columns absent from the file, or already of the target type, are ignored.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>str</dt><dd><p><code class="docutils literal notranslate"><span class="pre">'rewritten'</span></code> when at least one column changed type, <code class="docutils literal notranslate"><span class="pre">'ok'</span></code> when
+nothing needed casting (no write).</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>pyarrow.ArrowInvalid</dt><dd><p>A value does not fit the target type (the file is not modified).</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="gedih3.utils.parquet_merge_files">
 <span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">parquet_merge_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ofile</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">check_shots</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rm_src</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows_per_group</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bbox</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#parquet_merge_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.parquet_merge_files" title="Link to this definition">#</a></dt>
 <dd><p>Stream-merge parquet files into a single output with a bounded memory footprint.</p>
@@ -1711,6 +1752,7 @@ of the whole partition.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parse_h3_partition_dirname"><code class="docutils literal notranslate"><span class="pre">parse_h3_partition_dirname()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.h3_partition_bbox"><code class="docutils literal notranslate"><span class="pre">h3_partition_bbox()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parquet_backfill_bbox"><code class="docutils literal notranslate"><span class="pre">parquet_backfill_bbox()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parquet_cast_columns"><code class="docutils literal notranslate"><span class="pre">parquet_cast_columns()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parquet_merge_files"><code class="docutils literal notranslate"><span class="pre">parquet_merge_files()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parquet_join_columns"><code class="docutils literal notranslate"><span class="pre">parquet_join_columns()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.utils.parse_temporal"><code class="docutils literal notranslate"><span class="pre">parse_temporal()</span></code></a></li>

@@ -793,7 +793,7 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># Group aliases users can pass to --check/--fix. Resolved at dispatch time</span>
 <span class="c1"># against whatever diagnoses have registered.</span>
 <span class="n">ALIAS_GROUPS</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">'db'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'backfill'</span><span class="p">,</span> <span class="s1">'orphans'</span><span class="p">,</span> <span class="s1">'log_state'</span><span class="p">,</span> <span class="s1">'metadata'</span><span class="p">,</span> <span class="s1">'parquet_health'</span><span class="p">,</span> <span class="s1">'geoparquet_bbox'</span><span class="p">],</span>
+    <span class="s1">'db'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'backfill'</span><span class="p">,</span> <span class="s1">'orphans'</span><span class="p">,</span> <span class="s1">'log_state'</span><span class="p">,</span> <span class="s1">'metadata'</span><span class="p">,</span> <span class="s1">'parquet_health'</span><span class="p">,</span> <span class="s1">'geoparquet_bbox'</span><span class="p">,</span> <span class="s1">'dtype_drift'</span><span class="p">],</span>
     <span class="s1">'soc'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'soc_health'</span><span class="p">],</span>
     <span class="s1">'all'</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>                         <span class="c1"># special: all registered diagnoses</span>
 <span class="p">}</span>

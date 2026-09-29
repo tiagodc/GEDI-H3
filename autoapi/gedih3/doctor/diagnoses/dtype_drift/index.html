@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>gedih3.doctor.diagnoses.geoparquet_bbox &#8212; gedih3 0.18.0 documentation</title>
+    <title>gedih3.doctor.diagnoses.dtype_drift &#8212; gedih3 0.18.0 documentation</title>
   
   
   
@@ -44,13 +44,13 @@
     <script src="../../../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../../../_static/design-tabs.js?v=f930bc37"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'autoapi/gedih3/doctor/diagnoses/geoparquet_bbox/index';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'autoapi/gedih3/doctor/diagnoses/dtype_drift/index';</script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <link rel="author" title="About these documents" href="../../../../../about.html" />
     <link rel="index" title="Index" href="../../../../../genindex.html" />
     <link rel="search" title="Search" href="../../../../../search.html" />
-    <link rel="next" title="gedih3.doctor.diagnoses.log_state" href="../log_state/index.html" />
-    <link rel="prev" title="gedih3.doctor.diagnoses.dtype_drift" href="../dtype_drift/index.html" />
+    <link rel="next" title="gedih3.doctor.diagnoses.geoparquet_bbox" href="../geoparquet_bbox/index.html" />
+    <link rel="prev" title="gedih3.doctor.diagnoses.backfill" href="../backfill/index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
@@ -378,8 +378,8 @@
 <li class="toctree-l2 current active has-children"><a class="reference internal" href="../../index.html">gedih3.doctor</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l3 current active has-children"><a class="reference internal" href="../index.html">gedih3.doctor.diagnoses</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l4"><a class="reference internal" href="../backfill/index.html">gedih3.doctor.diagnoses.backfill</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../dtype_drift/index.html">gedih3.doctor.diagnoses.dtype_drift</a></li>
-<li class="toctree-l4 current active"><a aria-current="page" class="current reference internal" href="#">gedih3.doctor.diagnoses.geoparquet_bbox</a></li>
+<li class="toctree-l4 current active"><a aria-current="page" class="current reference internal" href="#">gedih3.doctor.diagnoses.dtype_drift</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../geoparquet_bbox/index.html">gedih3.doctor.diagnoses.geoparquet_bbox</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../log_state/index.html">gedih3.doctor.diagnoses.log_state</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../metadata/index.html">gedih3.doctor.diagnoses.metadata</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../orphans/index.html">gedih3.doctor.diagnoses.orphans</a></li>
@@ -479,7 +479,7 @@
     
     <li class="breadcrumb-item"><a href="../index.html" class="nav-link">gedih3.doctor.diagnoses</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">gedih3.doctor.diagnoses.geoparquet_bbox</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">gedih3.doctor.diagnoses.dtype_drift</span></li>
   </ul>
 </nav>
 </div>
@@ -496,40 +496,43 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="module-gedih3.doctor.diagnoses.geoparquet_bbox">
-<span id="gedih3-doctor-diagnoses-geoparquet-bbox"></span><h1>gedih3.doctor.diagnoses.geoparquet_bbox<a class="headerlink" href="#module-gedih3.doctor.diagnoses.geoparquet_bbox" title="Link to this heading">#</a></h1>
-<p>geoparquet_bbox diagnosis — partition parquets without a valid bbox.</p>
-<p>Detects partition parquets whose GeoParquet <code class="docutils literal notranslate"><span class="pre">geo</span></code> schema metadata is missing
-or has no usable <code class="docutils literal notranslate"><span class="pre">columns.&lt;primary&gt;.bbox</span></code>. The bbox is required for valid
-GeoParquet (per the spec it is optional in the strict sense, but predicate
-pushdown across spatial reads depends on it, and downstream tools like
-geopandas / dask_geopandas expect it on production datasets).</p>
-<p>Background: pre-v0.8.14, <code class="docutils literal notranslate"><span class="pre">parquet_merge_files</span></code> had a <code class="docutils literal notranslate"><span class="pre">bbox_threshold=50</span></code>
-gate that skipped bbox computation for partition-years with many fragments —
-which is most continental partitions. v0.8.14 removed the gate; this
-diagnosis backfills the bbox on files merged before that fix.</p>
+  <section id="module-gedih3.doctor.diagnoses.dtype_drift">
+<span id="gedih3-doctor-diagnoses-dtype-drift"></span><h1>gedih3.doctor.diagnoses.dtype_drift<a class="headerlink" href="#module-gedih3.doctor.diagnoses.dtype_drift" title="Link to this heading">#</a></h1>
+<p>dtype_drift diagnosis — partition columns stored in a type other than the source’s.</p>
+<p>The reference is the source HDF5 of the database’s own GEDI release: one
+sample granule is pushed through the exact Stage 1 schema derivation a build
+uses (<code class="xref py py-func docutils literal notranslate"><span class="pre">gedih3.gh3builder._source_write_schema()</span></code>), so “correct” means
+“what <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> writes for this release today”. Every partition file’s
+footer is then compared against it.</p>
+<p>Typical origin: a database built by an older gedih3 whose schema sample came
+from another release sharing the SOC tree — e.g. <code class="docutils literal notranslate"><span class="pre">worldcover_class</span></code> is
+<code class="docutils literal notranslate"><span class="pre">int32</span></code> in L4C V002 but <code class="docutils literal notranslate"><span class="pre">uint8</span></code> in V003. Since 0.18 an update aligns new
+data to the database’s stored types (so nothing is lost), and this diagnosis
+is how the database itself is moved to the source types.</p>
 <dl class="simple">
 <dt>Findings:</dt><dd><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">missing_geo</span></code>: no <code class="docutils literal notranslate"><span class="pre">geo</span></code> key in schema metadata. Cannot be backfilled
-in place (would need a full re-merge from source). Reported only.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">missing_bbox</span></code>: <code class="docutils literal notranslate"><span class="pre">geo</span></code> exists but no <code class="docutils literal notranslate"><span class="pre">columns.&lt;primary&gt;.bbox</span></code> field.
-Fixable via <code class="docutils literal notranslate"><span class="pre">parquet_backfill_bbox</span></code>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">invalid_bbox</span></code>: bbox present but malformed (wrong length, non-finite).
-Fixable via <code class="docutils literal notranslate"><span class="pre">parquet_backfill_bbox</span></code>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">no_geometry</span></code>: file has no geometry column (rare; typical for non-spatial
-sidecars). Reported only — no bbox is meaningful here.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dtype_drift</span></code>: file stores one or more columns in a non-source type.
+Fixable: the file is rewritten with a safe cast (lossless, or the file is
+left untouched and the error reported).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">unreadable</span></code>: footer could not be read. Reported only.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">no_reference</span></code>: no SOC source of the database’s release was found, so
+there is nothing to compare against. Reported only.</p></li>
 </ul>
 </dd>
 </dl>
+<p>The fix rewrites whole files (Parquet cannot retype a column in place), so it
+costs a full read + write of every affected file. It is resumable — files
+already in the source types are skipped — and refuses to run while a
+<code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> is live, since a concurrent merge could replace the same file.</p>
 <section id="functions">
 <h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.doctor.diagnoses.geoparquet_bbox.geoparquet_bbox_check" title="gedih3.doctor.diagnoses.geoparquet_bbox.geoparquet_bbox_check"><code class="xref py py-obj docutils literal notranslate"><span class="pre">geoparquet_bbox_check</span></code></a>(→ gedih3.doctor.report.Report)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.doctor.diagnoses.dtype_drift.dtype_drift_check" title="gedih3.doctor.diagnoses.dtype_drift.dtype_drift_check"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dtype_drift_check</span></code></a>(→ gedih3.doctor.report.Report)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.doctor.diagnoses.geoparquet_bbox.geoparquet_bbox_fix" title="gedih3.doctor.diagnoses.geoparquet_bbox.geoparquet_bbox_fix"><code class="xref py py-obj docutils literal notranslate"><span class="pre">geoparquet_bbox_fix</span></code></a>(→ gedih3.doctor.report.Report)</p></td>
-<td><p>Rewrite missing/invalid-bbox files via parquet_backfill_bbox.</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.doctor.diagnoses.dtype_drift.dtype_drift_fix" title="gedih3.doctor.diagnoses.dtype_drift.dtype_drift_fix"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dtype_drift_fix</span></code></a>(→ gedih3.doctor.report.Report)</p></td>
+<td><p>Rewrite drifted files in the source types, then refresh the metadata that caches dtypes.</p></td>
 </tr>
 </tbody>
 </table>
@@ -538,19 +541,14 @@ sidecars). Reported only — no bbox is meaningful here.</p></li>
 <section id="module-contents">
 <h2>Module Contents<a class="headerlink" href="#module-contents" title="Link to this heading">#</a></h2>
 <dl class="py function">
-<dt class="sig sig-object py" id="gedih3.doctor.diagnoses.geoparquet_bbox.geoparquet_bbox_check">
-<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.diagnoses.geoparquet_bbox.</span></span><span class="sig-name descname"><span class="pre">geoparquet_bbox_check</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../../report/index.html#gedih3.doctor.report.DoctorContext" title="gedih3.doctor.report.DoctorContext"><span class="pre">gedih3.doctor.report.DoctorContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="../../report/index.html#gedih3.doctor.report.Report" title="gedih3.doctor.report.Report"><span class="pre">gedih3.doctor.report.Report</span></a></span></span><a class="reference internal" href="../../../../../_modules/gedih3/doctor/diagnoses/geoparquet_bbox.html#geoparquet_bbox_check"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.diagnoses.geoparquet_bbox.geoparquet_bbox_check" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py" id="gedih3.doctor.diagnoses.dtype_drift.dtype_drift_check">
+<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.diagnoses.dtype_drift.</span></span><span class="sig-name descname"><span class="pre">dtype_drift_check</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../../report/index.html#gedih3.doctor.report.DoctorContext" title="gedih3.doctor.report.DoctorContext"><span class="pre">gedih3.doctor.report.DoctorContext</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="../../report/index.html#gedih3.doctor.report.Report" title="gedih3.doctor.report.Report"><span class="pre">gedih3.doctor.report.Report</span></a></span></span><a class="reference internal" href="../../../../../_modules/gedih3/doctor/diagnoses/dtype_drift.html#dtype_drift_check"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.diagnoses.dtype_drift.dtype_drift_check" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="gedih3.doctor.diagnoses.geoparquet_bbox.geoparquet_bbox_fix">
-<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.diagnoses.geoparquet_bbox.</span></span><span class="sig-name descname"><span class="pre">geoparquet_bbox_fix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../../report/index.html#gedih3.doctor.report.DoctorContext" title="gedih3.doctor.report.DoctorContext"><span class="pre">gedih3.doctor.report.DoctorContext</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">report</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../../report/index.html#gedih3.doctor.report.Report" title="gedih3.doctor.report.Report"><span class="pre">gedih3.doctor.report.Report</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="../../report/index.html#gedih3.doctor.report.Report" title="gedih3.doctor.report.Report"><span class="pre">gedih3.doctor.report.Report</span></a></span></span><a class="reference internal" href="../../../../../_modules/gedih3/doctor/diagnoses/geoparquet_bbox.html#geoparquet_bbox_fix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.diagnoses.geoparquet_bbox.geoparquet_bbox_fix" title="Link to this definition">#</a></dt>
-<dd><p>Rewrite missing/invalid-bbox files via parquet_backfill_bbox.</p>
-<p>Per-file work is independent (each call rewrites a single
-parquet’s metadata block) so we dispatch through <code class="docutils literal notranslate"><span class="pre">parallel_map</span></code>
-when a dask client is registered — same shape as the check path.
-Without parallelism the fix on a continental DB with thousands of
-bbox-missing files takes hours of single-threaded I/O.</p>
+<dt class="sig sig-object py" id="gedih3.doctor.diagnoses.dtype_drift.dtype_drift_fix">
+<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.diagnoses.dtype_drift.</span></span><span class="sig-name descname"><span class="pre">dtype_drift_fix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../../report/index.html#gedih3.doctor.report.DoctorContext" title="gedih3.doctor.report.DoctorContext"><span class="pre">gedih3.doctor.report.DoctorContext</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">report</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../../report/index.html#gedih3.doctor.report.Report" title="gedih3.doctor.report.Report"><span class="pre">gedih3.doctor.report.Report</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="../../report/index.html#gedih3.doctor.report.Report" title="gedih3.doctor.report.Report"><span class="pre">gedih3.doctor.report.Report</span></a></span></span><a class="reference internal" href="../../../../../_modules/gedih3/doctor/diagnoses/dtype_drift.html#dtype_drift_fix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.diagnoses.dtype_drift.dtype_drift_fix" title="Link to this definition">#</a></dt>
+<dd><p>Rewrite drifted files in the source types, then refresh the metadata that caches dtypes.</p>
 </dd></dl>
 
 </section>
@@ -567,20 +565,20 @@ bbox-missing files takes hours of single-threaded I/O.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="../dtype_drift/index.html"
+       href="../backfill/index.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">gedih3.doctor.diagnoses.dtype_drift</p>
+        <p class="prev-next-title">gedih3.doctor.diagnoses.backfill</p>
       </div>
     </a>
     <a class="right-next"
-       href="../log_state/index.html"
+       href="../geoparquet_bbox/index.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">gedih3.doctor.diagnoses.log_state</p>
+        <p class="prev-next-title">gedih3.doctor.diagnoses.geoparquet_bbox</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -605,8 +603,8 @@ bbox-missing files takes hours of single-threaded I/O.</p>
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.doctor.diagnoses.geoparquet_bbox.geoparquet_bbox_check"><code class="docutils literal notranslate"><span class="pre">geoparquet_bbox_check()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.doctor.diagnoses.geoparquet_bbox.geoparquet_bbox_fix"><code class="docutils literal notranslate"><span class="pre">geoparquet_bbox_fix()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.doctor.diagnoses.dtype_drift.dtype_drift_check"><code class="docutils literal notranslate"><span class="pre">dtype_drift_check()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.doctor.diagnoses.dtype_drift.dtype_drift_fix"><code class="docutils literal notranslate"><span class="pre">dtype_drift_fix()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -615,7 +613,7 @@ bbox-missing files takes hours of single-threaded I/O.</p>
   <div class="sidebar-secondary-item">
 
   <div class="tocsection sourcelink">
-    <a href="../../../../../_sources/autoapi/gedih3/doctor/diagnoses/geoparquet_bbox/index.rst.txt">
+    <a href="../../../../../_sources/autoapi/gedih3/doctor/diagnoses/dtype_drift/index.rst.txt">
       <i class="fa-solid fa-file-lines"></i> Show Source
     </a>
   </div>

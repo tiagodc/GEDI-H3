@@ -72,6 +72,7 @@ Functions
    gedih3.utils.parse_h3_partition_dirname
    gedih3.utils.h3_partition_bbox
    gedih3.utils.parquet_backfill_bbox
+   gedih3.utils.parquet_cast_columns
    gedih3.utils.parquet_merge_files
    gedih3.utils.parquet_join_columns
    gedih3.utils.parse_temporal
@@ -1165,6 +1166,53 @@ Module Contents
    a prior crash is removed before each rewrite. Memory is bounded by the
    streaming scanner (``batch_size=100_000``), same profile as
    ``parquet_merge_files``.
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: parquet_cast_columns(path, targets)
+
+   
+   Rewrite one parquet file in place with some columns retyped.
+
+   Streams one row group at a time (memory bounded by the file's row-group
+   size, row-group layout preserved) and casts with ``safe=True``: every
+   value survives or the call raises and the file is left untouched. The
+   GeoParquet ``geo`` metadata (bbox included) is carried over verbatim; the
+   ``pandas`` metadata entries of retyped numeric columns are updated so a
+   pandas round-trip reports the new dtype. Written through
+   :class:`AtomicFileWriter`.
+
+   :Parameters:
+
+       **path** : str
+           Parquet file to rewrite.
+
+       **targets** : dict
+           ``{column: arrow_type_alias}`` (e.g. ``{'worldcover_class_l4c': 'uint8'}``).
+           Columns absent from the file, or already of the target type, are ignored.
+
+
+
+   :Returns:
+
+       str
+           ``'rewritten'`` when at least one column changed type, ``'ok'`` when
+           nothing needed casting (no write).
+
+
+
+
+   :Raises:
+
+       pyarrow.ArrowInvalid
+           A value does not fit the target type (the file is not modified).
+
+
+
+
 
 
 
