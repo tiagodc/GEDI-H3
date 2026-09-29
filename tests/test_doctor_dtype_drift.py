@@ -181,6 +181,39 @@ def test_fix_refuses_while_build_is_live(tmp_dir, source_uint8, monkeypatch):
     assert all(pq.read_schema(p).field(COL).type == pa.int32() for p in paths)
 
 
+def test_fix_refuses_while_build_log_is_in_flight(tmp_dir, source_uint8):
+    """Nothing writes gh3_build.log by default, so _build_is_active alone
+    misses a live build; the build log's own status does not."""
+    paths = _make_db(tmp_dir)
+    check = run_diagnoses(_ctx(tmp_dir), ['dtype_drift'], mode='check')[0]
+    log_path = os.path.join(tmp_dir, BUILD_LOG_FILENAME)
+    log = json.load(open(log_path))
+    log['status'] = 'MERGING'
+    json.dump(log, open(log_path, 'w'))
+
+    from gedih3.doctor.diagnoses.dtype_drift import dtype_drift_fix
+    fixed = dtype_drift_fix(_ctx(tmp_dir), check)
+
+    assert fixed.severity == Severity.ERROR and 'MERGING' in fixed.summary
+    assert all(pq.read_schema(p).field(COL).type == pa.int32() for p in paths)
+
+
+def test_check_ignores_string_offset_width(tmp_dir, monkeypatch):
+    """string vs large_string follows the pandas major version (both
+    supported): never drift, or a full-database rewrite would follow."""
+    from gedih3.doctor.diagnoses import dtype_drift
+    paths = _make_db(tmp_dir)
+    stored = str(pq.read_schema(paths[0]).field('root_file_l2a').type)
+    other = 'string' if stored == 'large_string' else 'large_string'
+    monkeypatch.setattr(dtype_drift, '_reference_types',
+                        lambda ctx: ({COL: 'int32', 'root_file_l2a': other}, None))
+
+    report = run_diagnoses(_ctx(tmp_dir), ['dtype_drift'], mode='check')[0]
+
+    assert report.severity == Severity.INFO
+    assert not [f for f in report.findings if f['kind'] == 'dtype_drift']
+
+
 def test_no_soc_source_skips_without_error(tmp_dir):
     _make_db(tmp_dir)
     report = run_diagnoses(_ctx(tmp_dir, soc_dir=os.path.join(tmp_dir, 'missing')), ['dtype_drift'],
@@ -232,3 +265,19 @@ def test_parquet_cast_columns_is_noop_when_types_match(tmp_dir):
     mtime = os.path.getmtime(path)
     assert parquet_cast_columns(path, {'a': 'uint8', 'missing': 'int32'}) == 'ok'
     assert os.path.getmtime(path) == mtime
+
+
+def test_parquet_cast_columns_keeps_nullable_extension_dtype(tmp_dir):
+    """An Int32 column with nulls must read back as UInt8 with <NA>, not
+    float64 with NaN, after the retype."""
+    from gedih3.utils import parquet_cast_columns
+    path = os.path.join(tmp_dir, 'n.parquet')
+    df = pd.DataFrame({'c': pd.array([1, None, 3], dtype='Int32'), 'd': np.array([1, 2, 3], dtype='int32')})
+    pq.write_table(pa.Table.from_pandas(df, preserve_index=False), path)
+
+    assert parquet_cast_columns(path, {'c': 'uint8', 'd': 'uint8'}) == 'rewritten'
+
+    out = pd.read_parquet(path)
+    assert str(out['c'].dtype) == 'UInt8'
+    assert out['c'].isna().tolist() == [False, True, False]
+    assert out['d'].dtype == np.uint8

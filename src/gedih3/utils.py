@@ -1825,6 +1825,7 @@ def parquet_cast_columns(path, targets):
     """
     import json
     import numpy as np
+    import pandas as pd
     import pyarrow as pa
     import pyarrow.parquet as pq
 
@@ -1850,7 +1851,20 @@ def parquet_cast_columns(path, targets):
             target = changed.get(col.get('name'))
             if target is not None and (pa.types.is_integer(target) or pa.types.is_floating(target)
                                        or pa.types.is_boolean(target)):
-                col['numpy_type'] = col['pandas_type'] = str(np.dtype(target.to_pandas_dtype()))
+                np_name = str(np.dtype(target.to_pandas_dtype()))
+                col['pandas_type'] = np_name
+                # A nullable extension dtype (Int32, Float32, boolean) stays
+                # nullable at the new width: as plain numpy, nulls read back
+                # as NaN in a float column.
+                numpy_type = str(col.get('numpy_type', ''))
+                if numpy_type[:1].isupper() or numpy_type == 'boolean':
+                    ext = 'boolean' if np_name == 'bool' else np_name.capitalize().replace('Uint', 'UInt')
+                    try:
+                        pd.api.types.pandas_dtype(ext)
+                        np_name = ext
+                    except TypeError:
+                        pass
+                col['numpy_type'] = np_name
         md[b'pandas'] = json.dumps(pmeta).encode('utf-8')
         new_schema = new_schema.with_metadata(md)
 

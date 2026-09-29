@@ -310,10 +310,13 @@ fix. `tmp_partitions_health --fix` and `dtype_drift --fix` refuse to act while a
 
 `dtype_drift` derives the reference types by pushing one sample granule of the
 database's own release through the same schema derivation `gh3_build` uses, then
-compares every partition file's footer against it. `--fix` rewrites each
+compares every partition file's footer against it (`string` vs `large_string`
+is not drift: it follows the pandas major version). `--fix` rewrites each
 affected file with a lossless cast (a value that does not fit leaves that file
 untouched and is reported), so it costs a full read and write of those files.
-It is resumable: files already in the source types are skipped. Afterwards
+It is resumable: files already in the source types are skipped. It also refuses
+while the build log is at `PARTITIONING`, `PROCESSING` or `MERGING`: finish that
+build first. Afterwards
 rebuild the DuckLake catalog with `gh3_build_ducklake` if you use one.
 
 Until then, updates keep working: `gh3_build` writes new data in the database's

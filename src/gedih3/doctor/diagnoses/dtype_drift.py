@@ -44,6 +44,9 @@ from ...utils import release_arrow_pool
 # Bounded search for a sample granule, in ``year/doy`` directories.
 _MAX_SAMPLE_DAYS = 60
 
+# Build-log statuses of a gh3_build that is running or stopped mid-way.
+_BUILD_IN_FLIGHT = ('PARTITIONING', 'PROCESSING', 'MERGING')
+
 
 def _sample_granule(soc_dir: str, version: int, products: List[str],
                     latest: Optional[str] = None) -> Optional[Dict[str, str]]:
@@ -98,8 +101,14 @@ def _reference_types(ctx: DoctorContext):
 
 
 def _scan_partition_dtypes(partition_dir: str, *, reference: Dict[str, str]) -> dict:
-    """Worker: footer-compare every parquet under one partition to ``reference``."""
+    """Worker: footer-compare every parquet under one partition to ``reference``.
+
+    Offset width is not drift (``large_string`` vs ``string`` follows the
+    pandas major version, both supported); reporting it would send every file
+    of a database built on the other one through a full rewrite.
+    """
     import pyarrow.parquet as pq
+    from ...gh3builder import _same_value_type
     findings = []
     n_ok = 0
     try:
@@ -111,7 +120,7 @@ def _scan_partition_dtypes(partition_dir: str, *, reference: Dict[str, str]) -> 
                 continue
             drift = {
                 n: [str(schema.field(n).type), reference[n]] for n in schema.names
-                if n in reference and str(schema.field(n).type) != reference[n]
+                if n in reference and not _same_value_type(str(schema.field(n).type), reference[n])
             }
             if drift:
                 findings.append({'kind': 'dtype_drift', 'path': f, 'columns': drift})
@@ -212,6 +221,18 @@ def dtype_drift_fix(ctx: DoctorContext, report: Report) -> Report:
             f"merge could replace the same files. Re-run after it finishes."
         )
         return report
+    # _build_is_active only sees a gh3_build.log the user chose to write; the
+    # build log's own status is always there. A live build sits at one of these.
+    status = (getattr(ctx.h3_logger, 'log_data', None) or {}).get('status')
+    if status in _BUILD_IN_FLIGHT:
+        report.applied = False
+        report.severity = Severity.ERROR
+        report.summary = (
+            f"refused: the build log is at {status}, so a gh3_build is running or stopped mid-way, "
+            f"and its merge could replace the same files. Finish it (re-run the same gh3_build), "
+            f"then re-run this fix."
+        )
+        return report
 
     targets_by_path = {
         f['path']: {c: ref for c, (_, ref) in f['columns'].items()}
@@ -249,10 +270,13 @@ def dtype_drift_fix(ctx: DoctorContext, report: Report) -> Report:
             fixed.append({**f, 'action': 'reported_only'})
 
     if touched_cells:
-        for _cell, _res in parallel_map(sorted(touched_cells), h3_merge_metadata,
-                                        args=getattr(ctx, 'args', None),
-                                        desc='dtype_drift: merging cell metadata', unit='part'):
-            pass
+        for cell, res in parallel_map(sorted(touched_cells), h3_merge_metadata,
+                                      args=getattr(ctx, 'args', None),
+                                      desc='dtype_drift: merging cell metadata', unit='part'):
+            if isinstance(res, Exception):
+                n_errors += 1
+                fixed.append({'kind': 'cell_metadata_failed', 'path': cell,
+                              'error': f"{type(res).__name__}: {res}"})
     # The build log's cached dtype moves only for columns now uniform across
     # every file: a column that still drifts somewhere keeps its old record,
     # so a later update keeps aligning to (and merging into) what is on disk.
@@ -262,7 +286,12 @@ def dtype_drift_fix(ctx: DoctorContext, report: Report) -> Report:
         dtypes = dict(getattr(log, 'h3_columns_dtypes', None) or log.log_data.get('h3_columns_dtypes') or {})
         dtypes.update(retyped)
         log.h3_columns_dtypes = dtypes
-        log.save_log(log.log_data.get('status', 'COMPLETED'))
+        try:
+            log.save_log(log.log_data.get('status', 'COMPLETED'))
+        except Exception as e:
+            # Reported, not raised: the manifest refresh below must still run.
+            n_errors += 1
+            fixed.append({'kind': 'log_save_failed', 'error': f"{type(e).__name__}: {e}"})
     if n_rewritten:
         generate_manifest(ctx.h3_dir, tree_shape='h3db')
 
