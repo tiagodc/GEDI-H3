@@ -94,7 +94,8 @@ def _local_soc_keys_for_product(soc_dir: Optional[str], product: str, version: O
     if not soc_dir or not os.path.isdir(soc_dir):
         return set()
     from ..gh3builder import soc_file_tree
-    tree = soc_file_tree(soc_dir, to_list=False, glob_kwargs={'version': version} if version is not None else None)
+    tree = soc_file_tree(soc_dir, to_list=False, glob_kwargs={'version': version} if version is not None else None,
+                         require_all=False)
     out = set()
     for orb_track, files in tree.items():
         if product not in files:

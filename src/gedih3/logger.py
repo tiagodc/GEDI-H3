@@ -542,6 +542,10 @@ class H3BuildLogger:
         self.source_mode = source_mode
         self.build_start_time = datetime.now(timezone.utc)
         self.previous_status = self.log_data.get('status')
+        # Phased updates (gh3_build --allow-missing-products): once chosen for
+        # a database, persisted in its log so later runs keep admitting L2A
+        # before the later products are published.
+        self.allow_missing_products = bool(self.log_data.get('allow_missing_products'))
 
         if not self.log_data:
             self.product_vars = product_vars
@@ -903,9 +907,15 @@ class H3BuildLogger:
                 # partitions that merged, not of the one that lost its rows.
                 if key in indexed_keys and g.get('status') != 'MERGE_FAILED':
                     g['status'] = 'INDEXED'
-                    g['products'] = _per_product_status_from_observed(
+                    products = _per_product_status_from_observed(
                         active_products, gran_observed_products.get(key, set())
                     )
+                    # MISSING_SOURCE stays: the partition carries the product's
+                    # columns (null for this granule) until a backfill fills them.
+                    for p, s in (g.get('products') or {}).items():
+                        if s == PRODUCT_STATUS_MISSING_SOURCE and p in products:
+                            products[p] = s
+                    g['products'] = products
                 # else: keep existing status (PENDING)
 
             # Add any newly discovered granules not previously tracked
@@ -980,6 +990,9 @@ class H3BuildLogger:
 
         if hasattr(self, 'h3_partition_ids'):
             log_dict['h3_partition_ids'] = self.h3_partition_ids
+
+        if getattr(self, 'allow_missing_products', False):
+            log_dict['allow_missing_products'] = True
 
         if hasattr(self, 'date_range'):
             log_dict['date_range'] = self.date_range
@@ -1097,3 +1110,39 @@ class H3BuildLogger:
                 products_map[product] = status
                 return True
         return False
+
+    def set_product_statuses(self, updates):
+        """Bulk per-product status update (does not auto-save).
+
+        ``updates`` maps ``(orbit, granule, track)`` to ``{product: status}``.
+        One pass over ``granule_info`` whatever the number of updates, unlike
+        repeated :meth:`mark_granule_product` calls. Returns the count applied.
+        """
+        for statuses in updates.values():
+            bad = set(statuses.values()) - set(_VALID_PRODUCT_STATUSES)
+            if bad:
+                raise GediValidationError(f"Invalid per-product status {sorted(bad)}")
+        n = 0
+        for g in getattr(self, 'granule_info', None) or []:
+            statuses = updates.get((g['orbit'], g['granule'], g['track']))
+            if statuses:
+                g.setdefault('products', {}).update(statuses)
+                n += len(statuses)
+        return n
+
+    def pending_product_fills(self):
+        """Indexed granules still waiting for products published after them.
+
+        ``{(orbit, granule, track): [product, ...]}`` for every ``INDEXED``
+        granule with a ``MISSING_SOURCE`` product — rows whose columns for
+        that product are null until ``_build_fill_products`` fills them.
+        Log-only, no I/O.
+        """
+        out = {}
+        for g in getattr(self, 'granule_info', None) or []:
+            if g.get('status') != 'INDEXED':
+                continue
+            missing = [p for p, s in (g.get('products') or {}).items() if s == PRODUCT_STATUS_MISSING_SOURCE]
+            if missing:
+                out[(g['orbit'], g['granule'], g['track'])] = missing
+        return out

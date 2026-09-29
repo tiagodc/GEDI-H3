@@ -2118,6 +2118,138 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
 
     return stats
 
+def parquet_fill_columns(
+    base_file: str,
+    patch_files: List[str],
+    ofile: Optional[str] = None,
+    key_col: str = 'shot_number',
+    tmp_suffix: str = '.fill.tmp',
+    append_new: bool = True,
+) -> str:
+    """Fill null/NaN cells of ``base_file`` from one or more ``patch_files``.
+
+    The **fill** counterpart of :func:`parquet_join_columns`, matching rows on
+    ``key_col``:
+
+    - columns present in both: a base cell that is null (or NaN) takes the
+      patch value; an existing value is never overwritten. When several
+      patches cover the same column, the last one with a value wins.
+    - columns only in a patch are appended (left join, null where the patch
+      has no row).
+    - columns only in the base pass through untouched (zero-copy).
+
+    Pure Arrow, row group by row group: memory is one base row group plus the
+    patch columns (which callers pre-restrict to this file's rows), and the
+    base layout (row groups, schema metadata such as GeoParquet ``geo``) is
+    preserved. Patch values are cast to the base types with ``safe=True``.
+    The output is written to ``ofile + tmp_suffix`` and atomically renamed;
+    on any error the temp file is removed and the base is untouched.
+
+    Parameters
+    ----------
+    base_file : str
+        Existing parquet file. Determines schema base, row order, row group size.
+    patch_files : list of str or pyarrow.Table
+        Parquet files (or in-memory tables) containing ``key_col`` plus the
+        columns to merge in.
+    ofile : str, optional
+        Output path. Defaults to ``base_file`` (in-place rewrite via temp).
+    key_col : str, default 'shot_number'
+        Join key (a column).
+    tmp_suffix : str
+        Suffix for the temp file used during the atomic rewrite.
+    append_new : bool, default True
+        ``False`` never appends: patch columns the base lacks are ignored (a
+        fill must not widen one file's schema away from its neighbours').
+
+    Returns
+    -------
+    str
+        Path to the written file.
+    """
+    import numpy as np
+    import pyarrow as pa
+    import pyarrow.compute as pc
+    import pyarrow.parquet as pq
+
+    if not patch_files:
+        raise ValueError("patch_files must contain at least one path")
+    if ofile is None:
+        ofile = base_file
+
+    def _keys(col):
+        # One integer dtype on both sides: numpy would promote uint64 vs int64
+        # to float64, which cannot tell adjacent 1e17-scale shot numbers apart.
+        arr = col.to_numpy()
+        return arr.astype(np.uint64, copy=False) if arr.dtype.kind in 'iu' else arr
+
+    base_pf = pq.ParquetFile(base_file, pre_buffer=True)
+    base_schema = base_pf.schema_arrow
+    base_names = set(base_schema.names)
+
+    # Each patch: key order (sorted once) + the columns it contributes.
+    patches = []
+    appended_fields = []
+    for pf_path in patch_files:
+        in_memory = isinstance(pf_path, pa.Table)
+        pf_schema = pf_path.schema if in_memory else pq.read_schema(pf_path)
+        if key_col not in pf_schema.names:
+            raise ValueError(f"patch file {pf_path!r} missing key column {key_col!r}")
+        fill_cols = [c for c in pf_schema.names if c in base_names and c != key_col]
+        new_cols = [c for c in pf_schema.names
+                    if append_new and c not in base_names and c != key_col
+                    and c not in {f.name for f in appended_fields}]
+        if not fill_cols and not new_cols:
+            continue
+        cols = [key_col] + fill_cols + new_cols
+        tbl = pf_path.select(cols) if in_memory else pq.read_table(pf_path, columns=cols)
+        # First occurrence of each key, in sorted-key order (np.unique's contract).
+        _, first = np.unique(_keys(tbl.column(key_col)), return_index=True)
+        tbl = tbl.take(pa.array(first))
+        patches.append((_keys(tbl.column(key_col)), tbl, fill_cols, new_cols))
+        appended_fields += [pf_schema.field(c) for c in new_cols]
+
+    out_schema = base_schema
+    for f in appended_fields:
+        out_schema = out_schema.append(f)
+
+    def _missing(arr):
+        mask = pc.is_null(arr)
+        if pa.types.is_floating(arr.type):
+            mask = pc.or_(mask, pc.fill_null(pc.is_nan(arr), False))
+        return mask
+
+    tmp_ofile = ofile + tmp_suffix
+    try:
+        with pq.ParquetWriter(tmp_ofile, out_schema, compression='zstd') as writer:
+            for rg in range(base_pf.metadata.num_row_groups):
+                tbl = base_pf.read_row_group(rg)
+                keys = _keys(tbl.column(key_col))
+                cols = {name: tbl.column(name) for name in tbl.column_names}
+                for pkeys, ptbl, fill_cols, new_cols in patches:
+                    pos = np.searchsorted(pkeys, keys).clip(0, max(len(pkeys) - 1, 0))
+                    hit = (pkeys[pos] == keys) if len(pkeys) else np.zeros(len(keys), bool)
+                    idx = pa.array(pos, mask=~hit, type=pa.int64())
+                    for c in fill_cols:
+                        base = cols[c]
+                        cand = ptbl.column(c).take(idx).cast(base.type, safe=True)
+                        take = pc.and_(_missing(base), pc.is_valid(cand))
+                        cols[c] = pc.if_else(take, cand, base)
+                    for c in new_cols:
+                        cols[c] = ptbl.column(c).take(idx)
+                writer.write_table(pa.Table.from_arrays([cols[f.name] for f in out_schema], schema=out_schema))
+                del tbl, cols
+        os.replace(tmp_ofile, ofile)
+    except BaseException:
+        if os.path.exists(tmp_ofile):
+            os.unlink(tmp_ofile)
+        raise
+    finally:
+        base_pf.close()
+        release_arrow_pool()
+    return ofile
+
+
 def parquet_join_columns(flist: List[str], ofile: str, key_col: str = 'shot_number',
                          tmp_suffix: str = '.join.tmp', join_how='left',
                          rows_per_group: int = 100_000):

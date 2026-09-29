@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- **Phased product updates: index new dates as soon as their L2A exists, backfill later products when they are published.** L2B, L4A and L4C are derived from L2A and published after it, so a database carrying them had to wait for the slowest product before taking new dates.
+  - `gh3_build --allow-missing-products` admits granules that have L2A but lack later products. The choice is remembered in the build log (`--no-allow-missing-products` turns it off). Their rows store those columns as null, in the database's types (the Stage 1 write schema is completed from the build log, `_complete_schema_from_db`). The build log records the products as `MISSING_SOURCE` per granule; `build_h3db` reports them before writing anything, so the record survives a crash mid-build.
+  - Any later `gh3_build` notices the product files arriving and fills those rows automatically (`_build_fill_products`), reporting what was filled, what still waits and what failed. The detection shares the up-to-date check's existing file listing and parses file names only.
+  - The backfill is best effort: a failure leaves the granules pending for the next run and never fails a build whose own merge succeeded. Its resume state is keyed to the exact set of granules and products it fills.
+  - The backfill reuses the variable-update engine (`_fan_merge_products`, refactored out of `_build_add_variables`):
+    - its targets and candidate files come from the build log and the partition naming, never a data scan;
+    - each product file is read once, and each product is fanned on its own (no join that upcasts and doubles it in memory);
+    - only the files holding those granules are rewritten, atomically;
+    - only null cells are written.
+  - A phased database equals a single all-products build of the same granules, except for shots a later product has no record for, which a phased update keeps with null values.
+  - `gh3_doctor --check backfill` reports these granules from the log (INFO), and `--fix backfill` runs the same engine, locally or with `--s3`. Like `dtype_drift`, the fix now refuses while a build is in flight, before downloading or writing anything.
+  - API: `build_h3db(allow_missing_products=, granule_products_callback=)`, `H3BuildLogger.set_product_statuses` / `pending_product_fills`; `set_post_build_info` keeps `MISSING_SOURCE`.
+
+### Changed
+- `parquet_fill_columns` moved to `gedih3.utils` (re-exported from `gedih3.doctor.parquet_ops`) and is now pure Arrow. Columns it does not fill pass through untouched, and shot-number keys are matched as unsigned integers. The pandas version round-tripped every column of every row group.
+- `soc_file_tree(require_all=False)` keeps granules missing some products (default unchanged: only granules with every product present in the listing). Variable updates and the doctor's backfill and `--online` listings use it, so a granule still waiting for one product no longer loses a different product's new variables or local-availability status.
+- `_filter_granules` checks products and the skip list on the driver with set lookups on file names, so only the granules left to build are opened. The old check scanned the skip list linearly inside every task and shipped it with every task.
+- The doctor's backfill fix no longer walks the SOC tree on the driver just to discard the result, and marks healed products with one bulk update.
+
 ## [0.18.1] - 2026-09-29
 
 ### Added

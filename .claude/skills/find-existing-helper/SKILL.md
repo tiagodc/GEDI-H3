@@ -20,6 +20,7 @@ don't build a second one. The second column is the module; it is machine-checked
 | `parquet_merge_files` | `utils.py` | Streaming per-file merge with bounded memory, GeoParquet bbox, inline stats capture. |
 | `parquet_schema_add_bbox` | `utils.py` | Embed GeoParquet `bbox` metadata into a finalized parquet. |
 | `parquet_join_columns` | `utils.py` | Add columns to an existing parquet via `.join.tmp` + `os.replace`, skipping columns already present. |
+| `parquet_fill_columns` | `utils.py` | Fill null/NaN cells of an existing parquet from patch files by key, never overwriting a value; pure Arrow, rowgroup-wise, atomic. |
 | `parquet_cast_columns` | `utils.py` | Retype columns of one parquet in place: safe cast, row groups and GeoParquet metadata preserved. |
 | `read_parquet_schema` | `utils.py` | Footer-only schema read → DataFrame of `column` + `dtype`. |
 | `_iter_batches_with_path` | `utils.py` | Wrap a pyarrow `iter_batches` so mid-stream failures re-raise with `[file=…]`. |
@@ -84,6 +85,9 @@ don't build a second one. The second column is the module; it is machine-checked
 |---|---|---|
 | `_derive_merged_output_paths` | `gh3builder.py` | `_merge_progress.txt` → final parquet paths, in memory. |
 | `_source_write_schema` / `_stage1_write_schema` | `gh3builder.py` | The schema a build writes for one source granule / a source ddf — the dtype reference. |
+| `_fan_merge_products` | `gh3builder.py` | Read each granule h5 once, fan shots to owning `(cell, year)` files, merge (join or fill). Shared by variable-add and product backfill. |
+| `_build_fill_products` / `_product_fill_vars` | `gh3builder.py` | Backfill products published after their granule was indexed (`MISSING_SOURCE`); targets a-priori from the build log. |
+| `_complete_schema_from_db` / `_conform_table_to_schema` | `gh3builder.py` | Complete a Stage 1 write schema with the database's columns; null-fill a leaf's missing product columns. |
 | `_scan_partition_meta_granules` | `gh3builder.py` | Worker-pickleable granule-ID parser for one partition. |
 | `preclean_merge_failures` / `apply_merge_failures_to_logger` / `_release_merge_failed` | `gh3builder.py` | The merge-failure recovery loop: reopen lost tasks, flag, release after Stage 1. Idempotent. |
 | `_emit_merge_failure_sentinel` / `_scan_merge_failure_sentinels` | `gh3builder.py` | Atomic per-failure sentinels under `_merge_failures/`. |

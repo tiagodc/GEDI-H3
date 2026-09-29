@@ -395,6 +395,41 @@ Re-run with a wider region or date range. `gh3_build` performs a safe two-phase 
 gh3_build -r wider_region.shp -l2a default -l4a default
 ```
 
+### Updating before every product is published (phased updates)
+
+L2B, L4A and L4C are derived from L2A and are published later than it. By default a granule enters the database only once every product it carries is available, so a database with L4 columns waits for the slowest product. To take new dates as soon as their L2A exists, add `--allow-missing-products`:
+
+```bash
+# L2A for the new months is available; L2B/L4A/L4C are not yet
+gh3_build -i /data/soc -o /data/db --allow-missing-products
+```
+
+The new rows are complete for every product the granule already has. The other products' columns are stored as null, in the database's types, and the build log records those products as `MISSING_SOURCE` for each granule.
+
+The choice is remembered in the build log, so later runs keep admitting new L2A without the flag. `--no-allow-missing-products` turns it off. It applies to local SOC directories (`-i` or `--download`); an `--s3` run builds complete granules only.
+
+Once the missing product files land in the SOC directory, any later `gh3_build` over the same database notices them and fills those columns. It needs no flags:
+
+```bash
+gh3_build -i /data/soc -o /data/db
+```
+
+The backfill runs on the build's own machinery, and costs far less than a rebuild:
+
+- **Targets come from the build log.** Nothing scans the database.
+- **Each product file is read once.**
+- **Only the files that hold those granules are rewritten.** Each is rewritten atomically, row group by row group.
+- **Only null cells are written.** A value already in the database is never overwritten.
+
+The log reports what was filled, what still waits for its product, and what failed. A failed granule stays pending and is retried on the next run; the run itself still succeeds. Files matching `--exclude` are never used as a source. If you use a DuckLake catalog, rebuild it after a backfill (`gh3_build_ducklake -d /data/db`); the log says so.
+
+The same backfill runs on demand with `gh3_doctor -i /data/db --soc-dir /data/soc --fix backfill`. `gh3_doctor --check backfill` lists the granules still waiting, at INFO level, since that is an expected state of a phased database. The fix refuses to run while a `gh3_build` is in progress.
+
+Notes:
+
+- **Queries stay clean in the meantime.** Quality-filtered queries on a product (`gh3_extract -y` with its flags) exclude rows still waiting for it, because their flags are null.
+- **The row set can differ slightly from a single all-products build.** A phased update keeps a shot even if a later product has no record for it; such a shot keeps null values for that product. A single all-products build drops those shots.
+
 ---
 
 ## Dask Configuration and Performance

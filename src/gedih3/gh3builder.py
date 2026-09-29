@@ -19,7 +19,7 @@ from earthaccess.store import EarthAccessFile
 from dask.distributed import progress
 
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME, _get_versioned, _GEDI_L2A_ESSENTIALS, _PRODUCT_QUALITY_FLAGS
-from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, parquet_join_columns, read_parquet_schema, h5_is_valid, get_dask_client, generate_manifest, check_nan_only_columns, h3_partition_bbox, parse_h3_partition_dirname, AtomicFileWriter
+from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, parquet_join_columns, parquet_fill_columns, read_parquet_schema, h5_is_valid, get_dask_client, generate_manifest, check_nan_only_columns, h3_partition_bbox, parse_h3_partition_dirname, AtomicFileWriter
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
 from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_vars_static, gedi_subset, validate_soc_files, load_h5, load_h5_merged, expand_var_wildcards
 from .daac import gedi_download
@@ -1748,6 +1748,101 @@ def _align_schema_to_db(schema, h3_dir: str):
     return schema, drift
 
 
+def _sample_partition_schema(h3_dir: str, log: dict):
+    """Footer schema of one existing partition file, or ``None``.
+
+    Located a-priori from the build log's ``h3_partition_ids`` and partition
+    level: one cell dir, one year dir, one footer read — never a tree walk.
+    """
+    part = log.get('h3_partition_level')
+    for cell in (log.get('h3_partition_ids') or [])[:5]:
+        try:
+            cell_dir = os.path.join(h3_dir, f"h3_{part:02d}={cell}")
+            year_dirs = sorted(e.path for e in os.scandir(cell_dir) if e.is_dir() and e.name.startswith('year='))
+            for ydir in year_dirs:
+                pfs = sorted(e.path for e in os.scandir(ydir) if e.name.endswith('.parquet'))
+                if pfs:
+                    return pq.read_schema(pfs[0])
+        except (OSError, TypeError, ValueError):
+            continue
+    return None
+
+
+def _complete_schema_from_db(schema, h3_dir: str):
+    """Append every database column the Stage 1 write schema lacks, as nullable.
+
+    A build that admits granules whose later products (L2B, L4A, L4C…) are not
+    published yet must still write fragments carrying the database's full
+    column set: the merge requires every destination column in every fragment,
+    and a new cell must not start with a narrower schema than its neighbours.
+    Types come from the build log's ``h3_columns_dtypes`` (a-priori, no parquet
+    I/O); a dtype string that is not a plain pyarrow alias is resolved from one
+    partition footer instead.
+
+    Parameters
+    ----------
+    schema : pyarrow.Schema
+        Stage 1 write schema (already aligned by :func:`_align_schema_to_db`).
+    h3_dir : str
+        Database root. No build log, or no recorded dtypes, is a no-op.
+
+    Returns
+    -------
+    tuple of (pyarrow.Schema, list of str)
+        The completed schema (metadata preserved) and the appended column names.
+
+    Raises
+    ------
+    GediValidationError
+        When a database column's type can be resolved from neither the build
+        log nor a partition footer (the fragments would fail every merge).
+    """
+    import pyarrow as pa
+
+    log_path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
+    if not os.path.isfile(log_path):
+        return schema, []
+    log = json_read(log_path)
+    db_dtypes = log.get('h3_columns_dtypes') or {}
+    # Legacy logs record columns without dtypes: types then come from a footer.
+    missing = [c for c in sorted(set(db_dtypes) | set(log.get('h3_columns') or [])) if c not in schema.names]
+    footer = None
+    added = []
+    for name in missing:
+        try:
+            typ = pa.type_for_alias(db_dtypes[name])
+        except (ValueError, KeyError, TypeError):
+            if footer is None:
+                footer = _sample_partition_schema(h3_dir, log) or pa.schema([])
+            if name not in footer.names:
+                raise GediValidationError(
+                    f"Cannot resolve the database type of column {name!r} (build log records "
+                    f"{db_dtypes.get(name)!r}); refusing to write fragments that would fail every merge"
+                )
+            typ = footer.field(name).type
+        schema = schema.append(pa.field(name, typ, nullable=True))
+        added.append(name)
+    return schema, added
+
+
+def _conform_table_to_schema(table, schema):
+    """Reorder ``table`` to ``schema``, adding all-null columns it lacks, then cast.
+
+    Used only by builds that admit granules missing some products: their
+    leaves carry no columns for those products. A column the schema does not
+    have is an error, never silently dropped. The cast is the same safe cast
+    the plain path applies.
+    """
+    import pyarrow as pa
+    present = {name: i for i, name in enumerate(table.column_names)}  # one pass: leaves have ~1.5k columns
+    extra = set(present) - set(schema.names)
+    if extra:
+        raise GediValidationError(f"Leaf has columns outside the write schema: {sorted(extra)}")
+    n = table.num_rows
+    arrays = [table.column(present[f.name]) if f.name in present else pa.nulls(n, f.type) for f in schema]
+    return pa.Table.from_arrays(arrays, names=schema.names).cast(schema)
+
+
 def _derive_merged_output_paths(merge_progress_file: str, h3_dir: str) -> List[str]:
     """Derive absolute output parquet paths from the merge-progress file.
 
@@ -2243,35 +2338,50 @@ def _filter_soc_files_by_temporal(all_soc_files, temporal):
 def _filter_granules(
     prod_soc_files: List[Dict[str, str]],
     product_vars: Dict[str, List[str]],
-    skip_granules: Optional[List[Dict]] = None
+    skip_granules: Optional[List[Dict]] = None,
+    required_products: Optional[set] = None,
 ) -> List[Dict[str, str]]:
     """
     Filter SOC files to exclude incomplete, corrupted, or already-processed granules.
+
+    The product and skip checks are a-priori — set lookups on the driver, the
+    granule key parsed from the filename (no stat, no HDF5 open) — so only the
+    surviving granules reach the parallel ``h5_is_valid`` check. On an update
+    that is the new granules alone, not the whole SOC listing.
 
     Parameters
     ----------
     prod_soc_files : list of dict
         List of product file dictionaries
     product_vars : dict
-        Required products and their variables
+        Requested products and their variables
     skip_granules : list of dict, optional
         Granule identifiers to skip
+    required_products : set of str, optional
+        Products a granule must have. ``None`` requires every product in
+        ``product_vars``; a subset (``{'L2A'}``) admits granules whose later
+        products are not published yet.
 
     Returns
     -------
     list of dict
         Filtered list of valid SOC file dictionaries
     """
+    required = set(product_vars) if required_products is None else set(required_products)
+    skip = {(g['orbit'], g['granule'], g['track']) for g in (skip_granules or [])}
+
+    def _granule_key(prod):
+        path = next(iter(prod.values()))
+        key = _granule_id_from_l2a_path(getattr(path, 'path', path))
+        if key is None:
+            gf = GEDIFile(path)
+            key = (gf.orbit, gf.orbit_granule, gf.track)
+        return key
+
+    candidates = [p for p in prod_soc_files
+                  if p and required.issubset(p) and (not skip or _granule_key(p) not in skip)]
+
     def _filter_soc_file(prod):
-        if not set(product_vars.keys()).issubset(set(prod.keys())):
-            return None
-
-        if skip_granules is not None:
-            gedifile = GEDIFile(list(prod.values())[0])
-            gran = {'orbit': gedifile.orbit, 'granule': gedifile.orbit_granule, 'track': gedifile.track}
-            if gran in skip_granules:
-                return None
-
         if any(isinstance(f, EarthAccessFile) for f in prod.values()):
             return prod
         for f in prod.values():
@@ -2281,9 +2391,14 @@ def _filter_granules(
         return prod
 
     logger.info("Checking for incomplete, corrupted, or existing granules to skip")
+    if not candidates:
+        n_skipped = len(prod_soc_files)
+        if n_skipped:
+            logger.info(f"Skipped {n_skipped}/{n_skipped} granules (already indexed or incomplete)")
+        return []
 
     bag_task = (
-        dbg.from_sequence(prod_soc_files, partition_size=100)
+        dbg.from_sequence(candidates, partition_size=100)
           .map(_filter_soc_file)
           .filter(lambda x: x is not None)
           .persist()
@@ -2437,6 +2552,7 @@ def _write_one_granule_beam(
     spatial_h3_tiles: Optional[List[str]] = None,
     skip_check_enabled: bool = False,
     schema: Any = None,
+    fill_missing_columns: bool = False,
 ) -> Dict[str, Any]:
     """Worker-side body of the streaming partition write.
 
@@ -2475,6 +2591,10 @@ def _write_one_granule_beam(
         this, per-leaf schema inference would drift between fragments
         and break the merge phase's schema union. See
         ``_canonical_write_schema``.
+    fill_missing_columns
+        When True (a build admitting granules with missing products), a
+        leaf lacking some schema columns gets them as all-null
+        (:func:`_conform_table_to_schema`) instead of failing the cast.
 
     Returns
     -------
@@ -2567,7 +2687,10 @@ def _write_one_granule_beam(
         # column order and nullable-dtype tagging across all fragments.
         table = _geopandas_to_arrow(body, index=True)
         if schema is not None:
-            table = table.cast(schema)
+            if fill_missing_columns and table.schema.names != schema.names:
+                table = _conform_table_to_schema(table, schema)
+            else:
+                table = table.cast(schema)
         with AtomicFileWriter(out_path) as tmp_path:
             pq.write_table(table, tmp_path, compression='zstd')
         leaves_written += 1
@@ -2640,6 +2763,7 @@ def _write_partitioned_streaming(
     lon_col: str,
     dat_col: str,
     inflight_target: Optional[int] = None,
+    allow_missing_products: bool = False,
 ) -> bool:
     """Streaming replacement for the legacy ``ddf.to_parquet().persist()``.
 
@@ -2675,6 +2799,11 @@ def _write_partitioned_streaming(
     inflight_target
         Max in-flight futures at any moment. ``None`` → env-driven
         default (``GH3_WRITE_STREAMING_BATCH``).
+    allow_missing_products
+        Some granules lack products the build requests. The write schema
+        is completed with the database's columns
+        (:func:`_complete_schema_from_db`) and leaves missing product
+        columns get them as all-null, so every fragment still merges.
     """
     import itertools as _it
     import time as _time
@@ -2719,6 +2848,23 @@ def _write_partitioned_streaming(
             f"fails its task instead of being truncated). To move the database to the source types: "
             f"gh3_doctor -i {h3_dir} --check dtype_drift --fix"
         )
+    if allow_missing_products:
+        canonical_schema, added = _complete_schema_from_db(canonical_schema, h3_dir)
+        if added:
+            logger.info(
+                f"Write schema completed with {len(added)} database column(s) the source sample lacks; "
+                f"granules without those products store them as null until backfilled"
+            )
+        absent = [p for p in product_vars
+                  if not any(n.lower().endswith(f"_{p.lower()}") for n in canonical_schema.names)]
+        if absent:
+            # Neither a granule of this batch nor the database defines these
+            # products' columns: files written now would lack them, and a later
+            # merge would drop them from complete granules. Refuse up front.
+            raise GediValidationError(
+                f"No granule in this batch has {absent} and the database stores no such columns yet; "
+                f"build at least one granule with every product first (without --allow-missing-products)"
+            )
 
     # 2) Spatial tile set — replaces _apply_spatial_filter's isin branch.
     spatial_h3_tiles: Optional[List[str]] = None
@@ -2790,6 +2936,7 @@ def _write_partitioned_streaming(
         spatial_h3_tiles=spatial_h3_tiles,
         skip_check_enabled=skip_check_enabled,
         schema=canonical_schema,
+        fill_missing_columns=allow_missing_products,
     )
     logger.info(
         f"Driver: kwargs baked into partial (no scatter, no separate TaskStates). "
@@ -3469,7 +3616,6 @@ def _emit_var_fan_sentinel(tmp_dir: str, granule_key: str) -> None:
         pass
 
 
-@functools.lru_cache(maxsize=256)
 def _cached_base_shots(year_pf: str):
     """Per-worker cached sorted ``shot_number`` array for one base parquet.
 
@@ -3477,19 +3623,21 @@ def _cached_base_shots(year_pf: str):
     granule crossing it — so the same base shot array is read many times by
     one worker. The LRU cache (per worker process) collapses those to one
     read per (cell, year) the worker touches. Bounded at 256 arrays (~few
-    hundred MB worst case). Returns an empty array on read failure so the
-    caller routes zero rows there instead of crashing the whole granule.
+    hundred MB worst case). Keyed by the file's mtime and size too, so a
+    worker that outlives one update (a persistent cluster, a notebook) never
+    routes against a file rewritten since. A read error raises — the granule
+    is then failed and retried, never silently given zero rows.
     """
-    try:
-        return np.sort(
-            pd.read_parquet(year_pf, columns=['shot_number'])['shot_number'].to_numpy()
-        )
-    except Exception as e:
-        logger.warning(f"Could not read shot_number from {os.path.basename(year_pf)}: {e}")
-        return np.empty(0, dtype=np.int64)
+    st = os.stat(year_pf)
+    return _base_shots(year_pf, st.st_mtime_ns, st.st_size)
 
 
-def _var_fan_granule(task, *, new_product_vars, tmp_dir):
+@functools.lru_cache(maxsize=256)
+def _base_shots(year_pf: str, _mtime_ns: int, _size: int):
+    return np.sort(pd.read_parquet(year_pf, columns=['shot_number'])['shot_number'].to_numpy())
+
+
+def _var_fan_granule(task, *, new_product_vars, tmp_dir, include_source=False, split_products=False):
     """Stage 1 worker: read ONE granule's h5(s) once, fan shots to cells.
 
     ``task`` = ``(granule_key, h5_by_prod, year_pfs)`` where:
@@ -3512,21 +3660,52 @@ def _var_fan_granule(task, *, new_product_vars, tmp_dir):
     Failures are classified (``_classify_load_h5_failure``) and returned
     so the driver can record them without aborting the job; NO sentinel is
     written on failure, so the next resume retries the granule.
+
+    ``include_source=True`` also emits each product's ``root_file_<prod>``
+    column, as a build writes it — the product fill needs it; a
+    variable-add does not.
+
+    ``split_products=True`` (product fill) fans each product on its own —
+    fragments ``<granule_key>.<prod>.parquet``, each product's frame freed
+    before the next is read — instead of outer-joining them first. The join
+    upcasts integer and flag columns (and doubles them in memory); a fill
+    merges the per-product fragments as separate patches instead.
     """
     granule_key, h5_by_prod, year_pfs = task
 
     if os.path.exists(_var_fan_sentinel_path(tmp_dir, granule_key)):
         return {'granule': granule_key, 'skipped': True, 'fragments': 0}
 
-    # Read each product h5 ONCE; outer-join on the shot_number index.
+    def _fan(frame, token):
+        """Write ``frame``'s rows to each owning cell-year; returns fragments written."""
+        frame = frame.reset_index()  # shot_number back as a column
+        sn = frame['shot_number'].to_numpy()
+        n = 0
+        for year_pf in year_pfs:
+            base_shots = _cached_base_shots(year_pf)
+            if base_shots.size == 0:
+                continue
+            mask = np.isin(sn, base_shots)
+            if not mask.any():
+                continue
+            frag_dir = _var_fragment_dir(tmp_dir, year_pf)
+            os.makedirs(frag_dir, exist_ok=True)
+            with AtomicFileWriter(os.path.join(frag_dir, f'{token}.parquet')) as tmp_path:
+                frame.loc[mask].to_parquet(tmp_path, engine='pyarrow', index=False, compression='zstd')
+            n += 1
+        return n
+
+    # Read each product h5 ONCE; outer-join on the shot_number index (or,
+    # split_products, fan each product as soon as it is read).
     new_df = None
+    n_frag = 0
     for prod, h5_path in h5_by_prod.items():
         var_list = [v for v in (new_product_vars.get(prod) or []) if v != 'shot_number']
         if not var_list:
             continue
         try:
             df = load_h5(h5_path, columns=['shot_number'] + var_list,
-                         shots=None, include_source=False)
+                         shots=None, include_source=include_source)
         except Exception as exc:
             return {
                 'granule': granule_key,
@@ -3537,38 +3716,21 @@ def _var_fan_granule(task, *, new_product_vars, tmp_dir):
             continue
         suffix = f"_{prod.lower()}"
         df = df.rename(columns=lambda x: x if x.endswith(suffix) else f"{x}{suffix}")
+        if split_products:
+            n_frag += _fan(df, f'{granule_key}.{prod}')
+            del df
+            continue
         new_df = df if new_df is None else new_df.join(df, how='outer')
 
-    if new_df is None or new_df.empty:
-        # Nothing readable for this granule — still emit the sentinel so a
-        # resume doesn't keep retrying a structurally-empty granule.
-        _emit_var_fan_sentinel(tmp_dir, granule_key)
-        return {'granule': granule_key, 'fragments': 0}
-
-    new_df = new_df.reset_index()  # shot_number back as a column
-    sn = new_df['shot_number'].to_numpy()
-
-    n_frag = 0
-    for year_pf in year_pfs:
-        base_shots = _cached_base_shots(year_pf)
-        if base_shots.size == 0:
-            continue
-        mask = np.isin(sn, base_shots)
-        if not mask.any():
-            continue
-        sub = new_df.loc[mask]
-        frag_dir = _var_fragment_dir(tmp_dir, year_pf)
-        os.makedirs(frag_dir, exist_ok=True)
-        out = os.path.join(frag_dir, f'{granule_key}.parquet')
-        with AtomicFileWriter(out) as tmp_path:
-            sub.to_parquet(tmp_path, engine='pyarrow', index=False, compression='zstd')
-        n_frag += 1
-
+    if new_df is not None and not new_df.empty:
+        n_frag += _fan(new_df, granule_key)
+    # A structurally-empty granule still gets its sentinel so a resume does
+    # not keep retrying it.
     _emit_var_fan_sentinel(tmp_dir, granule_key)
     return {'granule': granule_key, 'fragments': n_frag}
 
 
-def _var_merge_cell_year(year_pf, *, tmp_dir):
+def _var_merge_cell_year(year_pf, *, tmp_dir, fill=False):
     """Stage 2 worker: merge a cell-year's fanned fragments into its base.
 
     Concats every ``<granule_key>.parquet`` Stage 1 wrote for this
@@ -3595,6 +3757,11 @@ def _var_merge_cell_year(year_pf, *, tmp_dir):
 
     Returns the base path on a real merge, ``None`` when the cell-year had
     no fragments (granule(s) produced no matching shots here).
+
+    ``fill=True`` (product backfill) writes the fragments into columns the
+    base already has, only where the base is null
+    (``parquet_fill_columns``: rowgroup-wise, atomic, existing values never
+    overwritten) instead of joining new columns.
     """
     frag_dir = _var_fragment_dir(tmp_dir, year_pf)
     nv_path = os.path.join(frag_dir, '_newvars.parquet')
@@ -3609,14 +3776,26 @@ def _var_merge_cell_year(year_pf, *, tmp_dir):
     if not frags:
         return None
 
-    cat = pd.concat([pd.read_parquet(f) for f in frags], ignore_index=True)
-    cat = cat.drop_duplicates(subset='shot_number', keep='first')
+    if fill:
+        # Per-product fragments (granules own disjoint shots): one compact
+        # Arrow table per product, no pandas round trip, no consolidated file.
+        import pyarrow as pa
+        by_prod: Dict[str, List[str]] = {}
+        for f in frags:
+            by_prod.setdefault(os.path.basename(f).rsplit('.', 2)[-2], []).append(f)
+        patches = [pa.concat_tables([pq.read_table(f) for f in fs], promote_options='permissive')
+                   for fs in by_prod.values()]
+        parquet_fill_columns(year_pf, patches, key_col='shot_number', append_new=False)
+        del patches
+    else:
+        cat = pd.concat([pd.read_parquet(f) for f in frags], ignore_index=True)
+        cat = cat.drop_duplicates(subset='shot_number', keep='first')
 
-    with AtomicFileWriter(nv_path) as tmp_path:
-        cat.to_parquet(tmp_path, engine='pyarrow', index=False, compression='zstd')
-    del cat
+        with AtomicFileWriter(nv_path) as tmp_path:
+            cat.to_parquet(tmp_path, engine='pyarrow', index=False, compression='zstd')
+        del cat
 
-    parquet_join_columns([year_pf, nv_path], year_pf, key_col='shot_number')
+        parquet_join_columns([year_pf, nv_path], year_pf, key_col='shot_number')
 
     # Refresh ONLY the column list + dtypes in the per-year metadata. A
     # variable-add changes columns, never shots/dates/granules — so patch
@@ -3659,6 +3838,202 @@ def _refresh_year_columns_meta(year_pf: str) -> None:
             f"{type(e).__name__}: {e}; falling back to full metadata write"
         )
         h3_write_metadata(year_pf)
+
+
+def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *, fill=False):
+    """Stages 1-3 of the inverted granule fan-out, shared by variable-add and product-fill.
+
+    Reads each granule's product h5(s) exactly once and fans its shots to the
+    (cell, year) base files that own them (``_var_fan_granule``), then merges
+    each touched cell-year's fragments into its base (``_var_merge_cell_year``:
+    rowgroup-wise, atomic, fragments dropped per merge), then refreshes the
+    per-cell metadata and the manifest. Resume state (per-granule ``.done``
+    sentinels, ``_var_merge_progress.txt``) lives under ``tmp_dir``; it is
+    removed only after a fully clean run.
+
+    Parameters
+    ----------
+    h3_dir : str
+        Database root.
+    gran_h5 : dict
+        ``{granule_key: {product: h5_path}}`` — the products to read per granule.
+    gran_year_pfs : dict
+        ``{granule_key: [base year_pf, ...]}`` — the files each granule owns rows in.
+    product_vars : dict
+        ``{product: [variable, ...]}`` to read (unsuffixed names).
+    tmp_dir : str
+        Scratch root for fragments and resume state (one per mode).
+    fill : bool, default False
+        False joins new columns (variable-add). True writes into existing
+        null cells only (product backfill) and reads ``root_file_<prod>`` too.
+
+    Returns
+    -------
+    dict
+        ``{'updated_files': [...], 'failed_granules': set, 'fragments': int}``.
+        A granule is failed when its read failed or any of its files failed to
+        merge; everything else it owns was written.
+    """
+    from dask.distributed import as_completed as dask_as_completed
+    from tqdm import tqdm as tqdm_bar
+
+    client = get_dask_client()
+    if client is None:
+        raise GediError("_fan_merge_products requires a registered dask Client")
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    # ── Stage 1: fan — read each granule ONCE, write per-cell fragments ──
+    fan_fn = functools.partial(
+        _var_fan_granule, new_product_vars=product_vars, tmp_dir=tmp_dir,
+        include_source=fill, split_products=fill,
+    )
+    fan_tasks = [(ot, gran_h5[ot], gran_year_pfs[ot]) for ot in gran_year_pfs]
+    fan_futures = client.map(fan_fn, fan_tasks, pure=False)
+    fut_to_gran = {f: t[0] for f, t in zip(fan_futures, fan_tasks)}
+    failed_granules = set()
+    n_frag = n_fan_fail = 0
+    pbar = tqdm_bar(total=len(fan_tasks), desc="Stage1 granule fan", unit="granule")
+    try:
+        for fut in dask_as_completed(fan_futures):
+            try:
+                res = fut.result()
+                if res.get('error'):
+                    n_fan_fail += 1
+                    failed_granules.add(res.get('granule'))
+                    logger.warning(f"Stage1 granule {res.get('granule')}: {res['error']}")
+                    failure = res.get('failure')
+                    if failure:
+                        _append_granule_failure(tmp_dir, res.get('granule'), failure)
+                else:
+                    n_frag += res.get('fragments', 0)
+                    if fill and not res.get('skipped') and not res.get('fragments'):
+                        # A granule listed by these files but routing no row to
+                        # them filled nothing: leave it pending, never "filled".
+                        failed_granules.add(res.get('granule'))
+                        logger.warning(f"Product backfill: granule {res.get('granule')} matched no rows "
+                                       f"in the files that list it; left pending")
+            except Exception as e:
+                n_fan_fail += 1
+                failed_granules.add(fut_to_gran.get(fut))
+                logger.warning(f"Stage1 granule task raised: {type(e).__name__}: {e}")
+            finally:
+                fut.release()
+            pbar.update(1)
+            pbar.set_postfix(fragments=n_frag, failed=n_fan_fail)
+    finally:
+        pbar.close()
+    if n_fan_fail:
+        logger.error(
+            f"Stage1: {n_fan_fail} granule(s) failed to read. Their fragments "
+            f"are absent; affected cells keep their prior columns. Re-run to retry."
+        )
+
+    # ── Stage 2: merge — concat fragments into each base parquet ────────
+    touched_year_pfs = sorted({yp for yps in gran_year_pfs.values() for yp in yps})
+
+    merge_progress_file = os.path.join(tmp_dir, _VAR_MERGE_PROGRESS_FILENAME)
+    merged_set = set()
+    # A fill never skips a file as "already merged": re-filling is idempotent
+    # (null cells only), and a retry must merge a granule whose fragment only
+    # arrived now into a file an earlier attempt already filled for others.
+    if not fill and os.path.exists(merge_progress_file):
+        with open(merge_progress_file) as f:
+            merged_set = {ln.strip() for ln in f if ln.strip()}
+        if merged_set:
+            logger.info(f"Resuming merge: {len(merged_set)} (cell, year) already merged")
+    remaining = [yp for yp in touched_year_pfs if yp not in merged_set]
+
+    merge_fn = functools.partial(_var_merge_cell_year, tmp_dir=tmp_dir, fill=fill)
+    updated_files: List[str] = []
+    touched_cells = set()
+    n_merge_fail = 0
+    failed_year_pfs = set()
+    if remaining:
+        merge_futures = client.map(merge_fn, remaining, pure=False)
+        fut_to_pf = dict(zip(merge_futures, remaining))
+        pbar = tqdm_bar(total=len(remaining), desc="Stage2 cell-year merge", unit="file")
+        progress_fh = open(merge_progress_file, 'a')
+        try:
+            for fut in dask_as_completed(merge_futures):
+                pf = fut_to_pf[fut]
+                try:
+                    res = fut.result()
+                    if res is not None:
+                        updated_files.append(res)
+                        touched_cells.add(os.path.dirname(os.path.dirname(res)))
+                    # Record progress whether or not rows landed: an empty
+                    # (no-fragment) cell-year is "done" for resume purposes.
+                    progress_fh.write(pf + '\n')
+                    progress_fh.flush()
+                except Exception as e:
+                    n_merge_fail += 1
+                    failed_year_pfs.add(pf)
+                    logger.warning(
+                        f"Stage2 merge failed for {os.path.relpath(pf, h3_dir)}: "
+                        f"{type(e).__name__}: {e}"
+                    )
+                finally:
+                    fut.release()
+                pbar.update(1)
+                pbar.set_postfix(updated=len(updated_files), failed=n_merge_fail)
+        finally:
+            progress_fh.close()
+            pbar.close()
+    if n_merge_fail:
+        logger.error(f"Stage2: {n_merge_fail} cell-year merge(s) failed. Re-run to retry.")
+
+    logger.info(
+        f"Merged {len(updated_files)} (cell, year) files across "
+        f"{len(touched_cells)} cells (fragments written={n_frag})"
+    )
+
+    # ── Stage 3: per-cell metadata aggregation + manifest ───────────────
+    if touched_cells:
+        logger.info(f"Merging per-cell metadata for {len(touched_cells)} updated cells")
+        meta_futures = client.map(h3_merge_metadata, sorted(touched_cells), pure=False)
+        meta_pbar = tqdm_bar(total=len(touched_cells), desc="Merging cell metadata", unit="cell")
+        try:
+            for f in dask_as_completed(meta_futures):
+                try:
+                    f.result()
+                except Exception as e:
+                    logger.warning(f"Cell metadata merge failed: {e}")
+                meta_pbar.update(1)
+        finally:
+            meta_pbar.close()
+
+    generate_manifest(h3_dir, tree_shape='h3db')
+
+    # ── Cleanup: drop the leftover sentinel/progress scaffolding ────────
+    # The per-cell-year fragment dirs were already deleted INSIDE
+    # _var_merge_cell_year as each merge succeeded (rm_src discipline,
+    # distributed across workers) — so _var_frags is empty here and its
+    # rmtree is a cheap no-op rather than a multi-hour serial sweep of
+    # millions of files on the driver. What remains is the
+    # _var_fan_complete sentinel dir + the merge-progress file, only
+    # meaningful for resuming an interrupted run. Drop them on a fully
+    # clean run; leave them if anything failed so the next resume reuses
+    # completed work. Fan-out cleanup is parallelized to avoid the same
+    # serial-rmtree trap (66k+ sentinel files at continental scale).
+    if updated_files and n_fan_fail == 0 and n_merge_fail == 0:
+        frag_root = os.path.join(tmp_dir, _VAR_FRAG_DIRNAME)
+        if os.path.isdir(frag_root):
+            try:
+                shutil.rmtree(frag_root)  # empty after per-merge rm_src — cheap
+            except OSError as e:
+                logger.warning(f"Could not clean up {frag_root}: {e}")
+        _remove_tree_fanout(os.path.join(tmp_dir, _VAR_FAN_COMPLETE_DIRNAME),
+                            desc="Cleaning fan sentinels")
+        p = os.path.join(tmp_dir, _VAR_MERGE_PROGRESS_FILENAME)
+        try:
+            if os.path.exists(p):
+                os.unlink(p)
+        except OSError:
+            pass
+
+    failed_granules |= {g for g, yps in gran_year_pfs.items() if failed_year_pfs.intersection(yps)}
+    failed_granules.discard(None)
+    return {'updated_files': updated_files, 'failed_granules': failed_granules, 'fragments': n_frag}
 
 
 def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None,
@@ -3792,11 +4167,13 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     del scan_futures, fut_idx
 
     # ── Stage 0c: build SOC tree once, invert granule → [base year_pf] ──
+    # Partial granules too: in a phased database a granule may lack another,
+    # later product and must still get the new variables of the ones it has.
     if isinstance(soc_source, str):
         glob_kwargs = {'version': version} if version is not None else None
-        all_soc = soc_file_tree(soc_source, to_list=False, glob_kwargs=glob_kwargs)
+        all_soc = soc_file_tree(soc_source, to_list=False, glob_kwargs=glob_kwargs, require_all=False)
     elif isinstance(soc_source, list):
-        all_soc = soc_file_tree(soc_source, to_list=False)
+        all_soc = soc_file_tree(soc_source, to_list=False, require_all=False)
     elif soc_source is None:
         logger.warning("Variable-only update requires a local SOC source (no S3 ETL support on this path)")
         return None
@@ -3845,140 +4222,221 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
         f"already-done={skipped})"
     )
 
-    # ── Stage 1: fan — read each granule ONCE, write per-cell fragments ──
-    fan_fn = functools.partial(
-        _var_fan_granule, new_product_vars=new_product_vars, tmp_dir=tmp_dir
-    )
-    fan_tasks = [(ot, gran_h5[ot], gran_year_pfs[ot]) for ot in gran_year_pfs]
-    fan_futures = client.map(fan_fn, fan_tasks, pure=False)
-    n_frag = n_fan_fail = 0
-    pbar = tqdm_bar(total=len(fan_tasks), desc="Stage1 granule fan", unit="granule")
+    return _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, new_product_vars, tmp_dir)['updated_files'] or None
+
+
+def _granule_key_str(key) -> str:
+    """``(orbit, granule, track)`` → the ``soc_file_tree`` pivot key."""
+    return f"O{key[0]:05d}_{key[1]:02d}_T{key[2]:05d}"
+
+
+def _year_file_target_granules(year_pf, *, targets):
+    """Worker: the target granule keys a (cell, year) file's metadata lists.
+
+    Reads only the per-year metadata JSON. ``targets`` is a frozenset of
+    ``soc_file_tree`` keys, baked into a ``functools.partial`` by the caller.
+    A missing file or sidecar (the cell has no data that year) is ``None``.
+    """
+    meta_path = year_pf.replace('.parquet', PARTITION_META_FILENAME)
     try:
-        for fut in dask_as_completed(fan_futures):
-            try:
-                res = fut.result()
-                if res.get('error'):
-                    n_fan_fail += 1
-                    logger.warning(f"Stage1 granule {res.get('granule')}: {res['error']}")
-                    failure = res.get('failure')
-                    if failure:
-                        _append_granule_failure(tmp_dir, res.get('granule'), failure)
-                else:
-                    n_frag += res.get('fragments', 0)
-            except Exception as e:
-                n_fan_fail += 1
-                logger.warning(f"Stage1 granule task raised: {type(e).__name__}: {e}")
-            finally:
-                fut.release()
-            pbar.update(1)
-            pbar.set_postfix(fragments=n_frag, failed=n_fan_fail)
-    finally:
-        pbar.close()
-    if n_fan_fail:
-        logger.error(
-            f"Stage1: {n_fan_fail} granule(s) failed to read. Their fragments "
-            f"are absent; affected cells keep their prior columns. Re-run to retry."
-        )
+        meta = json_read(meta_path)
+    except FileNotFoundError:
+        return None  # any other error raises: an unreadable sidecar is not "no data"
+    hits = [k for k in (_granule_key_str((g['orbit'], g['granule'], g['track']))
+                        for g in (meta or {}).get('granules', [])) if k in targets]
+    return hits or None
 
-    # ── Stage 2: merge — concat fragments into each base parquet ────────
-    touched_year_pfs = sorted({yp for yps in gran_year_pfs.values() for yp in yps})
 
-    merge_progress_file = os.path.join(tmp_dir, _VAR_MERGE_PROGRESS_FILENAME)
-    merged_set = set()
-    if os.path.exists(merge_progress_file):
-        with open(merge_progress_file) as f:
-            merged_set = {ln.strip() for ln in f if ln.strip()}
-        if merged_set:
-            logger.info(f"Resuming merge: {len(merged_set)} (cell, year) already merged")
-    remaining = [yp for yp in touched_year_pfs if yp not in merged_set]
+def _product_fill_vars(h3_dir: str, products, soc_files=None, version=None) -> Dict[str, List[str]]:
+    """Variables to read per product so a fill writes exactly what a build wrote.
 
-    merge_fn = functools.partial(_var_merge_cell_year, tmp_dir=tmp_dir)
-    updated_files: List[str] = []
-    touched_cells = set()
-    n_merge_fail = 0
-    if remaining:
-        merge_futures = client.map(merge_fn, remaining, pure=False)
-        fut_to_pf = dict(zip(merge_futures, remaining))
-        pbar = tqdm_bar(total=len(remaining), desc="Stage2 cell-year merge", unit="file")
-        progress_fh = open(merge_progress_file, 'a')
+    The build log's per-product variable lists, expanded the way Stage 1
+    expands them (:func:`_expand_product_vars`: presets, wildcards, L2A
+    essentials, quality flags) with ``soc_files`` as the sample for wildcard
+    or all-variable lists; without samples, the sample-free part of that
+    expansion. The loader adds ``root_file`` / ``root_beam`` itself, and
+    2-D datasets expand to their per-index columns there, as in a build.
+    """
+    import copy
+    log = json_read(os.path.join(h3_dir, BUILD_LOG_FILENAME)) or {}
+    recorded = {p: copy.deepcopy(((log.get('products') or {}).get(p) or {}).get('variables')) for p in products}
+    if version is None:
+        version = log.get('gedi_version')
+    if soc_files:
+        expanded = _expand_product_vars(recorded, soc_files, version=version)
+    else:
+        expanded = gedi_vars_expand(recorded, version=version)
+        _complete_essentials_and_flags(expanded, version=version, ensure_l2a=False)
+    return {p: [v for v in (expanded.get(p) or []) if v != 'shot_number'] for p in products}
+
+
+def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None, exclude=None):
+    """Backfill products published after their granule's rows were indexed.
+
+    A granule indexed while some of its products were not yet published (a
+    ``gh3_build --allow-missing-products`` run) stores those products'
+    columns as null. Once the product files exist, this writes their values
+    into those rows — only into cells that are null, never overwriting a
+    value — at a fraction of a rebuild's cost:
+
+    * **Targets are a-priori.** The caller passes them from the build log's
+      per-product ``MISSING_SOURCE`` status; nothing scans the database.
+    * **Candidate files are a-priori.** One ``{cell}.{year}.0.parquet`` per
+      partition id in the build log and per year a target granule covers
+      (from its file name). Workers read only those files' metadata JSON to
+      find which ones list a target granule.
+    * **Each product file is read once.** The shared inverted fan-out
+      (:func:`_fan_merge_products`, as the variable-add path uses) fans a
+      granule's shots to the files that own them, then fills each touched
+      file rowgroup-wise and atomically (:func:`parquet_fill_columns`).
+      Files that hold no target granule are never opened or rewritten.
+
+    Parameters
+    ----------
+    h3_dir : str
+        Database root (with a build log).
+    targets : dict
+        ``{(orbit, granule, track): iterable of products}`` to fill.
+    soc_source : str or list
+        Local SOC directory, or a listing already made
+        (``soc_file_tree(..., to_list=True)`` entries) to reuse without a walk.
+    version : int, optional
+        GEDI release of the database, pinning the SOC listing.
+    tmp_dir : str, optional
+        Scratch root for fragments and resume state; default
+        ``<h3_dir>/.tmp_product_fill``. Keep it separate from a variable
+        update's. Resume state is keyed to the exact target set (granule →
+        products): a run with different targets starts from a clean root, so
+        a leftover per-granule sentinel can never stand in for a product it
+        did not fill.
+    exclude : list of str, optional
+        fnmatch patterns of source files to ignore (as ``gh3_build --exclude``).
+
+    Returns
+    -------
+    dict
+        ``{'filled': {key: [products]}, 'unavailable': {key: [products]},
+        'failed': {key: [products]}, 'updated_files': [paths]}`` —
+        ``unavailable``: no product file yet, or no database file lists the
+        granule; ``failed``: a read or merge error (retry on the next run).
+    """
+    client = get_dask_client()
+    if client is None:
+        raise GediError("_build_fill_products requires a registered dask Client")
+    targets = {tuple(k): set(v) for k, v in targets.items() if v}
+    out = {'filled': {}, 'unavailable': {}, 'failed': {}, 'updated_files': []}
+    if not targets:
+        return out
+    if tmp_dir is None:
+        tmp_dir = os.path.join(h3_dir, '.tmp_product_fill')
+
+    # ── Stage 0a: product files now on disk, one listing ──
+    if isinstance(soc_source, list):
+        soc_tree = {}
+        for entry in soc_source:
+            path = next(iter(entry.values()), None)
+            key = _granule_id_from_l2a_path(getattr(path, 'path', path)) if path else None
+            if key is not None:
+                soc_tree[_granule_key_str(key)] = entry
+    else:
+        glob_kwargs = {'version': version} if version is not None else None
+        # Partial granules too: a target may still lack another product.
+        soc_tree = soc_file_tree(soc_source, to_list=False, glob_kwargs=glob_kwargs, exclude=exclude,
+                                 require_all=False)
+
+    gran_h5: Dict[str, Dict[str, str]] = {}
+    years = set()
+    for key, prods in targets.items():
+        entry = soc_tree.get(_granule_key_str(key)) or {}
+        h5 = {p: entry[p] for p in prods if p in entry}
+        if not h5:
+            out['unavailable'][key] = sorted(prods)
+            continue
+        gran_h5[_granule_key_str(key)] = h5
         try:
-            for fut in dask_as_completed(merge_futures):
-                pf = fut_to_pf[fut]
-                try:
-                    res = fut.result()
-                    if res is not None:
-                        updated_files.append(res)
-                        touched_cells.add(os.path.dirname(os.path.dirname(res)))
-                    # Record progress whether or not rows landed: an empty
-                    # (no-fragment) cell-year is "done" for resume purposes.
-                    progress_fh.write(pf + '\n')
-                    progress_fh.flush()
-                except Exception as e:
-                    n_merge_fail += 1
-                    logger.warning(
-                        f"Stage2 merge failed for {os.path.relpath(pf, h3_dir)}: "
-                        f"{type(e).__name__}: {e}"
-                    )
-                finally:
-                    fut.release()
-                pbar.update(1)
-                pbar.set_postfix(updated=len(updated_files), failed=n_merge_fail)
-        finally:
-            progress_fh.close()
-            pbar.close()
-    if n_merge_fail:
-        logger.error(f"Stage2: {n_merge_fail} cell-year merge(s) failed. Re-run to retry.")
+            first = next(iter(h5.values()))
+            stamp = os.path.basename(str(getattr(first, 'path', first))).split('_')[2]
+            year, doy = int(stamp[:4]), int(stamp[4:7])
+        except (IndexError, ValueError):
+            year, doy = None, 0
+        if year is not None:
+            years.add(year)
+            if doy >= 365:  # a granule starting on the last day can run past midnight
+                years.add(year + 1)
+    if not gran_h5:
+        logger.info(f"Product backfill: none of {len(targets)} pending granule(s) has its product files yet")
+        return out
 
+    # ── Stage 0b: which (cell, year) files list each granule ──
+    log = json_read(os.path.join(h3_dir, BUILD_LOG_FILENAME)) or {}
+    part = log.get('h3_partition_level')
+    cells = log.get('h3_partition_ids') or []
+    candidates = [
+        os.path.join(h3_dir, f"h3_{part:02d}={c}", f"year={y}", f"{c}.{y}.0.parquet")
+        for c in cells for y in sorted(years)
+    ]
     logger.info(
-        f"Merged {len(updated_files)} (cell, year) files across "
-        f"{len(touched_cells)} cells (fragments written={n_frag})"
+        f"Product backfill: {len(gran_h5)} granule(s) have new product files; locating them in "
+        f"{len(candidates)} candidate (cell, year) file(s), metadata only"
     )
+    scan_fn = functools.partial(_year_file_target_granules, targets=frozenset(gran_h5))
+    gran_year_pfs: Dict[str, List[str]] = {}
+    from .parallel import parallel_map
+    unreadable = 0
+    for year_pf, hits in parallel_map(candidates, scan_fn, desc="Locating granules", unit="file",
+                                      batch_size=500 if len(candidates) > 10000 else 0):
+        if isinstance(hits, Exception):
+            unreadable += 1
+            logger.warning(f"Product backfill: could not read metadata of {year_pf}: {hits}")
+            continue
+        if not hits:
+            continue
+        for k in hits:
+            gran_year_pfs.setdefault(k, []).append(year_pf)
 
-    # ── Stage 3: per-cell metadata aggregation + manifest ───────────────
-    if touched_cells:
-        logger.info(f"Merging per-cell metadata for {len(touched_cells)} updated cells")
-        meta_futures = client.map(h3_merge_metadata, sorted(touched_cells), pure=False)
-        meta_pbar = tqdm_bar(total=len(touched_cells), desc="Merging cell metadata", unit="cell")
-        try:
-            for f in dask_as_completed(meta_futures):
-                try:
-                    f.result()
-                except Exception as e:
-                    logger.warning(f"Cell metadata merge failed: {e}")
-                meta_pbar.update(1)
-        finally:
-            meta_pbar.close()
+    if unreadable:
+        # A granule's rows could sit in an unreadable file: filling the rest
+        # and reporting it filled would hide those rows. Retry the whole set.
+        raise GediError(f"Product backfill: {unreadable} metadata file(s) unreadable; nothing filled, retry later")
 
-    generate_manifest(h3_dir, tree_shape='h3db')
+    by_str = {_granule_key_str(k): k for k in targets}
+    for ot in list(gran_h5):
+        if ot not in gran_year_pfs:
+            out['unavailable'][by_str[ot]] = sorted(gran_h5.pop(ot))
+    if not gran_h5:
+        logger.warning("Product backfill: no database file lists the pending granule(s); nothing to fill")
+        return out
 
-    # ── Cleanup: drop the leftover sentinel/progress scaffolding ────────
-    # The per-cell-year fragment dirs were already deleted INSIDE
-    # _var_merge_cell_year as each merge succeeded (rm_src discipline,
-    # distributed across workers) — so _var_frags is empty here and its
-    # rmtree is a cheap no-op rather than a multi-hour serial sweep of
-    # millions of files on the driver. What remains is the
-    # _var_fan_complete sentinel dir + the merge-progress file, only
-    # meaningful for resuming an interrupted run. Drop them on a fully
-    # clean run; leave them if anything failed so the next resume reuses
-    # completed work. Fan-out cleanup is parallelized to avoid the same
-    # serial-rmtree trap (66k+ sentinel files at continental scale).
-    if updated_files and n_fan_fail == 0 and n_merge_fail == 0:
-        frag_root = os.path.join(tmp_dir, _VAR_FRAG_DIRNAME)
-        if os.path.isdir(frag_root):
-            try:
-                shutil.rmtree(frag_root)  # empty after per-merge rm_src — cheap
-            except OSError as e:
-                logger.warning(f"Could not clean up {frag_root}: {e}")
-        _remove_tree_fanout(os.path.join(tmp_dir, _VAR_FAN_COMPLETE_DIRNAME),
-                            desc="Cleaning fan sentinels")
-        p = os.path.join(tmp_dir, _VAR_MERGE_PROGRESS_FILENAME)
-        try:
-            if os.path.exists(p):
-                os.unlink(p)
-        except OSError:
-            pass
+    # ── Resume state belongs to one target set ──
+    signature = json.dumps(sorted((ot, sorted(h5)) for ot, h5 in gran_h5.items()))
+    sig_path = os.path.join(tmp_dir, '_fill_targets.json')
+    try:
+        with open(sig_path) as f:
+            previous = f.read()
+    except OSError:
+        previous = None
+    if previous != signature and os.path.isdir(tmp_dir):
+        logger.info(f"Product backfill: discarding resume state of a different target set in {tmp_dir}")
+        _remove_tree_fanout(tmp_dir, desc="Cleaning stale fill state")
+    if previous != signature:
+        os.makedirs(tmp_dir, exist_ok=True)
+        with AtomicFileWriter(sig_path) as tmp_path:
+            with open(tmp_path, 'w') as f:
+                f.write(signature)
 
-    return updated_files if updated_files else None
+    # ── Stages 1-3: read each product file once, fill the files that own the rows ──
+    products = sorted({p for h5 in gran_h5.values() for p in h5})
+    fill_vars = _product_fill_vars(h3_dir, products, soc_files=list(gran_h5.values()), version=version)
+    res = _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, fill_vars, tmp_dir, fill=True)
+    for ot, h5 in gran_h5.items():
+        bucket = 'failed' if ot in res['failed_granules'] else 'filled'
+        out[bucket][by_str[ot]] = sorted(h5)
+    out['updated_files'] = res['updated_files']
+    logger.info(
+        f"Product backfill: filled {len(out['filled'])} granule(s) across {len(res['updated_files'])} file(s); "
+        f"{len(out['failed'])} failed (retried next run), {len(out['unavailable'])} still awaiting products"
+    )
+    return out
 
 
 def _resolve_build_version(h3_dir: str, soc_source=None) -> int:
@@ -4038,6 +4496,8 @@ def build_h3db(
     status_callback: Optional[Callable[[str], None]] = None,
     variable_only_update: bool = False,
     exclude: Optional[List[str]] = None,
+    allow_missing_products: bool = False,
+    granule_products_callback: Optional[Callable[[Dict[Tuple[int, int, int], List[str]]], None]] = None,
 ) -> Optional[List[str]]:
     """
     Build an H3-indexed GEDI database from local SOC files or S3 download.
@@ -4076,6 +4536,18 @@ def build_h3db(
         If True, only add new variable columns to existing partition files
         via shot_number join (``_build_add_variables``). Skips full pipeline.
         The caller (CLI) determines this from the build logger state.
+    allow_missing_products : bool, default False
+        Admit granules that have L2A but lack later products (L2B, L4A…
+        published after L2A). Their rows store those products' columns as
+        null, in the database's types, until :func:`_build_fill_products`
+        backfills them. Requires the streaming writer. Default: a granule
+        must have every requested product.
+    granule_products_callback : callable, optional
+        Called once, before any fragment is written, with
+        ``{(orbit, granule, track): [missing products]}`` for every granule
+        this Stage 1 processes (an empty list when it has every product).
+        The CLI records ``MISSING_SOURCE`` from it, so the backfill knows its
+        targets without scanning the database, even after a crash mid-write.
 
     Returns
     -------
@@ -4160,7 +4632,8 @@ def build_h3db(
         dropped = before - len(soc_source)
         if dropped:
             logger.warning(f"Dropped {dropped} pre-acquired file(s) not matching version V{version:03d}")
-        all_soc_files = soc_file_tree(soc_source, to_list=True, exclude=exclude)
+        all_soc_files = soc_file_tree(soc_source, to_list=True, exclude=exclude,
+                                      require_all=not allow_missing_products)
     elif isinstance(soc_source, str):
         # Local directory mode (also used after S3 download to temp dir)
         if not os.path.exists(soc_source):
@@ -4169,7 +4642,8 @@ def build_h3db(
         # other releases and soc_file_tree's pivot key (orb_track, no
         # version) cannot collide same-orbit granules across releases.
         logger.info(f"Listing source SOC files (GEDI release V{version:03d})")
-        all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs={'version': version}, exclude=exclude)
+        all_soc_files = soc_file_tree(soc_source, to_list=True, glob_kwargs={'version': version}, exclude=exclude,
+                                      require_all=not allow_missing_products)
     else:
         raise GediValidationError(f"Invalid soc_source type: {type(soc_source)}")
 
@@ -4204,11 +4678,33 @@ def build_h3db(
         prod_soc_files = [{k: val for k, val in i.items() if k in product_vars} for i in all_soc_files]
 
         # Filter out incomplete, corrupted, or already-processed granules
-        soc_files = _filter_granules(prod_soc_files, product_vars, skip_granules)
+        required = ({'L2A'} & set(product_vars)) or None if allow_missing_products else None
+        soc_files = _filter_granules(prod_soc_files, product_vars, skip_granules,
+                                     required_products=required)
 
         if len(soc_files) == 0:
             logger.info("No new granules to process")
             return None
+        if allow_missing_products:
+            if not _streaming_enabled():
+                raise GediValidationError("allow_missing_products requires the streaming writer (GH3_WRITE_STREAMING)")
+            # Complete granules first: the schema sample (the first readable
+            # granule) then carries every product whenever one is available.
+            soc_files.sort(key=lambda s: len(s) < len(product_vars))
+            n_partial = sum(len(s) < len(product_vars) for s in soc_files)
+            if n_partial:
+                logger.info(
+                    f"{n_partial}/{len(soc_files)} granule(s) lack some requested products; their "
+                    f"columns stay null until the products are published and backfilled"
+                )
+        if granule_products_callback is not None:
+            processed = {}
+            for s_ in soc_files:
+                path = next(iter(s_.values()))
+                key = _granule_id_from_l2a_path(getattr(path, 'path', path))
+                if key is not None:
+                    processed[key] = sorted(p for p in product_vars if p not in s_)
+            granule_products_callback(processed)
 
         # Create H3-indexed Dask DataFrame
         ddf, lat_col, lon_col, dat_col, frag_names = _create_h3_dataframe(soc_files, product_vars, res, part)
@@ -4240,6 +4736,7 @@ def build_h3db(
                 ddf, soc_files, product_vars, res, part,
                 parquet_dir, h3_dir, spatial,
                 lat_col, lon_col, dat_col,
+                allow_missing_products=allow_missing_products,
             )
         else:
             wrote_any = _write_partitioned(

@@ -134,6 +134,7 @@ def soc_file_tree(
     to_list: bool = False,
     glob_kwargs: Optional[Dict] = None,
     exclude: Optional[List[str]] = None,
+    require_all: bool = True,
 ) -> Union[Dict[str, Dict[str, str]], List[Dict[str, str]]]:
     """
     Build a structured tree of GEDI SOC files grouped by orbit/track.
@@ -158,6 +159,12 @@ def soc_file_tree(
         Any file whose basename matches any pattern is dropped from the
         result. Useful to exclude internal/SGS variants (e.g.
         ``['*_SGS.h5']``) that share the SOC tree with public release files.
+    require_all : bool, default True
+        Keep only granules that have a file for every product found in the
+        listing. ``False`` keeps every granule with whatever products it has
+        (its dict simply lacks the others) — for callers that judge
+        completeness against the products they request, e.g. a build admitting
+        granules whose later products are not published yet.
 
     Returns
     -------
@@ -239,9 +246,12 @@ def soc_file_tree(
     flist['orb_track'] = fidx[2]
     flist = flist.sort_values(['orb_track', 'file_paths', 'prod'])
     flist = flist.pivot_table(index='orb_track', columns='prod', values='file_links', aggfunc='last')
-    flist = flist.dropna()
-
-    soc_tree = flist.T.to_dict()
+    if require_all:
+        flist = flist.dropna()
+        soc_tree = flist.T.to_dict()
+    else:
+        soc_tree = {k: {p: f for p, f in v.items() if isinstance(f, str) or not pd.isna(f)}
+                    for k, v in flist.T.to_dict().items()}
 
     if to_list:
         soc_tree = list(soc_tree.values())

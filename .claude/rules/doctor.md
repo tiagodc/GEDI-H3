@@ -36,6 +36,13 @@ Ask for `soc_health` or `tmp_partitions_health` by name, or use `all`.
   what a partition contains. Do not skip that.
 - `tmp_partitions_health --fix` calls `preclean_merge_failures` and **refuses to act while
   a `gh3_build` is live**. Any new fix that touches `tmp/` needs the same guard.
+- Fixes that rewrite partition files (`backfill`, `dtype_drift`) also refuse while the build
+  log is in flight (`_BUILD_IN_FLIGHT`), return `applied=False` so the log is not saved,
+  and guard before any download or write.
+- `backfill` has two finding sources: `missing_source` from the build log (granules
+  indexed before a later product was published — INFO, expected in a phased database,
+  fixed by the build's own `_build_fill_products`) and the row scan, whose `partial_nan`
+  duplicates of those gaps are folded in.
 
 ## Scaling
 

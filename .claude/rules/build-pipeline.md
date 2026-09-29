@@ -98,19 +98,19 @@ per class.
   successful merges (in-memory derive + one atomic write, no tree walk), so consumers
   reading mid-build see partial-but-fresh state.
 
-## Variable-only update (`gh3_update`, `_build_add_variables`)
+## Variable add and product backfill (`_fan_merge_products`)
 
-Reads each granule h5 **once** and fans its shots to every owning cell
-(`_var_fan_granule`), then merges per-`(cell, year)` into the base parquet
-(`_var_merge_cell_year`). The granule→cell relationship is free from the metadata granule
-lists. The legacy per-`(cell, year)` sharding re-read every granule once per cell that
-listed it — a 39.75× redundancy measured on a production tree (2.64M reads for 66.5k
-unique granules), and h5 reads are ~93% of runtime.
+Both read each granule h5 **once**, fan its shots to every owning cell (`_var_fan_granule`)
+and merge per-`(cell, year)` into the base parquet (`_var_merge_cell_year`); the granule→cell
+map is free from the metadata granule lists (per-cell re-reads measured 39.75× redundant).
+`_build_add_variables` joins new columns (`parquet_join_columns` skips present ones, so a
+re-run never duplicates). `_build_fill_products` writes null cells only
+(`parquet_fill_columns`) for granules an `--allow-missing-products` build indexed before
+their later products existed (`MISSING_SOURCE`); targets come from the build log, never a
+data scan. Its resume state is keyed per target set and it never skips "merged" files.
 
 Shots are routed by matching `shot_number` against the existing base parquets — **never**
-by recomputing H3 from the new product's coordinates. `parquet_join_columns` writes via
-`.join.tmp` + `os.replace` and filters columns already present, so re-running against a
-partially-updated year file never duplicates columns.
+by recomputing H3 from the new product's coordinates.
 
 ## Post-merge tmp cleanup
 
