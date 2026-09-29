@@ -544,7 +544,7 @@
 <td><p>L1 resume pre-clean: act on every recorded <code class="docutils literal notranslate"><span class="pre">_merge_failures</span></code> sentinel.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.apply_merge_failures_to_logger" title="gedih3.gh3builder.apply_merge_failures_to_logger"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply_merge_failures_to_logger</span></code></a>(→ int)</p></td>
-<td><p>Fold the merge-failed-granules sidecar into the build-log's</p></td>
+<td><p>Fold the merge-failed-granules sidecar into the build-log's granule</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.build_h3db" title="gedih3.gh3builder.build_h3db"><code class="xref py py-obj docutils literal notranslate"><span class="pre">build_h3db</span></code></a>(, h3_dir, skip_granules, status_callback, ...)</p></td>
 <td><p>Build an H3-indexed GEDI database from local SOC files or S3 download.</p></td>
@@ -875,7 +875,9 @@ no parquet files.</p>
 canonical class B artifact). Truncated-but-nonzero parquets (class C)
 are unlinked only when <code class="docutils literal notranslate"><span class="pre">pq.ParquetFile</span></code> cannot open them — checked
 cheaply by opening the footer once. The cost is bounded by the
-failure list, never the full healthy tree.</p></li>
+failure list, never the full healthy tree. Each unlinked fragment’s
+<code class="docutils literal notranslate"><span class="pre">_complete/</span></code> sentinel goes too, so the next Stage 1 re-runs that
+(granule × beam) instead of skipping it as done.</p></li>
 <li><p>Unlink any co-located <code class="docutils literal notranslate"><span class="pre">*.tmp</span></code> / <code class="docutils literal notranslate"><span class="pre">*.merge.tmp</span></code> siblings. These
 survive SIGKILL when <code class="docutils literal notranslate"><span class="pre">AtomicFileWriter.__exit__</span></code> never runs and
 would otherwise pollute future merges.</p></li>
@@ -885,21 +887,28 @@ idempotent (next run only re-acts on freshly-failed merges).</p></li>
 <p>Returns <code class="docutils literal notranslate"><span class="pre">{'partitions_cleaned':</span> <span class="pre">N,</span> <span class="pre">'parquets_removed':</span> <span class="pre">N,</span> <span class="pre">'tmps_removed':</span> <span class="pre">N}</span></code>.
 Companion to <code class="docutils literal notranslate"><span class="pre">apply_merge_failures_to_logger</span></code> — calling this without
 the granule flip-back would unlink fragments and leave their granules
-marked INDEXED, permanently dropping rows. The CLI runs both together.</p>
+marked INDEXED, permanently dropping rows. <code class="docutils literal notranslate"><span class="pre">build_h3db</span></code> runs it before
+Stage 1 (so the lost tasks are re-extracted in the same run) and
+<code class="docutils literal notranslate"><span class="pre">_merge_and_finalize</span></code> again at merge entry.</p>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.gh3builder.apply_merge_failures_to_logger">
 <span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">apply_merge_failures_to_logger</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h3_logger</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tmp_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#apply_merge_failures_to_logger"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.apply_merge_failures_to_logger" title="Link to this definition">#</a></dt>
-<dd><p>Fold the merge-failed-granules sidecar into the build-log’s
-granule status (INDEXED → MERGE_FAILED). Returns the count flipped.</p>
-<p>Idempotent: re-applying after a successful resume is a no-op because
-re-extracted granules have already been flipped back to INDEXED by
-<code class="docutils literal notranslate"><span class="pre">_reconcile_granules_from_disk</span></code>. Truncates the sidecar after fold to
-keep it bounded across resumes.</p>
-<p>Callable from the CLI right after <code class="docutils literal notranslate"><span class="pre">_merge_and_finalize</span></code> returns,
-regardless of which code path invoked merge. Does NOT call
-<code class="docutils literal notranslate"><span class="pre">h3_logger.save_log</span></code> — the caller controls save cadence.</p>
+<dd><p>Fold the merge-failed-granules sidecar into the build-log’s granule
+status: every recorded granule becomes <code class="docutils literal notranslate"><span class="pre">MERGE_FAILED</span></code>. Returns the
+number of entries changed.</p>
+<p>Any prior status flips, not only <code class="docutils literal notranslate"><span class="pre">INDEXED</span></code>: a granule extracted by the
+failing run is still <code class="docutils literal notranslate"><span class="pre">PENDING</span></code> here, and <code class="docutils literal notranslate"><span class="pre">set_post_build_info</span></code> would
+otherwise mark it <code class="docutils literal notranslate"><span class="pre">INDEXED</span></code> from its rows in other partitions. A
+recorded granule the log does not track yet (S3 mode registers none) is
+added. <code class="docutils literal notranslate"><span class="pre">set_post_build_info</span></code>, the reconcile and <code class="docutils literal notranslate"><span class="pre">log_state</span></code> all keep
+<code class="docutils literal notranslate"><span class="pre">MERGE_FAILED</span></code>; only <code class="xref py py-func docutils literal notranslate"><span class="pre">_release_merge_failed()</span></code>, after a Stage 1 run
+that re-extracted the granule, clears it.</p>
+<p>Idempotent. Removes the sidecar after the fold. The CLI calls it at
+startup (a run killed before its fold leaves the sidecar behind) and
+right after every merge. Does NOT call <code class="docutils literal notranslate"><span class="pre">h3_logger.save_log</span></code> — the
+caller controls save cadence.</p>
 </dd></dl>
 
 <dl class="py function">

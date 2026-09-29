@@ -1002,10 +1002,11 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ``apply_merge_failures_to_logger`` so that Stage 1 would re-extract</span>
 <span class="sd">    them on the next resume. Taking the merge-only shortcut would skip the</span>
 <span class="sd">    extract pass and re-attempt the same merge against the same bad</span>
-<span class="sd">    fragments, looping forever. The full path's reconcile + extract pass</span>
-<span class="sd">    is what closes the loop: it walks ``MERGE_FAILED → INDEXING``,</span>
-<span class="sd">    re-writes the fragments from source HDF5, and feeds the merge fresh</span>
-<span class="sd">    inputs.</span>
+<span class="sd">    fragments, looping forever. The full path is what closes the loop:</span>
+<span class="sd">    ``build_h3db``'s pre-clean reopens the lost (granule × beam) tasks,</span>
+<span class="sd">    Stage 1 re-writes those fragments from source HDF5 and the merge takes</span>
+<span class="sd">    them, then ``_release_merge_failed`` hands the granules back to</span>
+<span class="sd">    ``set_post_build_info`` (``MERGE_FAILED → PENDING → INDEXED``).</span>
 
 <span class="sd">    **Veto: pending new product/variable work.** ``has_pending_new_work``</span>
 <span class="sd">    is true when the caller has detected a variable-only update, a mixed</span>
@@ -1522,6 +1523,15 @@ window.runMermaid = runMermaid;</script>
             <span class="c1"># already started" — silently no-opping the whole product add</span>
             <span class="c1"># while still reporting success.</span>
             <span class="n">_parquet_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span> <span class="s1">'partitions'</span><span class="p">)</span>
+            <span class="c1"># A run killed between a merge failure and its post-merge fold</span>
+            <span class="c1"># leaves the sidecar behind. Fold it before choosing the path: the</span>
+            <span class="c1"># MERGE_FAILED veto must see it, or the shortcut would merge those</span>
+            <span class="c1"># partitions without their lost fragments. The next save_log</span>
+            <span class="c1"># (MERGING or PARTITIONING, just below) persists it.</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply_merge_failures_to_logger</span><span class="p">,</span> <span class="n">_release_merge_failed</span>
+            <span class="n">_flagged</span> <span class="o">=</span> <span class="n">apply_merge_failures_to_logger</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">_parquet_dir</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">_flagged</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Flagged </span><span class="si">{</span><span class="n">_flagged</span><span class="si">}</span><span class="s2"> granule(s) MERGE_FAILED from an earlier failed merge"</span><span class="p">)</span>
             <span class="n">_merge_signal</span> <span class="o">=</span> <span class="n">_detect_merge_resume_signal</span><span class="p">(</span>
                 <span class="n">h3_logger</span><span class="p">,</span> <span class="n">_parquet_dir</span><span class="p">,</span>
                 <span class="n">has_pending_new_work</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span>
@@ -1544,12 +1554,11 @@ window.runMermaid = runMermaid;</script>
                 <span class="c1"># log so the next resume re-extracts the affected granules</span>
                 <span class="c1"># instead of treating their (corrupt) parquet as canonical.</span>
                 <span class="c1"># Idempotent + truncates the sidecar after fold.</span>
-                <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply_merge_failures_to_logger</span>
                 <span class="n">_flipped</span> <span class="o">=</span> <span class="n">apply_merge_failures_to_logger</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">_parquet_dir</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">_flipped</span><span class="p">:</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">"Flipped </span><span class="si">{</span><span class="n">_flipped</span><span class="si">}</span><span class="s2"> granule(s) INDEXED → MERGE_FAILED "</span>
-                        <span class="sa">f</span><span class="s2">"after corrupt-fragment merge failures. They will be "</span>
+                        <span class="sa">f</span><span class="s2">"Flagged </span><span class="si">{</span><span class="n">_flipped</span><span class="si">}</span><span class="s2"> granule(s) MERGE_FAILED after "</span>
+                        <span class="sa">f</span><span class="s2">"corrupt-fragment merge failures. They will be "</span>
                         <span class="sa">f</span><span class="s2">"re-extracted on the next resume."</span>
                     <span class="p">)</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
@@ -1578,6 +1587,7 @@ window.runMermaid = runMermaid;</script>
             <span class="k">try</span><span class="p">:</span>
                 <span class="c1"># Register granules being submitted for build as PENDING</span>
                 <span class="c1"># Only for local download mode (-i); S3 mode has no local SOC directory</span>
+                <span class="n">_stage1_listed</span> <span class="o">=</span> <span class="kc">None</span>
                 <span class="k">if</span> <span class="n">soc_source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">soc_source</span><span class="p">):</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Listing SOC files for granule registration"</span><span class="p">)</span>
                     <span class="n">_soc_for_build</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span>
@@ -1597,6 +1607,7 @@ window.runMermaid = runMermaid;</script>
                             <span class="s1">'track'</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">5</span><span class="p">][</span><span class="mi">1</span><span class="p">:]),</span>
                         <span class="p">})</span>
                     <span class="n">h3_logger</span><span class="o">.</span><span class="n">register_pending_granules</span><span class="p">(</span><span class="n">_build_granules</span><span class="p">)</span>
+                    <span class="n">_stage1_listed</span> <span class="o">=</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">_build_granules</span><span class="p">}</span>
 
                     <span class="c1"># Resume reconciliation: scan h3 db AND tmp/partitions for</span>
                     <span class="c1"># granules already represented on disk and flip them to</span>
@@ -1635,6 +1646,11 @@ window.runMermaid = runMermaid;</script>
                         <span class="n">variable_only_update</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                         <span class="o">**</span><span class="n">_build_kwargs</span><span class="p">,</span>
                     <span class="p">)</span>
+                    <span class="c1"># Stage 1 never skips a MERGE_FAILED granule and its pre-clean</span>
+                    <span class="c1"># reopened the lost tasks, so every listed one was re-extracted</span>
+                    <span class="c1"># and merged: PENDING lets set_post_build_info index it, and</span>
+                    <span class="c1"># the fold below re-flags any whose merge failed again.</span>
+                    <span class="n">_release_merge_failed</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">listed</span><span class="o">=</span><span class="n">_stage1_listed</span><span class="p">)</span>
 
                 <span class="c1"># ── Stage 2: Variable update ─────────────────────────────</span>
                 <span class="c1"># Runs for: variable-only update, mixed update Phase 2,</span>
@@ -1675,8 +1691,8 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">_flipped</span> <span class="o">=</span> <span class="n">apply_merge_failures_to_logger</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">_parquet_dir_for_fold</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">_flipped</span><span class="p">:</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">"Flipped </span><span class="si">{</span><span class="n">_flipped</span><span class="si">}</span><span class="s2"> granule(s) INDEXED → MERGE_FAILED "</span>
-                        <span class="sa">f</span><span class="s2">"after corrupt-fragment merge failures. They will be "</span>
+                        <span class="sa">f</span><span class="s2">"Flagged </span><span class="si">{</span><span class="n">_flipped</span><span class="si">}</span><span class="s2"> granule(s) MERGE_FAILED after "</span>
+                        <span class="sa">f</span><span class="s2">"corrupt-fragment merge failures. They will be "</span>
                         <span class="sa">f</span><span class="s2">"re-extracted on the next resume."</span>
                     <span class="p">)</span>
                 <span class="c1"># Advisory: surface Stage 1 failure classes with actionable</span>

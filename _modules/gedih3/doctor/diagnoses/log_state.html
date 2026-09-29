@@ -896,7 +896,9 @@ window.runMermaid = runMermaid;</script>
                 <span class="k">continue</span>
             <span class="n">on_disk</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">granule_info</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">==</span> <span class="s1">'INDEXED'</span><span class="p">:</span>
+            <span class="c1"># MERGE_FAILED is on disk by construction (its other partitions</span>
+            <span class="c1"># merged) and awaits re-extraction: not drift.</span>
+            <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'INDEXED'</span><span class="p">,</span> <span class="s1">'MERGE_FAILED'</span><span class="p">):</span>
                 <span class="k">continue</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">triple</span> <span class="o">=</span> <span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span>

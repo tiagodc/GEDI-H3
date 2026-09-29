@@ -2024,7 +2024,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">       canonical class B artifact). Truncated-but-nonzero parquets (class C)</span>
 <span class="sd">       are unlinked only when ``pq.ParquetFile`` cannot open them — checked</span>
 <span class="sd">       cheaply by opening the footer once. The cost is bounded by the</span>
-<span class="sd">       failure list, never the full healthy tree.</span>
+<span class="sd">       failure list, never the full healthy tree. Each unlinked fragment's</span>
+<span class="sd">       ``_complete/`` sentinel goes too, so the next Stage 1 re-runs that</span>
+<span class="sd">       (granule × beam) instead of skipping it as done.</span>
 <span class="sd">    2. Unlink any co-located ``*.tmp`` / ``*.merge.tmp`` siblings. These</span>
 <span class="sd">       survive SIGKILL when ``AtomicFileWriter.__exit__`` never runs and</span>
 <span class="sd">       would otherwise pollute future merges.</span>
@@ -2034,7 +2036,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Returns ``{'partitions_cleaned': N, 'parquets_removed': N, 'tmps_removed': N}``.</span>
 <span class="sd">    Companion to ``apply_merge_failures_to_logger`` — calling this without</span>
 <span class="sd">    the granule flip-back would unlink fragments and leave their granules</span>
-<span class="sd">    marked INDEXED, permanently dropping rows. The CLI runs both together.</span>
+<span class="sd">    marked INDEXED, permanently dropping rows. ``build_h3db`` runs it before</span>
+<span class="sd">    Stage 1 (so the lost tasks are re-extracted in the same run) and</span>
+<span class="sd">    ``_merge_and_finalize`` again at merge entry.</span>
 <span class="sd">    """</span>
     <span class="n">out</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'partitions_cleaned'</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">'parquets_removed'</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">'tmps_removed'</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
     <span class="n">failures</span> <span class="o">=</span> <span class="n">_scan_merge_failure_sentinels</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)</span>
@@ -2086,6 +2090,10 @@ window.runMermaid = runMermaid;</script>
                     <span class="n">out</span><span class="p">[</span><span class="s1">'parquets_removed'</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
                 <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
                     <span class="k">pass</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">_complete_sentinel_path</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">name</span><span class="p">[:</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="s1">'.parquet'</span><span class="p">)]))</span>
+                <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+                    <span class="k">pass</span>
         <span class="c1"># Drop the sentinel — the cleanup acted; next merge will re-emit if</span>
         <span class="c1"># it fails again. Keeping it would loop the pre-clean forever.</span>
         <span class="k">try</span><span class="p">:</span>
@@ -2100,17 +2108,22 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="apply_merge_failures_to_logger">
 <a class="viewcode-back" href="../../autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.apply_merge_failures_to_logger">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">apply_merge_failures_to_logger</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Fold the merge-failed-granules sidecar into the build-log's</span>
-<span class="sd">    granule status (INDEXED → MERGE_FAILED). Returns the count flipped.</span>
+<span class="w">    </span><span class="sd">"""Fold the merge-failed-granules sidecar into the build-log's granule</span>
+<span class="sd">    status: every recorded granule becomes ``MERGE_FAILED``. Returns the</span>
+<span class="sd">    number of entries changed.</span>
 
-<span class="sd">    Idempotent: re-applying after a successful resume is a no-op because</span>
-<span class="sd">    re-extracted granules have already been flipped back to INDEXED by</span>
-<span class="sd">    ``_reconcile_granules_from_disk``. Truncates the sidecar after fold to</span>
-<span class="sd">    keep it bounded across resumes.</span>
+<span class="sd">    Any prior status flips, not only ``INDEXED``: a granule extracted by the</span>
+<span class="sd">    failing run is still ``PENDING`` here, and ``set_post_build_info`` would</span>
+<span class="sd">    otherwise mark it ``INDEXED`` from its rows in other partitions. A</span>
+<span class="sd">    recorded granule the log does not track yet (S3 mode registers none) is</span>
+<span class="sd">    added. ``set_post_build_info``, the reconcile and ``log_state`` all keep</span>
+<span class="sd">    ``MERGE_FAILED``; only :func:`_release_merge_failed`, after a Stage 1 run</span>
+<span class="sd">    that re-extracted the granule, clears it.</span>
 
-<span class="sd">    Callable from the CLI right after ``_merge_and_finalize`` returns,</span>
-<span class="sd">    regardless of which code path invoked merge. Does NOT call</span>
-<span class="sd">    ``h3_logger.save_log`` — the caller controls save cadence.</span>
+<span class="sd">    Idempotent. Removes the sidecar after the fold. The CLI calls it at</span>
+<span class="sd">    startup (a run killed before its fold leaves the sidecar behind) and</span>
+<span class="sd">    right after every merge. Does NOT call ``h3_logger.save_log`` — the</span>
+<span class="sd">    caller controls save cadence.</span>
 <span class="sd">    """</span>
     <span class="n">records</span> <span class="o">=</span> <span class="n">_read_merge_failed_granules</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">records</span><span class="p">:</span>
@@ -2122,26 +2135,22 @@ window.runMermaid = runMermaid;</script>
         <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
             <span class="k">pass</span>
         <span class="k">return</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">h3_logger</span><span class="o">.</span><span class="n">granule_info</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">by_key</span> <span class="o">=</span> <span class="p">{(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'orbit'</span><span class="p">),</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granule'</span><span class="p">),</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'track'</span><span class="p">)):</span> <span class="n">g</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">granule_info</span><span class="p">}</span>
     <span class="n">flipped</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="k">for</span> <span class="n">rec</span> <span class="ow">in</span> <span class="n">records</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">key</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'orbit'</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">rec</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">]),</span>
-                   <span class="s1">'granule'</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">rec</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">]),</span>
-                   <span class="s1">'track'</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">rec</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])}</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">rec</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">rec</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">rec</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]))</span>
         <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
             <span class="k">continue</span>
-        <span class="c1"># Only flip if currently INDEXED. PENDING / other statuses are</span>
-        <span class="c1"># already non-skip on resume so no flip is needed; preserves</span>
-        <span class="c1"># idempotency across repeated folds.</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">):</span>
-            <span class="k">return</span> <span class="n">flipped</span>
-        <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">granule_info</span><span class="p">:</span>
-            <span class="k">if</span> <span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'orbit'</span><span class="p">),</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granule'</span><span class="p">),</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'track'</span><span class="p">))</span> <span class="o">==</span> \
-               <span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">key</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">key</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]):</span>
-                <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">==</span> <span class="s1">'INDEXED'</span><span class="p">:</span>
-                    <span class="n">g</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'MERGE_FAILED'</span>
-                    <span class="n">flipped</span> <span class="o">+=</span> <span class="mi">1</span>
-                <span class="k">break</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="n">by_key</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">g</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">g</span> <span class="o">=</span> <span class="n">by_key</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'orbit'</span><span class="p">:</span> <span class="n">key</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'granule'</span><span class="p">:</span> <span class="n">key</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">'track'</span><span class="p">:</span> <span class="n">key</span><span class="p">[</span><span class="mi">2</span><span class="p">]}</span>
+            <span class="n">h3_logger</span><span class="o">.</span><span class="n">granule_info</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">!=</span> <span class="s1">'MERGE_FAILED'</span><span class="p">:</span>
+            <span class="n">g</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'MERGE_FAILED'</span>
+            <span class="n">flipped</span> <span class="o">+=</span> <span class="mi">1</span>
     <span class="c1"># Truncate the sidecar — next resume re-derives only if a new merge</span>
     <span class="c1"># fails. Leaving stale records would cause an old MERGE_FAILED flip</span>
     <span class="c1"># to keep firing every resume forever.</span>
@@ -2151,6 +2160,38 @@ window.runMermaid = runMermaid;</script>
         <span class="k">pass</span>
     <span class="k">return</span> <span class="n">flipped</span></div>
 
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_release_merge_failed</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">listed</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""``MERGE_FAILED`` → ``PENDING`` for the granules a Stage 1 run re-extracted.</span>
+
+<span class="sd">    Stage 1 never skips a ``MERGE_FAILED`` granule, and the pre-clean at its</span>
+<span class="sd">    start reopened the (granule × beam) tasks whose fragments were lost, so</span>
+<span class="sd">    once it returns their rows went through this run's merge. ``PENDING``</span>
+<span class="sd">    lets ``set_post_build_info`` mark them ``INDEXED``. Call it before the</span>
+<span class="sd">    post-merge fold, which re-flags any whose merge failed again.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    h3_logger : H3BuildLogger</span>
+<span class="sd">        Build log whose ``granule_info`` is updated in place (not saved).</span>
+<span class="sd">    listed : set of tuple, optional</span>
+<span class="sd">        ``(orbit, granule, track)`` of every granule Stage 1 listed. One it</span>
+<span class="sd">        could not see (source gone, excluded) was not re-extracted and keeps</span>
+<span class="sd">        its flag. ``None`` (no local listing: S3 mode) releases all.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    int</span>
+<span class="sd">        Number of granules released.</span>
+<span class="sd">    """</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]:</span>
+        <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">==</span> <span class="s1">'MERGE_FAILED'</span> <span class="ow">and</span> <span class="p">(</span>
+                <span class="n">listed</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'orbit'</span><span class="p">),</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granule'</span><span class="p">),</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'track'</span><span class="p">))</span> <span class="ow">in</span> <span class="n">listed</span><span class="p">):</span>
+            <span class="n">g</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'PENDING'</span>
+            <span class="n">n</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">n</span>
 
 <span class="c1"># Pattern: HDF5 "object 'X' doesn't exist" / "Unable to synchronously open</span>
 <span class="c1"># object (object 'X' doesn't exist)" — used by ``_classify_load_h5_failure``</span>
@@ -2905,7 +2946,9 @@ window.runMermaid = runMermaid;</script>
     <span class="n">n_flipped</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">granule_info</span><span class="p">:</span>
         <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span>
-        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">indexed_ids</span> <span class="ow">and</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">!=</span> <span class="s1">'INDEXED'</span><span class="p">:</span>
+        <span class="c1"># MERGE_FAILED is found on disk by construction (its other partitions</span>
+        <span class="c1"># merged); flipping it would skip the re-extraction that recovers it.</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">indexed_ids</span> <span class="ow">and</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'INDEXED'</span><span class="p">,</span> <span class="s1">'MERGE_FAILED'</span><span class="p">):</span>
             <span class="n">g</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'INDEXED'</span>
             <span class="n">n_flipped</span> <span class="o">+=</span> <span class="mi">1</span>
     <span class="k">if</span> <span class="n">n_flipped</span><span class="p">:</span>
@@ -4975,6 +5018,13 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># conflicting with Dask worker scratch space (dask-worker-space/dirlock)</span>
         <span class="c1"># which causes PermissionError on Windows when overwrite=True deletes tmp_dir</span>
         <span class="n">parquet_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="s1">'partitions'</span><span class="p">)</span>
+        <span class="c1"># A prior merge that failed on corrupt fragments: drop them with their</span>
+        <span class="c1"># completion sentinels before the task list is built, so this Stage 1</span>
+        <span class="c1"># re-extracts exactly those (granule × beam) tasks (their granules are</span>
+        <span class="c1"># MERGE_FAILED, never skipped) and the merge below gets them back.</span>
+        <span class="n">_pc</span> <span class="o">=</span> <span class="n">preclean_merge_failures</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">_pc</span><span class="p">[</span><span class="s1">'parquets_removed'</span><span class="p">]:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Reopened </span><span class="si">{</span><span class="n">_pc</span><span class="p">[</span><span class="s1">'parquets_removed'</span><span class="p">]</span><span class="si">}</span><span class="s2"> corrupt fragment task(s) from a failed merge"</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">_streaming_enabled</span><span class="p">():</span>
             <span class="c1"># Streaming writer: client.map + as_completed with per-task atomic</span>
             <span class="c1"># leaves and per-(granule × beam) completion sentinels. Bounded</span>

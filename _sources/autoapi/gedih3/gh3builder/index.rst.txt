@@ -471,7 +471,9 @@ Module Contents
       canonical class B artifact). Truncated-but-nonzero parquets (class C)
       are unlinked only when ``pq.ParquetFile`` cannot open them — checked
       cheaply by opening the footer once. The cost is bounded by the
-      failure list, never the full healthy tree.
+      failure list, never the full healthy tree. Each unlinked fragment's
+      ``_complete/`` sentinel goes too, so the next Stage 1 re-runs that
+      (granule × beam) instead of skipping it as done.
    2. Unlink any co-located ``*.tmp`` / ``*.merge.tmp`` siblings. These
       survive SIGKILL when ``AtomicFileWriter.__exit__`` never runs and
       would otherwise pollute future merges.
@@ -481,7 +483,9 @@ Module Contents
    Returns ``{'partitions_cleaned': N, 'parquets_removed': N, 'tmps_removed': N}``.
    Companion to ``apply_merge_failures_to_logger`` — calling this without
    the granule flip-back would unlink fragments and leave their granules
-   marked INDEXED, permanently dropping rows. The CLI runs both together.
+   marked INDEXED, permanently dropping rows. ``build_h3db`` runs it before
+   Stage 1 (so the lost tasks are re-extracted in the same run) and
+   ``_merge_and_finalize`` again at merge entry.
 
 
 
@@ -503,17 +507,22 @@ Module Contents
 .. py:function:: apply_merge_failures_to_logger(h3_logger, tmp_dir: str) -> int
 
    
-   Fold the merge-failed-granules sidecar into the build-log's
-   granule status (INDEXED → MERGE_FAILED). Returns the count flipped.
+   Fold the merge-failed-granules sidecar into the build-log's granule
+   status: every recorded granule becomes ``MERGE_FAILED``. Returns the
+   number of entries changed.
 
-   Idempotent: re-applying after a successful resume is a no-op because
-   re-extracted granules have already been flipped back to INDEXED by
-   ``_reconcile_granules_from_disk``. Truncates the sidecar after fold to
-   keep it bounded across resumes.
+   Any prior status flips, not only ``INDEXED``: a granule extracted by the
+   failing run is still ``PENDING`` here, and ``set_post_build_info`` would
+   otherwise mark it ``INDEXED`` from its rows in other partitions. A
+   recorded granule the log does not track yet (S3 mode registers none) is
+   added. ``set_post_build_info``, the reconcile and ``log_state`` all keep
+   ``MERGE_FAILED``; only :func:`_release_merge_failed`, after a Stage 1 run
+   that re-extracted the granule, clears it.
 
-   Callable from the CLI right after ``_merge_and_finalize`` returns,
-   regardless of which code path invoked merge. Does NOT call
-   ``h3_logger.save_log`` — the caller controls save cadence.
+   Idempotent. Removes the sidecar after the fold. The CLI calls it at
+   startup (a run killed before its fold leaves the sidecar behind) and
+   right after every merge. Does NOT call ``h3_logger.save_log`` — the
+   caller controls save cadence.
 
 
 
