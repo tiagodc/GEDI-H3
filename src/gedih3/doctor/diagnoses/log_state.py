@@ -135,7 +135,9 @@ def log_state_check(ctx: DoctorContext) -> Report:
                 continue
             on_disk.update(result)
         for g in granule_info:
-            if g.get('status') == 'INDEXED':
+            # MERGE_FAILED is on disk by construction (its other partitions
+            # merged) and awaits re-extraction: not drift.
+            if g.get('status') in ('INDEXED', 'MERGE_FAILED'):
                 continue
             try:
                 triple = (g['orbit'], g['granule'], g['track'])

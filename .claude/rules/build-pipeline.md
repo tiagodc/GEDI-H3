@@ -58,10 +58,10 @@ atomic per-failure sentinel under `tmp/partitions/_merge_failures/` and appends 
 affected granules — parsed from fragment basenames via `_FRAGMENT_BASENAME_RE` — to
 `_merge_failed_granules.jsonl`.
 
-On the next resume, `preclean_merge_failures` unlinks the named-bad fragments and their
-`.tmp` siblings and drops the sentinels, then `apply_merge_failures_to_logger` flips those
-granules `INDEXED → MERGE_FAILED` so Stage 1 re-extracts them. Both are idempotent and run
-from `_merge_and_finalize` and from the CLI finalize path.
+The CLI fold (`apply_merge_failures_to_logger`, after each merge and at startup) flags them
+`MERGE_FAILED`, any prior status; `set_post_build_info`, reconcile and `log_state` keep it.
+`build_h3db` pre-cleans before Stage 1 (bad fragments and their `_complete/` sentinels go),
+so Stage 1 redoes exactly those tasks; `_release_merge_failed` then clears the flag.
 
 This closes the path where a worker SIGKILL leaves a 0-byte parquet that the next merge
 would either fail on or silently produce empty output for. `h3_merge_files` also stats

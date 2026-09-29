@@ -297,6 +297,22 @@ class TestReconcileFromDatabase:
         assert statuses[(8, 2, 4)] == 'INDEXED'
         assert statuses[(9, 3, 5)] == 'PENDING'
 
+    def test_merge_failed_is_never_flipped(self, tmp_dir):
+        """A MERGE_FAILED granule is in the metadata of the partitions that
+        merged; flipping it INDEXED would make Stage 1 skip the re-extraction
+        that recovers the partition that lost its fragment."""
+        from gedih3.gh3builder import _reconcile_granules_from_disk
+
+        h3_dir = os.path.join(tmp_dir, 'database')
+        os.makedirs(h3_dir)
+        make_partition_dir(h3_dir, h3_part='830001fffffffff', year='2020',
+                           granules=[{'orbit': 7, 'granule': 1, 'track': 3}])
+        h3_logger = _logger_with_pending(h3_dir, [(7, 1, 3)])
+        h3_logger.granule_info[0]['status'] = 'MERGE_FAILED'
+
+        assert _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=None) == 0
+        assert h3_logger.granule_info[0]['status'] == 'MERGE_FAILED'
+
 
 class TestReconcileScalability:
     def test_sequential_fallback_no_dask(self, tmp_dir, monkeypatch):

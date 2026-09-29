@@ -85,7 +85,7 @@ don't build a second one. The second column is the module; it is machine-checked
 | `_derive_merged_output_paths` | `gh3builder.py` | `_merge_progress.txt` → final parquet paths, in memory. |
 | `_source_write_schema` / `_stage1_write_schema` | `gh3builder.py` | The schema a build writes for one source granule / a source ddf — the dtype reference. |
 | `_scan_partition_meta_granules` | `gh3builder.py` | Worker-pickleable granule-ID parser for one partition. |
-| `preclean_merge_failures` / `apply_merge_failures_to_logger` | `gh3builder.py` | The merge-failure recovery loop. Idempotent. |
+| `preclean_merge_failures` / `apply_merge_failures_to_logger` / `_release_merge_failed` | `gh3builder.py` | The merge-failure recovery loop: reopen lost tasks, flag, release after Stage 1. Idempotent. |
 | `_emit_merge_failure_sentinel` / `_scan_merge_failure_sentinels` | `gh3builder.py` | Atomic per-failure sentinels under `_merge_failures/`. |
 | `_classify_load_h5_failure` / `_append_granule_failure` / `_read_granule_failures` | `gh3builder.py` | Stage 1 failure telemetry. |
 | `_remove_tree_fanout` / `_cleanup_merged_tmp` | `gh3builder.py` | Remove a wide tmp tree without a serial driver sweep; the post-merge `tmp/partitions/` cleanup contract. |

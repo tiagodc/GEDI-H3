@@ -546,15 +546,15 @@ class TestMergeFailedGranulesRoundTrip:
         # Re-applying is a no-op (file gone, nothing to flip).
         assert apply_merge_failures_to_logger(logger, tmp_dir) == 0
 
-    def test_apply_only_flips_indexed(self, tmp_path):
-        # Granules in non-INDEXED states (PENDING, FAILED, MERGE_FAILED, etc.)
-        # must not be flipped, per the contract that ``_reconcile_granules_
-        # from_disk`` has already moved already-recovered granules off
-        # MERGE_FAILED on resume.
+    def test_apply_flags_every_recorded_granule(self, tmp_path):
+        # Any status flips, not only INDEXED: a granule extracted by the
+        # failing run is still PENDING at fold time, and set_post_build_info
+        # would otherwise mark it INDEXED from its other partitions. A record
+        # the log does not track yet (S3 mode registers none) is added.
         tmp_dir = str(tmp_path)
         _emit_merge_failed_granules(
             tmp_dir, '/p',
-            [(1, 1, 1), (2, 2, 2), (3, 3, 3), (4, 4, 4)],
+            [(1, 1, 1), (2, 2, 2), (3, 3, 3), (4, 4, 4), (5, 5, 5)],
             RuntimeError("x"),
         )
         logger = _FakeLogger([
@@ -564,9 +564,25 @@ class TestMergeFailedGranulesRoundTrip:
             {'orbit': 4, 'granule': 4, 'track': 4, 'status': 'FAILED'},
         ])
         flipped = apply_merge_failures_to_logger(logger, tmp_dir)
-        assert flipped == 1
-        statuses = [g['status'] for g in logger.granule_info]
-        assert statuses == ['MERGE_FAILED', 'PENDING', 'MERGE_FAILED', 'FAILED']
+        assert flipped == 4
+        assert [g['status'] for g in logger.granule_info] == ['MERGE_FAILED'] * 5
+        assert logger.granule_info[4] == {'orbit': 5, 'granule': 5, 'track': 5,
+                                          'status': 'MERGE_FAILED'}
+
+    def test_release_merge_failed_only_for_listed_granules(self):
+        # After Stage 1: a granule it listed was re-extracted (PENDING, so
+        # set_post_build_info can index it); one it could not see keeps
+        # its flag. No listing (S3 mode) releases all.
+        from gedih3.gh3builder import _release_merge_failed
+        logger = _FakeLogger([
+            {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'MERGE_FAILED'},
+            {'orbit': 2, 'granule': 2, 'track': 2, 'status': 'MERGE_FAILED'},
+            {'orbit': 3, 'granule': 3, 'track': 3, 'status': 'INDEXED'},
+        ])
+        assert _release_merge_failed(logger, listed={(1, 1, 1), (3, 3, 3)}) == 1
+        assert [g['status'] for g in logger.granule_info] == ['PENDING', 'MERGE_FAILED', 'INDEXED']
+        assert _release_merge_failed(logger) == 1
+        assert logger.granule_info[1]['status'] == 'PENDING'
 
     def test_apply_with_no_records_returns_zero(self, tmp_path):
         logger = _FakeLogger([
@@ -618,6 +634,24 @@ class TestPrecleanMergeFailures:
         assert not os.path.isfile(bad)
         # Sentinel dropped.
         assert _scan_merge_failure_sentinels(tmp_dir) == {}
+
+    def test_reopens_the_removed_fragments_stage1_task(self, tmp_path):
+        # The (granule × beam) completion sentinel of a removed fragment goes
+        # too, or Stage 1 skips that task as done and its rows never return.
+        # A healthy fragment's sentinel stays.
+        from gedih3.gh3builder import _emit_complete_sentinel, _scan_complete_sentinels
+        tmp_dir = str(tmp_path)
+        partition_dir = os.path.join(tmp_dir, 'h3_03=abc', 'year=2020')
+        os.makedirs(partition_dir)
+        _write_truncated_parquet(os.path.join(partition_dir, 'O00001_G10_T00100.BEAM0000.parquet'))
+        _write_valid_parquet(os.path.join(partition_dir, 'O00001_G10_T00100.BEAM0001.parquet'))
+        for beam in ('BEAM0000', 'BEAM0001'):
+            _emit_complete_sentinel(tmp_dir, f'O00001_G10_T00100.{beam}')
+        _emit_merge_failure_sentinel(tmp_dir, partition_dir, OSError("bad"))
+
+        preclean_merge_failures(tmp_dir)
+
+        assert _scan_complete_sentinels(tmp_dir) == {'O00001_G10_T00100.BEAM0001'}
 
     def test_removes_truncated_parquet_but_keeps_valid(self, tmp_path):
         tmp_dir = str(tmp_path)

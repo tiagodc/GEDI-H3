@@ -899,7 +899,9 @@ class H3BuildLogger:
         if hasattr(self, 'granule_info') and self.granule_info:
             for g in self.granule_info:
                 key = (g['orbit'], g['granule'], g['track'])
-                if key in indexed_keys:
+                # MERGE_FAILED stays: the granule is in the metadata of the
+                # partitions that merged, not of the one that lost its rows.
+                if key in indexed_keys and g.get('status') != 'MERGE_FAILED':
                     g['status'] = 'INDEXED'
                     g['products'] = _per_product_status_from_observed(
                         active_products, gran_observed_products.get(key, set())

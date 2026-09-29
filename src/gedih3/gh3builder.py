@@ -1236,7 +1236,9 @@ def preclean_merge_failures(tmp_dir: str) -> Dict[str, int]:
        canonical class B artifact). Truncated-but-nonzero parquets (class C)
        are unlinked only when ``pq.ParquetFile`` cannot open them — checked
        cheaply by opening the footer once. The cost is bounded by the
-       failure list, never the full healthy tree.
+       failure list, never the full healthy tree. Each unlinked fragment's
+       ``_complete/`` sentinel goes too, so the next Stage 1 re-runs that
+       (granule × beam) instead of skipping it as done.
     2. Unlink any co-located ``*.tmp`` / ``*.merge.tmp`` siblings. These
        survive SIGKILL when ``AtomicFileWriter.__exit__`` never runs and
        would otherwise pollute future merges.
@@ -1246,7 +1248,9 @@ def preclean_merge_failures(tmp_dir: str) -> Dict[str, int]:
     Returns ``{'partitions_cleaned': N, 'parquets_removed': N, 'tmps_removed': N}``.
     Companion to ``apply_merge_failures_to_logger`` — calling this without
     the granule flip-back would unlink fragments and leave their granules
-    marked INDEXED, permanently dropping rows. The CLI runs both together.
+    marked INDEXED, permanently dropping rows. ``build_h3db`` runs it before
+    Stage 1 (so the lost tasks are re-extracted in the same run) and
+    ``_merge_and_finalize`` again at merge entry.
     """
     out = {'partitions_cleaned': 0, 'parquets_removed': 0, 'tmps_removed': 0}
     failures = _scan_merge_failure_sentinels(tmp_dir)
@@ -1298,6 +1302,10 @@ def preclean_merge_failures(tmp_dir: str) -> Dict[str, int]:
                     out['parquets_removed'] += 1
                 except OSError:
                     pass
+                try:
+                    os.unlink(_complete_sentinel_path(tmp_dir, name[:-len('.parquet')]))
+                except OSError:
+                    pass
         # Drop the sentinel — the cleanup acted; next merge will re-emit if
         # it fails again. Keeping it would loop the pre-clean forever.
         try:
@@ -1309,17 +1317,22 @@ def preclean_merge_failures(tmp_dir: str) -> Dict[str, int]:
 
 
 def apply_merge_failures_to_logger(h3_logger, tmp_dir: str) -> int:
-    """Fold the merge-failed-granules sidecar into the build-log's
-    granule status (INDEXED → MERGE_FAILED). Returns the count flipped.
+    """Fold the merge-failed-granules sidecar into the build-log's granule
+    status: every recorded granule becomes ``MERGE_FAILED``. Returns the
+    number of entries changed.
 
-    Idempotent: re-applying after a successful resume is a no-op because
-    re-extracted granules have already been flipped back to INDEXED by
-    ``_reconcile_granules_from_disk``. Truncates the sidecar after fold to
-    keep it bounded across resumes.
+    Any prior status flips, not only ``INDEXED``: a granule extracted by the
+    failing run is still ``PENDING`` here, and ``set_post_build_info`` would
+    otherwise mark it ``INDEXED`` from its rows in other partitions. A
+    recorded granule the log does not track yet (S3 mode registers none) is
+    added. ``set_post_build_info``, the reconcile and ``log_state`` all keep
+    ``MERGE_FAILED``; only :func:`_release_merge_failed`, after a Stage 1 run
+    that re-extracted the granule, clears it.
 
-    Callable from the CLI right after ``_merge_and_finalize`` returns,
-    regardless of which code path invoked merge. Does NOT call
-    ``h3_logger.save_log`` — the caller controls save cadence.
+    Idempotent. Removes the sidecar after the fold. The CLI calls it at
+    startup (a run killed before its fold leaves the sidecar behind) and
+    right after every merge. Does NOT call ``h3_logger.save_log`` — the
+    caller controls save cadence.
     """
     records = _read_merge_failed_granules(tmp_dir)
     if not records:
@@ -1331,26 +1344,22 @@ def apply_merge_failures_to_logger(h3_logger, tmp_dir: str) -> int:
         except OSError:
             pass
         return 0
+    if getattr(h3_logger, 'granule_info', None) is None:
+        h3_logger.granule_info = []
+    by_key = {(g.get('orbit'), g.get('granule'), g.get('track')): g for g in h3_logger.granule_info}
     flipped = 0
     for rec in records:
         try:
-            key = {'orbit': int(rec['orbit']),
-                   'granule': int(rec['granule']),
-                   'track': int(rec['track'])}
+            key = (int(rec['orbit']), int(rec['granule']), int(rec['track']))
         except (KeyError, ValueError, TypeError):
             continue
-        # Only flip if currently INDEXED. PENDING / other statuses are
-        # already non-skip on resume so no flip is needed; preserves
-        # idempotency across repeated folds.
-        if not hasattr(h3_logger, 'granule_info'):
-            return flipped
-        for g in h3_logger.granule_info:
-            if (g.get('orbit'), g.get('granule'), g.get('track')) == \
-               (key['orbit'], key['granule'], key['track']):
-                if g.get('status') == 'INDEXED':
-                    g['status'] = 'MERGE_FAILED'
-                    flipped += 1
-                break
+        g = by_key.get(key)
+        if g is None:
+            g = by_key[key] = {'orbit': key[0], 'granule': key[1], 'track': key[2]}
+            h3_logger.granule_info.append(g)
+        if g.get('status') != 'MERGE_FAILED':
+            g['status'] = 'MERGE_FAILED'
+            flipped += 1
     # Truncate the sidecar — next resume re-derives only if a new merge
     # fails. Leaving stale records would cause an old MERGE_FAILED flip
     # to keep firing every resume forever.
@@ -1359,6 +1368,38 @@ def apply_merge_failures_to_logger(h3_logger, tmp_dir: str) -> int:
     except OSError:
         pass
     return flipped
+
+
+def _release_merge_failed(h3_logger, listed=None) -> int:
+    """``MERGE_FAILED`` → ``PENDING`` for the granules a Stage 1 run re-extracted.
+
+    Stage 1 never skips a ``MERGE_FAILED`` granule, and the pre-clean at its
+    start reopened the (granule × beam) tasks whose fragments were lost, so
+    once it returns their rows went through this run's merge. ``PENDING``
+    lets ``set_post_build_info`` mark them ``INDEXED``. Call it before the
+    post-merge fold, which re-flags any whose merge failed again.
+
+    Parameters
+    ----------
+    h3_logger : H3BuildLogger
+        Build log whose ``granule_info`` is updated in place (not saved).
+    listed : set of tuple, optional
+        ``(orbit, granule, track)`` of every granule Stage 1 listed. One it
+        could not see (source gone, excluded) was not re-extracted and keeps
+        its flag. ``None`` (no local listing: S3 mode) releases all.
+
+    Returns
+    -------
+    int
+        Number of granules released.
+    """
+    n = 0
+    for g in getattr(h3_logger, 'granule_info', None) or []:
+        if g.get('status') == 'MERGE_FAILED' and (
+                listed is None or (g.get('orbit'), g.get('granule'), g.get('track')) in listed):
+            g['status'] = 'PENDING'
+            n += 1
+    return n
 
 # Pattern: HDF5 "object 'X' doesn't exist" / "Unable to synchronously open
 # object (object 'X' doesn't exist)" — used by ``_classify_load_h5_failure``
@@ -2113,7 +2154,9 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
     n_flipped = 0
     for g in h3_logger.granule_info:
         key = (g['orbit'], g['granule'], g['track'])
-        if key in indexed_ids and g.get('status') != 'INDEXED':
+        # MERGE_FAILED is found on disk by construction (its other partitions
+        # merged); flipping it would skip the re-extraction that recovers it.
+        if key in indexed_ids and g.get('status') not in ('INDEXED', 'MERGE_FAILED'):
             g['status'] = 'INDEXED'
             n_flipped += 1
     if n_flipped:
@@ -4181,6 +4224,13 @@ def build_h3db(
         # conflicting with Dask worker scratch space (dask-worker-space/dirlock)
         # which causes PermissionError on Windows when overwrite=True deletes tmp_dir
         parquet_dir = os.path.join(tmp_dir, 'partitions')
+        # A prior merge that failed on corrupt fragments: drop them with their
+        # completion sentinels before the task list is built, so this Stage 1
+        # re-extracts exactly those (granule × beam) tasks (their granules are
+        # MERGE_FAILED, never skipped) and the merge below gets them back.
+        _pc = preclean_merge_failures(parquet_dir)
+        if _pc['parquets_removed']:
+            logger.info(f"Reopened {_pc['parquets_removed']} corrupt fragment task(s) from a failed merge")
         if _streaming_enabled():
             # Streaming writer: client.map + as_completed with per-task atomic
             # leaves and per-(granule × beam) completion sentinels. Bounded

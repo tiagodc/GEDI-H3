@@ -243,6 +243,19 @@ def test_log_state_detects_and_fixes_granule_status_drift(tmp_dir):
     assert statuses[(101, 2, 51)] == 'INDEXED'  # was PENDING, now flipped
 
 
+def test_log_state_leaves_merge_failed_alone(tmp_dir):
+    """A MERGE_FAILED granule is on disk by construction (its other
+    partitions merged) and awaits re-extraction: not drift, never flipped."""
+    _make_partition(tmp_dir, granules=[{'orbit': 101, 'granule': 2, 'track': 51}])
+    _make_build_log(tmp_dir, granules=[
+        {'orbit': 101, 'granule': 2, 'track': 51, 'status': 'MERGE_FAILED'},
+    ])
+
+    ctx = _ctx(tmp_dir)
+    reports = run_diagnoses(ctx, ['log_state'], mode='check')
+    assert not [f for f in reports[0].findings if f['kind'] == 'granule_status_drift']
+
+
 # --- parquet_health ---------------------------------------------------------
 
 def test_parquet_health_detects_and_fixes_duplicates(tmp_dir):

@@ -234,10 +234,11 @@ def _detect_merge_resume_signal(h3_logger, parquet_dir, *, has_pending_new_work=
     ``apply_merge_failures_to_logger`` so that Stage 1 would re-extract
     them on the next resume. Taking the merge-only shortcut would skip the
     extract pass and re-attempt the same merge against the same bad
-    fragments, looping forever. The full path's reconcile + extract pass
-    is what closes the loop: it walks ``MERGE_FAILED → INDEXING``,
-    re-writes the fragments from source HDF5, and feeds the merge fresh
-    inputs.
+    fragments, looping forever. The full path is what closes the loop:
+    ``build_h3db``'s pre-clean reopens the lost (granule × beam) tasks,
+    Stage 1 re-writes those fragments from source HDF5 and the merge takes
+    them, then ``_release_merge_failed`` hands the granules back to
+    ``set_post_build_info`` (``MERGE_FAILED → PENDING → INDEXED``).
 
     **Veto: pending new product/variable work.** ``has_pending_new_work``
     is true when the caller has detected a variable-only update, a mixed
@@ -752,6 +753,15 @@ def main():
             # already started" — silently no-opping the whole product add
             # while still reporting success.
             _parquet_dir = os.path.join(args.tmpdir, 'partitions')
+            # A run killed between a merge failure and its post-merge fold
+            # leaves the sidecar behind. Fold it before choosing the path: the
+            # MERGE_FAILED veto must see it, or the shortcut would merge those
+            # partitions without their lost fragments. The next save_log
+            # (MERGING or PARTITIONING, just below) persists it.
+            from gedih3.gh3builder import apply_merge_failures_to_logger, _release_merge_failed
+            _flagged = apply_merge_failures_to_logger(h3_logger, _parquet_dir)
+            if _flagged:
+                logger.warning(f"Flagged {_flagged} granule(s) MERGE_FAILED from an earlier failed merge")
             _merge_signal = _detect_merge_resume_signal(
                 h3_logger, _parquet_dir,
                 has_pending_new_work=bool(
@@ -774,12 +784,11 @@ def main():
                 # log so the next resume re-extracts the affected granules
                 # instead of treating their (corrupt) parquet as canonical.
                 # Idempotent + truncates the sidecar after fold.
-                from gedih3.gh3builder import apply_merge_failures_to_logger
                 _flipped = apply_merge_failures_to_logger(h3_logger, _parquet_dir)
                 if _flipped:
                     logger.warning(
-                        f"Flipped {_flipped} granule(s) INDEXED → MERGE_FAILED "
-                        f"after corrupt-fragment merge failures. They will be "
+                        f"Flagged {_flipped} granule(s) MERGE_FAILED after "
+                        f"corrupt-fragment merge failures. They will be "
                         f"re-extracted on the next resume."
                     )
                 h3_logger.set_post_build_info()
@@ -808,6 +817,7 @@ def main():
             try:
                 # Register granules being submitted for build as PENDING
                 # Only for local download mode (-i); S3 mode has no local SOC directory
+                _stage1_listed = None
                 if soc_source is not None and isinstance(soc_source, str) and os.path.isdir(soc_source):
                     logger.info("Listing SOC files for granule registration")
                     _soc_for_build = soc_file_tree(
@@ -827,6 +837,7 @@ def main():
                             'track': int(fl[5][1:]),
                         })
                     h3_logger.register_pending_granules(_build_granules)
+                    _stage1_listed = {(g['orbit'], g['granule'], g['track']) for g in _build_granules}
 
                     # Resume reconciliation: scan h3 db AND tmp/partitions for
                     # granules already represented on disk and flip them to
@@ -865,6 +876,11 @@ def main():
                         variable_only_update=False,
                         **_build_kwargs,
                     )
+                    # Stage 1 never skips a MERGE_FAILED granule and its pre-clean
+                    # reopened the lost tasks, so every listed one was re-extracted
+                    # and merged: PENDING lets set_post_build_info index it, and
+                    # the fold below re-flags any whose merge failed again.
+                    _release_merge_failed(h3_logger, listed=_stage1_listed)
 
                 # ── Stage 2: Variable update ─────────────────────────────
                 # Runs for: variable-only update, mixed update Phase 2,
@@ -905,8 +921,8 @@ def main():
                 _flipped = apply_merge_failures_to_logger(h3_logger, _parquet_dir_for_fold)
                 if _flipped:
                     logger.warning(
-                        f"Flipped {_flipped} granule(s) INDEXED → MERGE_FAILED "
-                        f"after corrupt-fragment merge failures. They will be "
+                        f"Flagged {_flipped} granule(s) MERGE_FAILED after "
+                        f"corrupt-fragment merge failures. They will be "
                         f"re-extracted on the next resume."
                     )
                 # Advisory: surface Stage 1 failure classes with actionable

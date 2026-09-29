@@ -738,6 +738,35 @@ class TestH3ColumnsDtypesCache:
         assert log.h3_columns_dtypes['worldcover_class_l4c'] == 'int32'
         assert any('more than one dtype' in r.getMessage() for r in records)
 
+    def test_set_post_build_info_keeps_merge_failed(self, tmp_dir):
+        """A MERGE_FAILED granule is in the metadata of the partitions that
+        merged, not of the one that lost its fragment. Re-marking it INDEXED
+        (it ran right after the fold) undid every flag in the same run."""
+        import json as _json
+        from gedih3.logger import H3BuildLogger
+        from gedih3.config import BUILD_LOG_FILENAME, PARTITION_META_FILENAME
+
+        db_dir = os.path.join(tmp_dir, 'mf_db')
+        pdir = os.path.join(db_dir, 'h3_03=83184afffffffff')
+        os.makedirs(pdir)
+        with open(os.path.join(pdir, f'83184afffffffff{PARTITION_META_FILENAME}'), 'w') as f:
+            _json.dump({'h3_partition': '83184afffffffff',
+                        'granules': [{'orbit': 1, 'granule': 1, 'track': 1},
+                                     {'orbit': 2, 'granule': 1, 'track': 1}],
+                        'date_range': ['2020-01-01', '2020-01-31'], 'columns': ['shot_number'],
+                        'l2a_version': 3}, f)
+        with open(os.path.join(db_dir, BUILD_LOG_FILENAME), 'w') as f:
+            _json.dump({'gedi_version': 3, 'h3_resolution_level': 12, 'h3_partition_level': 3,
+                        'products': {'L2A': {'variables': ['rh']}},
+                        'granules': [{'orbit': 1, 'granule': 1, 'track': 1, 'status': 'MERGE_FAILED'},
+                                     {'orbit': 2, 'granule': 1, 'track': 1, 'status': 'PENDING'}]}, f)
+
+        log = H3BuildLogger(product_vars=None, dir=db_dir, version=3)
+        log.set_post_build_info()
+
+        statuses = {g['orbit']: g['status'] for g in log.granule_info}
+        assert statuses == {1: 'MERGE_FAILED', 2: 'INDEXED'}
+
 
 # ===========================================================================
 # P1: DATA CORRECTNESS TESTS
