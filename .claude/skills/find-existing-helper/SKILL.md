@@ -88,6 +88,7 @@ don't build a second one. The second column is the module; it is machine-checked
 | `preclean_merge_failures` / `apply_merge_failures_to_logger` | `gh3builder.py` | The merge-failure recovery loop. Idempotent. |
 | `_emit_merge_failure_sentinel` / `_scan_merge_failure_sentinels` | `gh3builder.py` | Atomic per-failure sentinels under `_merge_failures/`. |
 | `_classify_load_h5_failure` / `_append_granule_failure` / `_read_granule_failures` | `gh3builder.py` | Stage 1 failure telemetry. |
+| `_remove_tree_fanout` / `_cleanup_merged_tmp` | `gh3builder.py` | Remove a wide tmp tree without a serial driver sweep; the post-merge `tmp/partitions/` cleanup contract. |
 | `manifest_check_scope` | `cli/gh3_build.py` | Regime-aware gate before `validate_soc_files` on a resume. |
 | `explicit_vars_missing_in_sample` | `cli/gh3_build.py` | Pre-flight typo check against a sample HDF5. |
 
