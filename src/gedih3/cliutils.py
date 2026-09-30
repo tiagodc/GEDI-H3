@@ -434,15 +434,15 @@ def add_product_args(parser, include_detail_level=True):
                                  "(minimal/default/all). L1B must be added separately with -l1b. "
                                  "Mutually exclusive with -l2a, -l2b, -l4a, -l4c flags.")
     parser.add_argument("-l1b", "--l1b", dest="l1b", nargs='*', type=str, default=None,
-                        help="GEDI L1B variables [keyword, var list, wildcards (e.g. 'rx_*'), or bare flag for all]")
+                        help="GEDI L1B variables [keyword (optionally plus names), var list, wildcards (e.g. 'rx_*'), or bare flag for all]")
     parser.add_argument("-l2a", "--l2a", dest="l2a", nargs='*', type=str, default=None,
-                        help="GEDI L2A variables [keyword, var list, wildcards (e.g. 'rh_*'), or bare flag for all]")
+                        help="GEDI L2A variables [keyword (optionally plus names), var list, wildcards (e.g. 'rh_*'), or bare flag for all]")
     parser.add_argument("-l2b", "--l2b", dest="l2b", nargs='*', type=str, default=None,
-                        help="GEDI L2B variables [keyword, var list, wildcards (e.g. 'cover_*'), or bare flag for all]")
+                        help="GEDI L2B variables [keyword (optionally plus names), var list, wildcards (e.g. 'cover_*'), or bare flag for all]")
     parser.add_argument("-l4a", "--l4a", dest="l4a", nargs='*', type=str, default=None,
-                        help="GEDI L4A variables [keyword, var list, wildcards (e.g. 'agbd_*'), or bare flag for all]")
+                        help="GEDI L4A variables [keyword (optionally plus names), var list, wildcards (e.g. 'agbd_*'), or bare flag for all]")
     parser.add_argument("-l4c", "--l4c", dest="l4c", nargs='*', type=str, default=None,
-                        help="GEDI L4C variables [keyword, var list, wildcards (e.g. 'wsci_*'), or bare flag for all]")
+                        help="GEDI L4C variables [keyword (optionally plus names), var list, wildcards (e.g. 'wsci_*'), or bare flag for all]")
     return parser
 
 

@@ -270,7 +270,47 @@ def gedi_file_glob(orbit=None, orbit_granule=None, track=None, product: int=None
     ppd_str = str_build(ppds)    
     return f"GEDI{prd_str}_{lev_str}_*_O{orb_str}_{ogr_str}_T{trk_str}_{ppd_str}_{pge_str}_{gen_str}_V{ver_str}*.h5"
 
+_PRESET_KEYWORDS = frozenset({'minimal', 'min', 'default', 'def'})
+_SPEC_KEYWORDS = _PRESET_KEYWORDS | {'all', '*'}
+
+
+def preset_extra_names(spec):
+    """Variable names given alongside a preset keyword in a product spec.
+
+    ``['default', 'energy_total']`` → ``['energy_total']``. Specs without a
+    preset keyword, and the keywords themselves (``all``/``*`` included),
+    give ``[]``. The names are the user's, not the preset's: callers validate
+    them like an explicit list.
+    """
+    if not isinstance(spec, list) or not _PRESET_KEYWORDS.intersection(spec):
+        return []
+    return [v for v in spec if v not in _SPEC_KEYWORDS]
+
+
 def gedi_vars_expand(product_vars, version=None):
+    """Expand per-product variable specifications to variable lists, in place.
+
+    Parameters
+    ----------
+    product_vars : dict
+        ``{product: spec}``. A spec is ``None`` or ``[]`` (every variable),
+        ``['*']`` / ``['all']`` (every variable), a single path to a file
+        listing variables, a list naming a preset (``minimal``/``min`` or
+        ``default``/``def``), or a plain list of variable names or wildcards.
+        Names given alongside a preset are kept and added after the preset's
+        variables (:func:`preset_extra_names`): ``['default', 'energy_total']``
+        is the default list plus ``energy_total``. ``minimal`` takes
+        precedence over ``default`` when both are given, and ``all``/``*``
+        next to a preset add nothing.
+    version : int, optional
+        GEDI release whose preset lists to use.
+
+    Returns
+    -------
+    dict
+        ``product_vars``, with each spec replaced by its variable list
+        (``None`` for every variable).
+    """
     for prod, vars in product_vars.items():
         if vars is None:
             continue
@@ -283,10 +323,12 @@ def gedi_vars_expand(product_vars, version=None):
         elif "minimal" in vars or "min" in vars:
             # Copy: callers append/purge essentials and quality flags in
             # place, which must never rewrite the module-level preset table.
-            product_vars[prod] = list(_get_versioned(_GEDI_MIN_VARS[prod], version))
+            preset = list(_get_versioned(_GEDI_MIN_VARS[prod], version))
+            product_vars[prod] = list(dict.fromkeys(preset + preset_extra_names(vars)))
         elif 'default' in vars or 'def' in vars:
             with open(get_default_vars_file(prod, version=version), 'r') as f:
-                product_vars[prod] = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+                preset = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+            product_vars[prod] = list(dict.fromkeys(preset + preset_extra_names(vars)))
         elif "*" in vars or "all" in vars:
             product_vars[prod] = None
         elif isinstance(vars, list):

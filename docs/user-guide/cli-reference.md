@@ -27,7 +27,7 @@ gh3_download --s3  # Stream from NASA S3 without local download
 |------|-------------|
 | `-r, --region` | Spatial filter: bbox, vector file, or ISO3 code |
 | `-t0, -t1` | Start/end date (YYYY-MM-DD) |
-| `-l1b, -l2a, -l2b, -l4a, -l4c` | Products to download (`default`, `minimal`, or list) |
+| `-l1b, -l2a, -l2b, -l4a, -l4c` | Products to download (`default`, `minimal`, or list; a keyword plus names, e.g. `default energy_total`, adds those names) |
 | `--gedi-version` | GEDI data release for every product (default: the release already in the target directory's log or files, else v3). All products of a download or database come from one release |
 | `--s3` | S3 streaming mode |
 
@@ -384,7 +384,7 @@ version may not open under another.
 |------|-------------|
 | `-r, --region` | Spatial filter: vector file, bbox `"W,S,E,N"`, or ISO3 code |
 | `-t0, -t1` | Temporal filters (YYYY-MM-DD) |
-| `-l1b, -l2a, -l2b, -l4a, -l4c` | Product variables (supports wildcards, e.g. `"rh_*"`) |
+| `-l1b, -l2a, -l2b, -l4a, -l4c` | Product variables: `default`, `minimal`, a list, or wildcards (e.g. `"rh_*"`). A keyword plus names (e.g. `-l2a default energy_total`) adds those names to the preset |
 | `-N, -T, -M, -P` | Dask workers, threads, memory, dashboard port |
 | `-s` | Connect to existing Dask scheduler |
 | `-v, -vv` | Verbosity: INFO, DEBUG |
