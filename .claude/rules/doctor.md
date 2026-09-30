@@ -27,8 +27,8 @@ Ask for `soc_health` or `tmp_partitions_health` by name, or use `all`.
 
 - **Read-only by default.** `--fix` applies only safe remedies; corrupt files are reported,
   never deleted or rewritten. Anything destructive is out of scope for this tool.
-- **Exit codes**: 0 clean, 1 findings remain, 2 errors during fix. Keep new diagnoses
-  consistent with this — a finding is not an error.
+- **Exit codes**: 0 clean (or INFO findings only), 1 findings remain, 2 errors during fix.
+  Keep new diagnoses consistent with this — a finding is not an error.
 - `--online` decorates the report with upstream NASA availability and emits concrete
   `gh3_download` / `gh3_build` recovery commands (`upstream.py`).
 - `--report` writes the machine-readable form. Keep it stable; it is consumed by scripts.
@@ -36,6 +36,13 @@ Ask for `soc_health` or `tmp_partitions_health` by name, or use `all`.
   what a partition contains. Do not skip that.
 - `tmp_partitions_health --fix` calls `preclean_merge_failures` and **refuses to act while
   a `gh3_build` is live**. Any new fix that touches `tmp/` needs the same guard.
+- Fixes that rewrite partition files (`backfill`, `dtype_drift`) also refuse while the build
+  log is in flight (`_BUILD_IN_FLIGHT`), return `applied=False` so the log is not saved,
+  and guard before any download or write.
+- `backfill` has two finding sources: `missing_source` from the build log (granules
+  indexed before a later product was published — INFO, expected in a phased database,
+  fixed by the build's own `_build_fill_products`; `fill_failed` for ones `gh3_build` gave
+  up on) and the row scan, whose `partial_nan` duplicates of those gaps are folded in.
 
 ## Scaling
 

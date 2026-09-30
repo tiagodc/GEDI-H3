@@ -178,6 +178,13 @@ def get_cmd_args():
                    help="exclude files whose basename matches the given fnmatch pattern. "
                         "Repeat the flag for multiple patterns. "
                         "Example: --exclude '*_SGS.h5' --exclude '*_BETA.h5'")
+    p.add_argument("--allow-missing-products", dest="allow_missing_products",
+                   action=argparse.BooleanOptionalAction, default=None,
+                   help="admit granules that have L2A but lack later products (L2B, L4A, L4C...) "
+                        "not published yet. Their rows store those columns as null; a later "
+                        "gh3_build fills them automatically once the product files appear "
+                        "(or run: gh3_doctor --fix backfill). Remembered in the build log; "
+                        "--no-allow-missing-products turns it off. Needs a local SOC directory.")
 
     # Dask and verbosity
     add_dask_args(p, profile='build')
@@ -186,16 +193,22 @@ def get_cmd_args():
     return p.parse_args()
 
 
-def _has_new_local_granules(soc_source, h3_logger):
-    """Check if SOC directory has HDF5 files not tracked in the build log.
+def _has_new_local_granules(soc_source, h3_logger, exclude=None):
+    """Check if SOC directory has HDF5 files not tracked in the build log,
+    or a product file for an indexed granule still waiting for it.
 
     Only files of the database's GEDI release count: a tree that holds
     another release side by side must not make a finished database look
-    stale (those granules can never be built into it).
+    stale (those granules can never be built into it). The granule key and
+    product come from the file name — no stat, no HDF5 open. Files matching an
+    ``exclude`` pattern (``gh3_build --exclude``) never count.
     """
     import os
+    import re
+    import fnmatch
     import glob as globmod
-    from gedih3.gedidriver import GEDIFile, gedi_file_glob
+    from gedih3.gedidriver import gedi_file_glob
+    from gedih3.gh3builder import _granule_id_from_l2a_path
 
     if not soc_source or not os.path.isdir(soc_source):
         return False
@@ -204,15 +217,21 @@ def _has_new_local_granules(soc_source, h3_logger):
     if hasattr(h3_logger, 'granule_info') and h3_logger.granule_info:
         for g in h3_logger.granule_info:
             tracked.add((g['orbit'], g['granule'], g['track']))
+    awaiting = h3_logger.pending_product_fills() if hasattr(h3_logger, 'pending_product_fills') else {}
 
     pattern = gedi_file_glob(version=h3_logger.gedi_version) if h3_logger.gedi_version else 'GEDI*.h5'
     for f in globmod.glob(os.path.join(soc_source, '**', pattern), recursive=True):
-        try:
-            gf = GEDIFile(f)
-            if (gf.orbit, gf.orbit_granule, gf.track) not in tracked:
-                return True
-        except Exception:
+        if exclude and any(fnmatch.fnmatch(os.path.basename(f), pat) for pat in exclude):
             continue
+        key = _granule_id_from_l2a_path(f)
+        if key is None:
+            continue
+        if key not in tracked:
+            return True
+        if key in awaiting:
+            m = re.match(r'GEDI0(\d)_([A-Z])_', os.path.basename(f))
+            if m and f"L{m.group(1)}{m.group(2)}" in awaiting[key]:
+                return True
 
     return False
 
@@ -395,6 +414,21 @@ def main():
             "--l2a, --l2b, --l4a, --l4c (or use --detail-level for all four), "
             "and/or --l1b for waveform data"
         )
+    # Phased updates: the explicit flag wins, else the database's persisted choice.
+    if args.allow_missing_products is not None:
+        h3_logger.allow_missing_products = args.allow_missing_products
+    elif h3_logger.allow_missing_products:
+        logger.info("Phased updates are on for this database (build log): granules with L2A are indexed "
+                    "before their later products; --no-allow-missing-products turns it off")
+    # This run's choice; the logger attribute is what the log keeps.
+    allow_missing = h3_logger.allow_missing_products
+    if allow_missing and args.s3:
+        if args.allow_missing_products:
+            logger.error("--allow-missing-products needs a local SOC directory (-i, or --download); "
+                         "S3 ETL mode builds complete granules only")
+            sys.exit(2)
+        allow_missing = False
+        logger.info("S3 ETL mode builds complete granules only; phased updates skipped for this run")
     if h3_logger.get_spatial() is None:
         logger.warning("No spatial filter provided - processing global data")
 
@@ -445,10 +479,14 @@ def main():
         # or run download_soc() to discover new NASA granules
         if not args.s3 and not args.download:
             # Local mode: check SOC directory for new HDF5 files
-            if not _has_new_local_granules(soc_source, h3_logger):
+            if not _has_new_local_granules(soc_source, h3_logger, exclude=args.exclude):
+                _flag_changed = (args.allow_missing_products is not None
+                                 and args.allow_missing_products != bool(h3_logger.log_data.get('allow_missing_products')))
                 if h3_logger.previous_status != 'COMPLETED':
                     h3_logger.set_post_build_info()
                     h3_logger.save_log('COMPLETED')
+                elif _flag_changed:
+                    h3_logger.save_log('COMPLETED')  # remember --[no-]allow-missing-products
                 logger.info("Database is already up-to-date with requested parameters")
                 # Up-to-date DB: create the index only if it is missing
                 # (e.g. first run after upgrading gedih3) — the data is
@@ -465,7 +503,13 @@ def main():
                 print_success("Database is up-to-date, no changes needed", logger=logger)
                 return
             else:
-                logger.info("New granules detected in SOC directory — updating database")
+                logger.info("New granules or awaited product files detected in SOC directory — updating database")
+
+    _awaiting = h3_logger.pending_product_fills()
+    if _awaiting:
+        _n_prod = sum(len(v) for v in _awaiting.values())
+        logger.info(f"{len(_awaiting)} indexed granule(s) await {_n_prod} product(s) published after them; "
+                    f"they are filled when the product files appear")
 
     if soc_source is None:
         source_label = "NASA S3 (temp download)"
@@ -824,6 +868,10 @@ def main():
                                                logger=logger)
                 if _n_merge_failed:
                     _exit_merge_incomplete(_n_merge_failed, _parquet_dir, args.output, logger)
+                _pending_fills = h3_logger.pending_product_fills()
+                if _pending_fills:
+                    logger.info(f"{len(_pending_fills)} granule(s) await products; re-run gh3_build to fill "
+                                f"them once their files are present")
                 _n = len(h3_files) if h3_files else 0
                 print_success(
                     f"{_n} files exported to {args.output} (merge-only resume)",
@@ -839,12 +887,20 @@ def main():
                 # Register granules being submitted for build as PENDING
                 # Only for local download mode (-i); S3 mode has no local SOC directory
                 _stage1_listed = None
+                _soc_for_build = None
                 if soc_source is not None and isinstance(soc_source, str) and os.path.isdir(soc_source):
                     logger.info("Listing SOC files for granule registration")
                     _soc_for_build = soc_file_tree(
                         soc_source, to_list=True, exclude=args.exclude,
                         glob_kwargs={'version': h3_logger.gedi_version},
+                        require_all=not allow_missing,
                     )
+                    if allow_missing:
+                        # A granule must have L2A and what is published no later
+                        # (L1B) — the products build_h3db requires in this mode.
+                        from gedih3.gh3builder import _PRODUCTS_BEFORE_L2B
+                        _req = _PRODUCTS_BEFORE_L2B & set(h3_logger.get_product_vars() or {})
+                        _soc_for_build = [s for s in _soc_for_build if _req.issubset(s)]
                     # GEDI filename: GEDInn_L_DATE_O{orbit}_{granule}_T{track}_PPDS_PGE_GEN_V{ver}.h5
                     # Parse orbit/granule/track from the basename directly — no
                     # GEDIFile() so we skip the unused os.path.getsize call per
@@ -890,11 +946,36 @@ def main():
                         stage1_products = h3_logger.get_product_vars()
                         stage1_skip = h3_logger.get_finished_granules()
 
+                    def _record_granule_products(processed):
+                        # Persisted before Stage 1 writes anything: a granule
+                        # indexed without a product is MISSING_SOURCE for it
+                        # until the backfill fills its rows (even across a
+                        # crash). Only ever added here: a re-extraction does
+                        # not overwrite rows already in the database, so only
+                        # the backfill (Stage 3) clears the mark.
+                        from gedih3.logger import PRODUCT_STATUS_MISSING_SOURCE
+                        h3_logger.set_product_statuses({
+                            k: {p: PRODUCT_STATUS_MISSING_SOURCE for p in miss}
+                            for k, miss in processed.items() if miss
+                        })
+                        _partial = [m for m in processed.values() if m]
+                        if _partial:
+                            from collections import Counter
+                            _by_prod = Counter(p for m in _partial for p in m)
+                            logger.info(
+                                f"Indexing {len(_partial)} granule(s) before some products are published: "
+                                + ", ".join(f"{p} missing for {n}" for p, n in sorted(_by_prod.items()))
+                                + " (recorded as MISSING_SOURCE, filled once the files appear)"
+                            )
+                        h3_logger.save_log('PROCESSING')
+
                     h3_files = build_h3db(
                         product_vars=stage1_products,
                         soc_source=soc_source,
                         skip_granules=stage1_skip,
                         variable_only_update=False,
+                        allow_missing_products=allow_missing,
+                        granule_products_callback=_record_granule_products,
                         **_build_kwargs,
                     )
                     # Stage 1 never skips a MERGE_FAILED granule and its pre-clean
@@ -928,6 +1009,55 @@ def main():
                         **_build_kwargs,
                     )
                     h3_files = (h3_files or []) + (h3_files_s2 or [])
+
+                # ── Stage 3: product backfill ────────────────────────────
+                # Runs whenever indexed granules still await products
+                # published after them (MISSING_SOURCE, recorded by a phased
+                # run) — a log-only check, so a database with nothing pending
+                # pays nothing. Fills only the null cells of the files that
+                # hold those granules; see _build_fill_products. Deferred
+                # while partition merges await a retry. Best effort: an error
+                # here is logged and the granules stay pending; it never fails
+                # a build whose own merge succeeded.
+                _awaiting = h3_logger.pending_product_fills()
+                _n_backfilled = 0
+                if _awaiting and isinstance(soc_source, str) and os.path.isdir(soc_source):
+                    if _count_merge_failures(os.path.join(args.tmpdir, 'partitions')):
+                        logger.warning(f"Product backfill of {len(_awaiting)} granule(s) deferred: partition "
+                                       f"merges are pending retry; it runs once a gh3_build completes them")
+                    else:
+                        try:
+                            from gedih3.gh3builder import _build_fill_products
+                            h3_logger.save_log('PROCESSING')
+                            _fill = _build_fill_products(
+                                args.output, _awaiting,
+                                # Reuse the registration listing when it kept partial granules.
+                                soc_source=(_soc_for_build if allow_missing and _soc_for_build is not None
+                                            else soc_source),
+                                version=h3_logger.gedi_version,
+                                tmp_dir=args.tmpdir,
+                                exclude=args.exclude,
+                            )
+                            _given_up = h3_logger.record_fill_results(_fill)
+                            _n_backfilled = len(_fill['updated_files'])
+                            if _fill['failed']:
+                                logger.warning(f"Product backfill: {len(_fill['failed'])} granule(s) failed; "
+                                               f"retried on the next runs (up to 3 attempts)")
+                            if _given_up:
+                                logger.warning(
+                                    f"Product backfill: gave up on {sum(map(len, _given_up.values()))} granule "
+                                    f"product(s) (repeated failures, or no database file lists the granule); "
+                                    f"marked FAILED, no longer retried automatically. Inspect with "
+                                    f"gh3_doctor -i {args.output} --check backfill; retry with --fix backfill")
+                            if _fill['updated_files'] and os.path.exists(os.path.join(args.output, 'gedi.ducklake')):
+                                logger.warning(f"Filled columns changed file statistics the DuckLake catalog "
+                                               f"caches; rebuild it: gh3_build_ducklake -d {args.output}")
+                        except Exception as _e:
+                            logger.error(f"Product backfill failed ({type(_e).__name__}: {_e}); the granules "
+                                         f"stay MISSING_SOURCE and are retried on the next run")
+                elif _awaiting:
+                    logger.info(f"{len(_awaiting)} granule(s) await products; the backfill needs a local SOC "
+                                f"directory (or: gh3_doctor --fix backfill --s3)")
 
                 # ── Finalize ─────────────────────────────────────────────
                 # Fold per-failed-merge granule flip-backs into the build
@@ -992,7 +1122,8 @@ def main():
                     _exit_merge_incomplete(_n_merge_failed, _parquet_dir_for_fold, args.output, logger)
 
                 n_files = len(h3_files) if h3_files else 0
-                print_success(f"{n_files} files exported to {args.output}", logger=logger)
+                _backfilled = f", {_n_backfilled} files backfilled" if _n_backfilled else ""
+                print_success(f"{n_files} files exported to {args.output}{_backfilled}", logger=logger)
 
                 # Regime C: Stage 2 ran from a `default` re-expansion. Any vars
                 # not present in the source HDF5 files were silently written

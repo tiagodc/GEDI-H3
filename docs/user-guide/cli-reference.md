@@ -50,6 +50,7 @@ gh3_build --s3 -r region.shp -l4a agbd  # Build directly from S3
 | `-i` | Input directory where GEDI HDF5 files are stored (default: `GH3_DEFAULT_SOC_DIR`) |
 | `-d` | Output H3 database directory |
 | `--no-bbox-index` | Skip the automatic `_bbox_index.parquet` build after a successful build (see [`gh3_bbox_index`](#gh3_bbox_index)) |
+| `--allow-missing-products` | Index granules that have L2A before their later products (L2B, L4A, L4C) are published; those columns stay null until a later `gh3_build` fills them automatically (see [phased updates](building-a-database.md#updating-before-every-product-is-published-phased-updates)). Remembered in the build log; `--no-allow-missing-products` turns it off. Needs a local SOC directory |
 
 ---
 
@@ -291,7 +292,7 @@ plain `gh3_doctor -i /db` does not run them. Ask for them by name, or use `all`.
 
 | Diagnosis | Checks for |
 |-----------|-----------|
-| `backfill` | NaN gaps in product columns |
+| `backfill` | NaN gaps in product columns; granules still waiting for products published after them (INFO), and backfills `gh3_build` gave up on (from the build log; `--fix` runs the same backfill `gh3_build` does) |
 | `orphans` | leftover `.tmp` files and empty directories |
 | `log_state` | stuck build flags, and drift between the log and what is on disk |
 | `metadata` | partition JSON sidecars and the manifest |
@@ -304,9 +305,9 @@ plain `gh3_doctor -i /db` does not run them. Ask for them by name, or use `all`.
 `--online` decorates the report with NASA upstream availability and emits
 concrete `gh3_download` / `gh3_build` commands to recover what is missing.
 
-Exit codes: **0** clean, **1** findings remain, **2** errors occurred during a
-fix. `tmp_partitions_health --fix` and `dtype_drift --fix` refuse to act while a
-`gh3_build` is live.
+Exit codes: **0** clean (or informational findings only), **1** findings remain,
+**2** errors occurred during a fix. `tmp_partitions_health --fix`, `dtype_drift --fix`
+and `backfill --fix` refuse to act while a `gh3_build` is live.
 
 `dtype_drift` derives the reference types by pushing one sample granule of the
 database's own release through the same schema derivation `gh3_build` uses, then

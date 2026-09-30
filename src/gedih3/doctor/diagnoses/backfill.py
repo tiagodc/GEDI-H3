@@ -4,7 +4,14 @@
 
 """backfill diagnosis — fill NaN gaps in product columns from source HDF5s.
 
-The detection runs row-level: for each partition × product, we count nulls per
+Granules indexed before some of their products were published
+(``gh3_build --allow-missing-products``) are known from the build log alone:
+``missing_source`` findings, no data scan. Their fix is the build's own
+product backfill (:func:`gedih3.gh3builder._build_fill_products`: each product
+file read once, only the files holding those granules rewritten, only null
+cells written) — the same engine ``gh3_build`` runs automatically.
+
+The detection below additionally runs row-level: for each partition × product, we count nulls per
 granule by grouping on ``root_file_l2a``. Findings include the partition file,
 the product, and the per-granule null counts.
 
@@ -171,11 +178,41 @@ def _finalize_backfill_check(
             continue
         findings.extend(result)
 
+    # Granules indexed before their later products were published: known
+    # from the build log. Their null rows are the same gap as the row scan's
+    # partial-NaN findings, so those are folded in rather than listed twice.
+    pending, given_up = {}, {}
+    if ctx.h3_logger is not None and hasattr(ctx.h3_logger, 'pending_product_fills'):
+        pending = ctx.h3_logger.pending_product_fills()
+        given_up = ctx.h3_logger.pending_product_fills(statuses=('FAILED',))
+    if given_up:
+        # Fills gh3_build gave up on (repeated failures, or no database file
+        # lists the granule): no longer retried automatically — a finding.
+        findings = [
+            {'kind': 'fill_failed', 'granule': {'orbit': k[0], 'granule': k[1], 'track': k[2]},
+             'products': list(prods)}
+            for k, prods in sorted(given_up.items())
+        ] + findings
+        pending = {**pending, **{k: list(pending.get(k, [])) + list(v) for k, v in given_up.items()}}
+    if pending:
+        findings = [f for f in findings if not (
+            f['kind'] == 'partial_nan'
+            and f['product'] in pending.get((f['granule']['orbit'], f['granule']['granule'],
+                                             f['granule']['track']), ())
+        )]
+        findings = [
+            {'kind': 'missing_source', 'granule': {'orbit': k[0], 'granule': k[1], 'track': k[2]},
+             'products': [p for p in prods if p not in given_up.get(k, ())]}
+            for k, prods in sorted(pending.items()) if set(prods) - set(given_up.get(k, ()))
+        ] + findings
+
     n_missing = sum(1 for f in findings if f['kind'] == 'missing_column')
     n_partial = sum(1 for f in findings if f['kind'] == 'partial_nan')
     n_errors = sum(1 for f in findings if f['kind'] == 'scan_error')
 
-    severity = Severity.INFO if not findings else Severity.WARN
+    # Products not published yet are an expected state of a phased database,
+    # not a defect: INFO unless something else needs attention.
+    severity = Severity.INFO if all(f['kind'] == 'missing_source' for f in findings) else Severity.WARN
     if n_errors:
         severity = Severity.ERROR
 
@@ -183,6 +220,10 @@ def _finalize_backfill_check(
         f"{n_missing} (partition × product) missing-column gaps, "
         f"{n_partial} (granule × product) partial-NaN gaps"
     )
+    if pending:
+        summary += f", {len(pending) - len(given_up)} granule(s) awaiting products published after them"
+    if given_up:
+        summary += f", {len(given_up)} granule(s) whose backfill gh3_build gave up on"
 
     recommendations = []
     if findings:
@@ -235,6 +276,9 @@ def _granules_needing_fill(report: Report) -> Set[Tuple[int, int, int, str]]:
         elif f['kind'] == 'partial_nan':
             g = f['granule']
             needed.add((g['orbit'], g['granule'], g['track'], f['product']))
+        elif f['kind'] in ('missing_source', 'fill_failed'):
+            g = f['granule']
+            needed.update((g['orbit'], g['granule'], g['track'], p) for p in f['products'])
     return needed
 
 
@@ -247,13 +291,15 @@ def _build_soc_tree(soc_source, version=None):
     """
     from ...gh3builder import soc_file_tree
     glob_kwargs = {'version': version} if version is not None else None
+    # Partial granules too: a gap in one product must heal even while
+    # another of the granule's products is still unpublished.
     if isinstance(soc_source, str):
-        return soc_file_tree(soc_source, to_list=False, glob_kwargs=glob_kwargs)
+        return soc_file_tree(soc_source, to_list=False, glob_kwargs=glob_kwargs, require_all=False)
     if isinstance(soc_source, list):
         from ...gedidriver import GEDIFile
         if version is not None:
             soc_source = [p for p in soc_source if GEDIFile(getattr(p, 'path', p)).version == version]
-        return soc_file_tree(soc_source, to_list=False)
+        return soc_file_tree(soc_source, to_list=False, require_all=False)
     return {}
 
 
@@ -487,6 +533,23 @@ def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
         report.summary = "nothing to fix"
         return report
 
+    # Every heal rewrites partition files: never alongside a live build (its
+    # merge could replace the same file), and never before the guard, so a
+    # refusal downloads and writes nothing — the build log included.
+    from .dtype_drift import _BUILD_IN_FLIGHT
+    from .tmp_partitions_health import _build_is_active
+    active, info = _build_is_active(ctx.h3_dir, ctx.tmp_dir)
+    status = (getattr(ctx.h3_logger, 'log_data', None) or {}).get('status')
+    if active or status in _BUILD_IN_FLIGHT:
+        report.applied = False
+        report.severity = Severity.ERROR
+        report.summary = (
+            f"refused: a gh3_build appears to be running or stopped mid-way (build log: {status}"
+            + (f", pid {info.get('pid')}" if active else "") + "). Finish it with gh3_build — it backfills "
+            "awaited products itself — then re-run this fix for anything left."
+        )
+        return report
+
     use_s3 = bool(getattr(ctx.args, 's3', False))
     s3_tmp_dir = None
 
@@ -503,9 +566,13 @@ def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
         # Gather products + variable lists for the granules that need filling.
         needed = _granules_needing_fill(report)
         product_vars = {}
+        from ...gh3builder import _product_fill_vars
         for *_, prod in needed:
             if prod not in product_vars:
-                vars_list = _vars_for_product(ctx, prod)
+                # Every column the database stores for the product (quality
+                # flags and essentials included), so the compact files carry
+                # what either fill path reads.
+                vars_list = _product_fill_vars(ctx.h3_dir, [prod])[prod] or _vars_for_product(ctx, prod)
                 product_vars[prod] = vars_list if vars_list else None
 
         s3_tmp_dir = os.path.join(ctx.tmp_dir or os.path.join(ctx.h3_dir, '.tmp'), '_doctor_s3_backfill')
@@ -539,7 +606,38 @@ def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
         return report
 
     version = getattr(ctx.h3_logger, 'gedi_version', None)
-    soc_tree = _build_soc_tree(soc_source, version=version)
+
+    # Granules awaiting later products: the build's own backfill engine.
+    healed: list = []
+    not_available: list = []
+    error_actions: list = []
+    pending: Dict[GranuleKey, List[str]] = {}
+    for f in report.findings:
+        if f.get('kind') in ('missing_source', 'fill_failed'):
+            g = f['granule']
+            pending.setdefault((g['orbit'], g['granule'], g['track']), []).extend(f['products'])
+    if pending:
+        from ...gh3builder import _build_fill_products
+        try:
+            fill = _build_fill_products(
+                ctx.h3_dir, pending, soc_source=soc_source, version=version,
+                tmp_dir=ctx.tmp_dir or os.path.join(ctx.h3_dir, '.tmp'),
+            )
+        except BaseException:
+            if s3_tmp_dir and os.path.exists(s3_tmp_dir):
+                shutil.rmtree(s3_tmp_dir, ignore_errors=True)
+            raise
+        if ctx.h3_logger is not None:
+            # Manual retries never count toward gh3_build's give-up limit.
+            ctx.h3_logger.record_fill_results(fill, count_failures=False)
+        for bucket, target, extra in (('filled', healed, {'action': 'filled'}),
+                                      ('unavailable', not_available, {'reason': 'source_not_in_soc_tree'}),
+                                      ('unlocated', not_available, {'reason': 'granule_not_in_database'}),
+                                      ('failed', error_actions, {'fix_error': 'read or merge failed'})):
+            for k, prods in fill[bucket].items():
+                for p in prods:
+                    target.append({'product': p, **extra,
+                                   'granule': {'orbit': k[0], 'granule': k[1], 'track': k[2]}})
 
     # Group findings by partition directory so we minimize file rewrites.
     by_partition: Dict[str, Dict[str, Set[GranuleKey]]] = {}
@@ -556,10 +654,6 @@ def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
             for g in f.get('granules', []):
                 by_partition.setdefault(part, {}).setdefault(prod, set()).add((g['orbit'], g['granule'], g['track']))
 
-    healed: list = []
-    not_available: list = []
-    error_actions: list = []
-
     # Pre-compute the per-product variable lists once on the driver and
     # broadcast them to every worker — the only ctx coupling that used
     # to block parallelization. ctx.h3_logger.product_vars is small
@@ -575,6 +669,7 @@ def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
         for part_dir, prod_grans in by_partition.items()
     ]
 
+    heal_healed: list = []
     try:
         from ..parallel import parallel_map
         for item, result in parallel_map(
@@ -594,17 +689,19 @@ def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
                     'fix_error': f"{type(result).__name__}: {result}",
                 })
                 continue
-            healed.extend(result['healed'])
+            heal_healed.extend(result['healed'])
             not_available.extend(result['not_available'])
             error_actions.extend(result['error_actions'])
 
         # Build-log INDEXED marking stays on the driver — it mutates
         # shared state (the in-memory log) that the workers don't have.
         if ctx.h3_logger is not None:
-            for h in healed:
-                ctx.h3_logger.mark_granule_product(
-                    h['granule'], h['product'], 'INDEXED',
-                )
+            updates: Dict[GranuleKey, Dict[str, str]] = {}
+            for h in heal_healed:
+                g = h['granule']
+                updates.setdefault((g['orbit'], g['granule'], g['track']), {})[h['product']] = 'INDEXED'
+            ctx.h3_logger.set_product_statuses(updates)
+        healed.extend(heal_healed)
     finally:
         if s3_tmp_dir and os.path.exists(s3_tmp_dir):
             shutil.rmtree(s3_tmp_dir, ignore_errors=True)
@@ -627,6 +724,9 @@ def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
     else:
         report.severity = Severity.INFO
         report.summary = f"healed {len(healed)} (granule × product) gaps"
+    if healed and os.path.exists(os.path.join(ctx.h3_dir, 'gedi.ducklake')):
+        report.recommendations = list(report.recommendations or []) + [
+            f"gh3_build_ducklake -d {ctx.h3_dir}   # filled columns changed the statistics the catalog caches"]
 
     return report
 
