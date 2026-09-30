@@ -94,6 +94,38 @@ def manifest_check_scope(h3_logger, product_vars):
         scope = h3_logger.default_products & delta
     return {p: product_vars[p] for p in scope if p in (product_vars or {})}
 
+
+def preflight_var_specs(h3_logger, product_vars):
+    """Split requested variables between gh3_build's two pre-flight checks.
+
+    Returns ``(manifest_specs, sample_specs)``:
+
+    - ``manifest_specs``: the ``default`` preset of each
+      :func:`manifest_check_scope` product, to validate against the shipped
+      static manifest: exactly what the manifest vouches for. The requested
+      list can hold other names too, given next to the preset
+      (``H3BuildLogger.preset_extra_vars``) or, on an update, recorded by the
+      database earlier. Those are not the manifest's and would always read
+      as missing.
+    - ``sample_specs``: what :func:`explicit_vars_missing_in_sample` checks
+      against one sample HDF5 per product: every explicit list, plus the
+      names given next to a preset. Pass it with an empty exemption set.
+
+    Pure over logger state, like :func:`manifest_check_scope`.
+    """
+    from gedih3.gedidriver import gedi_vars_expand
+
+    extras = getattr(h3_logger, 'preset_extra_vars', None) or {}
+    manifest_specs = {p: ['default'] for p in manifest_check_scope(h3_logger, product_vars)}
+    if manifest_specs:
+        gedi_vars_expand(manifest_specs, version=h3_logger.gedi_version)
+    sample_specs = {
+        p: v for p, v in (product_vars or {}).items()
+        if v is not None and p not in h3_logger.preset_products
+    }
+    sample_specs.update({p: list(names) for p, names in extras.items() if p in (product_vars or {})})
+    return manifest_specs, sample_specs
+
 def get_cmd_args():
     from gedih3.cliutils import add_dask_args, add_verbosity_args, add_product_args
 
@@ -561,13 +593,9 @@ def main():
                     as Stage1 warnings at build time and are recorded as
                     non-INDEXED in the build log for retry.
                     """
-                    import copy
-
                     # ── Stage 1: default-products vs shipped manifest ──
-                    scoped = manifest_check_scope(h3_logger, product_vars)
-                    if scoped:
-                        expanded = copy.deepcopy(scoped)
-                        gedi_vars_expand(expanded, version=h3_logger.gedi_version)
+                    expanded, sample_specs = preflight_var_specs(h3_logger, product_vars)
+                    if expanded:
                         try:
                             validation = validate_soc_files(
                                 expanded, soc_dir, version=h3_logger.gedi_version,
@@ -604,16 +632,11 @@ def main():
                                 sys.exit(2)
 
                     # ── Stage 2: explicit-list products vs sample HDF5 schema ──
-                    # `preset_products` (a superset of `default_products`) excludes
-                    # every preset keyword (default/minimal/all), not just `default` —
-                    # their variable names come from an internal table/manifest, not
-                    # something the user typed, so this check must not treat them as
-                    # "explicit". See H3BuildLogger.preset_products.
-                    has_explicit = any(
-                        v is not None and p not in h3_logger.preset_products
-                        for p, v in (product_vars or {}).items()
-                    )
-                    if not has_explicit:
+                    # A preset's own names come from an internal table/manifest,
+                    # not something the user typed, so they are not checked here
+                    # (H3BuildLogger.preset_products); names typed next to a
+                    # preset are (preflight_var_specs).
+                    if not sample_specs:
                         return
 
                     try:
@@ -635,9 +658,7 @@ def main():
                         return  # nothing to introspect against
 
                     sample_dict = sample[0]
-                    missing = explicit_vars_missing_in_sample(
-                        product_vars, h3_logger.preset_products, sample_dict,
-                    )
+                    missing = explicit_vars_missing_in_sample(sample_specs, set(), sample_dict)
 
                     if missing:
                         msg = [
@@ -1111,7 +1132,7 @@ def main():
                     h3_logger.default_products & set(h3_logger.new_product_vars)
                 ):
                     logger.info(
-                        "New variables added via `default`; run "
+                        "New variables added via a `default` request; run "
                         "`gh3_doctor --check backfill` if you suspect any are "
                         "not present in source HDF5 files."
                     )

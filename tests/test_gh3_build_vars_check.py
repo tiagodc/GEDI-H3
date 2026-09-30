@@ -163,3 +163,83 @@ class TestPresetProductsExemptsMinimalAtRealCallSite:
         )
         assert result_pre_fix != {}
         assert 'l2b_quality_flag' in result_pre_fix.get('L2B', [])
+
+
+class TestNamesGivenWithAPreset:
+    """``-l2a default energy_total``: the preset's names are checked against the
+    shipped manifest, the typed name against a sample HDF5 — never the typed
+    name against the manifest (always "missing", exit 2), and never exempted
+    from the typo check with the preset."""
+
+    @pytest.fixture
+    def _client(self):
+        from dask.distributed import Client
+        with Client(processes=False, n_workers=1, threads_per_worker=1, dashboard_address=None) as client:
+            yield client
+
+    @staticmethod
+    def _soc(tmp_path):
+        soc = tmp_path / 'soc' / '2019' / '108'
+        soc.mkdir(parents=True)
+        (soc / 'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5').touch()
+        return str(tmp_path / 'soc')
+
+    def test_fresh_build_checks_the_typed_name_against_a_sample(self, tmp_path, _client):
+        from gedih3.cli.gh3_build import preflight_var_specs
+        from gedih3.gedidriver import validate_soc_files
+        from gedih3.logger import H3BuildLogger
+        db = tmp_path / 'db'
+        db.mkdir()
+        log = H3BuildLogger({'L2A': ['default', 'energy_total']}, version=3, dir=str(db))
+        assert 'energy_total' in log.product_vars['L2A']
+
+        manifest, sample = preflight_var_specs(log, log.get_product_vars())
+
+        assert 'energy_total' not in manifest['L2A'] and len(manifest['L2A']) > 1
+        assert validate_soc_files(manifest, self._soc(tmp_path), version=3)['can_skip']
+        assert sample == {'L2A': ['energy_total']}
+
+    def test_update_of_a_default_database(self, tmp_path, _client):
+        from gedih3.cli.gh3_build import preflight_var_specs
+        from gedih3.gedidriver import validate_soc_files
+        from gedih3.logger import H3BuildLogger
+        db = tmp_path / 'db'
+        db.mkdir()
+        H3BuildLogger({'L2A': ['default']}, version=3, dir=str(db)).save_log('COMPLETED')
+        log = H3BuildLogger({'L2A': ['default', 'energy_total']}, version=3, dir=str(db))
+        assert log.updating and 'energy_total' in log.new_product_vars['L2A']
+
+        manifest, sample = preflight_var_specs(log, log.get_product_vars())
+
+        assert validate_soc_files(manifest, self._soc(tmp_path), version=3)['can_skip']
+        assert sample == {'L2A': ['energy_total']}
+
+    def test_a_typo_next_to_a_preset_is_caught(self, tmp_path):
+        from gedih3.cli.gh3_build import preflight_var_specs
+        from gedih3.logger import H3BuildLogger
+        db = tmp_path / 'db'
+        db.mkdir()
+        log = H3BuildLogger({'L2B': ['minimal', 'cover_TYPO']}, version=3, dir=str(db))
+        sample_path = str(tmp_path / 'l2b.h5')
+        _write_h5(sample_path, ('shot_number', 'l2b_quality_flag_rel3', 'cover', 'pai'))
+
+        _, sample = preflight_var_specs(log, log.get_product_vars())
+
+        assert explicit_vars_missing_in_sample(sample, set(), {'L2B': sample_path}) == {'L2B': ['cover_TYPO']}
+
+    def test_update_of_a_database_holding_names_outside_the_preset(self, tmp_path, _client):
+        """Names the database recorded earlier (added next to a preset, or by
+        name) are not in the manifest: a later ``default`` request must not
+        report them missing, and a new typo must reach the typo check."""
+        from gedih3.cli.gh3_build import preflight_var_specs
+        from gedih3.gedidriver import validate_soc_files
+        from gedih3.logger import H3BuildLogger
+        db = tmp_path / 'db'
+        db.mkdir()
+        H3BuildLogger({'L2A': ['default', 'energy_total']}, version=3, dir=str(db)).save_log('COMPLETED')
+        log = H3BuildLogger({'L2A': ['default', 'energy_TYPO']}, version=3, dir=str(db))
+
+        manifest, sample = preflight_var_specs(log, log.get_product_vars())
+
+        assert validate_soc_files(manifest, self._soc(tmp_path), version=3)['can_skip']
+        assert sample == {'L2A': ['energy_TYPO']}

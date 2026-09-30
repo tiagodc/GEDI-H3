@@ -519,6 +519,17 @@ class H3BuildLogger:
             )
         }
 
+        # Names the user typed next to a preset keyword (`-l2a default
+        # energy_total` → {'L2A': ['energy_total']}). Expansion merges them
+        # into the preset list, but they are not in the static manifest:
+        # gh3_build's pre-flight checks them against a sample HDF5 instead.
+        # Runtime-only.
+        from .gedidriver import preset_extra_names
+        self.preset_extra_vars = {
+            prod: names for prod, v in (product_vars or {}).items()
+            if (names := preset_extra_names(v))
+        }
+
         self.log_file = os.path.join(self._PARENT_DIR, self._LOG_FILE_NAME)
         self.log_data = load_log_data(self.log_file)
 

@@ -82,6 +82,28 @@ def test_gedi_vars_expand_explicit_v2_keeps_v2_names():
     assert 'wsci_quality_flag' in out['L4C']
 
 
+def test_gedi_vars_expand_keeps_names_given_with_a_preset():
+    """``-l2a default energy_total`` is the default list plus energy_total, not
+    the default list alone: dropping the extra name silently made a variable
+    update of an existing database report "up to date" and add nothing."""
+    import copy
+    from gedih3.gedidriver import _GEDI_MIN_VARS, gedi_vars_expand
+    table = copy.deepcopy(_GEDI_MIN_VARS)
+    default = gedi_vars_expand({'L2A': ['default']})['L2A']
+    minimal = gedi_vars_expand({'L4A': ['minimal']})['L4A']
+    assert 'energy_total' not in default and 'agbd_t' not in minimal
+
+    out = gedi_vars_expand({'L2A': ['default', 'energy_total', 'rh'], 'L4A': ['min', 'agbd_t']})
+
+    assert out['L2A'] == default + ['energy_total']        # preset order kept, no duplicate of rh
+    assert out['L4A'] == minimal + ['agbd_t']
+    assert _GEDI_MIN_VARS == table                          # the preset table is never modified
+    # Keywords are not names: all/* next to a preset add nothing; minimal wins over default.
+    assert gedi_vars_expand({'L2A': ['default', 'all']})['L2A'] == default
+    assert gedi_vars_expand({'L2A': ['default', '*']})['L2A'] == default
+    assert gedi_vars_expand({'L4A': ['min', 'default']})['L4A'] == minimal
+
+
 # ---------------------------------------------------------------------------
 # CMR search params
 # ---------------------------------------------------------------------------
