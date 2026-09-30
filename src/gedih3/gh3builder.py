@@ -2335,6 +2335,11 @@ def _filter_soc_files_by_temporal(all_soc_files, temporal):
     return filtered
 
 
+# Products published with or before L2A. A phased build (allow_missing_products)
+# requires these; only the later products (L2B, L4A, L4C…) may be missing.
+_PRODUCTS_BEFORE_L2B = frozenset({'L1B', 'L2A'})
+
+
 def _filter_granules(
     prod_soc_files: List[Dict[str, str]],
     product_vars: Dict[str, List[str]],
@@ -3724,9 +3729,11 @@ def _var_fan_granule(task, *, new_product_vars, tmp_dir, include_source=False, s
 
     if new_df is not None and not new_df.empty:
         n_frag += _fan(new_df, granule_key)
-    # A structurally-empty granule still gets its sentinel so a resume does
-    # not keep retrying it.
-    _emit_var_fan_sentinel(tmp_dir, granule_key)
+    # A structurally-empty granule still gets its sentinel so a variable-add
+    # resume does not keep retrying it. A fill that routed no row wrote
+    # nothing: no sentinel, so a retry re-reads it instead of reporting it done.
+    if n_frag or not split_products:
+        _emit_var_fan_sentinel(tmp_dir, granule_key)
     return {'granule': granule_key, 'fragments': n_frag}
 
 
@@ -4270,6 +4277,9 @@ def _product_fill_vars(h3_dir: str, products, soc_files=None, version=None) -> D
     return {p: [v for v in (expanded.get(p) or []) if v != 'shot_number'] for p in products}
 
 
+_PRODUCT_FILL_DIRNAME = '_product_fill'
+
+
 def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None, exclude=None):
     """Backfill products published after their granule's rows were indexed.
 
@@ -4303,12 +4313,12 @@ def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None
     version : int, optional
         GEDI release of the database, pinning the SOC listing.
     tmp_dir : str, optional
-        Scratch root for fragments and resume state; default
-        ``<h3_dir>/.tmp_product_fill``. Keep it separate from a variable
-        update's. Resume state is keyed to the exact target set (granule →
-        products): a run with different targets starts from a clean root, so
-        a leftover per-granule sentinel can never stand in for a product it
-        did not fill.
+        Scratch root (the build's ``--tmpdir``; default ``<h3_dir>/.tmp``).
+        Fragments and resume state live in its own ``_product_fill``
+        subdirectory, apart from a variable update's. Resume state is keyed to
+        the exact target set (granule → products): a run with different
+        targets clears that subdirectory first, so a leftover per-granule
+        sentinel can never stand in for a product it did not fill.
     exclude : list of str, optional
         fnmatch patterns of source files to ignore (as ``gh3_build --exclude``).
 
@@ -4316,19 +4326,20 @@ def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None
     -------
     dict
         ``{'filled': {key: [products]}, 'unavailable': {key: [products]},
-        'failed': {key: [products]}, 'updated_files': [paths]}`` —
-        ``unavailable``: no product file yet, or no database file lists the
-        granule; ``failed``: a read or merge error (retry on the next run).
+        'unlocated': {key: [products]}, 'failed': {key: [products]},
+        'updated_files': [paths]}`` — ``unavailable``: no product file yet;
+        ``unlocated``: the file exists but no database file lists the granule
+        (it cannot be filled); ``failed``: a read or merge error, or no row
+        matched (retry). See :meth:`H3BuildLogger.record_fill_results`.
     """
     client = get_dask_client()
     if client is None:
         raise GediError("_build_fill_products requires a registered dask Client")
     targets = {tuple(k): set(v) for k, v in targets.items() if v}
-    out = {'filled': {}, 'unavailable': {}, 'failed': {}, 'updated_files': []}
+    out = {'filled': {}, 'unavailable': {}, 'unlocated': {}, 'failed': {}, 'updated_files': []}
     if not targets:
         return out
-    if tmp_dir is None:
-        tmp_dir = os.path.join(h3_dir, '.tmp_product_fill')
+    tmp_dir = os.path.join(tmp_dir or os.path.join(h3_dir, '.tmp'), _PRODUCT_FILL_DIRNAME)
 
     # ── Stage 0a: product files now on disk, one listing ──
     if isinstance(soc_source, list):
@@ -4402,7 +4413,7 @@ def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None
     by_str = {_granule_key_str(k): k for k in targets}
     for ot in list(gran_h5):
         if ot not in gran_year_pfs:
-            out['unavailable'][by_str[ot]] = sorted(gran_h5.pop(ot))
+            out['unlocated'][by_str[ot]] = sorted(gran_h5.pop(ot))
     if not gran_h5:
         logger.warning("Product backfill: no database file lists the pending granule(s); nothing to fill")
         return out
@@ -4435,6 +4446,7 @@ def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None
     logger.info(
         f"Product backfill: filled {len(out['filled'])} granule(s) across {len(res['updated_files'])} file(s); "
         f"{len(out['failed'])} failed (retried next run), {len(out['unavailable'])} still awaiting products"
+        + (f", {len(out['unlocated'])} not found in any database file" if out['unlocated'] else "")
     )
     return out
 
@@ -4678,7 +4690,9 @@ def build_h3db(
         prod_soc_files = [{k: val for k, val in i.items() if k in product_vars} for i in all_soc_files]
 
         # Filter out incomplete, corrupted, or already-processed granules
-        required = ({'L2A'} & set(product_vars)) or None if allow_missing_products else None
+        # L2A and what is published no later (L1B): missing, those mean an
+        # incomplete download, not a product that is not out yet.
+        required = (_PRODUCTS_BEFORE_L2B & set(product_vars)) or None if allow_missing_products else None
         soc_files = _filter_granules(prod_soc_files, product_vars, skip_granules,
                                      required_products=required)
 

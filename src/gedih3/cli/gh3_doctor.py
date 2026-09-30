@@ -303,6 +303,11 @@ def main():
         if not any(r.has_findings for r in reports_to_emit):
             print_success("Database is clean", logger=logger)
             sys.exit(0)
+        if worst == 'info':
+            # INFO findings are informational (e.g. products not published
+            # yet in a phased database): nothing requires action.
+            print_success("No issues requiring action (informational findings only)", logger=logger)
+            sys.exit(0)
 
         # Exit code: 0 if --fix was used and resolved everything, 1 if findings remain
         if fix_reports is not None and all(r.is_clean for r in fix_reports):

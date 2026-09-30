@@ -1130,19 +1130,66 @@ class H3BuildLogger:
                 n += len(statuses)
         return n
 
-    def pending_product_fills(self):
+    def pending_product_fills(self, statuses=(PRODUCT_STATUS_MISSING_SOURCE,)):
         """Indexed granules still waiting for products published after them.
 
         ``{(orbit, granule, track): [product, ...]}`` for every ``INDEXED``
-        granule with a ``MISSING_SOURCE`` product — rows whose columns for
-        that product are null until ``_build_fill_products`` fills them.
-        Log-only, no I/O.
+        granule with a product in one of ``statuses``. The default,
+        ``MISSING_SOURCE``, is what ``gh3_build`` backfills automatically;
+        ``gh3_doctor`` also passes ``FAILED`` (fills given up on, see
+        :meth:`record_fill_results`) to retry them on demand. Log-only, no I/O.
         """
+        statuses = set(statuses)
         out = {}
         for g in getattr(self, 'granule_info', None) or []:
             if g.get('status') != 'INDEXED':
                 continue
-            missing = [p for p, s in (g.get('products') or {}).items() if s == PRODUCT_STATUS_MISSING_SOURCE]
+            missing = [p for p, s in (g.get('products') or {}).items() if s in statuses]
             if missing:
                 out[(g['orbit'], g['granule'], g['track'])] = missing
         return out
+
+    def record_fill_results(self, result, max_attempts=3, count_failures=True):
+        """Apply a ``_build_fill_products`` result to per-product statuses.
+
+        * ``filled`` → ``INDEXED`` (attempt count cleared);
+        * ``unlocated`` (the product file exists but no database file lists the
+          granule, so it can never fill) → ``FAILED`` at once;
+        * ``failed`` (read or merge error, or no row matched) → retried by the
+          next runs; after ``max_attempts`` consecutive failures → ``FAILED``,
+          so one bad file does not make every later build rescan. ``FAILED``
+          is not backfilled automatically; ``gh3_doctor --fix backfill``
+          retries it. ``count_failures=False`` leaves failures untouched.
+
+        Does not save the log. Returns ``{key: [products]}`` newly ``FAILED``.
+        """
+        index = {(g['orbit'], g['granule'], g['track']): g for g in getattr(self, 'granule_info', None) or []}
+        given_up = {}
+        for key, prods in (result.get('filled') or {}).items():
+            g = index.get(tuple(key))
+            if g is None:
+                continue
+            for p in prods:
+                g.setdefault('products', {})[p] = PRODUCT_STATUS_INDEXED
+                (g.get('fill_attempts') or {}).pop(p, None)
+            if 'fill_attempts' in g and not g['fill_attempts']:
+                del g['fill_attempts']
+        for key, prods in (result.get('unlocated') or {}).items():
+            g = index.get(tuple(key))
+            if g is None:
+                continue
+            for p in prods:
+                g.setdefault('products', {})[p] = PRODUCT_STATUS_FAILED
+                given_up.setdefault(tuple(key), []).append(p)
+        if count_failures:
+            for key, prods in (result.get('failed') or {}).items():
+                g = index.get(tuple(key))
+                if g is None:
+                    continue
+                attempts = g.setdefault('fill_attempts', {})
+                for p in prods:
+                    attempts[p] = attempts.get(p, 0) + 1
+                    if attempts[p] >= max_attempts:
+                        g.setdefault('products', {})[p] = PRODUCT_STATUS_FAILED
+                        given_up.setdefault(tuple(key), []).append(p)
+        return given_up

@@ -34,7 +34,7 @@ def _gedi_name(product, stamp, orbit, granule, track):
     return f"GEDI{product}_{stamp}000000_O{orbit:05d}_{granule:02d}_T{track:05d}_02_003_02_V002.h5"
 
 
-def _write_granule(soc_dir, key, stamp, delta_time, products=('02_A', '04_A')):
+def _write_granule(soc_dir, key, stamp, delta_time, products=('02_A', '04_A'), shot_offset=0):
     """Synthetic granule files with every variable a build reads. ``stamp`` is
     the ``YYYYDDD`` of the file name; ``delta_time`` puts its shots in that year."""
     orbit, granule, track = key
@@ -45,7 +45,7 @@ def _write_granule(soc_dir, key, stamp, delta_time, products=('02_A', '04_A')):
         with h5py.File(os.path.join(day, _gedi_name(product, stamp, *key)), 'w') as f:
             for i, beam in enumerate(GEDI_BEAMS):
                 g = f.create_group(beam)
-                g['shot_number'] = np.arange(N_SHOTS, dtype=np.uint64) + np.uint64(orbit * 10**6 + i * 10**3)
+                g['shot_number'] = np.arange(N_SHOTS, dtype=np.uint64) + np.uint64(orbit * 10**6 + i * 10**3 + shot_offset)
                 if product == '02_A':
                     g['delta_time'] = rng.uniform(delta_time, delta_time + 1e5, N_SHOTS)
                     g['lat_lowestmode'] = rng.uniform(0.0, 0.5, N_SHOTS)
@@ -55,6 +55,7 @@ def _write_granule(soc_dir, key, stamp, delta_time, products=('02_A', '04_A')):
                     g['degrade_flag'] = np.zeros(N_SHOTS, dtype='u1')
                     g['sensitivity'] = rng.uniform(0.9, 1.0, N_SHOTS)
                     g['rh_098'] = rng.uniform(0, 50, N_SHOTS)
+                    g['rh_050'] = rng.uniform(0, 30, N_SHOTS)
                 else:
                     g['agbd'] = rng.uniform(1, 300, N_SHOTS)
                     g['l4_quality_flag'] = np.ones(N_SHOTS, dtype='u1')
@@ -121,7 +122,7 @@ def test_l2a_first_then_backfill(tmp_dir, _client):
     # L4A arrives: the backfill fills B's null cells only.
     _write_granule(soc_dir, b, '2020200', 8.0e7, products=('04_A',))
     out = gb._build_fill_products(h3_dir, log.pending_product_fills(), soc_source=soc_dir, version=2,
-                                  tmp_dir=os.path.join(tmp, '_product_fill'))
+                                  tmp_dir=tmp)
     assert out['filled'] == {b: ['L4A']} and not out['failed'] and not out['unavailable']
 
     t = _db_table(h3_dir, 2020)
@@ -340,7 +341,7 @@ def test_stale_fill_state_of_another_target_set_is_discarded(tmp_dir, _client):
         f.write('[["O00102_01_T00202", ["L4C"]]]')
 
     _write_granule(soc_dir, b, '2020200', 8.0e7, products=('04_A',))
-    out = gb._build_fill_products(h3_dir, {b: ['L4A']}, soc_source=soc_dir, version=2, tmp_dir=fill_tmp)
+    out = gb._build_fill_products(h3_dir, {b: ['L4A']}, soc_source=soc_dir, version=2, tmp_dir=tmp)
 
     assert out['filled'] == {b: ['L4A']}
     assert _db_table(h3_dir, 2020).filter(pa.compute.field('root_file_l2a').isin(
@@ -384,6 +385,9 @@ def test_phased_updates_through_the_cli(tmp_dir):
     assert _db_table(h3_dir)['agbd_l4a'].null_count == 0
 
     assert 'up-to-date' in gh3_build()
+    # Turning the mode off on an up-to-date database is remembered too.
+    assert 'up-to-date' in gh3_build('--no-allow-missing-products')
+    assert 'allow_missing_products' not in log()
 
 
 def test_doctor_fix_refuses_while_a_build_is_in_flight(tmp_dir):
@@ -427,12 +431,11 @@ def test_consecutive_phased_fills_into_the_same_file(tmp_dir, _client):
     must not be routed against its cached shot list (every row must fill)."""
     import gedih3.gh3builder as gb
     soc_dir, h3_dir, tmp, kw = _phased_db(tmp_dir)
-    fill_tmp = os.path.join(tmp, '_product_fill')
     for key in ((102, 1, 202), (103, 1, 203)):
         _write_granule(soc_dir, key, '2020200', 8.0e7, products=('02_A',))
         gb.build_h3db(product_vars=PRODUCT_VARS, allow_missing_products=True, **kw)
         _write_granule(soc_dir, key, '2020200', 8.0e7, products=('04_A',))
-        out = gb._build_fill_products(h3_dir, {key: ['L4A']}, soc_source=soc_dir, version=2, tmp_dir=fill_tmp)
+        out = gb._build_fill_products(h3_dir, {key: ['L4A']}, soc_source=soc_dir, version=2, tmp_dir=tmp)
         assert out['filled'] == {key: ['L4A']}
         assert _l4a_nulls(h3_dir, key) == 0
 
@@ -451,14 +454,13 @@ def test_retry_of_the_same_targets_fills_what_failed(tmp_dir, _client):
     bad = glob.glob(os.path.join(soc_dir, '2020', '200', _gedi_name('04_A', '2020200', *c)))[0]
     good = open(bad, 'rb').read()
     open(bad, 'wb').write(b'\0' * 64)
-    fill_tmp = os.path.join(tmp, '_product_fill')
     targets = {b: ['L4A'], c: ['L4A']}
 
-    first = gb._build_fill_products(h3_dir, targets, soc_source=soc_dir, version=2, tmp_dir=fill_tmp)
+    first = gb._build_fill_products(h3_dir, targets, soc_source=soc_dir, version=2, tmp_dir=tmp)
     assert first['filled'] == {b: ['L4A']} and set(first['failed']) == {c}
 
     open(bad, 'wb').write(good)
-    second = gb._build_fill_products(h3_dir, targets, soc_source=soc_dir, version=2, tmp_dir=fill_tmp)
+    second = gb._build_fill_products(h3_dir, targets, soc_source=soc_dir, version=2, tmp_dir=tmp)
     assert set(second['filled']) == {b, c} and not second['failed']
     assert _l4a_nulls(h3_dir, b) == 0 and _l4a_nulls(h3_dir, c) == 0
 
@@ -486,3 +488,119 @@ def test_fill_mode_never_appends_columns(tmp_dir):
     parquet_fill_columns(base, [patch], append_new=False)
     t = pq.read_table(base)
     assert t.schema.names == ['shot_number', 'agbd_l4a'] and t['agbd_l4a'].to_pylist() == [1.0, 2.0]
+
+
+def test_a_fill_that_matches_no_rows_is_never_reported_filled(tmp_dir, _client):
+    """A product file whose shots match none of the granule's rows wrote
+    nothing: a retry must not see a leftover sentinel and call it filled."""
+    import gedih3.gh3builder as gb
+    soc_dir, h3_dir, tmp, kw = _phased_db(tmp_dir)
+    b = (102, 1, 202)
+    _write_granule(soc_dir, b, '2020200', 8.0e7, products=('02_A',))
+    gb.build_h3db(product_vars=PRODUCT_VARS, allow_missing_products=True, **kw)
+    _write_granule(soc_dir, b, '2020200', 8.0e7, products=('04_A',), shot_offset=500)
+
+    for _ in range(2):
+        out = gb._build_fill_products(h3_dir, {b: ['L4A']}, soc_source=soc_dir, version=2, tmp_dir=tmp)
+        assert out['failed'] == {b: ['L4A']} and not out['filled']
+    assert _l4a_nulls(h3_dir, b) == len(GEDI_BEAMS) * N_SHOTS
+
+
+def test_fill_results_are_recorded_and_given_up_on(tmp_dir):
+    log = _logger_with(tmp_dir, [
+        {'orbit': o, 'granule': 1, 'track': 1, 'status': 'INDEXED',
+         'products': {'L2A': 'INDEXED', 'L4A': 'MISSING_SOURCE'}} for o in (1, 2, 3)
+    ])
+    a, b, c = (1, 1, 1), (2, 1, 1), (3, 1, 1)
+    for attempt in (1, 2):
+        assert log.record_fill_results({'failed': {a: ['L4A']}, 'unlocated': {}}) == {}
+    assert log.pending_product_fills() == {a: ['L4A'], b: ['L4A'], c: ['L4A']}
+    given_up = log.record_fill_results({'failed': {a: ['L4A']}, 'unlocated': {b: ['L4A']}, 'filled': {c: ['L4A']}})
+    assert given_up == {a: ['L4A'], b: ['L4A']}
+    assert log.pending_product_fills() == {}                               # no longer triggers every build
+    assert log.pending_product_fills(statuses=('FAILED',)) == {a: ['L4A'], b: ['L4A']}
+    # A manual retry (the doctor) that fails does not count; one that fills clears the record.
+    log.record_fill_results({'failed': {b: ['L4A']}}, count_failures=False)
+    log.record_fill_results({'filled': {a: ['L4A']}})
+    g = {x['orbit']: x for x in log.granule_info}
+    assert g[1]['products']['L4A'] == 'INDEXED' and 'fill_attempts' not in g[1]
+    assert g[2]['products']['L4A'] == 'FAILED'
+
+
+def test_products_published_before_l2a_stay_required(tmp_dir):
+    from gedih3.gh3builder import _PRODUCTS_BEFORE_L2B, _filter_granules
+    pv = {'L1B': ['rx_energy'], 'L2A': ['rh_098'], 'L4A': ['agbd']}
+    no_l1b = {'L2A': os.path.join(tmp_dir, _gedi_name('02_A', '2020200', 102, 1, 202))}
+    assert _filter_granules([no_l1b], pv, None, required_products=_PRODUCTS_BEFORE_L2B & set(pv)) == []
+
+
+def test_a_merge_failed_granule_is_not_backfilled(tmp_dir):
+    """Its rows are being re-extracted; the fill waits until it is INDEXED again."""
+    log = _logger_with(tmp_dir, [{'orbit': 1, 'granule': 1, 'track': 1, 'status': 'MERGE_FAILED',
+                                  'products': {'L2A': 'INDEXED', 'L4A': 'MISSING_SOURCE'}}])
+    assert log.pending_product_fills() == {}
+
+
+def test_missing_products_are_reported_before_stage1_writes(tmp_dir, _client, monkeypatch):
+    """A crash mid-Stage 1 must not lose the record: the callback fires first."""
+    import gedih3.gh3builder as gb
+    soc_dir, h3_dir, tmp, kw = _phased_db(tmp_dir)
+    b = (102, 1, 202)
+    _write_granule(soc_dir, b, '2020200', 8.0e7, products=('02_A',))
+
+    def _crash(*a, **k):
+        raise RuntimeError('killed mid-write')
+    monkeypatch.setattr(gb, '_write_partitioned_streaming', _crash)
+    seen = {}
+    with pytest.raises(RuntimeError, match='killed'):
+        gb.build_h3db(product_vars=PRODUCT_VARS, allow_missing_products=True,
+                      granule_products_callback=seen.update, **kw)
+    assert seen[b] == ['L4A']
+
+
+def test_variable_update_reaches_granules_missing_another_product(tmp_dir, _client):
+    """A granule still waiting for L4A gets new L2A variables like any other."""
+    import gedih3.gh3builder as gb
+    soc_dir, h3_dir, tmp, kw = _phased_db(tmp_dir)
+    b = (102, 1, 202)
+    _write_granule(soc_dir, b, '2020200', 8.0e7, products=('02_A',))
+    gb.build_h3db(product_vars=PRODUCT_VARS, allow_missing_products=True, **kw)
+
+    gb._build_add_variables(h3_dir, {'L2A': ['rh_050']}, soc_source=soc_dir, version=2,
+                            tmp_dir=os.path.join(tmp_dir, 'var_tmp'))
+
+    t = _db_table(h3_dir, 2020)
+    rows_b = t.filter(pa.compute.field('root_file_l2a').isin([_gedi_name('02_A', '2020200', *b)]))
+    assert rows_b.num_rows == len(GEDI_BEAMS) * N_SHOTS and rows_b['rh_050_l2a'].null_count == 0
+
+
+def test_doctor_fix_backfills_awaited_products(tmp_dir, _client):
+    """gh3_doctor --fix backfill: the log names the gap, the build's engine fills it."""
+    import gedih3.gh3builder as gb
+    import gedih3.doctor.diagnoses  # noqa: F401
+    from gedih3.doctor import DoctorContext, run_diagnoses
+    from gedih3.doctor.inspect import discover_partition_dirs
+    from gedih3.logger import H3BuildLogger
+    soc_dir, h3_dir, tmp, kw = _phased_db(tmp_dir)
+    b = (102, 1, 202)
+    _write_granule(soc_dir, b, '2020200', 8.0e7, products=('02_A',))
+    log = H3BuildLogger(product_vars=None, dir=h3_dir)
+    log.register_pending_granules([dict(zip(('orbit', 'granule', 'track'), b))])
+    gb.build_h3db(product_vars=PRODUCT_VARS, allow_missing_products=True,
+                  granule_products_callback=lambda d: log.set_product_statuses(
+                      {k: {p: 'MISSING_SOURCE' for p in m} for k, m in d.items() if m}), **kw)
+    log.set_post_build_info()
+    log.save_log('COMPLETED')
+    _write_granule(soc_dir, b, '2020200', 8.0e7, products=('04_A',))
+
+    ctx = DoctorContext(h3_dir=h3_dir, soc_dir=soc_dir, tmp_dir=tmp,
+                        h3_logger=H3BuildLogger(product_vars=None, dir=h3_dir),
+                        partition_dirs=discover_partition_dirs(h3_dir),
+                        args=types.SimpleNamespace(orphan_age_hours=0.0, s3=False, online=False))
+    check = run_diagnoses(ctx, ['backfill'], mode='check')[0]
+    assert [f['kind'] for f in check.findings] == ['missing_source']
+    fixed = run_diagnoses(ctx, ['backfill'], mode='fix')[0]
+
+    assert fixed.applied and any(f.get('action') == 'filled' for f in fixed.findings)
+    assert _l4a_nulls(h3_dir, b) == 0
+    assert ctx.h3_logger.pending_product_fills() == {}

@@ -292,7 +292,7 @@ plain `gh3_doctor -i /db` does not run them. Ask for them by name, or use `all`.
 
 | Diagnosis | Checks for |
 |-----------|-----------|
-| `backfill` | NaN gaps in product columns, and granules still waiting for products published after them (from the build log; `--fix` runs the same backfill `gh3_build` does) |
+| `backfill` | NaN gaps in product columns; granules still waiting for products published after them (INFO), and backfills `gh3_build` gave up on (from the build log; `--fix` runs the same backfill `gh3_build` does) |
 | `orphans` | leftover `.tmp` files and empty directories |
 | `log_state` | stuck build flags, and drift between the log and what is on disk |
 | `metadata` | partition JSON sidecars and the manifest |
@@ -305,9 +305,9 @@ plain `gh3_doctor -i /db` does not run them. Ask for them by name, or use `all`.
 `--online` decorates the report with NASA upstream availability and emits
 concrete `gh3_download` / `gh3_build` commands to recover what is missing.
 
-Exit codes: **0** clean, **1** findings remain, **2** errors occurred during a
-fix. `tmp_partitions_health --fix` and `dtype_drift --fix` refuse to act while a
-`gh3_build` is live.
+Exit codes: **0** clean (or informational findings only), **1** findings remain,
+**2** errors occurred during a fix. `tmp_partitions_health --fix`, `dtype_drift --fix`
+and `backfill --fix` refuse to act while a `gh3_build` is live.
 
 `dtype_drift` derives the reference types by pushing one sample granule of the
 database's own release through the same schema derivation `gh3_build` uses, then

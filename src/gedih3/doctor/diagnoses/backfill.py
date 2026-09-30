@@ -181,9 +181,19 @@ def _finalize_backfill_check(
     # Granules indexed before their later products were published: known
     # from the build log. Their null rows are the same gap as the row scan's
     # partial-NaN findings, so those are folded in rather than listed twice.
-    pending = {}
+    pending, given_up = {}, {}
     if ctx.h3_logger is not None and hasattr(ctx.h3_logger, 'pending_product_fills'):
         pending = ctx.h3_logger.pending_product_fills()
+        given_up = ctx.h3_logger.pending_product_fills(statuses=('FAILED',))
+    if given_up:
+        # Fills gh3_build gave up on (repeated failures, or no database file
+        # lists the granule): no longer retried automatically — a finding.
+        findings = [
+            {'kind': 'fill_failed', 'granule': {'orbit': k[0], 'granule': k[1], 'track': k[2]},
+             'products': list(prods)}
+            for k, prods in sorted(given_up.items())
+        ] + findings
+        pending = {**pending, **{k: list(pending.get(k, [])) + list(v) for k, v in given_up.items()}}
     if pending:
         findings = [f for f in findings if not (
             f['kind'] == 'partial_nan'
@@ -192,8 +202,8 @@ def _finalize_backfill_check(
         )]
         findings = [
             {'kind': 'missing_source', 'granule': {'orbit': k[0], 'granule': k[1], 'track': k[2]},
-             'products': list(prods)}
-            for k, prods in sorted(pending.items())
+             'products': [p for p in prods if p not in given_up.get(k, ())]}
+            for k, prods in sorted(pending.items()) if set(prods) - set(given_up.get(k, ()))
         ] + findings
 
     n_missing = sum(1 for f in findings if f['kind'] == 'missing_column')
@@ -211,7 +221,9 @@ def _finalize_backfill_check(
         f"{n_partial} (granule × product) partial-NaN gaps"
     )
     if pending:
-        summary += f", {len(pending)} granule(s) awaiting products published after them"
+        summary += f", {len(pending) - len(given_up)} granule(s) awaiting products published after them"
+    if given_up:
+        summary += f", {len(given_up)} granule(s) whose backfill gh3_build gave up on"
 
     recommendations = []
     if findings:
@@ -264,7 +276,7 @@ def _granules_needing_fill(report: Report) -> Set[Tuple[int, int, int, str]]:
         elif f['kind'] == 'partial_nan':
             g = f['granule']
             needed.add((g['orbit'], g['granule'], g['track'], f['product']))
-        elif f['kind'] == 'missing_source':
+        elif f['kind'] in ('missing_source', 'fill_failed'):
             g = f['granule']
             needed.update((g['orbit'], g['granule'], g['track'], p) for p in f['products'])
     return needed
@@ -599,26 +611,28 @@ def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
     healed: list = []
     not_available: list = []
     error_actions: list = []
-    pending = {
-        (f['granule']['orbit'], f['granule']['granule'], f['granule']['track']): f['products']
-        for f in report.findings if f.get('kind') == 'missing_source'
-    }
+    pending: Dict[GranuleKey, List[str]] = {}
+    for f in report.findings:
+        if f.get('kind') in ('missing_source', 'fill_failed'):
+            g = f['granule']
+            pending.setdefault((g['orbit'], g['granule'], g['track']), []).extend(f['products'])
     if pending:
         from ...gh3builder import _build_fill_products
         try:
             fill = _build_fill_products(
                 ctx.h3_dir, pending, soc_source=soc_source, version=version,
-                tmp_dir=os.path.join(ctx.tmp_dir or os.path.join(ctx.h3_dir, '.tmp'), '_product_fill'),
+                tmp_dir=ctx.tmp_dir or os.path.join(ctx.h3_dir, '.tmp'),
             )
         except BaseException:
             if s3_tmp_dir and os.path.exists(s3_tmp_dir):
                 shutil.rmtree(s3_tmp_dir, ignore_errors=True)
             raise
         if ctx.h3_logger is not None:
-            ctx.h3_logger.set_product_statuses(
-                {k: {p: 'INDEXED' for p in prods} for k, prods in fill['filled'].items()})
+            # Manual retries never count toward gh3_build's give-up limit.
+            ctx.h3_logger.record_fill_results(fill, count_failures=False)
         for bucket, target, extra in (('filled', healed, {'action': 'filled'}),
                                       ('unavailable', not_available, {'reason': 'source_not_in_soc_tree'}),
+                                      ('unlocated', not_available, {'reason': 'granule_not_in_database'}),
                                       ('failed', error_actions, {'fix_error': 'read or merge failed'})):
             for k, prods in fill[bucket].items():
                 for p in prods:

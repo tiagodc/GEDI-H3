@@ -2133,7 +2133,7 @@ def parquet_fill_columns(
 
     - columns present in both: a base cell that is null (or NaN) takes the
       patch value; an existing value is never overwritten. When several
-      patches cover the same column, the last one with a value wins.
+      patches cover the same cell, the first one with a value wins.
     - columns only in a patch are appended (left join, null where the patch
       has no row).
     - columns only in the base pass through untouched (zero-copy).
@@ -2143,7 +2143,8 @@ def parquet_fill_columns(
     base layout (row groups, schema metadata such as GeoParquet ``geo``) is
     preserved. Patch values are cast to the base types with ``safe=True``.
     The output is written to ``ofile + tmp_suffix`` and atomically renamed;
-    on any error the temp file is removed and the base is untouched.
+    on any error the temp file is removed and the base is untouched. When no
+    cell changes (and nothing is appended) the base is left untouched too.
 
     Parameters
     ----------
@@ -2220,6 +2221,7 @@ def parquet_fill_columns(
         return mask
 
     tmp_ofile = ofile + tmp_suffix
+    changed = bool(appended_fields)
     try:
         with pq.ParquetWriter(tmp_ofile, out_schema, compression='zstd') as writer:
             for rg in range(base_pf.metadata.num_row_groups):
@@ -2234,12 +2236,17 @@ def parquet_fill_columns(
                         base = cols[c]
                         cand = ptbl.column(c).take(idx).cast(base.type, safe=True)
                         take = pc.and_(_missing(base), pc.is_valid(cand))
+                        if not changed and pc.any(take).as_py():
+                            changed = True
                         cols[c] = pc.if_else(take, cand, base)
                     for c in new_cols:
                         cols[c] = ptbl.column(c).take(idx)
                 writer.write_table(pa.Table.from_arrays([cols[f.name] for f in out_schema], schema=out_schema))
                 del tbl, cols
-        os.replace(tmp_ofile, ofile)
+        if changed or ofile != base_file:
+            os.replace(tmp_ofile, ofile)
+        else:
+            os.unlink(tmp_ofile)
     except BaseException:
         if os.path.exists(tmp_ofile):
             os.unlink(tmp_ofile)

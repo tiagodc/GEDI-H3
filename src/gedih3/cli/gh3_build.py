@@ -388,14 +388,15 @@ def main():
     elif h3_logger.allow_missing_products:
         logger.info("Phased updates are on for this database (build log): granules with L2A are indexed "
                     "before their later products; --no-allow-missing-products turns it off")
-    if h3_logger.allow_missing_products and args.s3:
+    # This run's choice; the logger attribute is what the log keeps.
+    allow_missing = h3_logger.allow_missing_products
+    if allow_missing and args.s3:
         if args.allow_missing_products:
             logger.error("--allow-missing-products needs a local SOC directory (-i, or --download); "
                          "S3 ETL mode builds complete granules only")
             sys.exit(2)
-        h3_logger.allow_missing_products = False  # this S3 run only; the log keeps the setting
+        allow_missing = False
         logger.info("S3 ETL mode builds complete granules only; phased updates skipped for this run")
-    allow_missing = h3_logger.allow_missing_products
     if h3_logger.get_spatial() is None:
         logger.warning("No spatial filter provided - processing global data")
 
@@ -447,9 +448,13 @@ def main():
         if not args.s3 and not args.download:
             # Local mode: check SOC directory for new HDF5 files
             if not _has_new_local_granules(soc_source, h3_logger, exclude=args.exclude):
+                _flag_changed = (args.allow_missing_products is not None
+                                 and args.allow_missing_products != bool(h3_logger.log_data.get('allow_missing_products')))
                 if h3_logger.previous_status != 'COMPLETED':
                     h3_logger.set_post_build_info()
                     h3_logger.save_log('COMPLETED')
+                elif _flag_changed:
+                    h3_logger.save_log('COMPLETED')  # remember --[no-]allow-missing-products
                 logger.info("Database is already up-to-date with requested parameters")
                 # Up-to-date DB: create the index only if it is missing
                 # (e.g. first run after upgrading gedih3) — the data is
@@ -870,8 +875,11 @@ def main():
                         require_all=not allow_missing,
                     )
                     if allow_missing:
-                        # L2A is the one product a granule must have to be built.
-                        _soc_for_build = [s for s in _soc_for_build if 'L2A' in s]
+                        # A granule must have L2A and what is published no later
+                        # (L1B) — the products build_h3db requires in this mode.
+                        from gedih3.gh3builder import _PRODUCTS_BEFORE_L2B
+                        _req = _PRODUCTS_BEFORE_L2B & set(h3_logger.get_product_vars() or {})
+                        _soc_for_build = [s for s in _soc_for_build if _req.issubset(s)]
                     # GEDI filename: GEDInn_L_DATE_O{orbit}_{granule}_T{track}_PPDS_PGE_GEN_V{ver}.h5
                     # Parse orbit/granule/track from the basename directly — no
                     # GEDIFile() so we skip the unused os.path.getsize call per
@@ -999,7 +1007,6 @@ def main():
                     else:
                         try:
                             from gedih3.gh3builder import _build_fill_products
-                            from gedih3.logger import PRODUCT_STATUS_INDEXED
                             h3_logger.save_log('PROCESSING')
                             _fill = _build_fill_products(
                                 args.output, _awaiting,
@@ -1007,17 +1014,20 @@ def main():
                                 soc_source=(_soc_for_build if allow_missing and _soc_for_build is not None
                                             else soc_source),
                                 version=h3_logger.gedi_version,
-                                tmp_dir=os.path.join(args.tmpdir, '_product_fill'),
+                                tmp_dir=args.tmpdir,
                                 exclude=args.exclude,
                             )
-                            h3_logger.set_product_statuses({
-                                k: {p: PRODUCT_STATUS_INDEXED for p in prods}
-                                for k, prods in _fill['filled'].items()
-                            })
+                            _given_up = h3_logger.record_fill_results(_fill)
                             _n_backfilled = len(_fill['updated_files'])
                             if _fill['failed']:
                                 logger.warning(f"Product backfill: {len(_fill['failed'])} granule(s) failed; "
-                                               f"they stay MISSING_SOURCE and are retried on the next run")
+                                               f"retried on the next runs (up to 3 attempts)")
+                            if _given_up:
+                                logger.warning(
+                                    f"Product backfill: gave up on {sum(map(len, _given_up.values()))} granule "
+                                    f"product(s) (repeated failures, or no database file lists the granule); "
+                                    f"marked FAILED, no longer retried automatically. Inspect with "
+                                    f"gh3_doctor -i {args.output} --check backfill; retry with --fix backfill")
                             if _fill['updated_files'] and os.path.exists(os.path.join(args.output, 'gedi.ducklake')):
                                 logger.warning(f"Filled columns changed file statistics the DuckLake catalog "
                                                f"caches; rebuild it: gh3_build_ducklake -d {args.output}")
