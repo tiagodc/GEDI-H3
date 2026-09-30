@@ -34,7 +34,7 @@ def _gedi_name(product, stamp, orbit, granule, track):
     return f"GEDI{product}_{stamp}000000_O{orbit:05d}_{granule:02d}_T{track:05d}_02_003_02_V002.h5"
 
 
-def _write_granule(soc_dir, key, stamp, delta_time, products=('02_A', '04_A'), shot_offset=0):
+def _write_granule(soc_dir, key, stamp, delta_time, products=('02_A', '04_A'), shot_offset=0, lon0=-50.5):
     """Synthetic granule files with every variable a build reads. ``stamp`` is
     the ``YYYYDDD`` of the file name; ``delta_time`` puts its shots in that year."""
     orbit, granule, track = key
@@ -49,7 +49,7 @@ def _write_granule(soc_dir, key, stamp, delta_time, products=('02_A', '04_A'), s
                 if product == '02_A':
                     g['delta_time'] = rng.uniform(delta_time, delta_time + 1e5, N_SHOTS)
                     g['lat_lowestmode'] = rng.uniform(0.0, 0.5, N_SHOTS)
-                    g['lon_lowestmode'] = rng.uniform(-50.5, -50.0, N_SHOTS)
+                    g['lon_lowestmode'] = rng.uniform(lon0, lon0 + 0.5, N_SHOTS)
                     g['elev_lowestmode'] = rng.uniform(0, 100, N_SHOTS)
                     g['quality_flag'] = np.ones(N_SHOTS, dtype='u1')
                     g['degrade_flag'] = np.zeros(N_SHOTS, dtype='u1')
@@ -682,3 +682,37 @@ def test_a_product_that_routes_no_rows_fails_alone(tmp_dir, monkeypatch):
         'updated_files': ['f'], 'failed_granules': set(), 'failed_products': {ks: {'L2B'}}, 'fragments': 1})
     out = gb._build_fill_products(h3_dir, {key: ['L4A', 'L2B']}, soc_source=[entry], tmp_dir=tmp_dir)
     assert out['filled'] == {key: ['L4A']} and out['failed'] == {key: ['L2B']}
+
+
+def test_new_cells_of_a_phased_update_keep_the_database_column_order(tmp_dir, _client):
+    """An L2A-only sample orders columns differently from a complete one. Files it
+    creates must still use the database's order: gh3_load rejects a partition
+    whose column order differs from its metadata."""
+    import gedih3.gh3builder as gb
+    from gedih3 import gh3_load
+    soc_dir, h3_dir, tmp, kw = _phased_db(tmp_dir)
+    old = {tuple(pq.read_schema(f).names) for f in glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet'))}
+    _write_granule(soc_dir, (102, 1, 202), '2020200', 8.0e7, products=('02_A',), lon0=-40.0)   # new cells
+    gb.build_h3db(product_vars=PRODUCT_VARS, allow_missing_products=True, **kw)
+
+    files = glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet'))
+    assert len(files) > 1 and {tuple(pq.read_schema(f).names) for f in files} == old
+    df = gh3_load(h3_dir).compute()
+    assert len(df) == 2 * len(GEDI_BEAMS) * N_SHOTS
+
+
+def test_complete_schema_follows_the_database_column_order(tmp_dir):
+    from gedih3.gh3builder import _complete_schema_from_db
+    ydir = os.path.join(tmp_dir, 'h3_03=830001fffffffff', 'year=2020')
+    os.makedirs(ydir)
+    pq.write_table(pa.table({'shot_number': pa.array([1], pa.uint64()), 'agbd_l4a': [1.0], 'rh_098_l2a': [1.0],
+                             'b_l2a': [1.0]}), os.path.join(ydir, '830001fffffffff.2020.0.parquet'))
+    with open(os.path.join(tmp_dir, BUILD_LOG_FILENAME), 'w') as f:
+        json.dump({'h3_partition_level': 3, 'h3_partition_ids': ['830001fffffffff'],
+                   'h3_columns_dtypes': {'shot_number': 'uint64', 'agbd_l4a': 'double', 'rh_098_l2a': 'double',
+                                         'b_l2a': 'double'}}, f)
+    src = pa.schema([('b_l2a', pa.float64()), ('shot_number', pa.uint64()), ('new_l2a', pa.float32()),
+                     ('rh_098_l2a', pa.float64())], metadata={b'geo': b'{}'})
+    out, added = _complete_schema_from_db(src, tmp_dir)
+    assert added == ['agbd_l4a']
+    assert out.names == ['shot_number', 'agbd_l4a', 'rh_098_l2a', 'b_l2a', 'new_l2a'] and out.metadata == src.metadata

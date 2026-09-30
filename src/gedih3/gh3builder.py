@@ -1769,22 +1769,25 @@ def _sample_partition_schema(h3_dir: str, log: dict):
 
 
 def _complete_schema_from_db(schema, h3_dir: str):
-    """Append every database column the Stage 1 write schema lacks, as nullable.
+    """Complete the Stage 1 write schema with the database's columns, in its column order.
 
     A build that admits granules whose later products (L2B, L4A, L4C…) are not
     published yet must still write fragments carrying the database's full
     column set: the merge requires every destination column in every fragment,
     and a new cell must not start with a narrower schema than its neighbours.
-    Types come from the build log's ``h3_columns_dtypes`` (a-priori, no parquet
-    I/O); a dtype string that is not a plain pyarrow alias is resolved from one
-    partition footer instead.
+    Its files must also keep the database's column order: a source sample
+    lacking some products orders columns differently, and readers (``gh3_load``
+    over files of both orders) reject a column order that differs from their
+    metadata. The order comes from one partition footer, located a-priori;
+    types come from the build log's ``h3_columns_dtypes``, or from that footer
+    for a dtype string that is not a plain pyarrow alias.
 
     Parameters
     ----------
     schema : pyarrow.Schema
         Stage 1 write schema (already aligned by :func:`_align_schema_to_db`).
     h3_dir : str
-        Database root. No build log, or no recorded dtypes, is a no-op.
+        Database root. No build log is a no-op.
 
     Returns
     -------
@@ -1804,16 +1807,14 @@ def _complete_schema_from_db(schema, h3_dir: str):
         return schema, []
     log = json_read(log_path)
     db_dtypes = log.get('h3_columns_dtypes') or {}
-    # Legacy logs record columns without dtypes: types then come from a footer.
+    footer = _sample_partition_schema(h3_dir, log) or pa.schema([])
+    # Legacy logs record columns without dtypes: types then come from the footer.
     missing = [c for c in sorted(set(db_dtypes) | set(log.get('h3_columns') or [])) if c not in schema.names]
-    footer = None
     added = []
     for name in missing:
         try:
             typ = pa.type_for_alias(db_dtypes[name])
         except (ValueError, KeyError, TypeError):
-            if footer is None:
-                footer = _sample_partition_schema(h3_dir, log) or pa.schema([])
             if name not in footer.names:
                 raise GediValidationError(
                     f"Cannot resolve the database type of column {name!r} (build log records "
@@ -1822,6 +1823,11 @@ def _complete_schema_from_db(schema, h3_dir: str):
             typ = footer.field(name).type
         schema = schema.append(pa.field(name, typ, nullable=True))
         added.append(name)
+    # The database's column order; columns it does not hold yet go last.
+    order = [n for n in footer.names if n in schema.names]
+    order += [n for n in schema.names if n not in set(order)]
+    if order != schema.names:
+        schema = pa.schema([schema.field(n) for n in order], metadata=schema.metadata)
     return schema, added
 
 
