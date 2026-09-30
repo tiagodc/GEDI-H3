@@ -7,7 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Fixed
-- **A preset keyword given with extra variable names dropped the names.** `gedi_vars_expand` replaced a spec that named `default` or `minimal` with the preset list alone, so `-l2a default energy_total` meant `-l2a default`. A variable update of an existing database with such flags therefore reported "up to date" and added nothing, and a new build or download silently lacked the extra variables. The names given with a preset are now added after the preset's variables, without duplicates.
+- **A preset keyword given with extra variable names dropped the names.** `gedi_vars_expand` replaced a spec that named `default` or `minimal` with the preset list alone, so `-l2a default energy_total` meant `-l2a default`. A variable update of an existing database with such flags reported "up to date" and added nothing; a new build or download silently lacked the extra variables; `gh3_extract`/`gh3_aggregate` column selections silently left them out. The names given with a preset are now added after the preset's variables, without duplicates (`preset_extra_names`). `all`/`*` next to a preset still add nothing, and `minimal` still wins over `default`.
+  - `gh3_build`'s pre-flight on a local SOC tree follows: the static-manifest check covers exactly the `default` preset, and the names typed next to a preset get the sample-HDF5 typo check that explicit lists get (`preflight_var_specs`, `H3BuildLogger.preset_extra_vars`). Before, a typo next to `minimal` skipped that check, and a `default` update of a database that already stored names outside the preset reported those names missing and exited 2.
+  - `gh3_extract`/`gh3_aggregate` now select the extra names too, and raise `GediValidationError` when the database lacks one, as for any requested column.
 
 ## [0.18.1] - 2026-09-29
 
