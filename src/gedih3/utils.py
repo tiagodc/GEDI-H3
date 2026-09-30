@@ -2196,10 +2196,10 @@ def parquet_fill_columns(
         pf_schema = pf_path.schema if in_memory else pq.read_schema(pf_path)
         if key_col not in pf_schema.names:
             raise ValueError(f"patch file {pf_path!r} missing key column {key_col!r}")
+        # A column an earlier patch appended is filled, not re-appended, by later ones.
         fill_cols = [c for c in pf_schema.names if c in base_names and c != key_col]
-        new_cols = [c for c in pf_schema.names
-                    if append_new and c not in base_names and c != key_col
-                    and c not in {f.name for f in appended_fields}]
+        new_cols = [c for c in pf_schema.names if append_new and c not in base_names and c != key_col]
+        base_names.update(new_cols)
         if not fill_cols and not new_cols:
             continue
         cols = [key_col] + fill_cols + new_cols

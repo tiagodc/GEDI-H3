@@ -910,10 +910,11 @@ class H3BuildLogger:
                     products = _per_product_status_from_observed(
                         active_products, gran_observed_products.get(key, set())
                     )
-                    # MISSING_SOURCE stays: the partition carries the product's
-                    # columns (null for this granule) until a backfill fills them.
+                    # MISSING_SOURCE and a backfill's FAILED stay: the partition
+                    # carries the product's columns (null for this granule)
+                    # until a backfill fills them.
                     for p, s in (g.get('products') or {}).items():
-                        if s == PRODUCT_STATUS_MISSING_SOURCE and p in products:
+                        if s in (PRODUCT_STATUS_MISSING_SOURCE, PRODUCT_STATUS_FAILED) and p in products:
                             products[p] = s
                     g['products'] = products
                 # else: keep existing status (PENDING)

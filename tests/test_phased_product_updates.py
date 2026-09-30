@@ -604,3 +604,81 @@ def test_doctor_fix_backfills_awaited_products(tmp_dir, _client):
     assert fixed.applied and any(f.get('action') == 'filled' for f in fixed.findings)
     assert _l4a_nulls(h3_dir, b) == 0
     assert ctx.h3_logger.pending_product_fills() == {}
+
+
+def test_later_patches_fill_a_column_an_earlier_patch_appended(tmp_dir):
+    """First value wins across patches, appended columns included."""
+    from gedih3.utils import parquet_fill_columns
+    base = os.path.join(tmp_dir, 'base.parquet')
+    pq.write_table(pa.table({'shot_number': pa.array([1, 2, 3], pa.uint64())}), base)
+    p1 = pa.table({'shot_number': pa.array([1], pa.uint64()), 'x': [10.0]})
+    p2 = pa.table({'shot_number': pa.array([1, 2], pa.uint64()), 'x': [99.0, 20.0]})
+    parquet_fill_columns(base, [p1, p2])
+    assert pq.read_table(base)['x'].to_pylist() == [10.0, 20.0, None]
+
+
+def test_a_backfill_give_up_survives_the_build_finalize(tmp_dir, _client):
+    """gh3_build records fill results, then runs set_post_build_info: FAILED
+    must not turn back into INDEXED just because the columns exist."""
+    import gedih3.gh3builder as gb
+    from gedih3.logger import H3BuildLogger
+    soc_dir, h3_dir, tmp, kw = _phased_db(tmp_dir)
+    b = (102, 1, 202)
+    _write_granule(soc_dir, b, '2020200', 8.0e7, products=('02_A',))
+    log = H3BuildLogger(product_vars=None, dir=h3_dir)
+    log.register_pending_granules([dict(zip(('orbit', 'granule', 'track'), b))])
+    gb.build_h3db(product_vars=PRODUCT_VARS, allow_missing_products=True, **kw)
+    log.set_product_statuses({b: {'L4A': 'MISSING_SOURCE'}})
+    log.set_post_build_info()
+
+    assert log.record_fill_results({'unlocated': {b: ['L4A']}}) == {b: ['L4A']}
+    log.set_post_build_info()
+
+    assert log.pending_product_fills(statuses=('FAILED',)) == {b: ['L4A']}
+
+
+def test_products_still_unpublished_are_reported_alongside_a_fill(tmp_dir, _client):
+    """Awaiting L4A and L2B with only L4A on disk: L4A fills, L2B still waits."""
+    import gedih3.gh3builder as gb
+    soc_dir, h3_dir, tmp, kw = _phased_db(tmp_dir)
+    b = (102, 1, 202)
+    _write_granule(soc_dir, b, '2020200', 8.0e7, products=('02_A',))
+    gb.build_h3db(product_vars=PRODUCT_VARS, allow_missing_products=True, **kw)
+    _write_granule(soc_dir, b, '2020200', 8.0e7, products=('04_A',))
+
+    out = gb._build_fill_products(h3_dir, {b: ['L4A', 'L2B']}, soc_source=soc_dir, version=2, tmp_dir=tmp)
+
+    assert out['filled'] == {b: ['L4A']} and out['unavailable'] == {b: ['L2B']} and not out['failed']
+
+
+def test_a_product_that_routes_no_rows_fails_alone(tmp_dir, monkeypatch):
+    """One granule, two products: the one whose shots match the base fills;
+    the one that matches nothing is failed, and the granule gets no sentinel."""
+    import pandas as pd
+    import gedih3.gh3builder as gb
+    base_shots = np.arange(5, dtype=np.uint64)
+    frames = {'a.h5': pd.DataFrame({'shot_number': base_shots, 'agbd': 1.0}),
+              'b.h5': pd.DataFrame({'shot_number': base_shots + np.uint64(100), 'pai': 1.0})}
+    monkeypatch.setattr(gb, 'load_h5', lambda path, **k: frames[path].set_index('shot_number'))
+    monkeypatch.setattr(gb, '_cached_base_shots', lambda year_pf: base_shots)
+    tmp = os.path.join(tmp_dir, 'fill')
+    res = gb._var_fan_granule(('O00001_01_T00001', {'L4A': 'a.h5', 'L2B': 'b.h5'}, [os.path.join(tmp_dir, 'x.parquet')]),
+                              new_product_vars={'L4A': ['agbd'], 'L2B': ['pai']}, tmp_dir=tmp, split_products=True)
+    assert res['product_fragments'] == {'L4A': 1, 'L2B': 0}
+    assert not os.path.exists(gb._var_fan_sentinel_path(tmp, 'O00001_01_T00001'))
+
+    # _build_fill_products turns that into per-product buckets.
+    key = (102, 1, 202)
+    ks = gb._granule_key_str(key)
+    entry = {p: os.path.join(tmp_dir, _gedi_name(c, '2020200', *key)) for p, c in (('L4A', '04_A'), ('L2B', '02_B'))}
+    h3_dir = os.path.join(tmp_dir, 'db')
+    os.makedirs(h3_dir)
+    with open(os.path.join(h3_dir, BUILD_LOG_FILENAME), 'w') as f:
+        json.dump({'h3_partition_level': 3, 'h3_partition_ids': ['830000fffffffff']}, f)
+    monkeypatch.setattr(gb, 'get_dask_client', lambda: object())
+    monkeypatch.setattr('gedih3.parallel.parallel_map', lambda items, fn, **k: [(i, [ks]) for i in items])
+    monkeypatch.setattr(gb, '_product_fill_vars', lambda *a, **k: {})
+    monkeypatch.setattr(gb, '_fan_merge_products', lambda *a, **k: {
+        'updated_files': ['f'], 'failed_granules': set(), 'failed_products': {ks: {'L2B'}}, 'fragments': 1})
+    out = gb._build_fill_products(h3_dir, {key: ['L4A', 'L2B']}, soc_source=[entry], tmp_dir=tmp_dir)
+    assert out['filled'] == {key: ['L4A']} and out['failed'] == {key: ['L2B']}

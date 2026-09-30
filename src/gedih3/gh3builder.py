@@ -3704,6 +3704,7 @@ def _var_fan_granule(task, *, new_product_vars, tmp_dir, include_source=False, s
     # split_products, fan each product as soon as it is read).
     new_df = None
     n_frag = 0
+    prod_frags = {}
     for prod, h5_path in h5_by_prod.items():
         var_list = [v for v in (new_product_vars.get(prod) or []) if v != 'shot_number']
         if not var_list:
@@ -3717,12 +3718,15 @@ def _var_fan_granule(task, *, new_product_vars, tmp_dir, include_source=False, s
                 'error': f"{type(exc).__name__}: {exc}",
                 'failure': _classify_load_h5_failure(exc, h5_by_prod),
             }
+        if split_products:
+            prod_frags[prod] = 0
         if df is None or df.empty:
             continue
         suffix = f"_{prod.lower()}"
         df = df.rename(columns=lambda x: x if x.endswith(suffix) else f"{x}{suffix}")
         if split_products:
-            n_frag += _fan(df, f'{granule_key}.{prod}')
+            prod_frags[prod] = _fan(df, f'{granule_key}.{prod}')
+            n_frag += prod_frags[prod]
             del df
             continue
         new_df = df if new_df is None else new_df.join(df, how='outer')
@@ -3730,11 +3734,15 @@ def _var_fan_granule(task, *, new_product_vars, tmp_dir, include_source=False, s
     if new_df is not None and not new_df.empty:
         n_frag += _fan(new_df, granule_key)
     # A structurally-empty granule still gets its sentinel so a variable-add
-    # resume does not keep retrying it. A fill that routed no row wrote
-    # nothing: no sentinel, so a retry re-reads it instead of reporting it done.
-    if n_frag or not split_products:
+    # resume does not keep retrying it. A fill product that routed no row
+    # wrote nothing: no sentinel, so a retry re-reads it instead of reporting
+    # it done.
+    if not split_products or (prod_frags and all(prod_frags.values())):
         _emit_var_fan_sentinel(tmp_dir, granule_key)
-    return {'granule': granule_key, 'fragments': n_frag}
+    out = {'granule': granule_key, 'fragments': n_frag}
+    if split_products:
+        out['product_fragments'] = prod_frags
+    return out
 
 
 def _var_merge_cell_year(year_pf, *, tmp_dir, fill=False):
@@ -3877,9 +3885,11 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
     Returns
     -------
     dict
-        ``{'updated_files': [...], 'failed_granules': set, 'fragments': int}``.
-        A granule is failed when its read failed or any of its files failed to
-        merge; everything else it owns was written.
+        ``{'updated_files': [...], 'failed_granules': set, 'failed_products':
+        {granule: set}, 'fragments': int}``. A granule is failed when its read
+        failed or any of its files failed to merge; everything else it owns was
+        written. ``failed_products`` (fill only): products of an otherwise
+        successful granule that routed no row.
     """
     from dask.distributed import as_completed as dask_as_completed
     from tqdm import tqdm as tqdm_bar
@@ -3898,6 +3908,7 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
     fan_futures = client.map(fan_fn, fan_tasks, pure=False)
     fut_to_gran = {f: t[0] for f, t in zip(fan_futures, fan_tasks)}
     failed_granules = set()
+    failed_products: Dict[str, set] = {}
     n_frag = n_fan_fail = 0
     pbar = tqdm_bar(total=len(fan_tasks), desc="Stage1 granule fan", unit="granule")
     try:
@@ -3913,12 +3924,13 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
                         _append_granule_failure(tmp_dir, res.get('granule'), failure)
                 else:
                     n_frag += res.get('fragments', 0)
-                    if fill and not res.get('skipped') and not res.get('fragments'):
-                        # A granule listed by these files but routing no row to
-                        # them filled nothing: leave it pending, never "filled".
-                        failed_granules.add(res.get('granule'))
-                        logger.warning(f"Product backfill: granule {res.get('granule')} matched no rows "
-                                       f"in the files that list it; left pending")
+                    # A fill product listed by these files but routing no row
+                    # to them filled nothing: leave it pending, never "filled".
+                    empty = sorted(p for p, n in (res.get('product_fragments') or {}).items() if not n)
+                    if fill and empty:
+                        failed_products.setdefault(res.get('granule'), set()).update(empty)
+                        logger.warning(f"Product backfill: granule {res.get('granule')} {', '.join(empty)} "
+                                       f"matched no rows in the files that list it; left pending")
             except Exception as e:
                 n_fan_fail += 1
                 failed_granules.add(fut_to_gran.get(fut))
@@ -4040,7 +4052,8 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
 
     failed_granules |= {g for g, yps in gran_year_pfs.items() if failed_year_pfs.intersection(yps)}
     failed_granules.discard(None)
-    return {'updated_files': updated_files, 'failed_granules': failed_granules, 'fragments': n_frag}
+    return {'updated_files': updated_files, 'failed_granules': failed_granules,
+            'failed_products': failed_products, 'fragments': n_frag}
 
 
 def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None,
@@ -4360,8 +4373,9 @@ def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None
     for key, prods in targets.items():
         entry = soc_tree.get(_granule_key_str(key)) or {}
         h5 = {p: entry[p] for p in prods if p in entry}
+        if len(h5) < len(prods):
+            out['unavailable'][key] = sorted(prods.difference(h5))
         if not h5:
-            out['unavailable'][key] = sorted(prods)
             continue
         gran_h5[_granule_key_str(key)] = h5
         try:
@@ -4440,8 +4454,10 @@ def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None
     fill_vars = _product_fill_vars(h3_dir, products, soc_files=list(gran_h5.values()), version=version)
     res = _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, fill_vars, tmp_dir, fill=True)
     for ot, h5 in gran_h5.items():
-        bucket = 'failed' if ot in res['failed_granules'] else 'filled'
-        out[bucket][by_str[ot]] = sorted(h5)
+        failed = set(h5) if ot in res['failed_granules'] else res['failed_products'].get(ot, set()) & set(h5)
+        for bucket, prods in (('failed', failed), ('filled', set(h5) - failed)):
+            if prods:
+                out[bucket][by_str[ot]] = sorted(prods)
     out['updated_files'] = res['updated_files']
     logger.info(
         f"Product backfill: filled {len(out['filled'])} granule(s) across {len(res['updated_files'])} file(s); "
