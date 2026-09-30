@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- **A preset keyword given with extra variable names dropped the names.** `gedi_vars_expand` replaced a spec that named `default` or `minimal` with the preset list alone, so `-l2a default energy_total` meant `-l2a default`. A variable update of an existing database with such flags therefore reported "up to date" and added nothing, and a new build or download silently lacked the extra variables. The names given with a preset are now added after the preset's variables, without duplicates.
+
 ## [0.18.1] - 2026-09-29
 
 ### Added

@@ -82,6 +82,22 @@ def test_gedi_vars_expand_explicit_v2_keeps_v2_names():
     assert 'wsci_quality_flag' in out['L4C']
 
 
+def test_gedi_vars_expand_keeps_names_given_with_a_preset():
+    """``-l2a default energy_total`` is the default list plus energy_total, not
+    the default list alone: dropping the extra name silently made a variable
+    update of an existing database report "up to date" and add nothing."""
+    from gedih3.gedidriver import gedi_vars_expand
+    default = gedi_vars_expand({'L2A': ['default']})['L2A']
+    minimal = gedi_vars_expand({'L2A': ['minimal']})['L2A']
+    assert 'energy_total' not in default and 'energy_total' not in minimal
+
+    out = gedi_vars_expand({'L2A': ['default', 'energy_total', 'rh'], 'L4A': ['min', 'agbd_t']})
+
+    assert out['L2A'] == default + ['energy_total']        # preset order kept, no duplicate of rh
+    assert out['L4A'][-1] == 'agbd_t' and 'min' not in out['L4A']
+    assert 'energy_total' not in gedi_vars_expand({'L2A': ['default']})['L2A']   # preset table untouched
+
+
 # ---------------------------------------------------------------------------
 # CMR search params
 # ---------------------------------------------------------------------------
