@@ -3751,7 +3751,7 @@ def _var_fan_granule(task, *, new_product_vars, tmp_dir, include_source=False, s
     return out
 
 
-def _var_merge_cell_year(year_pf, *, tmp_dir, fill=False):
+def _var_merge_cell_year(year_pf, *, tmp_dir, fill=False, new_schema=None):
     """Stage 2 worker: merge a cell-year's fanned fragments into its base.
 
     Concats every ``<granule_key>.parquet`` Stage 1 wrote for this
@@ -3783,6 +3783,13 @@ def _var_merge_cell_year(year_pf, *, tmp_dir, fill=False):
     base already has, only where the base is null
     (``parquet_fill_columns``: rowgroup-wise, atomic, existing values never
     overwritten) instead of joining new columns.
+
+    ``new_schema`` (variable update): the new columns' schema, one for every
+    file of the run (:func:`_var_new_columns_schema`). The fragments are
+    conformed to it, and a file with no fragment still gets the columns, as
+    null: every file must end with the same columns in the same types, or
+    readers reject the mix, and a later product backfill (which never adds
+    columns) could not fill them.
     """
     frag_dir = _var_fragment_dir(tmp_dir, year_pf)
     nv_path = os.path.join(frag_dir, '_newvars.parquet')
@@ -3794,7 +3801,8 @@ def _var_merge_cell_year(year_pf, *, tmp_dir, fill=False):
                  if f.endswith('.parquet') and f != '_newvars.parquet']
     except FileNotFoundError:
         frags = []
-    if not frags:
+    if not frags and (fill or new_schema is None
+                      or set(new_schema.names) <= set(read_parquet_schema(year_pf)['column'])):
         return None
 
     if fill:
@@ -3809,12 +3817,22 @@ def _var_merge_cell_year(year_pf, *, tmp_dir, fill=False):
         parquet_fill_columns(year_pf, patches, key_col='shot_number', append_new=False)
         del patches
     else:
-        cat = pd.concat([pd.read_parquet(f) for f in frags], ignore_index=True)
-        cat = cat.drop_duplicates(subset='shot_number', keep='first')
-
-        with AtomicFileWriter(nv_path) as tmp_path:
-            cat.to_parquet(tmp_path, engine='pyarrow', index=False, compression='zstd')
-        del cat
+        if frags:
+            cat = pd.concat([pd.read_parquet(f) for f in frags], ignore_index=True)
+            cat = cat.drop_duplicates(subset='shot_number', keep='first')
+        if new_schema is None:
+            with AtomicFileWriter(nv_path) as tmp_path:
+                cat.to_parquet(tmp_path, engine='pyarrow', index=False, compression='zstd')
+        else:
+            import pyarrow as pa
+            table = (_conform_table_to_schema(pa.Table.from_pandas(cat, preserve_index=False), new_schema)
+                     if frags else new_schema.empty_table())
+            os.makedirs(frag_dir, exist_ok=True)
+            with AtomicFileWriter(nv_path) as tmp_path:
+                pq.write_table(table, tmp_path, compression='zstd')
+            del table
+        if frags:
+            del cat
 
         parquet_join_columns([year_pf, nv_path], year_pf, key_col='shot_number')
 
@@ -3861,7 +3879,50 @@ def _refresh_year_columns_meta(year_pf: str) -> None:
         h3_write_metadata(year_pf)
 
 
-def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *, fill=False):
+def _var_source_schema(h5_path, *, prod, variables):
+    """Worker: the schema a variable update's fan writes for one product.
+
+    Reads ``variables`` of one granule's ``prod`` file exactly as
+    :func:`_var_fan_granule` does (``load_h5``, product-suffixed names), so
+    the types are the ones its fragments carry, before any outer join
+    between products can upcast them.
+    """
+    import pyarrow as pa
+    df = load_h5(h5_path, columns=['shot_number'] + list(variables), shots=None, include_source=False)
+    suffix = f"_{prod.lower()}"
+    df = df.rename(columns=lambda x: x if x.endswith(suffix) else f"{x}{suffix}")
+    return pa.Schema.from_pandas(df.reset_index(), preserve_index=False).remove_metadata()
+
+
+def _var_new_columns_schema(client, gran_h5, product_vars):
+    """One schema for every file a variable update writes, from one granule per product.
+
+    Deterministic (the first granule key holding the product), so a resumed
+    run derives the same schema. A product no granule has a file for is left
+    out, with a warning: no file gets its columns, so the files stay alike.
+    """
+    import pyarrow as pa
+    futures = {}
+    for prod, variables in product_vars.items():
+        variables = [v for v in (variables or []) if v != 'shot_number']
+        if not variables:
+            continue
+        src = next((gran_h5[k][prod] for k in sorted(gran_h5) if prod in gran_h5[k]), None)
+        if src is None:
+            logger.warning(f"Variable update: no granule has a local {prod} file; {prod} variables are not added. "
+                           f"Download {prod} and re-run to add them")
+            continue
+        futures[prod] = client.submit(_var_source_schema, src, prod=prod, variables=variables, pure=False)
+    fields = {}
+    for prod, fut in futures.items():
+        for field in fut.result():
+            fields.setdefault(field.name, field)
+    if 'shot_number' not in fields:
+        return None
+    return pa.schema([fields.pop('shot_number')] + list(fields.values()))
+
+
+def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *, fill=False, year_pfs=None):
     """Stages 1-3 of the inverted granule fan-out, shared by variable-add and product-fill.
 
     Reads each granule's product h5(s) exactly once and fans its shots to the
@@ -3887,6 +3948,10 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
     fill : bool, default False
         False joins new columns (variable-add). True writes into existing
         null cells only (product backfill) and reads ``root_file_<prod>`` too.
+    year_pfs : list of str, optional
+        Variable-add: every file still lacking the new columns. Files no
+        granule routes rows to are merged too, so they get the columns as
+        null (:func:`_var_merge_cell_year`).
 
     Returns
     -------
@@ -3954,7 +4019,7 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
         )
 
     # ── Stage 2: merge — concat fragments into each base parquet ────────
-    touched_year_pfs = sorted({yp for yps in gran_year_pfs.values() for yp in yps})
+    touched_year_pfs = sorted({yp for yps in gran_year_pfs.values() for yp in yps} | set(year_pfs or ()))
 
     merge_progress_file = os.path.join(tmp_dir, _VAR_MERGE_PROGRESS_FILENAME)
     merged_set = set()
@@ -3968,7 +4033,8 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
             logger.info(f"Resuming merge: {len(merged_set)} (cell, year) already merged")
     remaining = [yp for yp in touched_year_pfs if yp not in merged_set]
 
-    merge_fn = functools.partial(_var_merge_cell_year, tmp_dir=tmp_dir, fill=fill)
+    new_schema = None if fill else _var_new_columns_schema(client, gran_h5, product_vars)
+    merge_fn = functools.partial(_var_merge_cell_year, tmp_dir=tmp_dir, fill=fill, new_schema=new_schema)
     updated_files: List[str] = []
     touched_cells = set()
     n_merge_fail = 0
@@ -4248,7 +4314,9 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
         f"already-done={skipped})"
     )
 
-    return _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, new_product_vars, tmp_dir)['updated_files'] or None
+    pending = [pf for pf, granules in zip(year_files, scan_results) if granules is not None]
+    return _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, new_product_vars, tmp_dir,
+                               year_pfs=pending)['updated_files'] or None
 
 
 def _granule_key_str(key) -> str:

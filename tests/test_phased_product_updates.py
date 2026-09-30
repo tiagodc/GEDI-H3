@@ -58,6 +58,7 @@ def _write_granule(soc_dir, key, stamp, delta_time, products=('02_A', '04_A'), s
                     g['rh_050'] = rng.uniform(0, 30, N_SHOTS)
                 else:
                     g['agbd'] = rng.uniform(1, 300, N_SHOTS)
+                    g['agbd_se'] = rng.uniform(1, 30, N_SHOTS)
                     g['l4_quality_flag'] = np.ones(N_SHOTS, dtype='u1')
 
 
@@ -716,3 +717,39 @@ def test_complete_schema_follows_the_database_column_order(tmp_dir):
     out, added = _complete_schema_from_db(src, tmp_dir)
     assert added == ['agbd_l4a']
     assert out.names == ['shot_number', 'agbd_l4a', 'rh_098_l2a', 'b_l2a', 'new_l2a'] and out.metadata == src.metadata
+
+
+def test_a_variable_update_while_a_product_is_pending_reaches_every_file(tmp_dir, _client):
+    """New cells hold only granules still waiting for L4A, so no fragment carries
+    a new L4A variable there. They must still get the column (null), in the
+    same type as everywhere else: readers reject files with other columns, and
+    the backfill, which never adds columns, must be able to fill it later."""
+    import gedih3.gh3builder as gb
+    from gedih3 import gh3_load
+    soc_dir, h3_dir, tmp, kw = _phased_db(tmp_dir)
+    b = (102, 1, 202)
+    _write_granule(soc_dir, b, '2020200', 8.0e7, products=('02_A',), lon0=-40.0)   # new cells, no L4A yet
+    gb.build_h3db(product_vars=PRODUCT_VARS, allow_missing_products=True, **kw)
+
+    added = {'L4A': ['agbd', 'agbd_se']}
+    gb._build_add_variables(h3_dir, added, soc_source=soc_dir, version=2, tmp_dir=os.path.join(tmp_dir, 'var_tmp'))
+    from gedih3.logger import H3BuildLogger
+    log = H3BuildLogger(product_vars=None, dir=h3_dir)
+    log.set_post_build_info()                     # as gh3_build does after the update
+    log.save_log('COMPLETED')
+
+    files = glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet'))
+    schemas = {tuple((f.name, str(f.type)) for f in pq.read_schema(p)) for p in files}
+    assert len(schemas) == 1 and ('agbd_se_l4a', 'double') in next(iter(schemas))
+    assert len(gh3_load(h3_dir).compute()) == 2 * len(GEDI_BEAMS) * N_SHOTS
+    assert _db_table(h3_dir)['agbd_se_l4a'].null_count == len(GEDI_BEAMS) * N_SHOTS   # B's rows only
+
+    # L4A arrives: the backfill fills the new column too (the log records it).
+    log_path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
+    log = json.load(open(log_path))
+    log['products']['L4A']['variables'] = added['L4A']
+    json.dump(log, open(log_path, 'w'))
+    _write_granule(soc_dir, b, '2020200', 8.0e7, products=('04_A',), lon0=-40.0)
+    out = gb._build_fill_products(h3_dir, {b: ['L4A']}, soc_source=soc_dir, version=2, tmp_dir=tmp)
+    assert out['filled'] == {b: ['L4A']}
+    assert _db_table(h3_dir)['agbd_se_l4a'].null_count == 0
