@@ -536,3 +536,65 @@ class TestMergeIncompleteStatus:
         assert exc.value.code == 4
         # tmp_partitions_health has no default tmp dir: the recipe must name it.
         assert f'-t {tmp_dir} --check tmp_partitions_health' in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# The "already merged" skip needs proof, not a newer mtime
+# ---------------------------------------------------------------------------
+#
+# Reproduced in production: gh3_doctor --fix dtype_drift rewrote every
+# database file between Stage 1 and the merge, so every destination was newer
+# than its fragments. The mtime-only skip then treated all 2,767 partitions it
+# reached as already merged and deleted their fragments unmerged.
+
+class TestMergeSkipNeedsGranuleProof:
+    FRAG_A = 'O00077_G03_T00099.BEAM0000.parquet'   # granule of _write_part's root_file_l2a
+
+    def _merged_dest(self, tmp_dir):
+        """A destination produced by a real merge of granule (77, 3, 99)."""
+        from gedih3.gh3builder import h3_merge_files
+        in_dir = os.path.join(tmp_dir, 'tmp', 'h3_03=830001fffffffff', 'year=2020') + '/'
+        out_dir = os.path.join(tmp_dir, 'database')
+        _write_part(os.path.join(in_dir, self.FRAG_A), 'uint8', [10, 20], [1, 2])
+        dest = h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+        return in_dir, out_dir, dest
+
+    def _age(self, path, seconds):
+        t = os.path.getmtime(path) - seconds
+        os.utime(path, (t, t))
+
+    def test_destination_rewritten_after_extraction_is_still_merged(self, tmp_dir):
+        from gedih3.gh3builder import h3_merge_files
+        in_dir, out_dir, dest = self._merged_dest(tmp_dir)
+        # New granule's fragment, then the destination is rewritten (as
+        # dtype_drift --fix does), so it is newer than the fragment.
+        frag = os.path.join(in_dir, 'O00088_G01_T00011.BEAM0000.parquet')
+        _write_part(frag, 'uint8', [30], [3])
+        self._age(frag, 3600)
+
+        h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+
+        assert pq.ParquetFile(dest).metadata.num_rows == 3
+        assert not os.path.exists(in_dir)
+
+    def test_finished_merge_with_interrupted_cleanup_is_skipped(self, tmp_dir):
+        from gedih3.gh3builder import h3_merge_files
+        in_dir, out_dir, dest = self._merged_dest(tmp_dir)
+        # The cleanup of that merge "was interrupted": its fragment is back,
+        # older than the destination, and the destination lists its granule.
+        frag = os.path.join(in_dir, self.FRAG_A)
+        _write_part(frag, 'uint8', [10, 20], [1, 2])
+        self._age(frag, 3600)
+        before = open(dest, 'rb').read()
+
+        h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+
+        assert open(dest, 'rb').read() == before       # not rewritten
+        assert not os.path.exists(in_dir)               # cleanup finished
+
+    def test_legacy_fragment_names_are_never_skipped(self, tmp_dir):
+        from gedih3.gh3builder import _dest_holds_fragments
+        _, _, dest = self._merged_dest(tmp_dir)
+        assert _dest_holds_fragments(dest, [os.path.join(tmp_dir, self.FRAG_A)])
+        assert not _dest_holds_fragments(dest, [os.path.join(tmp_dir, 'part.0.parquet')])
+        assert not _dest_holds_fragments(dest + '.missing', [os.path.join(tmp_dir, self.FRAG_A)])

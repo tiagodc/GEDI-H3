@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- **A merge could delete fragments without merging them.** `h3_merge_files` treated a destination newer than every fragment as "this merge already finished, only its cleanup was interrupted", and removed the fragments (`rm_src`). Any tool that rewrites database files between Stage 1 and the merge makes every destination newer: `gh3_doctor --fix dtype_drift`, `gh3_update`, `--fix backfill`, product fills. Reproduced on a continental V3 database after a dtype fix, where the merge "completed" 2,767 partitions at ~30/s and merged none of them. The skip now also requires proof, via `_dest_holds_fragments`: the destination's per-year metadata must list the granule of every fragment, which the fragment basename encodes. That is the invariant `h3_skip_part` already uses for Stage 1; it costs one small JSON read. Anything unprovable (missing metadata, legacy `part.N` names) merges, which is always safe because shot dedup keeps the existing rows.
+- **The merge pre-clean took ~58 h on a 14k-sentinel backlog before merging anything.** `preclean_merge_failures` parsed every fragment footer of every recorded failure serially on the driver, at ~15 s per partition with 1.4k-column footers on GPFS. Fragments are now probed in O(1) (`_parquet_tail_ok`: magic bytes at both ends and a plausible footer length), which catches 0-byte, truncated and never-finished files. The footer parse is kept only for failures recorded as footer-level (thrift). Partitions fan out over the dask Client (`_preclean_partition`).
+
 ## [0.19.0] - 2026-09-30
 
 ### Added

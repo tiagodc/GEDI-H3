@@ -712,6 +712,47 @@ def h3_add_skip_column(df, h3_dir):
 def dh3_merge_metadata(h3_subdir):
     return h3_merge_metadata(h3_subdir)
 
+def _dest_holds_fragments(out_file: str, files: List[str]) -> bool:
+    """True when ``out_file`` provably already contains every fragment in ``files``.
+
+    The proof is a-priori: each Stage 1 fragment's basename encodes its
+    granule (``_FRAGMENT_BASENAME_RE``), and the destination's per-year
+    metadata JSON lists the granules merged into it — the same invariant
+    ``h3_skip_part`` uses to skip extraction. One small JSON read; no
+    parquet is opened. Anything unprovable answers False (a missing or
+    unreadable metadata file, a legacy ``part.N`` fragment name), and the
+    caller then merges, which is always safe: the merge's shot dedup keeps
+    the rows already in the destination.
+
+    Parameters
+    ----------
+    out_file : str
+        Existing destination parquet of one ``(cell, year)`` partition.
+    files : list of str
+        Fragment paths about to be merged into it.
+
+    Returns
+    -------
+    bool
+    """
+    meta_path = out_file.replace('.parquet', PARTITION_META_FILENAME)
+    try:
+        granules = json_read(meta_path).get('granules') or []
+    except Exception:
+        return False
+    have = set()
+    for g in granules:
+        try:
+            have.add((int(g['orbit']), int(g['granule']), int(g['track'])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    for f in files:
+        m = _FRAGMENT_BASENAME_RE.match(os.path.basename(f))
+        if m is None or (int(m.group(1)), int(m.group(2)), int(m.group(3))) not in have:
+            return False
+    return True
+
+
 def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     """
     Merge multiple parquet files for an H3 partition into a single file.
@@ -803,16 +844,21 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     out_file = os.path.join(odir, oname)
     h3_file = out_file
 
-    # Disk-canonical skip: if the final parquet exists and is newer than every
-    # source fragment, this merge already completed in a prior run and only
-    # the source-cleanup step was interrupted. Just clean up and return — no
-    # need to re-merge identical data through the dedup path. Validate that
-    # the dest is actually a readable parquet first; a corrupt newer-than-
-    # source dest must NOT short-circuit (we'd return a broken partition).
+    # Disk-canonical skip: this merge already completed in a prior run and
+    # only the source-cleanup step was interrupted — clean up and return, no
+    # need to re-merge identical data through the dedup path. Being newer than
+    # every fragment is NOT proof on its own: any tool that rewrites database
+    # files between extraction and merge (dtype_drift --fix, gh3_update,
+    # backfill, product fills) makes every destination newer, and trusting
+    # mtime then deletes unmerged fragments. The proof is the destination's
+    # own metadata listing every fragment's granule (_dest_holds_fragments);
+    # the mtime test only short-circuits that JSON read. A corrupt newer-than-
+    # source dest must NOT short-circuit either (we'd return a broken partition).
     if not replace and os.path.exists(out_file):
         try:
             out_mtime = os.path.getmtime(out_file)
-            if all(os.path.getmtime(f) <= out_mtime for f in files):
+            if (all(os.path.getmtime(f) <= out_mtime for f in files)
+                    and _dest_holds_fragments(out_file, files)):
                 try:
                     pq.ParquetFile(out_file).metadata  # readability check
                     if rm_src:
@@ -1245,6 +1291,15 @@ def preclean_merge_failures(tmp_dir: str) -> Dict[str, int]:
     3. Delete the failure sentinel itself so re-running the pre-clean is
        idempotent (next run only re-acts on freshly-failed merges).
 
+    Step 1 probes each fragment in O(1) (``_parquet_tail_ok``: the magic bytes
+    at both ends and a plausible footer length), which catches 0-byte,
+    truncated and never-finished files. The full footer parse is reserved for
+    partitions whose recorded error is a footer-level artifact (thrift):
+    parsing a 1.4k-column footer costs seconds per fragment on GPFS, and a
+    serial parse of every fragment behind a 14k-sentinel backlog (e.g. a
+    batch of schema failures, whose fragments are healthy) was ~58 h on the
+    driver. Partitions fan out over the registered dask Client.
+
     Returns ``{'partitions_cleaned': N, 'parquets_removed': N, 'tmps_removed': N}``.
     Companion to ``apply_merge_failures_to_logger`` — calling this without
     the granule flip-back would unlink fragments and leave their granules
@@ -1256,63 +1311,105 @@ def preclean_merge_failures(tmp_dir: str) -> Dict[str, int]:
     failures = _scan_merge_failure_sentinels(tmp_dir)
     if not failures:
         return out
-    for partition_dir, _err in failures.items():
-        if not os.path.isdir(partition_dir):
-            # Partition was deleted between runs (cleanup, manual rm); just
-            # drop the sentinel so it doesn't fire again.
-            try:
-                os.unlink(_merge_failure_sentinel_path(tmp_dir, partition_dir))
-            except OSError:
-                pass
+    # Only a footer-level error needs the full parse; the O(1) probe covers
+    # every other partial-write artifact.
+    items = [(d, 'thrift' in (err or '')) for d, err in failures.items()]
+    client = get_dask_client()
+    if client is not None and len(items) > 1:
+        from .parallel import parallel_map
+        results = (r for _, r in parallel_map(items, _preclean_partition, desc='merge pre-clean',
+                                              unit='part', batch_size=256, tmp_dir=tmp_dir))
+    else:
+        results = (_preclean_partition(it, tmp_dir=tmp_dir) for it in items)
+    for r in results:
+        if isinstance(r, Exception):
+            logger.warning(f"Merge pre-clean failed for a partition: {type(r).__name__}: {r}")
             continue
-        try:
-            entries = list(os.scandir(partition_dir))
-        except OSError:
-            continue
-        for e in entries:
-            if not e.is_file():
-                continue
-            name = e.name
-            try:
-                size = e.stat().st_size
-            except OSError:
-                continue
-            if name.endswith('.tmp') or name.endswith('.merge.tmp'):
-                # AtomicFileWriter orphan from SIGKILL — always safe to remove.
-                try:
-                    os.unlink(e.path)
-                    out['tmps_removed'] += 1
-                except OSError:
-                    pass
-                continue
-            if not name.endswith('.parquet'):
-                continue
-            should_remove = False
-            if size == 0:
-                should_remove = True
-            else:
-                # Cheap header probe — only opens the footer, not the body.
-                try:
-                    pq.ParquetFile(e.path).metadata
-                except Exception:
-                    should_remove = True
-            if should_remove:
-                try:
-                    os.unlink(e.path)
-                    out['parquets_removed'] += 1
-                except OSError:
-                    pass
-                try:
-                    os.unlink(_complete_sentinel_path(tmp_dir, name[:-len('.parquet')]))
-                except OSError:
-                    pass
-        # Drop the sentinel — the cleanup acted; next merge will re-emit if
-        # it fails again. Keeping it would loop the pre-clean forever.
+        for k, v in r.items():
+            out[k] += v
+    return out
+
+
+def _parquet_tail_ok(path: str, size: int) -> bool:
+    """O(1) integrity probe: ``PAR1`` at both ends and a footer length that fits.
+
+    Parquet writes its footer last, so a write cut short (SIGKILL, full disk)
+    leaves a file without the trailing magic. Reads 12 bytes; parses nothing.
+    """
+    if size < 12:
+        return False
+    try:
+        with open(path, 'rb') as fh:
+            head = fh.read(4)
+            fh.seek(-8, os.SEEK_END)
+            tail = fh.read(8)
+    except OSError:
+        return False
+    footer_len = int.from_bytes(tail[:4], 'little')
+    return head == b'PAR1' and tail[4:] == b'PAR1' and 0 < footer_len <= size - 12
+
+
+def _preclean_partition(item, *, tmp_dir: str) -> Dict[str, int]:
+    """Worker: steps 1–3 of :func:`preclean_merge_failures` for one partition.
+
+    ``item`` is ``(partition_dir, full_probe)``; ``full_probe`` adds the footer
+    parse to the O(1) probe, for partitions whose failure was footer-level.
+    """
+    partition_dir, full_probe = item
+    out = {'partitions_cleaned': 0, 'parquets_removed': 0, 'tmps_removed': 0}
+    if not os.path.isdir(partition_dir):
+        # Partition was deleted between runs (cleanup, manual rm); just
+        # drop the sentinel so it doesn't fire again.
         try:
             os.unlink(_merge_failure_sentinel_path(tmp_dir, partition_dir))
         except OSError:
             pass
-        out['partitions_cleaned'] += 1
+        return out
+    try:
+        entries = list(os.scandir(partition_dir))
+    except OSError:
+        return out
+    for e in entries:
+        if not e.is_file():
+            continue
+        name = e.name
+        try:
+            size = e.stat().st_size
+        except OSError:
+            continue
+        if name.endswith('.tmp') or name.endswith('.merge.tmp'):
+            # AtomicFileWriter orphan from SIGKILL — always safe to remove.
+            try:
+                os.unlink(e.path)
+                out['tmps_removed'] += 1
+            except OSError:
+                pass
+            continue
+        if not name.endswith('.parquet'):
+            continue
+        should_remove = not _parquet_tail_ok(e.path, size)
+        if not should_remove and full_probe:
+            try:
+                pq.ParquetFile(e.path).metadata
+            except Exception:
+                should_remove = True
+        if should_remove:
+            try:
+                os.unlink(e.path)
+                out['parquets_removed'] += 1
+            except OSError:
+                pass
+            try:
+                os.unlink(_complete_sentinel_path(tmp_dir, name[:-len('.parquet')]))
+            except OSError:
+                pass
+    # Drop the sentinel — the cleanup acted; next merge will re-emit if
+    # it fails again. Keeping it would loop the pre-clean forever.
+    try:
+        os.unlink(_merge_failure_sentinel_path(tmp_dir, partition_dir))
+    except OSError:
+        pass
+    out['partitions_cleaned'] += 1
     return out
 
 

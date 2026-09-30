@@ -703,6 +703,46 @@ class TestPrecleanMergeFailures:
         # Sentinel removed so resume doesn't re-loop.
         assert _scan_merge_failure_sentinels(tmp_dir) == {}
 
+    def test_healthy_fragments_are_not_footer_parsed(self, tmp_path, monkeypatch):
+        """A failure that is not footer-level (e.g. a schema mismatch) leaves
+        healthy fragments: the O(1) probe must clear them without parsing a
+        footer. Parsing 1.4k-column footers serially was ~15 s per partition
+        on GPFS (58 h for a 14k-sentinel backlog)."""
+        import gedih3.gh3builder as gb
+        tmp_dir = str(tmp_path)
+        partition_dir = os.path.join(tmp_dir, 'h3_03=abc', 'year=2020')
+        os.makedirs(partition_dir)
+        good = os.path.join(partition_dir, 'O00001_G10_T00100.BEAM0000.parquet')
+        _write_valid_parquet(good)
+        _emit_merge_failure_sentinel(tmp_dir, partition_dir, ValueError("Schema at index 0 was different"))
+
+        def _no_parse(*a, **k):
+            raise AssertionError("footer parsed")
+        monkeypatch.setattr(gb.pq, 'ParquetFile', _no_parse)
+        out = preclean_merge_failures(tmp_dir)
+
+        assert out == {'partitions_cleaned': 1, 'parquets_removed': 0, 'tmps_removed': 0}
+        assert os.path.isfile(good)
+        assert _scan_merge_failure_sentinels(tmp_dir) == {}
+
+    def test_footer_level_failure_still_gets_the_full_parse(self, tmp_path):
+        """Magic bytes intact but a garbled footer: only the parse sees it."""
+        tmp_dir = str(tmp_path)
+        partition_dir = os.path.join(tmp_dir, 'h3_03=abc', 'year=2020')
+        os.makedirs(partition_dir)
+        bad = os.path.join(partition_dir, 'O00001_G10_T00100.BEAM0000.parquet')
+        _write_valid_parquet(bad)
+        raw = bytearray(open(bad, 'rb').read())
+        flen = int.from_bytes(raw[-8:-4], 'little')
+        raw[-8 - flen:-8] = b'\xff' * flen             # garble the thrift footer, keep magic
+        open(bad, 'wb').write(bytes(raw))
+        _emit_merge_failure_sentinel(tmp_dir, partition_dir, OSError("Couldn't deserialize thrift: x"))
+
+        out = preclean_merge_failures(tmp_dir)
+
+        assert out['parquets_removed'] == 1
+        assert not os.path.isfile(bad)
+
     def test_is_idempotent(self, tmp_path):
         tmp_dir = str(tmp_path)
         partition_dir = os.path.join(tmp_dir, 'h3_03=abc', 'year=2020')
