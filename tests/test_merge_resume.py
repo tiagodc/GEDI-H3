@@ -592,9 +592,27 @@ class TestMergeSkipNeedsGranuleProof:
         assert open(dest, 'rb').read() == before       # not rewritten
         assert not os.path.exists(in_dir)               # cleanup finished
 
+    def test_another_beam_of_a_listed_granule_is_still_merged(self, tmp_dir):
+        """The metadata lists granules, not beams: a destination holding beam 0
+        of a granule must not swallow a beam-1 fragment of the same granule."""
+        from gedih3.gh3builder import h3_merge_files
+        in_dir, out_dir, dest = self._merged_dest(tmp_dir)
+        frag = os.path.join(in_dir, 'O00077_G03_T00099.BEAM0001.parquet')
+        _write_part(frag, 'uint8', [40, 50], [5, 6])
+        self._age(frag, 3600)
+
+        h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+
+        assert sorted(pq.read_table(dest)['shot_number'].to_pylist()) == [1, 2, 5, 6]
+
     def test_legacy_fragment_names_are_never_skipped(self, tmp_dir):
         from gedih3.gh3builder import _dest_holds_fragments
         _, _, dest = self._merged_dest(tmp_dir)
-        assert _dest_holds_fragments(dest, [os.path.join(tmp_dir, self.FRAG_A)])
-        assert not _dest_holds_fragments(dest, [os.path.join(tmp_dir, 'part.0.parquet')])
-        assert not _dest_holds_fragments(dest + '.missing', [os.path.join(tmp_dir, self.FRAG_A)])
+        frag = os.path.join(tmp_dir, self.FRAG_A)
+        legacy = os.path.join(tmp_dir, 'part.0.parquet')
+        _write_part(frag, 'uint8', [10, 20], [1, 2])
+        _write_part(legacy, 'uint8', [10, 20], [1, 2])     # same rows, but a name that proves nothing
+        assert _dest_holds_fragments(dest, [frag])
+        assert not _dest_holds_fragments(dest, [legacy])
+        assert not _dest_holds_fragments(dest, [])
+        assert not _dest_holds_fragments(dest + '.missing', [frag])

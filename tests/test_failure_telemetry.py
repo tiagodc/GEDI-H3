@@ -743,6 +743,46 @@ class TestPrecleanMergeFailures:
         assert out['parquets_removed'] == 1
         assert not os.path.isfile(bad)
 
+    def test_parallel_branch_matches_serial_counters(self, tmp_path):
+        """With a Client, partitions fan out through parallel_map (tuple items)."""
+        from dask.distributed import Client
+        tmp_dir = str(tmp_path)
+        for i, bad in enumerate((True, False, False)):
+            partition_dir = os.path.join(tmp_dir, f'h3_03=ab{i}', 'year=2020')
+            os.makedirs(partition_dir)
+            f = os.path.join(partition_dir, 'O00001_G10_T00100.BEAM0000.parquet')
+            if bad:
+                open(f, 'wb').close()
+            else:
+                _write_valid_parquet(f)
+            _emit_merge_failure_sentinel(tmp_dir, partition_dir, ValueError("Schema at index 0 was different"))
+
+        with Client(n_workers=2, threads_per_worker=1, processes=False,
+                    dashboard_address=None, silence_logs='ERROR'):
+            out = preclean_merge_failures(tmp_dir)
+
+        assert out == {'partitions_cleaned': 3, 'parquets_removed': 1, 'tmps_removed': 0}
+        assert _scan_merge_failure_sentinels(tmp_dir) == {}
+
+    def test_failed_partition_keeps_its_sentinel_for_the_next_run(self, tmp_path, monkeypatch):
+        import gedih3.gh3builder as gb
+        from dask.distributed import Client
+        tmp_dir = str(tmp_path)
+        for i in range(2):
+            partition_dir = os.path.join(tmp_dir, f'h3_03=ab{i}', 'year=2020')
+            os.makedirs(partition_dir)
+            _emit_merge_failure_sentinel(tmp_dir, partition_dir, OSError("x"))
+
+        def _boom(item, *, tmp_dir):
+            raise OSError("GPFS hiccup")
+        monkeypatch.setattr(gb, '_preclean_partition', _boom)
+        with Client(n_workers=2, threads_per_worker=1, processes=False,
+                    dashboard_address=None, silence_logs='ERROR'):
+            out = preclean_merge_failures(tmp_dir)
+
+        assert out == {'partitions_cleaned': 0, 'parquets_removed': 0, 'tmps_removed': 0}
+        assert len(_scan_merge_failure_sentinels(tmp_dir)) == 2
+
     def test_is_idempotent(self, tmp_path):
         tmp_dir = str(tmp_path)
         partition_dir = os.path.join(tmp_dir, 'h3_03=abc', 'year=2020')

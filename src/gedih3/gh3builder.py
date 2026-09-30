@@ -715,14 +715,22 @@ def dh3_merge_metadata(h3_subdir):
 def _dest_holds_fragments(out_file: str, files: List[str]) -> bool:
     """True when ``out_file`` provably already contains every fragment in ``files``.
 
-    The proof is a-priori: each Stage 1 fragment's basename encodes its
-    granule (``_FRAGMENT_BASENAME_RE``), and the destination's per-year
-    metadata JSON lists the granules merged into it — the same invariant
-    ``h3_skip_part`` uses to skip extraction. One small JSON read; no
-    parquet is opened. Anything unprovable answers False (a missing or
-    unreadable metadata file, a legacy ``part.N`` fragment name), and the
-    caller then merges, which is always safe: the merge's shot dedup keeps
-    the rows already in the destination.
+    Two gates, cheapest first. (1) Granules: each Stage 1 fragment's basename
+    encodes its granule (``_FRAGMENT_BASENAME_RE``) and the destination's
+    per-year metadata JSON lists the granules merged into it — the invariant
+    ``h3_skip_part`` uses to skip extraction; one small JSON read, which
+    rejects the common case (a destination rewritten after extraction, whose
+    new granules are not listed) without opening a parquet. (2) Shots: a
+    granule is per-granule but a fragment is per-beam, so a destination that
+    holds some of a granule's beams would pass (1) for a missing beam; only
+    ``shot_number`` membership proves the rows are there. That reads one
+    column, and only for a partition that already passed (1) — in practice
+    just the interrupted-cleanup case the skip exists for.
+
+    Anything unprovable answers False (no fragments, a missing or unreadable
+    metadata file, a legacy ``part.N`` fragment name, an unreadable column),
+    and the caller then merges: shot dedup keeps the rows already in the
+    destination, so a refused skip costs a rewrite, never rows.
 
     Parameters
     ----------
@@ -735,6 +743,8 @@ def _dest_holds_fragments(out_file: str, files: List[str]) -> bool:
     -------
     bool
     """
+    if not files:
+        return False
     meta_path = out_file.replace('.parquet', PARTITION_META_FILENAME)
     try:
         granules = json_read(meta_path).get('granules') or []
@@ -750,6 +760,15 @@ def _dest_holds_fragments(out_file: str, files: List[str]) -> bool:
         m = _FRAGMENT_BASENAME_RE.match(os.path.basename(f))
         if m is None or (int(m.group(1)), int(m.group(2)), int(m.group(3))) not in have:
             return False
+    try:
+        import pyarrow.compute as pc
+        dest_shots = pq.read_table(out_file, columns=['shot_number'])['shot_number']
+        for f in files:
+            frag_shots = pq.read_table(f, columns=['shot_number'])['shot_number']
+            if not pc.all(pc.is_in(frag_shots, value_set=dest_shots.cast(frag_shots.type))).as_py():
+                return False
+    except Exception:
+        return False
     return True
 
 
@@ -1294,7 +1313,8 @@ def preclean_merge_failures(tmp_dir: str) -> Dict[str, int]:
     Step 1 probes each fragment in O(1) (``_parquet_tail_ok``: the magic bytes
     at both ends and a plausible footer length), which catches 0-byte,
     truncated and never-finished files. The full footer parse is reserved for
-    partitions whose recorded error is a footer-level artifact (thrift):
+    partitions whose recorded error is a footer-level artifact (thrift) or
+    is missing:
     parsing a 1.4k-column footer costs seconds per fragment on GPFS, and a
     serial parse of every fragment behind a 14k-sentinel backlog (e.g. a
     batch of schema failures, whose fragments are healthy) was ~58 h on the
@@ -1312,8 +1332,9 @@ def preclean_merge_failures(tmp_dir: str) -> Dict[str, int]:
     if not failures:
         return out
     # Only a footer-level error needs the full parse; the O(1) probe covers
-    # every other partial-write artifact.
-    items = [(d, 'thrift' in (err or '')) for d, err in failures.items()]
+    # every other partial-write artifact. An empty record (a sentinel cut
+    # short) proves nothing, so it gets the full parse too.
+    items = [(d, not err or 'thrift' in err.lower()) for d, err in failures.items()]
     client = get_dask_client()
     if client is not None and len(items) > 1:
         from .parallel import parallel_map
