@@ -455,7 +455,7 @@ gh3_download<span class="w"> </span>--s3<span class="w">  </span><span class="c1
 <td><p>Start/end date (YYYY-MM-DD)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-l1b,</span> <span class="pre">-l2a,</span> <span class="pre">-l2b,</span> <span class="pre">-l4a,</span> <span class="pre">-l4c</span></code></p></td>
-<td><p>Products to download (<code class="docutils literal notranslate"><span class="pre">default</span></code>, <code class="docutils literal notranslate"><span class="pre">minimal</span></code>, or list)</p></td>
+<td><p>Products to download (<code class="docutils literal notranslate"><span class="pre">default</span></code>, <code class="docutils literal notranslate"><span class="pre">minimal</span></code>, or list; a keyword plus names, e.g. <code class="docutils literal notranslate"><span class="pre">default</span> <span class="pre">energy_total</span></code>, adds those names)</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--gedi-version</span></code></p></td>
 <td><p>GEDI data release for every product (default: the release already in the target directory’s log or files, else v3). All products of a download or database come from one release</p></td>
@@ -1017,7 +1017,7 @@ version may not open under another.</p>
 <td><p>Temporal filters (YYYY-MM-DD)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-l1b,</span> <span class="pre">-l2a,</span> <span class="pre">-l2b,</span> <span class="pre">-l4a,</span> <span class="pre">-l4c</span></code></p></td>
-<td><p>Product variables (supports wildcards, e.g. <code class="docutils literal notranslate"><span class="pre">&quot;rh_*&quot;</span></code>)</p></td>
+<td><p>Product variables: <code class="docutils literal notranslate"><span class="pre">default</span></code>, <code class="docutils literal notranslate"><span class="pre">minimal</span></code>, a list, or wildcards (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;rh_*&quot;</span></code>). A keyword plus names (e.g. <code class="docutils literal notranslate"><span class="pre">-l2a</span> <span class="pre">default</span> <span class="pre">energy_total</span></code>) adds those names to the preset</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-N,</span> <span class="pre">-T,</span> <span class="pre">-M,</span> <span class="pre">-P</span></code></p></td>
 <td><p>Dask workers, threads, memory, dashboard port</p></td>

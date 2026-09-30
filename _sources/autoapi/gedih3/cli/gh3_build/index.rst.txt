@@ -11,6 +11,7 @@ Functions
 
    gedih3.cli.gh3_build.explicit_vars_missing_in_sample
    gedih3.cli.gh3_build.manifest_check_scope
+   gedih3.cli.gh3_build.preflight_var_specs
    gedih3.cli.gh3_build.get_cmd_args
    gedih3.cli.gh3_build.main
 
@@ -86,6 +87,43 @@ Module Contents
 
    Pure function over logger state so the regime gate can be unit-tested
    without the full CLI pipeline.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: preflight_var_specs(h3_logger, product_vars)
+
+   
+   Split requested variables between gh3_build's two pre-flight checks.
+
+   Returns ``(manifest_specs, sample_specs)``:
+
+   - ``manifest_specs``: the ``default`` preset of each
+     :func:`manifest_check_scope` product, to validate against the shipped
+     static manifest: exactly what the manifest vouches for. The requested
+     list can hold other names too, given next to the preset
+     (``H3BuildLogger.preset_extra_vars``) or, on an update, recorded by the
+     database earlier. Those are not the manifest's and would always read
+     as missing.
+   - ``sample_specs``: what :func:`explicit_vars_missing_in_sample` checks
+     against one sample HDF5 per product: every explicit list, plus the
+     names given next to a preset. Pass it with an empty exemption set.
+
+   Pure over logger state, like :func:`manifest_check_scope`.
 
 
 

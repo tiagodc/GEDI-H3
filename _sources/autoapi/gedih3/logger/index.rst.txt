@@ -282,6 +282,9 @@ Module Contents
    .. py:attribute:: preset_products
 
 
+   .. py:attribute:: preset_extra_vars
+
+
    .. py:attribute:: log_file
 
 

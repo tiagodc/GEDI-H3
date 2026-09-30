@@ -42,6 +42,7 @@ Functions
    gedih3.gedidriver.soc_file_tree
    gedih3.gedidriver.gedi_subset
    gedih3.gedidriver.gedi_file_glob
+   gedih3.gedidriver.preset_extra_names
    gedih3.gedidriver.gedi_vars_expand
    gedih3.gedidriver.expand_var_wildcards
    gedih3.gedidriver.gedi_vars_from_h5
@@ -234,7 +235,75 @@ Module Contents
 
 .. py:function:: gedi_file_glob(orbit=None, orbit_granule=None, track=None, product: int = None, level: str = None, ppds: int = None, pge: int = None, generation: int = None, version: int = None)
 
+.. py:function:: preset_extra_names(spec)
+
+   
+   Variable names given alongside a preset keyword in a product spec.
+
+   ``['default', 'energy_total']`` → ``['energy_total']``. Specs without a
+   preset keyword, and the keywords themselves (``all``/``*`` included),
+   give ``[]``. The names are the user's, not the preset's: callers validate
+   them like an explicit list.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
 .. py:function:: gedi_vars_expand(product_vars, version=None)
+
+   
+   Expand per-product variable specifications to variable lists, in place.
+
+
+   :Parameters:
+
+       **product_vars** : dict
+           ``{product: spec}``. A spec is ``None`` or ``[]`` (every variable),
+           ``['*']`` / ``['all']`` (every variable), a single path to a file
+           listing variables, a list naming a preset (``minimal``/``min`` or
+           ``default``/``def``), or a plain list of variable names or wildcards.
+           Names given alongside a preset are kept and added after the preset's
+           variables (:func:`preset_extra_names`): ``['default', 'energy_total']``
+           is the default list plus ``energy_total``. ``minimal`` takes
+           precedence over ``default`` when both are given, and ``all``/``*``
+           next to a preset add nothing.
+
+       **version** : int, optional
+           GEDI release whose preset lists to use.
+
+
+
+   :Returns:
+
+       dict
+           ``product_vars``, with each spec replaced by its variable list
+           (``None`` for every variable).
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
 
 .. py:function:: expand_var_wildcards(var_specs, available_vars)
 

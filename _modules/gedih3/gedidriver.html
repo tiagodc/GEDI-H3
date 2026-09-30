@@ -1047,9 +1047,52 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="sa">f</span><span class="s2">"GEDI</span><span class="si">{</span><span class="n">prd_str</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">lev_str</span><span class="si">}</span><span class="s2">_*_O</span><span class="si">{</span><span class="n">orb_str</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">ogr_str</span><span class="si">}</span><span class="s2">_T</span><span class="si">{</span><span class="n">trk_str</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">ppd_str</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">pge_str</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">gen_str</span><span class="si">}</span><span class="s2">_V</span><span class="si">{</span><span class="n">ver_str</span><span class="si">}</span><span class="s2">*.h5"</span></div>
 
 
+<span class="n">_PRESET_KEYWORDS</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s1">'minimal'</span><span class="p">,</span> <span class="s1">'min'</span><span class="p">,</span> <span class="s1">'default'</span><span class="p">,</span> <span class="s1">'def'</span><span class="p">})</span>
+<span class="n">_SPEC_KEYWORDS</span> <span class="o">=</span> <span class="n">_PRESET_KEYWORDS</span> <span class="o">|</span> <span class="p">{</span><span class="s1">'all'</span><span class="p">,</span> <span class="s1">'*'</span><span class="p">}</span>
+
+
+<div class="viewcode-block" id="preset_extra_names">
+<a class="viewcode-back" href="../../autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.preset_extra_names">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">preset_extra_names</span><span class="p">(</span><span class="n">spec</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Variable names given alongside a preset keyword in a product spec.</span>
+
+<span class="sd">    ``['default', 'energy_total']`` → ``['energy_total']``. Specs without a</span>
+<span class="sd">    preset keyword, and the keywords themselves (``all``/``*`` included),</span>
+<span class="sd">    give ``[]``. The names are the user's, not the preset's: callers validate</span>
+<span class="sd">    them like an explicit list.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">spec</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">_PRESET_KEYWORDS</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span><span class="n">spec</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[]</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">spec</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_SPEC_KEYWORDS</span><span class="p">]</span></div>
+
+
+
 <div class="viewcode-block" id="gedi_vars_expand">
 <a class="viewcode-back" href="../../autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.gedi_vars_expand">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">gedi_vars_expand</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Expand per-product variable specifications to variable lists, in place.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    product_vars : dict</span>
+<span class="sd">        ``{product: spec}``. A spec is ``None`` or ``[]`` (every variable),</span>
+<span class="sd">        ``['*']`` / ``['all']`` (every variable), a single path to a file</span>
+<span class="sd">        listing variables, a list naming a preset (``minimal``/``min`` or</span>
+<span class="sd">        ``default``/``def``), or a plain list of variable names or wildcards.</span>
+<span class="sd">        Names given alongside a preset are kept and added after the preset's</span>
+<span class="sd">        variables (:func:`preset_extra_names`): ``['default', 'energy_total']``</span>
+<span class="sd">        is the default list plus ``energy_total``. ``minimal`` takes</span>
+<span class="sd">        precedence over ``default`` when both are given, and ``all``/``*``</span>
+<span class="sd">        next to a preset add nothing.</span>
+<span class="sd">    version : int, optional</span>
+<span class="sd">        GEDI release whose preset lists to use.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        ``product_vars``, with each spec replaced by its variable list</span>
+<span class="sd">        (``None`` for every variable).</span>
+<span class="sd">    """</span>
     <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="nb">vars</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">if</span> <span class="nb">vars</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">continue</span>
@@ -1062,10 +1105,12 @@ window.runMermaid = runMermaid;</script>
         <span class="k">elif</span> <span class="s2">"minimal"</span> <span class="ow">in</span> <span class="nb">vars</span> <span class="ow">or</span> <span class="s2">"min"</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">:</span>
             <span class="c1"># Copy: callers append/purge essentials and quality flags in</span>
             <span class="c1"># place, which must never rewrite the module-level preset table.</span>
-            <span class="n">product_vars</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">_get_versioned</span><span class="p">(</span><span class="n">_GEDI_MIN_VARS</span><span class="p">[</span><span class="n">prod</span><span class="p">],</span> <span class="n">version</span><span class="p">))</span>
+            <span class="n">preset</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">_get_versioned</span><span class="p">(</span><span class="n">_GEDI_MIN_VARS</span><span class="p">[</span><span class="n">prod</span><span class="p">],</span> <span class="n">version</span><span class="p">))</span>
+            <span class="n">product_vars</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">preset</span> <span class="o">+</span> <span class="n">preset_extra_names</span><span class="p">(</span><span class="nb">vars</span><span class="p">)))</span>
         <span class="k">elif</span> <span class="s1">'default'</span> <span class="ow">in</span> <span class="nb">vars</span> <span class="ow">or</span> <span class="s1">'def'</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">:</span>
             <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">get_default_vars_file</span><span class="p">(</span><span class="n">prod</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">),</span> <span class="s1">'r'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-                <span class="n">product_vars</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span> <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'#'</span><span class="p">)]</span>
+                <span class="n">preset</span> <span class="o">=</span> <span class="p">[</span><span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span> <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'#'</span><span class="p">)]</span>
+            <span class="n">product_vars</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">preset</span> <span class="o">+</span> <span class="n">preset_extra_names</span><span class="p">(</span><span class="nb">vars</span><span class="p">)))</span>
         <span class="k">elif</span> <span class="s2">"*"</span> <span class="ow">in</span> <span class="nb">vars</span> <span class="ow">or</span> <span class="s2">"all"</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">:</span>
             <span class="n">product_vars</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="nb">vars</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>

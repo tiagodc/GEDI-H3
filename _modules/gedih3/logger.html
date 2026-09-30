@@ -1322,6 +1322,17 @@ window.runMermaid = runMermaid;</script>
             <span class="p">)</span>
         <span class="p">}</span>
 
+        <span class="c1"># Names the user typed next to a preset keyword (`-l2a default</span>
+        <span class="c1"># energy_total` → {'L2A': ['energy_total']}). Expansion merges them</span>
+        <span class="c1"># into the preset list, but they are not in the static manifest:</span>
+        <span class="c1"># gh3_build's pre-flight checks them against a sample HDF5 instead.</span>
+        <span class="c1"># Runtime-only.</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">preset_extra_names</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">preset_extra_vars</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">prod</span><span class="p">:</span> <span class="n">names</span> <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">(</span><span class="n">product_vars</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">names</span> <span class="o">:=</span> <span class="n">preset_extra_names</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+        <span class="p">}</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">log_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_PARENT_DIR</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_LOG_FILE_NAME</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">log_data</span> <span class="o">=</span> <span class="n">load_log_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_file</span><span class="p">)</span>
 

@@ -859,6 +859,41 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="n">product_vars</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">scope</span> <span class="k">if</span> <span class="n">p</span> <span class="ow">in</span> <span class="p">(</span><span class="n">product_vars</span> <span class="ow">or</span> <span class="p">{})}</span></div>
 
 
+
+<div class="viewcode-block" id="preflight_var_specs">
+<a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_build/index.html#gedih3.cli.gh3_build.preflight_var_specs">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">preflight_var_specs</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Split requested variables between gh3_build's two pre-flight checks.</span>
+
+<span class="sd">    Returns ``(manifest_specs, sample_specs)``:</span>
+
+<span class="sd">    - ``manifest_specs``: the ``default`` preset of each</span>
+<span class="sd">      :func:`manifest_check_scope` product, to validate against the shipped</span>
+<span class="sd">      static manifest: exactly what the manifest vouches for. The requested</span>
+<span class="sd">      list can hold other names too, given next to the preset</span>
+<span class="sd">      (``H3BuildLogger.preset_extra_vars``) or, on an update, recorded by the</span>
+<span class="sd">      database earlier. Those are not the manifest's and would always read</span>
+<span class="sd">      as missing.</span>
+<span class="sd">    - ``sample_specs``: what :func:`explicit_vars_missing_in_sample` checks</span>
+<span class="sd">      against one sample HDF5 per product: every explicit list, plus the</span>
+<span class="sd">      names given next to a preset. Pass it with an empty exemption set.</span>
+
+<span class="sd">    Pure over logger state, like :func:`manifest_check_scope`.</span>
+<span class="sd">    """</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">gedi_vars_expand</span>
+
+    <span class="n">extras</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'preset_extra_vars'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="n">manifest_specs</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="p">[</span><span class="s1">'default'</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">manifest_check_scope</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">)}</span>
+    <span class="k">if</span> <span class="n">manifest_specs</span><span class="p">:</span>
+        <span class="n">gedi_vars_expand</span><span class="p">(</span><span class="n">manifest_specs</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">)</span>
+    <span class="n">sample_specs</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">p</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">(</span><span class="n">product_vars</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">p</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">preset_products</span>
+    <span class="p">}</span>
+    <span class="n">sample_specs</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">p</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">names</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">names</span> <span class="ow">in</span> <span class="n">extras</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">p</span> <span class="ow">in</span> <span class="p">(</span><span class="n">product_vars</span> <span class="ow">or</span> <span class="p">{})})</span>
+    <span class="k">return</span> <span class="n">manifest_specs</span><span class="p">,</span> <span class="n">sample_specs</span></div>
+
+
 <div class="viewcode-block" id="get_cmd_args">
 <a class="viewcode-back" href="../../../autoapi/gedih3/cli/gh3_build/index.html#gedih3.cli.gh3_build.get_cmd_args">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_cmd_args</span><span class="p">():</span>
@@ -1287,13 +1322,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">                    as Stage1 warnings at build time and are recorded as</span>
 <span class="sd">                    non-INDEXED in the build log for retry.</span>
 <span class="sd">                    """</span>
-                    <span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
-
                     <span class="c1"># ── Stage 1: default-products vs shipped manifest ──</span>
-                    <span class="n">scoped</span> <span class="o">=</span> <span class="n">manifest_check_scope</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">)</span>
-                    <span class="k">if</span> <span class="n">scoped</span><span class="p">:</span>
-                        <span class="n">expanded</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">scoped</span><span class="p">)</span>
-                        <span class="n">gedi_vars_expand</span><span class="p">(</span><span class="n">expanded</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">)</span>
+                    <span class="n">expanded</span><span class="p">,</span> <span class="n">sample_specs</span> <span class="o">=</span> <span class="n">preflight_var_specs</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">expanded</span><span class="p">:</span>
                         <span class="k">try</span><span class="p">:</span>
                             <span class="n">validation</span> <span class="o">=</span> <span class="n">validate_soc_files</span><span class="p">(</span>
                                 <span class="n">expanded</span><span class="p">,</span> <span class="n">soc_dir</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">,</span>
@@ -1330,16 +1361,11 @@ window.runMermaid = runMermaid;</script>
                                 <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
 
                     <span class="c1"># ── Stage 2: explicit-list products vs sample HDF5 schema ──</span>
-                    <span class="c1"># `preset_products` (a superset of `default_products`) excludes</span>
-                    <span class="c1"># every preset keyword (default/minimal/all), not just `default` —</span>
-                    <span class="c1"># their variable names come from an internal table/manifest, not</span>
-                    <span class="c1"># something the user typed, so this check must not treat them as</span>
-                    <span class="c1"># "explicit". See H3BuildLogger.preset_products.</span>
-                    <span class="n">has_explicit</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span>
-                        <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">p</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">preset_products</span>
-                        <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">(</span><span class="n">product_vars</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-                    <span class="p">)</span>
-                    <span class="k">if</span> <span class="ow">not</span> <span class="n">has_explicit</span><span class="p">:</span>
+                    <span class="c1"># A preset's own names come from an internal table/manifest,</span>
+                    <span class="c1"># not something the user typed, so they are not checked here</span>
+                    <span class="c1"># (H3BuildLogger.preset_products); names typed next to a</span>
+                    <span class="c1"># preset are (preflight_var_specs).</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">sample_specs</span><span class="p">:</span>
                         <span class="k">return</span>
 
                     <span class="k">try</span><span class="p">:</span>
@@ -1361,9 +1387,7 @@ window.runMermaid = runMermaid;</script>
                         <span class="k">return</span>  <span class="c1"># nothing to introspect against</span>
 
                     <span class="n">sample_dict</span> <span class="o">=</span> <span class="n">sample</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-                    <span class="n">missing</span> <span class="o">=</span> <span class="n">explicit_vars_missing_in_sample</span><span class="p">(</span>
-                        <span class="n">product_vars</span><span class="p">,</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">preset_products</span><span class="p">,</span> <span class="n">sample_dict</span><span class="p">,</span>
-                    <span class="p">)</span>
+                    <span class="n">missing</span> <span class="o">=</span> <span class="n">explicit_vars_missing_in_sample</span><span class="p">(</span><span class="n">sample_specs</span><span class="p">,</span> <span class="nb">set</span><span class="p">(),</span> <span class="n">sample_dict</span><span class="p">)</span>
 
                     <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
                         <span class="n">msg</span> <span class="o">=</span> <span class="p">[</span>
@@ -1750,7 +1774,7 @@ window.runMermaid = runMermaid;</script>
                     <span class="n">h3_logger</span><span class="o">.</span><span class="n">default_products</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span><span class="p">)</span>
                 <span class="p">):</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-                        <span class="s2">"New variables added via `default`; run "</span>
+                        <span class="s2">"New variables added via a `default` request; run "</span>
                         <span class="s2">"`gh3_doctor --check backfill` if you suspect any are "</span>
                         <span class="s2">"not present in source HDF5 files."</span>
                     <span class="p">)</span>

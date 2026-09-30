@@ -505,10 +505,13 @@
 <tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cli.gh3_build.manifest_check_scope" title="gedih3.cli.gh3_build.manifest_check_scope"><code class="xref py py-obj docutils literal notranslate"><span class="pre">manifest_check_scope</span></code></a>(h3_logger, product_vars)</p></td>
 <td><p>Return the subset of <code class="docutils literal notranslate"><span class="pre">product_vars</span></code> that should be validated</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cli.gh3_build.get_cmd_args" title="gedih3.cli.gh3_build.get_cmd_args"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_cmd_args</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cli.gh3_build.preflight_var_specs" title="gedih3.cli.gh3_build.preflight_var_specs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">preflight_var_specs</span></code></a>(h3_logger, product_vars)</p></td>
+<td><p>Split requested variables between gh3_build's two pre-flight checks.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cli.gh3_build.get_cmd_args" title="gedih3.cli.gh3_build.get_cmd_args"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_cmd_args</span></code></a>()</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cli.gh3_build.main" title="gedih3.cli.gh3_build.main"><code class="xref py py-obj docutils literal notranslate"><span class="pre">main</span></code></a>()</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cli.gh3_build.main" title="gedih3.cli.gh3_build.main"><code class="xref py py-obj docutils literal notranslate"><span class="pre">main</span></code></a>()</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -571,6 +574,26 @@ expansion): empty — the build log is authoritative.</p></li>
 <p>An empty return signals the caller to skip validation entirely.</p>
 <p>Pure function over logger state so the regime gate can be unit-tested
 without the full CLI pipeline.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.cli.gh3_build.preflight_var_specs">
+<span class="sig-prename descclassname"><span class="pre">gedih3.cli.gh3_build.</span></span><span class="sig-name descname"><span class="pre">preflight_var_specs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h3_logger</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">product_vars</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../../_modules/gedih3/cli/gh3_build.html#preflight_var_specs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.cli.gh3_build.preflight_var_specs" title="Link to this definition">#</a></dt>
+<dd><p>Split requested variables between gh3_build’s two pre-flight checks.</p>
+<p>Returns <code class="docutils literal notranslate"><span class="pre">(manifest_specs,</span> <span class="pre">sample_specs)</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">manifest_specs</span></code>: the <code class="docutils literal notranslate"><span class="pre">default</span></code> preset of each
+<a class="reference internal" href="#gedih3.cli.gh3_build.manifest_check_scope" title="gedih3.cli.gh3_build.manifest_check_scope"><code class="xref py py-func docutils literal notranslate"><span class="pre">manifest_check_scope()</span></code></a> product, to validate against the shipped
+static manifest: exactly what the manifest vouches for. The requested
+list can hold other names too, given next to the preset
+(<code class="docutils literal notranslate"><span class="pre">H3BuildLogger.preset_extra_vars</span></code>) or, on an update, recorded by the
+database earlier. Those are not the manifest’s and would always read
+as missing.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sample_specs</span></code>: what <a class="reference internal" href="#gedih3.cli.gh3_build.explicit_vars_missing_in_sample" title="gedih3.cli.gh3_build.explicit_vars_missing_in_sample"><code class="xref py py-func docutils literal notranslate"><span class="pre">explicit_vars_missing_in_sample()</span></code></a> checks
+against one sample HDF5 per product: every explicit list, plus the
+names given next to a preset. Pass it with an empty exemption set.</p></li>
+</ul>
+<p>Pure over logger state, like <a class="reference internal" href="#gedih3.cli.gh3_build.manifest_check_scope" title="gedih3.cli.gh3_build.manifest_check_scope"><code class="xref py py-func docutils literal notranslate"><span class="pre">manifest_check_scope()</span></code></a>.</p>
 </dd></dl>
 
 <dl class="py function">
@@ -637,6 +660,7 @@ without the full CLI pipeline.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cli.gh3_build.explicit_vars_missing_in_sample"><code class="docutils literal notranslate"><span class="pre">explicit_vars_missing_in_sample()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cli.gh3_build.manifest_check_scope"><code class="docutils literal notranslate"><span class="pre">manifest_check_scope()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cli.gh3_build.preflight_var_specs"><code class="docutils literal notranslate"><span class="pre">preflight_var_specs()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cli.gh3_build.get_cmd_args"><code class="docutils literal notranslate"><span class="pre">get_cmd_args()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cli.gh3_build.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
 </ul>
