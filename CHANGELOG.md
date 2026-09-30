@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.19.0] - 2026-09-30
 
 ### Added
 - **Phased product updates: index new dates as soon as their L2A exists, backfill later products when they are published.** L2B, L4A and L4C are derived from L2A and published after it, so a database carrying them had to wait for the slowest product before taking new dates.
