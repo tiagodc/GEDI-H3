@@ -63,10 +63,10 @@ The CLI fold (`apply_merge_failures_to_logger`, after each merge and at startup)
 `build_h3db` pre-cleans before Stage 1 (bad fragments and their `_complete/` sentinels go),
 so Stage 1 redoes exactly those tasks; `_release_merge_failed` then clears the flag.
 
-This closes the path where a worker SIGKILL leaves a 0-byte parquet that the next merge
-would either fail on or silently produce empty output for. `h3_merge_files` also stats
-each fragment and unlinks 0-byte files up front — one stat, effectively free, since the
-open hits the same metadata.
+This closes the path where a SIGKILL leaves a 0-byte parquet for the next merge; the
+pre-clean probes in O(1) (`_parquet_tail_ok`), parsing footers only after thrift errors.
+`h3_merge_files` skips as "already merged" only on proof (`_dest_holds_fragments`: the
+destination's metadata lists every fragment's granule), never on a newer mtime alone.
 
 Failure log lines carry their source: `Merge failed for <cell>/<year>: <Error>: <msg>
 [file=<fragment>]`. The suffix is attached by `_iter_batches_with_path`, which wraps both
