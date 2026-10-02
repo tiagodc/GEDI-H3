@@ -2131,7 +2131,8 @@ def _process_h3_partition(h3_dir: str) -> Dict[Tuple[int, int, int], set]:
     return out
 
 
-def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str] = None) -> int:
+def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str] = None,
+                                  expected_scope: Optional[str] = None) -> int:
     """Mark granules INDEXED based on what's already on disk.
 
     Scans the finalized partition metadata under ``h3_dir`` AND the tmp fragment
@@ -2152,6 +2153,16 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
     tmp_dir : str, optional
         Temporary partitions directory (typically ``<build_tmp>/partitions``).
         Skipped if None or non-existent.
+    expected_scope : str, optional
+        Stage 1 scope fingerprint (:func:`_stage1_scope_fingerprint`) the next
+        Stage 1 will run under. Completion sentinels under ``tmp_dir`` are
+        trusted for flips only when ``_complete_scope.json`` records exactly
+        this value: sentinels from another scope (a narrower ROI, other
+        variables) prove nothing about this one, and the driver discards them
+        later than this runs. ``None`` (default) trusts no sentinel; the
+        granules stay non-INDEXED and Stage 1 skips or re-reads their tasks
+        by sentinel/scope. Finalized-metadata (Pass A) and legacy
+        no-``_complete/`` flips are unaffected.
 
     Returns
     -------
@@ -2336,7 +2347,12 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
     n_migrated_sentinels = 0
     migration_emit_pairs: List[Tuple[str, str]] = []  # (frag_name, beam) — for clarity in logs
 
-    if sentinel_mode:
+    if sentinel_mode and (expected_scope is None or _read_scope_fingerprint(tmp_dir) != expected_scope):
+        logger.info(
+            "Resume reconciliation: completion sentinels were not produced under the current "
+            "Stage 1 scope (or the scope is unknown); not trusting them for granule status"
+        )
+    elif sentinel_mode:
         # AUTHORITATIVE PATH: granules complete only when every expected
         # beam has its sentinel emitted (and at least one is a data sentinel). Fragment-presence in granule_beams
         # is ignored for completeness; we still report partials based on it
@@ -2734,6 +2750,34 @@ def _scope_fingerprint(spatial_h3_tiles, res: int, part: int, product_vars: Dict
     return h.hexdigest()
 
 
+def _spatial_tiles(spatial, part: int) -> Optional[List[str]]:
+    """Stage 1 tile set for an ROI at partition level ``part`` (None = no filter)."""
+    if spatial is None:
+        return None
+    tiles = intersect_h3_geometries(spatial, res=part)
+    return list(tiles) if len(tiles) > 0 else None
+
+
+def _stage1_scope_fingerprint(spatial, res: int, part: int, product_vars: Dict[str, List[str]]) -> str:
+    """Scope fingerprint from the raw Stage 1 inputs (what the CLI holds).
+
+    ``build_h3db`` computes this from the same raw arguments and hands it to
+    ``_write_partitioned_streaming``, so the pre-Stage-1 reconcile and the
+    driver agree by construction (the driver's own ``product_vars`` are
+    post-expansion and would not).
+    """
+    return _scope_fingerprint(_spatial_tiles(spatial, part), res, part, product_vars)
+
+
+def _read_scope_fingerprint(tmp_dir: str) -> Optional[str]:
+    """Fingerprint recorded in ``tmp_dir/_complete_scope.json`` (None if absent/unreadable)."""
+    try:
+        with open(os.path.join(tmp_dir, _SCOPE_FILENAME)) as fh:
+            return json.load(fh).get('fingerprint')
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
 def _check_scope_fingerprint(tmp_dir: str, fingerprint: str) -> None:
     """Invalidate stale completion sentinels when the Stage 1 scope changed.
 
@@ -2746,12 +2790,7 @@ def _check_scope_fingerprint(tmp_dir: str, fingerprint: str) -> None:
     an older version: adopt the current scope and keep the sentinels.
     """
     path = os.path.join(tmp_dir, _SCOPE_FILENAME)
-    stored = None
-    try:
-        with open(path) as fh:
-            stored = json.load(fh).get('fingerprint')
-    except (OSError, ValueError, AttributeError):
-        pass
+    stored = _read_scope_fingerprint(tmp_dir)
     if stored == fingerprint:
         return
     if stored is not None or os.path.isfile(path):
@@ -3031,6 +3070,7 @@ def _write_partitioned_streaming(
     dat_col: str,
     inflight_target: Optional[int] = None,
     allow_missing_products: bool = False,
+    scope_fingerprint: Optional[str] = None,
 ) -> bool:
     """Streaming replacement for the legacy ``ddf.to_parquet().persist()``.
 
@@ -3161,7 +3201,7 @@ def _write_partitioned_streaming(
     #    resume picks up exactly where the previous run stopped — completed
     #    tasks are not re-submitted, partial tasks (no sentinel) are.
     _check_scope_fingerprint(
-        tmp_dir, _scope_fingerprint(spatial_h3_tiles, res, part, product_vars))
+        tmp_dir, scope_fingerprint or _scope_fingerprint(spatial_h3_tiles, res, part, product_vars))
     completed_frags = _scan_complete_sentinels(tmp_dir)
     if completed_frags:
         logger.info(
@@ -5037,6 +5077,10 @@ def build_h3db(
                 )
             return result
 
+        # Scope fingerprint over the RAW arguments, matching the CLI's
+        # pre-reconcile value (the expansion below is a function of them).
+        scope_fp = _stage1_scope_fingerprint(spatial, res, part, product_vars)
+
         # Expand variable specifications and ensure L2A essentials
         product_vars = _expand_product_vars(product_vars, all_soc_files, version=version)
 
@@ -5105,6 +5149,7 @@ def build_h3db(
                 parquet_dir, h3_dir, spatial,
                 lat_col, lon_col, dat_col,
                 allow_missing_products=allow_missing_products,
+                scope_fingerprint=scope_fp,
             )
         else:
             wrote_any = _write_partitioned(
