@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.19.1] - 2026-10-02
 
 ### Fixed
 - **A merge could delete fragments without merging them.** `h3_merge_files` treated a destination newer than every fragment as "this merge already finished, only its cleanup was interrupted", and removed the fragments (`rm_src`). Any tool that rewrites database files between Stage 1 and the merge makes every destination newer: `gh3_doctor --fix dtype_drift`, `gh3_update`, `--fix backfill`, product fills. Reproduced on a continental V3 database after a dtype fix, where the merge "completed" 2,767 partitions at ~30/s and merged none of them. The skip now also requires proof, via `_dest_holds_fragments`. First, the destination's per-year metadata must list the granule of every fragment, which the fragment basename encodes: the invariant `h3_skip_part` already uses for Stage 1, checked with one small JSON read that rejects the common case without opening a parquet. Second, because metadata lists granules but fragments are per beam, every fragment's `shot_number`s must already be in the destination. That reads one column, only for partitions that pass the first check. Anything unprovable (missing metadata, legacy `part.N` names) merges instead: shot dedup keeps the rows already in the destination, so a refused skip costs a rewrite (and surfaces any dtype-cast error the merge would raise), never rows.
