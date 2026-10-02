@@ -34,6 +34,13 @@ PRODUCT_STATUS_MISSING_SOURCE = 'MISSING_SOURCE'
 PRODUCT_STATUS_FAILED = 'FAILED'
 PRODUCT_STATUS_PENDING = 'PENDING'
 
+# Top-level granule status (never a per-product status): the granule was read in
+# full by Stage 1 under the recorded scope and yielded zero rows (e.g. entirely
+# outside a land-mask ROI). Skipped like INDEXED while the scope is unchanged.
+# Set only on positive evidence by ``H3BuildLogger.mark_no_data``; a granule
+# found on disk becomes INDEXED again.
+GRANULE_STATUS_NO_DATA = 'NO_DATA'
+
 _VALID_PRODUCT_STATUSES = (
     PRODUCT_STATUS_INDEXED,
     PRODUCT_STATUS_PARTIAL_NAN,
@@ -68,13 +75,19 @@ def _per_product_status_from_observed(active_products, observed_products):
     }
 
 
-def _scan_partition_meta_post_build_info(partition_dir, *, meta_filename, active_products):
+def _scan_partition_meta_post_build_info(partition_dir, *, meta_filename, active_products, verify=False):
     """Worker: read PARTITION_META JSONs under one h3_* partition and return
     the compact aggregate the driver needs to fold into set_post_build_info.
 
     Module-level so it pickles for dask. Per-file errors are non-fatal — the
     affected file contributes nothing, matching the legacy serial behavior
     (any json_read raise would have aborted the whole scan; we instead skip).
+
+    With ``verify=True`` the result also carries ``'unverified'``: True when
+    this partition's metadata may not list every granule it holds (an
+    unreadable sidecar, no sidecar at all, or fewer per-year sidecars than
+    parquet files). ``set_post_build_info`` uses it to refuse the "granule
+    absent from every partition" inference behind ``NO_DATA``.
     """
     out = {
         'granules': [],
@@ -85,12 +98,20 @@ def _scan_partition_meta_post_build_info(partition_dir, *, meta_filename, active
         'l2a_version': None,
         'column_dtypes': {},
         'partition_products': set(),
+        'unverified': False,
     }
     cols_union: set = set()
-    for mf in glob.glob(os.path.join(partition_dir, f'*{meta_filename}')):
+    metas = glob.glob(os.path.join(partition_dir, f'*{meta_filename}'))
+    if verify:
+        n_year_meta = len(glob.glob(os.path.join(partition_dir, '*', f'*{meta_filename}')))
+        n_year_data = len(glob.glob(os.path.join(partition_dir, '*', '*.parquet')))
+        if not metas or n_year_meta < n_year_data:
+            out['unverified'] = True
+    for mf in metas:
         try:
             fmeta = json_read(mf) or {}
         except Exception:
+            out['unverified'] = True
             continue
         gran = fmeta.get('granules', []) or []
         drange = fmeta.get('date_range')
@@ -633,7 +654,7 @@ class H3BuildLogger:
             # on-disk file is only rewritten on the next save_log() call.
             active_products = list(self.product_vars.keys())
             for g in self.granule_info:
-                if 'products' not in g and active_products:
+                if 'products' not in g and active_products and g.get('status') != GRANULE_STATUS_NO_DATA:
                     existing_status = g.get('status', PRODUCT_STATUS_INDEXED)
                     g['products'] = {p: existing_status for p in active_products}
 
@@ -742,6 +763,15 @@ class H3BuildLogger:
         ``_filter_granules()`` dict comparison (which expects bare
         ``{'orbit', 'granule', 'track'}`` dicts). Legacy logs without status
         fields are treated as successful.
+
+        ``NO_DATA`` granules (read in full, zero rows) are skipped under
+        exactly the conditions ``INDEXED`` ones are. Every scope change that
+        could make an empty granule non-empty returns ``None`` instead: new
+        products or a wider time range obviously, and a spatial expansion
+        whenever it adds a partition. One that adds none cannot: Stage 1
+        filters shots by partition cell, ``h3_partition_ids`` lists only
+        partitions that hold data (all inside the earlier cell set), so the
+        added area lies in cells already admitted whole.
         """
         # Keys not part of the original granule identity. ``products`` was
         # added by the per-product status extension; both must be stripped so
@@ -754,7 +784,7 @@ class H3BuildLogger:
             return [
                 {k: v for k, v in g.items() if k not in _strip}
                 for g in self.granule_info
-                if g.get('status') in ('INDEXED', None)
+                if g.get('status') in ('INDEXED', GRANULE_STATUS_NO_DATA, None)
             ]
         return None
 
@@ -765,7 +795,7 @@ class H3BuildLogger:
         - Log exists (updating=True)
         - No new products, spatial, or temporal changes detected
         - No pending variable update from a previous crash
-        - All tracked granules are INDEXED
+        - All tracked granules are INDEXED (or NO_DATA: read, nothing to index)
         """
         if not self.updating:
             return False
@@ -778,11 +808,23 @@ class H3BuildLogger:
         if self.log_data.get('_pending_variable_update'):
             return False
         if hasattr(self, 'granule_info') and self.granule_info:
-            if any(g.get('status') not in ('INDEXED', None) for g in self.granule_info):
+            if any(g.get('status') not in ('INDEXED', GRANULE_STATUS_NO_DATA, None)
+                   for g in self.granule_info):
                 return False
         return True
 
-    def set_post_build_info(self):
+    def set_post_build_info(self, verify_observed=False):
+        """Fold partition metadata into the log: granule status, columns, dates.
+
+        Also records ``self._observed_granule_keys``: the ``(orbit, granule,
+        track)`` of every granule the partition metadata lists, or ``None``
+        when that listing cannot be trusted to be complete (no partitions, an
+        unreadable scan). With ``verify_observed=True`` the scan additionally
+        checks each partition's sidecars against its parquet files and leaves
+        ``None`` on any mismatch; :meth:`mark_no_data` requires a set.
+        """
+        self._observed_granule_keys = None
+        scan_trusted = True
         # Enumerate partition dirs via os.scandir — replaces the prior
         # glob.glob('*/*<meta>') which paid 10k+ GPFS metadata round-trips
         # in a single driver thread. We then dispatch per-partition JSON
@@ -796,6 +838,8 @@ class H3BuildLogger:
         except OSError:
             return
         if not partition_dirs:
+            # Listed fine and holds no partition: no granule has rows here.
+            self._observed_granule_keys = set()
             return
 
         # Collect indexed granules from partition metadata
@@ -863,17 +907,29 @@ class H3BuildLogger:
                 unit='part',
                 meta_filename=PARTITION_META_FILENAME,
                 active_products=active_products,
+                verify=verify_observed,
             ):
                 if isinstance(res, Exception):
+                    scan_trusted = False
                     continue
+                if res.get('unverified'):
+                    scan_trusted = False
                 _fold(res)
         else:
             for pd in partition_dirs:
-                _fold(_scan_partition_meta_post_build_info(
-                    pd,
-                    meta_filename=PARTITION_META_FILENAME,
-                    active_products=active_products,
-                ))
+                try:
+                    _res = _scan_partition_meta_post_build_info(
+                        pd,
+                        meta_filename=PARTITION_META_FILENAME,
+                        active_products=active_products,
+                        verify=verify_observed,
+                    )
+                except Exception:
+                    scan_trusted = False
+                    continue
+                if _res.get('unverified'):
+                    scan_trusted = False
+                _fold(_res)
 
         # Deduplicate against any granules that may already have appeared
         # in a prior in-memory accumulation — the per-partition seen_keys
@@ -890,6 +946,8 @@ class H3BuildLogger:
             _seen.add(k)
             _deduped.append(g)
         indexed_granules = _deduped
+        if scan_trusted:
+            self._observed_granule_keys = {(g['orbit'], g['granule'], g['track']) for g in indexed_granules}
 
         self.date_range = (date_min, date_max)
         self.h3_columns = sorted(observed_columns)
@@ -956,6 +1014,72 @@ class H3BuildLogger:
             ]
 
         self.granule_info = sorted(self.granule_info, key=lambda g: (g.get('orbit', 0), g.get('granule', 0), g.get('track', 0)))
+
+    def mark_no_data(self, listed_keys, incomplete_keys, complete_keys, candidate_keys=None):
+        """Record granules Stage 1 read in full that hold no rows as ``NO_DATA``.
+
+        Call after the final :meth:`set_post_build_info` of a build whose
+        Stage 1 drained fully; ``incomplete_keys`` is that run's set of
+        granules with any task not proven complete. Without a trustworthy
+        observed set (``set_post_build_info`` could not verify the partition
+        metadata) nothing is marked. In doubt a granule stays PENDING: that
+        costs a re-read, a wrong ``NO_DATA`` costs rows.
+
+        * ``PENDING`` -> ``NO_DATA`` when listed, in ``complete_keys`` (every
+          beam task proven complete) and absent from every partition's
+          metadata;
+        * ``INDEXED`` -> ``NO_DATA`` when listed, not incomplete, absent from
+          the metadata, and in ``candidate_keys`` (granules a reconcile
+          flipped INDEXED from completion sentinels alone, which zero-row
+          tasks also emit; Stage 1 skipped them, so ``complete_keys`` cannot
+          vouch for them);
+        * ``NO_DATA`` -> ``PENDING`` when listed and incomplete this run;
+        * ``MERGE_FAILED`` is never touched.
+
+        ``NO_DATA`` drops the ``products`` map and ``fill_attempts``: there
+        is nothing to fill. Does not save. Returns ``{'marked', 'reopened'}``.
+
+        Parameters
+        ----------
+        listed_keys : iterable of tuple
+            Granules this run listed for Stage 1.
+        incomplete_keys : iterable of tuple
+            Granules with any task not proven complete this run.
+        complete_keys : iterable of tuple
+            Granules whose every beam task is proven complete (sentinel).
+        candidate_keys : iterable of tuple, optional
+            Defaults to ``self._pass_c_flipped`` (set by the reconcile).
+        """
+        out = {'marked': 0, 'reopened': 0}
+        observed = getattr(self, '_observed_granule_keys', None)
+        if observed is None or listed_keys is None or incomplete_keys is None or complete_keys is None:
+            return out
+        listed = set(listed_keys)
+        incomplete = set(incomplete_keys)
+        complete = set(complete_keys)
+        if candidate_keys is None:
+            candidate_keys = getattr(self, '_pass_c_flipped', None) or ()
+        candidates = set(candidate_keys)
+        for g in getattr(self, 'granule_info', None) or []:
+            key = (g['orbit'], g['granule'], g['track'])
+            if key not in listed:
+                continue
+            status = g.get('status')
+            if status == 'MERGE_FAILED':
+                continue
+            if key in incomplete:
+                if status == GRANULE_STATUS_NO_DATA:
+                    g['status'] = 'PENDING'
+                    out['reopened'] += 1
+                continue
+            if key in observed:
+                continue
+            if (status == 'PENDING' and key in complete) or (status == 'INDEXED' and key in candidates):
+                g['status'] = GRANULE_STATUS_NO_DATA
+                g.pop('products', None)
+                g.pop('fill_attempts', None)
+                out['marked'] += 1
+        return out
 
     def to_dict(self, status):
         if status not in _VALID_STATUSES:
@@ -1085,6 +1209,8 @@ class H3BuildLogger:
 
         gaps = []
         for g in self.granule_info:
+            if g.get('status') == GRANULE_STATUS_NO_DATA:
+                continue  # no rows, so no product columns to fill
             products_map = g.get('products') or {}
             missing = []
             for p in active_products:

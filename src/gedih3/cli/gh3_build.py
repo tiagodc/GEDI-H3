@@ -929,6 +929,9 @@ def main():
                     h3_logger.save_log('PROCESSING')
 
                 h3_files = None
+                # Filled by Stage 1 only when it drained every task (see
+                # build_h3db); empty = no proof, so no granule is marked NO_DATA.
+                _stage1_outcome = {}
 
                 # ── Stage 1: Spatial/temporal build ──────────────────────
                 # Runs for: fresh build, resume, spatial/temporal expansion,
@@ -969,6 +972,10 @@ def main():
                             )
                         h3_logger.save_log('PROCESSING')
 
+                    def _capture_stage1_outcome(incomplete, complete):
+                        _stage1_outcome['incomplete'] = incomplete
+                        _stage1_outcome['complete'] = complete
+
                     h3_files = build_h3db(
                         product_vars=stage1_products,
                         soc_source=soc_source,
@@ -976,6 +983,7 @@ def main():
                         variable_only_update=False,
                         allow_missing_products=allow_missing,
                         granule_products_callback=_record_granule_products,
+                        stage1_outcome_callback=_capture_stage1_outcome,
                         **_build_kwargs,
                     )
                     # Stage 1 never skips a MERGE_FAILED granule and its pre-clean
@@ -1103,13 +1111,26 @@ def main():
                             )
                         else:
                             logger.warning(f"  {count}x {kind} ({product or 'N/A'})")
-                h3_logger.set_post_build_info()
+                _n_merge_failed = _count_merge_failures(_parquet_dir_for_fold)
+                _no_data_proof = bool(_stage1_outcome) and _stage1_listed is not None and not _n_merge_failed
+                h3_logger.set_post_build_info(verify_observed=_no_data_proof)
+                if _no_data_proof:
+                    # Granules read in full that hold no rows: skipped by later
+                    # builds instead of re-read forever. Needs Stage 1's proof
+                    # AND the metadata's full listing; see mark_no_data.
+                    _nd = h3_logger.mark_no_data(
+                        _stage1_listed, _stage1_outcome['incomplete'], _stage1_outcome['complete'])
+                    if _nd['marked']:
+                        logger.info(
+                            f"{_nd['marked']} granule(s) have no data in the ROI; recorded as NO_DATA "
+                            f"and skipped by later builds")
+                    if _nd['reopened']:
+                        logger.info(f"{_nd['reopened']} NO_DATA granule(s) failed this run; retried next build")
                 # Clear pending variable update BEFORE saving — ensures the flag
                 # is not persisted to disk after successful completion.
                 # Crash safety: if crash between pop and save, disk still has
                 # PROCESSING status with the flag → next run resumes correctly.
                 h3_logger.log_data.pop('_pending_variable_update', None)
-                _n_merge_failed = _count_merge_failures(_parquet_dir_for_fold)
                 h3_logger.save_log('MERGING' if _n_merge_failed else 'COMPLETED')
                 build_completed = not _n_merge_failed
 
