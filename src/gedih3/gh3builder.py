@@ -2667,7 +2667,30 @@ def _apply_spatial_filter(
     return ddf
 
 
-_SCOPE_FILENAME = '_scope.json'
+# Top-level sidecar (not inside ``_complete/``): renaming ``_complete/`` away
+# must not lose it, and writing it must not create ``_complete/`` (whose mere
+# existence flips reconcile into sentinel mode).
+_SCOPE_FILENAME = '_complete_scope.json'
+
+
+def _discard_complete_sentinels(tmp_dir: str, desc: str) -> None:
+    """Atomically retire ``tmp_dir/_complete/``; raises ``OSError`` if it cannot.
+
+    ``_remove_tree_fanout`` is best-effort and not atomic, so a partial or
+    swallowed failure could leave stale sentinels behind. Renaming first
+    makes the discard all-or-nothing: either ``_complete/`` is gone (nothing
+    reads the renamed ``_complete.stale.*`` sibling) or the rename raised.
+    A missing directory is a no-op. The renamed tree is then removed
+    best-effort; a leftover is harmless and goes with the whole-tree cleanup.
+    """
+    import uuid
+    src = os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME)
+    dst = f"{src}.stale.{uuid.uuid4().hex}"
+    try:
+        os.rename(src, dst)
+    except FileNotFoundError:
+        return
+    _remove_tree_fanout(dst, desc=desc)
 
 
 def _scope_fingerprint(spatial_h3_tiles, res: int, part: int, product_vars: Dict[str, List[str]]) -> str:
@@ -2677,7 +2700,7 @@ def _scope_fingerprint(spatial_h3_tiles, res: int, part: int, product_vars: Dict
     payload = {
         'tiles': None if spatial_h3_tiles is None else sorted(spatial_h3_tiles),
         'res': res, 'part': part,
-        'vars': {k: sorted(v) for k, v in sorted(product_vars.items())},
+        'vars': {k: sorted(list(v or [])) for k, v in sorted(product_vars.items())},
     }
     h.update(json.dumps(payload, sort_keys=True).encode())
     return h.hexdigest()
@@ -2688,14 +2711,13 @@ def _check_scope_fingerprint(tmp_dir: str, fingerprint: str) -> None:
 
     A sentinel only proves a task finished under the scope it ran with (a task
     outside the old ROI is "complete" with zero rows). The scope fingerprint
-    lives in ``_complete/_scope.json`` (not a ``.done`` file, so the sentinel
-    scan never sees it). On mismatch the sentinels are cleared so every task
-    re-runs; leaf writes are idempotent (``<frag_name>.parquet`` is replaced
+    lives in ``tmp_dir/_complete_scope.json``. On mismatch the sentinels are
+    retired atomically (:func:`_discard_complete_sentinels`) *before* the new
+    scope is written, so every task re-runs; leaf writes are idempotent (``<frag_name>.parquet`` is replaced
     atomically). A missing file next to existing sentinels is a tmp tree from
     an older version: adopt the current scope and keep the sentinels.
     """
-    sentinel_dir = os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME)
-    path = os.path.join(sentinel_dir, _SCOPE_FILENAME)
+    path = os.path.join(tmp_dir, _SCOPE_FILENAME)
     stored = None
     try:
         with open(path) as fh:
@@ -2711,10 +2733,17 @@ def _check_scope_fingerprint(tmp_dir: str, fingerprint: str) -> None:
             "previous run (or its record is unreadable); discarding its completion sentinels "
             "so every task is re-run."
         )
-        _remove_tree_fanout(sentinel_dir, desc="Clearing stale completion sentinels")
+        try:
+            _discard_complete_sentinels(tmp_dir, desc="Clearing stale completion sentinels")
+        except OSError as e:
+            # Never stamp the new scope over sentinels we could not retire.
+            raise GediFileError(
+                f"Cannot discard stale completion sentinels in {tmp_dir}: {type(e).__name__}: {e}. "
+                f"Remove {os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME)} manually and re-run."
+            ) from e
     # else: no record at all — a fresh tmp tree, or one from an older version
     # whose sentinels we keep (legacy behaviour) by adopting the current scope.
-    os.makedirs(sentinel_dir, exist_ok=True)
+    os.makedirs(tmp_dir, exist_ok=True)
     with AtomicFileWriter(path) as tmp_path:
         with open(tmp_path, 'w') as fh:
             json.dump({'fingerprint': fingerprint}, fh)
@@ -3479,8 +3508,11 @@ def _cleanup_merged_tmp(tmp_dir: str, merge_failed: bool) -> None:
     except OSError as e:
         logger.warning(f"Could not remove stale merge progress file in {tmp_dir}: {e}")
         return
-    _remove_tree_fanout(os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME),
-                        desc="Cleaning completion sentinels")
+    try:
+        _discard_complete_sentinels(tmp_dir, desc="Cleaning completion sentinels")
+    except OSError as e:
+        logger.warning(f"Could not discard completion sentinels in {tmp_dir}: {e}")
+        return
     if os.path.exists(os.path.join(tmp_dir, _MERGE_FAILED_GRANULES_FILENAME)):
         logger.info(f"Keeping {tmp_dir}: merge-failed granules await the build-log fold")
         return

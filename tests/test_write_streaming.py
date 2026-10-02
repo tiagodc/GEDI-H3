@@ -614,6 +614,102 @@ def _streaming_cluster_client():
     cluster.close()
 
 
+class TestScopeFingerprint:
+    """``_check_scope_fingerprint``: sentinels are only valid for the scope
+    (ROI tiles, H3 levels, variables) they were produced under."""
+
+    PV = {'L2A': ['shot_number', 'rh_098'], 'L4A': ['agbd']}
+
+    def _fp(self, tiles=None, res=12, part=3, pv=None):
+        from gedih3.gh3builder import _scope_fingerprint
+        return _scope_fingerprint(tiles, res, part, pv or self.PV)
+
+    def _seed(self, tmp_dir, fp):
+        """A tmp tree with two sentinels recorded under ``fp``."""
+        from gedih3.gh3builder import _check_scope_fingerprint, _emit_complete_sentinel
+        tmp = os.path.join(tmp_dir, 'partitions')
+        os.makedirs(tmp)
+        _check_scope_fingerprint(tmp, fp)
+        for i in range(2):
+            _emit_complete_sentinel(tmp, f'O0000{i}_G01_T00001.BEAM0000')
+        return tmp
+
+    def test_writing_scope_does_not_create_complete_dir(self, tmp_dir):
+        from gedih3.gh3builder import _check_scope_fingerprint
+        tmp = os.path.join(tmp_dir, 'partitions')
+        _check_scope_fingerprint(tmp, self._fp())
+        assert os.path.isfile(os.path.join(tmp, '_complete_scope.json'))
+        assert not os.path.exists(os.path.join(tmp, '_complete'))
+
+    def test_same_scope_keeps_sentinels(self, tmp_dir):
+        from gedih3.gh3builder import _check_scope_fingerprint, _scan_complete_sentinels
+        tmp = self._seed(tmp_dir, self._fp())
+        _check_scope_fingerprint(tmp, self._fp())
+        assert len(_scan_complete_sentinels(tmp)) == 2
+
+    @pytest.mark.parametrize('changed', [
+        dict(pv={'L2A': ['shot_number', 'rh_098'], 'L4A': ['agbd', 'extra']}),
+        dict(res=11),
+        dict(part=4),
+        dict(tiles=['830001fffffffff']),
+    ])
+    def test_scope_change_invalidates_sentinels(self, tmp_dir, changed):
+        from gedih3.gh3builder import _check_scope_fingerprint, _scan_complete_sentinels
+        tmp = self._seed(tmp_dir, self._fp())
+        new = self._fp(**changed)
+        _check_scope_fingerprint(tmp, new)
+        assert _scan_complete_sentinels(tmp) == set()
+        with open(os.path.join(tmp, '_complete_scope.json')) as fh:
+            assert json.load(fh)['fingerprint'] == new
+
+    def test_corrupt_scope_file_invalidates(self, tmp_dir):
+        from gedih3.gh3builder import _check_scope_fingerprint, _scan_complete_sentinels
+        tmp = self._seed(tmp_dir, self._fp())
+        with open(os.path.join(tmp, '_complete_scope.json'), 'w') as fh:
+            fh.write('{"fingerp')
+        _check_scope_fingerprint(tmp, self._fp())
+        assert _scan_complete_sentinels(tmp) == set()
+
+    def test_none_variable_list_does_not_crash(self):
+        assert self._fp(pv={'L2A': None})
+
+    def test_discard_survives_noop_tree_removal(self, tmp_dir, monkeypatch):
+        """The rename is the atomic step: even if the follow-up removal does
+        nothing (or fails), no ``.done`` survives under ``_complete/``."""
+        import gedih3.gh3builder as gh
+        tmp = self._seed(tmp_dir, self._fp())
+        monkeypatch.setattr(gh, '_remove_tree_fanout', lambda *a, **k: None)
+        new = self._fp(res=11)
+        gh._check_scope_fingerprint(tmp, new)
+        assert gh._scan_complete_sentinels(tmp) == set()
+        assert not os.path.exists(os.path.join(tmp, '_complete'))
+        assert any(n.startswith('_complete.stale.') for n in os.listdir(tmp))
+        with open(os.path.join(tmp, '_complete_scope.json')) as fh:
+            assert json.load(fh)['fingerprint'] == new
+
+    def test_rename_failure_raises_and_keeps_old_scope(self, tmp_dir, monkeypatch):
+        import gedih3.gh3builder as gh
+        from gedih3.exceptions import GediFileError
+        old = self._fp()
+        tmp = self._seed(tmp_dir, old)
+
+        def boom(*a, **k):
+            raise PermissionError('denied')
+        monkeypatch.setattr(gh.os, 'rename', boom)
+        with pytest.raises(GediFileError):
+            gh._check_scope_fingerprint(tmp, self._fp(res=11))
+        with open(os.path.join(tmp, '_complete_scope.json')) as fh:
+            assert json.load(fh)['fingerprint'] == old
+
+    def test_cleanup_rename_failure_keeps_tmp_and_returns(self, tmp_dir, monkeypatch):
+        import gedih3.gh3builder as gh
+        tmp = self._seed(tmp_dir, self._fp())
+        monkeypatch.setattr(gh.os, 'rename', lambda *a, **k: (_ for _ in ()).throw(PermissionError('x')))
+        gh._cleanup_merged_tmp(tmp, merge_failed=False)
+        assert os.path.isdir(tmp)
+        assert len(gh._scan_complete_sentinels(tmp)) == 2
+
+
 class TestStreamingEndToEnd:
     """Real LocalCluster integration tests. These exercise the streaming
     driver end-to-end against synthetic HDF5 data — would have caught
@@ -880,7 +976,7 @@ class TestStreamingEndToEnd:
         run([-51.0, -0.5, -49.5, 1.0])
         calls = run([-51.0, -0.5, 11.0, 1.0])  # expanded to cover granule 102
         assert calls[outside] == len(GEDI_BEAMS)
-        assert os.path.isfile(os.path.join(tmp_partitions, '_complete', '_scope.json'))
+        assert os.path.isfile(os.path.join(tmp_partitions, '_complete_scope.json'))
         # The previously-empty granule now has data on disk.
         names = [f for _, _, fs in os.walk(tmp_partitions) for f in fs if f.startswith('O00102_')]
         assert names
@@ -890,9 +986,9 @@ class TestStreamingEndToEnd:
         run, soc_files, tmp_partitions = self._two_granule_runner(tmp_dir)
         roi_a = [-51.0, -0.5, -49.5, 1.0]
         run(roi_a)
-        os.unlink(os.path.join(tmp_partitions, '_complete', '_scope.json'))  # older-version tmp tree
+        os.unlink(os.path.join(tmp_partitions, '_complete_scope.json'))  # older-version tmp tree
         assert sum(run(roi_a).values()) == 0
-        assert os.path.isfile(os.path.join(tmp_partitions, '_complete', '_scope.json'))
+        assert os.path.isfile(os.path.join(tmp_partitions, '_complete_scope.json'))
 
     def test_scatter_returns_single_future_per_iterable(self, _streaming_cluster_client):
         """Direct regression check: confirm the scatter calls in the
