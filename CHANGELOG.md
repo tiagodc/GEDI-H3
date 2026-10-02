@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- **Stage 1 no longer re-reads tasks that yield no rows.** A (granule × beam) task emitted its completion sentinel only when it wrote at least one leaf. Tasks that were read but produced no rows (an empty beam, a granule outside the ROI, cells already in the database) were re-submitted on every resume, re-opening every product HDF5, and reconcile could never mark a granule with any empty beam as complete. The sentinel now means "read successfully, all leaves (possibly zero) committed" and is emitted on every error-free return. It is still withheld on a load error, and when no product file exists for the task. (#35)
+- **A kept tmp tree can no longer hide data from a wider ROI.** The tmp dir (`<db>/.tmp` by default) survives whenever failure sidecars are kept, and nothing invalidated its completion sentinels. A later build with an expanded ROI would trust them and skip tasks that were complete only under the old scope. A clean merge now drops `_complete/` before deciding whether to keep tmp. `_complete_scope.json` fingerprints the ROI tiles, H3 levels and variables, and a mismatch discards the sentinels so every task re-runs. The discard renames `_complete/` before deleting it, so an interrupted clear can't leave stale sentinels behind.
+- **A Dask shutdown error no longer replaces the CLI's exit code.** Every CLI entered its Dask client with a bare `with Client(...)`, so an error while closing a slow or tunnelled cluster (typically `TimeoutError`) replaced the exception already on its way out. A merge-incomplete exit 4, a Ctrl-C (130), a typed `GediError` exit, and even a fully successful run all surfaced as exit 1 ("Unexpected error"). The CLIs now use `cliutils.dask_client`, which keeps the client registered as usual but logs teardown failures as a warning. The body's outcome decides the exit code, and a teardown failure after a successful run exits 0. A failed `Client.__enter__` now closes the client instead of leaking it. (#34)
+
 ## [0.19.1] - 2026-10-02
 
 ### Fixed
