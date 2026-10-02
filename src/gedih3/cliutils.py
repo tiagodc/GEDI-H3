@@ -1363,21 +1363,32 @@ def dask_client(**kwargs):
     ------
     distributed.Client
     """
+    import asyncio
     from dask.distributed import Client
+
+    log = logging.getLogger(__name__)
+
+    def _teardown(step):
+        # CancelledError is a BaseException; a close() cancelled mid-flight must
+        # not mask the body's outcome either. KeyboardInterrupt still propagates.
+        try:
+            step()
+        except (Exception, asyncio.CancelledError) as e:
+            log.warning("Dask client teardown failed (%s: %s); ignoring.", type(e).__name__, e)
+            log.debug("Dask client teardown traceback", exc_info=True)
 
     client = Client(**kwargs)
     # Delegate to the public context-manager protocol instead of re-implementing
     # the current-client reset; Client.close() also shuts down a LocalCluster it owns.
-    client.__enter__()
+    try:
+        client.__enter__()
+    except BaseException:
+        _teardown(client.close)
+        raise
     try:
         yield client
     finally:
-        try:
-            client.__exit__(None, None, None)
-        except Exception as e:
-            logging.getLogger(__name__).warning(
-                "Dask client teardown failed (%s: %s); ignoring.", type(e).__name__, e
-            )
+        _teardown(lambda: client.__exit__(None, None, None))
 
 
 def format_dask_cluster_info(client) -> str:

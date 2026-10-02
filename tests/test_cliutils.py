@@ -986,6 +986,39 @@ class TestDaskClient:
         assert any(r.levelno == logging.WARNING and "teardown failed" in r.getMessage()
                    for r in records)
 
+    def test_cancelled_teardown_does_not_mask_exit(self, monkeypatch):
+        import asyncio
+        import dask.distributed
+        from gedih3.cliutils import dask_client
+
+        class _Cancelled(_BadTeardownClient):
+            def __exit__(self, *exc):
+                raise asyncio.CancelledError()
+
+        monkeypatch.setattr(dask.distributed, "Client", _Cancelled)
+        with pytest.raises(SystemExit) as ei:
+            with dask_client():
+                raise SystemExit(4)
+        assert ei.value.code == 4
+
+    def test_enter_failure_closes_client(self, monkeypatch):
+        import dask.distributed
+        from gedih3.cliutils import dask_client
+        closed = []
+
+        class _BadEnter(_BadTeardownClient):
+            def __enter__(self):
+                raise RuntimeError("start failed")
+
+            def close(self):
+                closed.append(True)
+
+        monkeypatch.setattr(dask.distributed, "Client", _BadEnter)
+        with pytest.raises(RuntimeError, match="start failed"):
+            with dask_client():
+                pass
+        assert closed == [True]
+
     def test_real_client_registered_and_reset(self):
         from dask.distributed import default_client
         from gedih3.cliutils import dask_client
