@@ -221,6 +221,7 @@ class TestStreamingWorker:
         assert stats['skipped'] is False
         assert stats['leaves'] > 0
         assert stats['rows'] == 20  # all synthetic rows kept
+        assert stats['complete'] is True
 
         # Sentinel was emitted only after all leaves committed.
         assert _scan_complete_sentinels(partitions) == {stats['frag_name']}
@@ -246,6 +247,7 @@ class TestStreamingWorker:
         assert stats['skipped'] is True
         assert stats['error'] is not None
         assert stats['leaves'] == 0
+        assert stats['complete'] is False
         # No sentinel emitted — next resume re-runs this task.
         assert _scan_complete_sentinels(partitions) == set()
 
@@ -261,6 +263,7 @@ class TestStreamingWorker:
         assert stats['skipped'] is True
         assert stats['leaves'] == 0
         assert stats['error'] is None
+        assert stats['complete'] is True
         assert _scan_complete_sentinels(partitions) == {stats['frag_name']}
 
     def test_no_sentinel_when_load_returns_none(self, tmp_dir, monkeypatch):
@@ -274,6 +277,7 @@ class TestStreamingWorker:
         )
         assert stats['skipped'] is True
         assert stats['leaves'] == 0
+        assert stats['complete'] is False
         assert _scan_complete_sentinels(partitions) == set()
 
     def test_sentinel_when_spatial_filter_drops_all_rows(self, tmp_dir, monkeypatch):
@@ -286,6 +290,7 @@ class TestStreamingWorker:
         )
         assert stats['skipped'] is True
         assert stats['leaves'] == 0
+        assert stats['complete'] is True
         assert _scan_complete_sentinels(partitions) == {stats['frag_name']}
         # No leaf parquet written for an empty task.
         assert not [e for e in os.scandir(partitions) if e.name.startswith('h3_')]
@@ -995,10 +1000,12 @@ class TestStreamingEndToEnd:
         removed once the task succeeds; the file goes when nothing remains."""
         import gedih3.gh3builder as gh
         from gedih3.config import GEDI_BEAMS
-        state = {'fail': True}
+        state = {'fail': True, 'none': False}
         real = gh.load_h5_merged
 
         def flaky(prod_files, *a, **k):
+            if state['none'] and 'O00101' in os.path.basename(prod_files['L2A']):
+                return None  # "no source": no error, but no sentinel either
             if state['fail'] and 'O00101' in os.path.basename(prod_files['L2A']):
                 raise ValueError('boom')
             return real(prod_files, *a, **k)
@@ -1017,7 +1024,12 @@ class TestStreamingEndToEnd:
                 assert len(f.readlines()) == len(GEDI_BEAMS)
             assert {r['runs'] for r in recs} == {2}
 
-            state['fail'] = False
+            # A no-source rerun is not evidence of recovery: record kept.
+            state['fail'], state['none'] = False, True
+            run(roi)
+            assert len(gh._read_granule_failures(tmp_partitions)) == len(GEDI_BEAMS)
+
+            state['none'] = False
             run(roi)
             assert not os.path.exists(os.path.join(tmp_partitions, gh._GRANULE_FAILURES_FILENAME))
         finally:

@@ -1593,20 +1593,22 @@ def _append_granule_failure(tmp_dir: str, frag_name: str, failure: Dict[str, Any
         pass
 
 
-def _scan_granule_failures(tmp_dir: str) -> Tuple[List[Dict[str, Any]], int]:
-    """Collapse the failure sidecar to ``(records, n_lines)``.
+def _scan_granule_failures(tmp_dir: str) -> Tuple[List[Dict[str, Any]], int, int]:
+    """Collapse the failure sidecar to ``(records, n_lines, n_invalid)``.
 
     One record per ``frag_name`` in first-seen order, carrying the LAST
     line's content and ``runs`` = total occurrences (a compacted record's own
     ``runs`` counts, a plain line counts 1). ``n_lines`` is the number of
-    valid lines read, so callers can tell whether a rewrite would shrink the
-    file. Torn / blank lines are skipped.
+    valid lines read and ``n_invalid`` the torn / non-object lines skipped
+    (blank lines are ignored), so callers can tell whether a rewrite would
+    change the file. A record without ``frag_name`` is never merged with
+    another: it is keyed by its line number and stays visible.
     """
     path = os.path.join(tmp_dir, _GRANULE_FAILURES_FILENAME)
     by_key: Dict[Any, Dict[str, Any]] = {}
-    n_lines = 0
+    n_lines = n_invalid = 0
     if not os.path.isfile(path):
-        return [], 0
+        return [], 0, 0
     try:
         with open(path, 'r') as f:
             for line in f:
@@ -1619,11 +1621,15 @@ def _scan_granule_failures(tmp_dir: str) -> Tuple[List[Dict[str, Any]], int]:
                     # Tolerate the rare torn last line from a SIGKILL during
                     # the writer's flush — same principle as parquet_merge
                     # tolerating corrupt fragments.
+                    n_invalid += 1
                     continue
                 if not isinstance(rec, dict):
+                    n_invalid += 1
                     continue
                 n_lines += 1
                 key = rec.get('frag_name')
+                if key is None:
+                    key = ('__line__', n_lines)
                 try:
                     runs = max(int(rec.get('runs', 1)), 1)
                 except (TypeError, ValueError):
@@ -1635,7 +1641,7 @@ def _scan_granule_failures(tmp_dir: str) -> Tuple[List[Dict[str, Any]], int]:
                 by_key[key] = rec  # dict keeps the first-seen position
     except OSError:
         pass
-    return list(by_key.values()), n_lines
+    return list(by_key.values()), n_lines, n_invalid
 
 
 def _read_granule_failures(tmp_dir: str) -> List[Dict[str, Any]]:
@@ -1665,12 +1671,12 @@ def _compact_granule_failures(tmp_dir: str, recovered: Iterable[Any] = ()) -> No
     path = os.path.join(tmp_dir, _GRANULE_FAILURES_FILENAME)
     recovered = set(recovered)
     try:
-        records, n_lines = _scan_granule_failures(tmp_dir)
+        records, n_lines, n_invalid = _scan_granule_failures(tmp_dir)
         if not os.path.isfile(path):
             return
         kept = [r for r in records if r.get('frag_name') not in recovered]
-        if len(kept) == n_lines and len(kept) == len(records):
-            return  # already one line per key, nothing recovered
+        if len(kept) == n_lines and len(kept) == len(records) and not n_invalid:
+            return  # one clean line per key, nothing recovered
         if not kept:
             os.unlink(path)
             return
@@ -2875,7 +2881,10 @@ def _write_one_granule_beam(
     -------
     dict
         ``{'frag_name': str, 'leaves': int, 'rows': int, 'skipped': bool,
-        'error': Optional[str]}``. ``skipped=True`` covers
+        'error': Optional[str], 'complete': bool}``. ``complete`` is True
+        exactly when the completion sentinel was emitted (positive evidence
+        the task was read in full); the driver uses it to retire an earlier
+        failure record. ``skipped=True`` covers
         empty-after-load, empty-after-index, empty-after-spatial-filter,
         empty-after-skip-check, and no-leaves-written; the completion
         sentinel IS emitted in each of these (the task was read and
@@ -2885,7 +2894,7 @@ def _write_one_granule_beam(
     """
     soc_dict, beam, frag_name = task
     stats = {'frag_name': frag_name, 'leaves': 0, 'rows': 0, 'skipped': False,
-             'error': None, 'failure': None}
+             'error': None, 'failure': None, 'complete': False}
 
     # 1) Load HDF5 for one (granule, beam) — identical contract to
     #    dask_h5_merged(by_beam=True)'s inner load_by_beam closure.
@@ -2916,6 +2925,7 @@ def _write_one_granule_beam(
         # Read successfully, zero rows: record completion so resume (and
         # reconcile Pass C) never re-reads this task.
         _emit_complete_sentinel(tmp_dir, frag_name)
+        stats['complete'] = True
         stats['skipped'] = True
         return stats
 
@@ -2923,6 +2933,7 @@ def _write_one_granule_beam(
     df = h3_index_df(df, res=res, part=part, lat_col=lat_col, lon_col=lon_col)
     if df.empty:
         _emit_complete_sentinel(tmp_dir, frag_name)
+        stats['complete'] = True
         stats['skipped'] = True
         return stats
 
@@ -2934,6 +2945,7 @@ def _write_one_granule_beam(
         df = df[df[h3_part_col].isin(spatial_h3_tiles)]
         if df.empty:
             _emit_complete_sentinel(tmp_dir, frag_name)
+            stats['complete'] = True
             stats['skipped'] = True
             return stats
 
@@ -2945,6 +2957,7 @@ def _write_one_granule_beam(
         df = df[~df['_skip']].drop(columns=['_skip'])
         if df.empty:
             _emit_complete_sentinel(tmp_dir, frag_name)
+            stats['complete'] = True
             stats['skipped'] = True
             return stats
 
@@ -2994,6 +3007,7 @@ def _write_one_granule_beam(
     #    zero leaves were written: "read OK, all leaves (possibly zero)
     #    committed". Errors never reach here (exception path returns early).
     _emit_complete_sentinel(tmp_dir, frag_name)
+    stats['complete'] = True
     if leaves_written == 0:
         stats['skipped'] = True
 
@@ -3337,7 +3351,7 @@ def _write_partitioned_streaming(
                 else:
                     n_ok += 1
                     n_leaves += result.get('leaves', 0)
-                    if result.get('frag_name') in previously_failed:
+                    if result.get('complete') and result.get('frag_name') in previously_failed:
                         recovered.add(result.get('frag_name'))
             except Exception as e:
                 n_fail += 1
@@ -4301,11 +4315,14 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
                         _append_granule_failure(tmp_dir, res.get('granule'), failure)
                 else:
                     n_frag += res.get('fragments', 0)
-                    if res.get('granule') in fan_prev_failed:
-                        fan_recovered.add(res.get('granule'))
                     # A fill product listed by these files but routing no row
                     # to them filled nothing: leave it pending, never "filled".
                     empty = sorted(p for p, n in (res.get('product_fragments') or {}).items() if not n)
+                    # failed_granules / failed_products track later-stage and
+                    # pending-product failures separately; recover only a
+                    # granule whose read left nothing pending.
+                    if res.get('granule') in fan_prev_failed and not (fill and empty):
+                        fan_recovered.add(res.get('granule'))
                     if fill and empty:
                         failed_products.setdefault(res.get('granule'), set()).update(empty)
                         logger.warning(f"Product backfill: granule {res.get('granule')} {', '.join(empty)} "

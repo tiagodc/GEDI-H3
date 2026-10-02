@@ -425,6 +425,27 @@ class TestGranuleFailures:
         _compact_granule_failures(d)
         assert calls == [os.path.join(d, _GRANULE_FAILURES_FILENAME)]
 
+    def test_records_without_frag_name_stay_distinct(self, tmp_path):
+        d = str(tmp_path)
+        with open(os.path.join(d, _GRANULE_FAILURES_FILENAME), 'w') as f:
+            f.write(json.dumps({'kind': 'a'}) + '\n')
+            f.write(json.dumps({'kind': 'b'}) + '\n')
+        out = _read_granule_failures(d)
+        assert [r['kind'] for r in out] == ['a', 'b']
+
+    def test_compact_rewrites_when_torn_line_present(self, tmp_path):
+        d = str(tmp_path)
+        path = os.path.join(d, _GRANULE_FAILURES_FILENAME)
+        _append_granule_failure(d, 'A.0000', self._fail('x'))
+        with open(path, 'a') as f:
+            f.write('{"frag_name": "B.00')  # torn tail, no newline
+        _compact_granule_failures(d)
+        with open(path) as f:
+            raw = f.read()
+        assert raw.endswith('\n') and raw.count('\n') == 1
+        _append_granule_failure(d, 'B.0001', self._fail('y'))
+        assert [r['frag_name'] for r in _read_granule_failures(d)] == ['A.0000', 'B.0001']
+
     def test_jsonl_filename_constant(self):
         assert _GRANULE_FAILURES_FILENAME == '_granule_failures.jsonl'
         # Sanity: re-export is the same object from the module.
