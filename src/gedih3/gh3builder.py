@@ -1084,6 +1084,13 @@ _LEGACY_BEAM_SENTINEL = '*'
 # the (granule × beam) is fully on disk — eliminating the legacy
 # "any-beam-fragment-equals-complete-granule" data-loss path (Agent 3
 # adversarial review #E.1).
+#
+# Two sentinel kinds, both zero-byte, both meaning "read successfully and
+# every leaf is committed": ``<frag>.done`` = at least one leaf committed;
+# ``<frag>.empty`` = zero rows (outside the ROI, empty beam, already-covered
+# cells). Resume skips both; reconcile Pass C only counts a granule as
+# on-disk when at least one of its beams is ``.done``, because an all-empty
+# granule proves nothing about rows under a different scope.
 _COMPLETE_SENTINEL_DIRNAME = '_complete'
 
 
@@ -1109,8 +1116,8 @@ def _granule_beam_frag_name(soc_dict: Dict[str, str], beam: str) -> Optional[str
         return None
 
 
-def _complete_sentinel_path(tmp_dir: str, frag_name: str) -> str:
-    """Path of the per-(granule × beam) completion sentinel.
+def _complete_sentinel_path(tmp_dir: str, frag_name: str, empty: bool = False) -> str:
+    """Path of the per-(granule × beam) completion sentinel (``.empty`` for a zero-row task).
 
     Lives under ``tmp_dir/_complete/`` (one directory, all sentinels) so
     the reconcile can enumerate completions via a single ``os.scandir``
@@ -1118,11 +1125,15 @@ def _complete_sentinel_path(tmp_dir: str, frag_name: str) -> str:
     tree. ``frag_name`` matches ``_FRAGMENT_BASENAME_RE`` (no ``.parquet``
     suffix) so the sentinel basename uniquely identifies the task.
     """
-    return os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME, f'{frag_name}.done')
+    return os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME,
+                        f'{frag_name}.empty' if empty else f'{frag_name}.done')
 
 
-def _emit_complete_sentinel(tmp_dir: str, frag_name: str) -> None:
+def _emit_complete_sentinel(tmp_dir: str, frag_name: str, empty: bool = False) -> None:
     """Touch the completion sentinel for one (granule × beam). Idempotent.
+
+    ``empty=True`` writes the ``.empty`` kind (task read OK, zero rows);
+    otherwise the ``.done`` kind (at least one leaf committed).
 
     Atomic via ``open(... 'x')`` semantics — concurrent emitters on shared
     GPFS race-create the same file; only one wins, the others observe
@@ -1130,7 +1141,7 @@ def _emit_complete_sentinel(tmp_dir: str, frag_name: str) -> None:
     AtomicFileWriter here: the file is zero-byte (its existence is the
     signal); a partial write cannot leave a half-emitted sentinel.
     """
-    path = _complete_sentinel_path(tmp_dir, frag_name)
+    path = _complete_sentinel_path(tmp_dir, frag_name, empty=empty)
     parent = os.path.dirname(path)
     os.makedirs(parent, exist_ok=True)
     try:
@@ -1423,7 +1434,7 @@ def _preclean_partition(item, *, tmp_dir: str) -> Dict[str, int]:
             try:
                 os.unlink(_complete_sentinel_path(tmp_dir, name[:-len('.parquet')]))
             except OSError:
-                pass
+                pass  # (a fragment's task is a data task: never an ``.empty`` sentinel)
     # Drop the sentinel — the cleanup acted; next merge will re-emit if
     # it fails again. Keeping it would loop the pre-clean forever.
     try:
@@ -1652,25 +1663,34 @@ def _scan_merge_failure_sentinels(tmp_dir: str) -> Dict[str, str]:
     return out
 
 
-def _scan_complete_sentinels(tmp_dir: str) -> set:
+def _scan_complete_sentinels(tmp_dir: str, with_empty: bool = False):
     """Return the set of frag_names with an emitted completion sentinel.
 
     One ``os.scandir`` over ``tmp_dir/_complete/``; O(n_completed_tasks)
-    rather than O(n_fragments). Empty set if the sentinel dir doesn't
-    exist yet (fresh build or pre-migration legacy tmp tree).
+    rather than O(n_fragments). Counts both kinds (``.done`` and ``.empty``).
+    Empty set if the sentinel dir doesn't exist yet (fresh build or
+    pre-migration legacy tmp tree).
+
+    With ``with_empty=True`` returns ``(all_complete, empty_only)`` where
+    ``empty_only`` is the subset whose only sentinel is ``.empty`` (zero rows).
     """
     sentinel_dir = os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME)
-    out: set = set()
+    done: set = set()
+    empty: set = set()
     try:
         with os.scandir(sentinel_dir) as it:
             for e in it:
-                if e.is_file(follow_symlinks=False) and e.name.endswith('.done'):
-                    out.add(e.name[:-len('.done')])
-    except FileNotFoundError:
-        pass
+                if not e.is_file(follow_symlinks=False):
+                    continue
+                if e.name.endswith('.done'):
+                    done.add(e.name[:-len('.done')])
+                elif e.name.endswith('.empty'):
+                    empty.add(e.name[:-len('.empty')])
     except OSError:
         pass
-    return out
+    if with_empty:
+        return done | empty, empty - done
+    return done | empty
 
 
 def _canonical_write_schema(meta_df, part: int) -> Any:
@@ -2278,18 +2298,22 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
     # emitted as the final step). Sentinels are the authoritative
     # completeness signal going forward.
     sentinel_beams: Dict[Tuple[int, int, int], set] = {}
+    data_gids: set = set()  # granules with at least one ``.done`` (data) sentinel
     sentinel_dir_exists = False
     if tmp_dir and os.path.isdir(tmp_dir):
         sentinel_dir_exists = os.path.isdir(
             os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME)
         )
         if sentinel_dir_exists:
-            for frag_name in _scan_complete_sentinels(tmp_dir):
+            all_frags, empty_frags = _scan_complete_sentinels(tmp_dir, with_empty=True)
+            for frag_name in all_frags:
                 m = _FRAGMENT_BASENAME_RE.match(f'{frag_name}.parquet')
                 if m is None:
                     continue
                 gid = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
                 sentinel_beams.setdefault(gid, set()).add(m.group(4))
+                if frag_name not in empty_frags:
+                    data_gids.add(gid)
 
     # Decide reconcile mode.
     #
@@ -2314,15 +2338,19 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
 
     if sentinel_mode:
         # AUTHORITATIVE PATH: granules complete only when every expected
-        # beam has its sentinel emitted. Fragment-presence in granule_beams
+        # beam has its sentinel emitted (and at least one is a data sentinel). Fragment-presence in granule_beams
         # is ignored for completeness; we still report partials based on it
         # as a diagnostic.
         for gid, beams in sentinel_beams.items():
             if gid in indexed_ids:
                 continue
-            if expected_beams.issubset(beams):
+            # All beams complete AND at least one carried data: an all-empty
+            # granule only proves emptiness under the scope that ran, so it
+            # stays as-is (Stage 1 skips its tasks via the sentinel scan when
+            # the scope matches, and re-reads them when it changed).
+            if expected_beams.issubset(beams) and gid in data_gids:
                 indexed_ids.add(gid)
-            else:
+            elif not expected_beams.issubset(beams):
                 n_partial += 1
         # Also surface fragment-on-disk-but-no-sentinel granules as partial
         # in the diagnostic count (they will be re-extracted on next run).
@@ -2774,7 +2802,8 @@ def _write_one_granule_beam(
     group via AtomicFileWriter + GeoDataFrame.to_parquet, then emits a
     per-(granule × beam) completion sentinel only AFTER every leaf is
     committed. The sentinel means "this task was read successfully and all
-    its leaves (possibly zero) are committed"; the reconcile trusts it as
+    its leaves (possibly zero) are committed" (``.done`` = at least one leaf,
+    ``.empty`` = zero rows); the reconcile trusts it as
     proof that the (granule × beam) is fully on disk — eliminating the
     legacy "any-beam-fragment-equals-complete-granule" data-loss path on
     kill-mid-write resume. A task that was read but yielded no rows
@@ -2818,13 +2847,15 @@ def _write_one_granule_beam(
         empty-after-load, empty-after-index, empty-after-spatial-filter,
         empty-after-skip-check, and no-leaves-written; the completion
         sentinel IS emitted in each of these (the task was read and
-        genuinely produced no data), with ``leaves == 0``. No sentinel is
+        genuinely produced no data) as the ``.empty`` kind, with
+        ``leaves == 0`` and ``empty=True``; a task with >= 1 leaf writes
+        ``.done`` and ``empty=False``. No sentinel is
         emitted on a load error (``error`` set) or when no product file
         exists for the task (``load_h5_merged`` returned ``None``).
     """
     soc_dict, beam, frag_name = task
     stats = {'frag_name': frag_name, 'leaves': 0, 'rows': 0, 'skipped': False,
-             'error': None, 'failure': None}
+             'error': None, 'failure': None, 'empty': False}
 
     # 1) Load HDF5 for one (granule, beam) — identical contract to
     #    dask_h5_merged(by_beam=True)'s inner load_by_beam closure.
@@ -2852,17 +2883,19 @@ def _write_one_granule_beam(
         stats['skipped'] = True
         return stats
     if df.empty:
-        # Read successfully, zero rows: record completion so resume (and
-        # reconcile Pass C) never re-reads this task.
-        _emit_complete_sentinel(tmp_dir, frag_name)
+        # Read successfully, zero rows: record completion (``.empty`` kind)
+        # so resume never re-reads this task.
+        _emit_complete_sentinel(tmp_dir, frag_name, empty=True)
         stats['skipped'] = True
+        stats['empty'] = True
         return stats
 
     # 2) H3 index — same call as legacy ddf.map_partitions(h3_index_df, ...).
     df = h3_index_df(df, res=res, part=part, lat_col=lat_col, lon_col=lon_col)
     if df.empty:
-        _emit_complete_sentinel(tmp_dir, frag_name)
+        _emit_complete_sentinel(tmp_dir, frag_name, empty=True)
         stats['skipped'] = True
+        stats['empty'] = True
         return stats
 
     h3_part_col = f'h3_{part:02d}'
@@ -2872,8 +2905,9 @@ def _write_one_granule_beam(
     if spatial_h3_tiles is not None:
         df = df[df[h3_part_col].isin(spatial_h3_tiles)]
         if df.empty:
-            _emit_complete_sentinel(tmp_dir, frag_name)
+            _emit_complete_sentinel(tmp_dir, frag_name, empty=True)
             stats['skipped'] = True
+            stats['empty'] = True
             return stats
 
     # 4) Skip-existing-data filter — replaces _apply_spatial_filter's
@@ -2883,8 +2917,9 @@ def _write_one_granule_beam(
         df = h3_add_skip_column(df, h3_dir=h3_dir)
         df = df[~df['_skip']].drop(columns=['_skip'])
         if df.empty:
-            _emit_complete_sentinel(tmp_dir, frag_name)
+            _emit_complete_sentinel(tmp_dir, frag_name, empty=True)
             stats['skipped'] = True
+            stats['empty'] = True
             return stats
 
     # 5) Special columns + year — same calls as legacy.
@@ -2932,9 +2967,11 @@ def _write_one_granule_beam(
     #    re-extracts the (granule × beam) idempotently. Emitted even when
     #    zero leaves were written: "read OK, all leaves (possibly zero)
     #    committed". Errors never reach here (exception path returns early).
-    _emit_complete_sentinel(tmp_dir, frag_name)
+    #    ``.done`` when a leaf was committed, ``.empty`` for zero leaves.
+    _emit_complete_sentinel(tmp_dir, frag_name, empty=leaves_written == 0)
     if leaves_written == 0:
         stats['skipped'] = True
+        stats['empty'] = True
 
     stats['leaves'] = leaves_written
     stats['rows'] = rows_written

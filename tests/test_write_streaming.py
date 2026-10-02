@@ -219,6 +219,9 @@ class TestStreamingWorker:
 
         assert stats['error'] is None
         assert stats['skipped'] is False
+        assert stats['empty'] is False
+        assert _scan_complete_sentinels(partitions, with_empty=True)[1] == set()
+        assert os.listdir(os.path.join(partitions, '_complete')) == [stats['frag_name'] + '.done']
         assert stats['leaves'] > 0
         assert stats['rows'] == 20  # all synthetic rows kept
 
@@ -261,7 +264,10 @@ class TestStreamingWorker:
         assert stats['skipped'] is True
         assert stats['leaves'] == 0
         assert stats['error'] is None
+        assert stats['empty'] is True
         assert _scan_complete_sentinels(partitions) == {stats['frag_name']}
+        assert _scan_complete_sentinels(partitions, with_empty=True)[1] == {stats['frag_name']}
+        assert os.listdir(os.path.join(partitions, '_complete')) == [stats['frag_name'] + '.empty']
 
     def test_no_sentinel_when_load_returns_none(self, tmp_dir, monkeypatch):
         """``load_h5_merged`` returns None only when no product file exists
@@ -390,47 +396,48 @@ class TestReconcileSentinelMode:
         assert n_flipped == 1
         assert h3_logger.granule_info[0]['status'] == 'INDEXED'
 
-    def test_all_sentinels_zero_fragments_flips_granule(self, tmp_dir):
-        """A granule whose 8 beams were all read-and-empty (e.g. outside the
-        ROI) has sentinels but no fragments; it is still complete."""
+    def _reconcile(self, tmp_dir, kinds):
+        """kinds: beam index -> empty flag. Returns (n_flipped, status)."""
         from gedih3.gh3builder import _reconcile_granules_from_disk, _emit_complete_sentinel
         from gedih3.config import GEDI_BEAMS
-
         h3_dir = os.path.join(tmp_dir, 'database')
         tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
         os.makedirs(h3_dir)
-
         orb, gran, trk = 42, 7, 13
-        for beam in GEDI_BEAMS:
-            _emit_complete_sentinel(tmp_partitions,
-                                    f'O{orb:05d}_G{gran:02d}_T{trk:05d}.{beam}')
-
+        for i, beam in enumerate(GEDI_BEAMS):
+            _emit_complete_sentinel(tmp_partitions, f'O{orb:05d}_G{gran:02d}_T{trk:05d}.{beam}',
+                                    empty=kinds[i])
         h3_logger = _logger_with_pending(h3_dir, [(orb, gran, trk)])
-        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions)
-        assert n_flipped == 1
-        assert h3_logger.granule_info[0]['status'] == 'INDEXED'
+        n = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions)
+        return n, h3_logger.granule_info[0]['status']
+
+    def test_all_empty_sentinels_do_not_flip_granule(self, tmp_dir):
+        """All-empty proves emptiness only under the scope that ran: the
+        granule stays PENDING (Stage 1 skips or re-reads it by scope)."""
+        n, status = self._reconcile(tmp_dir, [True] * 8)
+        assert n == 0
+        assert status == 'PENDING'
 
     def test_data_beams_plus_empty_beam_sentinels_flips_granule(self, tmp_dir):
-        """3 beams with fragments + 5 empty-beam sentinels (no fragments)
-        complete the granule."""
+        n, status = self._reconcile(tmp_dir, [False] * 3 + [True] * 5)
+        assert n == 1
+        assert status == 'INDEXED'
+
+    def test_legacy_all_done_sentinels_flip_granule(self, tmp_dir):
+        n, status = self._reconcile(tmp_dir, [False] * 8)
+        assert n == 1
+        assert status == 'INDEXED'
+
+    def test_incomplete_beams_with_data_do_not_flip(self, tmp_dir):
         from gedih3.gh3builder import _reconcile_granules_from_disk, _emit_complete_sentinel
         from gedih3.config import GEDI_BEAMS
-
         h3_dir = os.path.join(tmp_dir, 'database')
         tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
         os.makedirs(h3_dir)
-
-        orb, gran, trk = 42, 7, 13
-        _emit_synthetic_fragments(tmp_partitions, '830001fffffffff', '2020',
-                                  orb, gran, trk, GEDI_BEAMS[:3])
-        for beam in GEDI_BEAMS:
-            _emit_complete_sentinel(tmp_partitions,
-                                    f'O{orb:05d}_G{gran:02d}_T{trk:05d}.{beam}')
-
-        h3_logger = _logger_with_pending(h3_dir, [(orb, gran, trk)])
-        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions)
-        assert n_flipped == 1
-        assert h3_logger.granule_info[0]['status'] == 'INDEXED'
+        for beam in GEDI_BEAMS[:7]:
+            _emit_complete_sentinel(tmp_partitions, f'O00042_G07_T00013.{beam}')
+        h3_logger = _logger_with_pending(h3_dir, [(42, 7, 13)])
+        assert _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions) == 0
 
     def test_partial_sentinels_does_not_flip(self, tmp_dir):
         """3 of 8 sentinels (e.g. streaming worker killed before completing
@@ -631,7 +638,7 @@ class TestScopeFingerprint:
         os.makedirs(tmp)
         _check_scope_fingerprint(tmp, fp)
         for i in range(2):
-            _emit_complete_sentinel(tmp, f'O0000{i}_G01_T00001.BEAM0000')
+            _emit_complete_sentinel(tmp, f'O0000{i}_G01_T00001.BEAM0000', empty=bool(i))
         return tmp
 
     def test_writing_scope_does_not_create_complete_dir(self, tmp_dir):
