@@ -5469,6 +5469,15 @@ def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> 
             for i in reversed(twins[1:]):
                 del merged_granules[i]
             merged_granules[twins[0]] = g
+    # NO_DATA was proven under one database's scope; the other never examined
+    # the granule, so unless both logs say so it is PENDING again.
+    def _no_data_keys(granules):
+        return {(e.get('orbit'), e.get('granule'), e.get('track'))
+                for e in granules if e.get('status') == 'NO_DATA'}
+    both = _no_data_keys(granules_1) & _no_data_keys(granules_2)
+    for i, e in enumerate(merged_granules):
+        if e.get('status') == 'NO_DATA' and (e.get('orbit'), e.get('granule'), e.get('track')) not in both:
+            merged_granules[i] = {**e, 'status': 'PENDING'}
     if merged_granules:
         merged_log['granules'] = merged_granules
     

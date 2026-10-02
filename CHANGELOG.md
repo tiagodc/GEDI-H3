@@ -7,12 +7,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
-- **`NO_DATA` granule status: granules with no rows in the ROI are skipped by later builds.** A granule that Stage 1 read in full but that yields no rows (for example, entirely outside a land-mask ROI) never appears in partition metadata, so it stayed `PENDING` forever. That had three effects: every later `gh3_build` re-read all its product HDF5s, the "already up to date" early exit never fired, and `gh3_update` warned that its shots were absent. Such granules are now recorded as `NO_DATA` and skipped like `INDEXED` while the scope is unchanged. The status is assigned only on positive evidence:
-  - Stage 1 drained fully, and every one of the granule's beam tasks proved complete (`build_h3db(stage1_outcome_callback=)`).
-  - No partition merge is pending.
-  - The partition metadata was verified complete and doesn't list the granule.
+- **`NO_DATA` granule status: granules with no rows in the ROI are skipped by later builds.** A granule that Stage 1 read in full but that yields no rows (for example, entirely outside a land-mask ROI) never appears in partition metadata, so it stayed `PENDING` forever. That had three effects: every later `gh3_build` re-read all its product HDF5s, the "already up to date" early exit never fired, and `gh3_update` warned that its shots were absent. Such granules are now recorded as `NO_DATA` and skipped like `INDEXED`. The status is assigned only on direct evidence:
+  - the run's Stage 1 covered the database's whole region and dates (not a spatial-only or temporal-only expansion, which reads just the added part);
+  - Stage 1 drained fully, and every one of the granule's beam tasks was proven complete with zero rows (`build_h3db(stage1_outcome_callback=)`);
+  - no partition merge is pending;
+  - the partition metadata was verified complete and doesn't list the granule.
 
-  Anything less leaves the granule `PENDING`. A `NO_DATA` granule that later gains rows, through a wider ROI, becomes `INDEXED`. One that fails in a later run reopens to `PENDING`. `get_finished_granules` re-examines `NO_DATA` granules on the same scope changes as `INDEXED` ones. Backfills, `gh3_doctor` and the `gh3_update` warning treat `NO_DATA` as finished with nothing to fill. Older gedih3 versions read it as non-`INDEXED` and re-read the granule, which is the old behaviour. (#35)
+  Anything less leaves the granule `PENDING`. `NO_DATA` holds only for the scope it was recorded under:
+  - any spatial or temporal widening reopens every `NO_DATA` granule to `PENDING` before the run saves its log;
+  - a granule that gains rows becomes `INDEXED`, and one that fails a later run reopens;
+  - `merge_build_logs` keeps `NO_DATA` only when both logs agree.
+
+  Backfills, `gh3_doctor` and the `gh3_update` warning treat `NO_DATA` as finished with nothing to fill. Older gedih3 versions read it as non-`INDEXED` and re-read the granule, as before. (#35)
 
 ### Fixed
 - **`_granule_failures.jsonl` reports each failing task once, and forgets tasks that later succeed.** The sidecar was append-only and never pruned. A task failing on N runs was reported N times (split into categories when the error text differed), and a task that failed once and later succeeded was reported forever, which also kept the tmp tree from ever being cleaned. Reads now collapse records to one per task (latest error, with a `runs` count), so the end-of-build advisory and `gh3_doctor --check tmp_partitions_health` count distinct tasks. Stage 1 and the variable-add fan retire the records of tasks that complete this run, and rewrite the file once at the end of the phase (deleting it when empty). The docstrings and the doctor's recommendation no longer point at a build-log fold and a `gh3_update --recover-missing-vars` that don't exist. (#36)

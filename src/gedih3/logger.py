@@ -38,7 +38,9 @@ PRODUCT_STATUS_PENDING = 'PENDING'
 # full by Stage 1 under the recorded scope and yielded zero rows (e.g. entirely
 # outside a land-mask ROI). Skipped like INDEXED while the scope is unchanged.
 # Set only on positive evidence by ``H3BuildLogger.mark_no_data``; a granule
-# found on disk becomes INDEXED again.
+# found on disk becomes INDEXED again. Valid only for the scope it was recorded
+# under: any spatial/temporal widening reopens it (the logger demotes it to
+# PENDING when it detects one), as does merging a log that never examined it.
 GRANULE_STATUS_NO_DATA = 'NO_DATA'
 
 _VALID_PRODUCT_STATUSES = (
@@ -635,6 +637,22 @@ class H3BuildLogger:
 
         if product_vars is not None:
             self.product_vars, self.new_product_vars = merge_product_vars(self.product_vars, product_vars)
+
+        # NO_DATA holds for the scope it was recorded under. Widening space or
+        # time (also in a mixed update) makes every such granule unproven; do it
+        # here so the first save_log of this run persists it, whatever happens
+        # to Stage 1. A variable-only update runs no Stage 1: zero rows stay so.
+        if self.new_spatial is not None or self.new_temporal is not None:
+            n_reopen = 0
+            for g in getattr(self, 'granule_info', None) or []:
+                if g.get('status') == GRANULE_STATUS_NO_DATA:
+                    g['status'] = 'PENDING'
+                    n_reopen += 1
+            if n_reopen:
+                from .logging_config import get_logger
+                get_logger(__name__).info(
+                    f"{n_reopen} NO_DATA granule(s) reopened: the requested region/dates widen the "
+                    f"scope they were recorded under")
 
     def _load_filters_from_log(self):
         self.product_vars = self.log_data.get('products', {})

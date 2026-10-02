@@ -1122,11 +1122,14 @@ def main():
                         else:
                             logger.warning(f"  {count}x {kind} ({product or 'N/A'})")
                 _n_merge_failed = _count_merge_failures(_parquet_dir_for_fold)
-                # Spatial-only / temporal-only expansions run Stage 1 on the added area
-                # alone: empty there says nothing about the old scope (stage1_full_scope).
+                # With any Stage 1 outcome mark_no_data runs: it reopens failed NO_DATA
+                # granules always, but marks only under the full scope (a spatial-only /
+                # temporal-only expansion reads just the added area, stage1_full_scope),
+                # so the metadata verification is needed only then.
                 _no_data_proof = (bool(_stage1_outcome) and _stage1_listed is not None
-                                  and not _n_merge_failed and h3_logger.stage1_full_scope())
-                h3_logger.set_post_build_info(verify_observed=_no_data_proof)
+                                  and not _n_merge_failed)
+                h3_logger.set_post_build_info(
+                    verify_observed=_no_data_proof and h3_logger.stage1_full_scope())
                 if _no_data_proof:
                     # Granules read in full that hold no rows: skipped by later
                     # builds instead of re-read forever. Needs Stage 1's proof

@@ -543,10 +543,49 @@ def test_merge_build_logs_no_data_loses_to_any_other_status(tmp_dir):
     a, b = os.path.join(tmp_dir, 'a'), os.path.join(tmp_dir, 'b')
     fc = {'type': 'FeatureCollection', 'features': []}
     make_build_log(a, granules=[_g(K1, GRANULE_STATUS_NO_DATA), _g(K2, 'INDEXED'), _g(K3, 'PENDING'),
-                                _g(K4, GRANULE_STATUS_NO_DATA)], spatial=fc)
+                                _g(K4, GRANULE_STATUS_NO_DATA), _g((5, 1, 5), GRANULE_STATUS_NO_DATA)], spatial=fc)
     make_build_log(b, granules=[_g(K1, 'INDEXED'), _g(K2, GRANULE_STATUS_NO_DATA), _g(K3, 'INDEXED'),
                                 _g(K4, GRANULE_STATUS_NO_DATA)], spatial=fc)
     merged = merge_build_logs(os.path.join(a, BUILD_LOG_FILENAME), os.path.join(b, BUILD_LOG_FILENAME),
                               os.path.join(tmp_dir, 'out.json'))
     st = [(g['orbit'], g['status']) for g in merged['granules']]
-    assert sorted(st) == [(1, 'INDEXED'), (2, 'INDEXED'), (3, 'INDEXED'), (3, 'PENDING'), (4, 'NO_DATA')]
+    # K1/K2/K3: NO_DATA loses; K4: NO_DATA in both stays; (5,1,5): NO_DATA in one log only -> PENDING
+    assert sorted(st) == [(1, 'INDEXED'), (2, 'INDEXED'), (3, 'INDEXED'), (3, 'PENDING'), (4, 'NO_DATA'), (5, 'PENDING')]
+
+
+class TestScopeWideningReopensNoData:
+    """NO_DATA is valid only for the scope it was recorded under."""
+
+    def _widened(self, tmp_dir, **kw):
+        make_build_log(tmp_dir, granules=[_g(K1, 'INDEXED'), _g(K2, GRANULE_STATUS_NO_DATA)])
+        kw.setdefault('product_vars', None)
+        return H3BuildLogger(dir=tmp_dir, **kw)
+
+    @pytest.mark.parametrize('kw', [{'spatial': BOX}, {'temporal': ('2020-01-01', '2020-06-30')},
+                                    {'spatial': BOX, 'temporal': ('2020-01-01', '2020-06-30')}])
+    def test_widening_demotes_and_survives_save_reload_and_plain_resume(self, tmp_dir, kw):
+        h = self._widened(tmp_dir, **kw)
+        assert _statuses(h)[K2] == 'PENDING' and _statuses(h)[K1] == 'INDEXED'
+        h.save_log('PARTITIONING')                       # the run is then killed before Stage 1 ends
+        plain = H3BuildLogger(product_vars=None, dir=tmp_dir)
+        assert plain.new_spatial is None and plain.new_temporal is None
+        assert _statuses(plain)[K2] == 'PENDING'
+        assert [(g['orbit']) for g in plain.get_finished_granules()] == [1]
+
+    def test_no_widening_keeps_no_data(self, tmp_dir):
+        h = self._widened(tmp_dir)
+        assert _statuses(h)[K2] == GRANULE_STATUS_NO_DATA
+
+    def test_variable_only_update_keeps_no_data(self, tmp_dir):
+        h = self._widened(tmp_dir, product_vars={'L4C': ['wsci']})
+        assert h.new_product_vars is not None and h.new_spatial is None and h.new_temporal is None
+        assert _statuses(h)[K2] == GRANULE_STATUS_NO_DATA
+
+    def test_failed_reread_under_partial_scope_still_reopens(self, tmp_dir):
+        """mark_no_data under a spatial-only expansion never marks, but reopens."""
+        h = self._widened(tmp_dir, spatial=BOX)
+        h.granule_info[1]['status'] = GRANULE_STATUS_NO_DATA   # as if the demotion had been missed
+        _db_listing(tmp_dir, [K1])
+        h.set_post_build_info()
+        assert h.mark_no_data({K2}, {K2}, set()) == {'marked': 0, 'reopened': 1}
+        assert _statuses(h)[K2] == 'PENDING'
