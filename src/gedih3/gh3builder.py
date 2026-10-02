@@ -2238,8 +2238,11 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
         variables) prove nothing about this one, and the driver discards them
         later than this runs. ``None`` (default) trusts no sentinel; the
         granules stay non-INDEXED and Stage 1 skips or re-reads their tasks
-        by sentinel/scope. Finalized-metadata (Pass A) and legacy
-        no-``_complete/`` flips are unaffected.
+        by sentinel/scope. Finalized-metadata (Pass A) and the legacy flips
+        for trees with neither ``_complete/``, a scope record nor a
+        ``_complete.stale.*`` sibling are unaffected. A resume of an
+        interrupted spatial- or temporal-only expansion re-reads its tasks
+        (the log then holds the union scope, so the fingerprint differs).
 
     Returns
     -------
@@ -2424,7 +2427,22 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
     # fragment-presence heuristic and EMIT sentinels for any granule we
     # flip INDEXED — that bridges the legacy tree into the sentinel model
     # so subsequent resumes are sentinel-aware.
-    sentinel_mode = sentinel_dir_exists
+    #
+    # A scope record or a ``_complete.stale.*`` sibling also marks a streaming
+    # tree: ``_check_scope_fingerprint`` renames ``_complete/`` away on a scope
+    # change, and a run killed before its first task finishes leaves old-scope
+    # fragments with no ``_complete/``. That must never read as legacy.
+    streaming_tree = sentinel_dir_exists
+    if not streaming_tree and tmp_dir and os.path.isdir(tmp_dir):
+        streaming_tree = os.path.exists(os.path.join(tmp_dir, _SCOPE_FILENAME))
+        if not streaming_tree:
+            try:
+                streaming_tree = any(
+                    e.name.startswith(_COMPLETE_SENTINEL_DIRNAME + '.stale.') for e in os.scandir(tmp_dir)
+                )
+            except OSError:
+                pass
+    sentinel_mode = streaming_tree
 
     expected_beams = set(GEDI_BEAMS)
     n_partial = 0
