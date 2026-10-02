@@ -605,6 +605,7 @@ class TestOnlyGenuineWideningReopens:
         ([-50.8, 0.2, -50.2, 0.8], False),     # subset
         (BASE, False),                         # identical
         ([-52.0, 0.0, -50.0, 1.0], True),      # wider
+        ([-40.0, 10.0, -39.99997, 10.00003], True),  # plot-sized disjoint addition (~1e-9 deg²)
     ])
     def test_spatial(self, tmp_dir, spatial, demoted):
         h = self._logger(tmp_dir, spatial=spatial)

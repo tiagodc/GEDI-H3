@@ -645,7 +645,7 @@ class H3BuildLogger:
         widened = False
         if self.new_spatial is not None and prev_spatial is not None:
             try:
-                widened = self.spatial.union_all().difference(prev_spatial.union_all()).area > 1e-9
+                widened = self.spatial.union_all().difference(prev_spatial.union_all()).area > 0
             except Exception:
                 widened = True  # cannot tell: reopen (costs a re-read)
         elif self.new_spatial is not None:
