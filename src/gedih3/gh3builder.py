@@ -2691,10 +2691,13 @@ def _write_one_granule_beam(
     [h3_{part:02d}, year]), writes one parquet leaf per (h3 cell × year)
     group via AtomicFileWriter + GeoDataFrame.to_parquet, then emits a
     per-(granule × beam) completion sentinel only AFTER every leaf is
-    committed. The sentinel is what the reconcile trusts as proof that the
-    (granule × beam) is fully on disk — eliminating the legacy
-    "any-beam-fragment-equals-complete-granule" data-loss path on
-    kill-mid-write resume.
+    committed. The sentinel means "this task was read successfully and all
+    its leaves (possibly zero) are committed"; the reconcile trusts it as
+    proof that the (granule × beam) is fully on disk — eliminating the
+    legacy "any-beam-fragment-equals-complete-granule" data-loss path on
+    kill-mid-write resume. A task that was read but yielded no rows
+    (empty beam, outside the ROI, already-covered cells) still gets a
+    sentinel, so resume does not re-read it.
 
     Parameters
     ----------
@@ -2730,9 +2733,12 @@ def _write_one_granule_beam(
     dict
         ``{'frag_name': str, 'leaves': int, 'rows': int, 'skipped': bool,
         'error': Optional[str]}``. ``skipped=True`` covers
-        empty-after-load, empty-after-spatial-filter, and
-        empty-after-skip-check (no sentinel emitted in any of these
-        cases — the (granule × beam) genuinely produced no data).
+        empty-after-load, empty-after-index, empty-after-spatial-filter,
+        empty-after-skip-check, and no-leaves-written; the completion
+        sentinel IS emitted in each of these (the task was read and
+        genuinely produced no data), with ``leaves == 0``. No sentinel is
+        emitted on a load error (``error`` set) or when no product file
+        exists for the task (``load_h5_merged`` returned ``None``).
     """
     soc_dict, beam, frag_name = task
     stats = {'frag_name': frag_name, 'leaves': 0, 'rows': 0, 'skipped': False,
@@ -2757,13 +2763,23 @@ def _write_one_granule_beam(
         stats['error'] = f"load_h5_merged: {type(e).__name__}: {e}"
         stats['failure'] = _classify_load_h5_failure(e, soc_dict)
         return stats
-    if df is None or df.empty:
+    if df is None:
+        # No product file present for this task at all ("no source"), as
+        # opposed to a file that was read and held zero rows. Leave it
+        # sentinel-less so a later resume retries once the source exists.
+        stats['skipped'] = True
+        return stats
+    if df.empty:
+        # Read successfully, zero rows: record completion so resume (and
+        # reconcile Pass C) never re-reads this task.
+        _emit_complete_sentinel(tmp_dir, frag_name)
         stats['skipped'] = True
         return stats
 
     # 2) H3 index — same call as legacy ddf.map_partitions(h3_index_df, ...).
     df = h3_index_df(df, res=res, part=part, lat_col=lat_col, lon_col=lon_col)
     if df.empty:
+        _emit_complete_sentinel(tmp_dir, frag_name)
         stats['skipped'] = True
         return stats
 
@@ -2774,6 +2790,7 @@ def _write_one_granule_beam(
     if spatial_h3_tiles is not None:
         df = df[df[h3_part_col].isin(spatial_h3_tiles)]
         if df.empty:
+            _emit_complete_sentinel(tmp_dir, frag_name)
             stats['skipped'] = True
             return stats
 
@@ -2784,6 +2801,7 @@ def _write_one_granule_beam(
         df = h3_add_skip_column(df, h3_dir=h3_dir)
         df = df[~df['_skip']].drop(columns=['_skip'])
         if df.empty:
+            _emit_complete_sentinel(tmp_dir, frag_name)
             stats['skipped'] = True
             return stats
 
@@ -2829,10 +2847,11 @@ def _write_one_granule_beam(
     #    only AFTER every leaf is committed (AtomicFileWriter.__exit__
     #    succeeded). If the worker dies between leaves, no sentinel is
     #    emitted → reconcile leaves the granule non-INDEXED → next resume
-    #    re-extracts the (granule × beam) idempotently.
-    if leaves_written > 0:
-        _emit_complete_sentinel(tmp_dir, frag_name)
-    else:
+    #    re-extracts the (granule × beam) idempotently. Emitted even when
+    #    zero leaves were written: "read OK, all leaves (possibly zero)
+    #    committed". Errors never reach here (exception path returns early).
+    _emit_complete_sentinel(tmp_dir, frag_name)
+    if leaves_written == 0:
         stats['skipped'] = True
 
     stats['leaves'] = leaves_written

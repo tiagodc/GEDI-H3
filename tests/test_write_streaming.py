@@ -173,7 +173,7 @@ class TestStreamingHelpers:
 class TestStreamingWorker:
     def _invoke_worker(self, tmp_dir, h3_dir, monkeypatch, df_override=None,
                        raise_on_load=False, frag_name=None, schema=None,
-                       spatial_tiles=None):
+                       spatial_tiles=None, load_none=False, skip_all=False):
         """Call the worker with a monkey-patched load_h5_merged. Returns the
         worker's stats dict."""
         import gedih3.gh3builder as gh
@@ -186,9 +186,16 @@ class TestStreamingWorker:
                       shots=None, dropna=True, suffix_all=False):
             if raise_on_load:
                 raise RuntimeError("simulated load failure")
+            if load_none:
+                return None
             return df_override if df_override is not None else _make_synthetic_df()
 
         monkeypatch.setattr(gh, 'load_h5_merged', fake_load)
+
+        if skip_all:
+            # Every row's target cell is already covered in the database.
+            monkeypatch.setattr(gh, 'h3_add_skip_column',
+                                lambda df, h3_dir=None: df.assign(_skip=True))
 
         os.makedirs(h3_dir, exist_ok=True)
         return gh._write_one_granule_beam(
@@ -200,7 +207,7 @@ class TestStreamingWorker:
             lon_col='lon_lowestmode_l2a',
             dat_col='delta_time_l2a',
             spatial_h3_tiles=spatial_tiles,
-            skip_check_enabled=False,
+            skip_check_enabled=skip_all,
             schema=schema,
         )
 
@@ -242,7 +249,9 @@ class TestStreamingWorker:
         # No sentinel emitted — next resume re-runs this task.
         assert _scan_complete_sentinels(partitions) == set()
 
-    def test_no_sentinel_when_load_returns_empty(self, tmp_dir, monkeypatch):
+    def test_sentinel_when_load_returns_empty(self, tmp_dir, monkeypatch):
+        """Read OK but zero rows: the task is complete (zero leaves), so
+        resume must not re-read it."""
         from gedih3.gh3builder import _scan_complete_sentinels
         partitions = os.path.join(tmp_dir, 'partitions')
         stats = self._invoke_worker(
@@ -250,9 +259,24 @@ class TestStreamingWorker:
             df_override=pd.DataFrame(),
         )
         assert stats['skipped'] is True
+        assert stats['leaves'] == 0
+        assert stats['error'] is None
+        assert _scan_complete_sentinels(partitions) == {stats['frag_name']}
+
+    def test_no_sentinel_when_load_returns_none(self, tmp_dir, monkeypatch):
+        """``load_h5_merged`` returns None only when no product file exists
+        for the task ("no source"): not a completed read, so no sentinel."""
+        from gedih3.gh3builder import _scan_complete_sentinels
+        partitions = os.path.join(tmp_dir, 'partitions')
+        stats = self._invoke_worker(
+            partitions, os.path.join(tmp_dir, 'database'), monkeypatch,
+            load_none=True,
+        )
+        assert stats['skipped'] is True
+        assert stats['leaves'] == 0
         assert _scan_complete_sentinels(partitions) == set()
 
-    def test_no_sentinel_when_spatial_filter_drops_all_rows(self, tmp_dir, monkeypatch):
+    def test_sentinel_when_spatial_filter_drops_all_rows(self, tmp_dir, monkeypatch):
         from gedih3.gh3builder import _scan_complete_sentinels
         partitions = os.path.join(tmp_dir, 'partitions')
         # Spatial tile that doesn't intersect any synthetic point.
@@ -261,7 +285,21 @@ class TestStreamingWorker:
             spatial_tiles=['836021fffffffff'],  # arbitrary h3 cell that won't match
         )
         assert stats['skipped'] is True
-        assert _scan_complete_sentinels(partitions) == set()
+        assert stats['leaves'] == 0
+        assert _scan_complete_sentinels(partitions) == {stats['frag_name']}
+        # No leaf parquet written for an empty task.
+        assert not [e for e in os.scandir(partitions) if e.name.startswith('h3_')]
+
+    def test_sentinel_when_skip_check_drops_all_rows(self, tmp_dir, monkeypatch):
+        from gedih3.gh3builder import _scan_complete_sentinels
+        partitions = os.path.join(tmp_dir, 'partitions')
+        stats = self._invoke_worker(
+            partitions, os.path.join(tmp_dir, 'database'), monkeypatch,
+            skip_all=True,
+        )
+        assert stats['skipped'] is True
+        assert stats['leaves'] == 0
+        assert _scan_complete_sentinels(partitions) == {stats['frag_name']}
 
     def test_atomic_write_no_orphan_tmp_files(self, tmp_dir, monkeypatch):
         """When pq.write_table raises mid-leaf, AtomicFileWriter.__exit__
@@ -343,6 +381,48 @@ class TestReconcileSentinelMode:
         # Fragments AND sentinels for all 8 beams.
         _emit_synthetic_fragments(tmp_partitions, '830001fffffffff', '2020',
                                   orb, gran, trk, GEDI_BEAMS)
+        for beam in GEDI_BEAMS:
+            _emit_complete_sentinel(tmp_partitions,
+                                    f'O{orb:05d}_G{gran:02d}_T{trk:05d}.{beam}')
+
+        h3_logger = _logger_with_pending(h3_dir, [(orb, gran, trk)])
+        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions)
+        assert n_flipped == 1
+        assert h3_logger.granule_info[0]['status'] == 'INDEXED'
+
+    def test_all_sentinels_zero_fragments_flips_granule(self, tmp_dir):
+        """A granule whose 8 beams were all read-and-empty (e.g. outside the
+        ROI) has sentinels but no fragments; it is still complete."""
+        from gedih3.gh3builder import _reconcile_granules_from_disk, _emit_complete_sentinel
+        from gedih3.config import GEDI_BEAMS
+
+        h3_dir = os.path.join(tmp_dir, 'database')
+        tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
+        os.makedirs(h3_dir)
+
+        orb, gran, trk = 42, 7, 13
+        for beam in GEDI_BEAMS:
+            _emit_complete_sentinel(tmp_partitions,
+                                    f'O{orb:05d}_G{gran:02d}_T{trk:05d}.{beam}')
+
+        h3_logger = _logger_with_pending(h3_dir, [(orb, gran, trk)])
+        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions)
+        assert n_flipped == 1
+        assert h3_logger.granule_info[0]['status'] == 'INDEXED'
+
+    def test_data_beams_plus_empty_beam_sentinels_flips_granule(self, tmp_dir):
+        """3 beams with fragments + 5 empty-beam sentinels (no fragments)
+        complete the granule."""
+        from gedih3.gh3builder import _reconcile_granules_from_disk, _emit_complete_sentinel
+        from gedih3.config import GEDI_BEAMS
+
+        h3_dir = os.path.join(tmp_dir, 'database')
+        tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
+        os.makedirs(h3_dir)
+
+        orb, gran, trk = 42, 7, 13
+        _emit_synthetic_fragments(tmp_partitions, '830001fffffffff', '2020',
+                                  orb, gran, trk, GEDI_BEAMS[:3])
         for beam in GEDI_BEAMS:
             _emit_complete_sentinel(tmp_partitions,
                                     f'O{orb:05d}_G{gran:02d}_T{trk:05d}.{beam}')
@@ -723,6 +803,66 @@ class TestStreamingEndToEnd:
             tbl = pq.read_table(path)
             assert tbl.num_rows > 0, f"leaf {path} has 0 rows"
             assert 'shot_number_l2a' in tbl.column_names or 'shot_number' in tbl.column_names
+
+    def test_resume_skips_empty_out_of_roi_tasks(self, tmp_dir, _streaming_cluster_client):
+        """Issue #35: a granule entirely outside the ROI yields empty tasks;
+        they must get sentinels so a second run reads nothing for it."""
+        import collections
+        import gedih3.gh3builder as gh
+        from gedih3.config import GEDI_BEAMS
+        from gedih3.gedidriver import dask_h5_merged
+        from gedih3.h3utils import h3_index_df
+
+        soc_dir = os.path.join(tmp_dir, 'soc')
+        os.makedirs(soc_dir)
+        soc_files = []
+        # 101 inside the ROI, 102 far outside it.
+        for orb, gran, trk, lon in [(101, 1, 201, (-50.5, -50.0)), (102, 1, 202, (10.0, 10.5))]:
+            paths = {}
+            for prod, code in (('02_A', 'L2A'), ('04_A', 'L4A')):
+                paths[code] = os.path.join(soc_dir, _gedi_filename(prod, orb, gran, trk))
+                _write_synthetic_gedi_h5(paths[code], GEDI_BEAMS, orb, gran, trk, lon_range=lon)
+            soc_files.append(paths)
+
+        product_vars = {
+            'L2A': ['shot_number', 'lat_lowestmode', 'lon_lowestmode', 'delta_time', 'rh_098'],
+            'L4A': ['shot_number', 'agbd'],
+        }
+        ddf = dask_h5_merged(soc_files, product_vars, shots=None, dropna=True,
+                             by_beam=True, suffix_all=True)
+        ddf = ddf.map_partitions(h3_index_df, res=12, part=3,
+                                 lat_col='lat_lowestmode_l2a', lon_col='lon_lowestmode_l2a')
+        tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
+        h3_dir = os.path.join(tmp_dir, 'database')
+        os.makedirs(h3_dir)
+
+        calls = collections.Counter()
+        orig = gh.load_h5_merged
+
+        def spy(prod_files, *a, **k):
+            calls[os.path.basename(prod_files['L2A'])] += 1
+            return orig(prod_files, *a, **k)
+
+        mp = pytest.MonkeyPatch()
+        mp.setattr(gh, 'load_h5_merged', spy)
+        try:
+            outside = os.path.basename(soc_files[1]['L2A'])
+            for run in (1, 2):
+                calls.clear()
+                gh._write_partitioned_streaming(
+                    ddf, soc_files, product_vars, res=12, part=3,
+                    tmp_dir=tmp_partitions, h3_dir=h3_dir,
+                    spatial=[-51.0, -0.5, -49.5, 1.0],
+                    lat_col='lat_lowestmode_l2a', lon_col='lon_lowestmode_l2a',
+                    dat_col='delta_time_l2a', inflight_target=8,
+                )
+                if run == 1:
+                    assert calls[outside] == len(GEDI_BEAMS)
+                    assert len(gh._scan_complete_sentinels(tmp_partitions)) == 2 * len(GEDI_BEAMS)
+        finally:
+            mp.undo()
+        # Second run: every task (data and empty) is sentinel-complete.
+        assert sum(calls.values()) == 0
 
     def test_scatter_returns_single_future_per_iterable(self, _streaming_cluster_client):
         """Direct regression check: confirm the scatter calls in the
