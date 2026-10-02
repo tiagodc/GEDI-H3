@@ -231,15 +231,17 @@ class TestReconcile:
     def test_empty_sentinels_neither_index_nor_flip(self, tmp_dir):
         """``.empty`` sentinels prove completion, not rows: an all-empty granule stays
         PENDING, a NO_DATA one stays NO_DATA, one beam with a ``.done`` indexes."""
-        from gedih3.gh3builder import _reconcile_granules_from_disk, _emit_complete_sentinel
+        from gedih3.gh3builder import (
+            _reconcile_granules_from_disk, _emit_complete_sentinel, _check_scope_fingerprint)
         h3_dir = self._setup(tmp_dir)
         tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
+        _check_scope_fingerprint(tmp_partitions, 'scope-a')  # sentinels recorded under this scope
         for beam in GEDI_BEAMS:
             _emit_complete_sentinel(tmp_partitions, f'O00002_G01_T00002.{beam}', empty=True)
             _emit_complete_sentinel(tmp_partitions, f'O00003_G01_T00003.{beam}', empty=beam != GEDI_BEAMS[0])
             _emit_complete_sentinel(tmp_partitions, f'O00004_G01_T00004.{beam}', empty=True)
         h = _logger(h3_dir, [_g(K2, GRANULE_STATUS_NO_DATA), _g(K3, 'PENDING'), _g(K4, 'PENDING')])
-        _reconcile_granules_from_disk(h3_dir, h, tmp_dir=tmp_partitions)
+        _reconcile_granules_from_disk(h3_dir, h, tmp_dir=tmp_partitions, expected_scope='scope-a')
         assert _statuses(h) == {K2: GRANULE_STATUS_NO_DATA, K3: 'INDEXED', K4: 'PENDING'}
 
     def test_no_data_flipped_by_metadata_drops_stale_products(self, tmp_dir):

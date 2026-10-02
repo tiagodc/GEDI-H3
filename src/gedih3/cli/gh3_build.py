@@ -921,9 +921,19 @@ def main():
                     # INDEXED before stage 1 starts. Without this, a kill
                     # during stage 2 leaves all granules PENDING and stage 1
                     # re-extracts everything on the next rerun.
+                    # Sentinels are trusted only if recorded under the scope Stage 1
+                    # is about to run with (same raw inputs build_h3db fingerprints).
+                    from gedih3.gh3builder import _stage1_scope_fingerprint
+                    if is_mixed_update:
+                        _s1_vars = {k: val.get('variables')
+                                    for k, val in h3_logger.log_data.get('products', {}).items()}
+                    else:
+                        _s1_vars = h3_logger.get_product_vars()
                     _reconcile_granules_from_disk(
                         args.output, h3_logger,
                         tmp_dir=os.path.join(args.tmpdir, 'partitions'),
+                        expected_scope=_stage1_scope_fingerprint(
+                            _build_kwargs['spatial'], h3_logger.res, h3_logger.part, _s1_vars),
                     )
 
                     h3_logger.save_log('PROCESSING')
