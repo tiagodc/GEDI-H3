@@ -268,7 +268,8 @@ def main():
     from gedih3.cliutils import cli_exception_handler
 
     with cli_exception_handler(args):
-        from dask.distributed import Client, progress
+        from dask.distributed import progress
+        from gedih3.cliutils import dask_client
 
         from gedih3.cliutils import (collect_columns, build_query_string, parse_region,
                                      parse_dask_args, parse_file_format, setup_logging,
@@ -376,7 +377,7 @@ def main():
             agg=agg, logger=logger, h3_part_level=h3_part_level,
         )
 
-        with Client(**dask_kwargs) as client:
+        with dask_client(**dask_kwargs) as client:
             logger.info(f"Dask dashboard: {client.dashboard_link}")
 
             if use_egi:

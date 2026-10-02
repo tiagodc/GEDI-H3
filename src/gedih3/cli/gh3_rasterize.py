@@ -112,7 +112,7 @@ def main():
     from gedih3.cliutils import cli_exception_handler
 
     with cli_exception_handler(args):
-        from dask.distributed import Client
+        from gedih3.cliutils import dask_client
 
         from gedih3.cliutils import (parse_dask_args, setup_logging,
                                      print_banner, print_success, setup_storage,
@@ -135,7 +135,7 @@ def main():
 
         dask_kwargs = parse_dask_args(args)
 
-        with Client(**dask_kwargs) as client:
+        with dask_client(**dask_kwargs) as client:
             logger.info(f"Dask dashboard: {client.dashboard_link}")
 
             # Detect dataset type

@@ -47,7 +47,7 @@ def main():
     from gedih3.cliutils import parse_gedi_args, parse_dask_args, parse_region, setup_logging, print_banner, print_success, resolve_path_args
     from gedih3.gh3builder import download_soc, s3_etl_subset
     from gedih3.logger import SOCDownloadLogger, resolve_soc_version
-    from dask.distributed import Client
+    from gedih3.cliutils import dask_client
 
     # Setup logging and print banner
     logger = setup_logging(args, __name__)
@@ -111,7 +111,7 @@ def main():
     dask_kwargs = parse_dask_args(args)
 
     try:
-        with Client(**dask_kwargs) as client:
+        with dask_client(**dask_kwargs) as client:
             logger.info(f"Dask dashboard available at: {client.dashboard_link}")
             try:
                 if args.s3:

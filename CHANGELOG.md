@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- **A Dask shutdown error no longer replaces the CLI's exit code.** Every CLI entered its Dask client with a bare `with Client(...)`, so an error while closing a slow or tunnelled cluster (typically `TimeoutError`) replaced the exception already on its way out. A merge-incomplete exit 4, a Ctrl-C (130), a typed `GediError` exit, and even a fully successful run all surfaced as exit 1 ("Unexpected error"). The CLIs now use `cliutils.dask_client`, which keeps the client registered as usual but logs teardown failures as a warning. The body's outcome decides the exit code, and a teardown failure after a successful run exits 0. A failed `Client.__enter__` now closes the client instead of leaking it. (#34)
+
 ## [0.19.1] - 2026-10-02
 
 ### Fixed
