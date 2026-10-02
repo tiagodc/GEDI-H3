@@ -292,6 +292,32 @@ class TestCleanupMergedTmp:
 
         assert _detect_merge_resume_signal(log, parquet_dir) is None
 
+    def test_clean_merge_with_forensics_keeps_tmp_but_drops_sentinels(self, tmp_dir):
+        """``_complete/`` is a stale-prone Stage 1 resume record: a kept copy
+        would hide tasks a later, wider ROI should run."""
+        from gedih3.gh3builder import (
+            _cleanup_merged_tmp, _COMPLETE_SENTINEL_DIRNAME, _GRANULE_FAILURES_FILENAME,
+        )
+        parquet_dir = os.path.join(tmp_dir, 'partitions')
+        _scaffold(parquet_dir)
+        forensics = os.path.join(parquet_dir, _GRANULE_FAILURES_FILENAME)
+        open(forensics, 'w').close()
+
+        _cleanup_merged_tmp(parquet_dir, merge_failed=False)
+
+        assert os.path.isfile(forensics)
+        assert not os.path.exists(os.path.join(parquet_dir, _COMPLETE_SENTINEL_DIRNAME))
+        assert not os.path.exists(os.path.join(parquet_dir, '_merge_progress.txt'))
+
+    def test_merge_failure_keeps_sentinels(self, tmp_dir):
+        from gedih3.gh3builder import _cleanup_merged_tmp, _COMPLETE_SENTINEL_DIRNAME
+        parquet_dir = os.path.join(tmp_dir, 'partitions')
+        _scaffold(parquet_dir)
+
+        _cleanup_merged_tmp(parquet_dir, merge_failed=True)
+
+        assert len(os.listdir(os.path.join(parquet_dir, _COMPLETE_SENTINEL_DIRNAME))) == 3
+
     def test_merge_failure_keeps_everything(self, tmp_dir):
         from gedih3.gh3builder import _cleanup_merged_tmp
         parquet_dir = os.path.join(tmp_dir, 'partitions')

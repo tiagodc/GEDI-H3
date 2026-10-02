@@ -2667,6 +2667,59 @@ def _apply_spatial_filter(
     return ddf
 
 
+_SCOPE_FILENAME = '_scope.json'
+
+
+def _scope_fingerprint(spatial_h3_tiles, res: int, part: int, product_vars: Dict[str, List[str]]) -> str:
+    """Hash of the inputs that decide which rows a (granule x beam) task yields."""
+    import hashlib
+    h = hashlib.sha256()
+    payload = {
+        'tiles': None if spatial_h3_tiles is None else sorted(spatial_h3_tiles),
+        'res': res, 'part': part,
+        'vars': {k: sorted(v) for k, v in sorted(product_vars.items())},
+    }
+    h.update(json.dumps(payload, sort_keys=True).encode())
+    return h.hexdigest()
+
+
+def _check_scope_fingerprint(tmp_dir: str, fingerprint: str) -> None:
+    """Invalidate stale completion sentinels when the Stage 1 scope changed.
+
+    A sentinel only proves a task finished under the scope it ran with (a task
+    outside the old ROI is "complete" with zero rows). The scope fingerprint
+    lives in ``_complete/_scope.json`` (not a ``.done`` file, so the sentinel
+    scan never sees it). On mismatch the sentinels are cleared so every task
+    re-runs; leaf writes are idempotent (``<frag_name>.parquet`` is replaced
+    atomically). A missing file next to existing sentinels is a tmp tree from
+    an older version: adopt the current scope and keep the sentinels.
+    """
+    sentinel_dir = os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME)
+    path = os.path.join(sentinel_dir, _SCOPE_FILENAME)
+    stored = None
+    try:
+        with open(path) as fh:
+            stored = json.load(fh).get('fingerprint')
+    except (OSError, ValueError, AttributeError):
+        pass
+    if stored == fingerprint:
+        return
+    if stored is not None or os.path.isfile(path):
+        # Changed scope, or a scope file too damaged to prove anything: re-run.
+        logger.warning(
+            "Streaming resume: the spatial scope, H3 levels or variables changed since the "
+            "previous run (or its record is unreadable); discarding its completion sentinels "
+            "so every task is re-run."
+        )
+        _remove_tree_fanout(sentinel_dir, desc="Clearing stale completion sentinels")
+    # else: no record at all — a fresh tmp tree, or one from an older version
+    # whose sentinels we keep (legacy behaviour) by adopting the current scope.
+    os.makedirs(sentinel_dir, exist_ok=True)
+    with AtomicFileWriter(path) as tmp_path:
+        with open(tmp_path, 'w') as fh:
+            json.dump({'fingerprint': fingerprint}, fh)
+
+
 def _write_one_granule_beam(
     task: Tuple[Dict[str, str], str, str],
     *,
@@ -3041,6 +3094,8 @@ def _write_partitioned_streaming(
     # 4) Skip already-completed granule×beam tasks via sentinel scan. A
     #    resume picks up exactly where the previous run stopped — completed
     #    tasks are not re-submitted, partial tasks (no sentinel) are.
+    _check_scope_fingerprint(
+        tmp_dir, _scope_fingerprint(spatial_h3_tiles, res, part, product_vars))
     completed_frags = _scan_complete_sentinels(tmp_dir)
     if completed_frags:
         logger.info(
@@ -3395,7 +3450,10 @@ def _cleanup_merged_tmp(tmp_dir: str, merge_failed: bool) -> None:
       must not leave the one hazardous file behind). It goes even when a
       failure sidecar remains: every partition it lists is merged, and a
       kept copy would also make the next merge skip those partitions' new
-      fragments;
+      fragments. ``_complete/`` goes right after, for the same reason: the
+      sentinels are an in-flight Stage 1 resume record, and a kept set would
+      make a later build with a wider ROI skip tasks that were empty under
+      the old one;
     * then keep the rest while ``_merge_failed_granules.jsonl`` awaits the
       CLI fold into the build log, or ``_granule_failures.jsonl`` holds
       Stage 1 forensics (read by the end-of-build advisory and
@@ -3421,6 +3479,8 @@ def _cleanup_merged_tmp(tmp_dir: str, merge_failed: bool) -> None:
     except OSError as e:
         logger.warning(f"Could not remove stale merge progress file in {tmp_dir}: {e}")
         return
+    _remove_tree_fanout(os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME),
+                        desc="Cleaning completion sentinels")
     if os.path.exists(os.path.join(tmp_dir, _MERGE_FAILED_GRANULES_FILENAME)):
         logger.info(f"Keeping {tmp_dir}: merge-failed granules await the build-log fold")
         return
@@ -3432,8 +3492,6 @@ def _cleanup_merged_tmp(tmp_dir: str, merge_failed: bool) -> None:
         )
         return
     logger.info(f"Cleaning up build scaffolding in {tmp_dir}")
-    _remove_tree_fanout(os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME),
-                        desc="Cleaning completion sentinels")
     _remove_tree_fanout(tmp_dir, desc="Cleaning tmp partitions")
 
 

@@ -804,9 +804,9 @@ class TestStreamingEndToEnd:
             assert tbl.num_rows > 0, f"leaf {path} has 0 rows"
             assert 'shot_number_l2a' in tbl.column_names or 'shot_number' in tbl.column_names
 
-    def test_resume_skips_empty_out_of_roi_tasks(self, tmp_dir, _streaming_cluster_client):
-        """Issue #35: a granule entirely outside the ROI yields empty tasks;
-        they must get sentinels so a second run reads nothing for it."""
+    def _two_granule_runner(self, tmp_dir):
+        """Granule 101 inside ROI A, 102 far outside it. Returns
+        ``(run(roi) -> Counter of load calls per L2A basename, soc_files, tmp_partitions)``."""
         import collections
         import gedih3.gh3builder as gh
         from gedih3.config import GEDI_BEAMS
@@ -816,14 +816,12 @@ class TestStreamingEndToEnd:
         soc_dir = os.path.join(tmp_dir, 'soc')
         os.makedirs(soc_dir)
         soc_files = []
-        # 101 inside the ROI, 102 far outside it.
         for orb, gran, trk, lon in [(101, 1, 201, (-50.5, -50.0)), (102, 1, 202, (10.0, 10.5))]:
             paths = {}
             for prod, code in (('02_A', 'L2A'), ('04_A', 'L4A')):
                 paths[code] = os.path.join(soc_dir, _gedi_filename(prod, orb, gran, trk))
                 _write_synthetic_gedi_h5(paths[code], GEDI_BEAMS, orb, gran, trk, lon_range=lon)
             soc_files.append(paths)
-
         product_vars = {
             'L2A': ['shot_number', 'lat_lowestmode', 'lon_lowestmode', 'delta_time', 'rh_098'],
             'L4A': ['shot_number', 'agbd'],
@@ -835,7 +833,6 @@ class TestStreamingEndToEnd:
         tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
         h3_dir = os.path.join(tmp_dir, 'database')
         os.makedirs(h3_dir)
-
         calls = collections.Counter()
         orig = gh.load_h5_merged
 
@@ -843,26 +840,59 @@ class TestStreamingEndToEnd:
             calls[os.path.basename(prod_files['L2A'])] += 1
             return orig(prod_files, *a, **k)
 
-        mp = pytest.MonkeyPatch()
-        mp.setattr(gh, 'load_h5_merged', spy)
-        try:
-            outside = os.path.basename(soc_files[1]['L2A'])
-            for run in (1, 2):
-                calls.clear()
+        def run(roi):
+            calls.clear()
+            mp = pytest.MonkeyPatch()
+            mp.setattr(gh, 'load_h5_merged', spy)
+            try:
                 gh._write_partitioned_streaming(
                     ddf, soc_files, product_vars, res=12, part=3,
-                    tmp_dir=tmp_partitions, h3_dir=h3_dir,
-                    spatial=[-51.0, -0.5, -49.5, 1.0],
+                    tmp_dir=tmp_partitions, h3_dir=h3_dir, spatial=roi,
                     lat_col='lat_lowestmode_l2a', lon_col='lon_lowestmode_l2a',
                     dat_col='delta_time_l2a', inflight_target=8,
                 )
-                if run == 1:
-                    assert calls[outside] == len(GEDI_BEAMS)
-                    assert len(gh._scan_complete_sentinels(tmp_partitions)) == 2 * len(GEDI_BEAMS)
-        finally:
-            mp.undo()
-        # Second run: every task (data and empty) is sentinel-complete.
-        assert sum(calls.values()) == 0
+            finally:
+                mp.undo()
+            return collections.Counter(calls)
+
+        return run, soc_files, tmp_partitions
+
+    def test_resume_skips_empty_out_of_roi_tasks(self, tmp_dir, _streaming_cluster_client):
+        """Issue #35: a granule entirely outside the ROI yields empty tasks;
+        they must get sentinels so a second run reads nothing for it."""
+        import gedih3.gh3builder as gh
+        from gedih3.config import GEDI_BEAMS
+        run, soc_files, tmp_partitions = self._two_granule_runner(tmp_dir)
+        roi_a = [-51.0, -0.5, -49.5, 1.0]
+        outside = os.path.basename(soc_files[1]['L2A'])
+
+        assert run(roi_a)[outside] == len(GEDI_BEAMS)
+        assert len(gh._scan_complete_sentinels(tmp_partitions)) == 2 * len(GEDI_BEAMS)
+        assert sum(run(roi_a).values()) == 0
+
+    def test_expanded_roi_rereads_previously_empty_tasks(self, tmp_dir, _streaming_cluster_client):
+        """Sentinels from ROI A must not hide tasks that ROI B now covers."""
+        import gedih3.gh3builder as gh
+        from gedih3.config import GEDI_BEAMS
+        run, soc_files, tmp_partitions = self._two_granule_runner(tmp_dir)
+        outside = os.path.basename(soc_files[1]['L2A'])
+
+        run([-51.0, -0.5, -49.5, 1.0])
+        calls = run([-51.0, -0.5, 11.0, 1.0])  # expanded to cover granule 102
+        assert calls[outside] == len(GEDI_BEAMS)
+        assert os.path.isfile(os.path.join(tmp_partitions, '_complete', '_scope.json'))
+        # The previously-empty granule now has data on disk.
+        names = [f for _, _, fs in os.walk(tmp_partitions) for f in fs if f.startswith('O00102_')]
+        assert names
+
+    def test_legacy_sentinels_without_scope_file_are_kept(self, tmp_dir, _streaming_cluster_client):
+        import gedih3.gh3builder as gh
+        run, soc_files, tmp_partitions = self._two_granule_runner(tmp_dir)
+        roi_a = [-51.0, -0.5, -49.5, 1.0]
+        run(roi_a)
+        os.unlink(os.path.join(tmp_partitions, '_complete', '_scope.json'))  # older-version tmp tree
+        assert sum(run(roi_a).values()) == 0
+        assert os.path.isfile(os.path.join(tmp_partitions, '_complete', '_scope.json'))
 
     def test_scatter_returns_single_future_per_iterable(self, _streaming_cluster_client):
         """Direct regression check: confirm the scatter calls in the
