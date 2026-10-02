@@ -37,6 +37,7 @@ from gedih3.gh3builder import (
     _classify_load_h5_failure,
     _append_granule_failure,
     _read_granule_failures,
+    _compact_granule_failures,
     _is_recoverable_fragment_error,
     _granules_in_partition_dir,
     _emit_merge_failed_granules,
@@ -345,6 +346,84 @@ class TestGranuleFailures:
         out = _read_granule_failures(tmp_dir)
         assert len(out) == 1
         assert out[0]['frag_name'] == 'g'
+
+    @staticmethod
+    def _fail(msg, kind='other'):
+        return {'kind': kind, 'var': None, 'product': None,
+                'error_type': 'E', 'error_message': msg}
+
+    def test_duplicates_collapse_latest_wins_with_runs(self, tmp_path):
+        d = str(tmp_path)
+        for i in range(3):
+            _append_granule_failure(d, 'A.0000', self._fail(f'err{i}'))
+        _append_granule_failure(d, 'B.0001', self._fail('b'))
+        out = _read_granule_failures(d)
+        assert [r['frag_name'] for r in out] == ['A.0000', 'B.0001']
+        assert out[0]['error_message'] == 'err2'
+        assert out[0]['runs'] == 3
+        assert out[1]['runs'] == 1
+
+    def test_duplicates_with_torn_last_line(self, tmp_path):
+        d = str(tmp_path)
+        _append_granule_failure(d, 'A.0000', self._fail('x'))
+        _append_granule_failure(d, 'A.0000', self._fail('y'))
+        with open(os.path.join(d, _GRANULE_FAILURES_FILENAME), 'a') as f:
+            f.write('{"frag_name": "A.00')
+        out = _read_granule_failures(d)
+        assert len(out) == 1 and out[0]['runs'] == 2
+
+    def test_compacted_runs_plus_new_append(self, tmp_path):
+        d = str(tmp_path)
+        path = os.path.join(d, _GRANULE_FAILURES_FILENAME)
+        with open(path, 'w') as f:
+            f.write(json.dumps({'frag_name': 'A.0000', 'runs': 2, **self._fail('old')}) + '\n')
+        _append_granule_failure(d, 'A.0000', self._fail('new'))
+        out = _read_granule_failures(d)
+        assert len(out) == 1
+        assert out[0]['runs'] == 3 and out[0]['error_message'] == 'new'
+
+    def test_compact_drops_recovered_and_collapses(self, tmp_path):
+        d = str(tmp_path)
+        path = os.path.join(d, _GRANULE_FAILURES_FILENAME)
+        for key in ('A.0000', 'A.0000', 'B.0001', 'gran42'):
+            _append_granule_failure(d, key, self._fail(key))
+        _compact_granule_failures(d, {'B.0001'})
+        with open(path) as f:
+            lines = [json.loads(ln) for ln in f]
+        assert [r['frag_name'] for r in lines] == ['A.0000', 'gran42']
+        assert lines[0]['runs'] == 2 and lines[1]['runs'] == 1
+        assert not os.path.exists(path + '.tmp')
+
+    def test_compact_deletes_file_when_empty(self, tmp_path):
+        d = str(tmp_path)
+        path = os.path.join(d, _GRANULE_FAILURES_FILENAME)
+        _append_granule_failure(d, 'A.0000', self._fail('x'))
+        _append_granule_failure(d, 'A.0000', self._fail('x'))
+        _compact_granule_failures(d, {'A.0000'})
+        assert not os.path.exists(path)
+        _compact_granule_failures(d, {'A.0000'})  # missing file: no-op
+
+    def test_compact_noop_when_already_compact(self, tmp_path):
+        d = str(tmp_path)
+        path = os.path.join(d, _GRANULE_FAILURES_FILENAME)
+        _append_granule_failure(d, 'A.0000', self._fail('x'))
+        before = os.stat(path).st_ino
+        _compact_granule_failures(d, {'other'})
+        assert os.stat(path).st_ino == before
+
+    def test_compact_uses_atomic_writer(self, tmp_path, monkeypatch):
+        d = str(tmp_path)
+        calls = []
+        real = gh3builder.AtomicFileWriter
+
+        def spy(path, *a, **k):
+            calls.append(path)
+            return real(path, *a, **k)
+        monkeypatch.setattr(gh3builder, 'AtomicFileWriter', spy)
+        _append_granule_failure(d, 'A.0000', self._fail('x'))
+        _append_granule_failure(d, 'A.0000', self._fail('y'))
+        _compact_granule_failures(d)
+        assert calls == [os.path.join(d, _GRANULE_FAILURES_FILENAME)]
 
     def test_jsonl_filename_constant(self):
         assert _GRANULE_FAILURES_FILENAME == '_granule_failures.jsonl'

@@ -14,7 +14,7 @@ import dask.dataframe
 import dask_geopandas
 import dask.bag as dbg
 import pyarrow.parquet as pq
-from typing import Union, List, Dict, Optional, Tuple, Any, Callable
+from typing import Union, List, Dict, Optional, Tuple, Any, Callable, Iterable
 from earthaccess.store import EarthAccessFile
 from dask.distributed import progress
 
@@ -1521,8 +1521,8 @@ def _release_merge_failed(h3_logger, listed=None) -> int:
 
 # Pattern: HDF5 "object 'X' doesn't exist" / "Unable to synchronously open
 # object (object 'X' doesn't exist)" — used by ``_classify_load_h5_failure``
-# to recognize the missing-variable case so downstream tooling
-# (``gh3_update --recover-missing-vars``) can offer a precise recipe.
+# to recognize the missing-variable case so the end-of-build advisory
+# can offer a precise recipe.
 # ``str(KeyError(msg))`` is the repr of ``msg``, which backslash-escapes the
 # quotes h5py puts around the object name (``object \'x\' doesn\'t exist``).
 _MISSING_VAR_RE = re.compile(r"object\s+\\?['\"]([^'\"\\]+)\\?['\"]\s+doesn\\?'?t\s+exist", re.IGNORECASE)
@@ -1573,16 +1573,13 @@ def _append_granule_failure(tmp_dir: str, frag_name: str, failure: Dict[str, Any
     """Append one failure record to ``tmp_dir/_granule_failures.jsonl``.
 
     Single-writer (driver thread) so no concurrency guard needed. Append-only
-    + line-buffered for crash-safety — a SIGKILL between batches loses only
-    the in-flight line. The whole file is folded into the build-log JSON at
-    finalize so post-build consumers (``gh3_update --recover-missing-vars``)
-    can resolve {orbit,granule,track} → failure cause with no log-grep.
-
-    Why JSONL, not full JSON rewrite: rewriting the 97k-granule build log on
-    every failure would be the exact O(N) driver-side I/O Pillar 1 bans.
-    Append-only delta + finalize-time fold gives O(1) per failure on the
-    hot path and O(N_failures) at end-of-build instead of O(N_granules)
-    per failure.
+    and O(1) per failure: a SIGKILL loses at most the in-flight line, and the
+    hot path never rewrites the file. The same task failing on several runs
+    appends several lines; :func:`_read_granule_failures` collapses them to
+    one record per ``frag_name`` and :func:`_compact_granule_failures` rewrites
+    the file once at the end of Stage 1. The file is a forensics sidecar read
+    by the end-of-build advisory and ``gh3_doctor``'s ``tmp_partitions_health``;
+    nothing folds it into the build log.
     """
     path = os.path.join(tmp_dir, _GRANULE_FAILURES_FILENAME)
     record = {'frag_name': frag_name, **failure}
@@ -1596,13 +1593,20 @@ def _append_granule_failure(tmp_dir: str, frag_name: str, failure: Dict[str, Any
         pass
 
 
-def _read_granule_failures(tmp_dir: str) -> List[Dict[str, Any]]:
-    """Read all recorded granule-failure records. O(N_failures); never
-    iterates partitions. Used by the finalize fold and by gh3_update."""
+def _scan_granule_failures(tmp_dir: str) -> Tuple[List[Dict[str, Any]], int]:
+    """Collapse the failure sidecar to ``(records, n_lines)``.
+
+    One record per ``frag_name`` in first-seen order, carrying the LAST
+    line's content and ``runs`` = total occurrences (a compacted record's own
+    ``runs`` counts, a plain line counts 1). ``n_lines`` is the number of
+    valid lines read, so callers can tell whether a rewrite would shrink the
+    file. Torn / blank lines are skipped.
+    """
     path = os.path.join(tmp_dir, _GRANULE_FAILURES_FILENAME)
-    out: List[Dict[str, Any]] = []
+    by_key: Dict[Any, Dict[str, Any]] = {}
+    n_lines = 0
     if not os.path.isfile(path):
-        return out
+        return [], 0
     try:
         with open(path, 'r') as f:
             for line in f:
@@ -1610,15 +1614,72 @@ def _read_granule_failures(tmp_dir: str) -> List[Dict[str, Any]]:
                 if not line:
                     continue
                 try:
-                    out.append(json.loads(line))
+                    rec = json.loads(line)
                 except json.JSONDecodeError:
                     # Tolerate the rare torn last line from a SIGKILL during
                     # the writer's flush — same principle as parquet_merge
                     # tolerating corrupt fragments.
                     continue
+                if not isinstance(rec, dict):
+                    continue
+                n_lines += 1
+                key = rec.get('frag_name')
+                try:
+                    runs = max(int(rec.get('runs', 1)), 1)
+                except (TypeError, ValueError):
+                    runs = 1
+                prev = by_key.get(key)
+                if prev is not None:
+                    runs += prev['runs']
+                rec['runs'] = runs
+                by_key[key] = rec  # dict keeps the first-seen position
     except OSError:
         pass
-    return out
+    return list(by_key.values()), n_lines
+
+
+def _read_granule_failures(tmp_dir: str) -> List[Dict[str, Any]]:
+    """Read the recorded failures, one record per distinct task.
+
+    O(N_failures); never iterates partitions. Records are keyed by
+    ``frag_name`` (a Stage 1 ``(granule x beam)`` fragment name, or a granule
+    id from the variable-add fan). The latest record per key wins and its
+    ``runs`` field is the total number of times that key was recorded, so
+    ``len(result)`` is the number of distinct failed tasks.
+    """
+    return _scan_granule_failures(tmp_dir)[0]
+
+
+def _compact_granule_failures(tmp_dir: str, recovered: Iterable[Any] = ()) -> None:
+    """Rewrite the failure sidecar once: drop recovered keys, merge duplicates.
+
+    ``recovered`` holds keys whose task succeeded this run; only those are
+    dropped (a key of any other namespace, e.g. a variable-fan granule id,
+    never matches and is kept). One compacted record per remaining key
+    carries the latest error and its ``runs`` count. The file is deleted when
+    nothing remains, so ``_cleanup_merged_tmp`` can remove the tmp tree. No-op
+    when the rewrite would change nothing. A crash before this runs leaves the
+    append-only file, which :func:`_read_granule_failures` still reads
+    correctly.
+    """
+    path = os.path.join(tmp_dir, _GRANULE_FAILURES_FILENAME)
+    recovered = set(recovered)
+    try:
+        records, n_lines = _scan_granule_failures(tmp_dir)
+        if not os.path.isfile(path):
+            return
+        kept = [r for r in records if r.get('frag_name') not in recovered]
+        if len(kept) == n_lines and len(kept) == len(records):
+            return  # already one line per key, nothing recovered
+        if not kept:
+            os.unlink(path)
+            return
+        with AtomicFileWriter(path) as tmp_path:
+            with open(tmp_path, 'w') as f:
+                for rec in kept:
+                    f.write(json.dumps(rec) + '\n')
+    except OSError as e:
+        logger.warning(f"Could not compact {path}: {e}")
 
 
 def _scan_merge_failure_sentinels(tmp_dir: str) -> Dict[str, str]:
@@ -2839,8 +2900,8 @@ def _write_one_granule_beam(
         # corrupt h5 returns an empty meta upstream rather than failing the
         # whole job. Streaming surfaces the error in stats for visibility,
         # plus a structured ``failure`` record so the driver can persist it
-        # for downstream recovery (gh3_update --recover-missing-vars) without
-        # needing to grep the WARN log lines later.
+        # for the end-of-build advisory and gh3_doctor without needing to grep
+        # the WARN log lines later.
         stats['skipped'] = True
         stats['error'] = f"load_h5_merged: {type(e).__name__}: {e}"
         stats['failure'] = _classify_load_h5_failure(e, soc_dict)
@@ -3181,18 +3242,28 @@ def _write_partitioned_streaming(
     # Generator over (soc_dict, beam, frag_name). Skips tasks whose
     # sentinel is already on disk (resume fast-path).
     logger.info("Driver: building task list...")
+    # Keys that failed on an earlier run (small: O(N_failures)). A task that
+    # later succeeds is "recovered" and its stale record is dropped by one
+    # compaction at the end of this phase. Only Stage 1 frag_names can ever
+    # land in ``recovered``; records keyed by anything else are left alone.
+    previously_failed = {r.get('frag_name') for r in _read_granule_failures(tmp_dir)}
+    recovered: set = set()
+
     def _task_stream():
         for soc, beam in _it.product(soc_files, GEDI_BEAMS):
             frag_name = _granule_beam_frag_name(soc, beam)
             if frag_name is None:
                 continue  # opaque soc filename — never happens for NASA granules
             if frag_name in completed_frags:
+                if frag_name in previously_failed:
+                    recovered.add(frag_name)
                 continue
             yield (soc, beam, frag_name)
 
     tasks = list(_task_stream())  # materialize so we know the total
     total = len(tasks)
     if total == 0:
+        _compact_granule_failures(tmp_dir, recovered)
         logger.info("Streaming write: no remaining tasks (all granules already complete)")
         return any(
             entry.is_dir() and entry.name.startswith('h3_')
@@ -3266,6 +3337,8 @@ def _write_partitioned_streaming(
                 else:
                     n_ok += 1
                     n_leaves += result.get('leaves', 0)
+                    if result.get('frag_name') in previously_failed:
+                        recovered.add(result.get('frag_name'))
             except Exception as e:
                 n_fail += 1
                 logger.warning(f"Stage1 task raised: {type(e).__name__}: {e}")
@@ -3285,6 +3358,10 @@ def _write_partitioned_streaming(
                     next_log_t = now + log_every_seconds
     finally:
         pbar.close()
+
+    # One rewrite: drop records of tasks that succeeded this run, merge
+    # duplicate lines. Must precede the merge's ``_cleanup_merged_tmp``.
+    _compact_granule_failures(tmp_dir, recovered)
 
     if n_fail:
         logger.error(
@@ -4204,6 +4281,8 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
     )
     fan_tasks = [(ot, gran_h5[ot], gran_year_pfs[ot]) for ot in gran_year_pfs]
     fan_futures = client.map(fan_fn, fan_tasks, pure=False)
+    fan_prev_failed = {r.get('frag_name') for r in _read_granule_failures(tmp_dir)}
+    fan_recovered: set = set()
     fut_to_gran = {f: t[0] for f, t in zip(fan_futures, fan_tasks)}
     failed_granules = set()
     failed_products: Dict[str, set] = {}
@@ -4222,6 +4301,8 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
                         _append_granule_failure(tmp_dir, res.get('granule'), failure)
                 else:
                     n_frag += res.get('fragments', 0)
+                    if res.get('granule') in fan_prev_failed:
+                        fan_recovered.add(res.get('granule'))
                     # A fill product listed by these files but routing no row
                     # to them filled nothing: leave it pending, never "filled".
                     empty = sorted(p for p, n in (res.get('product_fragments') or {}).items() if not n)
@@ -4239,6 +4320,7 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
             pbar.set_postfix(fragments=n_frag, failed=n_fan_fail)
     finally:
         pbar.close()
+    _compact_granule_failures(tmp_dir, fan_recovered)
     if n_fan_fail:
         logger.error(
             f"Stage1: {n_fan_fail} granule(s) failed to read. Their fragments "

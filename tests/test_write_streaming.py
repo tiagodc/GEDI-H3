@@ -990,6 +990,39 @@ class TestStreamingEndToEnd:
         assert sum(run(roi_a).values()) == 0
         assert os.path.isfile(os.path.join(tmp_partitions, '_complete_scope.json'))
 
+    def test_failed_task_record_dropped_after_later_success(self, tmp_dir, _streaming_cluster_client):
+        """Issue #36: a failure record is deduplicated across runs and
+        removed once the task succeeds; the file goes when nothing remains."""
+        import gedih3.gh3builder as gh
+        from gedih3.config import GEDI_BEAMS
+        state = {'fail': True}
+        real = gh.load_h5_merged
+
+        def flaky(prod_files, *a, **k):
+            if state['fail'] and 'O00101' in os.path.basename(prod_files['L2A']):
+                raise ValueError('boom')
+            return real(prod_files, *a, **k)
+
+        mp = pytest.MonkeyPatch()
+        mp.setattr(gh, 'load_h5_merged', flaky)
+        try:
+            run, soc_files, tmp_partitions = self._two_granule_runner(tmp_dir)
+            roi = [-51.0, -0.5, 11.0, 1.0]
+            run(roi)
+            run(roi)  # failed tasks are retried; same keys fail again
+            recs = gh._read_granule_failures(tmp_partitions)
+            assert len(recs) == len(GEDI_BEAMS)
+            # The second run compacted the two appended lines per key.
+            with open(os.path.join(tmp_partitions, gh._GRANULE_FAILURES_FILENAME)) as f:
+                assert len(f.readlines()) == len(GEDI_BEAMS)
+            assert {r['runs'] for r in recs} == {2}
+
+            state['fail'] = False
+            run(roi)
+            assert not os.path.exists(os.path.join(tmp_partitions, gh._GRANULE_FAILURES_FILENAME))
+        finally:
+            mp.undo()
+
     def test_scatter_returns_single_future_per_iterable(self, _streaming_cluster_client):
         """Direct regression check: confirm the scatter calls in the
         driver produce SINGLE Futures, not lists-of-Futures, for iterable

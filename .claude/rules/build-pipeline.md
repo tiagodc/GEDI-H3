@@ -81,7 +81,7 @@ distinguishing `missing_var` (upstream schema variance — some L2A orbits lack
 each to `tmp/partitions/_granule_failures.jsonl` (single-writer, append-only) so
 post-build consumers resolve `(orbit, granule, track) → cause` without grepping the log.
 The end-of-build advisory groups by `(kind, product, var)` and prints a recovery recipe
-per class.
+per class. Reads dedupe by key; `_compact_granule_failures` drops recovered tasks per run.
 
 ## Avoiding filesystem work
 
