@@ -377,7 +377,60 @@ def _emit_synthetic_fragments(tmp_partitions, h3_cell, year, orbit, granule, tra
         pq.write_table(table, os.path.join(leaf_dir, basename))
 
 
+_TEST_SCOPE = 'scope-S0'
+
+
+def _record_scope(tmp_partitions, scope=_TEST_SCOPE):
+    """Write the scope sidecar the way the driver does; returns the scope."""
+    os.makedirs(tmp_partitions, exist_ok=True)
+    with open(os.path.join(tmp_partitions, '_complete_scope.json'), 'w') as fh:
+        json.dump({'fingerprint': scope}, fh)
+    return scope
+
+
 class TestReconcileSentinelMode:
+    def _mixed_tree(self, tmp_dir):
+        """3 data + 5 empty sentinels under scope S0; returns (h3_dir, logger, tmp)."""
+        from gedih3.gh3builder import _emit_complete_sentinel
+        from gedih3.config import GEDI_BEAMS
+        h3_dir = os.path.join(tmp_dir, 'database')
+        tmp = os.path.join(tmp_dir, 'tmp', 'partitions')
+        os.makedirs(h3_dir)
+        for i, beam in enumerate(GEDI_BEAMS):
+            _emit_complete_sentinel(tmp, f'O00042_G07_T00013.{beam}', empty=i >= 3)
+        return h3_dir, _logger_with_pending(h3_dir, [(42, 7, 13)]), tmp
+
+    def test_matching_scope_trusts_sentinels(self, tmp_dir):
+        from gedih3.gh3builder import _reconcile_granules_from_disk
+        h3_dir, lg, tmp = self._mixed_tree(tmp_dir)
+        _record_scope(tmp)
+        assert _reconcile_granules_from_disk(h3_dir, lg, tmp_dir=tmp, expected_scope=_TEST_SCOPE) == 1
+
+    def test_expanded_scope_does_not_flip_from_old_sentinels(self, tmp_dir):
+        """S0 -> S1: sentinels recorded under S0 must not index the granule."""
+        from gedih3.gh3builder import _reconcile_granules_from_disk
+        h3_dir, lg, tmp = self._mixed_tree(tmp_dir)
+        _record_scope(tmp, 'scope-S0')
+        assert _reconcile_granules_from_disk(h3_dir, lg, tmp_dir=tmp, expected_scope='scope-S1') == 0
+        assert lg.granule_info[0]['status'] == 'PENDING'
+
+    def test_missing_scope_file_does_not_flip(self, tmp_dir):
+        from gedih3.gh3builder import _reconcile_granules_from_disk
+        h3_dir, lg, tmp = self._mixed_tree(tmp_dir)
+        assert _reconcile_granules_from_disk(h3_dir, lg, tmp_dir=tmp, expected_scope=_TEST_SCOPE) == 0
+
+    def test_default_expected_scope_does_not_flip(self, tmp_dir):
+        from gedih3.gh3builder import _reconcile_granules_from_disk
+        h3_dir, lg, tmp = self._mixed_tree(tmp_dir)
+        _record_scope(tmp)
+        assert _reconcile_granules_from_disk(h3_dir, lg, tmp_dir=tmp) == 0
+
+
+
+# ===========================================================================
+# 4. Feature flag dispatch
+# ===========================================================================
+
     def test_all_sentinels_present_flips_granule(self, tmp_dir):
         """The streaming-completeness contract: granule is INDEXED iff every
         expected beam has its sentinel."""
@@ -397,7 +450,8 @@ class TestReconcileSentinelMode:
                                     f'O{orb:05d}_G{gran:02d}_T{trk:05d}.{beam}')
 
         h3_logger = _logger_with_pending(h3_dir, [(orb, gran, trk)])
-        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions)
+        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions,
+                                                 expected_scope=_record_scope(tmp_partitions))
         assert n_flipped == 1
         assert h3_logger.granule_info[0]['status'] == 'INDEXED'
 
@@ -413,7 +467,8 @@ class TestReconcileSentinelMode:
             _emit_complete_sentinel(tmp_partitions, f'O{orb:05d}_G{gran:02d}_T{trk:05d}.{beam}',
                                     empty=kinds[i])
         h3_logger = _logger_with_pending(h3_dir, [(orb, gran, trk)])
-        n = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions)
+        n = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions,
+                                                 expected_scope=_record_scope(tmp_partitions))
         return n, h3_logger.granule_info[0]['status']
 
     def test_all_empty_sentinels_do_not_flip_granule(self, tmp_dir):
@@ -442,7 +497,8 @@ class TestReconcileSentinelMode:
         for beam in GEDI_BEAMS[:7]:
             _emit_complete_sentinel(tmp_partitions, f'O00042_G07_T00013.{beam}')
         h3_logger = _logger_with_pending(h3_dir, [(42, 7, 13)])
-        assert _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions) == 0
+        assert _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions,
+                                                 expected_scope=_record_scope(tmp_partitions)) == 0
 
     def test_partial_sentinels_does_not_flip(self, tmp_dir):
         """3 of 8 sentinels (e.g. streaming worker killed before completing
@@ -462,7 +518,8 @@ class TestReconcileSentinelMode:
                                     f'O{orb:05d}_G{gran:02d}_T{trk:05d}.{beam}')
 
         h3_logger = _logger_with_pending(h3_dir, [(orb, gran, trk)])
-        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions)
+        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions,
+                                                 expected_scope=_record_scope(tmp_partitions))
         assert n_flipped == 0
         assert h3_logger.granule_info[0]['status'] == 'PENDING'
 
@@ -499,7 +556,8 @@ class TestReconcileSentinelMode:
 
         h3_logger = _logger_with_pending(h3_dir, [(a_orb, a_gran, a_trk),
                                                   (b_orb, b_gran, b_trk)])
-        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions)
+        n_flipped = _reconcile_granules_from_disk(h3_dir, h3_logger, tmp_dir=tmp_partitions,
+                                                 expected_scope=_record_scope(tmp_partitions))
 
         # Only granule A should be flipped. B stays PENDING for safety.
         assert n_flipped == 1
@@ -546,6 +604,7 @@ class TestReconcileSentinelMode:
 # ===========================================================================
 # 4. Feature flag dispatch
 # ===========================================================================
+
 
 class TestStreamingDispatch:
     def test_streaming_enabled_returns_true_by_default(self, monkeypatch):
@@ -977,6 +1036,19 @@ class TestStreamingEndToEnd:
         assert run(roi_a)[outside] == len(GEDI_BEAMS)
         assert len(gh._scan_complete_sentinels(tmp_partitions)) == 2 * len(GEDI_BEAMS)
         assert sum(run(roi_a).values()) == 0
+
+    def test_helper_fingerprint_equals_driver_sidecar(self, tmp_dir, _streaming_cluster_client):
+        """What the CLI computes pre-reconcile (``_stage1_scope_fingerprint``
+        over raw inputs) equals what a normal Stage 1 run records."""
+        import gedih3.gh3builder as gh
+        run, soc_files, tmp_partitions = self._two_granule_runner(tmp_dir)
+        roi = [-51.0, -0.5, -49.5, 1.0]
+        run(roi)
+        raw = {
+            'L2A': ['shot_number', 'lat_lowestmode', 'lon_lowestmode', 'delta_time', 'rh_098'],
+            'L4A': ['shot_number', 'agbd'],
+        }
+        assert gh._read_scope_fingerprint(tmp_partitions) == gh._stage1_scope_fingerprint(roi, 12, 3, raw)
 
     def test_expanded_roi_rereads_previously_empty_tasks(self, tmp_dir, _streaming_cluster_client):
         """Sentinels from ROI A must not hide tasks that ROI B now covers."""
