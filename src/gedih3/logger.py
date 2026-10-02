@@ -1015,24 +1015,40 @@ class H3BuildLogger:
 
         self.granule_info = sorted(self.granule_info, key=lambda g: (g.get('orbit', 0), g.get('granule', 0), g.get('track', 0)))
 
-    def mark_no_data(self, listed_keys, incomplete_keys, complete_keys, candidate_keys=None):
+    def stage1_full_scope(self):
+        """True when Stage 1 reads under the whole database scope.
+
+        ``get_spatial`` / ``get_temporal`` hand Stage 1 only the ADDED area (or
+        dates) on a spatial-only (temporal-only) expansion, so a granule empty
+        under that diff may hold rows in the old scope. Zero rows then proves
+        nothing, and :meth:`mark_no_data` refuses. Full scope: a fresh build,
+        a plain resume or update (the log already holds the union), and a mixed
+        update's Phase 1. Mirrors the branches of the two getters.
+        """
+        if not getattr(self, 'updating', False):
+            return True
+        no_prod = getattr(self, 'new_product_vars', None) is None
+        new_sp = getattr(self, 'new_spatial', None)
+        new_tm = getattr(self, 'new_temporal', None)
+        spatial_only = new_sp is not None and no_prod and new_tm is None
+        temporal_only = new_tm is not None and no_prod and new_sp is None
+        return not (spatial_only or temporal_only)
+
+    def mark_no_data(self, listed_keys, incomplete_keys, empty_keys):
         """Record granules Stage 1 read in full that hold no rows as ``NO_DATA``.
 
         Call after the final :meth:`set_post_build_info` of a build whose
         Stage 1 drained fully; ``incomplete_keys`` is that run's set of
-        granules with any task not proven complete. Without a trustworthy
-        observed set (``set_post_build_info`` could not verify the partition
-        metadata) nothing is marked. In doubt a granule stays PENDING: that
-        costs a re-read, a wrong ``NO_DATA`` costs rows.
+        granules with any task not proven complete, ``empty_keys`` those whose
+        every beam task is proven complete AND empty. Nothing is marked
+        without a trustworthy observed set (``set_post_build_info`` could not
+        verify the partition metadata) or when Stage 1 did not run under the
+        full database scope (:meth:`stage1_full_scope`). In doubt a granule
+        stays PENDING: that costs a re-read, a wrong ``NO_DATA`` costs rows.
 
-        * ``PENDING`` -> ``NO_DATA`` when listed, in ``complete_keys`` (every
-          beam task proven complete) and absent from every partition's
-          metadata;
-        * ``INDEXED`` -> ``NO_DATA`` when listed, not incomplete, absent from
-          the metadata, and in ``candidate_keys`` (granules a reconcile
-          flipped INDEXED from completion sentinels alone, which zero-row
-          tasks also emit; Stage 1 skipped them, so ``complete_keys`` cannot
-          vouch for them);
+        * ``PENDING`` -> ``NO_DATA`` when listed, in ``empty_keys`` and absent
+          from every partition's metadata (the last guard matters for tasks
+          emptied by the skip check, whose rows are already in the database);
         * ``NO_DATA`` -> ``PENDING`` when listed and incomplete this run;
         * ``MERGE_FAILED`` is never touched.
 
@@ -1045,21 +1061,17 @@ class H3BuildLogger:
             Granules this run listed for Stage 1.
         incomplete_keys : iterable of tuple
             Granules with any task not proven complete this run.
-        complete_keys : iterable of tuple
-            Granules whose every beam task is proven complete (sentinel).
-        candidate_keys : iterable of tuple, optional
-            Defaults to ``self._pass_c_flipped`` (set by the reconcile).
+        empty_keys : iterable of tuple
+            Granules whose every beam task is proven complete and empty.
         """
         out = {'marked': 0, 'reopened': 0}
         observed = getattr(self, '_observed_granule_keys', None)
-        if observed is None or listed_keys is None or incomplete_keys is None or complete_keys is None:
+        if observed is None or listed_keys is None or incomplete_keys is None or empty_keys is None:
             return out
         listed = set(listed_keys)
         incomplete = set(incomplete_keys)
-        complete = set(complete_keys)
-        if candidate_keys is None:
-            candidate_keys = getattr(self, '_pass_c_flipped', None) or ()
-        candidates = set(candidate_keys)
+        empty = set(empty_keys)
+        may_mark = self.stage1_full_scope()
         for g in getattr(self, 'granule_info', None) or []:
             key = (g['orbit'], g['granule'], g['track'])
             if key not in listed:
@@ -1072,9 +1084,7 @@ class H3BuildLogger:
                     g['status'] = 'PENDING'
                     out['reopened'] += 1
                 continue
-            if key in observed:
-                continue
-            if (status == 'PENDING' and key in complete) or (status == 'INDEXED' and key in candidates):
+            if may_mark and status == 'PENDING' and key in empty and key not in observed:
                 g['status'] = GRANULE_STATUS_NO_DATA
                 g.pop('products', None)
                 g.pop('fill_attempts', None)

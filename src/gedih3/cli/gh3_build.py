@@ -972,9 +972,9 @@ def main():
                             )
                         h3_logger.save_log('PROCESSING')
 
-                    def _capture_stage1_outcome(incomplete, complete):
+                    def _capture_stage1_outcome(incomplete, empty):
                         _stage1_outcome['incomplete'] = incomplete
-                        _stage1_outcome['complete'] = complete
+                        _stage1_outcome['empty'] = empty
 
                     h3_files = build_h3db(
                         product_vars=stage1_products,
@@ -1112,14 +1112,17 @@ def main():
                         else:
                             logger.warning(f"  {count}x {kind} ({product or 'N/A'})")
                 _n_merge_failed = _count_merge_failures(_parquet_dir_for_fold)
-                _no_data_proof = bool(_stage1_outcome) and _stage1_listed is not None and not _n_merge_failed
+                # Spatial-only / temporal-only expansions run Stage 1 on the added area
+                # alone: empty there says nothing about the old scope (stage1_full_scope).
+                _no_data_proof = (bool(_stage1_outcome) and _stage1_listed is not None
+                                  and not _n_merge_failed and h3_logger.stage1_full_scope())
                 h3_logger.set_post_build_info(verify_observed=_no_data_proof)
                 if _no_data_proof:
                     # Granules read in full that hold no rows: skipped by later
                     # builds instead of re-read forever. Needs Stage 1's proof
                     # AND the metadata's full listing; see mark_no_data.
                     _nd = h3_logger.mark_no_data(
-                        _stage1_listed, _stage1_outcome['incomplete'], _stage1_outcome['complete'])
+                        _stage1_listed, _stage1_outcome['incomplete'], _stage1_outcome['empty'])
                     if _nd['marked']:
                         logger.info(
                             f"{_nd['marked']} granule(s) have no data in the ROI; recorded as NO_DATA "

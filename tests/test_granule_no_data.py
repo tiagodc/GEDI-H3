@@ -59,11 +59,11 @@ def _db_listing(tmp_dir, keys):
 # ---------------------------------------------------------------------------
 
 class TestMarkNoData:
-    def _marked(self, tmp_dir, granules, listed, incomplete, complete, db_keys=(K1,), candidates=None):
+    def _marked(self, tmp_dir, granules, listed, incomplete, complete, db_keys=(K1,)):
         h = _logger(tmp_dir, granules)
         _db_listing(tmp_dir, db_keys)
         h.set_post_build_info(verify_observed=True)
-        return h, h.mark_no_data(listed, incomplete, complete, candidate_keys=candidates)
+        return h, h.mark_no_data(listed, incomplete, complete)
 
     def test_pending_complete_and_unobserved_becomes_no_data(self, tmp_dir):
         h, out = self._marked(
@@ -100,17 +100,9 @@ class TestMarkNoData:
                               incomplete={K2}, complete=set())
         assert _statuses(h)[K2] == GRANULE_STATUS_NO_DATA
 
-    def test_indexed_unobserved_only_for_reconcile_candidates(self, tmp_dir):
-        grans = [_g(K2, 'INDEXED'), _g(K3, 'INDEXED')]
-        h, out = self._marked(tmp_dir, grans, listed={K2, K3}, incomplete=set(), complete=set(),
-                              candidates={K2})
-        assert out['marked'] == 1
-        assert _statuses(h)[K2] == GRANULE_STATUS_NO_DATA
-        assert _statuses(h)[K3] == 'INDEXED'             # no sentinel-only evidence: unchanged
-
     def test_merge_failed_is_never_touched(self, tmp_dir):
         h, out = self._marked(tmp_dir, [_g(K2, 'MERGE_FAILED')], listed={K2}, incomplete=set(),
-                              complete={K2}, candidates={K2})
+                              complete={K2})
         assert out['marked'] == 0 and _statuses(h)[K2] == 'MERGE_FAILED'
         h, out = self._marked(tmp_dir, [_g(K2, 'MERGE_FAILED')], listed={K2}, incomplete={K2}, complete=set())
         assert _statuses(h)[K2] == 'MERGE_FAILED'
@@ -236,18 +228,29 @@ class TestReconcile:
         assert _reconcile_granules_from_disk(h3_dir, h, tmp_dir=None) == 1
         assert _statuses(h) == {K2: 'INDEXED', K3: 'PENDING'}
 
-    def test_no_data_with_only_sentinels_is_not_flipped(self, tmp_dir):
-        """Zero-row tasks emit sentinels too: they prove completion, not rows."""
+    def test_empty_sentinels_neither_index_nor_flip(self, tmp_dir):
+        """``.empty`` sentinels prove completion, not rows: an all-empty granule stays
+        PENDING, a NO_DATA one stays NO_DATA, one beam with a ``.done`` indexes."""
         from gedih3.gh3builder import _reconcile_granules_from_disk, _emit_complete_sentinel
         h3_dir = self._setup(tmp_dir)
         tmp_partitions = os.path.join(tmp_dir, 'tmp', 'partitions')
         for beam in GEDI_BEAMS:
-            _emit_complete_sentinel(tmp_partitions, f'O00002_G01_T00002.{beam}')
-            _emit_complete_sentinel(tmp_partitions, f'O00003_G01_T00003.{beam}')
-        h = _logger(h3_dir, [_g(K2, GRANULE_STATUS_NO_DATA), _g(K3, 'PENDING')])
+            _emit_complete_sentinel(tmp_partitions, f'O00002_G01_T00002.{beam}', empty=True)
+            _emit_complete_sentinel(tmp_partitions, f'O00003_G01_T00003.{beam}', empty=beam != GEDI_BEAMS[0])
+            _emit_complete_sentinel(tmp_partitions, f'O00004_G01_T00004.{beam}', empty=True)
+        h = _logger(h3_dir, [_g(K2, GRANULE_STATUS_NO_DATA), _g(K3, 'PENDING'), _g(K4, 'PENDING')])
         _reconcile_granules_from_disk(h3_dir, h, tmp_dir=tmp_partitions)
-        assert _statuses(h) == {K2: GRANULE_STATUS_NO_DATA, K3: 'INDEXED'}
-        assert h._pass_c_flipped == {K3}                 # the only INDEXED-without-rows candidate
+        assert _statuses(h) == {K2: GRANULE_STATUS_NO_DATA, K3: 'INDEXED', K4: 'PENDING'}
+
+    def test_no_data_flipped_by_metadata_drops_stale_products(self, tmp_dir):
+        from gedih3.gh3builder import _reconcile_granules_from_disk
+        h3_dir = self._setup(tmp_dir)
+        make_partition_dir(h3_dir, granules=[{'orbit': 2, 'granule': 1, 'track': 2}])
+        h = _logger(h3_dir, [_g(K2, GRANULE_STATUS_NO_DATA, products={'L4A': 'MISSING_SOURCE'},
+                                fill_attempts={'L4A': 2}), _g(K3, 'PENDING')])
+        _reconcile_granules_from_disk(h3_dir, h, tmp_dir=None)
+        g2 = [g for g in h.granule_info if g['orbit'] == 2][0]
+        assert g2['status'] == 'INDEXED' and 'products' not in g2 and 'fill_attempts' not in g2
 
 
 class TestDoctorAndUpdate:
@@ -256,7 +259,8 @@ class TestDoctorAndUpdate:
         from test_doctor_diagnoses import _ctx, _make_partition, _make_build_log
         _make_partition(tmp_dir, granules=[{'orbit': 100, 'granule': 1, 'track': 50}])
         _make_build_log(tmp_dir, granules=[
-            _g((100, 1, 50), GRANULE_STATUS_NO_DATA),    # asserted empty yet present: drift
+            _g((100, 1, 50), GRANULE_STATUS_NO_DATA, products={'L4A': 'MISSING_SOURCE'},
+               fill_attempts={'L4A': 1}),                # asserted empty yet present: drift
             _g((101, 2, 51), GRANULE_STATUS_NO_DATA),    # absent, as asserted: fine
         ])
         ctx = _ctx(tmp_dir)
@@ -266,6 +270,8 @@ class TestDoctorAndUpdate:
         run_diagnoses(ctx, ['log_state'], mode='fix')
         fresh = H3BuildLogger(product_vars=None, dir=tmp_dir)
         assert _statuses(fresh) == {(100, 1, 50): 'INDEXED', (101, 2, 51): GRANULE_STATUS_NO_DATA}
+        g = [g for g in fresh.granule_info if g['orbit'] == 100][0]
+        assert 'fill_attempts' not in g and 'MISSING_SOURCE' not in g['products'].values()
 
     def test_upstream_does_not_see_no_data_as_a_product_gap(self, tmp_dir, monkeypatch):
         from gedih3.doctor import upstream
@@ -382,9 +388,9 @@ class TestStage1OutcomeCallback:
         assert len(got) == 1
         incomplete, complete = got[0]
         assert incomplete == {(103, 1, 203), (104, 1, 204)}      # task error, no source
-        assert complete == {(101, 1, 201), (102, 1, 202)}        # incl. the fully empty granule
+        assert complete == {(102, 1, 202)}                       # proven complete AND empty only
 
-    def test_second_run_counts_sentinel_skipped_tasks_as_complete(self, tmp_dir, client):
+    def test_second_run_reads_empty_sentinels_of_skipped_tasks(self, tmp_dir, client):
         tws = _driver_fixtures()
         soc_dir = os.path.join(tmp_dir, 'soc')
         os.makedirs(soc_dir)
@@ -393,7 +399,8 @@ class TestStage1OutcomeCallback:
         self._run(tmp_dir, soc_files, None)
         got = []
         self._run(tmp_dir, soc_files, lambda inc, comp: got.append((set(inc), set(comp))))
-        assert got == [(set(), {(101, 1, 201), (102, 1, 202)})]  # nothing left to run: early return path
+        # nothing left to run (early-return path): the `.done` granule is no proof, the `.empty` one is
+        assert got == [(set(), {(102, 1, 202)})]
 
     def test_callback_not_invoked_when_the_drain_is_interrupted(self, tmp_dir, client, monkeypatch):
         import dask.distributed as dd
@@ -419,7 +426,8 @@ class TestStage1OutcomeCallback:
         tws = _driver_fixtures()
         soc_dir = os.path.join(tmp_dir, 'soc')
         os.makedirs(soc_dir)
-        soc_files = [self._granule(tws, soc_dir, k, 'rows') for k in ((101, 1, 201), (102, 1, 202))]
+        soc_files = [self._granule(tws, soc_dir, (101, 1, 201), 'outside'),
+                     self._granule(tws, soc_dir, (102, 1, 202), 'outside')]
         real = gh._write_one_granule_beam
 
         def flaky(task, **kw):
@@ -430,7 +438,7 @@ class TestStage1OutcomeCallback:
         monkeypatch.setattr(gh, '_write_one_granule_beam', flaky)
         got = []
         self._run(tmp_dir, soc_files, lambda inc, comp: got.append((set(inc), set(comp))))
-        assert got == [({(102, 1, 202)}, {(101, 1, 201)})]
+        assert got == [({(102, 1, 202)}, {(101, 1, 201)})]  # empty granule 101 proven; 102 lost
 
 
 # ---------------------------------------------------------------------------
@@ -474,3 +482,69 @@ def test_empty_granule_is_recorded_no_data_and_never_re_read(tmp_dir):
     out = gh3_build()
     assert '1 granules x 8 beams'.replace('x', '\u00d7') in out   # only the new granule is read
     assert statuses() == {inside: 'INDEXED', outside: 'NO_DATA', later: 'INDEXED'}
+
+
+# ---------------------------------------------------------------------------
+# partial Stage 1 scope, merge_build_logs
+# ---------------------------------------------------------------------------
+
+BOX = [10.0, 10.0, 11.0, 11.0]
+
+
+class TestStage1Scope:
+    """On a spatial-only (temporal-only) expansion Stage 1 reads only the added
+    area (dates); a granule empty there may hold rows in the old scope."""
+
+    def _expanding(self, tmp_dir, **new):
+        h = _logger(tmp_dir, [_g(K2, 'PENDING')])
+        h.updating = True
+        h.new_spatial = h.new_temporal = h.new_product_vars = None
+        for k, v in new.items():
+            setattr(h, k, v)
+        h.set_post_build_info(verify_observed=True)
+        return h
+
+    @pytest.mark.parametrize('new,full', [
+        ({}, True),                                                                  # plain resume / update
+        ({'new_spatial': BOX}, False),                                               # spatial-only
+        ({'new_temporal': ('2020-03-31', '2020-06-01')}, False),                     # temporal-only
+        ({'new_spatial': BOX, 'new_temporal': ('2020-03-31', '2020-06-01')}, True),  # both: full getters
+        ({'new_spatial': BOX, 'new_product_vars': {'L4A': ['agbd']}}, True),         # mixed update Phase 1
+    ])
+    def test_predicate_mirrors_the_getters(self, tmp_dir, new, full):
+        h = self._expanding(tmp_dir, **new)
+        assert h.stage1_full_scope() is full
+        assert (h.get_spatial() is not h.spatial) is (not full and 'new_spatial' in new)
+        assert (h.get_temporal() is not h.temporal) is (not full and 'new_temporal' in new)
+
+    @pytest.mark.parametrize('new', [{'new_spatial': BOX}, {'new_temporal': ('2020-03-31', '2020-06-01')}])
+    def test_partial_scope_leaves_empty_under_diff_pending(self, tmp_dir, new):
+        h = self._expanding(tmp_dir, **new)
+        assert h.mark_no_data({K2}, set(), {K2}) == {'marked': 0, 'reopened': 0}
+        assert _statuses(h)[K2] == 'PENDING'
+
+    @pytest.mark.parametrize('new', [{}, {'new_spatial': BOX, 'new_product_vars': {'L4A': ['agbd']}}])
+    def test_full_scope_marks(self, tmp_dir, new):
+        h = self._expanding(tmp_dir, **new)
+        assert h.mark_no_data({K2}, set(), {K2})['marked'] == 1
+
+    def test_fresh_build_marks(self, tmp_dir):
+        h = _logger(tmp_dir, [_g(K2, 'PENDING')])
+        h.updating = False
+        assert h.stage1_full_scope()
+        h.set_post_build_info(verify_observed=True)
+        assert h.mark_no_data({K2}, set(), {K2})['marked'] == 1
+
+
+def test_merge_build_logs_no_data_loses_to_any_other_status(tmp_dir):
+    from gedih3.gh3builder import merge_build_logs
+    a, b = os.path.join(tmp_dir, 'a'), os.path.join(tmp_dir, 'b')
+    fc = {'type': 'FeatureCollection', 'features': []}
+    make_build_log(a, granules=[_g(K1, GRANULE_STATUS_NO_DATA), _g(K2, 'INDEXED'), _g(K3, 'PENDING'),
+                                _g(K4, GRANULE_STATUS_NO_DATA)], spatial=fc)
+    make_build_log(b, granules=[_g(K1, 'INDEXED'), _g(K2, GRANULE_STATUS_NO_DATA), _g(K3, 'INDEXED'),
+                                _g(K4, GRANULE_STATUS_NO_DATA)], spatial=fc)
+    merged = merge_build_logs(os.path.join(a, BUILD_LOG_FILENAME), os.path.join(b, BUILD_LOG_FILENAME),
+                              os.path.join(tmp_dir, 'out.json'))
+    st = [(g['orbit'], g['status']) for g in merged['granules']]
+    assert sorted(st) == [(1, 'INDEXED'), (2, 'INDEXED'), (3, 'INDEXED'), (3, 'PENDING'), (4, 'NO_DATA')]

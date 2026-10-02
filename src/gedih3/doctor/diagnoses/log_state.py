@@ -210,6 +210,9 @@ def log_state_fix(ctx: DoctorContext, report: Report) -> Report:
             except (KeyError, TypeError):
                 continue
             if triple in drift_keys and g.get('status') != 'INDEXED':
+                if g.get('status') == 'NO_DATA':
+                    g.pop('products', None)  # rebuilt from the partitions' columns
+                    g.pop('fill_attempts', None)
                 g['status'] = 'INDEXED'
                 flipped += 1
         if flipped:

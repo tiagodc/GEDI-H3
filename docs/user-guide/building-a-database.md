@@ -605,10 +605,13 @@ No separate recovery step is required. Stage 1 will print
 A granule the build read in full but that yields no rows under your region and
 dates (for example one lying wholly outside a land-mask region) is recorded in
 the build log as `NO_DATA`. Later builds skip it like an `INDEXED` one, so a
-database whose region excludes part of the SOC tree reaches "already up-to-date"
-instead of re-reading those files every run. A granule that failed to read, or
-whose product files are missing, is never recorded this way: it stays `PENDING`
-and is retried. Widening the region into new partitions, extending the dates, or adding products re-reads
+database whose region excludes part of the SOC tree reaches "already
+up-to-date" instead of re-reading those files every run. A granule that failed
+to read, or whose product files are missing, is never recorded this way: it
+stays `PENDING` and is retried. Only builds covering the whole database region
+and dates record `NO_DATA`; a spatial-only or temporal-only expansion reads
+just the added area, so it leaves such granules `PENDING`. Widening the region
+into new partitions, extending the dates, or adding products re-reads
 `NO_DATA` granules along with the rest.
 
 Once every partition has merged, `gh3_build` deletes `<tmpdir>/partitions/`
