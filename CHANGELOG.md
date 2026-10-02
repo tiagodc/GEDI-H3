@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- **`NO_DATA` granule status: granules with no rows in the ROI are skipped by later builds.** A granule that Stage 1 read in full but that yields no rows (for example, entirely outside a land-mask ROI) never appears in partition metadata, so it stayed `PENDING` forever. That had three effects: every later `gh3_build` re-read all its product HDF5s, the "already up to date" early exit never fired, and `gh3_update` warned that its shots were absent. Such granules are now recorded as `NO_DATA` and skipped like `INDEXED`. The status is assigned only on direct evidence:
+  - the run's Stage 1 covered the database's whole region and dates (not a spatial-only or temporal-only expansion, which reads just the added part);
+  - Stage 1 drained fully, and every one of the granule's beam tasks was proven complete with zero rows (`build_h3db(stage1_outcome_callback=)`);
+  - no partition merge is pending;
+  - the partition metadata was verified complete and doesn't list the granule.
+
+  Anything less leaves the granule `PENDING`. `NO_DATA` holds only for the scope it was recorded under:
+  - any spatial or temporal widening reopens every `NO_DATA` granule to `PENDING` before the run saves its log;
+  - a granule that gains rows becomes `INDEXED`, and one that fails a later run reopens;
+  - `merge_build_logs` keeps `NO_DATA` only when both logs agree.
+
+  Backfills, `gh3_doctor` and the `gh3_update` warning treat `NO_DATA` as finished with nothing to fill. Older gedih3 versions read it as non-`INDEXED` and re-read the granule, as before. (#35)
+
 ### Fixed
 - **`_granule_failures.jsonl` reports each failing task once, and forgets tasks that later succeed.** The sidecar was append-only and never pruned. A task failing on N runs was reported N times (split into categories when the error text differed), and a task that failed once and later succeeded was reported forever, which also kept the tmp tree from ever being cleaned. Reads now collapse records to one per task (latest error, with a `runs` count), so the end-of-build advisory and `gh3_doctor --check tmp_partitions_health` count distinct tasks. Stage 1 and the variable-add fan retire the records of tasks that complete this run, and rewrite the file once at the end of the phase (deleting it when empty). The docstrings and the doctor's recommendation no longer point at a build-log fold and a `gh3_update --recover-missing-vars` that don't exist. (#36)
 - **Stage 1 no longer re-reads tasks that yield no rows.** A (granule × beam) task emitted its completion sentinel only when it wrote at least one leaf. Tasks that were read but produced no rows (an empty beam, a granule outside the ROI, cells already in the database) were re-submitted on every resume, re-opening every product HDF5. Every error-free task now leaves a sentinel: `<frag>.done` when it committed a leaf, `<frag>.empty` when it read zero rows. It is still withheld on a load error, and when no product file exists for the task. Reconcile marks a granule `INDEXED` from sentinels only when at least one beam holds data. (#35)

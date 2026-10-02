@@ -139,6 +139,9 @@ def log_state_check(ctx: DoctorContext) -> Report:
             # merged) and awaits re-extraction: not drift.
             if g.get('status') in ('INDEXED', 'MERGE_FAILED'):
                 continue
+            # NO_DATA is deliberately not skipped: it asserts "no rows", so a
+            # granule of that status found in a partition IS drift (the fix
+            # below flips it to INDEXED).
             try:
                 triple = (g['orbit'], g['granule'], g['track'])
             except (KeyError, TypeError):
@@ -207,6 +210,9 @@ def log_state_fix(ctx: DoctorContext, report: Report) -> Report:
             except (KeyError, TypeError):
                 continue
             if triple in drift_keys and g.get('status') != 'INDEXED':
+                if g.get('status') == 'NO_DATA':
+                    g.pop('products', None)  # rebuilt from the partitions' columns
+                    g.pop('fill_attempts', None)
                 g['status'] = 'INDEXED'
                 flipped += 1
         if flipped:

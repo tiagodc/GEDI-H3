@@ -238,6 +238,11 @@ def gather_upstream(ctx, logger=None) -> UpstreamReport:
     for g in (ctx.h3_logger.granule_info or []):
         key = (g['orbit'], g['granule'], g['track'])
         db_granules.add(key)
+        if g.get('status') == 'NO_DATA':
+            # Read in full, no rows: no product has anything to fill.
+            for prod in products:
+                db_per_product[prod].add(key)
+            continue
         for prod, status in (g.get('products') or {}).items():
             if status == 'INDEXED':
                 db_per_product[prod].add(key)
