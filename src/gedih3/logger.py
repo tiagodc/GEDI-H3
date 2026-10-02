@@ -629,6 +629,7 @@ class H3BuildLogger:
         self.new_temporal = None
         self.new_product_vars = None
 
+        prev_temporal, prev_spatial = self.temporal, self.spatial
         if temporal is not None:
             self.temporal, self.new_temporal = merge_temporal(self.temporal, temporal)
 
@@ -638,11 +639,25 @@ class H3BuildLogger:
         if product_vars is not None:
             self.product_vars, self.new_product_vars = merge_product_vars(self.product_vars, product_vars)
 
+        # The merges report a symmetric difference, so a subset or identical
+        # request also yields a ``new_*``; only a union beyond what was stored
+        # widens the scope.
+        widened = False
+        if self.new_spatial is not None and prev_spatial is not None:
+            try:
+                widened = self.spatial.union_all().difference(prev_spatial.union_all()).area > 1e-9
+            except Exception:
+                widened = True  # cannot tell: reopen (costs a re-read)
+        elif self.new_spatial is not None:
+            widened = True
+        if self.new_temporal is not None and not widened:
+            widened = (tuple(self.temporal or ()) != tuple(prev_temporal or ()))
+
         # NO_DATA holds for the scope it was recorded under. Widening space or
         # time (also in a mixed update) makes every such granule unproven; do it
         # here so the first save_log of this run persists it, whatever happens
         # to Stage 1. A variable-only update runs no Stage 1: zero rows stay so.
-        if self.new_spatial is not None or self.new_temporal is not None:
+        if widened:
             n_reopen = 0
             for g in getattr(self, 'granule_info', None) or []:
                 if g.get('status') == GRANULE_STATUS_NO_DATA:

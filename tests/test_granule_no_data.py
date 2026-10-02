@@ -589,3 +589,32 @@ class TestScopeWideningReopensNoData:
         h.set_post_build_info()
         assert h.mark_no_data({K2}, {K2}, set()) == {'marked': 0, 'reopened': 1}
         assert _statuses(h)[K2] == 'PENDING'
+
+
+class TestOnlyGenuineWideningReopens:
+    """merge_* report a symmetric difference: a narrower or identical request
+    must not discard NO_DATA (it would never be re-marked: a "partial" scope)."""
+
+    BASE = [-51.0, 0.0, -50.0, 1.0]            # make_build_log's stored region
+
+    def _logger(self, tmp_dir, **kw):
+        make_build_log(tmp_dir, granules=[_g(K2, GRANULE_STATUS_NO_DATA)])
+        return H3BuildLogger(product_vars=None, dir=tmp_dir, **kw)
+
+    @pytest.mark.parametrize('spatial,demoted', [
+        ([-50.8, 0.2, -50.2, 0.8], False),     # subset
+        (BASE, False),                         # identical
+        ([-52.0, 0.0, -50.0, 1.0], True),      # wider
+    ])
+    def test_spatial(self, tmp_dir, spatial, demoted):
+        h = self._logger(tmp_dir, spatial=spatial)
+        assert (_statuses(h)[K2] == 'PENDING') is demoted
+
+    @pytest.mark.parametrize('temporal,demoted', [
+        (('2020-01-15', '2020-02-15'), False),     # narrower (stored 2020-01-01..2020-03-31)
+        (('2020-01-01', '2020-03-31'), False),     # identical
+        (('2020-01-01', '2020-06-30'), True),      # extended
+    ])
+    def test_temporal(self, tmp_dir, temporal, demoted):
+        h = self._logger(tmp_dir, temporal=temporal)
+        assert (_statuses(h)[K2] == 'PENDING') is demoted
