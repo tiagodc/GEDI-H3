@@ -224,6 +224,7 @@ class TestStreamingWorker:
         assert os.listdir(os.path.join(partitions, '_complete')) == [stats['frag_name'] + '.done']
         assert stats['leaves'] > 0
         assert stats['rows'] == 20  # all synthetic rows kept
+        assert stats['complete'] is True
 
         # Sentinel was emitted only after all leaves committed.
         assert _scan_complete_sentinels(partitions) == {stats['frag_name']}
@@ -249,6 +250,7 @@ class TestStreamingWorker:
         assert stats['skipped'] is True
         assert stats['error'] is not None
         assert stats['leaves'] == 0
+        assert stats['complete'] is False
         # No sentinel emitted — next resume re-runs this task.
         assert _scan_complete_sentinels(partitions) == set()
 
@@ -264,6 +266,7 @@ class TestStreamingWorker:
         assert stats['skipped'] is True
         assert stats['leaves'] == 0
         assert stats['error'] is None
+        assert stats['complete'] is True
         assert stats['empty'] is True
         assert _scan_complete_sentinels(partitions) == {stats['frag_name']}
         assert _scan_complete_sentinels(partitions, with_empty=True)[1] == {stats['frag_name']}
@@ -280,6 +283,7 @@ class TestStreamingWorker:
         )
         assert stats['skipped'] is True
         assert stats['leaves'] == 0
+        assert stats['complete'] is False
         assert _scan_complete_sentinels(partitions) == set()
 
     def test_sentinel_when_spatial_filter_drops_all_rows(self, tmp_dir, monkeypatch):
@@ -292,6 +296,7 @@ class TestStreamingWorker:
         )
         assert stats['skipped'] is True
         assert stats['leaves'] == 0
+        assert stats['complete'] is True
         assert _scan_complete_sentinels(partitions) == {stats['frag_name']}
         # No leaf parquet written for an empty task.
         assert not [e for e in os.scandir(partitions) if e.name.startswith('h3_')]
@@ -1095,6 +1100,46 @@ class TestStreamingEndToEnd:
         os.unlink(os.path.join(tmp_partitions, '_complete_scope.json'))  # older-version tmp tree
         assert sum(run(roi_a).values()) == 0
         assert os.path.isfile(os.path.join(tmp_partitions, '_complete_scope.json'))
+
+    def test_failed_task_record_dropped_after_later_success(self, tmp_dir, _streaming_cluster_client):
+        """Issue #36: a failure record is deduplicated across runs and
+        removed once the task succeeds; the file goes when nothing remains."""
+        import gedih3.gh3builder as gh
+        from gedih3.config import GEDI_BEAMS
+        state = {'fail': True, 'none': False}
+        real = gh.load_h5_merged
+
+        def flaky(prod_files, *a, **k):
+            if state['none'] and 'O00101' in os.path.basename(prod_files['L2A']):
+                return None  # "no source": no error, but no sentinel either
+            if state['fail'] and 'O00101' in os.path.basename(prod_files['L2A']):
+                raise ValueError('boom')
+            return real(prod_files, *a, **k)
+
+        mp = pytest.MonkeyPatch()
+        mp.setattr(gh, 'load_h5_merged', flaky)
+        try:
+            run, soc_files, tmp_partitions = self._two_granule_runner(tmp_dir)
+            roi = [-51.0, -0.5, 11.0, 1.0]
+            run(roi)
+            run(roi)  # failed tasks are retried; same keys fail again
+            recs = gh._read_granule_failures(tmp_partitions)
+            assert len(recs) == len(GEDI_BEAMS)
+            # The second run compacted the two appended lines per key.
+            with open(os.path.join(tmp_partitions, gh._GRANULE_FAILURES_FILENAME)) as f:
+                assert len(f.readlines()) == len(GEDI_BEAMS)
+            assert {r['runs'] for r in recs} == {2}
+
+            # A no-source rerun is not evidence of recovery: record kept.
+            state['fail'], state['none'] = False, True
+            run(roi)
+            assert len(gh._read_granule_failures(tmp_partitions)) == len(GEDI_BEAMS)
+
+            state['none'] = False
+            run(roi)
+            assert not os.path.exists(os.path.join(tmp_partitions, gh._GRANULE_FAILURES_FILENAME))
+        finally:
+            mp.undo()
 
     def test_scatter_returns_single_future_per_iterable(self, _streaming_cluster_client):
         """Direct regression check: confirm the scatter calls in the

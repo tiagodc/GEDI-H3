@@ -181,6 +181,17 @@ class TestGranuleFailureGrouping:
         assert len(by_kind['other']['examples']) == 2
         assert report.severity == Severity.WARN
 
+    def test_repeated_failures_count_distinct_tasks(self, clean_dirs):
+        h3_dir, tmp_dir = clean_dirs
+        for run in range(3):
+            _append_granule_failure(str(tmp_dir), 'O1.0000', {
+                'kind': 'other', 'var': None, 'product': None,
+                'error_type': 'E', 'error_message': f'run{run}'})
+        report = tmp_partitions_health_check(_make_ctx(h3_dir, tmp_dir))
+        gran = [f for f in report.findings if f['kind'] == 'granule_failures']
+        assert len(gran) == 1 and gran[0]['count'] == 1
+        assert gran[0]['examples'][0]['runs'] == 3
+
     def test_more_than_five_examples_capped(self, clean_dirs):
         h3_dir, tmp_dir = clean_dirs
         tmp_str = str(tmp_dir)
@@ -300,7 +311,7 @@ class TestFixRunsPreclean:
         fixed = tmp_partitions_health_fix(ctx, report)
         gran = [f for f in fixed.findings if f['kind'] == 'granule_failures'][0]
         assert gran['action'] == 'reported_only'
-        assert 'gh3_update' in gran['recommendation']
+        assert 'gh3_build' in gran['recommendation']
 
 
 # ---------------------------------------------------------------------------

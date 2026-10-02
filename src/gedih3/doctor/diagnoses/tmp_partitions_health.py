@@ -9,7 +9,7 @@ driver-side O(N) GPFS scans). It acts strictly on the signals the build
 already persisted:
 
   * ``tmp_dir/_merge_failures/*.fail`` sentinels  (one per failed merge)
-  * ``tmp_dir/_granule_failures.jsonl``           (one record per failed granule)
+  * ``tmp_dir/_granule_failures.jsonl``           (one record per distinct failed task)
   * ``tmp_dir/_merge_progress.txt`` vs. the DB ``_manifest.txt`` line count
 
 The cost of the check is O(N_failures) + O(1) on the manifest — never
@@ -19,7 +19,7 @@ narrow (a single sentinel directory + two flat files).
 The ``--fix`` variant calls :func:`gh3builder.preclean_merge_failures` to
 remove zero-byte / unreadable parquets + ``.tmp`` siblings under every
 failed-merge partition. Granule failures are reported only — recovery
-belongs in ``gh3_update --recover-missing-vars``. As a hard guard, the
+is a ``gh3_build`` re-run (see its end-of-build advisory). As a hard guard, the
 fix refuses to act when a fresh ``gh3_build`` process appears to be
 running (recent ``gh3_build.log`` mtime + matching pgrep PID).
 """
@@ -178,7 +178,7 @@ def tmp_partitions_health_check(ctx: DoctorContext) -> Report:
 
     summary = (
         f"{n_merge} failed merges, "
-        f"{n_gran_records} granule failures across {n_gran_groups} kind(s), "
+        f"{n_gran_records} failed task(s) across {n_gran_groups} kind(s), "
         f"{n_drift} drift finding(s)"
     )
     severity = Severity.WARN if findings else Severity.INFO
@@ -239,7 +239,7 @@ def tmp_partitions_health_fix(ctx: DoctorContext, report: Report) -> Report:
                 **f,
                 'action': 'reported_only',
                 'recommendation': (
-                    'gh3_update --recover-missing-vars '
+                    'gh3_build re-run '
                     f"(failure_kind={f.get('failure_kind')})"
                 ),
             })
