@@ -1084,6 +1084,13 @@ _LEGACY_BEAM_SENTINEL = '*'
 # the (granule × beam) is fully on disk — eliminating the legacy
 # "any-beam-fragment-equals-complete-granule" data-loss path (Agent 3
 # adversarial review #E.1).
+#
+# Two sentinel kinds, both zero-byte, both meaning "read successfully and
+# every leaf is committed": ``<frag>.done`` = at least one leaf committed;
+# ``<frag>.empty`` = zero rows (outside the ROI, empty beam, already-covered
+# cells). Resume skips both; reconcile Pass C only counts a granule as
+# on-disk when at least one of its beams is ``.done``, because an all-empty
+# granule proves nothing about rows under a different scope.
 _COMPLETE_SENTINEL_DIRNAME = '_complete'
 
 
@@ -1109,8 +1116,8 @@ def _granule_beam_frag_name(soc_dict: Dict[str, str], beam: str) -> Optional[str
         return None
 
 
-def _complete_sentinel_path(tmp_dir: str, frag_name: str) -> str:
-    """Path of the per-(granule × beam) completion sentinel.
+def _complete_sentinel_path(tmp_dir: str, frag_name: str, empty: bool = False) -> str:
+    """Path of the per-(granule × beam) completion sentinel (``.empty`` for a zero-row task).
 
     Lives under ``tmp_dir/_complete/`` (one directory, all sentinels) so
     the reconcile can enumerate completions via a single ``os.scandir``
@@ -1118,11 +1125,15 @@ def _complete_sentinel_path(tmp_dir: str, frag_name: str) -> str:
     tree. ``frag_name`` matches ``_FRAGMENT_BASENAME_RE`` (no ``.parquet``
     suffix) so the sentinel basename uniquely identifies the task.
     """
-    return os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME, f'{frag_name}.done')
+    return os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME,
+                        f'{frag_name}.empty' if empty else f'{frag_name}.done')
 
 
-def _emit_complete_sentinel(tmp_dir: str, frag_name: str) -> None:
+def _emit_complete_sentinel(tmp_dir: str, frag_name: str, empty: bool = False) -> None:
     """Touch the completion sentinel for one (granule × beam). Idempotent.
+
+    ``empty=True`` writes the ``.empty`` kind (task read OK, zero rows);
+    otherwise the ``.done`` kind (at least one leaf committed).
 
     Atomic via ``open(... 'x')`` semantics — concurrent emitters on shared
     GPFS race-create the same file; only one wins, the others observe
@@ -1130,7 +1141,7 @@ def _emit_complete_sentinel(tmp_dir: str, frag_name: str) -> None:
     AtomicFileWriter here: the file is zero-byte (its existence is the
     signal); a partial write cannot leave a half-emitted sentinel.
     """
-    path = _complete_sentinel_path(tmp_dir, frag_name)
+    path = _complete_sentinel_path(tmp_dir, frag_name, empty=empty)
     parent = os.path.dirname(path)
     os.makedirs(parent, exist_ok=True)
     try:
@@ -1423,7 +1434,7 @@ def _preclean_partition(item, *, tmp_dir: str) -> Dict[str, int]:
             try:
                 os.unlink(_complete_sentinel_path(tmp_dir, name[:-len('.parquet')]))
             except OSError:
-                pass
+                pass  # (a fragment's task is a data task: never an ``.empty`` sentinel)
     # Drop the sentinel — the cleanup acted; next merge will re-emit if
     # it fails again. Keeping it would loop the pre-clean forever.
     try:
@@ -1652,25 +1663,34 @@ def _scan_merge_failure_sentinels(tmp_dir: str) -> Dict[str, str]:
     return out
 
 
-def _scan_complete_sentinels(tmp_dir: str) -> set:
+def _scan_complete_sentinels(tmp_dir: str, with_empty: bool = False):
     """Return the set of frag_names with an emitted completion sentinel.
 
     One ``os.scandir`` over ``tmp_dir/_complete/``; O(n_completed_tasks)
-    rather than O(n_fragments). Empty set if the sentinel dir doesn't
-    exist yet (fresh build or pre-migration legacy tmp tree).
+    rather than O(n_fragments). Counts both kinds (``.done`` and ``.empty``).
+    Empty set if the sentinel dir doesn't exist yet (fresh build or
+    pre-migration legacy tmp tree).
+
+    With ``with_empty=True`` returns ``(all_complete, empty_only)`` where
+    ``empty_only`` is the subset whose only sentinel is ``.empty`` (zero rows).
     """
     sentinel_dir = os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME)
-    out: set = set()
+    done: set = set()
+    empty: set = set()
     try:
         with os.scandir(sentinel_dir) as it:
             for e in it:
-                if e.is_file(follow_symlinks=False) and e.name.endswith('.done'):
-                    out.add(e.name[:-len('.done')])
-    except FileNotFoundError:
-        pass
+                if not e.is_file(follow_symlinks=False):
+                    continue
+                if e.name.endswith('.done'):
+                    done.add(e.name[:-len('.done')])
+                elif e.name.endswith('.empty'):
+                    empty.add(e.name[:-len('.empty')])
     except OSError:
         pass
-    return out
+    if with_empty:
+        return done | empty, empty - done
+    return done | empty
 
 
 def _canonical_write_schema(meta_df, part: int) -> Any:
@@ -2111,7 +2131,8 @@ def _process_h3_partition(h3_dir: str) -> Dict[Tuple[int, int, int], set]:
     return out
 
 
-def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str] = None) -> int:
+def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str] = None,
+                                  expected_scope: Optional[str] = None) -> int:
     """Mark granules INDEXED based on what's already on disk.
 
     Scans the finalized partition metadata under ``h3_dir`` AND the tmp fragment
@@ -2132,6 +2153,19 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
     tmp_dir : str, optional
         Temporary partitions directory (typically ``<build_tmp>/partitions``).
         Skipped if None or non-existent.
+    expected_scope : str, optional
+        Stage 1 scope fingerprint (:func:`_stage1_scope_fingerprint`) the next
+        Stage 1 will run under. Completion sentinels under ``tmp_dir`` are
+        trusted for flips only when ``_complete_scope.json`` records exactly
+        this value: sentinels from another scope (a narrower ROI, other
+        variables) prove nothing about this one, and the driver discards them
+        later than this runs. ``None`` (default) trusts no sentinel; the
+        granules stay non-INDEXED and Stage 1 skips or re-reads their tasks
+        by sentinel/scope. Finalized-metadata (Pass A) and the legacy flips
+        for trees with neither ``_complete/``, a scope record nor a
+        ``_complete.stale.*`` sibling are unaffected. A resume of an
+        interrupted spatial- or temporal-only expansion re-reads its tasks
+        (the log then holds the union scope, so the fingerprint differs).
 
     Returns
     -------
@@ -2278,18 +2312,22 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
     # emitted as the final step). Sentinels are the authoritative
     # completeness signal going forward.
     sentinel_beams: Dict[Tuple[int, int, int], set] = {}
+    data_gids: set = set()  # granules with at least one ``.done`` (data) sentinel
     sentinel_dir_exists = False
     if tmp_dir and os.path.isdir(tmp_dir):
         sentinel_dir_exists = os.path.isdir(
             os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME)
         )
         if sentinel_dir_exists:
-            for frag_name in _scan_complete_sentinels(tmp_dir):
+            all_frags, empty_frags = _scan_complete_sentinels(tmp_dir, with_empty=True)
+            for frag_name in all_frags:
                 m = _FRAGMENT_BASENAME_RE.match(f'{frag_name}.parquet')
                 if m is None:
                     continue
                 gid = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
                 sentinel_beams.setdefault(gid, set()).add(m.group(4))
+                if frag_name not in empty_frags:
+                    data_gids.add(gid)
 
     # Decide reconcile mode.
     #
@@ -2305,24 +2343,48 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
     # fragment-presence heuristic and EMIT sentinels for any granule we
     # flip INDEXED — that bridges the legacy tree into the sentinel model
     # so subsequent resumes are sentinel-aware.
-    sentinel_mode = sentinel_dir_exists
+    #
+    # A scope record or a ``_complete.stale.*`` sibling also marks a streaming
+    # tree: ``_check_scope_fingerprint`` renames ``_complete/`` away on a scope
+    # change, and a run killed before its first task finishes leaves old-scope
+    # fragments with no ``_complete/``. That must never read as legacy.
+    streaming_tree = sentinel_dir_exists
+    if not streaming_tree and tmp_dir and os.path.isdir(tmp_dir):
+        streaming_tree = os.path.exists(os.path.join(tmp_dir, _SCOPE_FILENAME))
+        if not streaming_tree:
+            try:
+                streaming_tree = any(
+                    e.name.startswith(_COMPLETE_SENTINEL_DIRNAME + '.stale.') for e in os.scandir(tmp_dir)
+                )
+            except OSError:
+                pass
+    sentinel_mode = streaming_tree
 
     expected_beams = set(GEDI_BEAMS)
     n_partial = 0
     n_migrated_sentinels = 0
     migration_emit_pairs: List[Tuple[str, str]] = []  # (frag_name, beam) — for clarity in logs
 
-    if sentinel_mode:
+    if sentinel_mode and (expected_scope is None or _read_scope_fingerprint(tmp_dir) != expected_scope):
+        logger.info(
+            "Resume reconciliation: completion sentinels were not produced under the current "
+            "Stage 1 scope (or the scope is unknown); not trusting them for granule status"
+        )
+    elif sentinel_mode:
         # AUTHORITATIVE PATH: granules complete only when every expected
-        # beam has its sentinel emitted. Fragment-presence in granule_beams
+        # beam has its sentinel emitted (and at least one is a data sentinel). Fragment-presence in granule_beams
         # is ignored for completeness; we still report partials based on it
         # as a diagnostic.
         for gid, beams in sentinel_beams.items():
             if gid in indexed_ids:
                 continue
-            if expected_beams.issubset(beams):
+            # All beams complete AND at least one carried data: an all-empty
+            # granule only proves emptiness under the scope that ran, so it
+            # stays as-is (Stage 1 skips its tasks via the sentinel scan when
+            # the scope matches, and re-reads them when it changed).
+            if expected_beams.issubset(beams) and gid in data_gids:
                 indexed_ids.add(gid)
-            else:
+            elif not expected_beams.issubset(beams):
                 n_partial += 1
         # Also surface fragment-on-disk-but-no-sentinel granules as partial
         # in the diagnostic count (they will be re-extracted on next run).
@@ -2667,6 +2729,111 @@ def _apply_spatial_filter(
     return ddf
 
 
+# Top-level sidecar (not inside ``_complete/``): renaming ``_complete/`` away
+# must not lose it, and writing it must not create ``_complete/`` (whose mere
+# existence flips reconcile into sentinel mode).
+_SCOPE_FILENAME = '_complete_scope.json'
+
+
+def _discard_complete_sentinels(tmp_dir: str, desc: str) -> None:
+    """Atomically retire ``tmp_dir/_complete/``; raises ``OSError`` if it cannot.
+
+    ``_remove_tree_fanout`` is best-effort and not atomic, so a partial or
+    swallowed failure could leave stale sentinels behind. Renaming first
+    makes the discard all-or-nothing: either ``_complete/`` is gone (nothing
+    reads the renamed ``_complete.stale.*`` sibling) or the rename raised.
+    A missing directory is a no-op. The renamed tree is then removed
+    best-effort; a leftover is harmless and goes with the whole-tree cleanup.
+    """
+    import uuid
+    src = os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME)
+    dst = f"{src}.stale.{uuid.uuid4().hex}"
+    try:
+        os.rename(src, dst)
+    except FileNotFoundError:
+        return
+    _remove_tree_fanout(dst, desc=desc)
+
+
+def _scope_fingerprint(spatial_h3_tiles, res: int, part: int, product_vars: Dict[str, List[str]]) -> str:
+    """Hash of the inputs that decide which rows a (granule x beam) task yields."""
+    import hashlib
+    h = hashlib.sha256()
+    payload = {
+        'tiles': None if spatial_h3_tiles is None else sorted(spatial_h3_tiles),
+        'res': res, 'part': part,
+        'vars': {k: sorted(list(v or [])) for k, v in sorted(product_vars.items())},
+    }
+    h.update(json.dumps(payload, sort_keys=True).encode())
+    return h.hexdigest()
+
+
+def _spatial_tiles(spatial, part: int) -> Optional[List[str]]:
+    """Stage 1 tile set for an ROI at partition level ``part`` (None = no filter)."""
+    if spatial is None:
+        return None
+    tiles = intersect_h3_geometries(spatial, res=part)
+    return list(tiles) if len(tiles) > 0 else None
+
+
+def _stage1_scope_fingerprint(spatial, res: int, part: int, product_vars: Dict[str, List[str]]) -> str:
+    """Scope fingerprint from the raw Stage 1 inputs (what the CLI holds).
+
+    ``build_h3db`` computes this from the same raw arguments and hands it to
+    ``_write_partitioned_streaming``, so the pre-Stage-1 reconcile and the
+    driver agree by construction (the driver's own ``product_vars`` are
+    post-expansion and would not).
+    """
+    return _scope_fingerprint(_spatial_tiles(spatial, part), res, part, product_vars)
+
+
+def _read_scope_fingerprint(tmp_dir: str) -> Optional[str]:
+    """Fingerprint recorded in ``tmp_dir/_complete_scope.json`` (None if absent/unreadable)."""
+    try:
+        with open(os.path.join(tmp_dir, _SCOPE_FILENAME)) as fh:
+            return json.load(fh).get('fingerprint')
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def _check_scope_fingerprint(tmp_dir: str, fingerprint: str) -> None:
+    """Invalidate stale completion sentinels when the Stage 1 scope changed.
+
+    A sentinel only proves a task finished under the scope it ran with (a task
+    outside the old ROI is "complete" with zero rows). The scope fingerprint
+    lives in ``tmp_dir/_complete_scope.json``. On mismatch the sentinels are
+    retired atomically (:func:`_discard_complete_sentinels`) *before* the new
+    scope is written, so every task re-runs; leaf writes are idempotent (``<frag_name>.parquet`` is replaced
+    atomically). A missing file next to existing sentinels is a tmp tree from
+    an older version: adopt the current scope and keep the sentinels.
+    """
+    path = os.path.join(tmp_dir, _SCOPE_FILENAME)
+    stored = _read_scope_fingerprint(tmp_dir)
+    if stored == fingerprint:
+        return
+    if stored is not None or os.path.isfile(path):
+        # Changed scope, or a scope file too damaged to prove anything: re-run.
+        logger.warning(
+            "Streaming resume: the spatial scope, H3 levels or variables changed since the "
+            "previous run (or its record is unreadable); discarding its completion sentinels "
+            "so every task is re-run."
+        )
+        try:
+            _discard_complete_sentinels(tmp_dir, desc="Clearing stale completion sentinels")
+        except OSError as e:
+            # Never stamp the new scope over sentinels we could not retire.
+            raise GediFileError(
+                f"Cannot discard stale completion sentinels in {tmp_dir}: {type(e).__name__}: {e}. "
+                f"Remove {os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME)} manually and re-run."
+            ) from e
+    # else: no record at all — a fresh tmp tree, or one from an older version
+    # whose sentinels we keep (legacy behaviour) by adopting the current scope.
+    os.makedirs(tmp_dir, exist_ok=True)
+    with AtomicFileWriter(path) as tmp_path:
+        with open(tmp_path, 'w') as fh:
+            json.dump({'fingerprint': fingerprint}, fh)
+
+
 def _write_one_granule_beam(
     task: Tuple[Dict[str, str], str, str],
     *,
@@ -2691,10 +2858,14 @@ def _write_one_granule_beam(
     [h3_{part:02d}, year]), writes one parquet leaf per (h3 cell × year)
     group via AtomicFileWriter + GeoDataFrame.to_parquet, then emits a
     per-(granule × beam) completion sentinel only AFTER every leaf is
-    committed. The sentinel is what the reconcile trusts as proof that the
-    (granule × beam) is fully on disk — eliminating the legacy
-    "any-beam-fragment-equals-complete-granule" data-loss path on
-    kill-mid-write resume.
+    committed. The sentinel means "this task was read successfully and all
+    its leaves (possibly zero) are committed" (``.done`` = at least one leaf,
+    ``.empty`` = zero rows); the reconcile trusts it as
+    proof that the (granule × beam) is fully on disk — eliminating the
+    legacy "any-beam-fragment-equals-complete-granule" data-loss path on
+    kill-mid-write resume. A task that was read but yielded no rows
+    (empty beam, outside the ROI, already-covered cells) still gets a
+    sentinel, so resume does not re-read it.
 
     Parameters
     ----------
@@ -2730,13 +2901,18 @@ def _write_one_granule_beam(
     dict
         ``{'frag_name': str, 'leaves': int, 'rows': int, 'skipped': bool,
         'error': Optional[str]}``. ``skipped=True`` covers
-        empty-after-load, empty-after-spatial-filter, and
-        empty-after-skip-check (no sentinel emitted in any of these
-        cases — the (granule × beam) genuinely produced no data).
+        empty-after-load, empty-after-index, empty-after-spatial-filter,
+        empty-after-skip-check, and no-leaves-written; the completion
+        sentinel IS emitted in each of these (the task was read and
+        genuinely produced no data) as the ``.empty`` kind, with
+        ``leaves == 0`` and ``empty=True``; a task with >= 1 leaf writes
+        ``.done`` and ``empty=False``. No sentinel is
+        emitted on a load error (``error`` set) or when no product file
+        exists for the task (``load_h5_merged`` returned ``None``).
     """
     soc_dict, beam, frag_name = task
     stats = {'frag_name': frag_name, 'leaves': 0, 'rows': 0, 'skipped': False,
-             'error': None, 'failure': None}
+             'error': None, 'failure': None, 'empty': False}
 
     # 1) Load HDF5 for one (granule, beam) — identical contract to
     #    dask_h5_merged(by_beam=True)'s inner load_by_beam closure.
@@ -2757,14 +2933,26 @@ def _write_one_granule_beam(
         stats['error'] = f"load_h5_merged: {type(e).__name__}: {e}"
         stats['failure'] = _classify_load_h5_failure(e, soc_dict)
         return stats
-    if df is None or df.empty:
+    if df is None:
+        # No product file present for this task at all ("no source"), as
+        # opposed to a file that was read and held zero rows. Leave it
+        # sentinel-less so a later resume retries once the source exists.
         stats['skipped'] = True
+        return stats
+    if df.empty:
+        # Read successfully, zero rows: record completion (``.empty`` kind)
+        # so resume never re-reads this task.
+        _emit_complete_sentinel(tmp_dir, frag_name, empty=True)
+        stats['skipped'] = True
+        stats['empty'] = True
         return stats
 
     # 2) H3 index — same call as legacy ddf.map_partitions(h3_index_df, ...).
     df = h3_index_df(df, res=res, part=part, lat_col=lat_col, lon_col=lon_col)
     if df.empty:
+        _emit_complete_sentinel(tmp_dir, frag_name, empty=True)
         stats['skipped'] = True
+        stats['empty'] = True
         return stats
 
     h3_part_col = f'h3_{part:02d}'
@@ -2774,7 +2962,9 @@ def _write_one_granule_beam(
     if spatial_h3_tiles is not None:
         df = df[df[h3_part_col].isin(spatial_h3_tiles)]
         if df.empty:
+            _emit_complete_sentinel(tmp_dir, frag_name, empty=True)
             stats['skipped'] = True
+            stats['empty'] = True
             return stats
 
     # 4) Skip-existing-data filter — replaces _apply_spatial_filter's
@@ -2784,7 +2974,9 @@ def _write_one_granule_beam(
         df = h3_add_skip_column(df, h3_dir=h3_dir)
         df = df[~df['_skip']].drop(columns=['_skip'])
         if df.empty:
+            _emit_complete_sentinel(tmp_dir, frag_name, empty=True)
             stats['skipped'] = True
+            stats['empty'] = True
             return stats
 
     # 5) Special columns + year — same calls as legacy.
@@ -2829,11 +3021,14 @@ def _write_one_granule_beam(
     #    only AFTER every leaf is committed (AtomicFileWriter.__exit__
     #    succeeded). If the worker dies between leaves, no sentinel is
     #    emitted → reconcile leaves the granule non-INDEXED → next resume
-    #    re-extracts the (granule × beam) idempotently.
-    if leaves_written > 0:
-        _emit_complete_sentinel(tmp_dir, frag_name)
-    else:
+    #    re-extracts the (granule × beam) idempotently. Emitted even when
+    #    zero leaves were written: "read OK, all leaves (possibly zero)
+    #    committed". Errors never reach here (exception path returns early).
+    #    ``.done`` when a leaf was committed, ``.empty`` for zero leaves.
+    _emit_complete_sentinel(tmp_dir, frag_name, empty=leaves_written == 0)
+    if leaves_written == 0:
         stats['skipped'] = True
+        stats['empty'] = True
 
     stats['leaves'] = leaves_written
     stats['rows'] = rows_written
@@ -2893,6 +3088,7 @@ def _write_partitioned_streaming(
     dat_col: str,
     inflight_target: Optional[int] = None,
     allow_missing_products: bool = False,
+    scope_fingerprint: Optional[str] = None,
 ) -> bool:
     """Streaming replacement for the legacy ``ddf.to_parquet().persist()``.
 
@@ -3022,6 +3218,8 @@ def _write_partitioned_streaming(
     # 4) Skip already-completed granule×beam tasks via sentinel scan. A
     #    resume picks up exactly where the previous run stopped — completed
     #    tasks are not re-submitted, partial tasks (no sentinel) are.
+    _check_scope_fingerprint(
+        tmp_dir, scope_fingerprint or _scope_fingerprint(spatial_h3_tiles, res, part, product_vars))
     completed_frags = _scan_complete_sentinels(tmp_dir)
     if completed_frags:
         logger.info(
@@ -3376,7 +3574,10 @@ def _cleanup_merged_tmp(tmp_dir: str, merge_failed: bool) -> None:
       must not leave the one hazardous file behind). It goes even when a
       failure sidecar remains: every partition it lists is merged, and a
       kept copy would also make the next merge skip those partitions' new
-      fragments;
+      fragments. ``_complete/`` goes right after, for the same reason: the
+      sentinels are an in-flight Stage 1 resume record, and a kept set would
+      make a later build with a wider ROI skip tasks that were empty under
+      the old one;
     * then keep the rest while ``_merge_failed_granules.jsonl`` awaits the
       CLI fold into the build log, or ``_granule_failures.jsonl`` holds
       Stage 1 forensics (read by the end-of-build advisory and
@@ -3402,6 +3603,11 @@ def _cleanup_merged_tmp(tmp_dir: str, merge_failed: bool) -> None:
     except OSError as e:
         logger.warning(f"Could not remove stale merge progress file in {tmp_dir}: {e}")
         return
+    try:
+        _discard_complete_sentinels(tmp_dir, desc="Cleaning completion sentinels")
+    except OSError as e:
+        logger.warning(f"Could not discard completion sentinels in {tmp_dir}: {e}")
+        return
     if os.path.exists(os.path.join(tmp_dir, _MERGE_FAILED_GRANULES_FILENAME)):
         logger.info(f"Keeping {tmp_dir}: merge-failed granules await the build-log fold")
         return
@@ -3413,8 +3619,6 @@ def _cleanup_merged_tmp(tmp_dir: str, merge_failed: bool) -> None:
         )
         return
     logger.info(f"Cleaning up build scaffolding in {tmp_dir}")
-    _remove_tree_fanout(os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME),
-                        desc="Cleaning completion sentinels")
     _remove_tree_fanout(tmp_dir, desc="Cleaning tmp partitions")
 
 
@@ -4891,6 +5095,10 @@ def build_h3db(
                 )
             return result
 
+        # Scope fingerprint over the RAW arguments, matching the CLI's
+        # pre-reconcile value (the expansion below is a function of them).
+        scope_fp = _stage1_scope_fingerprint(spatial, res, part, product_vars)
+
         # Expand variable specifications and ensure L2A essentials
         product_vars = _expand_product_vars(product_vars, all_soc_files, version=version)
 
@@ -4959,6 +5167,7 @@ def build_h3db(
                 parquet_dir, h3_dir, spatial,
                 lat_col, lon_col, dat_col,
                 allow_missing_products=allow_missing_products,
+                scope_fingerprint=scope_fp,
             )
         else:
             wrote_any = _write_partitioned(
