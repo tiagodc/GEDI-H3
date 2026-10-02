@@ -1338,6 +1338,48 @@ def parse_dask_args(args):
     return dask_args
 
 
+@contextmanager
+def dask_client(**kwargs):
+    """Context manager yielding a dask ``Client`` whose teardown can never raise.
+
+    Contract: constructs ``distributed.Client(**kwargs)``, enters it exactly as
+    ``with Client(...)`` does (so it is registered as the current client and
+    ``parallel_map`` works), yields it, and on exit runs ``Client.__exit__``
+    with any ``Exception`` it raises (e.g. ``TimeoutError`` closing a slow or
+    tunnelled cluster) caught and logged as a WARNING, never re-raised.
+
+    A plain ``with Client(...)`` lets a failing ``close()`` replace the
+    in-flight exception, so a ``sys.exit(4)``, a Ctrl-C (130), a typed
+    ``GediError`` or even a fully successful run would all surface as exit 1.
+    Here the body's outcome always wins. Errors from constructing the client
+    or from the body propagate unchanged.
+
+    Parameters
+    ----------
+    **kwargs
+        Passed to ``distributed.Client`` (see ``parse_dask_args``).
+
+    Yields
+    ------
+    distributed.Client
+    """
+    from dask.distributed import Client
+
+    client = Client(**kwargs)
+    # Delegate to the public context-manager protocol instead of re-implementing
+    # the current-client reset; Client.close() also shuts down a LocalCluster it owns.
+    client.__enter__()
+    try:
+        yield client
+    finally:
+        try:
+            client.__exit__(None, None, None)
+        except Exception as e:
+            logging.getLogger(__name__).warning(
+                "Dask client teardown failed (%s: %s); ignoring.", type(e).__name__, e
+            )
+
+
 def format_dask_cluster_info(client) -> str:
     """One-line summary of a live dask Client's cluster — workers, total threads, total RAM.
 

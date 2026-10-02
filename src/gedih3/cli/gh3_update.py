@@ -132,7 +132,8 @@ def _update_from_database(args, dataset_path, dataset_meta, logger):
     import json
     import numpy as np
     import pandas as pd
-    from dask.distributed import Client, progress
+    from dask.distributed import progress
+    from gedih3.cliutils import dask_client
 
     import gedih3.gh3driver as gh3
     from gedih3.cliutils import (collect_columns, parse_dask_args, detect_dataset_format,
@@ -272,7 +273,7 @@ def _update_from_database(args, dataset_path, dataset_meta, logger):
 
     dask_kwargs = parse_dask_args(args)
 
-    with Client(**dask_kwargs) as client:
+    with dask_client(**dask_kwargs) as client:
         logger.info(f"  Dask dashboard: {client.dashboard_link}")
 
         if index_type == 'h3':

@@ -56,6 +56,7 @@ don't build a second one. The second column is the module; it is machine-checked
 | `walk_soc_parallel` / `walk_h3db_parallel` / `walk_flat_parallel` | `parallel.py` | Parallel tree walks that replace serial recursive globs. |
 | `partition_is_empty` / `list_year_dirs` / `year_dir_is_empty` | `doctor/parallel.py` | O(1) `os.scandir` emptiness checks. |
 | `progress_iter` | `cliutils.py` | Consistent progress reporting over an iterable. |
+| `dask_client` | `cliutils.py` | CLI dask Client context manager; teardown errors are logged, never mask the exit code. |
 
 ## Spatial
 

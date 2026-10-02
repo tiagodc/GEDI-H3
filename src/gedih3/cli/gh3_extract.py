@@ -84,7 +84,7 @@ def main():
     from gedih3.cliutils import cli_exception_handler
 
     with cli_exception_handler(args):
-        from dask.distributed import Client
+        from gedih3.cliutils import dask_client
 
         import gedih3.gh3driver as gh3
         from gedih3.cliutils import (collect_columns, build_query_string, parse_region,
@@ -151,7 +151,7 @@ def main():
 
         dask_kwargs = parse_dask_args(args)
 
-        with Client(**dask_kwargs) as client:
+        with dask_client(**dask_kwargs) as client:
             logger.info(f"Dask dashboard available at: {client.dashboard_link}")
 
             # Determine partition column and process data

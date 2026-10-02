@@ -47,7 +47,7 @@ def main():
     resolve_path_args(args, ['database'], logger=logger)
 
     with cli_exception_handler(args, logger=logger):
-        from dask.distributed import Client
+        from gedih3.cliutils import dask_client
         from gedih3.gh3driver import gh3_build_bbox_index
         from gedih3.config import GH3_DEFAULT_H3_DIR
 
@@ -55,7 +55,7 @@ def main():
         logger.info(f"Database: {database}")
 
         dask_kwargs = parse_dask_args(args)
-        with Client(**dask_kwargs) as client:
+        with dask_client(**dask_kwargs) as client:
             logger.info(f"Dask dashboard available at: {client.dashboard_link}")
             opath = gh3_build_bbox_index(database)
 

@@ -920,3 +920,78 @@ class TestCollectColumnsWildcard:
         args = _make_collect_args(l4a=['agbd'], database=str(tmp_path))
         cols = collect_columns(args, available_columns=_SAMPLE_COLUMNS)
         assert cols == ['agbd_l4a']
+
+
+# =============================================================================
+# Test: dask_client (teardown must never mask the body's outcome)
+# =============================================================================
+
+class _BadTeardownClient:
+    """Stand-in for distributed.Client whose close path times out."""
+
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        raise TimeoutError("close timed out")
+
+
+@pytest.fixture
+def bad_client(monkeypatch):
+    import dask.distributed
+    monkeypatch.setattr(dask.distributed, "Client", _BadTeardownClient)
+
+
+class TestDaskClient:
+    def test_systemexit_survives_teardown_timeout(self, bad_client):
+        from gedih3.cliutils import dask_client
+        with pytest.raises(SystemExit) as ei:
+            with dask_client():
+                raise SystemExit(4)
+        assert ei.value.code == 4
+
+    def test_keyboard_interrupt_survives_teardown_timeout(self, bad_client):
+        from gedih3.cliutils import dask_client
+        with pytest.raises(KeyboardInterrupt):
+            with dask_client():
+                raise KeyboardInterrupt
+
+    def test_gedi_error_survives_teardown_timeout(self, bad_client):
+        from gedih3.cliutils import dask_client
+        from gedih3.exceptions import GediDatabaseError
+        with pytest.raises(GediDatabaseError, match="boom"):
+            with dask_client():
+                raise GediDatabaseError("boom")
+
+    def test_success_with_teardown_timeout_warns(self, bad_client):
+        import logging
+        from gedih3.cliutils import dask_client
+        records = []
+
+        class _H(logging.Handler):
+            def emit(self, record):
+                records.append(record)
+
+        lg = logging.getLogger("gedih3.cliutils")
+        h = _H(level=logging.WARNING)
+        lg.addHandler(h)
+        try:
+            with dask_client(n_workers=1) as c:
+                assert c.kwargs == {"n_workers": 1}
+        finally:
+            lg.removeHandler(h)
+        assert any(r.levelno == logging.WARNING and "teardown failed" in r.getMessage()
+                   for r in records)
+
+    def test_real_client_registered_and_reset(self):
+        from dask.distributed import default_client
+        from gedih3.cliutils import dask_client
+        with dask_client(n_workers=1, threads_per_worker=1, processes=False,
+                         dashboard_address=None, silence_logs=50) as c:
+            assert default_client() is c
+            assert c.submit(lambda x: x + 1, 1).result() == 2
+        with pytest.raises(ValueError):
+            default_client()
