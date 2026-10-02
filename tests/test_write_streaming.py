@@ -414,6 +414,33 @@ class TestReconcileSentinelMode:
         h3_dir, lg, tmp = self._mixed_tree(tmp_dir)
         assert _reconcile_granules_from_disk(h3_dir, lg, tmp_dir=tmp, expected_scope=_TEST_SCOPE) == 0
 
+    @pytest.mark.parametrize('expected', [_TEST_SCOPE, 'scope-S1'])
+    def test_scope_file_without_complete_dir_is_not_legacy(self, tmp_dir, expected):
+        """Run killed after the scope swap, before any task finished: old-scope
+        fragments, a scope record, no ``_complete/``. Never flip from fragments."""
+        from gedih3.gh3builder import _reconcile_granules_from_disk
+        from gedih3.config import GEDI_BEAMS
+        h3_dir = os.path.join(tmp_dir, 'database')
+        tmp = os.path.join(tmp_dir, 'tmp', 'partitions')
+        os.makedirs(h3_dir)
+        _emit_synthetic_fragments(tmp, '830001fffffffff', '2020', 42, 7, 13, GEDI_BEAMS)
+        _record_scope(tmp)
+        lg = _logger_with_pending(h3_dir, [(42, 7, 13)])
+        assert _reconcile_granules_from_disk(h3_dir, lg, tmp_dir=tmp, expected_scope=expected) == 0
+        assert lg.granule_info[0]['status'] == 'PENDING'
+        assert not os.path.exists(os.path.join(tmp, '_complete'))
+
+    def test_stale_sibling_without_complete_dir_is_not_legacy(self, tmp_dir):
+        from gedih3.gh3builder import _reconcile_granules_from_disk
+        from gedih3.config import GEDI_BEAMS
+        h3_dir = os.path.join(tmp_dir, 'database')
+        tmp = os.path.join(tmp_dir, 'tmp', 'partitions')
+        os.makedirs(h3_dir)
+        _emit_synthetic_fragments(tmp, '830001fffffffff', '2020', 42, 7, 13, GEDI_BEAMS)
+        os.makedirs(os.path.join(tmp, '_complete.stale.abc123'))
+        lg = _logger_with_pending(h3_dir, [(42, 7, 13)])
+        assert _reconcile_granules_from_disk(h3_dir, lg, tmp_dir=tmp, expected_scope=_TEST_SCOPE) == 0
+
     def test_default_expected_scope_does_not_flip(self, tmp_dir):
         from gedih3.gh3builder import _reconcile_granules_from_disk
         h3_dir, lg, tmp = self._mixed_tree(tmp_dir)
