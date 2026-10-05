@@ -395,6 +395,7 @@ Re-run with a wider region or date range. `gh3_build` performs a safe two-phase 
 gh3_build -r wider_region.shp -l2a default -l4a default
 ```
 
+(phased-updates)=
 ### Updating before every product is published (phased updates)
 
 L2B, L4A and L4C are derived from L2A and are published later than it. By default a granule enters the database only once every product it carries is available, so a database with L4 columns waits for the slowest product. To take new dates as soon as their L2A exists, add `--allow-missing-products`:
