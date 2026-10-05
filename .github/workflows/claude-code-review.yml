@@ -21,7 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      # write: the review is posted as PR comments (summary + inline).
+      pull-requests: write
       issues: read
       id-token: write
 
@@ -39,7 +40,7 @@ jobs:
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: |
-            /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+            /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment
 
             Project-specific checks for this repository, in addition to the
             standard review. CLAUDE.md states these as invariants; flag any
@@ -59,6 +60,14 @@ jobs:
               docs/user-guide/cli-reference.md and mirrored in the conda-forge
               feedstock's entry_points, which CI does not check.
             - No hand-maintained counts or file inventories in documentation.
+          # Headless runs deny any tool not allowed here. The plugin fans out
+          # subagents (Agent), reads the PR with gh, and posts with gh pr
+          # comment / the inline-comment MCP tool.
+          claude_args: |
+            --allowedTools "Agent,Task,Read,Grep,Glob,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),mcp__github_inline_comment__create_inline_comment"
+          # Claude's final report in the job summary (trusted input only:
+          # pull_request runs from forks get no secrets).
+          display_report: true
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
