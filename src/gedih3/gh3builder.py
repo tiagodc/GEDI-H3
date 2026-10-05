@@ -2075,6 +2075,29 @@ def _list_year_subdirs(h3_dir: str) -> List[str]:
     return out
 
 
+def _has_unmerged_fragments(tmp_dir: str) -> bool:
+    """True if any ``<tmp_dir>/h3_*/year=*/*.parquet`` fragment awaits a merge.
+
+    Stops at the first fragment. Looks for files, not just ``h3_*`` dirs: a
+    clean merge that kept tmp for forensics leaves the emptied dirs behind,
+    and merging those would only drop the bbox index for nothing.
+    """
+    try:
+        with os.scandir(tmp_dir) as top:
+            h3_dirs = [e.path for e in top if e.is_dir(follow_symlinks=False) and e.name.startswith('h3_')]
+    except OSError:
+        return False
+    for h3d in h3_dirs:
+        for ydir in _list_year_subdirs(h3d):
+            try:
+                with os.scandir(ydir) as it:
+                    if any(e.name.endswith('.parquet') for e in it):
+                        return True
+            except OSError:
+                continue
+    return False
+
+
 def _process_h3_partition(h3_dir: str) -> Dict[Tuple[int, int, int], set]:
     """Return ``{(orbit, granule, track): set(beam_str, ...)}`` for granules
     represented under ``h3_dir/year=*/*.parquet``.
@@ -2755,6 +2778,30 @@ def _discard_complete_sentinels(tmp_dir: str, desc: str) -> None:
     _remove_tree_fanout(dst, desc=desc)
 
 
+def _discard_unscoped_sentinels(tmp_dir: str) -> bool:
+    """Retire ``tmp_dir/_complete/`` when no scope record vouches for it.
+
+    :func:`_check_scope_fingerprint` adopts such a legacy set as in-flight
+    resume state. The CLI calls this first when the build log says the last
+    build COMPLETED: the sentinels are then leftovers, and adopting them would
+    make a wider ROI skip the tasks that were empty under the old one.
+    Returns True if sentinels were discarded; raises ``GediFileError`` if
+    they could not be.
+    """
+    if os.path.exists(os.path.join(tmp_dir, _SCOPE_FILENAME)):
+        return False
+    if not os.path.isdir(os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME)):
+        return False
+    try:
+        _discard_complete_sentinels(tmp_dir, desc="Clearing unscoped completion sentinels")
+    except OSError as e:
+        raise GediFileError(
+            f"Cannot discard stale completion sentinels in {tmp_dir}: {type(e).__name__}: {e}. "
+            f"Remove {os.path.join(tmp_dir, _COMPLETE_SENTINEL_DIRNAME)} manually and re-run."
+        ) from e
+    return True
+
+
 def _scope_fingerprint(spatial_h3_tiles, res: int, part: int, product_vars: Dict[str, List[str]]) -> str:
     """Hash of the inputs that decide which rows a (granule x beam) task yields."""
     import hashlib
@@ -2777,12 +2824,13 @@ def _spatial_tiles(spatial, part: int) -> Optional[List[str]]:
 
 
 def _stage1_scope_fingerprint(spatial, res: int, part: int, product_vars: Dict[str, List[str]]) -> str:
-    """Scope fingerprint from the raw Stage 1 inputs (what the CLI holds).
+    """Scope fingerprint of a Stage 1 run, from its spatial filter, H3 levels and variables.
 
-    ``build_h3db`` computes this from the same raw arguments and hands it to
-    ``_write_partitioned_streaming``, so the pre-Stage-1 reconcile and the
-    driver agree by construction (the driver's own ``product_vars`` are
-    post-expansion and would not).
+    ``build_h3db`` computes it over the *expanded* variables and hands it to
+    ``_write_partitioned_streaming``. The expansion edits the build log's own
+    ``product_vars`` in place, so a resumed CLI reads the expanded form back
+    and its pre-reconcile value agrees with the recorded one. (On a fresh
+    build the CLI still holds raw specs, but there is no tmp tree to trust.)
     """
     return _scope_fingerprint(_spatial_tiles(spatial, part), res, part, product_vars)
 
@@ -5095,12 +5143,14 @@ def build_h3db(
                 )
             return result
 
-        # Scope fingerprint over the RAW arguments, matching the CLI's
-        # pre-reconcile value (the expansion below is a function of them).
-        scope_fp = _stage1_scope_fingerprint(spatial, res, part, product_vars)
-
         # Expand variable specifications and ensure L2A essentials
         product_vars = _expand_product_vars(product_vars, all_soc_files, version=version)
+
+        # Scope fingerprint over the EXPANDED variables. The expansion edits
+        # the caller's dict in place, and that dict is the build log's: what
+        # a resumed CLI reads back (and fingerprints before reconcile) is this
+        # expanded form, so hashing the raw specs would never match it.
+        scope_fp = _stage1_scope_fingerprint(spatial, res, part, product_vars)
 
         # Filter to only files with required products
         prod_soc_files = [{k: val for k, val in i.items() if k in product_vars} for i in all_soc_files]
@@ -5113,6 +5163,17 @@ def build_h3db(
                                      required_products=required)
 
         if len(soc_files) == 0:
+            parquet_dir = os.path.join(tmp_dir, 'partitions')
+            if _has_unmerged_fragments(parquet_dir):
+                # Resume reconcile flips a granule INDEXED once its sentinels
+                # prove Stage 1 finished it, merged or not. A run stopped after
+                # Stage 1 but before the merge recorded progress leaves those
+                # fragments only in tmp: merge them, or they are lost while the
+                # log says INDEXED.
+                logger.info("No new granules to process; merging fragments left by an earlier run")
+                if status_callback:
+                    status_callback('MERGING')
+                return _merge_and_finalize(parquet_dir, h3_dir)
             logger.info("No new granules to process")
             return None
         if allow_missing_products:
