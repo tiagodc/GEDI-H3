@@ -514,6 +514,9 @@
 <tr class="row-even"><td><p><a class="reference internal" href="#gedih3.logger.PRODUCT_STATUS_PENDING" title="gedih3.logger.PRODUCT_STATUS_PENDING"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PRODUCT_STATUS_PENDING</span></code></a></p></td>
 <td><p></p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.logger.GRANULE_STATUS_NO_DATA" title="gedih3.logger.GRANULE_STATUS_NO_DATA"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GRANULE_STATUS_NO_DATA</span></code></a></p></td>
+<td><p></p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -582,6 +585,11 @@
 <dl class="py data">
 <dt class="sig sig-object py" id="gedih3.logger.PRODUCT_STATUS_PENDING">
 <span class="sig-prename descclassname"><span class="pre">gedih3.logger.</span></span><span class="sig-name descname"><span class="pre">PRODUCT_STATUS_PENDING</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'PENDING'</span></span><a class="headerlink" href="#gedih3.logger.PRODUCT_STATUS_PENDING" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="gedih3.logger.GRANULE_STATUS_NO_DATA">
+<span class="sig-prename descclassname"><span class="pre">gedih3.logger.</span></span><span class="sig-name descname"><span class="pre">GRANULE_STATUS_NO_DATA</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'NO_DATA'</span></span><a class="headerlink" href="#gedih3.logger.GRANULE_STATUS_NO_DATA" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py function">
@@ -861,6 +869,12 @@ products fields stripped for backward compatibility with
 <code class="docutils literal notranslate"><span class="pre">_filter_granules()</span></code> dict comparison (which expects bare
 <code class="docutils literal notranslate"><span class="pre">{'orbit',</span> <span class="pre">'granule',</span> <span class="pre">'track'}</span></code> dicts). Legacy logs without status
 fields are treated as successful.</p>
+<p><code class="docutils literal notranslate"><span class="pre">NO_DATA</span></code> granules (read in full, zero rows) are skipped under
+exactly the conditions <code class="docutils literal notranslate"><span class="pre">INDEXED</span></code> ones are. They never stay skipped
+past a scope change that could make them non-empty: <code class="docutils literal notranslate"><span class="pre">__init__</span></code>
+demotes every <code class="docutils literal notranslate"><span class="pre">NO_DATA</span></code> granule to <code class="docutils literal notranslate"><span class="pre">PENDING</span></code> as soon as the
+requested region or dates widen the stored ones, by any area, before
+this is consulted.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -871,13 +885,67 @@ fields are treated as successful.</p>
 - Log exists (updating=True)
 - No new products, spatial, or temporal changes detected
 - No pending variable update from a previous crash
-- All tracked granules are INDEXED</p>
+- All tracked granules are INDEXED (or NO_DATA: read, nothing to index)</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.set_post_build_info">
-<span class="sig-name descname"><span class="pre">set_post_build_info</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.set_post_build_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.set_post_build_info" title="Link to this definition">#</a></dt>
-<dd></dd></dl>
+<span class="sig-name descname"><span class="pre">set_post_build_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">verify_observed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.set_post_build_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.set_post_build_info" title="Link to this definition">#</a></dt>
+<dd><p>Fold partition metadata into the log: granule status, columns, dates.</p>
+<p>Also records <code class="docutils literal notranslate"><span class="pre">self._observed_granule_keys</span></code>: the <code class="docutils literal notranslate"><span class="pre">(orbit,</span> <span class="pre">granule,</span>
+<span class="pre">track)</span></code> of every granule the partition metadata lists, or <code class="docutils literal notranslate"><span class="pre">None</span></code>
+when that listing cannot be trusted to be complete (no partitions, an
+unreadable scan). With <code class="docutils literal notranslate"><span class="pre">verify_observed=True</span></code> the scan additionally
+checks each partition’s sidecars against its parquet files and leaves
+<code class="docutils literal notranslate"><span class="pre">None</span></code> on any mismatch; <a class="reference internal" href="#gedih3.logger.H3BuildLogger.mark_no_data" title="gedih3.logger.H3BuildLogger.mark_no_data"><code class="xref py py-meth docutils literal notranslate"><span class="pre">mark_no_data()</span></code></a> requires a set.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.stage1_full_scope">
+<span class="sig-name descname"><span class="pre">stage1_full_scope</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.stage1_full_scope"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.stage1_full_scope" title="Link to this definition">#</a></dt>
+<dd><p>True when Stage 1 reads under the whole database scope.</p>
+<p><code class="docutils literal notranslate"><span class="pre">get_spatial</span></code> / <code class="docutils literal notranslate"><span class="pre">get_temporal</span></code> hand Stage 1 only the ADDED area (or
+dates) on a spatial-only (temporal-only) expansion, so a granule empty
+under that diff may hold rows in the old scope. Zero rows then proves
+nothing, and <a class="reference internal" href="#gedih3.logger.H3BuildLogger.mark_no_data" title="gedih3.logger.H3BuildLogger.mark_no_data"><code class="xref py py-meth docutils literal notranslate"><span class="pre">mark_no_data()</span></code></a> refuses. Full scope: a fresh build,
+a plain resume or update (the log already holds the union), and a mixed
+update’s Phase 1. Mirrors the branches of the two getters.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.mark_no_data">
+<span class="sig-name descname"><span class="pre">mark_no_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">listed_keys</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">incomplete_keys</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">empty_keys</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.mark_no_data"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.mark_no_data" title="Link to this definition">#</a></dt>
+<dd><p>Record granules Stage 1 read in full that hold no rows as <code class="docutils literal notranslate"><span class="pre">NO_DATA</span></code>.</p>
+<p>Call after the final <a class="reference internal" href="#gedih3.logger.H3BuildLogger.set_post_build_info" title="gedih3.logger.H3BuildLogger.set_post_build_info"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_post_build_info()</span></code></a> of a build whose
+Stage 1 drained fully; <code class="docutils literal notranslate"><span class="pre">incomplete_keys</span></code> is that run’s set of
+granules with any task not proven complete, <code class="docutils literal notranslate"><span class="pre">empty_keys</span></code> those whose
+every beam task is proven complete AND empty. Nothing is marked
+without a trustworthy observed set (<code class="docutils literal notranslate"><span class="pre">set_post_build_info</span></code> could not
+verify the partition metadata) or when Stage 1 did not run under the
+full database scope (<a class="reference internal" href="#gedih3.logger.H3BuildLogger.stage1_full_scope" title="gedih3.logger.H3BuildLogger.stage1_full_scope"><code class="xref py py-meth docutils literal notranslate"><span class="pre">stage1_full_scope()</span></code></a>). In doubt a granule
+stays PENDING: that costs a re-read, a wrong <code class="docutils literal notranslate"><span class="pre">NO_DATA</span></code> costs rows.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">PENDING</span></code> -&gt; <code class="docutils literal notranslate"><span class="pre">NO_DATA</span></code> when listed, in <code class="docutils literal notranslate"><span class="pre">empty_keys</span></code> and absent
+from every partition’s metadata (the last guard matters for tasks
+emptied by the skip check, whose rows are already in the database);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">NO_DATA</span></code> -&gt; <code class="docutils literal notranslate"><span class="pre">PENDING</span></code> when listed and incomplete this run;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MERGE_FAILED</span></code> is never touched.</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">NO_DATA</span></code> drops the <code class="docutils literal notranslate"><span class="pre">products</span></code> map and <code class="docutils literal notranslate"><span class="pre">fill_attempts</span></code>: there
+is nothing to fill. Does not save. Returns <code class="docutils literal notranslate"><span class="pre">{'marked',</span> <span class="pre">'reopened'}</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>listed_keys</strong><span class="classifier">iterable of tuple</span></dt><dd><p>Granules this run listed for Stage 1.</p>
+</dd>
+<dt><strong>incomplete_keys</strong><span class="classifier">iterable of tuple</span></dt><dd><p>Granules with any task not proven complete this run.</p>
+</dd>
+<dt><strong>empty_keys</strong><span class="classifier">iterable of tuple</span></dt><dd><p>Granules whose every beam task is proven complete and empty.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.to_dict">
@@ -1031,6 +1099,7 @@ retries it. <code class="docutils literal notranslate"><span class="pre">count_f
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.PRODUCT_STATUS_MISSING_SOURCE"><code class="docutils literal notranslate"><span class="pre">PRODUCT_STATUS_MISSING_SOURCE</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.PRODUCT_STATUS_FAILED"><code class="docutils literal notranslate"><span class="pre">PRODUCT_STATUS_FAILED</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.PRODUCT_STATUS_PENDING"><code class="docutils literal notranslate"><span class="pre">PRODUCT_STATUS_PENDING</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.GRANULE_STATUS_NO_DATA"><code class="docutils literal notranslate"><span class="pre">GRANULE_STATUS_NO_DATA</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.load_log_data"><code class="docutils literal notranslate"><span class="pre">load_log_data()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.merge_temporal"><code class="docutils literal notranslate"><span class="pre">merge_temporal()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.merge_product_vars"><code class="docutils literal notranslate"><span class="pre">merge_product_vars()</span></code></a></li>
@@ -1077,6 +1146,8 @@ retries it. <code class="docutils literal notranslate"><span class="pre">count_f
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.get_finished_granules"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.get_finished_granules()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.is_up_to_date"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.is_up_to_date()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.set_post_build_info"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.set_post_build_info()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.stage1_full_scope"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.stage1_full_scope()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.mark_no_data"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.mark_no_data()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.to_dict"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.to_dict()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.save_log"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.save_log()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.get_granule_product_status"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.get_granule_product_status()</span></code></a></li>

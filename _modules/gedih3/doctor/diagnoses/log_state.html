@@ -900,6 +900,9 @@ window.runMermaid = runMermaid;</script>
             <span class="c1"># merged) and awaits re-extraction: not drift.</span>
             <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'INDEXED'</span><span class="p">,</span> <span class="s1">'MERGE_FAILED'</span><span class="p">):</span>
                 <span class="k">continue</span>
+            <span class="c1"># NO_DATA is deliberately not skipped: it asserts "no rows", so a</span>
+            <span class="c1"># granule of that status found in a partition IS drift (the fix</span>
+            <span class="c1"># below flips it to INDEXED).</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">triple</span> <span class="o">=</span> <span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span>
             <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
@@ -971,6 +974,9 @@ window.runMermaid = runMermaid;</script>
             <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
                 <span class="k">continue</span>
             <span class="k">if</span> <span class="n">triple</span> <span class="ow">in</span> <span class="n">drift_keys</span> <span class="ow">and</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">!=</span> <span class="s1">'INDEXED'</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">==</span> <span class="s1">'NO_DATA'</span><span class="p">:</span>
+                    <span class="n">g</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'products'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>  <span class="c1"># rebuilt from the partitions' columns</span>
+                    <span class="n">g</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'fill_attempts'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
                 <span class="n">g</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'INDEXED'</span>
                 <span class="n">flipped</span> <span class="o">+=</span> <span class="mi">1</span>
         <span class="k">if</span> <span class="n">flipped</span><span class="p">:</span>

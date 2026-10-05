@@ -1713,6 +1713,9 @@ window.runMermaid = runMermaid;</script>
                     <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'PROCESSING'</span><span class="p">)</span>
 
                 <span class="n">h3_files</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="c1"># Filled by Stage 1 only when it drained every task (see</span>
+                <span class="c1"># build_h3db); empty = no proof, so no granule is marked NO_DATA.</span>
+                <span class="n">_stage1_outcome</span> <span class="o">=</span> <span class="p">{}</span>
 
                 <span class="c1"># ── Stage 1: Spatial/temporal build ──────────────────────</span>
                 <span class="c1"># Runs for: fresh build, resume, spatial/temporal expansion,</span>
@@ -1760,6 +1763,10 @@ window.runMermaid = runMermaid;</script>
                             <span class="p">)</span>
                         <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'PROCESSING'</span><span class="p">)</span>
 
+                    <span class="k">def</span><span class="w"> </span><span class="nf">_capture_stage1_outcome</span><span class="p">(</span><span class="n">incomplete</span><span class="p">,</span> <span class="n">empty</span><span class="p">):</span>
+                        <span class="n">_stage1_outcome</span><span class="p">[</span><span class="s1">'incomplete'</span><span class="p">]</span> <span class="o">=</span> <span class="n">incomplete</span>
+                        <span class="n">_stage1_outcome</span><span class="p">[</span><span class="s1">'empty'</span><span class="p">]</span> <span class="o">=</span> <span class="n">empty</span>
+
                     <span class="n">h3_files</span> <span class="o">=</span> <span class="n">build_h3db</span><span class="p">(</span>
                         <span class="n">product_vars</span><span class="o">=</span><span class="n">stage1_products</span><span class="p">,</span>
                         <span class="n">soc_source</span><span class="o">=</span><span class="n">soc_source</span><span class="p">,</span>
@@ -1767,6 +1774,7 @@ window.runMermaid = runMermaid;</script>
                         <span class="n">variable_only_update</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                         <span class="n">allow_missing_products</span><span class="o">=</span><span class="n">allow_missing</span><span class="p">,</span>
                         <span class="n">granule_products_callback</span><span class="o">=</span><span class="n">_record_granule_products</span><span class="p">,</span>
+                        <span class="n">stage1_outcome_callback</span><span class="o">=</span><span class="n">_capture_stage1_outcome</span><span class="p">,</span>
                         <span class="o">**</span><span class="n">_build_kwargs</span><span class="p">,</span>
                     <span class="p">)</span>
                     <span class="c1"># Stage 1 never skips a MERGE_FAILED granule and its pre-clean</span>
@@ -1894,13 +1902,32 @@ window.runMermaid = runMermaid;</script>
                             <span class="p">)</span>
                         <span class="k">else</span><span class="p">:</span>
                             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  </span><span class="si">{</span><span class="n">count</span><span class="si">}</span><span class="s2">x </span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">product</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'N/A'</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
-                <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
+                <span class="n">_n_merge_failed</span> <span class="o">=</span> <span class="n">_count_merge_failures</span><span class="p">(</span><span class="n">_parquet_dir_for_fold</span><span class="p">)</span>
+                <span class="c1"># With any Stage 1 outcome mark_no_data runs: it reopens failed NO_DATA</span>
+                <span class="c1"># granules always, but marks only under the full scope (a spatial-only /</span>
+                <span class="c1"># temporal-only expansion reads just the added area, stage1_full_scope),</span>
+                <span class="c1"># so the metadata verification is needed only then.</span>
+                <span class="n">_no_data_proof</span> <span class="o">=</span> <span class="p">(</span><span class="nb">bool</span><span class="p">(</span><span class="n">_stage1_outcome</span><span class="p">)</span> <span class="ow">and</span> <span class="n">_stage1_listed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                                  <span class="ow">and</span> <span class="ow">not</span> <span class="n">_n_merge_failed</span><span class="p">)</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">(</span>
+                    <span class="n">verify_observed</span><span class="o">=</span><span class="n">_no_data_proof</span> <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">stage1_full_scope</span><span class="p">())</span>
+                <span class="k">if</span> <span class="n">_no_data_proof</span><span class="p">:</span>
+                    <span class="c1"># Granules read in full that hold no rows: skipped by later</span>
+                    <span class="c1"># builds instead of re-read forever. Needs Stage 1's proof</span>
+                    <span class="c1"># AND the metadata's full listing; see mark_no_data.</span>
+                    <span class="n">_nd</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">mark_no_data</span><span class="p">(</span>
+                        <span class="n">_stage1_listed</span><span class="p">,</span> <span class="n">_stage1_outcome</span><span class="p">[</span><span class="s1">'incomplete'</span><span class="p">],</span> <span class="n">_stage1_outcome</span><span class="p">[</span><span class="s1">'empty'</span><span class="p">])</span>
+                    <span class="k">if</span> <span class="n">_nd</span><span class="p">[</span><span class="s1">'marked'</span><span class="p">]:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">_nd</span><span class="p">[</span><span class="s1">'marked'</span><span class="p">]</span><span class="si">}</span><span class="s2"> granule(s) have no data in the ROI; recorded as NO_DATA "</span>
+                            <span class="sa">f</span><span class="s2">"and skipped by later builds"</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">_nd</span><span class="p">[</span><span class="s1">'reopened'</span><span class="p">]:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">_nd</span><span class="p">[</span><span class="s1">'reopened'</span><span class="p">]</span><span class="si">}</span><span class="s2"> NO_DATA granule(s) failed this run; retried next build"</span><span class="p">)</span>
                 <span class="c1"># Clear pending variable update BEFORE saving — ensures the flag</span>
                 <span class="c1"># is not persisted to disk after successful completion.</span>
                 <span class="c1"># Crash safety: if crash between pop and save, disk still has</span>
                 <span class="c1"># PROCESSING status with the flag → next run resumes correctly.</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'_pending_variable_update'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-                <span class="n">_n_merge_failed</span> <span class="o">=</span> <span class="n">_count_merge_failures</span><span class="p">(</span><span class="n">_parquet_dir_for_fold</span><span class="p">)</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'MERGING'</span> <span class="k">if</span> <span class="n">_n_merge_failed</span> <span class="k">else</span> <span class="s1">'COMPLETED'</span><span class="p">)</span>
                 <span class="n">build_completed</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">_n_merge_failed</span>
 

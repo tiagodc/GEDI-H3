@@ -15,6 +15,7 @@ Attributes
    gedih3.logger.PRODUCT_STATUS_MISSING_SOURCE
    gedih3.logger.PRODUCT_STATUS_FAILED
    gedih3.logger.PRODUCT_STATUS_PENDING
+   gedih3.logger.GRANULE_STATUS_NO_DATA
 
 
 Classes
@@ -62,6 +63,10 @@ Module Contents
 
 .. py:data:: PRODUCT_STATUS_PENDING
    :value: 'PENDING'
+
+
+.. py:data:: GRANULE_STATUS_NO_DATA
+   :value: 'NO_DATA'
 
 
 .. py:function:: load_log_data(file_path)
@@ -405,6 +410,13 @@ Module Contents
       ``{'orbit', 'granule', 'track'}`` dicts). Legacy logs without status
       fields are treated as successful.
 
+      ``NO_DATA`` granules (read in full, zero rows) are skipped under
+      exactly the conditions ``INDEXED`` ones are. They never stay skipped
+      past a scope change that could make them non-empty: ``__init__``
+      demotes every ``NO_DATA`` granule to ``PENDING`` as soon as the
+      requested region or dates widen the stored ones, by any area, before
+      this is consulted.
+
 
 
 
@@ -432,7 +444,7 @@ Module Contents
       - Log exists (updating=True)
       - No new products, spatial, or temporal changes detected
       - No pending variable update from a previous crash
-      - All tracked granules are INDEXED
+      - All tracked granules are INDEXED (or NO_DATA: read, nothing to index)
 
 
 
@@ -452,7 +464,115 @@ Module Contents
           !! processed by numpydoc !!
 
 
-   .. py:method:: set_post_build_info()
+   .. py:method:: set_post_build_info(verify_observed=False)
+
+      
+      Fold partition metadata into the log: granule status, columns, dates.
+
+      Also records ``self._observed_granule_keys``: the ``(orbit, granule,
+      track)`` of every granule the partition metadata lists, or ``None``
+      when that listing cannot be trusted to be complete (no partitions, an
+      unreadable scan). With ``verify_observed=True`` the scan additionally
+      checks each partition's sidecars against its parquet files and leaves
+      ``None`` on any mismatch; :meth:`mark_no_data` requires a set.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: stage1_full_scope()
+
+      
+      True when Stage 1 reads under the whole database scope.
+
+      ``get_spatial`` / ``get_temporal`` hand Stage 1 only the ADDED area (or
+      dates) on a spatial-only (temporal-only) expansion, so a granule empty
+      under that diff may hold rows in the old scope. Zero rows then proves
+      nothing, and :meth:`mark_no_data` refuses. Full scope: a fresh build,
+      a plain resume or update (the log already holds the union), and a mixed
+      update's Phase 1. Mirrors the branches of the two getters.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: mark_no_data(listed_keys, incomplete_keys, empty_keys)
+
+      
+      Record granules Stage 1 read in full that hold no rows as ``NO_DATA``.
+
+      Call after the final :meth:`set_post_build_info` of a build whose
+      Stage 1 drained fully; ``incomplete_keys`` is that run's set of
+      granules with any task not proven complete, ``empty_keys`` those whose
+      every beam task is proven complete AND empty. Nothing is marked
+      without a trustworthy observed set (``set_post_build_info`` could not
+      verify the partition metadata) or when Stage 1 did not run under the
+      full database scope (:meth:`stage1_full_scope`). In doubt a granule
+      stays PENDING: that costs a re-read, a wrong ``NO_DATA`` costs rows.
+
+      * ``PENDING`` -> ``NO_DATA`` when listed, in ``empty_keys`` and absent
+        from every partition's metadata (the last guard matters for tasks
+        emptied by the skip check, whose rows are already in the database);
+      * ``NO_DATA`` -> ``PENDING`` when listed and incomplete this run;
+      * ``MERGE_FAILED`` is never touched.
+
+      ``NO_DATA`` drops the ``products`` map and ``fill_attempts``: there
+      is nothing to fill. Does not save. Returns ``{'marked', 'reopened'}``.
+
+      :Parameters:
+
+          **listed_keys** : iterable of tuple
+              Granules this run listed for Stage 1.
+
+          **incomplete_keys** : iterable of tuple
+              Granules with any task not proven complete this run.
+
+          **empty_keys** : iterable of tuple
+              Granules whose every beam task is proven complete and empty.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
 
 
    .. py:method:: to_dict(status)

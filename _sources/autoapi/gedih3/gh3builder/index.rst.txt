@@ -551,7 +551,7 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
-.. py:function:: build_h3db(product_vars: Dict[str, List[str]], res: int = 12, part: int = 3, spatial=None, temporal=None, soc_source: Union[str, List, None] = None, version: Optional[int] = None, tmp_dir: str = os.path.join(GH3_DEFAULT_TMP_DIR, 'gh3_build'), h3_dir: str = GH3_DEFAULT_H3_DIR, skip_granules: Optional[List[Dict]] = None, status_callback: Optional[Callable[[str], None]] = None, variable_only_update: bool = False, exclude: Optional[List[str]] = None, allow_missing_products: bool = False, granule_products_callback: Optional[Callable[[Dict[Tuple[int, int, int], List[str]]], None]] = None) -> Optional[List[str]]
+.. py:function:: build_h3db(product_vars: Dict[str, List[str]], res: int = 12, part: int = 3, spatial=None, temporal=None, soc_source: Union[str, List, None] = None, version: Optional[int] = None, tmp_dir: str = os.path.join(GH3_DEFAULT_TMP_DIR, 'gh3_build'), h3_dir: str = GH3_DEFAULT_H3_DIR, skip_granules: Optional[List[Dict]] = None, status_callback: Optional[Callable[[str], None]] = None, variable_only_update: bool = False, exclude: Optional[List[str]] = None, allow_missing_products: bool = False, granule_products_callback: Optional[Callable[[Dict[Tuple[int, int, int], List[str]]], None]] = None, stage1_outcome_callback: Optional[Callable[[set, set], None]] = None) -> Optional[List[str]]
 
    
    Build an H3-indexed GEDI database from local SOC files or S3 download.
@@ -616,6 +616,13 @@ Module Contents
            this Stage 1 processes (an empty list when it has every product).
            The CLI records ``MISSING_SOURCE`` from it, so the backfill knows its
            targets without scanning the database, even after a crash mid-write.
+
+       **stage1_outcome_callback** : callable, optional
+           Called as ``(incomplete_keys, empty_keys)`` once Stage 1 drained
+           every task (see :func:`_write_partitioned_streaming`), before the
+           merge. Never called by the legacy writer (``GH3_WRITE_STREAMING``
+           off, deprecated), by an interrupted drain, or when no granule is left
+           to process.
 
 
 

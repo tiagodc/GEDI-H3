@@ -954,13 +954,15 @@ window.runMermaid = runMermaid;</script>
         <span class="k">if</span> <span class="n">_granules</span><span class="p">:</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">Counter</span>
             <span class="n">_status_counts</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">,</span> <span class="s1">'UNKNOWN'</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">_granules</span><span class="p">)</span>
+            <span class="c1"># NO_DATA granules were read in full and hold no rows: nothing to be absent.</span>
             <span class="n">_non_indexed</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
-                <span class="n">c</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">_status_counts</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">s</span> <span class="o">!=</span> <span class="s1">'INDEXED'</span>
+                <span class="n">c</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">_status_counts</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">s</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'INDEXED'</span><span class="p">,</span> <span class="s1">'NO_DATA'</span><span class="p">)</span>
             <span class="p">)</span>
             <span class="k">if</span> <span class="n">_non_indexed</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">"Source database has </span><span class="si">{</span><span class="n">_non_indexed</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">_granules</span><span class="p">)</span><span class="si">}</span><span class="s2"> "</span>
-                    <span class="sa">f</span><span class="s2">"non-INDEXED granule(s) — those shots will be ABSENT "</span>
+                    <span class="sa">f</span><span class="s2">"non-INDEXED granule(s) (NO_DATA, read and empty, not counted) — "</span>
+                    <span class="sa">f</span><span class="s2">"those shots will be ABSENT "</span>
                     <span class="sa">f</span><span class="s2">"from the joined columns. Breakdown: </span><span class="si">{</span><span class="nb">dict</span><span class="p">(</span><span class="n">_status_counts</span><span class="p">)</span><span class="si">}</span><span class="s2">. "</span>
                     <span class="sa">f</span><span class="s2">"Run `gh3_build` on the source database to retry; see "</span>
                     <span class="sa">f</span><span class="s2">"its end-of-build advisory for the recovery recipe."</span>

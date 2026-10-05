@@ -793,6 +793,15 @@ window.runMermaid = runMermaid;</script>
 <span class="n">PRODUCT_STATUS_FAILED</span> <span class="o">=</span> <span class="s1">'FAILED'</span>
 <span class="n">PRODUCT_STATUS_PENDING</span> <span class="o">=</span> <span class="s1">'PENDING'</span>
 
+<span class="c1"># Top-level granule status (never a per-product status): the granule was read in</span>
+<span class="c1"># full by Stage 1 under the recorded scope and yielded zero rows (e.g. entirely</span>
+<span class="c1"># outside a land-mask ROI). Skipped like INDEXED while the scope is unchanged.</span>
+<span class="c1"># Set only on positive evidence by ``H3BuildLogger.mark_no_data``; a granule</span>
+<span class="c1"># found on disk becomes INDEXED again. Valid only for the scope it was recorded</span>
+<span class="c1"># under: any spatial/temporal widening reopens it (the logger demotes it to</span>
+<span class="c1"># PENDING when it detects one), as does merging a log that never examined it.</span>
+<span class="n">GRANULE_STATUS_NO_DATA</span> <span class="o">=</span> <span class="s1">'NO_DATA'</span>
+
 <span class="n">_VALID_PRODUCT_STATUSES</span> <span class="o">=</span> <span class="p">(</span>
     <span class="n">PRODUCT_STATUS_INDEXED</span><span class="p">,</span>
     <span class="n">PRODUCT_STATUS_PARTIAL_NAN</span><span class="p">,</span>
@@ -827,13 +836,19 @@ window.runMermaid = runMermaid;</script>
     <span class="p">}</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_scan_partition_meta_post_build_info</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">meta_filename</span><span class="p">,</span> <span class="n">active_products</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_scan_partition_meta_post_build_info</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">meta_filename</span><span class="p">,</span> <span class="n">active_products</span><span class="p">,</span> <span class="n">verify</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Worker: read PARTITION_META JSONs under one h3_* partition and return</span>
 <span class="sd">    the compact aggregate the driver needs to fold into set_post_build_info.</span>
 
 <span class="sd">    Module-level so it pickles for dask. Per-file errors are non-fatal — the</span>
 <span class="sd">    affected file contributes nothing, matching the legacy serial behavior</span>
 <span class="sd">    (any json_read raise would have aborted the whole scan; we instead skip).</span>
+
+<span class="sd">    With ``verify=True`` the result also carries ``'unverified'``: True when</span>
+<span class="sd">    this partition's metadata may not list every granule it holds (an</span>
+<span class="sd">    unreadable sidecar, no sidecar at all, or fewer per-year sidecars than</span>
+<span class="sd">    parquet files). ``set_post_build_info`` uses it to refuse the "granule</span>
+<span class="sd">    absent from every partition" inference behind ``NO_DATA``.</span>
 <span class="sd">    """</span>
     <span class="n">out</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s1">'granules'</span><span class="p">:</span> <span class="p">[],</span>
@@ -844,12 +859,20 @@ window.runMermaid = runMermaid;</script>
         <span class="s1">'l2a_version'</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
         <span class="s1">'column_dtypes'</span><span class="p">:</span> <span class="p">{},</span>
         <span class="s1">'partition_products'</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span>
+        <span class="s1">'unverified'</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
     <span class="p">}</span>
     <span class="n">cols_union</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
-    <span class="k">for</span> <span class="n">mf</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s1">'*</span><span class="si">{</span><span class="n">meta_filename</span><span class="si">}</span><span class="s1">'</span><span class="p">)):</span>
+    <span class="n">metas</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s1">'*</span><span class="si">{</span><span class="n">meta_filename</span><span class="si">}</span><span class="s1">'</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">verify</span><span class="p">:</span>
+        <span class="n">n_year_meta</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">,</span> <span class="s1">'*'</span><span class="p">,</span> <span class="sa">f</span><span class="s1">'*</span><span class="si">{</span><span class="n">meta_filename</span><span class="si">}</span><span class="s1">'</span><span class="p">)))</span>
+        <span class="n">n_year_data</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">,</span> <span class="s1">'*'</span><span class="p">,</span> <span class="s1">'*.parquet'</span><span class="p">)))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">metas</span> <span class="ow">or</span> <span class="n">n_year_meta</span> <span class="o">&lt;</span> <span class="n">n_year_data</span><span class="p">:</span>
+            <span class="n">out</span><span class="p">[</span><span class="s1">'unverified'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">for</span> <span class="n">mf</span> <span class="ow">in</span> <span class="n">metas</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">fmeta</span> <span class="o">=</span> <span class="n">json_read</span><span class="p">(</span><span class="n">mf</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
         <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="n">out</span><span class="p">[</span><span class="s1">'unverified'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="k">continue</span>
         <span class="n">gran</span> <span class="o">=</span> <span class="n">fmeta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granules'</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[]</span>
         <span class="n">drange</span> <span class="o">=</span> <span class="n">fmeta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'date_range'</span><span class="p">)</span>
@@ -1409,6 +1432,7 @@ window.runMermaid = runMermaid;</script>
         <span class="bp">self</span><span class="o">.</span><span class="n">new_temporal</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">new_product_vars</span> <span class="o">=</span> <span class="kc">None</span>
 
+        <span class="n">prev_temporal</span><span class="p">,</span> <span class="n">prev_spatial</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">temporal</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">spatial</span>
         <span class="k">if</span> <span class="n">temporal</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">temporal</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_temporal</span> <span class="o">=</span> <span class="n">merge_temporal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">temporal</span><span class="p">,</span> <span class="n">temporal</span><span class="p">)</span>
 
@@ -1417,6 +1441,36 @@ window.runMermaid = runMermaid;</script>
 
         <span class="k">if</span> <span class="n">product_vars</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">product_vars</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_product_vars</span> <span class="o">=</span> <span class="n">merge_product_vars</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">)</span>
+
+        <span class="c1"># The merges report a symmetric difference, so a subset or identical</span>
+        <span class="c1"># request also yields a ``new_*``; only a union beyond what was stored</span>
+        <span class="c1"># widens the scope.</span>
+        <span class="n">widened</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_spatial</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">prev_spatial</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">widened</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spatial</span><span class="o">.</span><span class="n">union_all</span><span class="p">()</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">prev_spatial</span><span class="o">.</span><span class="n">union_all</span><span class="p">())</span><span class="o">.</span><span class="n">area</span> <span class="o">&gt;</span> <span class="mi">0</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="n">widened</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># cannot tell: reopen (costs a re-read)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_spatial</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">widened</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_temporal</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">widened</span><span class="p">:</span>
+            <span class="n">widened</span> <span class="o">=</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">temporal</span> <span class="ow">or</span> <span class="p">())</span> <span class="o">!=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">prev_temporal</span> <span class="ow">or</span> <span class="p">()))</span>
+
+        <span class="c1"># NO_DATA holds for the scope it was recorded under. Widening space or</span>
+        <span class="c1"># time (also in a mixed update) makes every such granule unproven; do it</span>
+        <span class="c1"># here so the first save_log of this run persists it, whatever happens</span>
+        <span class="c1"># to Stage 1. A variable-only update runs no Stage 1: zero rows stay so.</span>
+        <span class="k">if</span> <span class="n">widened</span><span class="p">:</span>
+            <span class="n">n_reopen</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]:</span>
+                <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">==</span> <span class="n">GRANULE_STATUS_NO_DATA</span><span class="p">:</span>
+                    <span class="n">g</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'PENDING'</span>
+                    <span class="n">n_reopen</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">n_reopen</span><span class="p">:</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">.logging_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_logger</span>
+                <span class="n">get_logger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_reopen</span><span class="si">}</span><span class="s2"> NO_DATA granule(s) reopened: the requested region/dates widen the "</span>
+                    <span class="sa">f</span><span class="s2">"scope they were recorded under"</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_load_filters_from_log</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">product_vars</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'products'</span><span class="p">,</span> <span class="p">{})</span>
@@ -1436,7 +1490,7 @@ window.runMermaid = runMermaid;</script>
             <span class="c1"># on-disk file is only rewritten on the next save_log() call.</span>
             <span class="n">active_products</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">product_vars</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
             <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">granule_info</span><span class="p">:</span>
-                <span class="k">if</span> <span class="s1">'products'</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">g</span> <span class="ow">and</span> <span class="n">active_products</span><span class="p">:</span>
+                <span class="k">if</span> <span class="s1">'products'</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">g</span> <span class="ow">and</span> <span class="n">active_products</span> <span class="ow">and</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">!=</span> <span class="n">GRANULE_STATUS_NO_DATA</span><span class="p">:</span>
                     <span class="n">existing_status</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">,</span> <span class="n">PRODUCT_STATUS_INDEXED</span><span class="p">)</span>
                     <span class="n">g</span><span class="p">[</span><span class="s1">'products'</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="n">existing_status</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">active_products</span><span class="p">}</span>
 
@@ -1562,6 +1616,13 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        ``_filter_granules()`` dict comparison (which expects bare</span>
 <span class="sd">        ``{'orbit', 'granule', 'track'}`` dicts). Legacy logs without status</span>
 <span class="sd">        fields are treated as successful.</span>
+
+<span class="sd">        ``NO_DATA`` granules (read in full, zero rows) are skipped under</span>
+<span class="sd">        exactly the conditions ``INDEXED`` ones are. They never stay skipped</span>
+<span class="sd">        past a scope change that could make them non-empty: ``__init__``</span>
+<span class="sd">        demotes every ``NO_DATA`` granule to ``PENDING`` as soon as the</span>
+<span class="sd">        requested region or dates widen the stored ones, by any area, before</span>
+<span class="sd">        this is consulted.</span>
 <span class="sd">        """</span>
         <span class="c1"># Keys not part of the original granule identity. ``products`` was</span>
         <span class="c1"># added by the per-product status extension; both must be stripped so</span>
@@ -1574,7 +1635,7 @@ window.runMermaid = runMermaid;</script>
             <span class="k">return</span> <span class="p">[</span>
                 <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_strip</span><span class="p">}</span>
                 <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">granule_info</span>
-                <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'INDEXED'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'INDEXED'</span><span class="p">,</span> <span class="n">GRANULE_STATUS_NO_DATA</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
             <span class="p">]</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
@@ -1588,7 +1649,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        - Log exists (updating=True)</span>
 <span class="sd">        - No new products, spatial, or temporal changes detected</span>
 <span class="sd">        - No pending variable update from a previous crash</span>
-<span class="sd">        - All tracked granules are INDEXED</span>
+<span class="sd">        - All tracked granules are INDEXED (or NO_DATA: read, nothing to index)</span>
 <span class="sd">        """</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">updating</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">False</span>
@@ -1601,14 +1662,26 @@ window.runMermaid = runMermaid;</script>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'_pending_variable_update'</span><span class="p">):</span>
             <span class="k">return</span> <span class="kc">False</span>
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">granule_info</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'INDEXED'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">granule_info</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'INDEXED'</span><span class="p">,</span> <span class="n">GRANULE_STATUS_NO_DATA</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                   <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">granule_info</span><span class="p">):</span>
                 <span class="k">return</span> <span class="kc">False</span>
         <span class="k">return</span> <span class="kc">True</span></div>
 
 
 <div class="viewcode-block" id="H3BuildLogger.set_post_build_info">
 <a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.set_post_build_info">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">set_post_build_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_post_build_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">verify_observed</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Fold partition metadata into the log: granule status, columns, dates.</span>
+
+<span class="sd">        Also records ``self._observed_granule_keys``: the ``(orbit, granule,</span>
+<span class="sd">        track)`` of every granule the partition metadata lists, or ``None``</span>
+<span class="sd">        when that listing cannot be trusted to be complete (no partitions, an</span>
+<span class="sd">        unreadable scan). With ``verify_observed=True`` the scan additionally</span>
+<span class="sd">        checks each partition's sidecars against its parquet files and leaves</span>
+<span class="sd">        ``None`` on any mismatch; :meth:`mark_no_data` requires a set.</span>
+<span class="sd">        """</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_observed_granule_keys</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">scan_trusted</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="c1"># Enumerate partition dirs via os.scandir — replaces the prior</span>
         <span class="c1"># glob.glob('*/*&lt;meta&gt;') which paid 10k+ GPFS metadata round-trips</span>
         <span class="c1"># in a single driver thread. We then dispatch per-partition JSON</span>
@@ -1622,6 +1695,8 @@ window.runMermaid = runMermaid;</script>
         <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
             <span class="k">return</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">partition_dirs</span><span class="p">:</span>
+            <span class="c1"># Listed fine and holds no partition: no granule has rows here.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_observed_granule_keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
             <span class="k">return</span>
 
         <span class="c1"># Collect indexed granules from partition metadata</span>
@@ -1689,17 +1764,29 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">unit</span><span class="o">=</span><span class="s1">'part'</span><span class="p">,</span>
                 <span class="n">meta_filename</span><span class="o">=</span><span class="n">PARTITION_META_FILENAME</span><span class="p">,</span>
                 <span class="n">active_products</span><span class="o">=</span><span class="n">active_products</span><span class="p">,</span>
+                <span class="n">verify</span><span class="o">=</span><span class="n">verify_observed</span><span class="p">,</span>
             <span class="p">):</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
+                    <span class="n">scan_trusted</span> <span class="o">=</span> <span class="kc">False</span>
                     <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">res</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'unverified'</span><span class="p">):</span>
+                    <span class="n">scan_trusted</span> <span class="o">=</span> <span class="kc">False</span>
                 <span class="n">_fold</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">pd</span> <span class="ow">in</span> <span class="n">partition_dirs</span><span class="p">:</span>
-                <span class="n">_fold</span><span class="p">(</span><span class="n">_scan_partition_meta_post_build_info</span><span class="p">(</span>
-                    <span class="n">pd</span><span class="p">,</span>
-                    <span class="n">meta_filename</span><span class="o">=</span><span class="n">PARTITION_META_FILENAME</span><span class="p">,</span>
-                    <span class="n">active_products</span><span class="o">=</span><span class="n">active_products</span><span class="p">,</span>
-                <span class="p">))</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">_res</span> <span class="o">=</span> <span class="n">_scan_partition_meta_post_build_info</span><span class="p">(</span>
+                        <span class="n">pd</span><span class="p">,</span>
+                        <span class="n">meta_filename</span><span class="o">=</span><span class="n">PARTITION_META_FILENAME</span><span class="p">,</span>
+                        <span class="n">active_products</span><span class="o">=</span><span class="n">active_products</span><span class="p">,</span>
+                        <span class="n">verify</span><span class="o">=</span><span class="n">verify_observed</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="n">scan_trusted</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">_res</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'unverified'</span><span class="p">):</span>
+                    <span class="n">scan_trusted</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="n">_fold</span><span class="p">(</span><span class="n">_res</span><span class="p">)</span>
 
         <span class="c1"># Deduplicate against any granules that may already have appeared</span>
         <span class="c1"># in a prior in-memory accumulation — the per-partition seen_keys</span>
@@ -1716,6 +1803,8 @@ window.runMermaid = runMermaid;</script>
             <span class="n">_seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
             <span class="n">_deduped</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
         <span class="n">indexed_granules</span> <span class="o">=</span> <span class="n">_deduped</span>
+        <span class="k">if</span> <span class="n">scan_trusted</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_observed_granule_keys</span> <span class="o">=</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">indexed_granules</span><span class="p">}</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">date_range</span> <span class="o">=</span> <span class="p">(</span><span class="n">date_min</span><span class="p">,</span> <span class="n">date_max</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">h3_columns</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">observed_columns</span><span class="p">)</span>
@@ -1782,6 +1871,88 @@ window.runMermaid = runMermaid;</script>
             <span class="p">]</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">granule_info</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">granule_info</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">g</span><span class="p">:</span> <span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'orbit'</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granule'</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'track'</span><span class="p">,</span> <span class="mi">0</span><span class="p">)))</span></div>
+
+
+<div class="viewcode-block" id="H3BuildLogger.stage1_full_scope">
+<a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.stage1_full_scope">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">stage1_full_scope</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""True when Stage 1 reads under the whole database scope.</span>
+
+<span class="sd">        ``get_spatial`` / ``get_temporal`` hand Stage 1 only the ADDED area (or</span>
+<span class="sd">        dates) on a spatial-only (temporal-only) expansion, so a granule empty</span>
+<span class="sd">        under that diff may hold rows in the old scope. Zero rows then proves</span>
+<span class="sd">        nothing, and :meth:`mark_no_data` refuses. Full scope: a fresh build,</span>
+<span class="sd">        a plain resume or update (the log already holds the union), and a mixed</span>
+<span class="sd">        update's Phase 1. Mirrors the branches of the two getters.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'updating'</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="n">no_prod</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'new_product_vars'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="n">new_sp</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'new_spatial'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">new_tm</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'new_temporal'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">spatial_only</span> <span class="o">=</span> <span class="n">new_sp</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">no_prod</span> <span class="ow">and</span> <span class="n">new_tm</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="n">temporal_only</span> <span class="o">=</span> <span class="n">new_tm</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">no_prod</span> <span class="ow">and</span> <span class="n">new_sp</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="p">(</span><span class="n">spatial_only</span> <span class="ow">or</span> <span class="n">temporal_only</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="H3BuildLogger.mark_no_data">
+<a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.mark_no_data">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">mark_no_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">listed_keys</span><span class="p">,</span> <span class="n">incomplete_keys</span><span class="p">,</span> <span class="n">empty_keys</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Record granules Stage 1 read in full that hold no rows as ``NO_DATA``.</span>
+
+<span class="sd">        Call after the final :meth:`set_post_build_info` of a build whose</span>
+<span class="sd">        Stage 1 drained fully; ``incomplete_keys`` is that run's set of</span>
+<span class="sd">        granules with any task not proven complete, ``empty_keys`` those whose</span>
+<span class="sd">        every beam task is proven complete AND empty. Nothing is marked</span>
+<span class="sd">        without a trustworthy observed set (``set_post_build_info`` could not</span>
+<span class="sd">        verify the partition metadata) or when Stage 1 did not run under the</span>
+<span class="sd">        full database scope (:meth:`stage1_full_scope`). In doubt a granule</span>
+<span class="sd">        stays PENDING: that costs a re-read, a wrong ``NO_DATA`` costs rows.</span>
+
+<span class="sd">        * ``PENDING`` -&gt; ``NO_DATA`` when listed, in ``empty_keys`` and absent</span>
+<span class="sd">          from every partition's metadata (the last guard matters for tasks</span>
+<span class="sd">          emptied by the skip check, whose rows are already in the database);</span>
+<span class="sd">        * ``NO_DATA`` -&gt; ``PENDING`` when listed and incomplete this run;</span>
+<span class="sd">        * ``MERGE_FAILED`` is never touched.</span>
+
+<span class="sd">        ``NO_DATA`` drops the ``products`` map and ``fill_attempts``: there</span>
+<span class="sd">        is nothing to fill. Does not save. Returns ``{'marked', 'reopened'}``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        listed_keys : iterable of tuple</span>
+<span class="sd">            Granules this run listed for Stage 1.</span>
+<span class="sd">        incomplete_keys : iterable of tuple</span>
+<span class="sd">            Granules with any task not proven complete this run.</span>
+<span class="sd">        empty_keys : iterable of tuple</span>
+<span class="sd">            Granules whose every beam task is proven complete and empty.</span>
+<span class="sd">        """</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'marked'</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">'reopened'</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+        <span class="n">observed</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'_observed_granule_keys'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">observed</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">listed_keys</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">incomplete_keys</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">empty_keys</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">out</span>
+        <span class="n">listed</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">listed_keys</span><span class="p">)</span>
+        <span class="n">incomplete</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">incomplete_keys</span><span class="p">)</span>
+        <span class="n">empty</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">empty_keys</span><span class="p">)</span>
+        <span class="n">may_mark</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage1_full_scope</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">listed</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">status</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="s1">'MERGE_FAILED'</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">incomplete</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="n">GRANULE_STATUS_NO_DATA</span><span class="p">:</span>
+                    <span class="n">g</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'PENDING'</span>
+                    <span class="n">out</span><span class="p">[</span><span class="s1">'reopened'</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">may_mark</span> <span class="ow">and</span> <span class="n">status</span> <span class="o">==</span> <span class="s1">'PENDING'</span> <span class="ow">and</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">empty</span> <span class="ow">and</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">observed</span><span class="p">:</span>
+                <span class="n">g</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span> <span class="o">=</span> <span class="n">GRANULE_STATUS_NO_DATA</span>
+                <span class="n">g</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'products'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="n">g</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'fill_attempts'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="n">out</span><span class="p">[</span><span class="s1">'marked'</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">out</span></div>
 
 
 <div class="viewcode-block" id="H3BuildLogger.to_dict">
@@ -1923,6 +2094,8 @@ window.runMermaid = runMermaid;</script>
 
         <span class="n">gaps</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">granule_info</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">==</span> <span class="n">GRANULE_STATUS_NO_DATA</span><span class="p">:</span>
+                <span class="k">continue</span>  <span class="c1"># no rows, so no product columns to fill</span>
             <span class="n">products_map</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'products'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
             <span class="n">missing</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">active_products</span><span class="p">:</span>
